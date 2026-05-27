@@ -18,15 +18,15 @@ class RemoteAttributes(AttributesBase):
 
     @property
     def supports_learn_command(self) -> bool:
-        return self._has_feature(RemoteEntityFeature.LEARN_COMMAND)
+        return self.has_feature(RemoteEntityFeature.LEARN_COMMAND)
 
     @property
     def supports_delete_command(self) -> bool:
-        return self._has_feature(RemoteEntityFeature.DELETE_COMMAND)
+        return self.has_feature(RemoteEntityFeature.DELETE_COMMAND)
 
     @property
     def supports_activity(self) -> bool:
-        return self._has_feature(RemoteEntityFeature.ACTIVITY)
+        return self.has_feature(RemoteEntityFeature.ACTIVITY)
 
 
 class RemoteState(BoolBaseState):

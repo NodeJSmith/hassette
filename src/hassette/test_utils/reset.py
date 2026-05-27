@@ -34,9 +34,6 @@ async def reset_state_proxy(proxy: "StateProxy") -> None:
     Args:
         proxy: The StateProxy instance to reset
 
-    Example:
-        >>> async def cleanup_state_proxy(proxy: StateProxy):
-        ...     await reset_state_proxy(proxy)
     """
     await proxy.shutdown()
     await proxy.initialize()

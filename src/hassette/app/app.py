@@ -1,7 +1,6 @@
 import logging
 import typing
-from logging import getLogger
-from typing import Any, ClassVar, Generic, cast, final
+from typing import Any, ClassVar, Generic, TypeVar, cast, final
 
 from whenever import ZonedDateTime
 
@@ -22,9 +21,9 @@ from .app_config import AppConfig
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
-LOGGER = getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
-AppT = typing.TypeVar("AppT", bound="App")
+AppT = TypeVar("AppT", bound="App")
 
 
 def only_app(app_cls: type[AppT]) -> type[AppT]:

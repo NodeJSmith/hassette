@@ -32,23 +32,23 @@ class UpdateAttributes(AttributesBase):
 
     @property
     def supports_install(self) -> bool:
-        return self._has_feature(UpdateEntityFeature.INSTALL)
+        return self.has_feature(UpdateEntityFeature.INSTALL)
 
     @property
     def supports_specific_version(self) -> bool:
-        return self._has_feature(UpdateEntityFeature.SPECIFIC_VERSION)
+        return self.has_feature(UpdateEntityFeature.SPECIFIC_VERSION)
 
     @property
     def supports_progress(self) -> bool:
-        return self._has_feature(UpdateEntityFeature.PROGRESS)
+        return self.has_feature(UpdateEntityFeature.PROGRESS)
 
     @property
     def supports_backup(self) -> bool:
-        return self._has_feature(UpdateEntityFeature.BACKUP)
+        return self.has_feature(UpdateEntityFeature.BACKUP)
 
     @property
     def supports_release_notes(self) -> bool:
-        return self._has_feature(UpdateEntityFeature.RELEASE_NOTES)
+        return self.has_feature(UpdateEntityFeature.RELEASE_NOTES)
 
 
 class UpdateState(StringBaseState):

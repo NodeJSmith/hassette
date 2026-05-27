@@ -39,7 +39,7 @@ class SimulationMixin:
     _harness: "HassetteHarness | None"
     _app: "App | None"
 
-    def _require_harness(self) -> "HassetteHarness":
+    def require_harness(self) -> "HassetteHarness":
         """Return the active HassetteHarness or raise RuntimeError.
 
         Centralises the ``if harness is None: raise RuntimeError(...)`` guard
@@ -91,7 +91,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         # Merge seeded attributes from StateProxy when not explicitly provided.
         if old_attrs is None or new_attrs is None:
@@ -147,7 +147,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         # Read both state value and existing attributes from the proxy.
         # Lock-free read is safe: dict.get() is atomic in CPython, consistent
@@ -192,7 +192,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
         await harness.hassette.send_event(event.topic, event)
@@ -213,7 +213,7 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_component_loaded_event(component)
         await harness.hassette.send_event(event.topic, event)
@@ -236,7 +236,7 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_service_registered_event(domain, service)
         await harness.hassette.send_event(event.topic, event)
@@ -275,7 +275,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteServiceEvent.from_data(
             resource_name=resource_name,
@@ -377,7 +377,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await harness.hassette.send_event(event.topic, event)
@@ -401,7 +401,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await harness.hassette.send_event(event.topic, event)
@@ -436,7 +436,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
         app = self._app
         if app is None:
             raise RuntimeError("AppTestHarness is not active — no app available")
@@ -538,7 +538,7 @@ class SimulationMixin:
             through App-level registration via ``self.bus.on_state_change`` inside
             an App.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         bus_service = harness.bus_service
 

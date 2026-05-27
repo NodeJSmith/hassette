@@ -57,11 +57,7 @@ class _TestClock:
         return instant.to_system_tz()
 
     def current(self) -> ZonedDateTime:
-        """Return the current frozen time.
-
-        Returns:
-            The current ZonedDateTime.
-        """
+        """Return the current frozen time."""
         return self._current
 
     def set(self, instant: Instant | ZonedDateTime) -> None:
@@ -86,7 +82,7 @@ class _TestClock:
 class TimeControlMixin:
     """Mixin providing time control helpers for ``AppTestHarness``.
 
-    Depends on the host providing ``_harness``, ``_exit_stack``, and ``_require_harness``
+    Depends on the host providing ``_harness``, ``_exit_stack``, and ``require_harness``
     — declared as class-level annotations below, satisfied by ``AppTestHarness``.
     """
 
@@ -95,7 +91,7 @@ class TimeControlMixin:
     _exit_stack: AsyncExitStack | None
 
     # Provided via MRO by SimulationMixin when composed in AppTestHarness.
-    def _require_harness(self) -> "HassetteHarness": ...
+    def require_harness(self) -> "HassetteHarness": ...
 
     # Single patch target for freeze_time. All production code accesses now() via
     # the module attribute (date_utils.now()), so patching the canonical source
@@ -228,5 +224,5 @@ class TimeControlMixin:
         Raises:
             RuntimeError: If the harness is not active.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
         return await harness.scheduler_service.trigger_due_jobs()

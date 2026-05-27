@@ -29,19 +29,19 @@ class WaterHeaterAttributes(AttributesBase):
 
     @property
     def supports_target_temperature(self) -> bool:
-        return self._has_feature(WaterHeaterEntityFeature.TARGET_TEMPERATURE)
+        return self.has_feature(WaterHeaterEntityFeature.TARGET_TEMPERATURE)
 
     @property
     def supports_operation_mode(self) -> bool:
-        return self._has_feature(WaterHeaterEntityFeature.OPERATION_MODE)
+        return self.has_feature(WaterHeaterEntityFeature.OPERATION_MODE)
 
     @property
     def supports_away_mode(self) -> bool:
-        return self._has_feature(WaterHeaterEntityFeature.AWAY_MODE)
+        return self.has_feature(WaterHeaterEntityFeature.AWAY_MODE)
 
     @property
     def supports_on_off(self) -> bool:
-        return self._has_feature(WaterHeaterEntityFeature.ON_OFF)
+        return self.has_feature(WaterHeaterEntityFeature.ON_OFF)
 
 
 class WaterHeaterState(StringBaseState):

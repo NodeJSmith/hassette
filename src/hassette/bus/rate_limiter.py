@@ -53,7 +53,7 @@ class RateLimiter:
         self.task_bucket = task_bucket
         self.debounce = debounce
         self.throttle = throttle
-        self._handler_name = handler_name
+        self.handler_name = handler_name
 
         # Rate limiting state
         self._debounce_task: asyncio.Task | None = None
@@ -107,15 +107,16 @@ class RateLimiter:
         # is critical: the old task holds the old handler closure (with the old event),
         # and the new task will hold the new handler closure (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
-            LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self._handler_name, self.debounce)
+            LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, self.debounce)
             self._debounce_task.cancel()
 
-        async def delayed_call():
-            if self.debounce is None:
-                raise ValueError("Debounce value is not set")
+        # Local capture for the closure + type narrowing (call() already guards for None)
+        debounce = self.debounce
+        assert debounce is not None
 
+        async def delayed_call():
             try:
-                await asyncio.sleep(self.debounce)
+                await asyncio.sleep(debounce)
             except asyncio.CancelledError:  # noqa: ASYNC103 — debounce reset: a new event superseded this one
                 return  # noqa: ASYNC104
             # Guard: if cancel() was called while we were sleeping, don't fire the handler.
@@ -136,12 +137,10 @@ class RateLimiter:
         ``time.monotonic()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
         single-threaded event loop (no await point between them).
         """
-        if self.throttle is None:
-            raise ValueError("Throttle value is not set")
-
+        assert self.throttle is not None
         now = time.monotonic()
         if now - self._throttle_last_time < self.throttle:
-            LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self._handler_name, self.throttle)
+            LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
             return
         self._throttle_last_time = now
         await handler()

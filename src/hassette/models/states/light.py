@@ -42,15 +42,15 @@ class LightAttributes(AttributesBase):
 
     @property
     def supports_effect(self) -> bool:
-        return self._has_feature(LightEntityFeature.EFFECT)
+        return self.has_feature(LightEntityFeature.EFFECT)
 
     @property
     def supports_flash(self) -> bool:
-        return self._has_feature(LightEntityFeature.FLASH)
+        return self.has_feature(LightEntityFeature.FLASH)
 
     @property
     def supports_transition(self) -> bool:
-        return self._has_feature(LightEntityFeature.TRANSITION)
+        return self.has_feature(LightEntityFeature.TRANSITION)
 
 
 class LightState(BoolBaseState):

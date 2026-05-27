@@ -10,6 +10,15 @@ if TYPE_CHECKING:
     from hassette import App
 
 
+def _extract_exception_fields(
+    exception: Exception | BaseException | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Extract (message, type_name, traceback) from an exception, or (None, None, None)."""
+    if exception is None:
+        return None, None, None
+    return str(exception), type(exception).__name__, get_traceback_string(exception)
+
+
 @dataclass(slots=True, frozen=True)
 class HassetteEmptyPayload:
     """Empty payload for events that do not require additional data."""
@@ -70,10 +79,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         ready: bool = False,
         ready_phase: str | None = None,
     ) -> "HassetteServiceEvent":
-        exc_str = str(exception) if exception else None
-        exc_type = type(exception).__name__ if exception else None
-        exc_tb = get_traceback_string(exception) if exception else None
-
+        exc_str, exc_type, exc_tb = _extract_exception_fields(exception)
         payload = ServiceStatusPayload(
             resource_name=resource_name,
             role=role,
@@ -141,10 +147,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         previous_status: ResourceStatus | None = None,
         exception: Exception | BaseException | None = None,
     ) -> "HassetteAppStateEvent":
-        exc_str = str(exception) if exception else None
-        exc_type = type(exception).__name__ if exception else None
-        exc_tb = get_traceback_string(exception) if exception else None
-
+        exc_str, exc_type, exc_tb = _extract_exception_fields(exception)
         payload = AppStateChangePayload(
             app_key=app.app_manifest.app_key,
             index=app.index,

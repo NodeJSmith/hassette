@@ -53,6 +53,7 @@ from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
 
 LOGGER = logging.getLogger(__name__)
+EPOCH_TIMESTAMP = "1970-01-01T00:00:00+00:00"
 
 # Per-class asyncio.Lock used as a narrow critical section around the
 # class_manifest_state read-modify-write and config validation. Held only
@@ -485,11 +486,11 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 entity_id,
                 state,
                 dict(attributes),
-                "1970-01-01T00:00:00+00:00",
-                "1970-01-01T00:00:00+00:00",
+                EPOCH_TIMESTAMP,
+                EPOCH_TIMESTAMP,
             ),
         )
-        await self._require_harness().seed_state(entity_id, state_dict)
+        await self.require_harness().seed_state(entity_id, state_dict)
 
     def seed_helper(self, record: BaseModel) -> None:
         """Seed a stored helper config for tests that read helper CRUD.

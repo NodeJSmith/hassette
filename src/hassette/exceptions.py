@@ -1,9 +1,8 @@
-import typing
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from yarl import URL
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette.models.states import BaseState
 
 MAX_ISSUES_IN_SUMMARY = 5

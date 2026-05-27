@@ -34,11 +34,11 @@ class CameraAttributes(AttributesBase):
 
     @property
     def supports_on_off(self) -> bool:
-        return self._has_feature(CameraEntityFeature.ON_OFF)
+        return self.has_feature(CameraEntityFeature.ON_OFF)
 
     @property
     def supports_stream(self) -> bool:
-        return self._has_feature(CameraEntityFeature.STREAM)
+        return self.has_feature(CameraEntityFeature.STREAM)
 
 
 class CameraState(StringBaseState):

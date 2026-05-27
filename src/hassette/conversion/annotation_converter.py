@@ -35,6 +35,7 @@ class AnnotationConverter:
     """Converts runtime values to match rich annotations (including nested containers)."""
 
     def convert(self, value: Any, annotation: Any) -> Any:
+        # TODO(#892): break circular dependency — conversion/__init__ imports this module
         from hassette.conversion import TYPE_MATCHER, TYPE_REGISTRY
         from hassette.models.states import BaseState
 
@@ -102,7 +103,7 @@ def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) 
     elem_tp = args[0] if args else Any
 
     if origin not in (list, set, frozenset):
-        raise UnableToConvertValueError(f"Unsupported iterable origin{origin!r}")
+        raise UnableToConvertValueError(f"Unsupported iterable origin {origin!r}")
 
     if not isinstance(value, origin):
         try:

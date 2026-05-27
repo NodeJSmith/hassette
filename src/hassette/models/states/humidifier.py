@@ -35,7 +35,7 @@ class HumidifierAttributes(AttributesBase):
 
     @property
     def supports_modes(self) -> bool:
-        return self._has_feature(HumidifierEntityFeature.MODES)
+        return self.has_feature(HumidifierEntityFeature.MODES)
 
 
 class HumidifierState(BoolBaseState):

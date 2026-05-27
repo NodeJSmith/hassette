@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
@@ -29,8 +29,6 @@ def get_dev_mode() -> bool:
     """
     with suppress(HassetteNotInitializedError):
         curr_config = context.get_hassette_config()
-        # not sure if we can even change this during runtime, but for now we are not
-        # going to allow it
         return curr_config.dev_mode
 
     logger = logging.getLogger(__name__)
@@ -55,42 +53,29 @@ def get_dev_mode() -> bool:
     return enabled
 
 
-def default_config_dir() -> Path:
-    """Return the first found config directory based on environment variables or defaults.
-
-    Will return the first of:
-        - HASSETTE__CONFIG_DIR environment variable
-        - HASSETTE_CONFIG_DIR environment variable
-        - /config (for docker)
-        - platformdirs user config path
-
-    """
-
-    if env := os.getenv("HASSETTE__CONFIG_DIR", os.getenv("HASSETTE_CONFIG_DIR")):
+def _resolve_default_dir(
+    env_primary: str,
+    env_secondary: str,
+    docker_path: str,
+    platformdirs_fn: "Callable[..., Path]",
+) -> Path:
+    """Resolve a directory from env vars, Docker convention, or platformdirs."""
+    if env := os.getenv(env_primary, os.getenv(env_secondary)):
         return Path(env)
-    docker = Path("/config")
+    docker = Path(docker_path)
     if docker.exists():
         return docker
-    return platformdirs.user_config_path("hassette", version=f"v{VERSION.major}")
+    return platformdirs_fn("hassette", version=f"v{VERSION.major}")
+
+
+def default_config_dir() -> Path:
+    """Return the config directory: env var > /config (Docker) > platformdirs."""
+    return _resolve_default_dir("HASSETTE__CONFIG_DIR", "HASSETTE_CONFIG_DIR", "/config", platformdirs.user_config_path)
 
 
 def default_data_dir() -> Path:
-    """Return the first found data directory based on environment variables or defaults.
-
-    Will return the first of:
-        - HASSETTE__DATA_DIR environment variable
-        - HASSETTE_DATA_DIR environment variable
-        - /data (for docker)
-        - platformdirs user data path
-
-    """
-
-    if env := os.getenv("HASSETTE__DATA_DIR", os.getenv("HASSETTE_DATA_DIR")):
-        return Path(env)
-    docker = Path("/data")
-    if docker.exists():
-        return docker
-    return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
+    """Return the data directory: env var > /data (Docker) > platformdirs."""
+    return _resolve_default_dir("HASSETTE__DATA_DIR", "HASSETTE_DATA_DIR", "/data", platformdirs.user_data_path)
 
 
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
