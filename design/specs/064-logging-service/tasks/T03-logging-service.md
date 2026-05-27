@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Create LoggingService Resource"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#6", "AC#1", "AC#2", "AC#3", "AC#5", "AC#10"]
 ---

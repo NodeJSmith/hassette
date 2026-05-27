@@ -206,34 +206,30 @@ class HassetteQueueListener(logging.handlers.QueueListener):
 class LogPersistenceHandler(logging.Handler):
     """Batches log records for async DB persistence.
 
-    Starts inert (no DB). ``set_database()`` is called later to wire DB access.
-    Until then, records are counted as dropped.
+    Receives ``db_service`` and ``loop`` at construction — ready to persist immediately.
     """
 
-    _db_service: "DatabaseService | None"
-    _loop: asyncio.AbstractEventLoop | None
+    _db_service: "DatabaseService"
+    _loop: asyncio.AbstractEventLoop
     _batch: list[dict]
     _dropped: int
     _persistence_level: int
 
     BATCH_SIZE: int = 50
 
-    def __init__(self, persistence_level: int = logging.INFO) -> None:
+    def __init__(
+        self,
+        db_service: "DatabaseService",
+        loop: asyncio.AbstractEventLoop,
+        persistence_level: int = logging.INFO,
+    ) -> None:
         super().__init__()
-        self._db_service = None
-        self._loop = None
+        self._db_service = db_service
+        self._loop = loop
         self._batch = []
         self._dropped = 0
         self._dropped_lock = threading.Lock()
         self._persistence_level = persistence_level
-
-    def set_database(
-        self,
-        db_service: "DatabaseService",
-        loop: asyncio.AbstractEventLoop,
-    ) -> None:
-        self._db_service = db_service
-        self._loop = loop
 
     @property
     def dropped_count(self) -> int:
@@ -256,10 +252,6 @@ class LogPersistenceHandler(logging.Handler):
         self._batch = []
         db_service = self._db_service
         loop = self._loop
-        if db_service is None or loop is None:
-            with self._dropped_lock:
-                self._dropped += len(batch)
-            return
         handler = self
         batch_len = len(batch)
 
@@ -479,12 +471,18 @@ def enable_logging(
     """
     global _log_capture_handler, _log_persistence_handler, _queue_listener
 
+    # log_persistence_level is ignored — persistence is handled by LoggingService.
+    # Kept in the signature for backward compatibility only.
+    del log_persistence_level
+
     # Phase 1: synchronous console logging (also calls shutdown_logging() internally)
     stream_handler = enable_basic_logging(log_level, log_format=log_format, stream=stream)
 
-    # Phase 2: full async pipeline (QueueHandler + QueueListener + capture + persistence)
+    # Phase 2: full async pipeline (QueueHandler + QueueListener + capture only).
+    # enable_logging() is deprecated — LoggingService provides persistence via constructor
+    # injection. This legacy path omits persistence (no db_service/loop available here).
     _log_capture_handler = LogCaptureHandler(buffer_size=log_buffer_size)
-    _log_persistence_handler = LogPersistenceHandler(persistence_level=log_persistence_level)
+    _log_persistence_handler = None
 
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
     queue_handler = logging.handlers.QueueHandler(q)
@@ -500,7 +498,7 @@ def enable_logging(
     logger.addHandler(queue_handler)
     logger.removeHandler(stream_handler)
 
-    _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler, _log_persistence_handler)
+    _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler)
     _queue_listener.start()
 
 

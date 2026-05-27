@@ -24,7 +24,6 @@ from hassette.logging_ import (
     enable_basic_logging,
     enable_logging,
     get_log_capture_handler,
-    get_log_persistence_handler,
     shutdown_logging,
 )
 
@@ -703,10 +702,10 @@ class TestQueueHandlerPipeline:
 
         shutdown_logging()
 
-    def test_records_flow_through_all_three_handlers(self) -> None:
-        """Records reach stream, capture, and persistence handlers."""
+    def test_records_flow_through_stream_and_capture_handlers(self) -> None:
+        """Records reach stream and capture handlers via enable_logging() (persistence omitted — deprecated path)."""
         stream = StringIO()
-        enable_logging("INFO", log_format="json", stream=stream, log_persistence_level=logging.INFO)
+        enable_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_all_handlers")
         logger.info("pipeline test")
         shutdown_logging()
@@ -717,11 +716,6 @@ class TestQueueHandlerPipeline:
         assert capture is not None
         entries = capture.get_buffer_snapshot()
         assert any(e.message == "pipeline test" for e in entries)
-
-        persistence = get_log_persistence_handler()
-        assert persistence is not None
-        # No DB wired — records should be dropped
-        assert persistence.dropped_count >= 1
 
     def test_shutdown_flushes_all_pending_records(self) -> None:
         """After shutdown_logging(), all enqueued records appear in handler output."""
@@ -737,72 +731,121 @@ class TestQueueHandlerPipeline:
             assert f"record_{i}" in output, f"record_{i} missing from output after shutdown"
 
 
+def _make_dropping_db_service() -> MagicMock:
+    """Return a db_service mock whose enqueue() always returns False (simulates full queue)."""
+    db_service = MagicMock()
+    db_service._insert_log_records = MagicMock(return_value=MagicMock())
+
+    def drop_enqueue(coro):
+        coro.close()
+        return False
+
+    db_service.enqueue = MagicMock(side_effect=drop_enqueue)
+    return db_service
+
+
 class TestLogPersistenceHandlerBatching:
     """LogPersistenceHandler batches records and flushes at threshold."""
 
     def test_batch_flushes_at_50_records(self) -> None:
         """Batch is flushed when it reaches BATCH_SIZE (50)."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
-        for i in range(50):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(50):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        # No DB wired — all 50 should be dropped after flush
-        assert handler.dropped_count == 50
-        assert len(handler._batch) == 0
+            # enqueue() returns False → all 50 dropped after flush
+            loop.run_until_complete(asyncio.sleep(0))
+            assert handler.dropped_count == 50
+            assert len(handler._batch) == 0
+        finally:
+            loop.close()
 
     def test_batch_does_not_flush_below_threshold(self) -> None:
         """Batch accumulates below BATCH_SIZE without flushing."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
-        for i in range(49):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+        loop = asyncio.new_event_loop()
+        db_service = MagicMock()
+        db_service.enqueue = MagicMock(return_value=True)
+        db_service._insert_log_records = MagicMock(return_value=MagicMock())
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(49):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        assert handler.dropped_count == 0
-        assert len(handler._batch) == 49
+            assert handler.dropped_count == 0
+            assert len(handler._batch) == 49
+        finally:
+            loop.close()
 
     def test_flush_if_pending_drains_partial_batch(self) -> None:
         """flush_if_pending() drains a partial batch."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
-        for i in range(10):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(10):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        handler.flush_if_pending()
-        assert handler.dropped_count == 10
-        assert len(handler._batch) == 0
+            handler.flush_if_pending()
+            loop.run_until_complete(asyncio.sleep(0))
+            assert handler.dropped_count == 10
+            assert len(handler._batch) == 0
+        finally:
+            loop.close()
 
-    def test_drops_records_gracefully_when_no_db(self) -> None:
-        """Records are counted as dropped when no DB is wired."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
-        assert handler.dropped_count == 0
+    def test_drops_records_on_queue_full(self) -> None:
+        """Records are counted as dropped when enqueue() returns False (queue full)."""
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            assert handler.dropped_count == 0
 
-        for i in range(100):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+            for i in range(100):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        handler.flush_if_pending()
-        assert handler.dropped_count == 100
+            handler.flush_if_pending()
+            loop.run_until_complete(asyncio.sleep(0))
+            assert handler.dropped_count == 100
+        finally:
+            loop.close()
 
     def test_skips_records_below_persistence_level(self) -> None:
         """Records below persistence_level are not batched."""
-        handler = LogPersistenceHandler(persistence_level=logging.WARNING)
-        record = logging.LogRecord("test", logging.INFO, "", 0, "debug msg", (), None)
-        handler.emit(record)
+        loop = asyncio.new_event_loop()
+        db_service = MagicMock()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.WARNING)
+        try:
+            record = logging.LogRecord("test", logging.INFO, "", 0, "debug msg", (), None)
+            handler.emit(record)
 
-        assert len(handler._batch) == 0
-        assert handler.dropped_count == 0
+            assert len(handler._batch) == 0
+            assert handler.dropped_count == 0
+        finally:
+            loop.close()
 
     def test_close_flushes_pending(self) -> None:
         """close() calls flush_if_pending() before closing."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
-        for i in range(5):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(5):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        handler.close()
-        assert handler.dropped_count == 5
-        assert len(handler._batch) == 0
+            handler.close()
+            loop.run_until_complete(asyncio.sleep(0))
+            assert handler.dropped_count == 5
+            assert len(handler._batch) == 0
+        finally:
+            loop.close()
 
 
 class TestLogPersistenceDropCountWithDB:
@@ -820,37 +863,39 @@ class TestLogPersistenceDropCountWithDB:
 
     def test_dropped_count_increments_on_enqueue_failure(self) -> None:
         """When enqueue() returns False (queue full), dropped_count increases."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
+        db_service._insert_log_records = MagicMock(return_value=MagicMock())
         db_service.enqueue = MagicMock(side_effect=self.enqueue_returning_false)
-        handler.set_database(db_service, loop)
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(50):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        for i in range(50):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+            loop.run_until_complete(asyncio.sleep(0))
 
-        loop.run_until_complete(asyncio.sleep(0))
-
-        assert handler.dropped_count == 50
-        loop.close()
+            assert handler.dropped_count == 50
+        finally:
+            loop.close()
 
     def test_dropped_count_increments_on_db_shutdown_runtime_error(self) -> None:
         """When enqueue() raises RuntimeError (DB shut down), dropped_count increases."""
-        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
+        db_service._insert_log_records = MagicMock(return_value=MagicMock())
         db_service.enqueue = MagicMock(side_effect=self.enqueue_raising_runtime_error)
-        handler.set_database(db_service, loop)
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        try:
+            for i in range(50):
+                record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+                handler.emit(record)
 
-        for i in range(50):
-            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
-            handler.emit(record)
+            loop.run_until_complete(asyncio.sleep(0))
 
-        loop.run_until_complete(asyncio.sleep(0))
-
-        assert handler.dropped_count == 50
-        loop.close()
+            assert handler.dropped_count == 50
+        finally:
+            loop.close()
 
 
 class TestDequeueTimeoutFlush:
@@ -859,7 +904,9 @@ class TestDequeueTimeoutFlush:
     def test_dequeue_timeout_triggers_flush_if_pending(self) -> None:
         """After 200ms idle, the listener thread calls flush_if_pending on handlers."""
         q: queue.Queue[logging.LogRecord] = queue.Queue()
-        persistence = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        persistence = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
 
         listener = HassetteQueueListener(q, persistence)
         listener.start()
@@ -872,8 +919,10 @@ class TestDequeueTimeoutFlush:
         time.sleep(0.5)
 
         listener.stop()
+        loop.run_until_complete(asyncio.sleep(0))
+        loop.close()
 
-        # The record was flushed by the timeout, then dropped (no DB)
+        # The record was flushed by the timeout, then dropped (enqueue returns False)
         assert persistence.dropped_count == 1
         assert len(persistence._batch) == 0
 

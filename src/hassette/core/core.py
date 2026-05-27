@@ -14,7 +14,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_basic_logging, get_log_persistence_handler, shutdown_logging
+from hassette.logging_ import enable_basic_logging, shutdown_logging
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -31,6 +31,7 @@ from .command_executor import CommandExecutor
 from .database_service import DatabaseService
 from .event_stream_service import EventStreamService
 from .file_watcher import FileWatcherService
+from .logging_service import LoggingService
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
@@ -83,6 +84,7 @@ class Hassette(Resource):
         # Service slot declarations — populated by wire_services()
         self._event_stream_service: EventStreamService | None = None
         self._database_service: DatabaseService | None = None
+        self._logging_service: LoggingService | None = None
         self._command_executor: CommandExecutor | None = None
         self._bus_service: BusService | None = None
         self._scheduler_service: SchedulerService | None = None
@@ -156,6 +158,7 @@ class Hassette(Resource):
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
         self._database_service = self.add_child(DatabaseService)
+        self._logging_service = self.add_child(LoggingService, stream_handler=self._basic_stream_handler)
         self._command_executor = self.add_child(CommandExecutor)
         self._bus_service = self.add_child(
             BusService, stream=self._event_stream_service.receive_stream.clone(), executor=self._command_executor
@@ -277,16 +280,15 @@ class Hassette(Resource):
     def get_log_records_dropped(self) -> int:
         """Return the number of log records dropped by the persistence handler.
 
-        Records are dropped when the persistence handler has not yet been wired
-        to a database connection (early startup) or when the DB write queue is full.
+        Records are dropped when the persistence handler has not yet been initialized
+        or when the DB write queue is full.
 
         Returns:
             Cumulative count of dropped log records since process start.
         """
-        handler = get_log_persistence_handler()
-        if handler is None:
+        if self._logging_service is None:
             return 0
-        return handler.dropped_count
+        return self._logging_service.dropped_count
 
     @property
     def database_service(self) -> DatabaseService:
@@ -294,6 +296,13 @@ class Hassette(Resource):
         if self._database_service is None:
             raise RuntimeError("wire_services() has not been called")
         return self._database_service
+
+    @property
+    def logging_service(self) -> LoggingService:
+        """LoggingService instance for the async logging pipeline."""
+        if self._logging_service is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._logging_service
 
     @property
     def runtime_query_service(self) -> RuntimeQueryService:

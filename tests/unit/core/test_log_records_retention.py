@@ -288,23 +288,29 @@ class TestSizeFailsafePrePass:
 
 
 class TestRuntimeQueryServiceWiring:
-    async def test_set_database_wires_db_service_on_persistence_handler(self) -> None:
-        """set_database() stores the db_service reference on LogPersistenceHandler."""
-        persistence_handler = LogPersistenceHandler(persistence_level=logging.INFO)
+    async def test_constructor_injection_stores_db_service_and_loop(self) -> None:
+        """LogPersistenceHandler stores db_service and loop at construction."""
         mock_db_service = MagicMock()
-        persistence_handler.set_database(mock_db_service, asyncio.get_running_loop())
-        assert persistence_handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
+        loop = asyncio.get_running_loop()
+        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
+        assert handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
+        assert handler._loop is loop  # pyright: ignore[reportPrivateUsage]
 
     async def test_persistence_handler_dropped_count_starts_at_zero(self) -> None:
         """LogPersistenceHandler.dropped_count starts at 0 after construction."""
-
-        handler = LogPersistenceHandler(persistence_level=20)
+        mock_db_service = MagicMock()
+        loop = asyncio.get_running_loop()
+        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=20)
         assert handler.dropped_count == 0
 
-    async def test_persistence_handler_drops_records_when_no_db(self) -> None:
-        """Records are dropped (counted) before set_database is called."""
+    async def test_persistence_handler_enqueues_records_on_flush(self) -> None:
+        """Records are enqueued to db_service when flushed."""
+        mock_db_service = MagicMock()
+        mock_db_service.enqueue = MagicMock(return_value=True)
+        mock_db_service._insert_log_records = MagicMock(return_value=MagicMock())
+        loop = asyncio.get_running_loop()
+        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
 
-        handler = LogPersistenceHandler(persistence_level=logging.INFO)
         record = logging.LogRecord(
             name="test",
             level=logging.INFO,
@@ -325,12 +331,15 @@ class TestRuntimeQueryServiceWiring:
         handler.emit(record)
         handler.flush_if_pending()
 
-        assert handler.dropped_count == 1
+        # _flush schedules via call_soon_threadsafe; yield to the loop to process it
+        await asyncio.sleep(0)
+        assert mock_db_service.enqueue.called
 
     async def test_persistence_handler_filters_below_persistence_level(self) -> None:
         """Records below persistence_level are not accumulated."""
-
-        handler = LogPersistenceHandler(persistence_level=logging.INFO)
+        mock_db_service = MagicMock()
+        loop = asyncio.get_running_loop()
+        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
         debug_record = logging.LogRecord(
             name="test",
             level=logging.DEBUG,
@@ -343,6 +352,6 @@ class TestRuntimeQueryServiceWiring:
         handler.emit(debug_record)
         handler.flush_if_pending()
 
-        # No drop because it was filtered before accumulation
+        # No enqueue because it was filtered before accumulation
         assert handler.dropped_count == 0
         assert handler._batch == []  # pyright: ignore[reportPrivateUsage]

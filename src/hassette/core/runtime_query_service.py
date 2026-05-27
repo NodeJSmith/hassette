@@ -143,7 +143,7 @@ class RuntimeQueryService(Resource):
         if persistence_handler is not None:
             try:
                 loop = asyncio.get_running_loop()
-                persistence_handler.set_database(
+                persistence_handler.set_database(  # pyright: ignore[reportAttributeAccessIssue]
                     self.hassette.database_service,
                     loop,
                 )
