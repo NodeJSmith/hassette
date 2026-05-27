@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0](https://github.com/NodeJSmith/hassette/compare/v0.33.0...v0.34.0) (2026-05-27)
+
+### Breaking Changes
+
+- `state._has_feature(SomeFeature.FLAG)` renamed to `state.has_feature()` — remove the leading underscore. The `supports_*` convenience properties (e.g., `state.supports_brightness`) are unchanged. ([#891](https://github.com/NodeJSmith/hassette/issues/891))
+- `Api.get_states_iterator()` and `ApiSyncFacade.get_states_iterator()` removed — the generator-based iterator does not work correctly in sync code. Use `get_states()` instead. ([#891](https://github.com/NodeJSmith/hassette/issues/891))
+
+### Logging
+
+- Logging pipeline managed as a `LoggingService` Resource with lifecycle ordering — the async pipeline starts during service initialization and shuts down before the database, ensuring pending log records flush cleanly. ([#887](https://github.com/NodeJSmith/hassette/issues/887))
+- Timer-based flush bounds how long log records sit in the write queue under low load (default 5s), instead of waiting for the next batch to fill. ([#890](https://github.com/NodeJSmith/hassette/issues/890))
+- Failed write batches retry with linear backoff (1s, 2s, 3s) instead of immediately, giving the database time to recover. ([#890](https://github.com/NodeJSmith/hassette/issues/890))
+
+### CLI
+
+- Improved `hassette status`/`hassette query` output formatting — nested sub-models render as labeled sections instead of raw JSON, `None` shows as `—`, booleans show lowercase, and panel titles are humanized. ([#880](https://github.com/NodeJSmith/hassette/issues/880))
+- Job and listener tables show App column, actual schedule text, method-only handler names, and entity targets. ([#880](https://github.com/NodeJSmith/hassette/issues/880))
+- `fmt_relative_time` shows `in 3h` for future timestamps instead of `soon`. ([#880](https://github.com/NodeJSmith/hassette/issues/880))
+
+### Bug Fixes
+
+- Fix 3 bugs in example apps where `BinarySensorState.value` and `LightState.value` (both `bool`) were compared against string `"on"`/`"off"`. ([#872](https://github.com/NodeJSmith/hassette/issues/872))
+
 ## [0.33.0](https://github.com/NodeJSmith/hassette/compare/v0.32.0...v0.33.0) (2026-05-26)
 
 ### Breaking Changes
