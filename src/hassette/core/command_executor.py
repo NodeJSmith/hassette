@@ -41,6 +41,7 @@ _CAPACITY_WARN_RATE_LIMIT_SECS = 30.0
 _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
 _BATCH_DRAIN_CAP = 100
+_RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 
 @dataclass
@@ -840,7 +841,7 @@ class CommandExecutor(Service):
                             invocations=list(invocations),
                             job_executions=list(job_executions),
                             retry_count=retry_count + 1,
-                            not_before=time.monotonic() + (retry_count + 1),
+                            not_before=time.monotonic() + _RETRY_BACKOFF_BASE_SECONDS * (retry_count + 1),
                         )
                     )
                 except asyncio.QueueFull:

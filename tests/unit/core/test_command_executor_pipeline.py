@@ -127,12 +127,12 @@ async def test_retryable_batch_expanded_in_drain():
     executor._write_queue.put_nowait(batch)
 
     captured_invocations = []
-    captured_jobs = []
+    captured_job_executions = []
     captured_retry_counts = []
 
     async def fake_persist_batch(invocations, job_executions, *, retry_count=0):
         captured_invocations.extend(invocations)
-        captured_jobs.extend(job_executions)
+        captured_job_executions.extend(job_executions)
         captured_retry_counts.append(retry_count)
 
     executor._persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
@@ -140,7 +140,7 @@ async def test_retryable_batch_expanded_in_drain():
     await executor._drain_and_persist()
 
     assert inv in captured_invocations
-    assert job in captured_jobs
+    assert job in captured_job_executions
     # RetryableBatch should preserve its retry_count (was 1)
     assert 1 in captured_retry_counts
 
@@ -557,7 +557,7 @@ async def test_retryable_batch_future_not_before_is_requeued():
         invocations=[inv],
         job_executions=[],
         retry_count=1,
-        not_before=time.monotonic() + 9999.0,  # far in the future
+        not_before=time.monotonic() + 9999.0,
     )
     executor._write_queue.put_nowait(batch)
 
@@ -716,11 +716,11 @@ async def test_serve_timer_drains_items_added_during_drain():
     inv2 = make_invocation(listener_id=2, session_id=1)
     executor._write_queue.put_nowait(inv1)
 
-    drain_sequence: list[str] = []
+    drain_calls: list[str] = []
 
     async def fake_drain(first_item=None):
-        drain_sequence.append("timer" if first_item is None else "item")
-        if len(drain_sequence) == 1:
+        drain_calls.append("timer" if first_item is None else "item")
+        if len(drain_calls) == 1:
             # Simulate a deferred retry being re-enqueued during the first drain
             executor._write_queue.put_nowait(inv2)
 
@@ -735,7 +735,7 @@ async def test_serve_timer_drains_items_added_during_drain():
     async def stop_after_two_drains():
         for _ in range(200):
             await asyncio.sleep(0.01)
-            if len(drain_sequence) >= 2:
+            if len(drain_calls) >= 2:
                 break
         shutdown_event.set()
 
@@ -746,8 +746,8 @@ async def test_serve_timer_drains_items_added_during_drain():
         await stopper
 
     # Both drains should have been item-triggered (the re-enqueued item is picked up by queue.get)
-    assert len(drain_sequence) >= 2
-    assert all(d == "item" for d in drain_sequence)
+    assert len(drain_calls) >= 2
+    assert all(d == "item" for d in drain_calls)
 
 
 async def test_serve_item_flush_drains_queue_on_arrival():

@@ -15,7 +15,7 @@ from hassette.types import ResourceRole, ResourceStatus, Topic
 
 def test_time_fired_auto_populated() -> None:
     payload = HassettePayload(event_type="test", data=None)
-    assert payload.time_fired is not None
+    assert isinstance(payload.time_fired, whenever.ZonedDateTime)
 
 
 def test_time_fired_is_zoned_datetime() -> None:

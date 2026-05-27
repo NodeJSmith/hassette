@@ -58,6 +58,7 @@ class RetentionTarget:
     timestamp_col: str
     priority: int
     retention_days_getter: Callable[["HassetteConfig"], int]
+    failsafe_label: str
 
 
 _RETENTION_TABLES: list[RetentionTarget] = [
@@ -66,18 +67,21 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         timestamp_col="timestamp",
         priority=0,
         retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
+        failsafe_label="log pre-pass",
     ),
     RetentionTarget(
         table="handler_invocations",
         timestamp_col="execution_start_ts",
         priority=1,
         retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="execution records",
     ),
     RetentionTarget(
         table="job_executions",
         timestamp_col="execution_start_ts",
         priority=1,
         retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="execution records",
     ),
 ]
 
@@ -679,7 +683,7 @@ class DatabaseService(Service):
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         for priority in priorities:
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            group_label = "log pre-pass" if priority == 0 else "loop"
+            group_label = group[0].failsafe_label
 
             for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
                 group_deleted = 0
