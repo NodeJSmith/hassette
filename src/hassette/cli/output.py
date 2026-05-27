@@ -32,7 +32,7 @@ stdout_console = Console(file=sys.stdout, highlight=False)
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
 
 
-def _now() -> float:
+def now_epoch() -> float:
     """Return current time as epoch float. Patched in tests for determinism."""
     return time.time()
 
@@ -57,7 +57,7 @@ def fmt_relative_time(value: Any) -> str:
                     epoch = OffsetDateTime.parse_iso(s).timestamp()
                 except ValueError:
                     epoch = PlainDateTime.parse_iso(s).assume_system_tz().timestamp()
-        delta = _now() - epoch
+        delta = now_epoch() - epoch
         if delta < 0:
             ahead = -delta
             if ahead < SECONDS_PER_MINUTE:

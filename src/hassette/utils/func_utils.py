@@ -47,21 +47,7 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
 
 
 def callable_name(fn: Any) -> str:
-    """Get a human-readable name for a callable object.
-
-    Performs ``inspect.unwrap()`` on every call. Cache the result at construction
-    time rather than calling in hot paths.
-
-    This function attempts to return a string representation of the callable that includes
-    its module, class (if applicable), and function name. It handles various types of callables
-    including functions, methods, and partials.
-
-    Args:
-        fn: The callable object to inspect.
-
-    Returns:
-        A string representation of the callable.
-    """
+    """Calls ``inspect.unwrap()`` — cache the result rather than calling in hot paths."""
     # unwrap decorator chains
     with contextlib.suppress(Exception):
         fn = inspect.unwrap(fn)
@@ -137,10 +123,7 @@ def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     """
 
     full_name = callable_name(fn)
-    index = -1 * abs(num_parts)
-
     parts = full_name.split(".")
-    if len(parts) >= abs(index):
-        return ".".join(parts[index:])
-
+    if len(parts) >= num_parts:
+        return ".".join(parts[-num_parts:])
     return full_name

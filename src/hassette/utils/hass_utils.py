@@ -21,14 +21,6 @@ def split_entity_id(entity_id: str) -> tuple[str, str]:
     return domain, object_id
 
 
-@functools.lru_cache(64)
-def valid_domain(domain: str | None) -> bool:
-    """Test if a domain a valid format."""
-    if domain is None:
-        return False
-    return VALID_DOMAIN.match(domain) is not None
-
-
 @functools.lru_cache(512)
 def valid_entity_id(entity_id: str | None) -> bool:
     """Test if an entity ID is a valid format.

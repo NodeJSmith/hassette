@@ -8,9 +8,7 @@ from hassette.cli.output import Column, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
-# ---------------------------------------------------------------------------
 # Shared log entry column definitions (used by both log and execution)
-# ---------------------------------------------------------------------------
 
 LOG_COLUMNS: list[Column] = [
     Column("timestamp", "When", formatter=fmt_relative_time),
@@ -28,10 +26,6 @@ EXECUTION_LOG_COLUMNS: list[Column] = [
     Column("lineno", "Line"),
     Column("message", "Message"),
 ]
-
-# ---------------------------------------------------------------------------
-# hassette log — recent log entries
-# ---------------------------------------------------------------------------
 
 
 def cmd_log(
@@ -64,11 +58,6 @@ def cmd_log(
     )
     entries = [LogEntryResponse.model_validate(e) for e in raw]
     render_table(entries, LOG_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
-
-
-# ---------------------------------------------------------------------------
-# hassette execution <uuid> — logs for a specific execution context
-# ---------------------------------------------------------------------------
 
 
 def cmd_execution(

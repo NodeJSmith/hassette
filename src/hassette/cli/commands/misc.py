@@ -8,10 +8,6 @@ from hassette.cli.output import Column, fmt_relative_time, render_detail, render
 from hassette.cli.types import LimitArg
 from hassette.web.models import ConfigResponse, EventEntry
 
-# ---------------------------------------------------------------------------
-# hassette config
-# ---------------------------------------------------------------------------
-
 
 def cmd_config() -> None:
     """Show current configuration (GET /api/config)."""
@@ -20,21 +16,12 @@ def cmd_config() -> None:
     render_detail(result, json_mode=cli_globals.json_mode)
 
 
-# ---------------------------------------------------------------------------
-# hassette service
-# ---------------------------------------------------------------------------
-
-
 def cmd_service() -> None:
     """List available HA services (GET /api/services)."""
     client = make_client()
     result: dict[str, Any] = client.get("/api/services", dict)
     render_raw(result, json_mode=cli_globals.json_mode)
 
-
-# ---------------------------------------------------------------------------
-# hassette event
-# ---------------------------------------------------------------------------
 
 EVENT_COLUMNS: list[Column] = [
     Column("type", "Event Type", max_width=30),

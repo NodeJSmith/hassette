@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from cyclopts import Parameter
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
-from hassette.cli.output import _now
+from hassette.cli.output import now_epoch
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
 SINCE_HELP = (
@@ -49,7 +49,7 @@ def convert_since(value: str) -> float:
     if match:
         n = int(match.group(1))
         unit = match.group(2)
-        return _now() - n * _RELATIVE_MULTIPLIERS[unit]
+        return now_epoch() - n * _RELATIVE_MULTIPLIERS[unit]
 
     if _ISO_UTC_PATTERN.match(value):
         try:

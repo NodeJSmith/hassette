@@ -1,5 +1,4 @@
-import inspect
-from inspect import Signature
+from inspect import Parameter, Signature
 from typing import Any
 from warnings import warn
 
@@ -47,7 +46,7 @@ def extract_from_event_type(annotation: Any) -> None | tuple[Any, AnnotationDeta
 def has_dependency_injection(signature: Signature) -> bool:
     """Check if a signature uses any dependency injection."""
     for param in signature.parameters.values():
-        if param.annotation is inspect.Parameter.empty:
+        if param.annotation is Parameter.empty:
             continue
 
         if is_annotated_type(param.annotation) or is_event_type(param.annotation):
@@ -63,12 +62,12 @@ def validate_di_signature(signature: Signature) -> None:
         ValueError: If signature has VAR_POSITIONAL (*args) or POSITIONAL_ONLY (/) parameters.
     """
     for param in signature.parameters.values():
-        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+        if param.kind == Parameter.VAR_POSITIONAL:
             raise DependencyInjectionError(
                 f"Handler with dependency injection cannot have *args parameter: {param.name}"
             )
 
-        if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+        if param.kind == Parameter.POSITIONAL_ONLY:
             raise DependencyInjectionError(
                 f"Handler with dependency injection cannot have positional-only parameter: {param.name}"
             )
@@ -92,7 +91,7 @@ def extract_from_signature(signature: Signature) -> dict[str, tuple[Any, Annotat
         annotation = param.annotation
 
         # Skip parameters without annotations
-        if annotation is inspect.Parameter.empty:
+        if annotation is Parameter.empty:
             continue
 
         result = extract_from_annotated(annotation) or extract_from_event_type(annotation)

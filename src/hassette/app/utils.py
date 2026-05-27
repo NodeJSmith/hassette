@@ -11,8 +11,8 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 
-def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
-    """Get the AppConfig type from a App subclass.
+def get_app_config_class(cls: type["App"]) -> type[AppConfig]:
+    """Get the AppConfig type from an App subclass.
 
     This function retrieves the AppConfig type from the class's __orig_bases__ attribute.
     If no type is found, it returns the default class type of AppConfig.
@@ -32,7 +32,7 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
 
     args = ()
     for base in getattr(cls, "__orig_bases__", ()):
-        # get the origin to confirm it's a App subclass
+        # get the origin to confirm it's an App subclass
         origin = typing.get_origin(base)
         if not origin or not issubclass(origin, App):
             continue
@@ -51,7 +51,7 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
 
 
 def validate_app(cls: type["App"]) -> type[AppConfig]:
-    """Validate the AppConfig class of a App subclass.
+    """Validate the AppConfig class of an App subclass.
 
     Args:
         cls: The subclass of App to validate.
@@ -65,15 +65,15 @@ def validate_app(cls: type["App"]) -> type[AppConfig]:
 
     LOGGER.debug("Initializing subclass %s", cls.__name__)
 
-    _validate_init_method(cls)
+    validate_init_method(cls)
 
-    app_config_cls = _get_app_config_class(cls)
+    app_config_cls = get_app_config_class(cls)
 
     return app_config_cls
 
 
-def _validate_init_method(cls: type["App[AppConfigT]"]) -> None:
-    """Validate the __init__ method of a App subclass.
+def validate_init_method(cls: type["App[AppConfigT]"]) -> None:
+    """Validate the __init__ method of an App subclass.
 
     This function checks the method resolution order (MRO) of the class to ensure that
     App is the first class in the MRO that defines an __init__ method. If not, it raises

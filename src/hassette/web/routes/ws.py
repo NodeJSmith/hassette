@@ -1,6 +1,7 @@
 """WebSocket endpoint for real-time updates."""
 
 import asyncio
+import logging
 import time
 from logging import getLogger
 
@@ -13,7 +14,13 @@ from hassette.web.mappers import connected_payload_from
 router = APIRouter(tags=["websocket"])
 LOGGER = getLogger(__name__)
 
-_LOG_LEVELS: dict[str, int] = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+_LOG_LEVELS: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 # Exception types that indicate a normal client disconnect.
 _DISCONNECT_ERRORS = (

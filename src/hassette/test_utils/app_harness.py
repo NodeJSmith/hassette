@@ -39,7 +39,7 @@ from pydantic_settings.sources import InitSettingsSource
 from hassette import context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.app.utils import _get_app_config_class
+from hassette.app.utils import get_app_config_class
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
 from hassette.scheduler import Scheduler
@@ -290,7 +290,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         hassette_config = make_test_config(data_dir=data_dir)
 
         # Step 3: Resolve app config class (read-only, safe outside lock).
-        app_config_cls = _get_app_config_class(self._app_cls)
+        app_config_cls = get_app_config_class(self._app_cls)
 
         # Step 4: Create HassetteHarness (skip_global_set=True — we handle ContextVar below)
         harness = (

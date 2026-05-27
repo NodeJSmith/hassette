@@ -1,12 +1,14 @@
 from collections import defaultdict, deque
 from collections.abc import Iterable
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 from aiohttp import web
 from whenever import PlainDateTime
 
 from hassette.utils.request_utils import orjson_dump
+
+UNEXPECTED_REQUEST_STATUS = 599
 
 
 @dataclass(eq=True, frozen=True)
@@ -51,7 +53,6 @@ class SimpleTestServer:
         for _ in range(repeat):
             self._expectations[key].append(Expected(status=status, json=json))
 
-    # Nice helper for history endpoints (keeps query ordering stable)
     @staticmethod
     def make_history_path(
         entity_ids: Iterable[str],
@@ -59,14 +60,13 @@ class SimpleTestServer:
         end: PlainDateTime,
         *,
         minimal: bool = False,
-    ):
+    ) -> tuple[str, str]:
         ids = ",".join(entity_ids)
         path = f"/api/history/period/{start.format_iso()}"
         qs = f"filter_entity_id={ids}&end_time={end.format_iso()}"
         if minimal:
             qs += "&minimal_response=true"
-        # Caller still needs to provide METHOD, so this returns (PATH, QUERY)
-        return path, qs  # (path, query)
+        return path, qs
 
     # ----- request handler -----
 
@@ -77,7 +77,7 @@ class SimpleTestServer:
         if not bucket:
             # record so teardown can fail loudly with details
             self._unexpected.append(key)
-            return web.Response(status=599, text=f"Unexpected request: {key}")
+            return web.Response(status=UNEXPECTED_REQUEST_STATUS, text=f"Unexpected request: {key}")
 
         exp = bucket.popleft()
         if exp.json is None:
@@ -86,11 +86,11 @@ class SimpleTestServer:
 
     # ----- teardown assertions -----
 
-    def _leftovers(self) -> list[tuple[Key, int]]:
+    def leftovers(self) -> list[tuple[Key, int]]:
         return [(k, len(v)) for k, v in self._expectations.items() if v]
 
     def assert_clean(self) -> None:
-        leftovers = self._leftovers()
+        leftovers = self.leftovers()
 
         errors = []
         if self._unexpected:
@@ -108,12 +108,3 @@ class SimpleTestServer:
         """
         self._expectations.clear()
         self._unexpected.clear()
-
-    def dump_all(self):
-        expectations = {astuple(k): [astuple(e) for e in v] for k, v in self._expectations.items()}
-        expectations = {str(k): v for k, v in expectations.items() if v}
-
-        # expectations = {str(k): v for k, v in self._expectations.items() if v}
-        unexpected = [str(k) for k in self._unexpected]
-
-        return {"expectations": expectations, "unexpected": unexpected}
