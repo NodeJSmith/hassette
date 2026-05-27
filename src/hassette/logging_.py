@@ -171,13 +171,15 @@ class CorrelationFilter(logging.Filter):
 class HassetteQueueListener(logging.handlers.QueueListener):
     """QueueListener with dequeue-timeout for periodic batch flushing.
 
-    The default QueueListener blocks forever on dequeue(). This subclass adds a 200ms timeout
+    The default QueueListener blocks forever on dequeue(). This subclass adds a timeout
     so the listener thread periodically wakes up and flushes partial batches in handlers that
     support ``flush_if_pending()``.
     """
 
+    DEQUEUE_TIMEOUT_SECONDS: float = 0.2
+
     def dequeue(self, block: bool) -> logging.LogRecord:
-        return self.queue.get(block=block, timeout=0.2)  # pyright: ignore[reportCallIssue]
+        return self.queue.get(block=block, timeout=self.DEQUEUE_TIMEOUT_SECONDS)  # pyright: ignore[reportCallIssue]
 
     def enqueue_sentinel(self) -> None:
         # Blocking put — put_nowait raises queue.Full on a bounded queue during burst logging,
@@ -252,17 +254,17 @@ class LogPersistenceHandler(logging.Handler):
         self._batch = []
         db_service = self._db_service
         loop = self._loop
-        handler = self
+        dropped_lock = self._dropped_lock
         batch_len = len(batch)
 
         def _do_enqueue(b=batch) -> None:
             try:
                 if not db_service.enqueue(db_service._insert_log_records(b)):  # pyright: ignore[reportPrivateUsage]
-                    with handler._dropped_lock:
-                        handler._dropped += batch_len
+                    with dropped_lock:
+                        self._dropped += batch_len
             except RuntimeError:
-                with handler._dropped_lock:
-                    handler._dropped += batch_len
+                with dropped_lock:
+                    self._dropped += batch_len
 
         loop.call_soon_threadsafe(_do_enqueue)
 

@@ -21,6 +21,14 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 # ---------------------------------------------------------------------------
 
 
+def remove_queue_handlers() -> None:
+    """Remove all QueueHandlers from the hassette logger."""
+    hassette_logger = logging.getLogger("hassette")
+    for h in list(hassette_logger.handlers):
+        if isinstance(h, logging.handlers.QueueHandler):
+            hassette_logger.removeHandler(h)
+
+
 def make_db_service() -> MagicMock:
     """Return a minimal DatabaseService mock."""
     db_service = MagicMock()
@@ -54,8 +62,6 @@ def make_logging_service(
     svc._shutdown_event = asyncio.Event()
     svc.shutting_down = False
     svc.initializing = False
-    svc._mark_ready_called = False  # used by test assertions
-
     # Wire the stream handler via proper __init__ path but skip super().__init__
     svc._stream_handler = stream_handler
     svc.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
@@ -63,11 +69,7 @@ def make_logging_service(
     svc._queue_listener = None
     svc._queue_handler = None
 
-    # Stub mark_ready so we can assert it was called
-    def _set_ready_called(**_kwargs):
-        svc._mark_ready_called = True
-
-    svc.mark_ready = Mock(side_effect=_set_ready_called)
+    svc.mark_ready = Mock()
 
     return svc
 
@@ -173,7 +175,6 @@ class TestLoggingServiceOnInitialize:
 
         try:
             svc.mark_ready.assert_called_once()
-            assert svc._mark_ready_called
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
@@ -221,7 +222,7 @@ class TestLoggingServiceOnInitialize:
             assert LogCaptureHandler in handler_types
             assert LogPersistenceHandler not in handler_types
             # mark_ready still called
-            assert svc._mark_ready_called
+            svc.mark_ready.assert_called_once()
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
@@ -277,9 +278,7 @@ class TestLoggingServiceOnInitialize:
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
-            for h in list(hassette_logger.handlers):
-                if isinstance(h, logging.handlers.QueueHandler):
-                    hassette_logger.removeHandler(h)
+            remove_queue_handlers()
 
 
 # ---------------------------------------------------------------------------
@@ -334,11 +333,7 @@ class TestLoggingServiceOnShutdown:
         await svc.on_shutdown()
         assert svc.capture_handler.shutting_down
 
-        # Cleanup
-        hassette_logger = logging.getLogger("hassette")
-        for h in list(hassette_logger.handlers):
-            if isinstance(h, logging.handlers.QueueHandler):
-                hassette_logger.removeHandler(h)
+        remove_queue_handlers()
 
     @pytest.mark.asyncio
     async def test_on_shutdown_flushes_persistence_handler(self) -> None:
@@ -356,11 +351,7 @@ class TestLoggingServiceOnShutdown:
 
         svc.persistence_handler.flush_if_pending.assert_called_once()
 
-        # Cleanup
-        hassette_logger = logging.getLogger("hassette")
-        for h in list(hassette_logger.handlers):
-            if isinstance(h, logging.handlers.QueueHandler):
-                hassette_logger.removeHandler(h)
+        remove_queue_handlers()
 
 
 # ---------------------------------------------------------------------------

@@ -1,15 +1,4 @@
-"""Unit tests for T04: log_records table, repository methods, retention, and size failsafe.
-
-Covers:
-- Migration 009 creates the log_records table and indexes
-- _insert_log_records() writes records and they're queryable
-- get_log_records() filters by app_key, level, execution_id, since
-- get_log_records_by_execution() returns ordered records with truncated flag
-- Retention cleanup deletes log_records older than log_retention_days
-- Size failsafe pre-pass deletes log_records before execution records
-- Config validator rejects log_retention_days > db_retention_days
-- LogPersistenceHandler.set_database() wiring via RuntimeQueryService.on_initialize()
-"""
+"""Unit tests for log_records table, insert method, query filters, model, and config validation."""
 
 import sqlite3
 import time

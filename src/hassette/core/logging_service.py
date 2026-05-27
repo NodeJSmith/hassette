@@ -1,5 +1,3 @@
-"""LoggingService — Resource that owns the async logging pipeline."""
-
 import asyncio
 import contextlib
 import logging
@@ -19,6 +17,8 @@ from hassette.resources.base import Resource
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+
+_QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
 
 
 class LoggingService(Resource):
@@ -56,7 +56,6 @@ class LoggingService(Resource):
         """Upgrade logging from sync to async pipeline."""
         hassette_logger = logging.getLogger("hassette")
 
-        # Defensive cleanup: remove stale QueueHandlers and stop any running listener
         for h in list(hassette_logger.handlers):
             if isinstance(h, logging.handlers.QueueHandler):
                 hassette_logger.removeHandler(h)
@@ -65,7 +64,6 @@ class LoggingService(Resource):
                 await asyncio.to_thread(self._queue_listener.stop)
             self._queue_listener = None
 
-        # Build handler list: always include stream and capture
         handlers: list[logging.Handler] = []
         if self._stream_handler is not None:
             handlers.append(self._stream_handler)
@@ -87,12 +85,10 @@ class LoggingService(Resource):
             self.logger.error("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
 
-        # Create bounded queue and QueueHandler with CorrelationFilter
         q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
         queue_handler = logging.handlers.QueueHandler(q)
         queue_handler.addFilter(CorrelationFilter())
 
-        # Create QueueListener with all available handlers
         listener = HassetteQueueListener(q, *handlers)
 
         # Atomic swap: add QueueHandler FIRST, then remove StreamHandler
@@ -100,10 +96,8 @@ class LoggingService(Resource):
         if self._stream_handler is not None:
             hassette_logger.removeHandler(self._stream_handler)
 
-        # Start the listener
         listener.start()
 
-        # Store references
         self._queue_listener = listener
         self._queue_handler = queue_handler
 
@@ -114,7 +108,6 @@ class LoggingService(Resource):
         self.capture_handler.shutting_down = True
         hassette_logger = logging.getLogger("hassette")
 
-        # Remove QueueHandler and restore StreamHandler before logging the warning
         if self._queue_handler is not None:
             hassette_logger.removeHandler(self._queue_handler)
         if self._stream_handler is not None:
@@ -127,14 +120,16 @@ class LoggingService(Resource):
             try:
                 await asyncio.wait_for(
                     asyncio.to_thread(self._queue_listener.stop),
-                    timeout=5.0,
+                    timeout=_QUEUE_LISTENER_STOP_TIMEOUT_SECONDS,
                 )
             except TimeoutError:
-                self.logger.warning("QueueListener.stop() timed out after 5s during shutdown")
+                self.logger.warning(
+                    "QueueListener.stop() timed out after %ss during shutdown",
+                    _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS,
+                )
             except Exception:
                 self.logger.warning("QueueListener.stop() raised an exception during shutdown", exc_info=True)
 
-        # Flush persistence handler
         if self.persistence_handler is not None:
             self.persistence_handler.flush_if_pending()
 
