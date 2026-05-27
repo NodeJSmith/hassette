@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0](https://github.com/NodeJSmith/hassette/compare/v0.33.0...v0.34.0) (2026-05-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* `AttributesBase._has_feature()` renamed to `has_feature()`. User code calling `state._has_feature(SomeFeature.FLAG)` must change to `state.has_feature(SomeFeature.FLAG)`. The `supports_*` convenience properties (e.g., `state.supports_brightness`) are unchanged.
+
+### Features
+
+* add LoggingService Resource for lifecycle-managed async logging ([#887](https://github.com/NodeJSmith/hassette/issues/887)) ([c2ee7ff](https://github.com/NodeJSmith/hassette/commit/c2ee7ffaf6ffc725f94a35bc27532ff720bb471d))
+* add table-driven retention, event timestamps, flush timer, and retry backoff ([#890](https://github.com/NodeJSmith/hassette/issues/890)) ([b006fde](https://github.com/NodeJSmith/hassette/commit/b006fde39b91c389f789ed90eccce216c1242b8e))
+* **cli:** improve CLI output formatting across all commands ([#880](https://github.com/NodeJSmith/hassette/issues/880)) ([4af70ae](https://github.com/NodeJSmith/hassette/commit/4af70ae08aee09aa34ad6e09a01c2ce42852459c))
+
+
+### Bug Fixes
+
+* enable reportUnnecessaryComparison and fix all violations ([#872](https://github.com/NodeJSmith/hassette/issues/872)) ([ef513ab](https://github.com/NodeJSmith/hassette/commit/ef513abfc08132850c3918822575de724ce0b10a))
+
+
+### Refactoring
+
+* clean code sweep — remove noise, extract constants, deduplicate patterns ([#885](https://github.com/NodeJSmith/hassette/issues/885)) ([dd6b6dd](https://github.com/NodeJSmith/hassette/commit/dd6b6ddc191edbeaff42e4e90bd0bca639e53a5d))
+* clean-code sweep across 105 files — naming, types, dedup, dead code ([#891](https://github.com/NodeJSmith/hassette/issues/891)) ([681876e](https://github.com/NodeJSmith/hassette/commit/681876e93d1a7cc0a14438cde514f21428d41b01))
+* **core:** clean code sweep across core module ([#884](https://github.com/NodeJSmith/hassette/issues/884)) ([79c5600](https://github.com/NodeJSmith/hassette/commit/79c5600b47f1d72180f6728c7879f2b85f84eac3))
+
 ## [0.33.0](https://github.com/NodeJSmith/hassette/compare/v0.32.0...v0.33.0) (2026-05-26)
 
 ### Breaking Changes
