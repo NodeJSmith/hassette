@@ -1,6 +1,7 @@
 {
     "include": [
-        "src"
+        "src",
+        "examples"
     ],
     "ignore": [
         "**/node_modules",
@@ -92,7 +93,9 @@
     // "reportIncompatibleVariableOverride": "none",
     // "reportImportCycles": "none",
     // "reportMissingSuperCall": "none",
-    // "reportUnnecessaryComparison": "none",
+
+    "reportUnnecessaryComparison": "error",
+
     // "reportUnnecessaryIsInstance": "none",
     // "reportUninitializedInstanceVariable": "none",
     // "reportMissingParameterType": "none",

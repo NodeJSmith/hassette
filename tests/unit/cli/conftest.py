@@ -24,6 +24,25 @@ def capture_stdout():
         yield buf
 
 
+def capture_human(func, *args, **kwargs) -> tuple[str, str]:
+    """Call ``func(*args, **kwargs)`` with Rich consoles redirected to StringIO.
+
+    Returns ``(stdout_text, stderr_text)``. This is needed because Rich holds
+    a reference to the original sys.stdout at construction time; pytest's
+    capsys replacement doesn't intercept it. We patch the module-level consoles.
+    """
+    stdout_buf = StringIO()
+    stderr_buf = StringIO()
+    new_stdout = Console(file=stdout_buf, highlight=False, no_color=True)
+    new_stderr = Console(file=stderr_buf, highlight=False, no_color=True)
+    with (
+        patch.object(output_module, "stdout_console", new_stdout),
+        patch.object(output_module, "stderr_console", new_stderr),
+    ):
+        func(*args, **kwargs)
+    return stdout_buf.getvalue(), stderr_buf.getvalue()
+
+
 @contextmanager
 def capture_stderr():
     """Capture Rich stderr console output."""

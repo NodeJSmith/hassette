@@ -49,6 +49,8 @@ from hassette.web.models import (
     WebApiConfigResponse,
 )
 
+SYNTHETIC_TIMESTAMP = 1_700_000_000.0
+
 
 def make_full_snapshot(
     manifests: list[AppManifestInfo] | None = None,
@@ -198,11 +200,6 @@ def setup_registry(hassette: MagicMock, manifests: list[AppManifestInfo] | None 
     hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Scheduler job factory
-# ──────────────────────────────────────────────────────────────────────
-
-
 def make_job(
     job_id: str = "job-1",
     name: str = "check_lights",
@@ -285,11 +282,6 @@ def make_real_job(
         app_key=app_key,
         instance_index=instance_index,
     )
-
-
-# ──────────────────────────────────────────────────────────────────────
-# CLI response model factories (used by T05+ tests)
-# ──────────────────────────────────────────────────────────────────────
 
 
 def make_system_status_response(
@@ -379,7 +371,7 @@ def make_dashboard_app_grid_response(
 def make_event_entry(
     type: str = "state_changed",
     entity_id: str | None = "light.kitchen",
-    timestamp: float = 1_700_000_000.0,
+    timestamp: float = SYNTHETIC_TIMESTAMP,
     data: dict | None = None,
 ) -> EventEntry:
     """Build an EventEntry with sensible defaults."""
@@ -432,7 +424,7 @@ def make_app_health_response(
     error_rate_class: str = "good",
     handler_avg_duration: float = 5.0,
     job_avg_duration: float = 10.0,
-    last_activity_ts: float | None = 1_700_000_000.0,
+    last_activity_ts: float | None = SYNTHETIC_TIMESTAMP,
     health_status: str = "excellent",
 ) -> AppHealthResponse:
     """Build an AppHealthResponse with sensible defaults."""
@@ -449,7 +441,7 @@ def make_app_health_response(
 def make_activity_feed_entry(
     row_id: str = "h-1",
     status: InvocationStatus = InvocationStatus.SUCCESS,
-    timestamp: float = 1_700_000_000.0,
+    timestamp: float = SYNTHETIC_TIMESTAMP,
     app_key: str = "my_app",
     handler_name: str = "on_state_change",
     duration_ms: float | None = 12.5,
@@ -514,9 +506,10 @@ def make_listener_with_summary(
     successful: int = 9,
     failed: int = 1,
     avg_duration_ms: float = 25.0,
-    last_invoked_at: float | None = 1_700_000_000.0,
+    last_invoked_at: float | None = SYNTHETIC_TIMESTAMP,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
+    entity_id: str | None = None,
 ) -> ListenerWithSummary:
     """Build a ListenerWithSummary with sensible defaults."""
     return ListenerWithSummary(
@@ -535,11 +528,12 @@ def make_listener_with_summary(
         last_invoked_at=last_invoked_at,
         last_error_type=last_error_type,
         last_error_message=last_error_message,
+        entity_id=entity_id,
     )
 
 
 def make_handler_invocation(
-    execution_start_ts: float = 1_700_000_000.0,
+    execution_start_ts: float = SYNTHETIC_TIMESTAMP,
     duration_ms: float = 12.5,
     status: InvocationStatus = InvocationStatus.SUCCESS,
     error_type: str | None = None,
@@ -572,7 +566,7 @@ def make_job_summary(
     total_duration_ms: float | None = None,
     avg_duration_ms: float = 8.0,
     next_run: float | None = 1_700_003_600.0,
-    last_executed_at: float | None = 1_700_000_000.0,
+    last_executed_at: float | None = SYNTHETIC_TIMESTAMP,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     group: str | None = None,
@@ -605,7 +599,7 @@ def make_job_summary(
 
 
 def make_job_execution(
-    execution_start_ts: float = 1_700_000_000.0,
+    execution_start_ts: float = SYNTHETIC_TIMESTAMP,
     duration_ms: float = 8.5,
     status: InvocationStatus = InvocationStatus.SUCCESS,
     error_type: str | None = None,
@@ -625,7 +619,7 @@ def make_job_execution(
 
 def make_log_entry_response(
     seq: int = 1,
-    timestamp: float = 1_700_000_000.0,
+    timestamp: float = SYNTHETIC_TIMESTAMP,
     level: str = "INFO",
     logger_name: str = "hassette.app.my_app",
     func_name: str | None = "on_state_change",

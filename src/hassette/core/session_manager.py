@@ -59,7 +59,6 @@ class SessionManager(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.database_service
 
     @property
@@ -149,8 +148,8 @@ class SessionManager(Resource):
         """Execute the orphan-session UPDATE; called by the write-queue worker."""
         db = self._database_service.db
         cursor = await db.execute(
-            f"UPDATE sessions SET status = '{SESSION_STATUS_UNKNOWN}',"
-            f" stopped_at = last_heartbeat_at WHERE status = '{SESSION_STATUS_RUNNING}'"
+            "UPDATE sessions SET status = :new_status, stopped_at = last_heartbeat_at WHERE status = :old_status",
+            {"new_status": SESSION_STATUS_UNKNOWN, "old_status": SESSION_STATUS_RUNNING},
         )
         if cursor.rowcount and cursor.rowcount > 0:
             self.logger.warning("Marked %d orphaned session(s) as 'unknown'", cursor.rowcount)
@@ -161,8 +160,8 @@ class SessionManager(Resource):
         db = self._database_service.db
         now = time.time()
         cursor = await db.execute(
-            f"INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, '{SESSION_STATUS_RUNNING}')",
-            (now, now),
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, ?)",
+            (now, now, SESSION_STATUS_RUNNING),
         )
         await db.commit()
         if cursor.lastrowid is None:
@@ -175,9 +174,16 @@ class SessionManager(Resource):
         try:
             now = time.time()
             await self._database_service.db.execute(
-                f"UPDATE sessions SET status = '{SESSION_STATUS_FAILURE}', last_heartbeat_at = ?,"
+                "UPDATE sessions SET status = ?, last_heartbeat_at = ?,"
                 " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
-                (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
+                (
+                    SESSION_STATUS_FAILURE,
+                    now,
+                    data.exception_type,
+                    data.exception,
+                    data.exception_traceback,
+                    self._session_id,
+                ),
             )
             await self._database_service.db.commit()
         except Exception:

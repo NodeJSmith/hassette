@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     from hassette.resources.base import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
+_STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
+
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
     """Build a HassEventEnvelopeDict envelope and delegate to create_event_from_hass.
@@ -166,6 +168,13 @@ def make_state_dict(
     }
 
 
+def _split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split kwargs into (state_dict_keys, extra_attributes)."""
+    state_kwargs = {k: v for k, v in kwargs.items() if k in _STATE_DICT_KEYS}
+    extra_attrs = {k: v for k, v in kwargs.items() if k not in _STATE_DICT_KEYS}
+    return state_kwargs, extra_attrs
+
+
 def make_light_state_dict(
     entity_id: str = "light.kitchen",
     state: str = "on",
@@ -191,10 +200,8 @@ def make_light_state_dict(
     if color_temp is not None:
         attributes["color_temp"] = color_temp
 
-    # Extract base state dict kwargs
-    state_kwargs = {k: v for k, v in kwargs.items() if k in ("last_changed", "last_updated", "context")}
-    # Add extra attributes
-    attributes.update({k: v for k, v in kwargs.items() if k not in state_kwargs})
+    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
 
@@ -224,8 +231,8 @@ def make_sensor_state_dict(
     if device_class is not None:
         attributes["device_class"] = device_class
 
-    state_kwargs = {k: v for k, v in kwargs.items() if k in ("last_changed", "last_updated", "context")}
-    attributes.update({k: v for k, v in kwargs.items() if k not in state_kwargs})
+    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
 
@@ -243,8 +250,8 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
     """
     attributes = {"friendly_name": entity_id.split(".")[-1].replace("_", " ").title()}
 
-    state_kwargs = {k: v for k, v in kwargs.items() if k in ("last_changed", "last_updated", "context")}
-    attributes.update({k: v for k, v in kwargs.items() if k not in state_kwargs})
+    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
 

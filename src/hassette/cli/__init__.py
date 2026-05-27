@@ -53,7 +53,23 @@ def generate_completion(
     ] = None,
 ) -> None:
     """Print shell completion script to stdout."""
-    print(app.generate_completion(shell=shell))
+    prog_name = app.name[0] if isinstance(app.name, tuple) else app.name
+    script = app.generate_completion(shell=shell)
+    if "#compdef" in script:
+        script = normalize_zsh_completion(script, prog_name)
+    print(script)
+
+
+def normalize_zsh_completion(script: str, prog_name: str) -> str:
+    """Strip the ``_cyclopts_`` namespace prefix from zsh completion functions.
+
+    cyclopts >=4.16 namespaces zsh functions as ``_cyclopts_<prog>`` to avoid
+    shadowing zsh builtins. That breaks ``compinit`` autoloading when the file
+    is saved as ``_<prog>``. This replaces all occurrences of
+    ``_cyclopts_<prog>`` with ``_<prog>`` so the function name matches the
+    filename users will write to.
+    """
+    return script.replace(f"_cyclopts_{prog_name}", f"_{prog_name}")
 
 
 status_app = App(name="status", help="Show system status.")

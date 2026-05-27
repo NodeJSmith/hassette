@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
-    STATUS_COLUMNS,
     cmd_dashboard,
     cmd_status,
     cmd_telemetry,
@@ -78,27 +77,17 @@ class TestCmdStatus:
         assert parsed["status"] == "ok"
         assert "websocket_connected" in parsed
 
-    def test_status_columns_are_defined(self) -> None:
-        """STATUS_COLUMNS defines the expected fields."""
-        field_names = [c.field for c in STATUS_COLUMNS]
-        assert "status" in field_names
-        assert "uptime_seconds" in field_names
-        assert "version" in field_names
-        assert "boot_issues" in field_names
-
-    def test_uptime_formatted(self, cli_client_factory: CLIClientFactory) -> None:
-        """uptime_seconds column uses a human-readable formatter."""
-        uptime_col = next(c for c in STATUS_COLUMNS if c.field == "uptime_seconds")
-        assert uptime_col.formatter is not None
-        # 3661 seconds = 1h 1m 1s
-        assert "h" in uptime_col.formatter(3661) or "m" in uptime_col.formatter(3661)
-
-    def test_boot_issues_count(self) -> None:
-        """boot_issues formatter shows count for non-empty list."""
-        boot_col = next(c for c in STATUS_COLUMNS if c.field == "boot_issues")
-        assert boot_col.formatter is not None
-        assert boot_col.formatter([{"severity": "err", "label": "x", "detail": "y"}]) == "1"
-        assert boot_col.formatter([]) == "—"
+    def test_uptime_formatted_in_panel(self, cli_client_factory: CLIClientFactory) -> None:
+        """uptime_seconds renders as human-readable via CliFormat annotation."""
+        status_data = make_system_status_response(uptime_seconds=3661.0)
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
+        with (
+            capture_stdout() as buf,
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+        ):
+            cmd_status()
+        output = buf.getvalue()
+        assert "1h 1m 1s" in output
 
 
 # ---------------------------------------------------------------------------

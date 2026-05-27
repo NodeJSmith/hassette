@@ -7,6 +7,8 @@ import time
 from collections import deque
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from pydantic import BaseModel
+
 from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     from hassette.bus import Subscription
     from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
 
+_WS_CLIENT_QUEUE_MAX = 256
+_WS_DROP_LOG_INTERVAL = 10.0
+
 
 class RuntimeQueryService(Resource):
     """Aggregates and caches live system state for the web UI.
@@ -45,8 +50,8 @@ class RuntimeQueryService(Resource):
     depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, LoggingService]
 
     bus: Bus
-    _event_buffer: deque[dict]
-    _ws_clients: set[asyncio.Queue]
+    _event_buffer: deque[dict[str, Any]]
+    _ws_clients: set[asyncio.Queue[dict[str, Any] | None]]
     _lock: asyncio.Lock
     _start_time: float
     _subscriptions: "list[Subscription]"
@@ -75,7 +80,7 @@ class RuntimeQueryService(Resource):
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
         self._event_buffer = deque(maxlen=hassette.config.web_api.event_buffer_size)
-        self._ws_clients: set[asyncio.Queue] = set()
+        self._ws_clients: set[asyncio.Queue[dict[str, Any] | None]] = set()
         self._lock = asyncio.Lock()
         self._ws_drops: int = 0
         self._ws_drops_since_last_log: int = 0
@@ -156,15 +161,18 @@ class RuntimeQueryService(Resource):
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
+    async def buffer_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+        entry: dict[str, Any] = {"type": event_type, "data": payload.model_dump(), "timestamp": time.time()}
+        self._event_buffer.append(entry)
+        await self.broadcast(entry)
+
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         payload = StateChangedData(
             entity_id=event.payload.data.entity_id,
             new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
             old_state=dict(event.payload.data.old_state) if event.payload.data.old_state else None,
         )
-        entry = {"type": "state_changed", "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
-        await self.broadcast(entry)
+        await self.buffer_and_broadcast("state_changed", payload)
 
     async def _on_app_state_changed(self, event: Event) -> None:
         if not hasattr(event, "payload"):
@@ -181,9 +189,7 @@ class RuntimeQueryService(Resource):
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
         )
-        entry = {"type": "app_status_changed", "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
-        await self.broadcast(entry)
+        await self.buffer_and_broadcast("app_status_changed", payload)
 
     async def _on_service_status(self, event: Event[Any]) -> None:
         if not hasattr(event, "payload"):
@@ -201,21 +207,13 @@ class RuntimeQueryService(Resource):
             ready=data.ready,
             ready_phase=data.ready_phase,
         )
-        entry = {"type": "service_status", "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
-        await self.broadcast(entry)
+        await self.buffer_and_broadcast("service_status", payload)
 
     async def _on_ws_connected(self) -> None:
-        payload = ConnectivityData(connected=True)
-        entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
-        await self.broadcast(entry)
+        await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=True))
 
     async def _on_ws_disconnected(self) -> None:
-        payload = ConnectivityData(connected=False)
-        entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
-        await self.broadcast(entry)
+        await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=False))
 
     async def _on_invocation_completed(self, event: Event[Any]) -> None:
         """Accumulate an invocation completion into the pending batch for this drain tick."""
@@ -423,14 +421,14 @@ class RuntimeQueryService(Resource):
 
         return issues
 
-    async def register_ws_client(self) -> asyncio.Queue:
-        queue: asyncio.Queue = asyncio.Queue(maxsize=256)
+    async def register_ws_client(self) -> asyncio.Queue[dict[str, Any] | None]:
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=_WS_CLIENT_QUEUE_MAX)
         async with self._lock:
             self._ws_clients.add(queue)
         self.logger.debug("WebSocket client registered (total: %d)", len(self._ws_clients))
         return queue
 
-    async def unregister_ws_client(self, queue: asyncio.Queue) -> None:
+    async def unregister_ws_client(self, queue: asyncio.Queue[dict[str, Any] | None]) -> None:
         async with self._lock:
             self._ws_clients.discard(queue)
             count = len(self._ws_clients)
@@ -452,7 +450,7 @@ class RuntimeQueryService(Resource):
                     self._ws_drops += 1
                     self._ws_drops_since_last_log += 1
                     now = time.monotonic()
-                    if now - self._ws_drops_last_logged >= 10.0:
+                    if now - self._ws_drops_last_logged >= _WS_DROP_LOG_INTERVAL:
                         should_log = True
                         log_since = self._ws_drops_since_last_log
                         log_total = self._ws_drops

@@ -646,20 +646,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
@@ -800,20 +794,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
@@ -896,20 +884,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
@@ -1014,20 +996,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
@@ -1114,20 +1090,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
@@ -1391,20 +1361,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
+              "type": "string",
               "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "app",
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."

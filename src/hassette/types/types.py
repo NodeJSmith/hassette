@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass
 from datetime import time
 from enum import StrEnum
 from pathlib import Path
@@ -14,6 +15,21 @@ if TYPE_CHECKING:
     from hassette.events.base import Event, EventPayload
     from hassette.models.states.base import BaseState
     from hassette.scheduler.error_context import SchedulerErrorContext
+
+
+CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time"]
+
+
+@dataclass(frozen=True)
+class CliFormat:
+    """Annotated metadata marker declaring how a field renders in CLI human mode.
+
+    Attach to model fields via ``Annotated[float, CliFormat("duration_ms")]``.
+    The render layer introspects ``model_fields[name].metadata`` and dispatches
+    to the matching formatter. JSON serialization is unaffected.
+    """
+
+    style: CliFormatStyle
 
 
 LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]

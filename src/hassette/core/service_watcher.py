@@ -95,7 +95,6 @@ class ServiceWatcher(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.service_watcher
 
     async def on_initialize(self) -> None:
@@ -320,10 +319,6 @@ class ServiceWatcher(Resource):
         name = data.resource_name
         role = data.role
 
-        if name is None:
-            self.logger.warning("No %s specified to start, skipping", role)
-            return
-
         key = self._service_key(name, role)
 
         # Resolve the service and its restart_spec
@@ -433,14 +428,8 @@ class ServiceWatcher(Resource):
             self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
-        """Log the startup of a service."""
-
         name = event.payload.data.resource_name
         role = event.payload.data.role
-
-        if name is None:
-            self.logger.warning("No resource specified for startup, cannot log")
-            return
 
         status, previous_status = event.payload.data.status, event.payload.data.previous_status
 
@@ -448,18 +437,13 @@ class ServiceWatcher(Resource):
             self.logger.debug("%s '%s' status unchanged at '%s', not logging", role, name, status)
             return
 
-        try:
-            self.logger.debug(
-                "%s '%s' transitioned to status '%s' from '%s'",
-                role,
-                name,
-                event.payload.data.status,
-                event.payload.data.previous_status,
-            )
-
-        except Exception as e:
-            self.logger.error("Failed to log %s startup for '%s': %s", role, name, e)
-            raise
+        self.logger.debug(
+            "%s '%s' transitioned to status '%s' from '%s'",
+            role,
+            name,
+            event.payload.data.status,
+            event.payload.data.previous_status,
+        )
 
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Shutdown the Hassette instance if a service has crashed."""
@@ -485,9 +469,6 @@ class ServiceWatcher(Resource):
         data = event.payload.data
         name = data.resource_name
         role = data.role
-
-        if name is None:
-            return
 
         key = self._service_key(name, role)
         if key not in self._budgets and key not in self._restarting:

@@ -10,8 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiosqlite
 import pytest
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
-from hassette.test_utils.config import SECONDS_PER_DAY, TEST_SOURCE_LOCATION
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 

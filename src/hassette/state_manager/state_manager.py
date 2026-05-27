@@ -75,7 +75,7 @@ class DomainStates(Generic[StateT]):
         cached = self._cache.get(entity_id)
 
         # first check if the context ID matches
-        if cached is not None and context_id is not None and cached.context_id == context_id:
+        if cached is not None and context_id is not None and cached.context_id == context_id:  # pyright: ignore[reportUnnecessaryComparison]
             return cached.model
 
         # if not then use deepfreeze and see if frozen states match

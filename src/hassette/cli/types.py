@@ -7,6 +7,7 @@ from cyclopts import Parameter
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.output import _now
+from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
 SINCE_HELP = (
     "Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute "
@@ -17,10 +18,10 @@ _RELATIVE_PATTERN = re.compile(r"^(\d+)([smhdw])$")
 
 _RELATIVE_MULTIPLIERS: dict[str, int] = {
     "s": 1,
-    "m": 60,
-    "h": 3600,
-    "d": 86400,
-    "w": 7 * 86400,
+    "m": SECONDS_PER_MINUTE,
+    "h": SECONDS_PER_HOUR,
+    "d": SECONDS_PER_DAY,
+    "w": 7 * SECONDS_PER_DAY,
 }
 
 _ISO_WITH_OFFSET_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$")

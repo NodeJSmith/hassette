@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 import aiosqlite
 import pytest
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
-from hassette.test_utils.config import SECONDS_PER_DAY
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 from .conftest import LOG_RECORDS_TEST_DDL as DDL

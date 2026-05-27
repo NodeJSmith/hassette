@@ -2,7 +2,6 @@ import inspect
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from functools import lru_cache
-from inspect import isclass
 from types import UnionType
 from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_origin
 
@@ -51,7 +50,7 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
         return normalize_for_isinstance(get_args(tp)[0])
 
     # ---- typing.Any ----
-    if tp is Any or tp is Any:
+    if tp is Any:
         return object
 
     # ---- TypeVar ----
@@ -267,7 +266,7 @@ def is_event_type(annotation: Any) -> bool:
     # For non-generic types, this returns None, so we check annotation directly
     base_type = get_origin(annotation) or annotation
 
-    return isclass(base_type) and issubclass(base_type, Event)
+    return inspect.isclass(base_type) and issubclass(base_type, Event)
 
 
 def make_union(types: set[Any]) -> Any:
@@ -275,7 +274,7 @@ def make_union(types: set[Any]) -> Any:
     # Flatten nested unions
     flat: set[Any] = set()
     for t in types:
-        if isinstance(t, UnionType) or (get_origin(t) is None and isinstance(t, UnionType)):
+        if isinstance(t, UnionType):
             flat.update(get_args(t))
         else:
             # Handle both A|B and typing.Union[...] via get_origin

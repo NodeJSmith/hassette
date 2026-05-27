@@ -20,11 +20,9 @@ class FileWatcherService(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.file_watcher
 
     async def before_initialize(self) -> None:
-        self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
     async def serve(self) -> None:

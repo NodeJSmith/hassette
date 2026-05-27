@@ -15,7 +15,6 @@ from hassette.config.config import HassetteConfig
 TEST_TOKEN = "test-token"
 TEST_BASE_URL = "http://test.invalid:8123"
 TEST_WS_URL = "ws://test.invalid:8123/api/websocket"
-SECONDS_PER_DAY = 86_400
 TEST_SOURCE_LOCATION = "test.py:1"
 
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per

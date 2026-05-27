@@ -177,9 +177,6 @@ def convert_typed_state_change_event(c: "AnnotationConverter", value: Any, tp: A
     # This automatically handles dict->BaseState and Optional states, etc.
     data = value.payload.data
     entity_id = data.entity_id
-    if entity_id is None:
-        raise UnableToConvertValueError("State change event data must contain 'entity_id'")
-
     old_state_obj = None if data.old_state is None else c.convert(data.old_state, state_tp)
     new_state_obj = None if data.new_state is None else c.convert(data.new_state, state_tp)
 

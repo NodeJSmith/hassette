@@ -135,10 +135,11 @@ class TestAppRegistry:
         registry.record_failure("my_app", 0, error1)
         registry.record_failure("my_app", 1, error2)
 
-        apps_dict = registry.get_snapshot().apps_dict
-
-        assert ("my_app", 0) in apps_dict
-        assert ("my_app", 1) in apps_dict
+        snapshot = registry.get_snapshot()
+        assert "my_app" in snapshot.failed_apps
+        failed = [f for f in snapshot.failed if f.app_key == "my_app"]
+        assert len(failed) == 2
+        assert {f.index for f in failed} == {0, 1}
 
     def test_clear_failures_single_app(self, registry: AppRegistry) -> None:
         """Test clearing failures for a single app."""

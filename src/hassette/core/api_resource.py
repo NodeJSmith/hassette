@@ -29,6 +29,8 @@ from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
 
+_SSL_SHUTDOWN_DELAY = 0.25
+
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
@@ -85,11 +87,10 @@ class ApiResource(Resource):
 
     async def on_shutdown(self) -> None:
         await self._stack.aclose()
-        await asyncio.sleep(0.25 if self.hassette.config.verify_ssl else 0)
+        await asyncio.sleep(_SSL_SHUTDOWN_DELAY if self.hassette.config.verify_ssl else 0)
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
     @property
@@ -127,7 +128,7 @@ class ApiResource(Resource):
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
         )
-        async def _inner_request(
+        async def inner_request(
             method: str,
             url: str,
             params: dict[str, Any] | None = None,
@@ -174,7 +175,7 @@ class ApiResource(Resource):
 
                 raise
 
-        return await _inner_request(
+        return await inner_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
         )
 

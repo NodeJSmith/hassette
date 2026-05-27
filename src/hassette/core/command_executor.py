@@ -7,6 +7,7 @@ import time
 import traceback
 import typing
 from collections.abc import Awaitable, Callable
+from contextvars import Token
 from dataclasses import dataclass, field
 from dataclasses import replace as dataclass_replace
 from typing import ClassVar
@@ -37,6 +38,9 @@ if typing.TYPE_CHECKING:
 _MAX_RETRY_COUNT = 3
 _CAPACITY_WARN_THRESHOLD = 0.75
 _CAPACITY_WARN_RATE_LIMIT_SECS = 30.0
+_TIMEOUT_WARN_SUPPRESS_SECS = 60.0
+_TIMEOUT_WARN_CACHE_MAX = 1000
+_BATCH_DRAIN_CAP = 100
 
 
 @dataclass
@@ -104,15 +108,6 @@ class CommandExecutor(Service):
     rate-limit checks.
     """
 
-    _TIMEOUT_WARN_SUPPRESS_SECS: float = 60.0
-    """Minimum interval between timeout WARNINGs for the same entity."""
-
-    _TIMEOUT_WARN_CACHE_MAX: int = 1000
-    """Maximum number of entries in _timeout_warn_timestamps before a full clear."""
-
-    _BATCH_DRAIN_CAP: int = 100
-    """Maximum number of items drained from the write queue per batch flush."""
-
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._write_queue = asyncio.Queue(maxsize=hassette.config.database.telemetry_write_queue_max)
@@ -127,7 +122,6 @@ class CommandExecutor(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.command_executor
 
     async def serve(self) -> None:
@@ -295,17 +289,15 @@ class CommandExecutor(Service):
                 label = f"job_id={cmd.job.job_id}, job_db_id={cmd.job_db_id}"
 
         # Lazy eviction of stale entries, then cap to bound memory under sustained unavailability
-        stale_ids = [
-            k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
-        ]
+        stale_ids = [k for k, ts in self._timeout_warn_timestamps.items() if now - ts > _TIMEOUT_WARN_SUPPRESS_SECS]
         for k in stale_ids:
             del self._timeout_warn_timestamps[k]
-        if len(self._timeout_warn_timestamps) > self._TIMEOUT_WARN_CACHE_MAX:
+        if len(self._timeout_warn_timestamps) > _TIMEOUT_WARN_CACHE_MAX:
             self._timeout_warn_timestamps.clear()
 
         # Rate-limit check
         last_ts = self._timeout_warn_timestamps.get(entity_id)
-        if last_ts is not None and now - last_ts < self._TIMEOUT_WARN_SUPPRESS_SECS:
+        if last_ts is not None and now - last_ts < _TIMEOUT_WARN_SUPPRESS_SECS:
             return  # suppressed
         self._timeout_warn_timestamps[entity_id] = now
 
@@ -402,26 +394,10 @@ class CommandExecutor(Service):
                     execution_id=execution_id,
                 )
 
-    async def _execute_handler(self, cmd: InvokeHandler) -> None:
-        """Execute a listener handler invocation and queue the result record.
-
-        Exception contract (tier-aware — see ``_execute()`` docstring for details).
-        After _execute() returns, if the result is an error with an exception captured,
-        the per-registration or app-level error handler (if any) is invoked in a
-        separate spawned task to avoid starvation of the dispatch slot.
-
-        CURRENT_EXECUTION_ID is set for the duration of this method, including the
-        task_bucket.spawn() call, so spawned error handler tasks inherit the
-        ContextVar snapshot at spawn time.
-
-        structlog context vars (app_key, instance_name, instance_index) are bound for the
-        duration of this execution so all log records carry app identity. clear_contextvars()
-        in the finally block prevents leakage between concurrent handler invocations.
-        """
+    def _bind_execution_context(self, app_key: str | None, instance_index: int) -> tuple[str, Token[str | None]]:
+        """Set CURRENT_EXECUTION_ID and bind structlog context vars for the duration of an execution."""
         execution_id = str(uuid_utils.uuid7())
         token = CURRENT_EXECUTION_ID.set(execution_id)
-        app_key = cmd.listener.identity.app_key
-        instance_index = cmd.listener.identity.instance_index
         instance_name: str | None = None
         if app_key:
             app_inst = self.hassette.app_handler.get(app_key, instance_index)
@@ -432,9 +408,21 @@ class CommandExecutor(Service):
             instance_name=instance_name,
             instance_index=instance_index,
         )
+        return execution_id, token
+
+    @staticmethod
+    def _unbind_execution_context(token: Token[str | None]) -> None:
+        CURRENT_EXECUTION_ID.reset(token)
+        structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+
+    async def _execute_handler(self, cmd: InvokeHandler) -> None:
+        """Execute a listener handler invocation and queue the result record."""
+        execution_id, token = self._bind_execution_context(
+            cmd.listener.identity.app_key, cmd.listener.identity.instance_index
+        )
         try:
 
-            def _log_error(result: ExecutionResult) -> None:
+            def log_error(result: ExecutionResult) -> None:
                 if result.error_traceback is None:
                     self.logger.error(
                         "Handler error (topic=%s, exec=%s): %s", cmd.topic, execution_id, result.error_message
@@ -448,10 +436,9 @@ class CommandExecutor(Service):
                         result.error_traceback,
                     )
 
-            result = await self._execute(lambda: cmd.listener.invoker.invoke(cmd.event), cmd, _log_error, execution_id)
+            result = await self._execute(lambda: cmd.listener.invoker.invoke(cmd.event), cmd, log_error, execution_id)
 
             if (result.is_error or result.is_timed_out) and result.exc is not None:
-                # Resolution order: per-registration handler first; app-level fallback second.
                 error_handler = cmd.listener.invoker.error_handler or cmd.app_level_error_handler
                 if error_handler is not None:
                     ctx = BusErrorContext(
@@ -469,42 +456,14 @@ class CommandExecutor(Service):
                         name="executor:bus_error_handler",
                     )
         finally:
-            CURRENT_EXECUTION_ID.reset(token)
-            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+            self._unbind_execution_context(token)
 
     async def _execute_job(self, cmd: ExecuteJob) -> None:
-        """Execute a scheduled job and queue the result record.
-
-        Exception contract (tier-aware — see ``_execute()`` docstring for details).
-        After _execute() returns, if the result is an error with an exception captured,
-        the per-registration or app-level error handler (if any) is invoked in a
-        separate spawned task to avoid starvation of the dispatch slot.
-
-        CURRENT_EXECUTION_ID is set for the duration of this method, including the
-        task_bucket.spawn() call, so spawned error handler tasks inherit the
-        ContextVar snapshot at spawn time.
-
-        structlog context vars (app_key, instance_name, instance_index) are bound for the
-        duration of this execution so all log records carry app identity. clear_contextvars()
-        in the finally block prevents leakage between concurrent job executions.
-        """
-        execution_id = str(uuid_utils.uuid7())
-        token = CURRENT_EXECUTION_ID.set(execution_id)
-        app_key = cmd.job.app_key
-        instance_index = cmd.job.instance_index
-        instance_name: str | None = None
-        if app_key:
-            app_inst = self.hassette.app_handler.get(app_key, instance_index)
-            if app_inst is not None:
-                instance_name = app_inst.app_config.instance_name
-        structlog.contextvars.bind_contextvars(
-            app_key=app_key or None,
-            instance_name=instance_name,
-            instance_index=instance_index,
-        )
+        """Execute a scheduled job and queue the result record."""
+        execution_id, token = self._bind_execution_context(cmd.job.app_key, cmd.job.instance_index)
         try:
 
-            def _log_error(result: ExecutionResult) -> None:
+            def log_error(result: ExecutionResult) -> None:
                 if result.error_traceback is None:
                     self.logger.error(
                         "Job error (job_db_id=%s, exec=%s): %s", cmd.job_db_id, execution_id, result.error_message
@@ -514,10 +473,9 @@ class CommandExecutor(Service):
                         "Job error (job_db_id=%s, exec=%s)\n%s", cmd.job_db_id, execution_id, result.error_traceback
                     )
 
-            result = await self._execute(cmd.callable, cmd, _log_error, execution_id)
+            result = await self._execute(cmd.callable, cmd, log_error, execution_id)
 
             if (result.is_error or result.is_timed_out) and result.exc is not None:
-                # Resolution order: per-registration handler first; app-level fallback second.
                 error_handler = cmd.job.error_handler or cmd.app_level_error_handler
                 if error_handler is not None:
                     ctx = SchedulerErrorContext(
@@ -535,8 +493,7 @@ class CommandExecutor(Service):
                         name="executor:scheduler_error_handler",
                     )
         finally:
-            CURRENT_EXECUTION_ID.reset(token)
-            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+            self._unbind_execution_context(token)
 
     async def _invoke_error_handler(
         self,
@@ -678,7 +635,7 @@ class CommandExecutor(Service):
             _classify(first_item)
 
         # Drain remaining items up to a total batch size of _BATCH_DRAIN_CAP (non-blocking)
-        for _ in range(self._BATCH_DRAIN_CAP - 1 if first_item is not None else self._BATCH_DRAIN_CAP):
+        for _ in range(_BATCH_DRAIN_CAP - 1 if first_item is not None else _BATCH_DRAIN_CAP):
             try:
                 item = self._write_queue.get_nowait()
             except asyncio.QueueEmpty:

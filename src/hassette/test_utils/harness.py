@@ -6,7 +6,7 @@ import logging
 import threading
 import traceback
 import typing
-from collections.abc import Callable, Generator
+from collections.abc import Awaitable, Callable, Generator
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
@@ -86,6 +86,36 @@ async def wait_for(
 
 async def shutdown_resource(res: Resource) -> None:
     await res.shutdown()
+
+
+async def _harness_dispatch(
+    invoke_fn: Callable[[], Awaitable[None]],
+    error_handler: Callable[..., Any] | None,
+    make_error_context: Callable[[Exception], Any],
+    log_label: str,
+) -> None:
+    """Shared dispatch logic for bus and scheduler harness stubs.
+
+    The harness does NOT test timeout enforcement, task spawn isolation, or
+    failure counter — those are covered by integration tests via real CommandExecutor.
+    """
+    if error_handler is None:
+        await invoke_fn()
+        return
+    try:
+        await invoke_fn()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        ctx = make_error_context(exc)
+        try:
+            result = error_handler(ctx)
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            logging.getLogger("hassette.test_utils.harness").warning(
+                "Error handler raised during harness dispatch (%s)", log_label, exc_info=True
+            )
 
 
 class _HarnessEventStreamService(EventStreamService):
@@ -587,7 +617,6 @@ class HassetteHarness:
             raise ExceptionGroup("errors during harness teardown", shutdown_errors)
 
     async def _start_bus(self) -> None:
-        # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.
         # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls
         # (e.g., ServiceWatcher max-restart exceeded) do not close the anyio streams and
         # break subsequent tests sharing this module-scoped fixture.
@@ -595,36 +624,18 @@ class HassetteHarness:
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
-                error_handler = cmd.listener.invoker.error_handler or cmd.app_level_error_handler
-                if error_handler is None:
-                    await cmd.listener.invoker.invoke(cmd.event)
-                    return
-
-                try:
-                    await cmd.listener.invoker.invoke(cmd.event)
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    ctx = BusErrorContext(
+                await _harness_dispatch(
+                    invoke_fn=lambda: cmd.listener.invoker.invoke(cmd.event),
+                    error_handler=cmd.listener.invoker.error_handler or cmd.app_level_error_handler,
+                    make_error_context=lambda exc: BusErrorContext(
                         exception=exc,
                         traceback="".join(traceback.format_exception(exc)),
                         topic=cmd.topic,
                         listener_name=repr(cmd.listener),
                         event=cmd.event,
-                    )
-                    # NOTE: the harness does NOT test timeout enforcement,
-                    # task spawn isolation, or failure counter — those are
-                    # covered by integration tests via real CommandExecutor.
-                    try:
-                        result = error_handler(ctx)
-                        if inspect.isawaitable(result):
-                            await result
-                    except Exception:
-                        logging.getLogger("hassette.test_utils.harness").warning(
-                            "Bus error handler raised during harness dispatch (topic=%s)",
-                            cmd.topic,
-                            exc_info=True,
-                        )
+                    ),
+                    log_label=f"topic={cmd.topic}",
+                )
 
         _listener_id_counter = itertools.count(1)
 
@@ -641,40 +652,21 @@ class HassetteHarness:
         self.hassette._bus = self.hassette.add_child(Bus)
 
     async def _start_scheduler(self) -> None:
-        # NOTE: _stub_execute mirrors _start_bus's version — keep both in sync.
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
-                error_handler = cmd.job.error_handler or cmd.app_level_error_handler
-                if error_handler is None:
-                    await cmd.callable()
-                    return
-
-                try:
-                    await cmd.callable()
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    ctx = SchedulerErrorContext(
+                await _harness_dispatch(
+                    invoke_fn=cmd.callable,
+                    error_handler=cmd.job.error_handler or cmd.app_level_error_handler,
+                    make_error_context=lambda exc: SchedulerErrorContext(
                         exception=exc,
                         traceback="".join(traceback.format_exception(exc)),
                         job_name=cmd.job.name,
                         job_group=cmd.job.group,
                         args=cmd.job.args,
                         kwargs=dict(cmd.job.kwargs),
-                    )
-                    # NOTE: the harness does NOT test timeout enforcement,
-                    # task spawn isolation, or failure counter — those are
-                    # covered by integration tests via real CommandExecutor.
-                    try:
-                        result = error_handler(ctx)
-                        if inspect.isawaitable(result):
-                            await result
-                    except Exception:
-                        logging.getLogger("hassette.test_utils.harness").warning(
-                            "Scheduler error handler raised during harness dispatch (job=%s)",
-                            cmd.job.name,
-                            exc_info=True,
-                        )
+                    ),
+                    log_label=f"job={cmd.job.name}",
+                )
 
         _job_id_counter = itertools.count(1)
 

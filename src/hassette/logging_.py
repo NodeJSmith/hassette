@@ -20,6 +20,9 @@ import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
 
+MAX_SNAPSHOT_RETRIES = 5
+DEQUEUE_TIMEOUT_SECONDS = 0.2
+
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
@@ -98,7 +101,7 @@ class LogCaptureHandler(logging.Handler):
         The underlying deque can be mutated by emit() from worker threads,
         so iterating it directly risks RuntimeError. This retries on mutation.
         """
-        for _ in range(5):
+        for _ in range(MAX_SNAPSHOT_RETRIES):
             try:
                 return list(self._buffer)
             except RuntimeError:
@@ -176,10 +179,8 @@ class HassetteQueueListener(logging.handlers.QueueListener):
     support ``flush_if_pending()``.
     """
 
-    DEQUEUE_TIMEOUT_SECONDS: float = 0.2
-
     def dequeue(self, block: bool) -> logging.LogRecord:
-        return self.queue.get(block=block, timeout=self.DEQUEUE_TIMEOUT_SECONDS)  # pyright: ignore[reportCallIssue]
+        return self.queue.get(block=block, timeout=DEQUEUE_TIMEOUT_SECONDS)  # pyright: ignore[reportCallIssue]
 
     def enqueue_sentinel(self) -> None:
         # Blocking put — put_nowait raises queue.Full on a bounded queue during burst logging,

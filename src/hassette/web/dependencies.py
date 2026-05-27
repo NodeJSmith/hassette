@@ -41,7 +41,7 @@ ApiDep = Annotated["Api", Depends(get_api)]
 
 # Shared query parameter for source tier filtering.
 SOURCE_TIER_PARAM = Query(
-    default=None,
+    default="app",
     description="Filter by source tier. 'app' excludes framework internals. "
     "'framework' returns only internal actors. 'all' returns everything.",
 )

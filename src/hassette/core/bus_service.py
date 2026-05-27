@@ -91,7 +91,6 @@ class BusService(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 
     @cached_property
@@ -411,31 +410,7 @@ class BusService(Service):
         remaining: float,
     ) -> None:
         """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
-
-        async def on_duration_fire() -> None:
-            try:
-                current_state = self._read_entity_state(entity_id)
-                if current_state is None:
-                    self.logger.debug(
-                        "remaining_duration_fire: entity %s not found in StateProxy, dropping fire",
-                        entity_id,
-                    )
-                    return
-                recheck_event = self._make_synthetic_state_event(entity_id, current_state)
-                if not self._hold_matches(listener, recheck_event):
-                    self.logger.debug(
-                        "remaining_duration_fire: entity %s predicate no longer matches, dropping fire",
-                        entity_id,
-                    )
-                    return
-                await listener.invoker.dispatch(invoke_fn)
-            finally:
-                self._duration_timers_active -= 1
-                if listener.options.once:
-                    self.remove_listener(listener)
-
-        self._duration_timers_active += 1
-        duration_config.timer.start(on_duration_fire, override_duration=remaining)
+        self._start_duration_timer_inner(listener, entity_id, duration_config, invoke_fn, override_duration=remaining)
 
     def start_duration_timer(
         self,
@@ -445,9 +420,17 @@ class BusService(Service):
         invoke_fn: "Callable[[], Awaitable[None]]",
     ) -> None:
         """Start the full-duration hold timer; rechecks predicates at fire time."""
+        self._start_duration_timer_inner(listener, entity_id, duration_config, invoke_fn)
 
+    def _start_duration_timer_inner(
+        self,
+        listener: Listener,
+        entity_id: str,
+        duration_config: DurationConfig,
+        invoke_fn: "Callable[[], Awaitable[None]]",
+        override_duration: float | None = None,
+    ) -> None:
         async def on_duration_fire() -> None:
-            """Called by DurationTimer after the full hold period elapses."""
             try:
                 current_state = self._read_entity_state(entity_id)
                 if current_state is None:
@@ -456,21 +439,13 @@ class BusService(Service):
                         entity_id,
                     )
                     return
-
                 recheck_event = self._make_synthetic_state_event(entity_id, current_state)
-
                 if not self._hold_matches(listener, recheck_event):
                     self.logger.debug(
                         "duration_fire: entity %s predicate no longer matches, dropping fire",
                         entity_id,
                     )
                     return
-
-                self.logger.debug(
-                    "duration_fire: entity %s held state for %.2fs, dispatching handler",
-                    entity_id,
-                    duration_config.duration,
-                )
                 await listener.invoker.dispatch(invoke_fn)
             finally:
                 self._duration_timers_active -= 1
@@ -478,7 +453,10 @@ class BusService(Service):
                     self.remove_listener(listener)
 
         self._duration_timers_active += 1
-        duration_config.timer.start(on_duration_fire)
+        if override_duration is not None:
+            duration_config.timer.start(on_duration_fire, override_duration=override_duration)
+        else:
+            duration_config.timer.start(on_duration_fire)
 
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus.
@@ -715,33 +693,14 @@ class BusService(Service):
         return execute_fn
 
     async def before_initialize(self) -> None:
-        self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
     @property
     def is_dispatch_idle(self) -> bool:
-        """Return True when no dispatch tasks are in flight.
-
-        Delegates to ``_dispatch_idle_event.is_set()``. This is the recommended
-        public accessor for drain helpers and test infrastructure — prefer this
-        over reading ``_dispatch_idle_event`` directly.
-
-        Returns:
-            True if no handler dispatch tasks are currently running.
-        """
         return self._dispatch_idle_event.is_set()
 
     @property
     def dispatch_pending_count(self) -> int:
-        """Return the number of currently in-flight dispatch tasks.
-
-        Delegates to ``_dispatch_pending``. This is the recommended public
-        accessor for drain helpers and test infrastructure — prefer this over
-        reading ``_dispatch_pending`` directly.
-
-        Returns:
-            The count of handler dispatch tasks currently running.
-        """
         return self._dispatch_pending
 
     async def await_dispatch_idle(self, *, timeout: float = _DISPATCH_IDLE_DEFAULT_TIMEOUT) -> None:
@@ -938,9 +897,6 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
         return 0.0
 
     last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
-    if last_changed is None:
-        return 0.0
-
     now_dt = _date_utils.now()
     raw_elapsed = (now_dt - last_changed).in_seconds()
     return max(0.0, min(raw_elapsed, duration))

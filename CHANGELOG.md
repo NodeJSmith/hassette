@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0](https://github.com/NodeJSmith/hassette/compare/v0.32.0...v0.33.0) (2026-05-26)
+
+### Breaking Changes
+
+- `GET /api/logs/by-execution/{execution_id}` has been removed. Use `GET /api/executions/{execution_id}` instead. The response shape (`LogsByExecutionResponse`) is unchanged. ([#865](https://github.com/NodeJSmith/hassette/issues/865))
+
+### CLI
+
+- `hassette query` subcommand for querying all read-only API endpoints from the command line — apps, handlers, jobs, invocations, executions, logs, config, and sessions. ([#838](https://github.com/NodeJSmith/hassette/issues/838))
+- `--generate-completion` replaces `--install-completion` — outputs the shell completion script to stdout instead of modifying shell config files. Pipe to a file in your `$fpath` to install. ([#870](https://github.com/NodeJSmith/hassette/issues/870))
+- Fix zsh completion function name with cyclopts 4.16+ — `hassette --generate-completion zsh` now produces the correct `_hassette` function name instead of `_cyclopts_hassette`. ([#871](https://github.com/NodeJSmith/hassette/issues/871))
+
+### Web UI
+
+- Redesigned accent color system and improved visual depth with systematized design tokens. ([#842](https://github.com/NodeJSmith/hassette/issues/842))
+- Mobile navigation integrated into the status bar with a hamburger menu. ([#857](https://github.com/NodeJSmith/hassette/issues/857))
+- Unified table sort headers across all pages and fixed mobile table column rendering. ([#853](https://github.com/NodeJSmith/hassette/issues/853))
+- Aria-live announcements for WebSocket connection status changes. ([#827](https://github.com/NodeJSmith/hassette/issues/827))
+
+### Configuration
+
+- TOML `[hassette]` section now deep-merges, preserving top-level app definitions alongside nested sections. ([#826](https://github.com/NodeJSmith/hassette/issues/826))
+- Auto-migrate legacy `HASSETTE__APP_DIR` environment variable to `HASSETTE__APPS__DIRECTORY`. ([#831](https://github.com/NodeJSmith/hassette/issues/831))
+- Environment variables correctly override config file values for legacy flat config keys. ([#836](https://github.com/NodeJSmith/hassette/issues/836))
+
+### Performance
+
+- Telemetry database queries now have a configurable read timeout, preventing indefinite hangs on slow or locked databases. ([#860](https://github.com/NodeJSmith/hassette/issues/860))
+
+### Documentation
+
+- Rewrite web UI documentation with full page coverage. ([#806](https://github.com/NodeJSmith/hassette/issues/806))
+- Update configuration references to post-v0.32.0 nested key format. ([#818](https://github.com/NodeJSmith/hassette/issues/818))
+- Clean up docs site navigation — remove redundant tabs, fix mid-viewport layout. ([#858](https://github.com/NodeJSmith/hassette/issues/858))
+
 ## [0.32.0](https://github.com/NodeJSmith/hassette/compare/v0.31.0...v0.32.0) (2026-05-20)
 
 

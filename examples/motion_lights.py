@@ -76,7 +76,7 @@ class MotionLights(App[MotionLightsConfig]):
         self.logger.info("Motion cleared on %s", cfg.motion_entity)
 
         light = await self.api.get_entity(cfg.light_entity, entities.LightEntity)
-        if light.value == "on":
+        if light.state.value is True:
             self.logger.info("Turning off %s", cfg.light_entity)
             await light.turn_off()
         else:
