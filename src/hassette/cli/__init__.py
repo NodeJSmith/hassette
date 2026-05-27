@@ -1,4 +1,4 @@
-"""Hassette CLI — cyclopts App setup, default command, and subcommand registration."""
+"""Hassette CLI — cyclopts App setup and subcommand registration."""
 
 from importlib.metadata import PackageNotFoundError, version
 from typing import Annotated, Literal

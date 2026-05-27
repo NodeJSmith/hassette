@@ -204,6 +204,26 @@ For server errors with an HTTP status:
 {"error": true, "status": 503, "detail": "Service unavailable"}
 ```
 
+### Debug mode (`--debug`)
+
+Add `--debug` to any command to see the full HTTP response when an error occurs. This is useful for diagnosing 500s or unexpected API responses without checking server logs.
+
+In human mode, the request method, URL, and full response body are printed below the error:
+
+```
+Error 500: Internal Server Error
+  URL:    GET http://127.0.0.1:8126/api/health
+  Body:   {"detail":"Internal Server Error","traceback":"..."}
+```
+
+In JSON mode, a `debug` key is added to the error object:
+
+```json
+{"error": true, "status": 500, "detail": "Internal Server Error", "debug": {"url": "http://127.0.0.1:8126/api/health", "method": "GET", "body": "{\"detail\":\"Internal Server Error\"}"}}
+```
+
+`--debug` only affects HTTP error responses. Network errors (connection refused, timeout) already include the target address in the default output.
+
 ## Related Pages
 
 - [Web UI](../web-ui/index.md) — the browser interface covering the same data

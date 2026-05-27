@@ -1,12 +1,28 @@
 """Unit tests for the hassette run command."""
 
 import errno
+from io import StringIO
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from hassette.cli import app
 from hassette.cli.commands.run import cmd_run
 from hassette.exceptions import AppPrecheckFailedError, FatalError
+
+
+class TestBareHassetteShowsHelp:
+    def test_no_args_prints_help_not_server(self) -> None:
+        """Bare `hassette` with no arguments must show help, not start the server."""
+        buf = StringIO()
+        with patch("sys.stdout", buf), patch("hassette.cli.commands.run.run_server") as mock_server:
+            with pytest.raises(SystemExit) as exc_info:
+                app.meta([])
+            assert exc_info.value.code == 0
+        output = buf.getvalue()
+        assert "Commands" in output
+        assert "run" in output
+        mock_server.assert_not_called()
 
 
 @patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock)
