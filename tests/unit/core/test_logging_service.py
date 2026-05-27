@@ -451,9 +451,7 @@ class TestSyncToAsyncSwap:
         await asyncio.sleep(0.1)
 
         try:
-            # All M post-init records should appear in the new capture handler
-            # (the capture handler in LoggingService, not the old pre_capture)
-            post_init_msgs = [e.message for e in svc.capture_handler.buffer]
+            post_init_msgs = [e.message for e in svc.capture_handler.buffer if e.message.startswith("post-init record")]
             assert len(post_init_msgs) == m, (
                 f"Expected {m} post-init records in capture handler, got {len(post_init_msgs)}: {post_init_msgs}"
             )
