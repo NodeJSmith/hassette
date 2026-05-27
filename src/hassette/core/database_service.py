@@ -578,7 +578,7 @@ class DatabaseService(Service):
             for target in _RETENTION_TABLES:
                 cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
                 cursor = await self.db.execute(
-                    f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",  # noqa: S608
+                    f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
                     (cutoff,),
                 )
                 deleted_by_table[target.table] = cursor.rowcount or 0
@@ -689,14 +689,14 @@ class DatabaseService(Service):
                 group_deleted = 0
                 for target in group:
                     cursor = await db.execute(
-                        f"DELETE FROM {target.table} WHERE id IN "  # noqa: S608
+                        f"DELETE FROM {target.table} WHERE id IN "
                         f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
                         (_SIZE_FAILSAFE_DELETE_BATCH,),
                     )
-                    await db.commit()
                     n = cursor.rowcount or 0
                     total_deleted_by_table[target.table] += n
                     group_deleted += n
+                await db.commit()
 
                 if group_deleted == 0:
                     break
