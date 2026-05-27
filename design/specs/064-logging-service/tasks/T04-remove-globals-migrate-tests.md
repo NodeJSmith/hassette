@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Remove module globals and migrate logging tests"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#8", "FR#9", "AC#6", "AC#7", "AC#9", "AC#11"]
 ---

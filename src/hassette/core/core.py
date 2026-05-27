@@ -14,7 +14,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_basic_logging, shutdown_logging
+from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -621,7 +621,6 @@ class Hassette(Resource):
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
-        shutdown_logging()
         try:
             if self._bus is not None:
                 self._bus.remove_all_listeners()
