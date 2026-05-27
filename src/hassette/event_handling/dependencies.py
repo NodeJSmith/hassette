@@ -79,8 +79,6 @@ if typing.TYPE_CHECKING:
 T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
 
-T_Any = TypeVar("T_Any", bound=Any)
-
 
 @dataclass(slots=True, frozen=True)
 class AnnotationDetails(Generic[T]):

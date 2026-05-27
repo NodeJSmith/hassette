@@ -135,13 +135,12 @@ async def app_health(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
-    effective_tier = source_tier if source_tier is not None else "app"
     try:
         agg = await telemetry.get_app_health_aggregates(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
+            app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch app health for %s", app_key, exc_info=True)
@@ -184,13 +183,12 @@ async def app_listeners(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
-    effective_tier = source_tier if source_tier is not None else "app"
     try:
         listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
+            app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch listeners for %s", app_key, exc_info=True)
@@ -209,10 +207,9 @@ async def app_activity(
     ),  # pyright: ignore[reportCallInDefaultInitializer]
     limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
-    effective_tier = source_tier if source_tier is not None else "app"
     effective_since = since if since is not None else time.time() - SECONDS_PER_DAY
     try:
         return await telemetry.get_app_recent_activity(
@@ -220,7 +217,7 @@ async def app_activity(
             instance_index=instance_index,
             limit=limit,
             since=effective_since,
-            source_tier=effective_tier,
+            source_tier=source_tier,
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch activity for %s", app_key, exc_info=True)
@@ -236,7 +233,7 @@ async def app_jobs(
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
     """Job summaries for a single app instance, enriched with live heap data.
 
@@ -244,11 +241,10 @@ async def app_jobs(
     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
     returned without enrichment (degraded but functional; logged warning, no 500).
     """
-    effective_tier = source_tier if source_tier is not None else "app"
     try:
         db_jobs = list(
             await telemetry.get_job_summary(
-                app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
+                app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
         )
     except DB_ERRORS:

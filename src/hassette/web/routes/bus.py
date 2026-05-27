@@ -26,15 +26,14 @@ async def get_listener_metrics(
         Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."),
     ] = 0,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
-    effective_tier = source_tier if source_tier is not None else "app"
     try:
         if not app_key:
-            summaries = await telemetry.get_all_listeners_summary(since=since, source_tier=effective_tier)
+            summaries = await telemetry.get_all_listeners_summary(since=since, source_tier=source_tier)
         else:
             summaries = await telemetry.get_listener_summary(
-                app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
+                app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch listener metrics", exc_info=True)

@@ -6,6 +6,8 @@ from yarl import URL
 if typing.TYPE_CHECKING:
     from hassette.models.states import BaseState
 
+MAX_ISSUES_IN_SUMMARY = 5
+
 
 class HassetteError(Exception):
     """Base exception for all Hassette errors."""
@@ -189,7 +191,6 @@ class RegistryNotReadyError(StateRegistryError):
     """Raised when attempting to use the registry before any classes are registered."""
 
     def __init__(self) -> None:
-        """Initialize the error."""
         super().__init__(
             "State registry has not been initialized. "
             "No state classes have been registered yet. "
@@ -205,11 +206,6 @@ class NoDomainAnnotationError(StateRegistryError):
     """
 
     def __init__(self, state_class: type["BaseState[Any]"]) -> None:
-        """Initialize the error with the offending class.
-
-        Args:
-            state_class: The class that lacks a domain annotation.
-        """
         super().__init__(
             f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
         )
@@ -220,11 +216,6 @@ class DomainNotFoundError(StateRegistryError):
     """Raised when no state class is found for a given domain."""
 
     def __init__(self, domain: str):
-        """Initialize the error with the offending domain.
-
-        Args:
-            domain: The domain that has no associated state class.
-        """
         super().__init__(f"No state class found for domain '{domain}'.")
         self.domain = domain
 
@@ -237,11 +228,6 @@ class InvalidDataForStateConversionError(StateRegistryError):
     """Raised when the data provided for state conversion is invalid or malformed."""
 
     def __init__(self, data: Any):
-        """Initialize the error with the offending data.
-
-        Args:
-            data: The invalid data provided for state conversion.
-        """
         super().__init__(f"Invalid or malformed data provided for state conversion: {data!r}")
         self.data = data
 
@@ -250,12 +236,6 @@ class UnableToConvertStateError(StateRegistryError):
     """Raised when a state dictionary cannot be converted to a specific state class."""
 
     def __init__(self, entity_id: str, state_class: type["BaseState"]) -> None:
-        """Initialize the error with the offending entity ID.
-
-        Args:
-            entity_id: The entity ID that could not be converted.
-            state_class: The state class that conversion was attempted to.
-        """
         super().__init__(f"Unable to convert state for entity_id '{entity_id}' to class {state_class.__name__}.")
         self.entity_id = entity_id
         self.state_class = state_class
@@ -265,13 +245,6 @@ class ConvertedTypeDoesNotMatchError(StateRegistryError):
     """Raised when a converted state does not match the expected type."""
 
     def __init__(self, entity_id: str, expected_class: type["BaseState"], actual_class: type["BaseState"]) -> None:
-        """Initialize the error with the offending entity ID.
-
-        Args:
-            entity_id: The entity ID that was converted.
-            expected_class: The expected state class.
-            actual_class: The actual state class returned.
-        """
         super().__init__(
             f"Converted state for entity_id '{entity_id}' is of type {actual_class.__name__}, "
             f"expected {expected_class.__name__}."
@@ -285,11 +258,6 @@ class InvalidEntityIdError(StateRegistryError):
     """Raised when an entity ID is invalid or malformed."""
 
     def __init__(self, entity_id: Any):
-        """Initialize the error with the offending entity ID.
-
-        Args:
-            entity_id: The invalid entity ID.
-        """
         super().__init__(f"Invalid or malformed entity ID: {entity_id!r}")
         self.entity_id = entity_id
 
@@ -335,7 +303,9 @@ class RegistryValidationError(HassetteError):
         warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
         total = len(issues)
         summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
-        summary_lines.extend(f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:5])
-        if total > 5:
-            summary_lines.append(f"  ... and {total - 5} more issue(s)")
+        summary_lines.extend(
+            f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:MAX_ISSUES_IN_SUMMARY]
+        )
+        if total > MAX_ISSUES_IN_SUMMARY:
+            summary_lines.append(f"  ... and {total - MAX_ISSUES_IN_SUMMARY} more issue(s)")
         super().__init__("\n".join(summary_lines))

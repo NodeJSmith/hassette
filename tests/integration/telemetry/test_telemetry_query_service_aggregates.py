@@ -9,12 +9,12 @@ import time
 
 import pytest
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     AppHealthSummary,
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService
-from hassette.test_utils.config import SECONDS_PER_DAY
 
 from .helpers import (
     BASE_TS,

@@ -13,6 +13,8 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
+STATE_REPR_MAX_LENGTH = 200
+STATE_REPR_TRUNCATION_SUFFIX = "...[truncated]"
 CONVERSION_FAIL_TEMPLATE = (
     "Failed to convert state for entity '%s' (domain: '%s') to class '%s'. Data: %s. Error: %s, Traceback: %s"
 )
@@ -144,28 +146,12 @@ class StateRegistry:
     def _conversion_with_error_handling(
         self, state_class: type["BaseState"], data: "HassStateDict", entity_id: str, domain: str
     ) -> "BaseState":
-        """Helper to convert state data with error handling.
-
-        This function attempts to convert the given data dictionary into an instance
-        of the specified state class. If conversion fails, it logs the error and
-        returns None.
-
-        Args:
-            state_class: The target state class to convert to.
-            data: The state data dictionary.
-            entity_id: The entity ID associated with the state data.
-            domain: The domain associated with the state data.
-
-        Returns:
-            An instance of the state class.
-
-        Raises: UnableToConvertStateError if conversion fails.
-        """
+        """Convert state data, logging and re-raising as UnableToConvertStateError on failure."""
 
         class_name = state_class.__name__
         truncated_data = repr(data)
-        if len(truncated_data) > 200:
-            truncated_data = truncated_data[:200] + "...[truncated]"
+        if len(truncated_data) > STATE_REPR_MAX_LENGTH:
+            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + STATE_REPR_TRUNCATION_SUFFIX
 
         try:
             return convert_state_dict_to_model(data, state_class)
@@ -192,27 +178,12 @@ class StateRegistry:
         return iter(self._registry.items())
 
     def items(self) -> Iterator[tuple[StateKey, type["BaseState"]]]:
-        """Iterate over all registered state classes with their keys.
-
-        Returns:
-            An iterator over (StateKey, BaseState subclass) pairs.
-        """
         return iter(self._registry.items())
 
     def values(self) -> Iterator[type["BaseState"]]:
-        """Iterate over all registered state classes.
-
-        Returns:
-            An iterator over all registered BaseState subclasses.
-        """
         return (state_class for state_class in self._registry.values())
 
     def keys(self) -> Iterator[StateKey]:
-        """Iterate over all registered state keys.
-
-        Returns:
-            An iterator over all registered state keys.
-        """
         return (key for key in self._registry)
 
     @classmethod

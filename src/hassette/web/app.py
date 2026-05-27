@@ -24,6 +24,9 @@ from hassette.web.routes.ws import router as ws_router
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
+CORS_ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOWED_HEADERS = ["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"]
+
 _STATIC_DIR = Path(__file__).parent / "static"
 _SPA_DIR = _STATIC_DIR / "spa"
 
@@ -56,8 +59,8 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
         CORSMiddleware,
         allow_origins=list(hassette.config.web_api.cors_origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+        allow_methods=CORS_ALLOWED_METHODS,
+        allow_headers=CORS_ALLOWED_HEADERS,
     )
 
     # API routes

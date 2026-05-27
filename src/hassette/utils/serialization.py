@@ -3,6 +3,8 @@
 import json
 from typing import Any
 
+NON_SERIALIZABLE_SENTINEL = '"<NON_SERIALIZABLE>"'
+
 
 def safe_json_serialize(value: Any) -> str:
     """Serialize a value to a JSON string, never raising.
@@ -23,4 +25,4 @@ def safe_json_serialize(value: Any) -> str:
     try:
         return json.dumps(value, default=str, sort_keys=True)
     except Exception:
-        return '"<NON_SERIALIZABLE>"'
+        return NON_SERIALIZABLE_SENTINEL
