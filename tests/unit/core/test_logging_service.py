@@ -413,41 +413,37 @@ class TestSyncToAsyncSwap:
     async def test_records_emitted_before_init_reach_capture_handler(self) -> None:
         """Records emitted via Phase 1 StreamHandler arrive in capture handler after init.
 
-        This test simulates: emit N records before on_initialize(), then init,
-        then emit M more records. All N+M records should appear in capture_handler.
+        Simulates: emit N records before on_initialize(), then init, then emit
+        M more. Pre-init records land in pre_capture (synchronous); post-init
+        records land in svc.capture_handler (async pipeline).
         """
-
         hassette_logger = logging.getLogger("hassette")
 
-        # Phase 1: attach a stream handler (simulates enable_basic_logging)
-        stream_handler = logging.StreamHandler()
-        hassette_logger.addHandler(stream_handler)
-
-        # Attach a capture handler directly (pre-init) to collect Phase 1 records
-        pre_capture = LogCaptureHandler(buffer_size=500)
-        hassette_logger.addHandler(pre_capture)
-
+        # Create mocks BEFORE attaching handlers — mock construction can trigger
+        # framework logs (e.g. hassette.config.helpers) that would contaminate buffers.
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
+        stream_handler = logging.StreamHandler()
+
+        pre_capture = LogCaptureHandler(buffer_size=500)
+        hassette_logger.addHandler(stream_handler)
+        hassette_logger.addHandler(pre_capture)
+
         svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
 
-        # Emit N records before init
         n = 5
         for i in range(n):
             hassette_logger.warning("pre-init record %d", i)
 
-        # Verify phase 1 records are in pre_capture (direct handler, synchronous)
-        assert len(pre_capture.buffer) == n
+        pre_init_msgs = [e for e in pre_capture.buffer if e.message.startswith("pre-init record")]
+        assert len(pre_init_msgs) == n
 
-        # Now initialize — swaps StreamHandler for QueueHandler
         await svc.on_initialize()
 
-        # Emit M records after init (async path via QueueHandler)
         m = 5
         for i in range(n, n + m):
             hassette_logger.warning("post-init record %d", i)
 
-        # Give the QueueListener time to dispatch the post-init records
         await asyncio.sleep(0.1)
 
         try:
@@ -459,7 +455,5 @@ class TestSyncToAsyncSwap:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
             hassette_logger.removeHandler(pre_capture)
-            # Restore clean logger state
-            for h in list(hassette_logger.handlers):
-                if isinstance(h, (logging.handlers.QueueHandler, logging.StreamHandler)):
-                    hassette_logger.removeHandler(h)
+            remove_queue_handlers()
+            hassette_logger.removeHandler(stream_handler)
