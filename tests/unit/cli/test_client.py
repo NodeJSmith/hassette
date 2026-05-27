@@ -101,12 +101,12 @@ class TestSuccessfulRequests:
 
     def test_returns_dict_for_dict_response(self) -> None:
         config = _make_config()
-        body = {"light": {"turn_on": {"description": "Turn on light"}}}
+        body = {"web_api": {"port": 8126}}
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        result = client.get("/api/services", dict)
+        result = client.get("/api/config", dict)
         assert isinstance(result, dict)
-        assert "light" in result
+        assert "web_api" in result
 
 
 # ---------------------------------------------------------------------------
@@ -394,3 +394,54 @@ class TestInstanceRouting:
             )
         assert exc_info.value.code != 0
         assert "--app" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# --debug flag
+# ---------------------------------------------------------------------------
+
+
+class TestDebugMode:
+    def test_debug_human_mode_shows_url_and_body(self) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "Internal server error"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get("/api/crash", SimpleModel)
+        output = buf.getvalue()
+        assert "GET" in output
+        assert "/api/crash" in output
+        assert "Internal server error" in output
+
+    def test_debug_json_mode_includes_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=True, debug_mode=True, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get("/api/crash", SimpleModel)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed["error"] is True
+        assert "debug" in parsed
+        assert parsed["debug"]["method"] == "GET"
+        assert "/api/crash" in parsed["debug"]["url"]
+        assert "boom" in parsed["debug"]["body"]
+
+    def test_no_debug_human_mode_omits_url(self) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "Internal server error"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client.get("/api/crash", SimpleModel)
+        output = buf.getvalue()
+        assert "URL:" not in output
+
+    def test_no_debug_json_mode_omits_debug_key(self, capsys: pytest.CaptureFixture[str]) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
+        with pytest.raises(SystemExit):
+            client.get("/api/crash", SimpleModel)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert "debug" not in parsed

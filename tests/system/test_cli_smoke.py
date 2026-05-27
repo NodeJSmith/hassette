@@ -106,17 +106,6 @@ async def test_config_deserializes(ha_container: str, tmp_path: Path) -> None:
     assert result.web_api.port > 0
 
 
-async def test_services_returns_dict(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/services returns a dict."""
-    config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
-        with _cli_client(config) as client:
-            result: dict[str, Any] = await asyncio.to_thread(client.get, "/api/services", dict)
-
-    assert isinstance(result, dict)
-
-
 async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/telemetry/status deserializes to TelemetryStatusResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)

@@ -51,6 +51,7 @@ class HassetteCLIClient:
         self,
         config: HassetteConfig,
         json_mode: bool,
+        debug_mode: bool = False,
         transport: httpx.BaseTransport | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
@@ -58,6 +59,7 @@ class HassetteCLIClient:
         port = config.web_api.port
         self.base_url = f"http://{host}:{port}"
         self.json_mode = json_mode
+        self.debug_mode = debug_mode
         self.timeout = timeout
         self._client = httpx.Client(base_url=self.base_url, transport=transport)
 
@@ -199,9 +201,13 @@ class HassetteCLIClient:
             detail = response.text
 
         if self.json_mode:
-            _write_json_error(response.status_code, str(detail))
+            extra = {"url": str(response.url), "method": response.request.method, "body": response.text}
+            _write_json_error(response.status_code, str(detail), debug_extra=extra if self.debug_mode else None)
         else:
             cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {detail}")
+            if self.debug_mode:
+                cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {response.text}")
         sys.exit(1)
 
     def _handle_network_error(self, message: str) -> NoReturn:
@@ -237,11 +243,13 @@ def make_client() -> HassetteCLIClient:
         HassetteConfig.model_config["toml_file"] = cli_globals.config_file_override
 
     config = HassetteConfig(token=None)
-    return HassetteCLIClient(config, json_mode=cli_globals.json_mode)
+    return HassetteCLIClient(config, json_mode=cli_globals.json_mode, debug_mode=cli_globals.debug_mode)
 
 
-def _write_json_error(status: int | None, detail: str) -> None:
+def _write_json_error(status: int | None, detail: str, debug_extra: dict[str, Any] | None = None) -> None:
     """Write a JSON error document to stdout."""
-    doc = {"error": True, "status": status, "detail": detail}
+    doc: dict[str, Any] = {"error": True, "status": status, "detail": detail}
+    if debug_extra:
+        doc["debug"] = debug_extra
     sys.stdout.write(json.dumps(doc) + "\n")
     sys.stdout.flush()

@@ -79,7 +79,7 @@ The first run fires one minute after Hassette starts (the default interval for `
 With this code in place as `hassette_apps/main.py`, start Hassette:
 
 ```bash
-uv run hassette
+uv run hassette run
 ```
 
 You should see output like:

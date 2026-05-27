@@ -10,7 +10,7 @@ Create a long-lived access token in Home Assistant under your user profile, then
 |--------|-----|
 | Environment variable (recommended) | `HASSETTE__TOKEN=your_token_here` |
 | `.env` file | Add `HASSETTE__TOKEN=your_token_here` to `.env` in your config directory |
-| CLI flag | `hassette --token your_token_here` |
+| CLI flag | `hassette run --token your_token_here` |
 
 !!! note "Compatibility aliases"
     Hassette also accepts `HOME_ASSISTANT_TOKEN` and `HA_TOKEN` for compatibility with other tools, but `HASSETTE__TOKEN` is the canonical name and is recommended for new installations.

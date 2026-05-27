@@ -290,29 +290,6 @@
         }
       }
     },
-    "/api/services": {
-      "get": {
-        "tags": [
-          "services"
-        ],
-        "summary": "Get Services",
-        "operationId": "get_services_api_services_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Get Services Api Services Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/events/recent": {
       "get": {
         "tags": [

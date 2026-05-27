@@ -1,1 +1,1 @@
-uv run hassette
+uv run hassette run

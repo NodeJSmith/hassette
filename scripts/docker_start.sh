@@ -223,4 +223,4 @@ else
 fi
 
 log_phase "handing off to hassette"
-exec hassette "$@"
+exec hassette run "$@"

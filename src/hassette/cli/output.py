@@ -287,13 +287,7 @@ def render_raw(
     data: dict[str, Any] | list[Any],
     json_mode: bool,
 ) -> None:
-    """Render an untyped dict or list (e.g., services endpoint) as JSON or tree.
-
-    Args:
-        data: Raw dict or list to render.
-        json_mode: When ``True``, write JSON to stdout. When ``False``,
-            render a Rich-formatted JSON view on stdout.
-    """
+    """Render an untyped dict or list as JSON or tree."""
     if json_mode:
         sys.stdout.write(json.dumps(data, indent=2) + "\n")
         sys.stdout.flush()

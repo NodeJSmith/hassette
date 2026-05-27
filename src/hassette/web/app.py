@@ -17,7 +17,6 @@ from hassette.web.routes.executions import router as executions_router
 from hassette.web.routes.health import router as health_router
 from hassette.web.routes.logs import router as logs_router
 from hassette.web.routes.scheduler import router as scheduler_router
-from hassette.web.routes.services import router as services_router
 from hassette.web.routes.telemetry import router as telemetry_router
 from hassette.web.routes.ws import router as ws_router
 
@@ -63,7 +62,6 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     # API routes
     app.include_router(health_router, prefix="/api")
     app.include_router(apps_router, prefix="/api")
-    app.include_router(services_router, prefix="/api")
     app.include_router(events_router, prefix="/api")
     app.include_router(logs_router, prefix="/api")
     app.include_router(executions_router, prefix="/api")

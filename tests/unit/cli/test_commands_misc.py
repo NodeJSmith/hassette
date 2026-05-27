@@ -1,10 +1,10 @@
-"""Unit tests for hassette config, service, and event commands."""
+"""Unit tests for hassette config and event commands."""
 
 import json
 from typing import Any
 from unittest.mock import patch
 
-from hassette.cli.commands.misc import EVENT_COLUMNS, cmd_config, cmd_event, cmd_service
+from hassette.cli.commands.misc import EVENT_COLUMNS, cmd_config, cmd_event
 from hassette.test_utils.web_helpers import (
     make_config_response,
     make_event_entry,
@@ -66,61 +66,6 @@ class TestCmdConfig:
         parsed = json.loads("".join(captured))
         assert "web_api" in parsed
         assert parsed["web_api"]["port"] == 8126
-
-
-# ---------------------------------------------------------------------------
-# cmd_service
-# ---------------------------------------------------------------------------
-
-
-class TestCmdService:
-    def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """service command fetches from GET /api/services."""
-        services_body: dict[str, Any] = {"light": {"turn_on": {}, "turn_off": {}}}
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/services", 200, services_body)])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
-
-        with (
-            patch.object(client, "get", side_effect=tracking_get),
-            capture_stdout(),
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
-        ):
-            cmd_service()
-
-        assert "/api/services" in called_paths
-
-    def test_human_mode_renders_json_tree(self, cli_client_factory: CLIClientFactory) -> None:
-        """service command renders raw JSON via render_raw."""
-        services_body: dict[str, Any] = {"light": {"turn_on": {}}}
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/services", 200, services_body)])
-        with (
-            capture_stdout() as buf,
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
-        ):
-            cmd_service()
-        output = buf.getvalue()
-        assert "light" in output
-
-    def test_json_mode_outputs_raw_dict(self, cli_client_factory: CLIClientFactory) -> None:
-        """service --json outputs the raw services dict as JSON."""
-        services_body: dict[str, Any] = {"switch": {"toggle": {}}}
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/services", 200, services_body)])
-        captured: list[str] = []
-
-        with (
-            patch("hassette.cli.commands.misc.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
-        ):
-            cmd_service()
-
-        parsed = json.loads("".join(captured))
-        assert "switch" in parsed
 
 
 # ---------------------------------------------------------------------------
