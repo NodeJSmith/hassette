@@ -6,7 +6,6 @@ It is generated from `api.Api` by `codegen/src/hassette_codegen/sync_facade.py`.
 """
 
 import typing
-from collections.abc import Generator
 from enum import StrEnum
 from typing import Any
 
@@ -168,18 +167,6 @@ class ApiSyncFacade(Resource):
             A list of states, converted to their appropriate state types."""
 
         return self.task_bucket.run_sync(self._api.get_states())
-
-    def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
-        """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
-
-        The returned generator yields properly typed state objects based on their domains. If
-        a state fails to convert, it is skipped with an error logged. If there is no registered
-        state class for a domain, the generic BaseState is used.
-
-        Returns:
-            A generator yielding typed state objects."""
-
-        return self.task_bucket.run_sync(self._api.get_states_iterator())
 
     def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.

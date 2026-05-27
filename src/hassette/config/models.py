@@ -18,6 +18,20 @@ from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
 
 LOGGER = getLogger(__name__)
+APP_SHUTDOWN_TIMEOUT_DEFAULT = 10
+
+
+def validate_positive_or_none(value: Any) -> float | None:
+    """Validate that a timeout value is None or a positive number."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("timeout must be None or a positive number")
+    val = float(value)
+    if val <= 0:
+        raise ValueError("timeout must be None or a positive number")
+    return val
+
 
 LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
@@ -211,11 +225,11 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
-    app_shutdown_timeout_seconds: int = Field(default=10)
+    app_shutdown_timeout_seconds: int = Field(default=APP_SHUTDOWN_TIMEOUT_DEFAULT)
     """Length of time to wait for an app to shut down before giving up."""
 
     resource_shutdown_timeout_seconds: int = Field(
-        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", 10)
+        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", APP_SHUTDOWN_TIMEOUT_DEFAULT)
     )
     """Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds."""
 
@@ -242,15 +256,7 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     @field_validator("event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before")
     @classmethod
     def validate_timeouts(cls, value: Any) -> float | None:
-        """Validate that timeout fields are None or a positive number."""
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            raise ValueError("timeout must be None or a positive number")
-        val = float(value)
-        if val <= 0:
-            raise ValueError("timeout must be None or a positive number")
-        return val
+        return validate_positive_or_none(value)
 
 
 class WebApiConfig(ExcludeExtrasMixin, BaseModel):
@@ -393,15 +399,7 @@ class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
     @field_validator("job_timeout_seconds", mode="before")
     @classmethod
     def validate_timeouts(cls, value: Any) -> float | None:
-        """Validate that job_timeout_seconds is None or a positive number."""
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            raise ValueError("timeout must be None or a positive number")
-        val = float(value)
-        if val <= 0:
-            raise ValueError("timeout must be None or a positive number")
-        return val
+        return validate_positive_or_none(value)
 
 
 class FileWatcherConfig(ExcludeExtrasMixin, BaseModel):

@@ -102,7 +102,7 @@ class AppConfigurationError(Exception):
 # creating a new subclass per make_hermetic_config call, which would accumulate
 # permanently in __subclasses__() and Pydantic's internal model cache.
 # Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
-HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
+hermetic_config_cache: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
 def get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:
@@ -119,7 +119,7 @@ def get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConf
         element is the current ``config_dict``. Set ``cell[0] = new_dict``
         before calling ``hermetic_subclass()`` to control what is validated.
     """
-    cached = HERMETIC_CONFIG_CACHE.get(app_config_cls)
+    cached = hermetic_config_cache.get(app_config_cls)
     if cached is not None:
         return cached
 
@@ -132,7 +132,7 @@ def get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConf
             return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
     result = (_HermeticSettings, cell)
-    HERMETIC_CONFIG_CACHE[app_config_cls] = result
+    hermetic_config_cache[app_config_cls] = result
     return result
 
 

@@ -7,7 +7,6 @@ It is generated from RecordingApi by codegen/src/hassette_codegen/sync_facade.py
 
 import copy
 import typing
-from collections.abc import Generator
 from enum import StrEnum
 from typing import Any, cast
 
@@ -135,9 +134,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         items = list(self._parent._state_proxy.states.items())
         return [self._parent._convert_state(raw, eid) for eid, raw in items]
-
-    def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
-        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_states_iterator"))
 
     def get_config(self) -> dict[str, Any]:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_config"))

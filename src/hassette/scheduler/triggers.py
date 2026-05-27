@@ -16,6 +16,19 @@ from .classes import CronTrigger
 LOGGER = logging.getLogger(__name__)
 
 
+def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
+    parts = at.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}")
+    try:
+        hour, minute = int(parts[0]), int(parts[1])
+    except ValueError:
+        raise ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}") from None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"{label} 'at' time out of range: {at!r}")
+    return hour, minute
+
+
 class After:
     """One-shot trigger that fires once after a fixed delay.
 
@@ -104,16 +117,7 @@ class Once:
 
         if isinstance(at, str):
             self._at_str = at
-            parts = at.split(":")
-            if len(parts) != 2:
-                raise ValueError(f"Once 'at' must be 'HH:MM', got {at!r}")
-            try:
-                hour = int(parts[0])
-                minute = int(parts[1])
-            except ValueError:
-                raise ValueError(f"Once 'at' must be 'HH:MM', got {at!r}") from None
-            if not (0 <= hour <= 23 and 0 <= minute <= 59):
-                raise ValueError(f"Once 'at' time out of range: {at!r}")
+            hour, minute = parse_hh_mm(at, "Once")
             now = date_utils.now()
             target = ZonedDateTime(now.year, now.month, now.day, hour, minute, tz=now.tz)
             if target <= now:
@@ -207,13 +211,13 @@ class Every:
         start = self._start if self._start is not None else current_time
         if start > current_time:
             return start.round(unit="second")
-        return self._advance_past(start, current_time)
+        return self.advance_past(start, current_time)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return the next interval tick after previous_run that is later than current_time."""
-        return self._advance_past(previous_run, current_time)
+        return self.advance_past(previous_run, current_time)
 
-    def _advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
+    def advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
         """Advance anchor by whole intervals until the result is strictly after current_time."""
         interval_secs = self._interval.in_seconds()
         elapsed = (current_time - anchor).in_seconds()
@@ -264,16 +268,7 @@ class Daily:
     """
 
     def __init__(self, at: str) -> None:
-        parts = at.split(":")
-        if len(parts) != 2:
-            raise ValueError(f"Daily 'at' must be 'HH:MM', got {at!r}")
-        try:
-            hour = int(parts[0])
-            minute = int(parts[1])
-        except ValueError:
-            raise ValueError(f"Daily 'at' must be 'HH:MM', got {at!r}") from None
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            raise ValueError(f"Daily 'at' time out of range: {at!r}")
+        hour, minute = parse_hh_mm(at, "Daily")
         # 5-field standard cron: minute hour dom month dow
         self._expr = f"{minute} {hour} * * *"
         self._at_str = at

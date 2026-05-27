@@ -157,7 +157,6 @@ Examples:
 """
 
 import typing
-from collections.abc import Generator
 from contextlib import suppress
 from enum import StrEnum
 from typing import Any, Literal, overload
@@ -390,29 +389,6 @@ class Api(Resource):
                 converted.append(state)
 
         return converted
-
-    async def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
-        """Get a generator to iterate over all entities in Home Assistant, converted to their appropriate state types.
-
-        The returned generator yields properly typed state objects based on their domains. If
-        a state fails to convert, it is skipped with an error logged. If there is no registered
-        state class for a domain, the generic BaseState is used.
-
-        Returns:
-            A generator yielding typed state objects.
-        """
-
-        raw_states = await self.get_states_raw()
-
-        def yield_states():
-            nonlocal raw_states
-
-            for state_data in raw_states:
-                # the conversion method will handle logging any conversion errors
-                with suppress(UnableToConvertStateError):
-                    yield self.hassette.state_registry.try_convert_state(state_data)
-
-        return yield_states()
 
     async def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.

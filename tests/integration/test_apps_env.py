@@ -47,8 +47,8 @@ def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
     sys.modules.pop(f"{pkg_name}.{module_name}", None)
     sys.modules.pop(pkg_name, None)
 
-    app_utils.LOADED_CLASSES.clear()
-    app_utils.FAILED_TO_LOAD_CLASSES.clear()
+    app_utils.loaded_classes.clear()
+    app_utils.failed_to_load_classes.clear()
 
 
 def write_env_reader_app(app_dir: Path) -> None:

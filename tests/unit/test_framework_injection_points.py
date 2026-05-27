@@ -30,7 +30,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, AppConfigurationError, make_hermetic_config
+from hassette.test_utils.app_harness import AppConfigurationError, hermetic_config_cache, make_hermetic_config
 from hassette.test_utils.config import make_test_config
 from hassette.test_utils.harness import HassetteHarness, Timeouts
 
@@ -344,7 +344,7 @@ class TestHermeticConfigClosure:
         assert exc_info.value.original_error is not None
 
     def test_hermetic_cache_is_retained(self) -> None:
-        """HERMETIC_CONFIG_CACHE returns the same subclass on repeated calls for the same config cls."""
+        """hermetic_config_cache returns the same subclass on repeated calls for the same config cls."""
 
         class _CacheCfg(AppConfig):
             pass
@@ -353,16 +353,16 @@ class TestHermeticConfigClosure:
             pass
 
         # Clear cache entry for this class to start fresh
-        HERMETIC_CONFIG_CACHE.pop(_CacheCfg, None)
+        hermetic_config_cache.pop(_CacheCfg, None)
 
         make_hermetic_config(_App, _CacheCfg, {"instance_name": "a"})
-        first_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        first_entry = hermetic_config_cache.get(_CacheCfg)
         assert first_entry is not None, "Cache must contain an entry after first call"
 
         first_subclass = first_entry[0]
 
         make_hermetic_config(_App, _CacheCfg, {"instance_name": "b"})
-        second_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        second_entry = hermetic_config_cache.get(_CacheCfg)
         assert second_entry is not None
 
         second_subclass = second_entry[0]

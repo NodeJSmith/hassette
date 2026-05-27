@@ -76,6 +76,11 @@ def _format_collection(items: Sequence[Any]) -> str:
     return f"[{shown}, {ELLIPSIS_CHAR}]"
 
 
+def _validate_collection(collection: Sequence[Any]) -> None:
+    if isinstance(collection, str):
+        raise ValueError("collection must be a sequence of values, not a string")
+
+
 @dataclass(frozen=True)
 class Glob:
     """Callable matcher for string glob patterns.
@@ -251,9 +256,7 @@ class IsIn:
     collection: Sequence[Any]
 
     def __post_init__(self) -> None:
-        if isinstance(self.collection, str):
-            raise ValueError("collection must be a sequence of values, not a string")
-
+        _validate_collection(self.collection)
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
@@ -277,9 +280,7 @@ class NotIn:
     collection: Sequence[Any]
 
     def __post_init__(self) -> None:
-        if isinstance(self.collection, str):
-            raise ValueError("collection must be a sequence of values, not a string")
-
+        _validate_collection(self.collection)
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
@@ -303,9 +304,7 @@ class Intersects:
     collection: Sequence[Any]
 
     def __post_init__(self) -> None:
-        if isinstance(self.collection, str):
-            raise ValueError("collection must be a sequence of values, not a string")
-
+        _validate_collection(self.collection)
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
@@ -332,9 +331,7 @@ class NotIntersects:
     collection: Sequence[Any]
 
     def __post_init__(self) -> None:
-        if isinstance(self.collection, str):
-            raise ValueError("collection must be a sequence of values, not a string")
-
+        _validate_collection(self.collection)
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:

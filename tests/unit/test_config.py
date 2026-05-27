@@ -377,8 +377,8 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     # Ensure a clean import, both for our module and our namespace package.
     sys.modules.pop(f"{pkg_name}.env_reader_app", None)
     sys.modules.pop(pkg_name, None)
-    app_utils.LOADED_CLASSES.clear()
-    app_utils.FAILED_TO_LOAD_CLASSES.clear()
+    app_utils.loaded_classes.clear()
+    app_utils.failed_to_load_classes.clear()
 
     class AppImportConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {

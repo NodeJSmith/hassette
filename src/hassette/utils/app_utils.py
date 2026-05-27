@@ -27,10 +27,14 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
 
 LOGGER = getLogger(__name__)
-LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
-FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
+loaded_classes: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
+failed_to_load_classes: "dict[tuple[str, str], Exception]" = {}
 
-EXCLUDED_PATH_PARTS = ("site-packages", "importlib")
+EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
+
+
+def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
+    return (str(module_path), class_name)
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -71,7 +75,7 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
 
         for fr in reversed(tb_list):
             fn = fr.filename
-            if "hassette" not in fn and not any(part in fn for part in EXCLUDED_PATH_PARTS):
+            if not any(part in fn for part in EXCLUDED_PATH_PARTS):
                 return fr
 
         return tb_list[-1]
@@ -276,8 +280,8 @@ def class_failed_to_load(module_path: Path, class_name: str) -> bool:
     Returns:
         True if the class failed to load previously, False otherwise.
     """
-    cache_key = (str(module_path), class_name)
-    return cache_key in FAILED_TO_LOAD_CLASSES
+    cache_key = app_cache_key(module_path, class_name)
+    return cache_key in failed_to_load_classes
 
 
 def get_class_load_error(module_path: Path, class_name: str) -> Exception:
@@ -293,8 +297,8 @@ def get_class_load_error(module_path: Path, class_name: str) -> Exception:
     Raises:
         KeyError: If the class loaded successfully.
     """
-    cache_key = (str(module_path), class_name)
-    return FAILED_TO_LOAD_CLASSES[cache_key]
+    cache_key = app_cache_key(module_path, class_name)
+    return failed_to_load_classes[cache_key]
 
 
 def class_already_loaded(module_path: Path, class_name: str) -> bool:
@@ -307,8 +311,8 @@ def class_already_loaded(module_path: Path, class_name: str) -> bool:
     Returns:
         True if the class is already loaded, False otherwise.
     """
-    cache_key = (str(module_path), class_name)
-    return cache_key in LOADED_CLASSES
+    cache_key = app_cache_key(module_path, class_name)
+    return cache_key in loaded_classes
 
 
 def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]]":
@@ -324,8 +328,8 @@ def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]
     Raises:
         KeyError: If the class is not loaded.
     """
-    cache_key = (str(module_path), class_name)
-    return LOADED_CLASSES[cache_key]
+    cache_key = app_cache_key(module_path, class_name)
+    return loaded_classes[cache_key]
 
 
 def load_app_class(
@@ -352,21 +356,21 @@ def load_app_class(
     display_name = display_name or class_name
 
     # cache keyed by (absolute file path, class name)
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
 
     if force_reload:
-        if cache_key in LOADED_CLASSES:
+        if cache_key in loaded_classes:
             LOGGER.info("Forcing reload of app class %s from %s", class_name, module_path)
-            del LOADED_CLASSES[cache_key]
-        if cache_key in FAILED_TO_LOAD_CLASSES:
+            del loaded_classes[cache_key]
+        if cache_key in failed_to_load_classes:
             LOGGER.info("Forcing reload of previously failed app class %s from %s", class_name, module_path)
-            del FAILED_TO_LOAD_CLASSES[cache_key]
+            del failed_to_load_classes[cache_key]
 
-    if cache_key in FAILED_TO_LOAD_CLASSES:
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
+    if cache_key in failed_to_load_classes:
+        raise failed_to_load_classes[cache_key]
 
-    if cache_key in LOADED_CLASSES:
-        return LOADED_CLASSES[cache_key]
+    if cache_key in loaded_classes:
+        return loaded_classes[cache_key]
 
     if not module_path or not class_name:
         raise ValueError(f"App {display_name} is missing filename or class_name")
@@ -378,31 +382,31 @@ def load_app_class(
         pkg_name = config.apps.directory.name
         path_str, module = import_module(app_dir, module_path, pkg_name)
     except Exception as e:
-        FAILED_TO_LOAD_CLASSES[cache_key] = e
+        failed_to_load_classes[cache_key] = e
         raise
 
     try:
         app_class = getattr(module, class_name)
     except AttributeError:
-        FAILED_TO_LOAD_CLASSES[cache_key] = AttributeError(
+        failed_to_load_classes[cache_key] = AttributeError(
             f"Class {class_name} not found in module {path_str} ({module_path})"
         )
-        raise FAILED_TO_LOAD_CLASSES[cache_key] from None
+        raise failed_to_load_classes[cache_key] from None
 
     if not issubclass(app_class, App | AppSync):
-        FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
+        failed_to_load_classes[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
+        raise failed_to_load_classes[cache_key]
 
     if app_class._import_exception:
-        FAILED_TO_LOAD_CLASSES[cache_key] = app_class._import_exception
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
+        failed_to_load_classes[cache_key] = app_class._import_exception
+        raise failed_to_load_classes[cache_key]
 
     try:
         app_class.app_config_cls = validate_app(app_class)
     except Exception as e:
         app_class._import_exception = e
 
-    LOADED_CLASSES[cache_key] = app_class
+    loaded_classes[cache_key] = app_class
     return app_class
 
 
