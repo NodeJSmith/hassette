@@ -37,6 +37,8 @@ if TYPE_CHECKING:
     from hassette.resources.base import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
+_STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
+
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
     """Build a HassEventEnvelopeDict envelope and delegate to create_event_from_hass.
@@ -164,9 +166,6 @@ def make_state_dict(
         "last_updated": last_updated or now,
         "context": context or {"id": str(uuid4()), "parent_id": None, "user_id": None},
     }
-
-
-_STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
 
 
 def _split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
