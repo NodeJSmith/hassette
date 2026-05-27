@@ -616,27 +616,18 @@ class DatabaseService(Service):
             )
             await self.db.commit()
 
-            rl_deleted = cursor_rl.rowcount or 0
-            rj_deleted = cursor_rj.rowcount or 0
+            listeners_deleted = cursor_rl.rowcount or 0
+            jobs_deleted = cursor_rj.rowcount or 0
 
-            if deleted_by_table.get("log_records"):
-                self.logger.info(
-                    "Retention cleanup: deleted %d log_records",
-                    deleted_by_table["log_records"],
-                )
-            hi_deleted = deleted_by_table.get("handler_invocations", 0)
-            je_deleted = deleted_by_table.get("job_executions", 0)
-            if hi_deleted or je_deleted:
-                self.logger.info(
-                    "Retention cleanup: deleted %d handler_invocations, %d job_executions",
-                    hi_deleted,
-                    je_deleted,
-                )
-            if rl_deleted or rj_deleted:
+            deleted_summary = {table: count for table, count in deleted_by_table.items() if count > 0}
+            if deleted_summary:
+                parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
+                self.logger.info("Retention cleanup: deleted %s", parts)
+            if listeners_deleted or jobs_deleted:
                 self.logger.info(
                     "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
-                    rl_deleted,
-                    rj_deleted,
+                    listeners_deleted,
+                    jobs_deleted,
                 )
         except Exception:
             await self.db.rollback()
@@ -722,23 +713,10 @@ class DatabaseService(Service):
             if current_size <= max_size_mb:
                 break
 
-        lr_deleted = total_deleted_by_table.get("log_records", 0)
-        hi_deleted = total_deleted_by_table.get("handler_invocations", 0)
-        je_deleted = total_deleted_by_table.get("job_executions", 0)
-
-        if lr_deleted:
-            self.logger.info(
-                "Size failsafe: deleted %d log_records (%.1f MB remaining)",
-                lr_deleted,
-                current_size,
-            )
-        if hi_deleted or je_deleted:
-            self.logger.info(
-                "Size failsafe: deleted %d handler_invocations, %d job_executions (%.1f MB remaining)",
-                hi_deleted,
-                je_deleted,
-                current_size,
-            )
+        deleted_summary = {table: count for table, count in total_deleted_by_table.items() if count > 0}
+        if deleted_summary:
+            parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
+            self.logger.info("Size failsafe: deleted %s (%.1f MB remaining)", parts, current_size)
 
     async def _run_size_failsafe(self) -> None:
         """Enqueue a size failsafe check; fire-and-forget via enqueue()."""

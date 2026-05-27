@@ -543,11 +543,6 @@ CREATE TABLE job_executions (
         assert row["is_di_failure"] == 0
 
 
-# ---------------------------------------------------------------------------
-# Issue #656: RetryableBatch.not_before backoff deferral
-# ---------------------------------------------------------------------------
-
-
 async def test_retryable_batch_future_not_before_is_requeued():
     """A RetryableBatch whose not_before is in the future must be re-enqueued, not persisted."""
     executor = init_executor()
@@ -664,11 +659,6 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         expected_delay = float(initial_retry + 1)
         assert queued.not_before >= before + expected_delay
         assert queued.not_before <= after + expected_delay + 0.1
-
-
-# ---------------------------------------------------------------------------
-# Issue #657: serve() timer-based flush
-# ---------------------------------------------------------------------------
 
 
 async def test_serve_loops_without_blocking_when_queue_empty():

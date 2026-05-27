@@ -256,11 +256,6 @@ async def test_on_shutdown_closes_remaining_items_when_join_interrupted(
     assert future.cancelled()
 
 
-# ---------------------------------------------------------------------------
-# RetentionTarget / _RETENTION_TABLES structure tests
-# ---------------------------------------------------------------------------
-
-
 def test_retention_tables_is_list_of_retention_targets() -> None:
     assert isinstance(_RETENTION_TABLES, list)
     assert len(_RETENTION_TABLES) > 0
