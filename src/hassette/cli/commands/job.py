@@ -45,7 +45,6 @@ def cmd_job(
 ) -> None:
     """List scheduled jobs, or show execution history for a specific job."""
     client = make_client(ctx)
-    json_mode = ctx.json_mode
 
     if job_id is not None:
         params: dict[str, Any] = {}
@@ -60,7 +59,7 @@ def cmd_job(
             params=params,
         )
         executions = [JobExecution.model_validate(e) for e in raw]
-        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]
+        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
         return
 
     extra_params: dict[str, Any] = {}
@@ -78,4 +77,4 @@ def cmd_job(
         extra_params=extra_params,
     )
     jobs = [JobSummary.model_validate(e) for e in raw]
-    render_table(jobs, JOB_LIST_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

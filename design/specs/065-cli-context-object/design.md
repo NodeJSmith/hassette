@@ -1,7 +1,7 @@
 # Design: Replace CLI module globals with explicit context object
 
 **Date:** 2026-05-27
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
@@ -106,7 +106,7 @@ In `src/hassette/cli/__init__.py`, the `launcher()` meta default replaces `app(t
 
 ```python
 ctx = CLIContext(json_mode=json, debug_mode=debug, env_file_override=env_file, config_file_override=config_file)
-command, bound, ignored = app.parse_args(tokens)
+command, bound, _ignored = app.parse_args(tokens)
 bound.arguments["ctx"] = ctx
 command(*bound.args, **bound.kwargs)
 ```
