@@ -33,4 +33,4 @@ Delete `src/hassette/cli/globals.py` now that all consumers have been migrated t
 ## Verify
 - [ ] FR#5: `src/hassette/cli/globals.py` does not exist and `grep -r "cli_globals\|cli\.globals" src/` returns no matches
 - [ ] AC#1: No module named `globals` exists in the CLI package
-- [ ] AC#6: `uv run pyright src/hassette/cli/` reports no type errors related to this change
+- [ ] AC#6: `uv run pyright src/hassette/cli/` exits with code 0 and reports 0 errors

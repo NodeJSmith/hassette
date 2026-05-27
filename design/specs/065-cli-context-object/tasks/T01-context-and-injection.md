@@ -30,15 +30,22 @@ Create the `CLIContext` frozen dataclass that replaces the 4 module-level mutabl
 
 3. **Update `src/hassette/cli/__init__.py`** launcher:
    - Add `from hassette.cli.context import CLIContext`
-   - In `launcher()`, replace:
+   - In `launcher()` (lines 127-152), the current body is:
      ```python
      cli_globals.env_file_override = env_file
      cli_globals.config_file_override = config_file
      cli_globals.json_mode = json
      cli_globals.debug_mode = debug
+
+     if env_file:
+         HassetteConfig.model_config["env_file"] = env_file
+         AppConfig.model_config["env_file"] = env_file
+     if config_file:
+         HassetteConfig.model_config["toml_file"] = config_file
+
      app(tokens)
      ```
-     With:
+   - Replace the body with:
      ```python
      cli_globals.env_file_override = env_file
      cli_globals.config_file_override = config_file

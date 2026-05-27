@@ -79,6 +79,7 @@ For each test file:
 - Some command functions have no `*` separator and all parameters have defaults (acting as keyword-only via convention). Add a bare `*` before `ctx` to make it explicitly keyword-only.
 - In test files, when removing a `patch` from a multi-line `with` block, ensure the remaining context managers still have correct comma placement and parentheses.
 - Run the test suite after all migrations to verify nothing broke: `timeout 300 uv run pytest tests/unit/cli/ -n 2 -v`
+- The Verify section uses the same pytest command — ensure the flags match exactly when running verification
 
 ## Verify
 - [ ] FR#3: Every command function that previously read `cli_globals.json_mode` now has `ctx: Annotated[CLIContext, Parameter(parse=False)]` in its signature
