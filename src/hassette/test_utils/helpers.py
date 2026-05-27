@@ -175,6 +175,7 @@ def _split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[st
     return state_kwargs, extra_attrs
 
 
+
 def make_light_state_dict(
     entity_id: str = "light.kitchen",
     state: str = "on",
