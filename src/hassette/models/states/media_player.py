@@ -151,91 +151,91 @@ class MediaPlayerAttributes(AttributesBase):
 
     @property
     def supports_pause(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.PAUSE)
+        return self.has_feature(MediaPlayerEntityFeature.PAUSE)
 
     @property
     def supports_seek(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.SEEK)
+        return self.has_feature(MediaPlayerEntityFeature.SEEK)
 
     @property
     def supports_volume_set(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.VOLUME_SET)
+        return self.has_feature(MediaPlayerEntityFeature.VOLUME_SET)
 
     @property
     def supports_volume_mute(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.VOLUME_MUTE)
+        return self.has_feature(MediaPlayerEntityFeature.VOLUME_MUTE)
 
     @property
     def supports_previous_track(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.PREVIOUS_TRACK)
+        return self.has_feature(MediaPlayerEntityFeature.PREVIOUS_TRACK)
 
     @property
     def supports_next_track(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.NEXT_TRACK)
+        return self.has_feature(MediaPlayerEntityFeature.NEXT_TRACK)
 
     @property
     def supports_turn_on(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.TURN_ON)
+        return self.has_feature(MediaPlayerEntityFeature.TURN_ON)
 
     @property
     def supports_turn_off(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.TURN_OFF)
+        return self.has_feature(MediaPlayerEntityFeature.TURN_OFF)
 
     @property
     def supports_play_media(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.PLAY_MEDIA)
+        return self.has_feature(MediaPlayerEntityFeature.PLAY_MEDIA)
 
     @property
     def supports_volume_step(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.VOLUME_STEP)
+        return self.has_feature(MediaPlayerEntityFeature.VOLUME_STEP)
 
     @property
     def supports_select_source(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.SELECT_SOURCE)
+        return self.has_feature(MediaPlayerEntityFeature.SELECT_SOURCE)
 
     @property
     def supports_stop(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.STOP)
+        return self.has_feature(MediaPlayerEntityFeature.STOP)
 
     @property
     def supports_clear_playlist(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.CLEAR_PLAYLIST)
+        return self.has_feature(MediaPlayerEntityFeature.CLEAR_PLAYLIST)
 
     @property
     def supports_play(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.PLAY)
+        return self.has_feature(MediaPlayerEntityFeature.PLAY)
 
     @property
     def supports_shuffle_set(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.SHUFFLE_SET)
+        return self.has_feature(MediaPlayerEntityFeature.SHUFFLE_SET)
 
     @property
     def supports_select_sound_mode(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.SELECT_SOUND_MODE)
+        return self.has_feature(MediaPlayerEntityFeature.SELECT_SOUND_MODE)
 
     @property
     def supports_browse_media(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.BROWSE_MEDIA)
+        return self.has_feature(MediaPlayerEntityFeature.BROWSE_MEDIA)
 
     @property
     def supports_repeat_set(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.REPEAT_SET)
+        return self.has_feature(MediaPlayerEntityFeature.REPEAT_SET)
 
     @property
     def supports_grouping(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.GROUPING)
+        return self.has_feature(MediaPlayerEntityFeature.GROUPING)
 
     @property
     def supports_media_announce(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.MEDIA_ANNOUNCE)
+        return self.has_feature(MediaPlayerEntityFeature.MEDIA_ANNOUNCE)
 
     @property
     def supports_media_enqueue(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.MEDIA_ENQUEUE)
+        return self.has_feature(MediaPlayerEntityFeature.MEDIA_ENQUEUE)
 
     @property
     def supports_search_media(self) -> bool:
-        return self._has_feature(MediaPlayerEntityFeature.SEARCH_MEDIA)
+        return self.has_feature(MediaPlayerEntityFeature.SEARCH_MEDIA)
 
 
 class MediaPlayerState(StringBaseState):

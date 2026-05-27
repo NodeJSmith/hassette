@@ -34,6 +34,7 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.test_utils.config import TEST_TOKEN
 from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
@@ -200,7 +201,7 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     """Return node names from *graph* in valid initialization order (deps before dependents).
 
-    Uses iterative DFS with three-color (_white/_gray/_black) marking.  Only nodes
+    Uses iterative DFS with three-color (white/gray/black) marking.  Only nodes
     present as keys in *graph* are included in the output; dependency references
     to nodes not in *graph* are silently ignored.
 
@@ -217,18 +218,18 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     if not graph:
         return []
 
-    _white, _gray, _black = 0, 1, 2
-    color: dict[str, int] = {node: _white for node in graph}
+    white, gray, black = 0, 1, 2
+    color: dict[str, int] = {node: white for node in graph}
     result: list[str] = []
 
     for start in graph:
-        if color[start] != _white:
+        if color[start] != white:
             continue
 
         stack: list[tuple[str, typing.Iterator[str]]] = []
         path: list[str] = []
 
-        color[start] = _gray
+        color[start] = gray
         path.append(start)
         stack.append((start, iter(dep for dep in graph[start] if dep in graph)))
 
@@ -239,17 +240,17 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
             except StopIteration:
                 stack.pop()
                 path.pop()
-                color[node] = _black
+                color[node] = black
                 result.append(node)
                 continue
 
-            if color.get(dep, _black) == _gray:
+            if color.get(dep, black) == gray:
                 cycle_start = path.index(dep)
                 cycle_path = [*path[cycle_start:], dep]
                 raise ValueError("Cycle detected: " + " → ".join(cycle_path))
 
-            if color.get(dep, _black) == _white:
-                color[dep] = _gray
+            if color.get(dep, black) == white:
+                color[dep] = gray
                 path.append(dep)
                 stack.append((dep, iter(d for d in graph[dep] if d in graph)))
 
@@ -637,10 +638,10 @@ class HassetteHarness:
                     log_label=f"topic={cmd.topic}",
                 )
 
-        _listener_id_counter = itertools.count(1)
+        listener_id_counter = itertools.count(1)
 
         async def _register_listener_stub(*_args: Any, **_kwargs: Any) -> int:
-            return next(_listener_id_counter)
+            return next(listener_id_counter)
 
         mock_executor = AsyncMock(spec=CommandExecutor)
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
@@ -668,10 +669,10 @@ class HassetteHarness:
                     log_label=f"job={cmd.job.name}",
                 )
 
-        _job_id_counter = itertools.count(1)
+        job_id_counter = itertools.count(1)
 
         async def _register_job_stub(*_args: Any, **_kwargs: Any) -> int:
-            return next(_job_id_counter)
+            return next(job_id_counter)
 
         mock_executor = AsyncMock(spec=CommandExecutor)
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
@@ -714,7 +715,7 @@ class HassetteHarness:
         self.hassette._api_service = self.hassette.add_child(
             ApiResource,
             rest_url=str(self.api_base_url),
-            headers_factory=lambda: {"Authorization": "Bearer test_token"},
+            headers_factory=lambda: {"Authorization": f"Bearer {TEST_TOKEN}"},
         )
         self.hassette._api = self.hassette.add_child(Api)
 

@@ -25,15 +25,15 @@ class LawnMowerAttributes(AttributesBase):
 
     @property
     def supports_start_mowing(self) -> bool:
-        return self._has_feature(LawnMowerEntityFeature.START_MOWING)
+        return self.has_feature(LawnMowerEntityFeature.START_MOWING)
 
     @property
     def supports_pause(self) -> bool:
-        return self._has_feature(LawnMowerEntityFeature.PAUSE)
+        return self.has_feature(LawnMowerEntityFeature.PAUSE)
 
     @property
     def supports_dock(self) -> bool:
-        return self._has_feature(LawnMowerEntityFeature.DOCK)
+        return self.has_feature(LawnMowerEntityFeature.DOCK)
 
 
 class LawnMowerState(StringBaseState):

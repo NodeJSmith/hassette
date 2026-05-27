@@ -214,7 +214,7 @@ class TestListJobs:
 
 class TestJobsByGroupMaintenance:
     def test_dequeue_job_removes_from_group(self) -> None:
-        """_dequeue_job() fires callback which removes the job from _jobs_by_group."""
+        """dequeue_job() fires callback which removes the job from _jobs_by_group."""
         scheduler = make_scheduler()
         job = scheduler.schedule(noop, Every(hours=1), group="morning")
         assert job in scheduler._jobs_by_group["morning"]
@@ -503,7 +503,7 @@ class TestCancelJob:
         assert mock_cancel.call_count == 2
 
     def test_cancel_job_calls_dequeue_job(self) -> None:
-        """cancel_job delegates to _dequeue_job (which sets _dequeued via dequeue_job)."""
+        """cancel_job delegates to scheduler_service.dequeue_job."""
         scheduler = make_scheduler()
 
         job = scheduler.schedule(noop, Every(hours=1), name="job1")
@@ -511,25 +511,25 @@ class TestCancelJob:
         scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
 
     def test_cancel_job_dequeued_set_by_dequeue_job(self) -> None:
-        """job._dequeued is False at _dequeue_job entry (set by dequeue_job internally)."""
+        """job._dequeued is False when dequeue_job runs (set True afterward by SchedulerService)."""
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
 
         dequeued_state_during_dequeue: list[bool] = []
 
-        original_dequeue = scheduler._dequeue_job
+        original_dequeue = scheduler.scheduler_service.dequeue_job
 
         def capturing_dequeue(job):
             dequeued_state_during_dequeue.append(job._dequeued)
             return original_dequeue(job)
 
-        scheduler._dequeue_job = capturing_dequeue
+        scheduler.scheduler_service.dequeue_job = capturing_dequeue
 
         job = scheduler.schedule(noop, Every(hours=1), name="job1")
         scheduler.cancel_job(job)
 
         assert dequeued_state_during_dequeue == [False], (
-            "_dequeued must be False when _dequeue_job runs; set True afterward"
+            "_dequeued must be False when dequeue_job runs; set True afterward"
         )
 
 

@@ -6,10 +6,9 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import SOURCE_TIER_PARAM, TelemetryDep
+from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import ListenerWithSummary
-from hassette.web.routes.telemetry import DB_ERRORS
 
 LOGGER = getLogger(__name__)
 

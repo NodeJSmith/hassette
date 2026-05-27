@@ -68,15 +68,12 @@ class ListenerMetrics:
         self.record_timing(duration_ms)
         self.successful += 1
 
-    def record_error(self, duration_ms: float, message: str, error_type: str) -> None:
+    def record_failure(self, duration_ms: float, message: str, error_type: str, *, di: bool = False) -> None:
         self.record_timing(duration_ms)
-        self.failed += 1
-        self.last_error_message = message
-        self.last_error_type = error_type
-
-    def record_di_failure(self, duration_ms: float, message: str, error_type: str) -> None:
-        self.record_timing(duration_ms)
-        self.di_failures += 1
+        if di:
+            self.di_failures += 1
+        else:
+            self.failed += 1
         self.last_error_message = message
         self.last_error_type = error_type
 

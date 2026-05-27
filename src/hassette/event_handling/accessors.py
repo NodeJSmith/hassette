@@ -283,21 +283,16 @@ def _recursive_get_differences(
     changed_dict = {}
     for key in set(old_dict.keys()).union(new_dict.keys()):
         if key in exclude:
-            LOGGER.debug("Excluding key %r from change detection", key)
             continue
 
         old_value = old_dict.get(key, MISSING_VALUE)
         new_value = new_dict.get(key, MISSING_VALUE)
 
         if isinstance(old_value, dict) and isinstance(new_value, dict):
-            LOGGER.debug("Recursing into nested dict for key %r", key)
             changed_dict[key] = _recursive_get_differences(old_value, new_value, exclude=exclude)
-        else:
-            if old_value != new_value:
-                LOGGER.debug("Detected change for key %r: %r -> %r", key, old_value, new_value)
-                changed_dict[key] = (old_value, new_value)
+        elif old_value != new_value:
+            changed_dict[key] = (old_value, new_value)
 
-    LOGGER.debug("Returning changed dict: %r", changed_dict)
     return changed_dict
 
 

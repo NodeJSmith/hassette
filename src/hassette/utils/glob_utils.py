@@ -31,7 +31,7 @@ def split_exact_and_glob(values: typing.Iterable[str]) -> tuple[set[str], tuple[
     exact: set[str] = set()
     globs: list[str] = []
     for value in values:
-        if any(ch in value for ch in GLOB_CHARS):
+        if is_glob(value):
             globs.append(value)
         else:
             exact.add(value)

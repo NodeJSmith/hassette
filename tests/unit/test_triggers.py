@@ -132,7 +132,7 @@ def test_every_first_run_future_start() -> None:
 
 
 def test_every_first_run_past_start() -> None:
-    """_advance_past skips missed intervals correctly when start is in the past."""
+    """advance_past skips missed intervals correctly when start is in the past."""
     start = zdt(2025, 8, 18, 0, 0, 0)
     current_time = zdt(2025, 8, 18, 0, 5, 0)  # 5 minutes later
     trigger = Every(seconds=60, start=start)

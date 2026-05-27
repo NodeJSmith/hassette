@@ -117,7 +117,7 @@ class Scheduler(Resource):
         """Callback invoked by SchedulerService when a job is auto-exhausted.
 
         Keeps _jobs_by_group and _jobs_by_name in sync when SchedulerService removes a
-        one-shot job after it fires or when a job is dequeued via cancel_job/_dequeue_job.
+        one-shot job after it fires or when a job is dequeued via cancel_job.
         """
         self._jobs_by_name.pop(job.name, None)
         if job.group is not None:
@@ -252,22 +252,7 @@ class Scheduler(Resource):
                 self.scheduler_service.mark_job_cancelled(job.db_id),
                 name="scheduler:mark_job_cancelled",
             )
-        self._dequeue_job(job)
-        # _dequeued is set by dequeue_job() in SchedulerService — no need to set here
-
-    def _dequeue_job(self, job: "ScheduledJob") -> bool:
-        """Synchronously remove a job from the scheduler service heap.
-
-        No inline dict cleanup — callback (``_on_job_removed``) is the sole
-        authority for ``_jobs_by_name`` and ``_jobs_by_group`` state.
-
-        Args:
-            job: The job to remove.
-
-        Returns:
-            True if the job was found and removed from the heap, False otherwise.
-        """
-        return self.scheduler_service.dequeue_job(job)
+        self.scheduler_service.dequeue_job(job)
 
     def _remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""

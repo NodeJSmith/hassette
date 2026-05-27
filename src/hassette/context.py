@@ -40,7 +40,7 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
 
     if curr_inst is not None:
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
-        raise RuntimeError(f"Hassette instance is already set.{extra_msg}")
+        raise RuntimeError(f"Hassette instance is already set. {extra_msg}".rstrip())
 
     try:
         # Capture where this was first set

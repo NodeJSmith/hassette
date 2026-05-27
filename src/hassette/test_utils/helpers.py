@@ -37,7 +37,11 @@ if TYPE_CHECKING:
     from hassette.resources.base import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
-_STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
+STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
+
+
+def noop() -> None:
+    pass
 
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
@@ -168,10 +172,9 @@ def make_state_dict(
     }
 
 
-def _split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Split kwargs into (state_dict_keys, extra_attributes)."""
-    state_kwargs = {k: v for k, v in kwargs.items() if k in _STATE_DICT_KEYS}
-    extra_attrs = {k: v for k, v in kwargs.items() if k not in _STATE_DICT_KEYS}
+def split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    state_kwargs = {k: v for k, v in kwargs.items() if k in STATE_DICT_KEYS}
+    extra_attrs = {k: v for k, v in kwargs.items() if k not in STATE_DICT_KEYS}
     return state_kwargs, extra_attrs
 
 
@@ -200,7 +203,7 @@ def make_light_state_dict(
     if color_temp is not None:
         attributes["color_temp"] = color_temp
 
-    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    state_kwargs, extra_attrs = split_state_kwargs(kwargs)
     attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
@@ -231,7 +234,7 @@ def make_sensor_state_dict(
     if device_class is not None:
         attributes["device_class"] = device_class
 
-    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    state_kwargs, extra_attrs = split_state_kwargs(kwargs)
     attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
@@ -250,7 +253,7 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
     """
     attributes = {"friendly_name": entity_id.split(".")[-1].replace("_", " ").title()}
 
-    state_kwargs, extra_attrs = _split_state_kwargs(kwargs)
+    state_kwargs, extra_attrs = split_state_kwargs(kwargs)
     attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
@@ -302,7 +305,7 @@ def create_app_manifest(
     )
 
 
-def get_app_manifest_for_toml(app: AppManifest) -> dict:
+def get_app_manifest_for_toml(app: AppManifest) -> dict[str, Any]:
     """Convert AppManifest to TOML string."""
     data = app.model_dump(exclude_unset=True)
     config_key = "app_config" if "app_config" in data else "config"
@@ -322,7 +325,7 @@ def write_app_toml(
     """Write a hassette.toml with specified apps."""
     apps = apps or []
 
-    apps_section: dict = {
+    apps_section: dict[str, Any] = {
         "directory": app_dir.as_posix(),
         "autodetect": False,
     }
@@ -331,7 +334,7 @@ def write_app_toml(
         for app in apps:
             apps_section[app.app_key] = get_app_manifest_for_toml(app)
 
-    hassette_dict: dict = {
+    hassette_dict: dict[str, Any] = {
         "dev_mode": dev_mode,
         "apps": apps_section,
     }
@@ -478,7 +481,7 @@ def create_listener(
         raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
     if handler is None:
-        handler = lambda: None  # noqa: E731
+        handler = noop
     if task_bucket is None:
         task_bucket = make_task_bucket()
 

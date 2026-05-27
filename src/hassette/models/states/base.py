@@ -59,7 +59,7 @@ class AttributesBase(BaseModel):
         """Get a single integration-specific attribute with a default."""
         return self.extras.get(key, default)
 
-    def _has_feature(self, flag: int) -> bool:
+    def has_feature(self, flag: int) -> bool:
         """Check whether *flag* is set in :pyattr:`supported_features`."""
         if self.supported_features is None:
             return False
@@ -68,10 +68,6 @@ class AttributesBase(BaseModel):
 
 class BaseState(BaseModel, Generic[StateValueT]):
     """Represents a Home Assistant state object."""
-
-    # Note: HA docs mention object_id and name, but I personally haven't seen these in practice.
-    # Leaving them off unless we find a use case or get a feature request for them.
-    # https://www.home-assistant.io/docs/configuration/state_object/#about-the-state-object
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, coerce_numbers_to_str=True, frozen=True)
 

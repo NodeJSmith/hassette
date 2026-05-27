@@ -74,7 +74,9 @@ from hassette.types import StateT
 from . import accessors as A
 
 if typing.TYPE_CHECKING:
-    from hassette import RawStateChangeEvent  # noqa: F401
+    from hassette import (
+        RawStateChangeEvent,  # noqa: F401  # used as forward ref in AnnotationDetails["RawStateChangeEvent"]
+    )
 
 T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
@@ -89,13 +91,6 @@ class AnnotationDetails(Generic[T]):
 
     converter: Callable[[Any, Any], Any] | None = None
     """Optional converter function to convert the extracted value to the desired type."""
-
-    def __post_init__(self):
-        if not callable(self.extractor):
-            raise TypeError("extractor must be a callable")
-
-        if self.converter is not None and not callable(self.converter):
-            raise TypeError("converter must be a callable if provided")
 
 
 def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
@@ -145,11 +140,6 @@ async def handler(event: D.TypedStateChangeEvent[states.LightState]):
 ```
 """
 
-# These annotations extract full state objects (dicts) from events and convert them
-# to typed Pydantic models using the StateRegistry.
-
-# Extractor: get_state_object_new() -> HassStateDict
-# Returns: Typed state model, raises if None/MISSING_VALUE
 StateNew: TypeAlias = Annotated[
     StateT,
     AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new)),
@@ -163,8 +153,6 @@ async def handler(new_state: D.StateNew[states.LightState]):
 ```
 """
 
-# Extractor: get_state_object_new() -> HassStateDict | None
-# Returns: Typed state model or None
 MaybeStateNew: TypeAlias = Annotated[
     StateT | None,
     AnnotationDetails["RawStateChangeEvent"](A.get_state_object_new),
@@ -179,8 +167,6 @@ async def handler(new_state: D.MaybeStateNew[states.LightState]):
 ```
 """
 
-# Extractor: get_state_object_old() -> HassStateDict
-# Returns: Typed state model, raises if None/MISSING_VALUE
 StateOld: TypeAlias = Annotated[
     StateT,
     AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_old)),
@@ -195,8 +181,6 @@ async def handler(old_state: D.StateOld[states.LightState]):
 ```
 """
 
-# Extractor: get_state_object_old() -> HassStateDict | None
-# Returns: Typed state model or None
 MaybeStateOld: TypeAlias = Annotated[
     StateT | None,
     AnnotationDetails["RawStateChangeEvent"](A.get_state_object_old),
@@ -211,10 +195,6 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 ```
 """
 
-# These annotations extract simple identity and metadata fields from events.
-
-# Extractor: get_entity_id() -> str
-# Returns: Entity ID string, raises if None/MISSING_VALUE
 EntityId: TypeAlias = Annotated[str, AnnotationDetails(ensure_present(A.get_entity_id))]
 """Extract the entity_id from a HassEvent.
 
@@ -227,13 +207,9 @@ async def handler(entity_id: D.EntityId):
 ```
 """
 
-# Extractor: get_entity_id() -> str | FalseySentinel
-# Returns: Entity ID string or MISSING_VALUE
 MaybeEntityId: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get_entity_id)]
 """Extract the entity_id from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
-# Extractor: get_domain() -> str
-# Returns: Domain string, raises if None/MISSING_VALUE
 Domain: TypeAlias = Annotated[str, AnnotationDetails(ensure_present(A.get_domain))]
 """Extract the domain from a HassEvent.
 
@@ -247,13 +223,10 @@ async def handler(domain: D.Domain):
         self.logger.info("Light entity event")
 ```
 """
-# Extractor: get_domain() -> str | FalseySentinel
-# Returns: Domain string or MISSING_VALUE
+
 MaybeDomain: TypeAlias = Annotated[str | FalseySentinel, AnnotationDetails(A.get_domain)]
 """Extract the domain from a HassEvent, returning MISSING_VALUE sentinel if not present."""
 
-# Extractor: get_context() -> HassContext
-# Returns: HassContext object
 EventContext: TypeAlias = Annotated[HassContext, AnnotationDetails[Event](A.get_context)]
 """Extract the context object from a HassEvent.
 

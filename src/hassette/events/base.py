@@ -70,8 +70,9 @@ class HassPayload(EventPayload[DataT]):
     @property
     def domain(self) -> str | None:
         """Return the domain if present in the data."""
-        if hasattr(self.data, "domain"):
-            return getattr(self.data, "domain", None)
+        domain = getattr(self.data, "domain", None)
+        if domain is not None:
+            return domain
 
         entity_id = self.entity_id
         if entity_id:

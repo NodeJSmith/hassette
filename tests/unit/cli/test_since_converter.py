@@ -16,27 +16,27 @@ def _fixed_now() -> float:
 
 class TestRelativeDurations:
     def test_seconds(self) -> None:
-        with patch("hassette.cli.types._now", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", _fixed_now):
             result = convert_since("30s")
         assert result == pytest.approx(NOW_EPOCH - 30, abs=1)
 
     def test_minutes(self) -> None:
-        with patch("hassette.cli.types._now", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", _fixed_now):
             result = convert_since("30m")
         assert result == pytest.approx(NOW_EPOCH - 30 * 60, abs=1)
 
     def test_hours(self) -> None:
-        with patch("hassette.cli.types._now", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", _fixed_now):
             result = convert_since("1h")
         assert result == pytest.approx(NOW_EPOCH - 3600, abs=1)
 
     def test_days(self) -> None:
-        with patch("hassette.cli.types._now", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", _fixed_now):
             result = convert_since("7d")
         assert result == pytest.approx(NOW_EPOCH - 7 * 86400, abs=1)
 
     def test_weeks(self) -> None:
-        with patch("hassette.cli.types._now", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", _fixed_now):
             result = convert_since("2w")
         assert result == pytest.approx(NOW_EPOCH - 14 * 86400, abs=1)
 

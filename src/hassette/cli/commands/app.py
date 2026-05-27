@@ -9,10 +9,6 @@ from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
-# ---------------------------------------------------------------------------
-# hassette app (bare — list all apps)
-# ---------------------------------------------------------------------------
-
 APP_LIST_COLUMNS: list[Column] = [
     Column("app_key", "App Key", max_width=20),
     Column("status", "Status", max_width=10),
@@ -30,10 +26,6 @@ def cmd_app() -> None:
     result = client.get("/api/apps/manifests", AppManifestListResponse)
     render_table(result.manifests, APP_LIST_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
 
-
-# ---------------------------------------------------------------------------
-# hassette app health <key>
-# ---------------------------------------------------------------------------
 
 APP_HEALTH_COLUMNS: list[Column] = [
     Column("health_status", "Health", max_width=10),
@@ -65,10 +57,6 @@ def cmd_app_health(
     result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
     render_detail(result, json_mode=cli_globals.json_mode)
 
-
-# ---------------------------------------------------------------------------
-# hassette app activity <key>
-# ---------------------------------------------------------------------------
 
 APP_ACTIVITY_COLUMNS: list[Column] = [
     Column("row_id", "ID", max_width=10),
@@ -104,11 +92,6 @@ def cmd_app_activity(
     render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
 
 
-# ---------------------------------------------------------------------------
-# hassette app config <key>
-# ---------------------------------------------------------------------------
-
-
 def cmd_app_config(
     key: str,
 ) -> None:
@@ -116,11 +99,6 @@ def cmd_app_config(
     client = make_client()
     result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
     render_detail(result, json_mode=cli_globals.json_mode)
-
-
-# ---------------------------------------------------------------------------
-# hassette app source <key>
-# ---------------------------------------------------------------------------
 
 
 def cmd_app_source(

@@ -30,7 +30,11 @@ LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
-EXCLUDED_PATH_PARTS = ("site-packages", "importlib")
+EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
+
+
+def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
+    return (str(module_path), class_name)
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -71,7 +75,7 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
 
         for fr in reversed(tb_list):
             fn = fr.filename
-            if "hassette" not in fn and not any(part in fn for part in EXCLUDED_PATH_PARTS):
+            if not any(part in fn for part in EXCLUDED_PATH_PARTS):
                 return fr
 
         return tb_list[-1]
@@ -276,7 +280,7 @@ def class_failed_to_load(module_path: Path, class_name: str) -> bool:
     Returns:
         True if the class failed to load previously, False otherwise.
     """
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
     return cache_key in FAILED_TO_LOAD_CLASSES
 
 
@@ -293,7 +297,7 @@ def get_class_load_error(module_path: Path, class_name: str) -> Exception:
     Raises:
         KeyError: If the class loaded successfully.
     """
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
     return FAILED_TO_LOAD_CLASSES[cache_key]
 
 
@@ -307,7 +311,7 @@ def class_already_loaded(module_path: Path, class_name: str) -> bool:
     Returns:
         True if the class is already loaded, False otherwise.
     """
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
     return cache_key in LOADED_CLASSES
 
 
@@ -324,7 +328,7 @@ def get_loaded_class(module_path: Path, class_name: str) -> "type[App[AppConfig]
     Raises:
         KeyError: If the class is not loaded.
     """
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
     return LOADED_CLASSES[cache_key]
 
 
@@ -352,7 +356,7 @@ def load_app_class(
     display_name = display_name or class_name
 
     # cache keyed by (absolute file path, class name)
-    cache_key = (str(module_path), class_name)
+    cache_key = app_cache_key(module_path, class_name)
 
     if force_reload:
         if cache_key in LOADED_CLASSES:

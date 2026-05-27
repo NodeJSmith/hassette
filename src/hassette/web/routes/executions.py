@@ -8,9 +8,8 @@ import uuid_utils
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.web.dependencies import HassetteDep, TelemetryDep
+from hassette.web.dependencies import DB_ERRORS, HassetteDep, TelemetryDep
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
-from hassette.web.routes.telemetry import DB_ERRORS
 
 if TYPE_CHECKING:
     from hassette.core.telemetry_query_service import TelemetryQueryService

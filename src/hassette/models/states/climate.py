@@ -68,39 +68,39 @@ class ClimateAttributes(AttributesBase):
 
     @property
     def supports_target_temperature(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.TARGET_TEMPERATURE)
+        return self.has_feature(ClimateEntityFeature.TARGET_TEMPERATURE)
 
     @property
     def supports_target_temperature_range(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE)
+        return self.has_feature(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE)
 
     @property
     def supports_target_humidity(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.TARGET_HUMIDITY)
+        return self.has_feature(ClimateEntityFeature.TARGET_HUMIDITY)
 
     @property
     def supports_fan_mode(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.FAN_MODE)
+        return self.has_feature(ClimateEntityFeature.FAN_MODE)
 
     @property
     def supports_preset_mode(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.PRESET_MODE)
+        return self.has_feature(ClimateEntityFeature.PRESET_MODE)
 
     @property
     def supports_swing_mode(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.SWING_MODE)
+        return self.has_feature(ClimateEntityFeature.SWING_MODE)
 
     @property
     def supports_turn_off(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.TURN_OFF)
+        return self.has_feature(ClimateEntityFeature.TURN_OFF)
 
     @property
     def supports_turn_on(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.TURN_ON)
+        return self.has_feature(ClimateEntityFeature.TURN_ON)
 
     @property
     def supports_swing_horizontal_mode(self) -> bool:
-        return self._has_feature(ClimateEntityFeature.SWING_HORIZONTAL_MODE)
+        return self.has_feature(ClimateEntityFeature.SWING_HORIZONTAL_MODE)
 
 
 class ClimateState(StringBaseState):

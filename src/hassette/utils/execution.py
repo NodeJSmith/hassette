@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from hassette.exceptions import DependencyError
 
 MAX_TRACEBACK_SIZE = 8192
-"""Maximum traceback string length in characters. Tracebacks exceeding this are truncated."""
 TRACEBACK_TRUNCATION_SUFFIX = "\n... [truncated]"
 
 

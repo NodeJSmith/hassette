@@ -47,35 +47,35 @@ class CoverAttributes(AttributesBase):
 
     @property
     def supports_open(self) -> bool:
-        return self._has_feature(CoverEntityFeature.OPEN)
+        return self.has_feature(CoverEntityFeature.OPEN)
 
     @property
     def supports_close(self) -> bool:
-        return self._has_feature(CoverEntityFeature.CLOSE)
+        return self.has_feature(CoverEntityFeature.CLOSE)
 
     @property
     def supports_set_position(self) -> bool:
-        return self._has_feature(CoverEntityFeature.SET_POSITION)
+        return self.has_feature(CoverEntityFeature.SET_POSITION)
 
     @property
     def supports_stop(self) -> bool:
-        return self._has_feature(CoverEntityFeature.STOP)
+        return self.has_feature(CoverEntityFeature.STOP)
 
     @property
     def supports_open_tilt(self) -> bool:
-        return self._has_feature(CoverEntityFeature.OPEN_TILT)
+        return self.has_feature(CoverEntityFeature.OPEN_TILT)
 
     @property
     def supports_close_tilt(self) -> bool:
-        return self._has_feature(CoverEntityFeature.CLOSE_TILT)
+        return self.has_feature(CoverEntityFeature.CLOSE_TILT)
 
     @property
     def supports_stop_tilt(self) -> bool:
-        return self._has_feature(CoverEntityFeature.STOP_TILT)
+        return self.has_feature(CoverEntityFeature.STOP_TILT)
 
     @property
     def supports_set_tilt_position(self) -> bool:
-        return self._has_feature(CoverEntityFeature.SET_TILT_POSITION)
+        return self.has_feature(CoverEntityFeature.SET_TILT_POSITION)
 
 
 class CoverState(StringBaseState):

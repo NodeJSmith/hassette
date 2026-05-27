@@ -378,7 +378,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self.hassette._should_skip_dependency_check():
             return
 
-        # F3: App subclasses inherit depends_on but it's not yet supported (#581).
+        # App-level depends_on is not yet supported (#581).
         if self.role == ResourceRole.APP:
             raise RuntimeError(
                 f"{self.class_name} declares depends_on but App-level depends_on "

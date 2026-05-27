@@ -5,7 +5,6 @@ query parameter (Unix epoch float).  Pass a ``since`` value to restrict results
 to records with ``execution_start_ts >= since``, or omit it for all-time aggregates.
 """
 
-import sqlite3
 import time
 from logging import getLogger
 from typing import cast
@@ -23,7 +22,7 @@ from hassette.core.telemetry_models import (
 )
 from hassette.core.telemetry_query_service import DEFAULT_QUERY_LIMIT
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import SOURCE_TIER_PARAM, HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
+from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
     ActivityBucket,
@@ -43,14 +42,7 @@ from hassette.web.telemetry_helpers import (
 from hassette.web.utils import enrich_jobs_with_heap
 
 LOGGER = getLogger(__name__)
-
-DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError, TimeoutError)
-"""Database error types to catch in telemetry endpoints.
-
-Includes ``ValueError`` because aiosqlite raises it for closed-connection
-errors during shutdown and ``TimeoutError`` for queries exceeding the
-configured read timeout.  All types are suppressed uniformly — a degraded
-response is always preferable to an unhandled 500."""
+MAX_QUERY_LIMIT = 500
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -205,7 +197,7 @@ async def app_activity(
     instance_index: int | None = Query(
         default=None, description="App instance index. None returns activity across all instances."
     ),  # pyright: ignore[reportCallInDefaultInitializer]
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ActivityFeedEntry]:
@@ -268,7 +260,7 @@ async def handler_invocations(
     listener_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
     """Invocation history for a specific handler."""
@@ -285,7 +277,7 @@ async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
     """Execution history for a specific job."""
@@ -297,7 +289,7 @@ async def job_executions(
         return []
 
 
-_NUM_SPARKLINE_BUCKETS = 12
+NUM_SPARKLINE_BUCKETS = 12
 
 
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
@@ -326,7 +318,7 @@ async def dashboard_app_grid(
             per_app_buckets = await telemetry.get_per_app_activity_buckets(
                 since,
                 now,
-                num_buckets=_NUM_SPARKLINE_BUCKETS,
+                num_buckets=NUM_SPARKLINE_BUCKETS,
                 source_tier="app",
             )
         except DB_ERRORS:

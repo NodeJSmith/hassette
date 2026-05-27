@@ -25,6 +25,7 @@ from hassette.test_utils.helpers import (
 )
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_SIMULATE_TIMEOUT = 2.0
 
 
 class SimulationMixin:
@@ -38,7 +39,7 @@ class SimulationMixin:
     _harness: "HassetteHarness | None"
     _app: "App | None"
 
-    def _require_harness(self) -> "HassetteHarness":
+    def require_harness(self) -> "HassetteHarness":
         """Return the active HassetteHarness or raise RuntimeError.
 
         Centralises the ``if harness is None: raise RuntimeError(...)`` guard
@@ -64,7 +65,7 @@ class SimulationMixin:
         new_value: Any,
         old_attrs: dict | None = None,
         new_attrs: dict | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a state change event and send it through the bus.
 
@@ -90,7 +91,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         # Merge seeded attributes from StateProxy when not explicitly provided.
         if old_attrs is None or new_attrs is None:
@@ -122,7 +123,7 @@ class SimulationMixin:
         old_value: Any,
         new_value: Any,
         state: str | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create an attribute change event and send it through the bus.
 
@@ -146,7 +147,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         # Read both state value and existing attributes from the proxy.
         # Lock-free read is safe: dict.get() is atomic in CPython, consistent
@@ -176,7 +177,7 @@ class SimulationMixin:
         domain: str,
         service: str,
         *,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
         **data: Any,
     ) -> None:
         """Create a call_service event and send it through the bus.
@@ -191,7 +192,7 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
         await harness.hassette.send_event(event.topic, event)
@@ -200,7 +201,7 @@ class SimulationMixin:
     async def simulate_component_loaded(
         self,
         component: str,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a component_loaded event and send it through the bus.
 
@@ -212,7 +213,7 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_component_loaded_event(component)
         await harness.hassette.send_event(event.topic, event)
@@ -222,7 +223,7 @@ class SimulationMixin:
         self,
         domain: str,
         service: str,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a service_registered event and send it through the bus.
 
@@ -235,7 +236,7 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = create_service_registered_event(domain, service)
         await harness.hassette.send_event(event.topic, event)
@@ -251,7 +252,7 @@ class SimulationMixin:
         exception: Exception | None = None,
         ready: bool = False,
         ready_phase: str | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a Hassette service status event and send it through the bus.
 
@@ -274,7 +275,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteServiceEvent.from_data(
             resource_name=resource_name,
@@ -293,7 +294,7 @@ class SimulationMixin:
         resource_name: str,
         *,
         ready_phase: str | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a service reaching RUNNING status with ready=True.
 
@@ -321,7 +322,7 @@ class SimulationMixin:
         resource_name: str,
         *,
         exception: Exception | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a service reaching FAILED status.
 
@@ -336,7 +337,7 @@ class SimulationMixin:
         resource_name: str,
         *,
         exception: Exception | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a service reaching CRASHED status.
 
@@ -350,7 +351,7 @@ class SimulationMixin:
         self,
         resource_name: str,
         *,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a service reaching RUNNING status.
 
@@ -360,7 +361,7 @@ class SimulationMixin:
 
     async def simulate_websocket_connected(
         self,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a websocket connected event and send it through the bus.
 
@@ -376,7 +377,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await harness.hassette.send_event(event.topic, event)
@@ -384,7 +385,7 @@ class SimulationMixin:
 
     async def simulate_websocket_disconnected(
         self,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create a websocket disconnected event and send it through the bus.
 
@@ -400,7 +401,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await harness.hassette.send_event(event.topic, event)
@@ -412,7 +413,7 @@ class SimulationMixin:
         *,
         previous_status: ResourceStatus | None = None,
         exception: Exception | None = None,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Create an app state changed event and send it through the bus.
 
@@ -435,7 +436,7 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`_drain_task_bucket` for details.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
         app = self._app
         if app is None:
             raise RuntimeError("AppTestHarness is not active — no app available")
@@ -452,7 +453,7 @@ class SimulationMixin:
     async def simulate_app_running(
         self,
         *,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate the app reaching RUNNING status.
 
@@ -463,7 +464,7 @@ class SimulationMixin:
     async def simulate_app_stopping(
         self,
         *,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate the app reaching STOPPING status.
 
@@ -473,7 +474,7 @@ class SimulationMixin:
 
     async def simulate_homeassistant_restart(
         self,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a homeassistant restart call_service event.
 
@@ -483,7 +484,7 @@ class SimulationMixin:
 
     async def simulate_homeassistant_start(
         self,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a homeassistant start call_service event.
 
@@ -493,7 +494,7 @@ class SimulationMixin:
 
     async def simulate_homeassistant_stop(
         self,
-        timeout: float = 2.0,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
     ) -> None:
         """Convenience: simulate a homeassistant stop call_service event.
 
@@ -501,7 +502,7 @@ class SimulationMixin:
         """
         await self.simulate_call_service("homeassistant", "stop", timeout=timeout)
 
-    async def _drain_task_bucket(self, *, timeout: float = 2.0) -> None:
+    async def _drain_task_bucket(self, *, timeout: float = DEFAULT_SIMULATE_TIMEOUT) -> None:
         """Wait until bus dispatch queue AND app task_bucket are jointly quiescent.
 
         Iterates: wait for bus dispatch idle, wait for task_bucket pending tasks, re-check.
@@ -537,7 +538,7 @@ class SimulationMixin:
             through App-level registration via ``self.bus.on_state_change`` inside
             an App.
         """
-        harness = self._require_harness()
+        harness = self.require_harness()
 
         bus_service = harness.bus_service
 

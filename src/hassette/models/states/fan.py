@@ -25,27 +25,27 @@ class FanAttributes(AttributesBase):
 
     @property
     def supports_set_speed(self) -> bool:
-        return self._has_feature(FanEntityFeature.SET_SPEED)
+        return self.has_feature(FanEntityFeature.SET_SPEED)
 
     @property
     def supports_oscillate(self) -> bool:
-        return self._has_feature(FanEntityFeature.OSCILLATE)
+        return self.has_feature(FanEntityFeature.OSCILLATE)
 
     @property
     def supports_direction(self) -> bool:
-        return self._has_feature(FanEntityFeature.DIRECTION)
+        return self.has_feature(FanEntityFeature.DIRECTION)
 
     @property
     def supports_preset_mode(self) -> bool:
-        return self._has_feature(FanEntityFeature.PRESET_MODE)
+        return self.has_feature(FanEntityFeature.PRESET_MODE)
 
     @property
     def supports_turn_off(self) -> bool:
-        return self._has_feature(FanEntityFeature.TURN_OFF)
+        return self.has_feature(FanEntityFeature.TURN_OFF)
 
     @property
     def supports_turn_on(self) -> bool:
-        return self._has_feature(FanEntityFeature.TURN_ON)
+        return self.has_feature(FanEntityFeature.TURN_ON)
 
 
 class FanState(BoolBaseState):

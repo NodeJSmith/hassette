@@ -18,6 +18,8 @@ from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
+TEST_START_EPOCH = 1704067200.0
+
 
 def wire_telemetry_stubs(hassette: MagicMock) -> None:
     """Wire empty-return async stubs for all TelemetryQueryService methods."""
@@ -168,7 +170,7 @@ def create_mock_runtime_query_service(
     mock_hassette: MagicMock,
     *,
     buffer_size: int = 100,
-    start_time: float = 1704067200.0,
+    start_time: float = TEST_START_EPOCH,
     use_real_lock: bool = True,
 ) -> RuntimeQueryService:
     """Build a RuntimeQueryService wired to the given mock Hassette.

@@ -34,31 +34,31 @@ class TodoAttributes(AttributesBase):
 
     @property
     def supports_create_todo_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.CREATE_TODO_ITEM)
+        return self.has_feature(TodoListEntityFeature.CREATE_TODO_ITEM)
 
     @property
     def supports_delete_todo_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.DELETE_TODO_ITEM)
+        return self.has_feature(TodoListEntityFeature.DELETE_TODO_ITEM)
 
     @property
     def supports_update_todo_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.UPDATE_TODO_ITEM)
+        return self.has_feature(TodoListEntityFeature.UPDATE_TODO_ITEM)
 
     @property
     def supports_move_todo_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.MOVE_TODO_ITEM)
+        return self.has_feature(TodoListEntityFeature.MOVE_TODO_ITEM)
 
     @property
     def supports_set_due_date_on_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.SET_DUE_DATE_ON_ITEM)
+        return self.has_feature(TodoListEntityFeature.SET_DUE_DATE_ON_ITEM)
 
     @property
     def supports_set_due_datetime_on_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.SET_DUE_DATETIME_ON_ITEM)
+        return self.has_feature(TodoListEntityFeature.SET_DUE_DATETIME_ON_ITEM)
 
     @property
     def supports_set_description_on_item(self) -> bool:
-        return self._has_feature(TodoListEntityFeature.SET_DESCRIPTION_ON_ITEM)
+        return self.has_feature(TodoListEntityFeature.SET_DESCRIPTION_ON_ITEM)
 
 
 class TodoState(NumericBaseState):

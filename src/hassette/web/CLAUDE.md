@@ -19,7 +19,7 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 Use the shared `DB_ERRORS` tuple to suppress database failures gracefully (never 500 on transient DB errors):
 
 ```python
-from hassette.web.routes.telemetry import DB_ERRORS
+from hassette.web.dependencies import DB_ERRORS
 
 try:
     result = await telemetry.some_query()

@@ -8,7 +8,6 @@ fidelity should use a full integration test with a live HA connection.
 """
 
 import copy
-from collections.abc import Generator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, cast, runtime_checkable
 
@@ -70,16 +69,9 @@ SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
-# Hand-maintained dispatch table mapping each Record class to (domain, deep_copy).
-# Adding a 9th helper domain requires adding an entry here. A future refactor could
-# add `domain: ClassVar[str]` to each Record model and auto-populate this dict, but
-# that is out of scope for this PR.
-#
-# ``deep_copy`` — set to True for record types that contain nested mutable fields.
-# Currently only ``InputSelectRecord`` requires deep copies: its ``options: list[str]``
-# field would alias the stored record's list under a shallow copy, allowing a caller's
-# ``record.options.append(...)`` to silently corrupt harness state. All other domains
-# use scalar-only fields and are safe with shallow copies.
+# Dispatch table mapping each Record class to (domain, deep_copy).
+# ``deep_copy`` — True for record types with nested mutable fields (e.g. InputSelectRecord's
+# options list) to prevent aliasing between stored and returned records.
 RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
     InputBooleanRecord: ("input_boolean", False),
     InputNumberRecord: ("input_number", False),
@@ -192,7 +184,6 @@ class ApiProtocol(Protocol):
     async def get_state_raw(self, entity_id: str) -> "HassStateDict": ...
     async def get_states(self) -> list[BaseState]: ...
     async def get_states_raw(self) -> list["HassStateDict"]: ...
-    async def get_states_iterator(self) -> Generator[BaseState[Any], Any, None]: ...
     async def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity: ...
     async def get_entity_or_none(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity | None: ...
     async def entity_exists(self, entity_id: str) -> bool: ...

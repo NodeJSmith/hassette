@@ -104,18 +104,15 @@ class ExcludeExtrasMixin:
     def model_dump(self, *, exclude: Any | None = None, **kwargs: Any) -> dict[str, Any]:
         """Serialize declared fields only; extra fields are excluded for privacy."""
         extra_keys = self.get_extra_keys()
-        if extra_keys and kwargs.get("include") is not None:
-            pass  # caller explicitly requested specific fields — respect that
-        elif extra_keys:
+        # Skip auto-exclude when caller explicitly specifies `include` — respect their selection
+        if extra_keys and kwargs.get("include") is None:
             exclude = self.merge_exclude(exclude, extra_keys)
         return super().model_dump(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
     def model_dump_json(self, *, exclude: Any | None = None, **kwargs: Any) -> str:
         """Serialize declared fields only; extra fields are excluded for privacy."""
         extra_keys = self.get_extra_keys()
-        if extra_keys and kwargs.get("include") is not None:
-            pass  # caller explicitly requested specific fields — respect that
-        elif extra_keys:
+        if extra_keys and kwargs.get("include") is None:
             exclude = self.merge_exclude(exclude, extra_keys)
         return super().model_dump_json(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -200,7 +197,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
 
         return v
 
-    def validate_model_extra(self):
+    def validate_model_extra(self) -> None:
         if not self.model_extra:
             return
 

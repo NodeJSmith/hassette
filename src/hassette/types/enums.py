@@ -15,6 +15,8 @@ class RestartType(StrEnum):
 
 
 class Topic(StrEnum):
+    """Event topic identifiers for the internal pub/sub bus."""
+
     # hassette events
 
     HASSETTE_EVENT_SERVICE_STATUS = "hassette.event.service_status"

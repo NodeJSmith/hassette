@@ -41,27 +41,27 @@ class AlarmControlPanelAttributes(AttributesBase):
 
     @property
     def supports_arm_home(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.ARM_HOME)
+        return self.has_feature(AlarmControlPanelEntityFeature.ARM_HOME)
 
     @property
     def supports_arm_away(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.ARM_AWAY)
+        return self.has_feature(AlarmControlPanelEntityFeature.ARM_AWAY)
 
     @property
     def supports_arm_night(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.ARM_NIGHT)
+        return self.has_feature(AlarmControlPanelEntityFeature.ARM_NIGHT)
 
     @property
     def supports_trigger(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.TRIGGER)
+        return self.has_feature(AlarmControlPanelEntityFeature.TRIGGER)
 
     @property
     def supports_arm_custom_bypass(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.ARM_CUSTOM_BYPASS)
+        return self.has_feature(AlarmControlPanelEntityFeature.ARM_CUSTOM_BYPASS)
 
     @property
     def supports_arm_vacation(self) -> bool:
-        return self._has_feature(AlarmControlPanelEntityFeature.ARM_VACATION)
+        return self.has_feature(AlarmControlPanelEntityFeature.ARM_VACATION)
 
 
 class AlarmControlPanelState(StringBaseState):

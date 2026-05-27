@@ -13,37 +13,37 @@ from hassette.models.states.vacuum import VacuumAttributes, VacuumEntityFeature
 
 
 class TestAttributesBaseHasFeature:
-    """Tests for the _has_feature() helper on AttributesBase."""
+    """Tests for the has_feature() helper on AttributesBase."""
 
     def test_returns_false_when_supported_features_is_none(self) -> None:
         attrs = AttributesBase(supported_features=None)
-        assert attrs._has_feature(1) is False
+        assert attrs.has_feature(1) is False
 
     def test_returns_false_when_flag_not_set(self) -> None:
         attrs = AttributesBase(supported_features=0)
-        assert attrs._has_feature(1) is False
+        assert attrs.has_feature(1) is False
 
     def test_returns_true_when_single_flag_set(self) -> None:
         attrs = AttributesBase(supported_features=4)
-        assert attrs._has_feature(4) is True
+        assert attrs.has_feature(4) is True
 
     def test_returns_true_when_flag_in_combined_bitmask(self) -> None:
         attrs = AttributesBase(supported_features=5)  # 1 | 4
-        assert attrs._has_feature(4) is True
-        assert attrs._has_feature(1) is True
+        assert attrs.has_feature(4) is True
+        assert attrs.has_feature(1) is True
 
     def test_returns_false_for_missing_flag_in_combined_bitmask(self) -> None:
         attrs = AttributesBase(supported_features=5)  # 1 | 4
-        assert attrs._has_feature(2) is False
+        assert attrs.has_feature(2) is False
 
     def test_handles_float_supported_features(self) -> None:
         attrs = AttributesBase(supported_features=4.0)
-        assert attrs._has_feature(4) is True
+        assert attrs.has_feature(4) is True
 
     def test_handles_large_bitmask(self) -> None:
         attrs = AttributesBase(supported_features=4194304)
-        assert attrs._has_feature(4194304) is True
-        assert attrs._has_feature(1) is False
+        assert attrs.has_feature(4194304) is True
+        assert attrs.has_feature(1) is False
 
 
 # ── Light ──────────────────────────────────────────────────────────────

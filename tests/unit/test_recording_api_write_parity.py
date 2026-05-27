@@ -41,7 +41,6 @@ KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "get_state_value_typed",
         "get_attribute",
         "get_states_raw",
-        "get_states_iterator",
         "get_config",
         "get_services",
         "get_panels",

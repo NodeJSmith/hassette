@@ -88,7 +88,6 @@ class TypeMatcher:
             if not isinstance(value, origin):
                 return False
         # If origin can't be used with isinstance, treat as non-match (forces conversion).
-        # If you'd rather be permissive, return True instead.
         if not safe_isinstance(value, origin):
             return False
 
@@ -134,5 +133,4 @@ def match_tuple(m: TypeMatcher, value: Any, tp: Any) -> bool:
     if len(value) != len(args):
         return False
 
-    # zip(strict=True) would be fine in 3.10+, but keep it simple and explicit
     return all(m.matches(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))

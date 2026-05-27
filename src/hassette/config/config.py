@@ -2,6 +2,7 @@ import os
 from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
+from typing import Any
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -39,6 +40,8 @@ TOKEN_SHORT_THRESHOLD = 8
 TOKEN_MEDIUM_THRESHOLD = 12
 TOKEN_SHORT_PREFIX_LENGTH = 3
 TOKEN_LONG_PREFIX_LENGTH = 6
+
+DEFAULT_CACHE_SIZE_BYTES = 100 * 1024 * 1024
 
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
@@ -146,7 +149,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     hassette_event_buffer_size: int = Field(default=1000)
     """Buffer capacity of the internal anyio memory channel used to route events to the bus."""
 
-    default_cache_size: int = Field(default=100 * 1024 * 1024)
+    default_cache_size: int = Field(default=DEFAULT_CACHE_SIZE_BYTES)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 
     strict_lifecycle: bool = Field(default=False)
@@ -267,13 +270,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 LOGGER.debug("Creating directory %s as it does not exist", directory)
                 directory.mkdir(parents=True, exist_ok=True)
 
-    def reload(self):
+    def reload(self) -> None:
         """Reload the configuration from all sources."""
         # see: https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
         self.__init__()
         self.set_validated_app_manifests()
 
-    def model_post_init(self, *args):
+    def model_post_init(self, *args: Any) -> None:
         """Set default values for any unset fields after initialization."""
         # Snapshot which group fields were set by actual user sources (init kwargs, env vars, TOML)
         # BEFORE the defaults loop runs — setattr in the defaults loop updates model_fields_set,

@@ -32,7 +32,7 @@ class LockAttributes(AttributesBase):
 
     @property
     def supports_open(self) -> bool:
-        return self._has_feature(LockEntityFeature.OPEN)
+        return self.has_feature(LockEntityFeature.OPEN)
 
 
 class LockState(StringBaseState):

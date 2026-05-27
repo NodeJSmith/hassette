@@ -5,7 +5,7 @@ import threading
 import typing
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
-from concurrent.futures import TimeoutError as CfTimeoutError
+from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -163,7 +163,7 @@ class TaskBucket(Resource):
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
-            A Future representing the result of the function call.
+            A coroutine that resolves to the return value of *fn*.
         """
         current_bucket = ctx.CURRENT_BUCKET.get()
 
@@ -176,7 +176,7 @@ class TaskBucket(Resource):
 
         return asyncio.to_thread(_call)
 
-    def post_to_loop(self, fn, *args, **kwargs) -> None:
+    def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Schedule a callable on the event loop from any thread."""
         self.hassette.loop.call_soon_threadsafe(fn, *args, **kwargs)
 
@@ -218,7 +218,7 @@ class TaskBucket(Resource):
 
         Args:
             fn: The async function to run.
-            timeout_seconds: The timeout for the function call, defaults to 0, to use the config value.
+            timeout_seconds: The timeout for the function call. None uses the config value.
 
         Returns:
             The result of the function call.
@@ -248,7 +248,7 @@ class TaskBucket(Resource):
             if not fut.done():
                 fut.cancel()
 
-    async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args, **kwargs) -> R:
+    async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args: Any, **kwargs: Any) -> R:
         """Run a synchronous function on the main event loop thread.
 
         This is useful for ensuring that loop-affine code runs in the correct context.
@@ -264,7 +264,7 @@ class TaskBucket(Resource):
         self.hassette.loop.call_soon_threadsafe(_call)
         return await fut
 
-    def create_task_on_loop(self, coro, *, name=None) -> asyncio.Task[Any]:
+    def create_task_on_loop(self, coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task[Any]:
         """Create a task on the main event loop thread, in this bucket's context."""
         with ctx.use_task_bucket(self):
             return self.hassette.loop.create_task(coro, name=name)

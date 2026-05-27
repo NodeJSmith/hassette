@@ -43,35 +43,20 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
     return yurl.scheme, yurl.host, yurl.explicit_port
 
 
-def build_ws_url(config: "HassetteConfig") -> str:
-    """Construct the WebSocket URL for Home Assistant.
-
-    Args:
-        config: Hassette configuration containing connection details
-
-    Returns:
-        Complete WebSocket URL for Home Assistant API
-    """
+def _build_ha_url(config: "HassetteConfig", *, ws: bool = False) -> str:
+    """Construct a Home Assistant API URL (REST or WebSocket)."""
     scheme, hostname, port = _parse_and_normalize_url(config)
+    if ws:
+        scheme = "wss" if scheme == "https" else "ws"
+    path = "/api/websocket" if ws else "/api/"
+    return str(URL.build(scheme=scheme, host=hostname, port=port, path=path))
 
-    # Convert HTTP scheme to WebSocket scheme
-    ws_scheme = "wss" if scheme == "https" else "ws"
 
-    yurl = URL.build(scheme=ws_scheme, host=hostname, port=port, path="/api/websocket")
-    return str(yurl)
+def build_ws_url(config: "HassetteConfig") -> str:
+    """Construct the WebSocket URL for Home Assistant."""
+    return _build_ha_url(config, ws=True)
 
 
 def build_rest_url(config: "HassetteConfig") -> str:
-    """Construct the REST API URL for Home Assistant.
-
-    Args:
-        config: Hassette configuration containing connection details
-
-    Returns:
-        Complete REST API URL for Home Assistant API
-    """
-    scheme, hostname, port = _parse_and_normalize_url(config)
-
-    yurl = URL.build(scheme=scheme, host=hostname, port=port, path="/api/")
-
-    return str(yurl)
+    """Construct the REST API URL for Home Assistant."""
+    return _build_ha_url(config)

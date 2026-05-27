@@ -19,23 +19,23 @@ class SirenAttributes(AttributesBase):
 
     @property
     def supports_turn_on(self) -> bool:
-        return self._has_feature(SirenEntityFeature.TURN_ON)
+        return self.has_feature(SirenEntityFeature.TURN_ON)
 
     @property
     def supports_turn_off(self) -> bool:
-        return self._has_feature(SirenEntityFeature.TURN_OFF)
+        return self.has_feature(SirenEntityFeature.TURN_OFF)
 
     @property
     def supports_tones(self) -> bool:
-        return self._has_feature(SirenEntityFeature.TONES)
+        return self.has_feature(SirenEntityFeature.TONES)
 
     @property
     def supports_volume_set(self) -> bool:
-        return self._has_feature(SirenEntityFeature.VOLUME_SET)
+        return self.has_feature(SirenEntityFeature.VOLUME_SET)
 
     @property
     def supports_duration(self) -> bool:
-        return self._has_feature(SirenEntityFeature.DURATION)
+        return self.has_feature(SirenEntityFeature.DURATION)
 
 
 class SirenState(BoolBaseState):

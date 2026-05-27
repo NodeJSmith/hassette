@@ -364,8 +364,8 @@ class Listener:
             return True
         matched = self.predicate(ev)
 
-        match_str = "matched" if matched else "did not match"
-        self.logger.debug("Listener %s %s predicate for event: %s", self, match_str, ev)
+        verdict = "matched" if matched else "did not match"
+        self.logger.debug("Listener %s %s predicate for event: %s", self, verdict, ev)
         return matched
 
     def __repr__(self) -> str:

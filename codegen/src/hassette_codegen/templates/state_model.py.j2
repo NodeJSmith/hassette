@@ -54,7 +54,7 @@ class {{ domain_title }}Attributes(AttributesBase):
 
     @property
     def supports_{{ member_name | lower }}(self) -> bool:
-        return self._has_feature({{ enum.name }}.{{ member_name }})
+        return self.has_feature({{ enum.name }}.{{ member_name }})
 {% endfor %}
 {% endfor %}
 

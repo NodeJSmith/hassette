@@ -35,15 +35,15 @@ class WeatherAttributes(AttributesBase):
 
     @property
     def supports_forecast_daily(self) -> bool:
-        return self._has_feature(WeatherEntityFeature.FORECAST_DAILY)
+        return self.has_feature(WeatherEntityFeature.FORECAST_DAILY)
 
     @property
     def supports_forecast_hourly(self) -> bool:
-        return self._has_feature(WeatherEntityFeature.FORECAST_HOURLY)
+        return self.has_feature(WeatherEntityFeature.FORECAST_HOURLY)
 
     @property
     def supports_forecast_twice_daily(self) -> bool:
-        return self._has_feature(WeatherEntityFeature.FORECAST_TWICE_DAILY)
+        return self.has_feature(WeatherEntityFeature.FORECAST_TWICE_DAILY)
 
 
 class WeatherState(StringBaseState):

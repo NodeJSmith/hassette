@@ -3,7 +3,6 @@
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Protocol
 
-from hassette.config.helpers import VERSION
 from hassette.web.models import ErrorRateClass, HealthStatus
 
 LOGGER = getLogger(__name__)
@@ -80,14 +79,6 @@ def classify_health_bar(success_rate: float) -> HealthStatus:
     if success_rate >= HEALTH_WARNING_THRESHOLD:
         return "warning"
     return "critical"
-
-
-def base_context(current_page: str) -> dict:
-    """Build the common template context shared by all pages."""
-    return {
-        "current_page": current_page,
-        "hassette_version": str(VERSION),
-    }
 
 
 def alert_context(runtime: "RuntimeQueryService") -> dict[str, Any]:

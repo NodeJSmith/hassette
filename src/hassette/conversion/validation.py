@@ -232,12 +232,10 @@ def _apply_mode(issues: list[RegistryValidationIssue], *, strict: bool) -> None:
 
     error_issues = [i for i in issues if i.severity == "error"]
 
-    if strict and error_issues:
-        for issue in issues:
-            LOGGER.warning("[%s] %s: %s", issue.severity.upper(), issue.registry, issue.message)
-        raise RegistryValidationError(issues)
-
     for issue in issues:
         LOGGER.warning("[%s] %s: %s", issue.severity.upper(), issue.registry, issue.message)
+
+    if strict and error_issues:
+        raise RegistryValidationError(issues)
 
     LOGGER.warning("Registry validation: %d issue(s) found", len(issues))

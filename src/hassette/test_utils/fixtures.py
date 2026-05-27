@@ -139,27 +139,28 @@ async def hassette_with_state_registry(
         yield harness
 
 
+def _load_and_shuffle_events(path: Path) -> list[Event]:
+    """Load events from a JSONL file and shuffle with a seeded RNG."""
+    events = []
+    with open(path) as f:
+        for line in f:
+            if line.strip():
+                line = line.strip().rstrip(",")
+                envelope: HassEventEnvelopeDict = json.loads(line)
+                events.append(create_event_from_hass(envelope))
+
+    seed = int.from_bytes(os.urandom(8))
+    LOGGER.info("Event shuffle seed for %s: %d", path.name, seed)
+    rng = random.Random(seed)
+    rng.shuffle(events)
+    return events
+
+
 @pytest.fixture(scope="session")
 def state_change_events(test_events_path: Path) -> list[RawStateChangeEvent]:
     """Load state change events from test data file."""
-    events = []
-    with open(test_events_path / "state_change_events.jsonl") as f:
-        for line in f:
-            if line.strip():
-                # Strip trailing comma if present (JSONL files may have them)
-                line = line.strip().rstrip(",")
-                envelope: HassEventEnvelopeDict = json.loads(line)
-                event = create_event_from_hass(envelope)
-                if isinstance(event, RawStateChangeEvent):
-                    events.append(event)
-
-    # randomize order with a seeded RNG for reproducibility
-    seed = int.from_bytes(os.urandom(8))
-    LOGGER.info("Event shuffle seed: %d", seed)
-    rng = random.Random(seed)
-    rng.shuffle(events)
-
-    return events
+    events = _load_and_shuffle_events(test_events_path / "state_change_events.jsonl")
+    return [e for e in events if isinstance(e, RawStateChangeEvent)]
 
 
 @pytest.fixture(scope="session")
@@ -191,23 +192,7 @@ def state_change_events_with_both_states(
 @pytest.fixture(scope="session")
 def other_events(test_events_path: Path) -> list[Event]:
     """Load other events from test data file."""
-    events = []
-    with open(test_events_path / "other_events.jsonl") as f:
-        for line in f:
-            if line.strip():
-                # Strip trailing comma if present (JSONL files may have them)
-                line = line.strip().rstrip(",")
-                envelope: HassEventEnvelopeDict = json.loads(line)
-                event = create_event_from_hass(envelope)
-                events.append(event)
-
-    # randomize order with a seeded RNG for reproducibility
-    seed = int.from_bytes(os.urandom(8))
-    LOGGER.info("Event shuffle seed: %d", seed)
-    rng = random.Random(seed)
-    rng.shuffle(events)
-
-    return events
+    return _load_and_shuffle_events(test_events_path / "other_events.jsonl")
 
 
 @pytest.fixture(scope="session")
