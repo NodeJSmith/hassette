@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 from whenever import ZonedDateTime
 
 from hassette.scheduler.triggers import After, Daily, Every, Once
-from hassette.web.utils import resolve_trigger
+from hassette.web.utils import ONE_SHOT_TRIGGER_TYPE, resolve_trigger
 
 
 def make_job(trigger: object | None = None) -> MagicMock:
@@ -37,7 +37,7 @@ class TestResolveTrigger:
 
     def test_resolve_trigger_no_trigger(self) -> None:
         job = make_job(trigger=None)
-        assert resolve_trigger(job) == ("one-shot", None)
+        assert resolve_trigger(job) == (ONE_SHOT_TRIGGER_TYPE, None)
 
     def test_resolve_trigger_custom(self) -> None:
         """Custom trigger implementing protocol methods — returns db_type, not label."""

@@ -5,10 +5,6 @@ from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
-# ---------------------------------------------------------------------------
-# hassette status
-# ---------------------------------------------------------------------------
-
 
 def cmd_status() -> None:
     """Show system status (GET /api/health)."""
@@ -17,21 +13,12 @@ def cmd_status() -> None:
     render_detail(result, json_mode=cli_globals.json_mode)
 
 
-# ---------------------------------------------------------------------------
-# hassette telemetry
-# ---------------------------------------------------------------------------
-
-
 def cmd_telemetry() -> None:
     """Show telemetry database status (GET /api/telemetry/status)."""
     client = make_client()
     result = client.get("/api/telemetry/status", TelemetryStatusResponse)
     render_detail(result, json_mode=cli_globals.json_mode)
 
-
-# ---------------------------------------------------------------------------
-# hassette dashboard
-# ---------------------------------------------------------------------------
 
 DASHBOARD_COLUMNS: list[Column] = [
     Column("app_key", "App", max_width=20),

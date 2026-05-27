@@ -76,10 +76,8 @@ class ParameterInjector:
                     annotation_details.converter,
                 )
             except DependencyError:
-                # Already formatted, just re-raise
                 raise
             except Exception as e:
-                # Unexpected error - wrap it
                 LOGGER.error(
                     "Handler '%s' - unexpected error extracting parameter '%s': %s",
                     self.handler_name,
@@ -114,11 +112,9 @@ class ParameterInjector:
         if extracted_value is None and is_optional(normalized):
             return None
 
-        # If caller didn't provide a custom converter, use the annotation-aware one
-        conv = converter or ANNOTATION_CONVERTER.convert
-        conv_name = callable_short_name(conv, 2)
+        effective_converter = converter or ANNOTATION_CONVERTER.convert
+        converter_name = callable_short_name(effective_converter, 2)
 
-        # Fast path: if it already matches (deep), skip conversion
         if TYPE_MATCHER.matches(extracted_value, normalized):
             LOGGER.debug(
                 "Handler '%s' - skipping conversion for parameter '%s' (already matches '%s')",
@@ -128,13 +124,11 @@ class ParameterInjector:
             )
             return extracted_value
 
-        # Convert (converter handles union/nested/etc. if using ANNOTATION_CONVERTER)
         try:
-            return conv(extracted_value, param_type)
+            return effective_converter(extracted_value, param_type)
         except Exception as e:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
                 f"of type '{actual_type}' to '{param_type}' "
-                f"using converter {conv_name} "
-                f": {type(e).__name__}: {e}"
+                f"using converter {converter_name}: {type(e).__name__}: {e}"
             ) from e

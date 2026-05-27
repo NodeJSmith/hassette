@@ -47,7 +47,7 @@ class TestRecordSuccess:
 class TestRecordError:
     def test_single_error(self) -> None:
         m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
-        m.record_error(8.0, "boom", "ValueError")
+        m.record_failure(8.0, "boom", "ValueError")
         assert m.total_invocations == 1
         assert m.failed == 1
         assert m.successful == 0
@@ -58,7 +58,7 @@ class TestRecordError:
     def test_error_updates_timing(self) -> None:
         m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(5.0)
-        m.record_error(20.0, "fail", "RuntimeError")
+        m.record_failure(20.0, "fail", "RuntimeError")
         assert m.max_duration_ms == 20.0
         assert m.min_duration_ms == 5.0
 
@@ -66,7 +66,7 @@ class TestRecordError:
 class TestRecordDiFailure:
     def test_di_failure(self) -> None:
         m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
-        m.record_di_failure(3.0, "bad sig", "DependencyInjectionError")
+        m.record_failure(3.0, "bad sig", "DependencyInjectionError", di=True)
         assert m.total_invocations == 1
         assert m.di_failures == 1
         assert m.failed == 0  # DI failures are separate from general failures
@@ -98,7 +98,7 @@ class TestAvgDurationMs:
     def test_includes_errors_in_average(self) -> None:
         m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
-        m.record_error(30.0, "err", "E")
+        m.record_failure(30.0, "err", "E")
         assert m.avg_duration_ms == 20.0
 
 
@@ -138,8 +138,8 @@ class TestMixedOperations:
     def test_mixed_operations(self) -> None:
         m = ListenerMetrics(listener_id=1, owner_id="app", topic="t", handler_method="h")
         m.record_success(10.0)
-        m.record_error(20.0, "err", "ValueError")
-        m.record_di_failure(5.0, "bad", "DependencyInjectionError")
+        m.record_failure(20.0, "err", "ValueError")
+        m.record_failure(5.0, "bad", "DependencyInjectionError", di=True)
         m.record_cancelled(3.0)
         assert m.total_invocations == 4
         assert m.successful == 1

@@ -8,6 +8,8 @@ from hassette.core.telemetry_models import JobSummary
 if TYPE_CHECKING:
     from hassette.scheduler.classes import ScheduledJob
 
+ONE_SHOT_TRIGGER_TYPE = "one-shot"
+
 LOGGER = getLogger(__name__)
 
 
@@ -66,5 +68,5 @@ def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:
     """
     trigger = job.trigger
     if trigger is None:
-        return "one-shot", None
+        return ONE_SHOT_TRIGGER_TYPE, None
     return trigger.trigger_db_type(), trigger.trigger_detail()
