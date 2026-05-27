@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Migrate all command functions to use CLIContext parameter"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "AC#2", "AC#3", "AC#5"]
 ---

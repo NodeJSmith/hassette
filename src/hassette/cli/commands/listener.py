@@ -1,9 +1,11 @@
 """Listener-related CLI commands: listener list and invocation history."""
 
-from typing import Any
+from typing import Annotated, Any
 
-import hassette.cli.globals as cli_globals
+from cyclopts import Parameter
+
 from hassette.cli.client import make_client
+from hassette.cli.context import CLIContext
 from hassette.cli.output import Column, fmt_duration_ms, fmt_handler_short, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import HandlerInvocation
@@ -39,10 +41,12 @@ def cmd_listener(
     since: SinceArg = None,
     source_tier: SourceTierArg = None,
     limit: LimitArg = None,
+    *,
+    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> None:
     """List listeners, or show invocation history for a specific listener."""
-    client = make_client()
-    json_mode = cli_globals.json_mode
+    client = make_client(ctx)
+    json_mode = ctx.json_mode
 
     if listener_id is not None:
         params: dict[str, Any] = {}
