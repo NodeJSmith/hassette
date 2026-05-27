@@ -239,11 +239,6 @@ def make_client(ctx: CLIContext) -> HassetteCLIClient:
         ctx: The CLI context for this invocation, carrying output mode and
             config file override paths.
     """
-    if ctx.env_file_override:
-        HassetteConfig.model_config["env_file"] = ctx.env_file_override
-    if ctx.config_file_override:
-        HassetteConfig.model_config["toml_file"] = ctx.config_file_override
-
     config = HassetteConfig(token=None)
     return HassetteCLIClient(config, json_mode=ctx.json_mode, debug_mode=ctx.debug_mode)
 
