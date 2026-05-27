@@ -61,6 +61,8 @@ hassette app health <key> --instance office
 
 **StateManager** (`src/hassette/state_manager/`) - State access and caching with type conversion. Supports domain access (`self.states.light`), generic access (`self.states[CustomState]`), and direct entity lookup (`self.states.get("light.kitchen")`).
 
+**LoggingService** (`src/hassette/core/logging_service.py`) - Manages the async logging pipeline lifecycle. A Resource with `depends_on=[DatabaseService]` that upgrades logging from synchronous (console-only) to asynchronous (console + capture + persistence) during `on_initialize()`. Owns the QueueListener, LogCaptureHandler, and LogPersistenceHandler. The async pipeline starts unconditionally; persistence degrades gracefully on failure.
+
 ### Event Handling Modules
 
 Located in `src/hassette/event_handling/`:

@@ -350,15 +350,14 @@ def enable_basic_logging(
         The StreamHandler attached to the hassette logger. Stored on Hassette and
         passed to LoggingService for the Phase 2 sync→async swap.
     """
-    if stream is None:
-        stream = sys.stdout
+    out: IO[str] = stream if stream is not None else sys.stdout
 
     if log_format == "json":
         use_json = True
     elif log_format == "console":
         use_json = False
     else:
-        use_json = not stream.isatty()
+        use_json = not out.isatty()
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
@@ -395,7 +394,7 @@ def enable_basic_logging(
     logger.handlers.clear()
     logger.filters.clear()
 
-    stream_handler = logging.StreamHandler(stream)
+    stream_handler = logging.StreamHandler(out)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
