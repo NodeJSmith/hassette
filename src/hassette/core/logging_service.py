@@ -82,7 +82,7 @@ class LoggingService(Resource):
             )
             handlers.append(self.persistence_handler)
         except Exception:
-            self.logger.error("Failed to create persistence handler — logs will not be persisted")
+            self.logger.exception("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
 
         q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
