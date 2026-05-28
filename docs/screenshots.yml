@@ -91,11 +91,14 @@
   height: 1508
   wait: 2000
 
+# JS clicks the failing handler to populate the detail pane
 - url: "http://localhost:{port}/apps/demo_stimulator/handlers"
   output: docs/_static/web_ui_app_detail_handlers.png
   width: 1400
   height: 900
   wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"handler-failed-count\"]')"
+  javascript: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
 
 - url: "http://localhost:{port}/apps/motion_lights/code"
   output: docs/_static/web_ui_app_detail_code.png
@@ -118,7 +121,7 @@
   output: docs/_static/web_ui_detail_sidebar.png
   selector: "[data-testid='sidebar']"
   width: 1400
-  height: 900
+  height: 500
   wait: 2000
 
 - url: "http://localhost:{port}/apps"
@@ -174,7 +177,7 @@
   output: docs/_static/web_ui_detail_log_drawer.png
   selector: "[data-testid='log-detail-drawer']"
   width: 1400
-  height: 900
+  height: 500
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"log-detail-drawer\"]')"
   javascript: "document.querySelector('tbody tr')?.click()"
