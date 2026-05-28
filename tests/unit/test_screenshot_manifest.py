@@ -27,6 +27,7 @@ def test_all_entries_have_required_fields(manifest: list[dict[str, object]]):
         assert "url" in entry, f"Entry {i} missing 'url' field"
         assert "output" in entry, f"Entry {i} missing 'output' field"
         assert "width" in entry, f"Entry {i} missing 'width' field"
+        assert "height" in entry, f"Entry {i} missing 'height' field"
 
 
 def test_output_paths_follow_convention(manifest: list[dict[str, object]]):

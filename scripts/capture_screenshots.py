@@ -76,11 +76,17 @@ def teardown() -> None:
 
     if _demo_proc is not None:
         try:
-            os.killpg(_demo_proc.pid, signal.SIGTERM)
+            if sys.platform == "win32":
+                _demo_proc.terminate()
+            else:
+                os.killpg(_demo_proc.pid, signal.SIGTERM)
             _demo_proc.wait(timeout=PROC_WAIT_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             with contextlib.suppress(Exception):
-                os.killpg(_demo_proc.pid, signal.SIGKILL)
+                if sys.platform == "win32":
+                    _demo_proc.kill()
+                else:
+                    os.killpg(_demo_proc.pid, signal.SIGKILL)
             with contextlib.suppress(Exception):
                 _demo_proc.wait(timeout=PROC_WAIT_TIMEOUT_SECONDS)
         except (ProcessLookupError, OSError):
@@ -258,10 +264,18 @@ def main() -> None:
         print(f"Filtered to {len(entries)} entries matching --only {args.only!r}", flush=True)
 
     resolved: list[dict[str, object]] = []
-    for entry in entries:
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            print(f"ERROR: Manifest entry {i} is not a dict: {type(entry).__name__}", file=sys.stderr, flush=True)
+            sys.exit(1)
+        url = entry.get("url")
+        if not isinstance(url, str):
+            print(f"ERROR: Manifest entry {i} has invalid 'url': {url!r}", file=sys.stderr, flush=True)
+            sys.exit(1)
         e = dict(entry)
-        e["url"] = e["url"].replace("{port}", port)
-        e["javascript"] = ANIMATION_DISABLE_JS + e.get("javascript", "")
+        e["url"] = url.replace("{port}", port)
+        existing_js = e.get("javascript") or ""
+        e["javascript"] = ANIMATION_DISABLE_JS + str(existing_js)
         resolved.append(e)
 
     with tempfile.NamedTemporaryFile(
