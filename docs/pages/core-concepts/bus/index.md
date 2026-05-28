@@ -108,19 +108,7 @@ All subscription methods (`on`, `on_state_change`, `on_attribute_change`, `on_ca
 | `timeout_disabled` | `bool` | `False` | When `True`, disables timeout enforcement for this listener regardless of the global default. |
 
 ```python
-# Override the global timeout for a slow handler
-self.bus.on_state_change(
-    "sensor.weather",
-    handler=self.fetch_forecast,
-    timeout=30.0,  # 30 seconds instead of the global default
-)
-
-# Disable timeout for a handler that legitimately runs long
-self.bus.on_state_change(
-    "input_boolean.run_backup",
-    handler=self.run_full_backup,
-    timeout_disabled=True,
-)
+--8<-- "pages/core-concepts/bus/snippets/bus_timeouts.py"
 ```
 
 See [Timeouts](../configuration/global.md#timeouts) for global configuration and override semantics.

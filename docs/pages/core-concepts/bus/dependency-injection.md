@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Hassette uses **dependency injection** (DI) to automatically extract and provide event data to your event handlers. Instead of manually parsing event payloads, you declare what data you need using type annotations, and Hassette handles the extraction and type conversion for you.
+Instead of manually parsing event payloads, you declare what data you need using type annotations, and Hassette extracts and converts it for you. This is called **dependency injection** (DI).
 
 ## Quick Example
 
@@ -136,7 +136,7 @@ You can extract multiple pieces of data in a single handler:
 
 ## Mixing DI with Custom kwargs
 
-Dependency injection works seamlessly with custom keyword arguments passed when registering handlers:
+Dependency injection works with custom keyword arguments passed when registering handlers:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/mixing_kwargs.py"
@@ -146,8 +146,8 @@ Dependency injection works seamlessly with custom keyword arguments passed when 
 
 ## Advanced: Custom Extractors and Type Conversion
 
-!!! note "Most apps stop here"
-    The sections below cover cases where the built-in annotations don't meet your needs. If the annotations above handle your use case, you don't need to read further.
+??? note "The rest of this page covers custom extractors and type conversion"
+    If the built-in annotations above handle your use case, you can skip ahead to [Handlers](handlers.md) or [Filtering](filtering.md).
 
 ## Custom Extractors
 
@@ -177,7 +177,7 @@ For more complex scenarios, you can use the `AnnotationDetails` class to combine
 
 ## Automatic Type Conversion with TypeRegistry
 
-Hassette's dependency injection system uses the [TypeRegistry](../../advanced/type-registry.md) to automatically convert extracted values to match your type annotations. This integrates seamlessly with custom extractors.
+Hassette's dependency injection system uses the [TypeRegistry](../../advanced/type-registry.md) to automatically convert extracted values to match your type annotations. This works automatically with custom extractors.
 
 ### How It Works
 
@@ -196,7 +196,7 @@ This means you can write simple extractors that return raw values, and let TypeR
 
 ### Built-in Conversions
 
-The TypeRegistry provides comprehensive built-in conversions for common types:
+The TypeRegistry includes built-in conversions for common types:
 
 - **Numeric types**: `str` ↔ `int`, `float`, `Decimal`
 - **Boolean**: `str` → `bool` (handles `"on"`, `"off"`, `"true"`, `"false"`, etc.)

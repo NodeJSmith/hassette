@@ -4,8 +4,6 @@ Most Hassette apps work entirely within the Core Concepts: the Bus, Scheduler, A
 
 Hassette's entity models are generated from Home Assistant **2026.5.1**. See `codegen/ha-version.txt` for the exact pinned version.
 
-You do not need to read all of these. Start with the one that matches your immediate need.
-
 ## Topics
 
 **[Custom States](custom-states.md)** — How to define a typed state class for a Home Assistant domain that Hassette does not know about yet. This is the entry point: define the class, and the State Registry picks it up automatically.
@@ -18,7 +16,7 @@ You do not need to read all of these. Start with the one that matches your immed
 
 ## Prerequisites
 
-These pages assume you are comfortable with [Apps](../core-concepts/apps/index.md) and the [Bus](../core-concepts/bus/index.md). Custom States and the State Registry are closely related — if you are reading one, you will likely need the others.
+These pages build on [Apps](../core-concepts/apps/index.md) (lifecycle, handlers) and the [Bus](../core-concepts/bus/index.md) (event subscriptions, dependency injection). Custom States and the State Registry are closely related — if you are reading one, you will likely need the others.
 
 ## See Also
 

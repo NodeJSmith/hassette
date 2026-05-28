@@ -18,7 +18,7 @@ For reproducible production builds, pin both the Hassette version and Python ver
 - `ghcr.io/nodejsmith/hassette:0.24.0-py3.12`
 - `ghcr.io/nodejsmith/hassette:0.24.0-py3.11`
 
-This is the **preferred way** to consume Hassette in production.
+This is the **recommended tag format** for production.
 
 ### Track Latest Stable Release
 
@@ -108,7 +108,7 @@ Each release is built for multiple Python versions:
 | 3.11           | Supported |
 
 !!! note "Version Support"
-    Not all Python versions may be supported indefinitely. See release notes for changes to supported versions.
+    Python versions are dropped when they reach end-of-life. Check the release notes when upgrading.
 
 ## Choosing a Tag
 

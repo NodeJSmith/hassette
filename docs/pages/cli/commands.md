@@ -4,7 +4,7 @@ Every command supports `--json` for structured output and `--debug` for verbose 
 
 ## `hassette run`
 
-Start the Hassette framework server. This is required to connect to Home Assistant and begin running automations.
+Start the Hassette framework server. Run this first — it connects to Home Assistant and starts your automations.
 
 ```bash
 hassette run
@@ -321,7 +321,7 @@ $ hassette dashboard
 └─────────────────┴─────────┴───────┴──────┴─────────┴─────────────┴───────────┘
 ```
 
-This gives a quick at-a-glance health overview of all apps — equivalent to the dashboard grid in the web UI.
+This shows a health overview of all apps — the same data as the dashboard grid in the web UI.
 
 **API endpoint:** `GET /api/telemetry/dashboard/app-grid`
 
@@ -357,7 +357,7 @@ $ hassette telemetry
 ╰─────────────────────────────────╯
 ```
 
-All counters at zero means the telemetry pipeline is healthy and no records have been lost.
+When all counters are zero, the telemetry pipeline is healthy and no records have been lost.
 
 **API endpoint:** `GET /api/telemetry/status`
 

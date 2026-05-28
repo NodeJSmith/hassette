@@ -1,6 +1,6 @@
 # Overview Tab
 
-The Overview tab is the default view when you open any app in App Detail. It surfaces the
+The Overview tab is the default view when you open any app in App Detail. It shows the
 health of every handler and scheduled job at a glance, highlights active failures, and
 provides a rolling view of recent activity and log entries — so you can confirm an app is
 healthy or locate a problem without leaving a single page.

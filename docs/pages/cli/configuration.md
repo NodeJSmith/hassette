@@ -2,7 +2,7 @@
 
 ## Configuration
 
-The CLI reads the same configuration files as the server to discover the server address. You do not need to pass the address on every command.
+The CLI reads the same configuration files Hassette uses to find the server address. You don't need to pass the address on every command.
 
 ### Discovery order
 
@@ -27,7 +27,7 @@ The CLI reads the same configuration files as the server to discover the server 
 
 ### Token
 
-The access token (`HASSETTE__TOKEN`) is **not required** for CLI query commands. Query commands make unauthenticated reads against the REST API. The token is only required when starting the server.
+The access token (`HASSETTE__TOKEN`) is **not required** for CLI query commands. Query commands read from the REST API without a token. The token is only required when starting the server.
 
 ## Output Modes
 

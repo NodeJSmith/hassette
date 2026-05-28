@@ -2,7 +2,7 @@
 
 Use this checklist when migrating each app from AppDaemon to Hassette. Work through one app at a time — verify it works before moving to the next.
 
-Complete the pre-migration steps in the [Migration Guide overview](index.md) before starting this checklist.
+The [Migration Guide overview](index.md) covers pre-migration setup (installing Hassette, reviewing the mental model). This checklist picks up from there.
 
 ## Before You Start
 

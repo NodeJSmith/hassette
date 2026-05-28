@@ -21,4 +21,4 @@ Each recipe is a complete, working app. Copy the code, update the entity IDs for
 ## See Also
 
 - [Core Concepts](../core-concepts/index.md) — the building blocks all recipes use: Bus, Scheduler, API, and States.
-- [Getting Started](../getting-started/index.md) — if you have not yet run your first app.
+- [Getting Started](../getting-started/index.md) — installation and your first app.

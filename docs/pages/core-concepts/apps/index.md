@@ -1,6 +1,6 @@
 # Apps Overview
 
-Apps are the heart of Hassette - the logic *you* write to respond to events and manipulate resources. Each app encapsulates its own behavior, configuration, and internal state.
+Apps are the code you write to respond to events and control your home. Each app has its own behavior, configuration, and internal state.
 
 Apps can be **asynchronous** (preferred) or **synchronous**. Sync apps are automatically run in threads to prevent blocking the event loop.
 
@@ -35,8 +35,8 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
 ```
 
-!!! info "Don't worry about `D` and `states` yet"
-    The `D.StateNew[states.LightState]` annotation is Hassette's [dependency injection](../bus/handlers.md) system — it automatically extracts and types the new state from the event. You'll learn how it works in the [Writing Handlers](../bus/handlers.md) section. For now, just notice the pattern: declare what data you need, and Hassette provides it.
+!!! info "What's `D.StateNew[states.LightState]`?"
+    That annotation is [dependency injection](../bus/handlers.md) — you declare what data you need, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
 ## Dates and Times
 
@@ -125,11 +125,7 @@ See the [Task Bucket](task-bucket.md) page for the full API: `spawn()`, `run_in_
 The `@only_app` decorator prevents multiple instances of the same app class from running. Apply it during development or testing when you want to isolate one app without editing your configuration files:
 
 ```python
-from hassette import App, only_app
-
-@only_app
-class MyApp(App[MyConfig]):
-    ...
+--8<-- "pages/core-concepts/apps/snippets/apps_only_app.py"
 ```
 
 If more than one class in your project is decorated with `@only_app`, Hassette raises an error at startup. Remove the decorator before deploying.
@@ -139,7 +135,7 @@ If more than one class in your project is decorated with `@only_app`, Hassette r
 `self.send_event(event_name, event)` fires a Hassette-internal event onto the framework's event bus, allowing one app to signal others without going through Home Assistant's event system. Any app that has subscribed to `event_name` via `self.bus` will receive it.
 
 ```python
-await self.send_event("lights_synced", MySyncEvent(source=self.instance_name))
+--8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:send_event"
 ```
 
 ## Synchronous Apps

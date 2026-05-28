@@ -5,7 +5,7 @@ Home Assistant **helpers** (`input_boolean`, `input_number`, `input_text`, `inpu
 HA's `.storage/` directory — they survive restarts and are visible in the HA UI. Apps that
 want to self-provision their own helpers (a vacation-mode toggle, a motion-event cycle
 counter, a user-facing mode selector) can create and manage them directly through typed
-`Api` methods. The full surface is 32 CRUD methods covering 8 domains, plus 3 counter
+`Api` methods. The full API is 32 CRUD methods covering 8 domains, plus 3 counter
 service-call shortcuts.
 
 ## Typed Models
@@ -26,16 +26,7 @@ explicitly setting it to `None` produce different wire payloads — see
 ## Creating a Helper
 
 ```python
-from hassette import App, AppConfig
-from hassette.models.helpers import CreateInputBooleanParams, InputBooleanRecord
-
-
-class VacationModeApp(App[AppConfig]):
-    async def on_initialize(self) -> None:
-        record: InputBooleanRecord = await self.api.create_input_boolean(
-            CreateInputBooleanParams(name="vacation_mode", initial=False)
-        )
-        self.logger.info("Provisioned vacation_mode helper: %s", record.id)
+--8<-- "pages/advanced/snippets/managing-helpers/create_helper.py"
 ```
 
 The returned `InputBooleanRecord` carries the `id` HA assigned (usually the slugified
@@ -45,9 +36,7 @@ later — `list_input_booleans()` is the way to retrieve it again.
 ## Listing Helpers
 
 ```python
-records: list[InputBooleanRecord] = await self.api.list_input_booleans()
-for record in records:
-    self.logger.debug("Found input_boolean: id=%s name=%s", record.id, record.name)
+--8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:list"
 ```
 
 ## Updating a Helper
@@ -56,12 +45,7 @@ for record in records:
 partial params object. Only the fields you pass are sent to HA:
 
 ```python
-from hassette.models.helpers import UpdateInputBooleanParams
-
-await self.api.update_input_boolean(
-    "vacation_mode",
-    UpdateInputBooleanParams(icon="mdi:palm-tree"),
-)
+--8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:update"
 ```
 
 Passing `helper_id` that does not exist raises `FailedMessageError(code="not_found")`.
@@ -69,7 +53,7 @@ Passing `helper_id` that does not exist raises `FailedMessageError(code="not_fou
 ## Deleting a Helper
 
 ```python
-await self.api.delete_input_boolean("vacation_mode")
+--8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:delete"
 ```
 
 Returns `None`. Raises `FailedMessageError(code="not_found")` if the id is absent.
@@ -80,16 +64,7 @@ Your app might not know whether it has been run before and whether its helper al
 exists. The correct pattern is a short list-then-create loop:
 
 ```python
-from hassette.models.helpers import CreateInputBooleanParams, InputBooleanRecord
-
-
-async def _ensure_vacation_mode(self) -> InputBooleanRecord:
-    for record in await self.api.list_input_booleans():
-        if record.id == "vacation_mode":
-            return record
-    return await self.api.create_input_boolean(
-        CreateInputBooleanParams(name="vacation_mode", initial=False)
-    )
+--8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:bootstrap"
 ```
 
 This pattern is correct when **one app in the deployment owns provisioning** for this
@@ -110,36 +85,14 @@ entity state**, not stored configuration. They call HA's `counter` service domai
 take effect immediately:
 
 ```python
-from hassette.models.helpers import CreateCounterParams, CounterRecord
-
-
-class MotionCycleApp(App[AppConfig]):
-    _cycle_counter_id: str = "motionapp_cycles"
-
-    async def on_initialize(self) -> None:
-        await self._ensure_cycle_counter()
-        self.bus.on_state_change(
-            "binary_sensor.motion",
-            handler=self.on_motion,
-        )
-
-    async def on_motion(self) -> None:
-        await self.api.increment_counter(f"counter.{self._cycle_counter_id}")
-
-    async def _ensure_cycle_counter(self) -> None:
-        for record in await self.api.list_counters():
-            if record.id == self._cycle_counter_id:
-                return
-        await self.api.create_counter(
-            CreateCounterParams(name="motionapp_cycles", initial=0)
-        )
+--8<-- "pages/advanced/snippets/managing-helpers/counter_shortcuts.py"
 ```
 
 `timer` actions (`timer.start`, `timer.pause`, `timer.cancel`) are **not** wrapped as
 shortcuts. Call them through `api.call_service` directly:
 
 ```python
-await self.api.call_service("timer", "start", target={"entity_id": "timer.away_mode"})
+--8<-- "pages/advanced/snippets/managing-helpers/timer_call_service.py:timer"
 ```
 
 The asymmetry is intentional. Counter increment/decrement/reset are high-frequency
@@ -153,27 +106,7 @@ helper store. The harness derives the helper domain from the record's class, so 
 no `domain` parameter — just pass the typed record.
 
 ```python
-from hassette.models.helpers import InputBooleanRecord
-from hassette.test_utils import AppTestHarness
-
-from myapp import VacationModeApp
-
-
-async def test_vacation_mode_creates_helper_on_first_run():
-    async with AppTestHarness(VacationModeApp, config={}) as harness:
-        # No helper was seeded, so the app's idempotent-bootstrap check
-        # falls through to create_input_boolean.
-        harness.api_recorder.assert_call_count("create_input_boolean", 1)
-
-
-async def test_list_returns_seeded_helper():
-    async with AppTestHarness(VacationModeApp, config={}) as harness:
-        harness.seed_helper(
-            InputBooleanRecord(id="vacation_mode", name="Vacation Mode", initial=False)
-        )
-        records = await harness.api_recorder.list_input_booleans()
-        assert len(records) == 1
-        assert records[0].name == "Vacation Mode"
+--8<-- "pages/advanced/snippets/managing-helpers/testing_harness.py"
 ```
 
 Seeded records are stored as deep copies, so later mutations to the record you passed

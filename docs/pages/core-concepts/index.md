@@ -137,13 +137,7 @@ Every internal Hassette service declares which other services it needs to be rea
 Each service class carries a `depends_on` ClassVar that lists the resource types it depends on:
 
 ```python
-from typing import ClassVar
-from hassette.resources.base import Resource, Service
-from hassette.core.database_service import DatabaseService
-
-
-class CommandExecutor(Service):
-    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
+--8<-- "pages/core-concepts/snippets/index_depends_on.py"
 ```
 
 At startup, Hassette validates the full dependency graph and computes a topological initialization order. When a service initializes, it automatically waits for every service in its `depends_on` list to become ready before any of its own lifecycle hooks (`on_initialize`, etc.) run. You do not need to call `wait_for_ready()` yourself — the framework handles it.
@@ -242,7 +236,7 @@ For detailed Mermaid diagrams of every subsystem's internals — event routing, 
 - [Web UI](../web-ui/index.md) – browser-based monitoring and management.
 - [API Reference](../../reference/index.md) – full auto-generated reference for all public modules.
 
-??? note "Advanced Topics — read these after you're comfortable with the basics"
+??? note "Advanced Topics"
     Once you've written a few automations, these topics give you more control:
 
     - [Dependency Injection](bus/dependency-injection.md) – automatic event data extraction and type conversion.

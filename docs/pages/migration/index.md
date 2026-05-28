@@ -47,7 +47,7 @@ The scheduler API is similar to AppDaemon's, with named parameters and richer jo
 Before you start migrating app by app, complete this setup:
 
 - [ ] Follow the [Quickstart guide](../getting-started/index.md) to install Hassette and confirm `hassette.toml` connects to Home Assistant
-- [ ] Read [Mental Model](concepts.md) to understand the key design differences
+- [ ] Review [Mental Model](concepts.md) — covers the key design differences between AppDaemon and Hassette
 - [ ] Pick one small, simple app as your first migration target
 - [ ] Follow the [Migration Checklist](checklist.md) for that app
 - [ ] Run the [test harness](testing.md) to verify behavior before going live

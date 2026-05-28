@@ -1,6 +1,6 @@
 # Application Configuration
 
-This page covers the **TOML side** of app configuration: registering apps in `hassette.toml`, supplying config values, and running multiple instances. For how to define typed `AppConfig` models in Python, see [App Configuration](../apps/configuration.md).
+This page covers the **TOML side** of app configuration: registering apps in `hassette.toml`, supplying config values, and running multiple instances. The [App Configuration](../apps/configuration.md) page covers defining typed `AppConfig` models in Python.
 
 Apps are registered and configured in the `hassette.toml` file under `[hassette.apps.<name>]`.
 

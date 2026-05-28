@@ -39,10 +39,7 @@ Unlike `get_history`, both `start_time` and `end_time` are required.
 Fire a custom event onto the Home Assistant event bus. Any automation or integration listening for that event type will respond to it. Use this to trigger HA automations from Hassette, or to communicate between apps via HA's native event system.
 
 ```python
-await self.api.fire_event("custom_event", {"source": "my_app", "value": 42})
-
-# event_data is optional
-await self.api.fire_event("hassette_ready")
+--8<-- "pages/core-concepts/api/snippets/api_utilities.py:fire_event"
 ```
 
 ### `set_state`
@@ -50,7 +47,7 @@ await self.api.fire_event("hassette_ready")
 Write a synthetic state to HA's state machine. This creates or updates a state entry in HA's UI and REST API, but it does not control a real device — HA integrations do not react to it the way they react to `call_service`. Use it for virtual sensors, exposing computed values to the HA dashboard, or sharing state between apps via HA's state machine.
 
 ```python
-await self.api.set_state("sensor.custom_score", "87", {"unit_of_measurement": "%"})
+--8<-- "pages/core-concepts/api/snippets/api_utilities.py:set_state"
 ```
 
 Existing attributes are merged: any attributes you pass are overlaid on top of the current ones, so you only need to provide the keys you want to change.
@@ -63,9 +60,7 @@ Existing attributes are merged: any attributes you pass are overlaid on top of t
 List all calendar entities registered in Home Assistant.
 
 ```python
-calendars = await self.api.get_calendars()
-for cal in calendars:
-    print(cal["entity_id"], cal.get("name"))
+--8<-- "pages/core-concepts/api/snippets/api_utilities.py:get_calendars"
 ```
 
 ### `get_calendar_events`
@@ -73,11 +68,7 @@ for cal in calendars:
 Fetch events from a specific calendar within a time window.
 
 ```python
-start = self.now()
-end = self.now().add(days=7)
-events = await self.api.get_calendar_events("calendar.work", start, end)
-for event in events:
-    print(event["summary"], event["start"])
+--8<-- "pages/core-concepts/api/snippets/api_utilities.py:get_calendar_events"
 ```
 
 ## See Also

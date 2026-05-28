@@ -1,6 +1,6 @@
 # Filtering & Advanced Subscriptions
 
-Hassette provides powerful tools for filtering events, ensuring your handlers only run when necessary.
+Hassette lets you filter events so your handlers only run when the data actually matters.
 
 The filtering system uses three helper modules, imported by alias:
 
@@ -51,8 +51,7 @@ Use a comparison condition with `C.Comparison`:
 By default, `on_state_change` only fires when the main state value changes. To also fire on attribute-only changes (e.g., brightness changed but the light is still "on"), pass `changed=False`:
 
 ```python
-# Fire even when only attributes change, not the main state value
-self.bus.on_state_change("light.office", handler=self.on_light_change, changed=False)
+--8<-- "pages/core-concepts/bus/snippets/filtering/changed_false.py:changed_false"
 ```
 
 ## Advanced Filtering with `where`
@@ -151,18 +150,7 @@ See the [Complete Reference](#complete-reference) below for the full list.
 Most filtering uses `P` and `C` directly. `A` is useful when you need `P.ValueIs` to read from a field that isn't covered by the higher-level helpers — for instance, filtering a service call by a specific key inside `service_data`, or checking a deeply nested attribute.
 
 ```python
-from hassette import A, P
-
-# Only handle turn_on calls targeting a specific entity
-entity_match = P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")
-self.bus.on_call_service("light.turn_on", handler=self.on_living_room_on, where=entity_match)
-
-# Check a nested attribute value using a dotted path
-city_match = P.ValueIs(
-    source=A.get_path("payload.data.new_state.attributes.geolocation.locality"),
-    condition="San Francisco",
-)
-self.bus.on_state_change("sensor.my_device_location", handler=self.on_location_change, changed_to=city_match)
+--8<-- "pages/core-concepts/bus/snippets/filtering/custom_accessors.py"
 ```
 
 You generally won't need `A` unless you're filtering on data that `on_state_change`/`on_call_service` don't expose directly.

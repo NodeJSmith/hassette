@@ -21,7 +21,7 @@ Intercept a Home Assistant service call and run custom logic in response. This r
 **Watch any entity in a group** — replace the exact entity ID in `ServiceDataWhere` with a glob pattern:
 
 ```python
-where=P.ServiceDataWhere({"entity_id": "light.living_room_*"})
+--8<-- "pages/recipes/snippets/service_call_where.py:where"
 ```
 
 **React to turn-off too** — add a second subscription for `service="turn_off"` pointing to its own handler, and call `light.turn_off` on the accent light there.
