@@ -84,14 +84,14 @@
   height: 1656
   wait: 2000
 
-# instance=0 shows actual instance detail instead of multi-instance landing page
-- url: "http://localhost:{port}/apps/motion_lights/overview?instance=0"
+# demo_stimulator has active handlers, errors, and timing data — more informative than motion_lights
+- url: "http://localhost:{port}/apps/demo_stimulator/overview"
   output: docs/_static/web_ui_app_detail_overview.png
   width: 1400
   height: 1508
   wait: 2000
 
-- url: "http://localhost:{port}/apps/motion_lights/handlers?instance=0"
+- url: "http://localhost:{port}/apps/demo_stimulator/handlers"
   output: docs/_static/web_ui_app_detail_handlers.png
   width: 1400
   height: 900
