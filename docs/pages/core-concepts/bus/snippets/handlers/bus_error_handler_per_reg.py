@@ -1,6 +1,6 @@
 from hassette import App, AppConfig
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.event import RawStateChangeEvent
+from hassette.events import RawStateChangeEvent
 
 
 class MyApp(App[AppConfig]):

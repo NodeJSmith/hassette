@@ -1,6 +1,6 @@
 from hassette import App, AppConfig
-from hassette.bus.event import RawStateChangeEvent
-from hassette.bus.subscription import Subscription
+from hassette.bus import Subscription
+from hassette.events import RawStateChangeEvent
 
 
 class MyApp(App[AppConfig]):
