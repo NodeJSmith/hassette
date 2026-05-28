@@ -81,7 +81,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/) - Docker deployment setup
 - [HassetteConfig](https://hassette.readthedocs.io/en/stable/reference/hassette/config/config/) - Complete configuration reference
 
-## 🛣️ Status & Roadmap
+## 🛣️ Status
 
 Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.x.0`) while the API stabilizes.
 

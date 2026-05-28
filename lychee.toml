@@ -7,6 +7,9 @@ exclude = [
     "star-history\\.com",
     # GitHub project boards require authentication
     "github\\.com/users/.*/projects/",
+    # Localhost URLs in CONTRIBUTING.md (dev server docs)
+    "localhost",
+    "127\\.0\\.0\\.1",
 ]
 
 # Accept 429 (rate-limited) as non-fatal
