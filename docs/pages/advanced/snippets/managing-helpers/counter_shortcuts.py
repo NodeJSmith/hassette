@@ -20,5 +20,5 @@ class MotionCycleApp(App[AppConfig]):
             if record.id == self.cycle_counter_id:
                 return
         await self.api.create_counter(
-            CreateCounterParams(name="motionapp_cycles", initial=0)
+            CreateCounterParams(name=self.cycle_counter_id, initial=0)
         )

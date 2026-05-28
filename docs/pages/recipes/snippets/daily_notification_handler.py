@@ -9,6 +9,12 @@ class DailyConfig(AppConfig):
 
 
 class DailyNotificationApp(App[DailyConfig]):
+    async def on_initialize(self) -> None:
+        # --8<-- [start:cron_parse]
+        h, m = self.app_config.notify_time.split(":")
+        self.scheduler.run_cron(self.send_notification, f"{m} {h} * * 1-5")
+        # --8<-- [end:cron_parse]
+
     # --8<-- [start:send_notification]
     async def send_notification(self) -> None:
         temp_state = await self.api.get_state("sensor.outdoor_temperature")
@@ -20,10 +26,3 @@ class DailyNotificationApp(App[DailyConfig]):
             title="Daily Reminder",
         )
     # --8<-- [end:send_notification]
-
-    async def on_initialize(self) -> None:
-        # --8<-- [start:cron_parse]
-        # Parse the "HH:MM" config value into a cron expression
-        h, m = self.app_config.notify_time.split(":")
-        self.scheduler.run_cron(self.send_notification, f"{m} {h} * * 1-5")
-        # --8<-- [end:cron_parse]

@@ -3,7 +3,6 @@ from typing import Literal
 from whenever import ZonedDateTime
 
 from hassette import App, AppConfig
-from hassette.scheduler import TriggerProtocol  # pyright: ignore[reportUnusedImport]
 
 
 # --8<-- [start:trigger_class]

@@ -209,7 +209,6 @@ In apps, you don't need direct access — the DI system and API methods handle c
 
 If you do need to access it, it is accessible through `self.hassette.state_registry`.
 
-
 ## See Also
 
 - [Type Registry](type-registry.md) - automatic value type conversion
