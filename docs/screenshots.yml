@@ -121,7 +121,7 @@
   output: docs/_static/web_ui_detail_sidebar.png
   selector: "[data-testid='sidebar']"
   width: 1400
-  height: 500
+  height: 605
   wait: 2000
 
 - url: "http://localhost:{port}/apps"
