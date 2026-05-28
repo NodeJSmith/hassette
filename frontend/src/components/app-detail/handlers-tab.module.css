@@ -1,5 +1,11 @@
 /* Handlers tab — master/detail layout */
 
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
 .masterDetail {
   --master-min-width: 280px;
   --master-max-width: 420px;

@@ -99,7 +99,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} class={styles.container}>
       <HandlersHealthStrip listeners={listeners} jobs={jobs} />
 
       {showMobileDetail && (

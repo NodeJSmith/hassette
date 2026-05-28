@@ -20,7 +20,7 @@ describe("TableCard", () => {
       expect(screen.getByTestId("tbl")).not.toBeNull();
     });
 
-    it("wraps content in a Card-derived element", () => {
+    it("wraps content in a container element", () => {
       const { container } = render(
         <TableCard>
           <table>
@@ -32,7 +32,6 @@ describe("TableCard", () => {
           </table>
         </TableCard>,
       );
-      // Card renders a div; TableCard is built on Card
       expect(container.querySelector("div")).not.toBeNull();
     });
   });
@@ -87,7 +86,6 @@ describe("TableCard", () => {
           </table>
         </TableCard>,
       );
-      // No data-footer-slot attribute should be present
       expect(container.querySelector("[data-footer-slot]")).toBeNull();
     });
   });
@@ -124,31 +122,7 @@ describe("TableCard", () => {
           </table>
         </TableCard>,
       );
-      // The outer container should have my-custom-class
       expect(container.querySelector(".my-custom-class")).not.toBeNull();
-    });
-  });
-
-  describe("FR#8 / AC#9 — Card border", () => {
-    it("applies Card variant='compact' for border via --line-1 token", () => {
-      const { container } = render(
-        <TableCard>
-          <table>
-            <tbody>
-              <tr>
-                <td>x</td>
-              </tr>
-            </tbody>
-          </table>
-        </TableCard>,
-      );
-      // Card with variant="compact" applies both "card" and "compact" module classes.
-      // We can't import CSS module class names in tests (they're hashed), but we can
-      // verify a class is present and the component doesn't crash.
-      // The Card border is verified visually (SKIPPED for this run).
-      const root = container.firstElementChild;
-      expect(root).not.toBeNull();
-      expect(root!.className).toBeTruthy();
     });
   });
 });

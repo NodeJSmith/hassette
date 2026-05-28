@@ -25,8 +25,9 @@
 }
 
 .value {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-h3);
+  font-weight: var(--fw-semibold);
   color: var(--ink-1);
 }
 

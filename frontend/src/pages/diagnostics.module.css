@@ -15,11 +15,10 @@
 }
 
 .sectionHeading {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-h2);
   line-height: var(--lh-h2);
-  letter-spacing: var(--tr-h2, -0.01em);
-  font-weight: var(--fw-normal);
+  font-weight: var(--fw-semibold);
   margin: 0;
   color: var(--ink-1);
 }

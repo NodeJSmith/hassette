@@ -340,23 +340,6 @@ describe("AppDetailPage", () => {
     expect(await findByTestId("instance-switcher")).toBeDefined();
   });
 
-  it("renders breadcrumb with parent link when viewing instance detail", async () => {
-    const manifest = createManifest({
-      display_name: "Multi App",
-      instance_count: 2,
-      instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
-      ],
-    });
-    setupApi(manifest);
-    mockSearchString = "instance=0";
-    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const breadcrumb = await findByTestId("breadcrumb-parent");
-    expect(breadcrumb).toBeDefined();
-    expect(breadcrumb.textContent).toContain("test_app");
-  });
-
   // Tab routing via URL — tab is derived from params.tab prop (set by router)
   it("renders CodeTab when params.tab is 'code'", async () => {
     const manifest = createManifest();

@@ -99,8 +99,10 @@
   }
 }
 
-/* Table card + scroll */
+/* Table scroll container — provides border, radius, and scroll */
 .ht-table-card-scroll {
   overflow: auto;
   max-height: var(--table-scroll-height, calc(100vh - 310px));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
 }

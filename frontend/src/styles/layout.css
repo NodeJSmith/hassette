@@ -29,9 +29,15 @@
 .ht-page {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-7);
   padding: var(--sp-7);
   flex: 1;
+}
+
+.ht-table-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
 }
 
 .ht-page-header {

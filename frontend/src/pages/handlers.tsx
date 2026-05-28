@@ -175,87 +175,89 @@ export function HandlersPage() {
         <h1 class="ht-display">handlers</h1>
       </div>
 
-      {searchInput}
-      <TableCard footer={footer}>
-        {sorted.length === 0 ? (
-          <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
-            {(selectedApp || search) && (
-              <Button ghost size="sm" onClick={clearFilters}>
-                clear filters
-              </Button>
-            )}
-          </EmptyState>
-        ) : isMobile ? (
-          <div class={styles.mobileCards} data-testid="handlers-table-container">
-            {sorted.map((row) => (
-              <HandlerMobileRow key={row.id} row={row} />
-            ))}
-          </div>
-        ) : (
-          <div data-testid="handlers-table-container">
-            <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
-              <colgroup>
-                <col style="width: 7%" />
-                <col style="width: 13%" />
-                <col style="width: 20%" />
-                <col style="width: 13%" />
-                <col style="width: 7%" />
-                <col style="width: 7%" />
-                <col style="width: 9%" />
-                <col style="width: 9%" />
-                <col style="width: 8%" />
-                <col style="width: 7%" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="kind" ariaLabel="type">
-                    type
-                  </SortHeader>
-                  <SortHeader
-                    sort={sort}
-                    onSort={onSort}
-                    sortKey="app"
-                    ariaLabel="app"
-                    filterContent={columnFilters.app.content}
-                    hasActiveFilter={columnFilters.app.active}
-                  >
-                    app
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="name">
-                    name
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="trigger">
-                    trigger
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="runs">
-                    runs
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="failed">
-                    failed
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">
-                    timed out
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">
-                    error rate
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">
-                    avg
-                  </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="next_run">
-                    next run
-                  </SortHeader>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((row) => (
-                  <HandlerTableRow key={row.id} row={row} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </TableCard>
+      <div class="ht-table-section">
+        {searchInput}
+        <TableCard footer={footer}>
+          {sorted.length === 0 ? (
+            <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
+              {(selectedApp || search) && (
+                <Button ghost size="sm" onClick={clearFilters}>
+                  clear filters
+                </Button>
+              )}
+            </EmptyState>
+          ) : isMobile ? (
+            <div class={styles.mobileCards} data-testid="handlers-table-container">
+              {sorted.map((row) => (
+                <HandlerMobileRow key={row.id} row={row} />
+              ))}
+            </div>
+          ) : (
+            <div data-testid="handlers-table-container">
+              <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
+                <colgroup>
+                  <col style="width: 7%" />
+                  <col style="width: 13%" />
+                  <col style="width: 20%" />
+                  <col style="width: 13%" />
+                  <col style="width: 7%" />
+                  <col style="width: 7%" />
+                  <col style="width: 9%" />
+                  <col style="width: 9%" />
+                  <col style="width: 8%" />
+                  <col style="width: 7%" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="kind" ariaLabel="type">
+                      type
+                    </SortHeader>
+                    <SortHeader
+                      sort={sort}
+                      onSort={onSort}
+                      sortKey="app"
+                      ariaLabel="app"
+                      filterContent={columnFilters.app.content}
+                      hasActiveFilter={columnFilters.app.active}
+                    >
+                      app
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="name">
+                      name
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="trigger">
+                      trigger
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="runs">
+                      runs
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="failed">
+                      failed
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">
+                      timed out
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">
+                      error rate
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">
+                      avg
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="next_run">
+                      next run
+                    </SortHeader>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((row) => (
+                    <HandlerTableRow key={row.id} row={row} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TableCard>
+      </div>
     </div>
   );
 }
