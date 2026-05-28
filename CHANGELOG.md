@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0](https://github.com/NodeJSmith/hassette/compare/v0.34.0...v0.35.0) (2026-05-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* `hassette` with no arguments no longer starts the server. Use `hassette run` instead. The `hassette service` command and `GET /api/services` endpoint have been removed.
+
+### Features
+
+* require explicit `hassette run` to start the server ([#896](https://github.com/NodeJSmith/hassette/issues/896)) ([d8bbaa3](https://github.com/NodeJSmith/hassette/commit/d8bbaa3e90f4b97c88063984a21680d0b33dbae7))
+
 ## [0.34.0](https://github.com/NodeJSmith/hassette/compare/v0.33.0...v0.34.0) (2026-05-27)
 
 ### Breaking Changes
