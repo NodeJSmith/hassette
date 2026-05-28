@@ -16,6 +16,7 @@ jobs:
         outputs:
             python: ${{ steps.filter.outputs.python }}
             frontend: ${{ steps.filter.outputs.frontend }}
+            docs: ${{ steps.filter.outputs.docs }}
             codegen: ${{ steps.filter.outputs.codegen }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -40,6 +41,11 @@ jobs:
                       frontend:
                         - 'frontend/**'
                         - 'tools/**'
+                        - '.github/workflows/lint.yml'
+                      docs:
+                        - '**/*.md'
+                        - 'docs/**'
+                        - 'lychee.toml'
                         - '.github/workflows/lint.yml'
                       codegen:
                         - 'src/hassette/models/**'
@@ -230,8 +236,24 @@ jobs:
             - name: Run slotscheck
               run: uv run slotscheck -m hassette --exclude-modules "hassette.migrations"
 
+    link-check:
+        needs: changes
+        if: needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
+
+            - name: Check links
+              uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2
+              with:
+                  args: "README.md CONTRIBUTING.md 'docs/**/*.md' --config lychee.toml"
+                  fail: true
+
     lint-complete:
-        needs: [python, frontend, codegen-freshness, security, slotscheck]
+        needs: [python, frontend, codegen-freshness, security, slotscheck, link-check]
         if: always()
         runs-on: ubuntu-latest
         steps:

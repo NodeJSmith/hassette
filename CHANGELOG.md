@@ -206,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-- **Scheduler API redesigned around trigger objects** — `run_cron("0 7 * * 1-5")`, `run_daily(at="07:00")` replace the old keyword-per-field API. Custom triggers must implement `TriggerProtocol`. See the updated [scheduler docs](https://hassette.readthedocs.io/en/stable/scheduler.html). (#517)
+- **Scheduler API redesigned around trigger objects** — `run_cron("0 7 * * 1-5")`, `run_daily(at="07:00")` replace the old keyword-per-field API. Custom triggers must implement `TriggerProtocol`. See the updated [scheduler docs](https://hassette.readthedocs.io/en/stable/pages/core-concepts/scheduler/). (#517)
 - **`RecordingApi.get_entity` requires explicit model argument** — the previous `BaseState`-sentinel default silently aliased to `get_state()` and hid real bugs. Callers that want registry-converted state without a specific entity model should call `get_state(entity_id)` instead. (#525)
 - **Docker startup uses constraints-based dependency protection** — runtime `uv sync` replaced with a constraints file generated at build time. User dependency installs that conflict with hassette's pinned version now error instead of silently downgrading the framework. (#480)
 
@@ -944,7 +944,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added ability to provide args and kwargs to scheduled jobs via scheduler helpers
   - `args` and `kwargs` keyword-only parameters added to all scheduler helper functions
   - These will be passed to the scheduled callable when it is run
-  - See [Scheduler documentation](https://hassette.readthedocs.io/en/stable/scheduler.html) for details
+  - See [Scheduler documentation](https://hassette.readthedocs.io/en/stable/pages/core-concepts/scheduler/) for details
 
 ### Changed
 - Narrow date/time types accepted by `get_history`, `get_logbook`, `get_camera_image` and `get_calendar_events` to exclude `datetime`, `date`, and `ZonedDateTime` - use `PlainDateTime`, `SystemDateTime`, or `Date` instead

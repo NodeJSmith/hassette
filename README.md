@@ -29,10 +29,10 @@ See the [Getting Started guide](https://hassette.readthedocs.io/en/stable/pages/
 
 ## 🖥️ Web UI
 
-Hassette includes a web UI with four pages: **Dashboard** (KPI overview and app health), **Apps** (manage and inspect automations), **Logs** (real-time log streaming with filtering), and **Sessions** (restart history and telemetry).
+Hassette includes a web UI for monitoring and managing your automations: **Apps** (app status, health, and detailed per-app views), **Handlers** (registered event handlers across all apps), **Logs** (real-time log streaming with filtering), and **Config** (runtime configuration and diagnostics).
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_dashboard.png" alt="Hassette Web UI Dashboard" />
+  <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_apps.png" alt="Hassette Web UI — Apps page" />
 </p>
 
 The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
@@ -65,7 +65,7 @@ See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/
 - [Hassette vs. Home Assistant YAML](https://hassette.readthedocs.io/en/stable/pages/getting-started/hassette-vs-ha-yaml/) - Decide if Hassette is right for your needs
 
 **Coming from AppDaemon?**
-- [AppDaemon Comparison](https://hassette.readthedocs.io/en/stable/pages/appdaemon-comparison/) - See what's different and how to migrate
+- [AppDaemon Migration Guide](https://hassette.readthedocs.io/en/stable/pages/migration/) - See what's different and how to migrate
 
 ## 📖 Examples
 
@@ -79,20 +79,19 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/stable/reference/hassette/config/config/) - Complete configuration reference
+- [HassetteConfig](https://hassette.readthedocs.io/en/stable/reference/hassette/config/) - Complete configuration reference
 
-## 🛣️ Status & Roadmap
+## 🛣️ Status
 
 Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.x.0`) while the API stabilizes.
 
 Development is tracked in our [GitHub project](https://github.com/users/NodeJSmith/projects/1). Open an issue or PR if you'd like to contribute!
 
-### What's Next?
+### Recent Highlights
 
-- 🔐 **Enhanced type safety** - Fully typed service calls and additional state models
-- 🏗️ **Entity classes** - Rich entity objects with built-in methods (e.g., `await light.turn_on()`)
-- 🔄 **Enhanced error handling** - Better retry logic and error recovery
-- 🧪 **Testing improvements** - More comprehensive test coverage and user app testing framework
+- **Typed state models** - Generated Python models for 45+ Home Assistant entity domains
+- **Entity classes** - Rich entity objects with built-in async methods (e.g., `await light.turn_on()`)
+- **Test harness** - `AppTestHarness` for writing tests against your automations with simulated state and time control
 
 ## 🤝 Contributing
 
