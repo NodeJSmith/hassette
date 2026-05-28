@@ -195,7 +195,7 @@ Build a doc rules file around three pillars, drawing from the strongest patterns
 
 2. **Example progression protocol** (from Patterns 2 + 4): Rules for how examples should progress within a page (minimal -> realistic -> production), plus the existing tested-snippet discipline.
 
-3. **Prose style rules** (from the Google Developer Documentation Style Guide + our existing writing-quality.md): Voice, person, jargon handling, approachability for mixed skill levels.
+3. **Prose style rules** (from the Google Developer Documentation Style Guide + the global Claudefiles `writing-quality.md`): Voice, person, jargon handling, approachability for mixed skill levels.
 
 The Stripe "docs-as-product" model (Pattern 6) is aspirational but requires investment that's probably premature for Hassette's current stage. The Diataxis quadrant classification (Pattern 1) and concept-first structure (Pattern 3) are the highest-leverage changes — they give authors a framework for deciding what to write and where it goes.
 
