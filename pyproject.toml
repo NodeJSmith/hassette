@@ -79,6 +79,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "pyright>=1.1.408",
+    "shot-scraper>=1.5",
     "slotscheck>=0.19.1",
     "tomli-w>=1.2.0",
 ]

@@ -144,7 +144,11 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
         )}
         <div class={styles.stats}>
           <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>
-          {failed > 0 && <span class={styles.statsErr}>{failed} failed</span>}
+          {failed > 0 && (
+            <span class={styles.statsErr} data-testid="handler-failed-count">
+              {failed} failed
+            </span>
+          )}
           {timedOut > 0 && <span class={styles.statsWarn}>{timedOut} timed out</span>}
         </div>
       </div>

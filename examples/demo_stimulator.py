@@ -26,7 +26,7 @@ class DemoStimulatorConfig(AppConfig):
 
     enable_failure: bool = True
     activity_interval: float = 20.0
-    failure_interval: float = 60.0
+    failure_interval: float = 5.0
 
 
 class DemoStimulator(App[DemoStimulatorConfig]):
