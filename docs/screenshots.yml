@@ -56,7 +56,7 @@
 # hardcode a port number here.
 
 # ===========================================================================
-# Full-page screenshots (8)
+# Full-page screenshots
 # Viewport: 1400px wide. Height varies by page content length.
 # ===========================================================================
 
@@ -109,7 +109,7 @@
   wait: 2000
 
 # ===========================================================================
-# Element-level screenshots (8)
+# Element-level screenshots
 # Cropped to a specific component via the selector field.
 # ===========================================================================
 

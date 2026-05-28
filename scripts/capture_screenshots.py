@@ -139,7 +139,7 @@ def main() -> None:
         cwd=str(repo_root),
     )
 
-    demo_vars: dict[str, str] = {}
+    demo_output: dict[str, str] = {}
     deadline = time.monotonic() + DEMO_READY_TIMEOUT_SECONDS
     demo_ready = False
 
@@ -147,14 +147,14 @@ def main() -> None:
         print("ERROR: Demo process has no stdout pipe", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    line_q: queue.Queue[bytes | None] = queue.Queue()
+    line_queue: queue.Queue[bytes | None] = queue.Queue()
 
-    def _reader(pipe, q):
+    def reader(pipe, out_queue):
         for raw in pipe:
-            q.put(raw)
-        q.put(None)
+            out_queue.put(raw)
+        out_queue.put(None)
 
-    threading.Thread(target=_reader, args=(_demo_proc.stdout, line_q), daemon=True).start()
+    threading.Thread(target=reader, args=(_demo_proc.stdout, line_queue), daemon=True).start()
 
     while True:
         remaining = deadline - time.monotonic()
@@ -172,7 +172,7 @@ def main() -> None:
             sys.exit(1)
 
         try:
-            raw_line = line_q.get(timeout=min(remaining, 1.0))
+            raw_line = line_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             continue
 
@@ -193,7 +193,7 @@ def main() -> None:
 
         if "=" in line:
             key, _, value = line.partition("=")
-            demo_vars[key] = value
+            demo_output[key] = value
 
     if not demo_ready:
         print(
@@ -203,11 +203,11 @@ def main() -> None:
         )
         sys.exit(1)
 
-    frontend_url = demo_vars.get("DEMO_FRONTEND_URL", "")
-    hassette_url = demo_vars.get("DEMO_HASSETTE_URL", "")
+    frontend_url = demo_output.get("DEMO_FRONTEND_URL", "")
+    hassette_url = demo_output.get("DEMO_HASSETTE_URL", "")
 
     if not frontend_url or not hassette_url:
-        print(f"ERROR: Missing URL from demo output. Got: {demo_vars}", file=sys.stderr, flush=True)
+        print(f"ERROR: Missing URL from demo output. Got: {demo_output}", file=sys.stderr, flush=True)
         sys.exit(1)
 
     parsed_port = urlparse(frontend_url).port
@@ -244,7 +244,7 @@ def main() -> None:
             flush=True,
         )
 
-    resolved: list[dict] = []
+    resolved: list[dict[str, object]] = []
     for entry in entries:
         e = dict(entry)
         e["url"] = e["url"].replace("{port}", port)
