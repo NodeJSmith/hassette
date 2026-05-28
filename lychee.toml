@@ -1,0 +1,16 @@
+exclude = [
+    # Badges use dynamic shields.io / fury.io URLs that rate-limit CI
+    "badge\\.fury\\.io",
+    "img\\.shields\\.io",
+    "codecov\\.io/github/",
+    # Star-history chart and link page
+    "star-history\\.com",
+    # GitHub project boards require authentication
+    "github\\.com/users/.*/projects/",
+]
+
+# Accept 429 (rate-limited) as non-fatal
+accept = [200, 429]
+
+max_concurrency = 4
+timeout = 30
