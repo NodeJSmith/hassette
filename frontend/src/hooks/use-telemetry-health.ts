@@ -45,8 +45,7 @@ export function useTelemetryHealth(appState: AppState): void {
         restartInterval();
       }
     } catch (err) {
-      // Ignore abort errors — navigation cancels in-flight requests via AbortController.
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (controller.signal.aborted) return;
 
       // Distinguish server-reported DB degradation (HTTP 503) from network
       // unreachability. Only 503 means the DB is actually degraded; network
