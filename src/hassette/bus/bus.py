@@ -81,7 +81,7 @@ Examples:
 
 import logging
 import typing
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from functools import partial
 from typing import Any, Unpack
 
@@ -101,7 +101,7 @@ from hassette.utils.source_capture import capture_registration_source
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from hassette import Hassette
     from hassette.core.bus_service import BusService
