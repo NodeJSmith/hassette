@@ -1,7 +1,7 @@
 # Design: Decompose bus_service.py
 
 **Date:** 2026-05-25
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
