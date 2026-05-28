@@ -128,7 +128,7 @@ describe("Button", () => {
     });
   });
 
-  describe("buttonRef callback", () => {
+  describe("buttonRef", () => {
     it("calls buttonRef callback with the button DOM element", () => {
       const ref = vi.fn();
       const { getByRole } = render(<Button buttonRef={ref}>btn</Button>);

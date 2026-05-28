@@ -82,6 +82,7 @@ Examples:
 import logging
 import typing
 from collections.abc import Mapping
+from functools import partial
 from typing import Any, Unpack
 
 from typing_extensions import Sentinel, TypedDict
@@ -100,7 +101,7 @@ from hassette.utils.source_capture import capture_registration_source
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from hassette import Hassette
     from hassette.core.bus_service import BusService
@@ -1046,6 +1047,38 @@ class Bus(Resource):
         )
 
 
+def _build_preds(
+    entity_id: str,
+    *,
+    changed: "bool | ComparisonCondition",
+    changed_from: Any,
+    changed_to: Any,
+    make_did_change: "Callable[[], Predicate]",
+    make_comparison: "Callable[..., Predicate]",
+    make_from: "Callable[..., Predicate]",
+    make_to: "Callable[..., Predicate]",
+) -> "tuple[list[Predicate], list[Predicate]]":
+    """Build predicate lists for state/attribute change subscriptions."""
+    preds: list[Predicate] = [P.EntityMatches(entity_id)]
+    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
+
+    if changed:
+        if changed is True:
+            preds.append(make_did_change())
+        else:
+            preds.append(make_comparison(condition=changed))
+
+    if changed_from is not NOT_PROVIDED:
+        preds.append(make_from(condition=changed_from))
+
+    if changed_to is not NOT_PROVIDED:
+        changed_to_pred = make_to(condition=changed_to)
+        preds.append(changed_to_pred)
+        hold_preds.append(changed_to_pred)
+
+    return preds, hold_preds
+
+
 def build_state_preds(
     entity_id: str,
     *,
@@ -1053,29 +1086,16 @@ def build_state_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
-    """Build predicate lists for state change subscriptions.
-
-    Returns (preds, hold_preds). Both start with EntityMatches. The caller
-    decides whether to pass hold_preds to _subscribe (only when duration is set).
-    """
-    preds: list[Predicate] = [P.EntityMatches(entity_id)]
-    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-    if changed:
-        if changed is True:
-            preds.append(P.StateDidChange())
-        else:
-            preds.append(P.StateComparison(condition=changed))
-
-    if changed_from is not NOT_PROVIDED:
-        preds.append(P.StateFrom(condition=changed_from))
-
-    if changed_to is not NOT_PROVIDED:
-        changed_to_pred = P.StateTo(condition=changed_to)
-        preds.append(changed_to_pred)
-        hold_preds.append(changed_to_pred)
-
-    return preds, hold_preds
+    return _build_preds(
+        entity_id,
+        changed=changed,
+        changed_from=changed_from,
+        changed_to=changed_to,
+        make_did_change=P.StateDidChange,
+        make_comparison=P.StateComparison,
+        make_from=P.StateFrom,
+        make_to=P.StateTo,
+    )
 
 
 def build_attr_preds(
@@ -1086,26 +1106,13 @@ def build_attr_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
-    """Build predicate lists for attribute change subscriptions.
-
-    Returns (preds, hold_preds). Both start with EntityMatches. The caller
-    decides whether to pass hold_preds to _subscribe (only when duration is set).
-    """
-    preds: list[Predicate] = [P.EntityMatches(entity_id)]
-    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-    if changed:
-        if changed is True:
-            preds.append(P.AttrDidChange(attr))
-        else:
-            preds.append(P.AttrComparison(attr, condition=changed))
-
-    if changed_from is not NOT_PROVIDED:
-        preds.append(P.AttrFrom(attr, condition=changed_from))
-
-    if changed_to is not NOT_PROVIDED:
-        changed_to_pred = P.AttrTo(attr, condition=changed_to)
-        preds.append(changed_to_pred)
-        hold_preds.append(changed_to_pred)
-
-    return preds, hold_preds
+    return _build_preds(
+        entity_id,
+        changed=changed,
+        changed_from=changed_from,
+        changed_to=changed_to,
+        make_did_change=partial(P.AttrDidChange, attr),
+        make_comparison=partial(P.AttrComparison, attr),
+        make_from=partial(P.AttrFrom, attr),
+        make_to=partial(P.AttrTo, attr),
+    )
