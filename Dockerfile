@@ -29,6 +29,7 @@ ADD ./tools /app/tools
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock
 ADD ./README.md /app/README.md
+ADD ./LICENSE /app/LICENSE
 
 # add .ignore file, fdfind will use this - helpful when troubleshooting
 ADD ./scripts/.ignore /app/.ignore
