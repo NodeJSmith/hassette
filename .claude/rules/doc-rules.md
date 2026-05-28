@@ -8,6 +8,8 @@ How to write Hassette documentation. `design-completeness.md` governs WHEN docs 
 
 ## Voice
 
+> **Voice direction lives in `voice-guide.md`.** The rules below remain for reference but voice-guide.md takes precedence for tone and sentence-level style.
+
 Hassette docs should feel like a patient friend who's already built the thing you're building and wants to save you the mistakes they made. Friendly. Encouraging. Concrete. The reader should feel like they're getting good advice, not reading a manual.
 
 ### The voice in practice
@@ -26,7 +28,7 @@ Hassette docs should feel like a patient friend who's already built the thing yo
 
 ### Voice rules
 
-1. **Use "you" and "your."** The reader is building something. Talk to them. "Your app receives events" not "the application receives events."
+1. **Use "you" and "your" in getting-started and recipe procedure sections.** In concept and API reference pages, make the system the subject instead — see voice-guide.md rule #10.
 2. **Lead with what it does, not what it is.** "The scheduler lets you run functions at specific times" not "The scheduler is a service that manages timed execution of callable objects."
 3. **Use concrete examples in prose, not just code blocks.** "like temperature sensors that report every 2 seconds" not "such as high-frequency update sources."
 4. **Short sentences for concepts, longer ones for flow.** Introduce an idea in one punchy line. Then explain how it works in a sentence or two that builds on the first.
