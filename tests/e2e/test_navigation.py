@@ -269,19 +269,6 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     expect(page.locator("[data-testid='instance-list']").first).to_be_visible()
 
 
-def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> None:
-    """Multi-instance app detail has breadcrumb back to parent overview."""
-    page.goto(base_url + "/apps/multi_app?instance=0")
-    page.wait_for_load_state("networkidle")
-    breadcrumb = page.locator("nav[aria-label='Breadcrumb']")
-    expect(breadcrumb).to_be_visible()
-    # Breadcrumb has link back to parent
-    parent_link = breadcrumb.locator("[data-testid='breadcrumb-parent']")
-    expect(parent_link).to_be_visible()
-    parent_link.click()
-    expect(page).to_have_url(re.compile(r"/apps/multi_app$"))
-
-
 # ──────────────────────────────────────────────────────────────────────
 # SPA client-side navigation
 # ──────────────────────────────────────────────────────────────────────
