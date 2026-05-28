@@ -12,6 +12,13 @@
   margin-bottom: var(--sp-1);
 }
 
+.emptyInline {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  padding: var(--sp-3);
+  margin: 0;
+}
+
 .viewAll {
   font-size: var(--fs-small);
   margin: var(--sp-2) 0 0;

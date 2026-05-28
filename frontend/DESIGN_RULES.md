@@ -65,8 +65,7 @@ Not all columns are equal. Apply ink tokens to create a scannable hierarchy:
 
 | Column type | Color | Font | Example |
 |-------------|-------|------|---------|
-| Primary identifier | `--ink-1` | Geist, `--fw-medium` | App name, handler name |
-| Linked identifier | `--accent` | Geist Mono | Clickable app_name, execution ID |
+| Primary identifier | `--ink-1` | Geist Mono | App name, handler name |
 | Numeric value | `--ink-1` | Geist Mono | Run count, duration, error rate |
 | Timestamp | `--ink-3` | Geist Mono | "3h ago", "05/27 12:19:10" |
 | Status/category | semantic color | Geist | "running", "failed", "event" |

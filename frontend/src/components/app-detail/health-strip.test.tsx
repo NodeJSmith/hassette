@@ -65,18 +65,16 @@ describe("HandlersHealthStrip", () => {
     expect(warnValues.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders em dash for FAILED when count is 0", () => {
+  it("renders 0 for FAILED when count is 0", () => {
     const { container } = render(<HandlersHealthStrip listeners={[createListener({ failed: 0 })]} jobs={[]} />);
     const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
-    // FAILED card (index 3) should show em dash
-    expect(cards[3].textContent).toContain("—");
+    expect(cards[3].textContent).toContain("0");
   });
 
-  it("renders em dash for TIMED OUT when count is 0", () => {
+  it("renders 0 for TIMED OUT when count is 0", () => {
     const { container } = render(<HandlersHealthStrip listeners={[createListener({ timed_out: 0 })]} jobs={[]} />);
     const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
-    // TIMED OUT card (index 4) should show em dash
-    expect(cards[4].textContent).toContain("—");
+    expect(cards[4].textContent).toContain("0");
   });
 
   it("renders testid handlers-health-strip", () => {

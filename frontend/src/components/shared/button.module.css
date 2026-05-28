@@ -122,12 +122,12 @@
 /* Danger variant */
 .danger {
   border-color: var(--err);
-  color: var(--bg-surface);
-  background: var(--err);
+  color: var(--err);
+  background: transparent;
 }
 
 .danger:hover {
-  opacity: var(--op-subtle);
+  background: var(--err-bg);
 }
 
 /* Responsive: touch targets below 900px */

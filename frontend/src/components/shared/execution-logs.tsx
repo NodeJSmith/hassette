@@ -1,4 +1,3 @@
-import { EmptyState } from "./empty-state";
 import styles from "./execution-logs.module.css";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
 import { TableCard } from "./table-card";
@@ -26,10 +25,7 @@ export function ExecutionLogs({ executionId }: Props) {
       <TableCard footer={footer}>
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? (
-            <EmptyState
-              title="no logs for this execution"
-              body="this execution did not produce any log output, or logs have been removed by the retention policy."
-            />
+            <p class={styles.emptyInline}>no logs for this execution</p>
           ) : (
             <LogTableView {...log.tableProps} />
           )}

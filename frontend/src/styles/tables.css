@@ -29,7 +29,7 @@
 
 .ht-table td {
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-1);
   vertical-align: top;
   font-size: var(--fs-small);
 }

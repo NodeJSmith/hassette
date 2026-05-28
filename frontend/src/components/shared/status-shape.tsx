@@ -3,6 +3,7 @@ import type { StatusKind } from "../../utils/status";
 interface Props {
   kind: StatusKind;
   size?: number;
+  muted?: boolean;
 }
 
 /**
@@ -13,8 +14,23 @@ interface Props {
  * - err  → filled rounded square (red)
  * - mute → ring / stroke-only circle (muted)
  */
-export function StatusShape({ kind, size = 12 }: Props) {
+export function StatusShape({ kind, size = 12, muted = false }: Props) {
   const half = size / 2;
+
+  if (muted) {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        aria-hidden="true"
+        focusable="false"
+        style={{ flexShrink: 0 }}
+      >
+        <circle cx={half} cy={half} r={half} fill="var(--ink-4)" />
+      </svg>
+    );
+  }
 
   if (kind === "ok") {
     return (

@@ -177,6 +177,9 @@ export function AppsPage() {
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
 
+  const uniqueStatuses = Object.keys(statusCounts);
+  const allSameStatus = uniqueStatuses.length === 1;
+
   const clearFilters = () => qp.set({ filter: null, search: null });
 
   const columnFilters: ColumnFilters = {
@@ -307,6 +310,7 @@ export function AppsPage() {
                     liveStatus={appStatus.value[app.app_key]?.status}
                     isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
                     onToggle={() => toggleExpand(app.app_key)}
+                    muteStatus={allSameStatus}
                   />
                 ))}
               </tbody>

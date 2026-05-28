@@ -43,12 +43,12 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
     {
       label: "Failed",
-      value: listener.failed > 0 ? listener.failed : "—",
+      value: listener.failed,
       tone: listener.failed > 0 ? "err" : undefined,
     },
     {
       label: "Timed Out",
-      value: listener.timed_out > 0 ? listener.timed_out : "—",
+      value: listener.timed_out,
       tone: listener.timed_out > 0 ? "warn" : undefined,
     },
   ];
