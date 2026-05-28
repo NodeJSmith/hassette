@@ -16,11 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * require explicit `hassette run` to start the server ([#896](https://github.com/NodeJSmith/hassette/issues/896)) ([d8bbaa3](https://github.com/NodeJSmith/hassette/commit/d8bbaa3e90f4b97c88063984a21680d0b33dbae7))
 
-
-### Documentation
-
-* add release-please PR body warning and manual recovery steps ([#894](https://github.com/NodeJSmith/hassette/issues/894)) ([b93d9e7](https://github.com/NodeJSmith/hassette/commit/b93d9e74b7a8f81c62ec89a15ab97631c4c86019))
-
 ## [0.34.0](https://github.com/NodeJSmith/hassette/compare/v0.33.0...v0.34.0) (2026-05-27)
 
 ### Breaking Changes
