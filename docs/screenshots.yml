@@ -156,13 +156,15 @@
   height: 900
   wait: 2000
 
+# JS clicks the failing handler to open the detail pane, then captures the error banner
 - url: "http://localhost:{port}/apps/demo_stimulator/handlers"
   output: docs/_static/web_ui_detail_handler_error.png
-  selector: "[data-screenshot-target='true']"
+  selector: "[data-testid='job-error-banner']"
   width: 1400
   height: 900
   wait: 2000
-  javascript: "const row = document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]'); if (row) { row.dataset.screenshotTarget = 'true'; row.scrollIntoView(); }"
+  wait_for: "document.querySelector('[data-testid=\"job-error-banner\"]')"
+  javascript: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
 
 # instance=0 selects a specific instance so the switcher tab bar renders
 - url: "http://localhost:{port}/apps/motion_lights/overview?instance=0"
@@ -177,7 +179,7 @@
   output: docs/_static/web_ui_detail_log_drawer.png
   selector: "[data-testid='log-detail-drawer']"
   width: 1400
-  height: 500
+  height: 400
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"log-detail-drawer\"]')"
   javascript: "document.querySelector('tbody tr')?.click()"
