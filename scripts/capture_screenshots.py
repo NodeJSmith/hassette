@@ -20,7 +20,7 @@ Flow:
     6. Tear down the demo environment
 
 Output:
-    All 16 docs/_static/web_ui_*.png files defined in docs/screenshots.yml.
+    All docs/_static/web_ui_*.png files defined in docs/screenshots.yml.
 
 Adding a new screenshot:
     Add an entry to docs/screenshots.yml with the URL path, output filename,
@@ -43,14 +43,9 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import IO
 from urllib.parse import urlparse
 
 import yaml
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
 DEMO_READY_TIMEOUT_SECONDS = 180
 ERROR_DATA_TIMEOUT_SECONDS = 90
@@ -58,9 +53,6 @@ ERROR_DATA_POLL_INTERVAL_SECONDS = 2
 HTTP_SOCKET_TIMEOUT_SECONDS = 5
 PROC_WAIT_TIMEOUT_SECONDS = 10
 
-# Animation-disabling CSS injected into every manifest entry's javascript
-# field before entry-specific JS. Runs first so no transitions fire during
-# the entry JS (e.g., opening the command palette).
 ANIMATION_DISABLE_JS = (
     "const s=document.createElement('style');"
     "s.textContent='*,*::before,*::after{"
@@ -70,18 +62,9 @@ ANIMATION_DISABLE_JS = (
     "document.head.appendChild(s);"
 )
 
-# ---------------------------------------------------------------------------
-# Global state for cleanup
-# ---------------------------------------------------------------------------
-
 _demo_proc: "subprocess.Popen[bytes] | None" = None
 _tmp_manifest: str | None = None
 _torn_down = False
-
-
-# ---------------------------------------------------------------------------
-# Cleanup
-# ---------------------------------------------------------------------------
 
 
 def teardown() -> None:
@@ -113,11 +96,6 @@ def _signal_handler(_signum: int, _frame: object) -> None:
     sys.exit(0)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
 def main() -> None:
     global _demo_proc, _tmp_manifest
 
@@ -127,36 +105,25 @@ def main() -> None:
     )
     parser.parse_args()
 
-    # Register cleanup early so partial startup is always cleaned up.
     atexit.register(teardown)
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    # Resolve repo root from this script's own location — works from any cwd.
     repo_root = Path(__file__).resolve().parent.parent
 
-    # ------------------------------------------------------------------
-    # Step 1: Parse the screenshot manifest
-    # ------------------------------------------------------------------
     manifest_path = repo_root / "docs" / "screenshots.yml"
-    with manifest_path.open() as fh:
-        entries = yaml.safe_load(fh)
+    with manifest_path.open() as f:
+        entries = yaml.safe_load(f)
 
     if not isinstance(entries, list) or not entries:
-        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr)
+        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    # ------------------------------------------------------------------
-    # Step 2: Delete stale demo DB for deterministic screenshot content
-    # ------------------------------------------------------------------
     demo_db = repo_root / ".demo-data" / "hassette.db"
     if demo_db.exists():
         demo_db.unlink()
         print(f"Deleted stale demo DB: {demo_db}", flush=True)
 
-    # ------------------------------------------------------------------
-    # Step 3: Start the demo environment
-    # ------------------------------------------------------------------
     demo_script = repo_root / "scripts" / "hassette_demo.py"
     print("Starting demo environment...", flush=True)
     _demo_proc = subprocess.Popen(
@@ -167,23 +134,17 @@ def main() -> None:
         cwd=str(repo_root),
     )
 
-    # ------------------------------------------------------------------
-    # Step 4: Read KEY=value lines from demo stdout until DEMO_READY=true
-    # ------------------------------------------------------------------
     demo_vars: dict[str, str] = {}
     deadline = time.monotonic() + DEMO_READY_TIMEOUT_SECONDS
     demo_ready = False
 
     if _demo_proc.stdout is None:
-        print("ERROR: Demo process has no stdout pipe", file=sys.stderr)
-        teardown()
+        print("ERROR: Demo process has no stdout pipe", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    # Read demo stdout in a background thread so the deadline fires even if
-    # the demo hangs silently (no output at all blocks readline indefinitely).
     line_q: queue.Queue[bytes | None] = queue.Queue()
 
-    def _reader(pipe: "IO[bytes]", q: queue.Queue[bytes | None]) -> None:
+    def _reader(pipe, q):
         for raw in pipe:
             q.put(raw)
         q.put(None)
@@ -201,8 +162,8 @@ def main() -> None:
                 "  - Port conflict? (check demo output above)\n"
                 "  - Try running the demo manually: uv run python scripts/hassette_demo.py",
                 file=sys.stderr,
+                flush=True,
             )
-            teardown()
             sys.exit(1)
 
         try:
@@ -214,14 +175,11 @@ def main() -> None:
             break
 
         line = raw_line.decode(errors="replace").rstrip()
-
-        # Forward all demo output to our stdout for visibility.
         print(f"  [demo] {line}", flush=True)
 
         if line.startswith("DEMO_ERROR="):
             error_msg = line[len("DEMO_ERROR=") :]
-            print(f"\nERROR: Demo environment failed to start: {error_msg}", file=sys.stderr)
-            teardown()
+            print(f"\nERROR: Demo environment failed to start: {error_msg}", file=sys.stderr, flush=True)
             sys.exit(1)
 
         if line == "DEMO_READY=true":
@@ -236,42 +194,31 @@ def main() -> None:
         print(
             "\nERROR: Demo process exited unexpectedly before signalling readiness.",
             file=sys.stderr,
+            flush=True,
         )
-        teardown()
         sys.exit(1)
 
-    # ------------------------------------------------------------------
-    # Step 5: Extract URLs from parsed KEY=value output
-    # ------------------------------------------------------------------
     frontend_url = demo_vars.get("DEMO_FRONTEND_URL", "")
     hassette_url = demo_vars.get("DEMO_HASSETTE_URL", "")
 
     if not frontend_url or not hassette_url:
-        print(
-            f"ERROR: Missing URL from demo output. Got: {demo_vars}",
-            file=sys.stderr,
-        )
-        teardown()
+        print(f"ERROR: Missing URL from demo output. Got: {demo_vars}", file=sys.stderr, flush=True)
         sys.exit(1)
 
     parsed_port = urlparse(frontend_url).port
     if parsed_port is None:
-        print(f"ERROR: Could not extract port from DEMO_FRONTEND_URL: {frontend_url}", file=sys.stderr)
-        teardown()
+        print(f"ERROR: Could not extract port from DEMO_FRONTEND_URL: {frontend_url}", file=sys.stderr, flush=True)
         sys.exit(1)
     port = str(parsed_port)
 
-    # ------------------------------------------------------------------
-    # Step 6: Poll for error data in demo_stimulator
-    # ------------------------------------------------------------------
     print("Waiting for demo_stimulator error data...", flush=True)
-    listeners_url = f"{hassette_url}/api/telemetry/app/demo_stimulator/listeners"
+    jobs_url = f"{hassette_url}/api/telemetry/app/demo_stimulator/jobs"
     error_data_deadline = time.monotonic() + ERROR_DATA_TIMEOUT_SECONDS
     error_data_ready = False
 
     while time.monotonic() < error_data_deadline:
         try:
-            req = urllib.request.Request(listeners_url)
+            req = urllib.request.Request(jobs_url)
             with urllib.request.urlopen(req, timeout=HTTP_SOCKET_TIMEOUT_SECONDS) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read())
@@ -291,51 +238,29 @@ def main() -> None:
             file=sys.stderr,
             flush=True,
         )
-        # Proceed anyway — a partial run is better than no run.
 
-    # ------------------------------------------------------------------
-    # Step 7: Resolve port placeholders and inject animation-disabling CSS
-    # ------------------------------------------------------------------
     resolved: list[dict] = []
     for entry in entries:
         e = dict(entry)
-
-        # Replace {port} placeholder in URL.
         e["url"] = e["url"].replace("{port}", port)
-
-        # Prepend animation-disabling CSS injection to any entry-specific JS.
-        existing_js = e.get("javascript", "")
-        if existing_js:
-            e["javascript"] = ANIMATION_DISABLE_JS + existing_js
-        else:
-            e["javascript"] = ANIMATION_DISABLE_JS
-
+        e["javascript"] = ANIMATION_DISABLE_JS + e.get("javascript", "")
         resolved.append(e)
 
-    # ------------------------------------------------------------------
-    # Step 8: Write resolved manifest to temp file
-    # ------------------------------------------------------------------
     with tempfile.NamedTemporaryFile(
         mode="w",
         suffix=".yml",
         delete=False,
         prefix="hassette-screenshots-",
-    ) as tmp_fh:
-        _tmp_manifest = tmp_fh.name
-        yaml.dump(resolved, tmp_fh, default_flow_style=False, allow_unicode=True)
+    ) as f:
+        _tmp_manifest = f.name
+        yaml.dump(resolved, f, default_flow_style=False, allow_unicode=True)
 
-    # ------------------------------------------------------------------
-    # Step 9: Run shot-scraper
-    # ------------------------------------------------------------------
     print(f"\nRunning shot-scraper ({len(resolved)} screenshots)...", flush=True)
     shot_result = subprocess.run(
         ["uv", "run", "shot-scraper", "multi", _tmp_manifest],
         cwd=str(repo_root),
     )
 
-    # ------------------------------------------------------------------
-    # Step 10: Tear down and exit
-    # ------------------------------------------------------------------
     teardown()
     sys.exit(shot_result.returncode)
 

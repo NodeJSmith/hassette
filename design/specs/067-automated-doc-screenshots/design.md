@@ -69,7 +69,7 @@ The screenshots are currently stale and have been through multiple releases. The
 - **Element selector not found** — shot-scraper reports which selector failed; wrapper exits non-zero
 - **Port conflicts** — handled by the demo script's `find_free_port()` — no additional work needed
 - **Font loading delays** — `wait` parameter in manifest entries gives fonts time to load; if headless environments hang on fonts, `PW_TEST_SCREENSHOT_NO_FONTS_ENVIRONMENT=1` can be set
-- **Demo stimulator hasn't generated data yet** — the demo stimulator's `failing_job` default interval is reduced from 60s to 5s in `examples/demo_stimulator.py` so errors appear quickly after startup. After `DEMO_READY`, the wrapper polls `GET /api/telemetry/app/demo_stimulator/listeners` until at least one listener has `failed > 0` (90-second timeout, 2-second poll interval) before proceeding to shot-scraper. This ensures error-state screenshots always have content.
+- **Demo stimulator hasn't generated data yet** — the demo stimulator's `failing_job` default interval is reduced from 60s to 5s in `examples/demo_stimulator.py` so errors appear quickly after startup. After `DEMO_READY`, the wrapper polls `GET /api/telemetry/app/demo_stimulator/jobs` until at least one job has `failed > 0` (90-second timeout, 2-second poll interval) before proceeding to shot-scraper. This ensures error-state screenshots always have content.
 
 ## Acceptance Criteria
 
@@ -113,13 +113,15 @@ A single YAML file defines all screenshots. Each entry maps to one output file:
   height: 900
   wait: 2000
 
-# Element-level crops (selector-based)
+# Element-level crops (selector-based, with pre-capture JS)
 - url: http://localhost:{port}/apps
-  output: docs/_static/web_ui_detail_sidebar.png
-  selector: "[data-testid='sidebar']"
+  output: docs/_static/web_ui_detail_command_palette.png
+  selector: "[data-testid='cmd-palette']"
   width: 1400
   height: 900
   wait: 2000
+  wait_for: "[data-testid='cmd-palette']"
+  javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
 ```
 
 The `{port}` placeholder will be resolved by the wrapper script before passing to shot-scraper. Alternatively, the wrapper can write a resolved copy of the manifest to a temp file.
@@ -162,7 +164,7 @@ A Python script that orchestrates the full flow:
 2. Delete `.demo-data/hassette.db` if it exists (ensures deterministic screenshot content across runs)
 3. Start the demo environment as a subprocess (`scripts/hassette_demo.py`)
 4. Read `DEMO_READY=true`, `DEMO_FRONTEND_URL=...`, and `DEMO_HASSETTE_URL=...` from stdout (with 180-second wall-clock deadline)
-5. Poll `GET {DEMO_HASSETTE_URL}/api/telemetry/app/demo_stimulator/listeners` until at least one listener has `failed > 0` (90-second timeout)
+5. Poll `GET {DEMO_HASSETTE_URL}/api/telemetry/app/demo_stimulator/jobs` until at least one job has `failed > 0` (90-second timeout)
 6. Resolve port placeholders in manifest entries
 7. Write resolved manifest to a temp file
 8. Run `shot-scraper multi <temp-manifest>` as a subprocess

@@ -23,12 +23,6 @@ def _load_manifest() -> list[dict]:
     return data
 
 
-def test_manifest_parses_as_list():
-    with _MANIFEST_PATH.open() as f:
-        data = yaml.safe_load(f)
-    assert isinstance(data, list), f"Expected YAML list, got {type(data).__name__}"
-
-
 def test_all_entries_have_required_fields():
     entries = _load_manifest()
     for i, entry in enumerate(entries):
@@ -74,10 +68,4 @@ def test_entry_count_matches_expected():
 def test_no_duplicate_output_paths():
     entries = _load_manifest()
     outputs = [entry["output"] for entry in entries]
-    seen = set()
-    duplicates = []
-    for output in outputs:
-        if output in seen:
-            duplicates.append(output)
-        seen.add(output)
-    assert not duplicates, f"Duplicate output paths found: {duplicates}"
+    assert len(outputs) == len(set(outputs)), f"Duplicate output paths: {[o for o in outputs if outputs.count(o) > 1]}"

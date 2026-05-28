@@ -12,7 +12,7 @@ None.
 3. **`data-testid` selectors for element crops** — more stable across refactors than CSS class selectors. CSS module classes get hashed at build time and cannot be used in manifest JS.
 4. **Wrapper script consumes demo environment** — `scripts/hassette_demo.py` is not modified. The wrapper starts it as a subprocess, parses its KEY=value stdout output, and tears it down after capture.
 5. **DB cleanup before each run** — delete `.demo-data/hassette.db` before starting the demo for deterministic screenshot content.
-6. **Error data timing** — reduce `demo_stimulator.py` `failure_interval` from 60s to 5s so errors appear quickly. Wrapper polls `GET /api/telemetry/app/demo_stimulator/listeners` until at least one listener has `failed > 0` before proceeding to shot-scraper.
+6. **Error data timing** — reduce `demo_stimulator.py` `failure_interval` from 60s to 5s so errors appear quickly. Wrapper polls `GET /api/telemetry/app/demo_stimulator/jobs` until at least one job has `failed > 0` before proceeding to shot-scraper.
 7. **Animation disabling** — CSS injection via shot-scraper's `javascript` field: `*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }`.
 8. **`motion_lights` for non-error screenshots** — has two instances (exercises instance switcher), representative of a normal running app.
 9. **`demo_stimulator` for error screenshots** — runs the intentionally-failing `sensor_health_check` job that populates error data.
