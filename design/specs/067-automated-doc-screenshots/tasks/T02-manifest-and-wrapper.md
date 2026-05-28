@@ -28,15 +28,15 @@ Define all 16 screenshot entries per the inventory in the design doc's "Screensh
 
 Include a header comment block explaining the manifest format, the `{port}` placeholder convention, and how to add a new screenshot.
 
-**Full-page entries (8):** `/apps`, `/handlers`, `/logs`, `/config`, `/apps/motion_lights/overview`, `/apps/motion_lights/handlers`, `/apps/motion_lights/code`, `/apps/motion_lights/config`. Use `height: 900` for standard pages; `height: 1656` for config; `height: 1508` for overview; `height: 1247` for motion_lights handlers.
+**Full-page entries (8):** `/apps`, `/handlers`, `/logs`, `/config`, `/apps/motion_lights/overview`, `/apps/motion_lights/handlers`, `/apps/motion_lights/code`, `/apps/motion_lights/config`. Use `height: 900` for standard pages; `height: 1656` for config; `height: 1508` for overview.
 
 **Element-level entries (8):** Each entry's exact selector, URL, and pre-capture JS:
 - Sidebar: selector `[data-testid='sidebar']` on `/apps` — no JS needed
 - Status bar: selector `[data-testid='status-bar']` on `/apps` — no JS needed
 - Command palette: selector `[data-testid='cmd-palette']` on `/apps` — JS: `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))` plus `wait_for: "[data-testid='cmd-palette']"`
-- Column picker popover: selector `[data-testid='column-picker-popover']` on `/logs` — JS: `document.querySelector('[data-testid="column-picker"]')?.click()`
+- Column picker popover: selector `[data-testid='column-picker-popover']` on `/logs` — JS: `document.querySelector('[data-testid="column-picker"]')?.click()` plus `wait_for: "[data-testid='column-picker-popover']"`
 - Error spotlight: selector `[data-testid='overview-error-spotlight']` on `/apps/demo_stimulator/overview` — no JS needed
-- Handler error row: selector from JS result on `/apps/demo_stimulator/handlers` — JS: `const row = document.querySelector('[data-testid="handler-failed-count"]')?.closest('[data-testid^="unified-row-"]'); if (row) row.scrollIntoView()` then use `js_selector: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')"` to crop that element
+- Handler error row: selector `[data-screenshot-target='true']` on `/apps/demo_stimulator/handlers` — JS: `const row = document.querySelector('[data-testid="handler-failed-count"]')?.closest('[data-testid^="unified-row-"]'); if (row) { row.dataset.screenshotTarget = 'true'; row.scrollIntoView(); }`
 - Instance switcher: selector `[data-testid='instance-switcher']` on `/apps/motion_lights/overview` — no JS needed
 - Log drawer: selector `[data-testid='log-detail-drawer']` on `/logs` — JS: `document.querySelector('tbody tr')?.click()` plus `wait_for: "[data-testid='log-detail-drawer']"`
 
@@ -50,7 +50,7 @@ Follow the orchestration pattern from `scripts/hassette_demo.py` (see context.md
 4. Start `scripts/hassette_demo.py` as a subprocess with `stdout=PIPE`, `start_new_session=True`. Store the process for cleanup.
 5. Read stdout line by line. Parse `KEY=value` lines. Extract `DEMO_FRONTEND_URL` and watch for `DEMO_READY=true`. Enforce a **180-second wall-clock deadline** — if exceeded, kill the demo process, print a diagnostic message listing things to check (Docker running? Port conflicts? Check demo logs), and exit 1. Also watch for `DEMO_ERROR=` lines and exit immediately if seen.
 6. Extract the port from `DEMO_FRONTEND_URL` (e.g., `http://localhost:54321` → `54321`). Also extract `DEMO_HASSETTE_URL` for API polling.
-7. Poll `GET {DEMO_HASSETTE_URL}/api/apps` until the response JSON contains at least one app entry where any handler shows `failed > 0` (the `demo_stimulator` app's `sensor_health_check` job). Use a **90-second timeout** with 2-second poll interval. `urllib.request` is fine (script is stdlib-only except for yaml). The `/api/apps` endpoint returns a list of all apps with summary stats — no need to poll per-app endpoints.
+7. Poll `GET {DEMO_HASSETTE_URL}/api/telemetry/app/demo_stimulator/listeners` until the response JSON contains at least one listener with `failed > 0` (the `sensor_health_check` handler). Use a **90-second timeout** with 2-second poll interval. `urllib.request` is fine (script is stdlib-only except for yaml). The `/api/telemetry/app/{app_key}/listeners` endpoint returns `list[ListenerWithSummary]` which includes a `failed: int` field per listener.
 8. For each manifest entry: replace `{port}` in the `url` field. Prepend animation-disabling CSS injection to the `javascript` field:
    ```javascript
    const s=document.createElement('style');s.textContent='*,*::before,*::after{animation-duration:0s!important;transition-duration:0s!important;}';document.head.appendChild(s);

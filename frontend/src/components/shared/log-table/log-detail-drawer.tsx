@@ -122,6 +122,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
         role="complementary"
         aria-label="Log entry detail"
+        data-testid="log-detail-drawer"
       >
         {/* Header bar */}
         <div class={styles.headerBar}>

@@ -69,7 +69,7 @@ The screenshots are currently stale and have been through multiple releases. The
 - **Element selector not found** — shot-scraper reports which selector failed; wrapper exits non-zero
 - **Port conflicts** — handled by the demo script's `find_free_port()` — no additional work needed
 - **Font loading delays** — `wait` parameter in manifest entries gives fonts time to load; if headless environments hang on fonts, `PW_TEST_SCREENSHOT_NO_FONTS_ENVIRONMENT=1` can be set
-- **Demo stimulator hasn't generated data yet** — the demo stimulator's `failing_job` default interval is reduced from 60s to 5s in `examples/demo_stimulator.py` so errors appear quickly after startup. After `DEMO_READY`, the wrapper polls `GET /api/apps/{app_key}` until error data exists (90-second timeout, 2-second poll interval) before proceeding to shot-scraper. This ensures error-state screenshots always have content.
+- **Demo stimulator hasn't generated data yet** — the demo stimulator's `failing_job` default interval is reduced from 60s to 5s in `examples/demo_stimulator.py` so errors appear quickly after startup. After `DEMO_READY`, the wrapper polls `GET /api/telemetry/app/demo_stimulator/listeners` until at least one listener has `failed > 0` (90-second timeout, 2-second poll interval) before proceeding to shot-scraper. This ensures error-state screenshots always have content.
 
 ## Acceptance Criteria
 
@@ -99,7 +99,7 @@ The screenshots are currently stale and have been through multiple releases. The
 
 ### shot-scraper as dev dependency
 
-Add `shot-scraper` to the `[project.optional-dependencies]` dev group in `pyproject.toml`. shot-scraper installs Playwright as a dependency, but the project already has Playwright installed for e2e tests — no additional browser install needed.
+Add `shot-scraper` to the `[dependency-groups] dev` list in `pyproject.toml`. shot-scraper installs Playwright as a dependency, but the project already has Playwright installed for e2e tests — no additional browser install needed.
 
 ### YAML manifest: `docs/screenshots.yml`
 
@@ -134,7 +134,7 @@ The `{port}` placeholder will be resolved by the wrapper script before passing t
 | `web_ui_handlers.png` | `/handlers` | Handlers list |
 | `web_ui_logs.png` | `/logs` | Logs page |
 | `web_ui_config.png` | `/config` | Config page (tall — needs `height: 1656`) |
-| `web_ui_app_detail_overview.png` | `/apps/motion_lights/overview` | App detail overview (tall — `height: 1508`). `motion_lights` chosen: has two instances (exercises instance switcher) and receives error injection from demo stimulator. |
+| `web_ui_app_detail_overview.png` | `/apps/motion_lights/overview` | App detail overview (tall — `height: 1508`). `motion_lights` chosen: has two instances (exercises instance switcher) and represents a normal running app. |
 | `web_ui_app_detail_handlers.png` | `/apps/motion_lights/handlers` | App detail handlers |
 | `web_ui_app_detail_code.png` | `/apps/motion_lights/code` | App detail code |
 | `web_ui_app_detail_config.png` | `/apps/motion_lights/config` | App detail config |
@@ -146,9 +146,9 @@ The `{port}` placeholder will be resolved by the wrapper script before passing t
 | `web_ui_detail_sidebar.png` | `/apps` | `[data-testid='sidebar']` | Sidebar nav |
 | `web_ui_detail_status_bar.png` | `/apps` | `[data-testid='status-bar']` | Top status bar |
 | `web_ui_detail_command_palette.png` | `/apps` | `[data-testid='cmd-palette']` | JS opens palette: `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true}))`. Must use `wait_for: "[data-testid='cmd-palette']"` because Preact state update is async — without it, shot-scraper captures before the DOM updates. |
-| `web_ui_detail_column_picker.png` | `/logs` | `[data-testid='column-picker-popover']` | **Requires adding `data-testid="column-picker-popover"` to `ColumnFilterPopover`'s root `<div>` in `column-filter-popover/index.tsx`.** JS clicks the trigger button first: `document.querySelector('[data-testid="column-picker"]')?.click()` |
+| `web_ui_detail_column_picker.png` | `/logs` | `[data-testid='column-picker-popover']` | **Requires adding `data-testid="column-picker-popover"` to `ColumnFilterPopover`'s root `<div>` in `column-filter-popover/index.tsx`.** JS clicks the trigger button first: `document.querySelector('[data-testid="column-picker"]')?.click()`. Must use `wait_for: "[data-testid='column-picker-popover']"` because Preact state update is async. |
 | `web_ui_detail_error_spotlight.png` | `/apps/demo_stimulator/overview` | `[data-testid='overview-error-spotlight']` | Error spotlight section. Targets `demo_stimulator` because it runs the intentionally-failing `sensor_health_check` job that populates error data. |
-| `web_ui_detail_handler_error.png` | `/apps/demo_stimulator/handlers` | `[data-testid^='unified-row-']` (first row with failed > 0) | Targets `demo_stimulator` for error data. **Requires adding `data-testid="handler-failed-count"` to the `<span class={styles.statsErr}>` in `unified-handler-row.tsx`.** JS finds the target: `document.querySelector('[data-testid="handler-failed-count"]')?.closest('[data-testid^="unified-row-"]')` — note: cannot use `.statsErr` directly because CSS modules hash class names at build time. |
+| `web_ui_detail_handler_error.png` | `/apps/demo_stimulator/handlers` | `[data-screenshot-target='true']` | Targets `demo_stimulator` for error data. **Requires adding `data-testid="handler-failed-count"` to the `<span class={styles.statsErr}>` in `unified-handler-row.tsx`.** JS finds the row with errors and marks it for capture: `const row = document.querySelector('[data-testid="handler-failed-count"]')?.closest('[data-testid^="unified-row-"]'); if (row) row.dataset.screenshotTarget = 'true';` — note: cannot use `.statsErr` directly because CSS modules hash class names at build time. |
 | `web_ui_detail_instance_switcher.png` | `/apps/motion_lights/overview` | `[data-testid='instance-switcher']` | Instance tab bar |
 | `web_ui_detail_log_drawer.png` | `/logs` | `[data-testid='log-detail-drawer']` | **Requires adding `data-testid="log-detail-drawer"` to `LogDetailDrawer`'s root `<aside>` in `log-detail-drawer.tsx:120`.** JS clicks the first log table row to open the drawer: `document.querySelector('tbody tr')?.click()` |
 
@@ -161,8 +161,8 @@ A Python script that orchestrates the full flow:
 1. Parse `docs/screenshots.yml`
 2. Delete `.demo-data/hassette.db` if it exists (ensures deterministic screenshot content across runs)
 3. Start the demo environment as a subprocess (`scripts/hassette_demo.py`)
-4. Read `DEMO_READY=true` and `DEMO_FRONTEND_URL=...` from stdout (with 180-second wall-clock deadline)
-5. Poll hassette API until error data exists (90-second timeout)
+4. Read `DEMO_READY=true`, `DEMO_FRONTEND_URL=...`, and `DEMO_HASSETTE_URL=...` from stdout (with 180-second wall-clock deadline)
+5. Poll `GET {DEMO_HASSETTE_URL}/api/telemetry/app/demo_stimulator/listeners` until at least one listener has `failed > 0` (90-second timeout)
 6. Resolve port placeholders in manifest entries
 7. Write resolved manifest to a temp file
 8. Run `shot-scraper multi <temp-manifest>` as a subprocess

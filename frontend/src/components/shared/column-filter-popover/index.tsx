@@ -138,6 +138,7 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
       role="dialog"
       aria-label={label ?? "Column filter"}
       tabIndex={-1}
+      data-testid="column-picker-popover"
       onPointerDown={() => {
         ignoreNextClick.current = true;
       }}

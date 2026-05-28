@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add screenshot data-testid attributes and shot-scraper dependency"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "AC#3"]
 ---
