@@ -1,0 +1,173 @@
+# Screenshot manifest for docs/_static/web_ui_*.png
+#
+# Format
+# ------
+# Each entry is a shot-scraper "multi" entry. Supported fields:
+#
+#   url        Required. Full URL to load. Use {port} as a placeholder; the
+#              wrapper script resolves it to the Vite dev server port at
+#              capture time.
+#
+#   output     Required. Output file path relative to the repo root.
+#
+#   width      Viewport width in pixels. All doc screenshots use 1400px —
+#              wider than the e2e desktop viewport (1024px) to match the
+#              existing screenshot dimensions and give the sidebar room.
+#
+#   height     Viewport height in pixels. Most pages use 900px; tall pages
+#              (config, app detail overview) use a taller viewport to avoid
+#              scroll-dependent content being cut off.
+#
+#   selector   Optional CSS selector. When set, shot-scraper crops the
+#              screenshot to the bounding box of the matched element instead
+#              of capturing the full viewport. Always use data-testid
+#              attributes — CSS module classes are hashed at build time and
+#              cannot be used here.
+#
+#   javascript Optional JS to execute before capture. The wrapper
+#              prepends animation-disabling CSS injection to every entry's
+#              javascript field, so entry-specific JS runs after animations
+#              are already disabled.
+#
+#   wait       Milliseconds to wait after page load before capturing.
+#              Default 2000ms gives fonts and async data time to settle.
+#
+#   wait_for   CSS selector to wait for before capturing. Required for
+#              elements that appear via async Preact state updates (e.g.,
+#              command palette, column picker popover, log drawer).
+#
+# Adding a new screenshot
+# -----------------------
+# 1. Add an entry below with the URL path, output filename, and any
+#    selector/javascript needed to set up the UI state.
+# 2. Add a Markdown image reference in the appropriate docs/pages/ file.
+# 3. Run: uv run python scripts/capture_screenshots.py
+#
+# No script changes needed — the wrapper reads this manifest at runtime.
+#
+# Port placeholder
+# ----------------
+# The {port} placeholder in url fields is replaced by the wrapper script
+# with the Vite dev server port allocated dynamically at startup. Never
+# hardcode a port number here.
+
+# ===========================================================================
+# Full-page screenshots (8)
+# Viewport: 1400px wide. Height varies by page content length.
+# ===========================================================================
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_apps.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/handlers"
+  output: docs/_static/web_ui_handlers.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/logs"
+  output: docs/_static/web_ui_logs.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/config"
+  output: docs/_static/web_ui_config.png
+  width: 1400
+  height: 1656
+  wait: 2000
+
+- url: "http://localhost:{port}/apps/motion_lights/overview"
+  output: docs/_static/web_ui_app_detail_overview.png
+  width: 1400
+  height: 1508
+  wait: 2000
+
+- url: "http://localhost:{port}/apps/motion_lights/handlers"
+  output: docs/_static/web_ui_app_detail_handlers.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/apps/motion_lights/code"
+  output: docs/_static/web_ui_app_detail_code.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/apps/motion_lights/config"
+  output: docs/_static/web_ui_app_detail_config.png
+  width: 1400
+  height: 900
+  wait: 2000
+
+# ===========================================================================
+# Element-level screenshots (8)
+# Cropped to a specific component via the selector field.
+# ===========================================================================
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_detail_sidebar.png
+  selector: "[data-testid='sidebar']"
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_detail_status_bar.png
+  selector: "[data-testid='status-bar']"
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_detail_command_palette.png
+  selector: "[data-testid='cmd-palette']"
+  width: 1400
+  height: 900
+  wait: 2000
+  wait_for: "[data-testid='cmd-palette']"
+  javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
+
+- url: "http://localhost:{port}/logs"
+  output: docs/_static/web_ui_detail_column_picker.png
+  selector: "[data-testid='column-picker-popover']"
+  width: 1400
+  height: 900
+  wait: 2000
+  wait_for: "[data-testid='column-picker-popover']"
+  javascript: "document.querySelector('[data-testid=\"column-picker\"]')?.click()"
+
+- url: "http://localhost:{port}/apps/demo_stimulator/overview"
+  output: docs/_static/web_ui_detail_error_spotlight.png
+  selector: "[data-testid='overview-error-spotlight']"
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/apps/demo_stimulator/handlers"
+  output: docs/_static/web_ui_detail_handler_error.png
+  selector: "[data-screenshot-target='true']"
+  width: 1400
+  height: 900
+  wait: 2000
+  javascript: "const row = document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]'); if (row) { row.dataset.screenshotTarget = 'true'; row.scrollIntoView(); }"
+
+- url: "http://localhost:{port}/apps/motion_lights/overview"
+  output: docs/_static/web_ui_detail_instance_switcher.png
+  selector: "[data-testid='instance-switcher']"
+  width: 1400
+  height: 900
+  wait: 2000
+
+- url: "http://localhost:{port}/logs"
+  output: docs/_static/web_ui_detail_log_drawer.png
+  selector: "[data-testid='log-detail-drawer']"
+  width: 1400
+  height: 900
+  wait: 2000
+  wait_for: "[data-testid='log-detail-drawer']"
+  javascript: "document.querySelector('tbody tr')?.click()"
