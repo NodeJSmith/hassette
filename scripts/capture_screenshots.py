@@ -103,7 +103,12 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.parse_args()
+    parser.add_argument(
+        "--only",
+        help="Comma-separated substrings to match against output filenames. "
+        "Only matching entries are captured. Example: --only column_picker,sidebar",
+    )
+    args = parser.parse_args()
 
     atexit.register(teardown)
     signal.signal(signal.SIGINT, _signal_handler)
@@ -243,6 +248,14 @@ def main() -> None:
             file=sys.stderr,
             flush=True,
         )
+
+    if args.only:
+        filters = [f.strip() for f in args.only.split(",")]
+        entries = [e for e in entries if any(f in e.get("output", "") for f in filters)]
+        if not entries:
+            print(f"ERROR: --only {args.only!r} matched no manifest entries", file=sys.stderr, flush=True)
+            sys.exit(1)
+        print(f"Filtered to {len(entries)} entries matching --only {args.only!r}", flush=True)
 
     resolved: list[dict[str, object]] = []
     for entry in entries:

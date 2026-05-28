@@ -140,11 +140,13 @@
   wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
 
+# Taller viewport so the popover (anchored to the bottom-right grid button) has room
 - url: "http://localhost:{port}/logs"
   output: docs/_static/web_ui_detail_column_picker.png
   selector: "[data-testid='column-picker-popover']"
+  padding: 8
   width: 1400
-  height: 900
+  height: 1100
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"column-picker-popover\"]')"
   javascript: "document.querySelector('[data-testid=\"column-picker\"]')?.click()"
