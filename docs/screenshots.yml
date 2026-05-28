@@ -131,11 +131,11 @@
   height: 900
   wait: 2000
 
+# Full viewport capture to show the palette against the darkened backdrop
 - url: "http://localhost:{port}/apps"
   output: docs/_static/web_ui_detail_command_palette.png
-  selector: "[data-testid='cmd-palette']"
-  width: 1400
-  height: 900
+  width: 1000
+  height: 700
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
