@@ -82,17 +82,7 @@ Shorthand for switch entity state dicts.
 `make_mock_hassette()` builds a sealed `AsyncMock` hassette with real, Pydantic-validated configuration. It is the standard pattern for unit tests that need a hassette mock with validated config — it replaces the pattern of manually setting `.config.*` fields on a raw `AsyncMock`.
 
 ```python
-from hassette.test_utils import make_mock_hassette
-
-# Minimal — real config defaults, sealed against phantom attributes
-hassette = make_mock_hassette()
-
-# With config overrides — validated by HassetteConfig at construction time
-hassette = make_mock_hassette(strict_lifecycle=True)
-hassette = make_mock_hassette(database={"retention_days": 14})
-
-# Database-backed tests — pass a real tmp_path for isolation
-hassette = make_mock_hassette(data_dir=tmp_path)
+--8<-- "pages/testing/snippets/factories_mock_hassette.py"
 ```
 
 All `HassetteConfig` fields can be passed as keyword arguments; Pydantic validates them at construction time. Passing an unrecognised field name or an out-of-range value raises `pydantic.ValidationError` immediately.

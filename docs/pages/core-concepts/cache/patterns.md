@@ -1,6 +1,6 @@
 # App Cache: Patterns & Examples
 
-This page covers practical patterns for `self.cache`. If you are new to the cache, start with the [Overview](index.md) first.
+This page covers practical patterns for `self.cache`. The [Overview](index.md) covers setup and basic usage.
 
 ## Pattern: API Response Caching
 
@@ -48,7 +48,7 @@ The cache stores any picklable Python object — including dataclasses with type
 For simple expiration, use `self.cache.set(key, value, expire=seconds)` — diskcache removes the entry automatically once the timeout elapses:
 
 ```python
-self.cache.set("weather_data", payload, expire=3600)  # expires in 1 hour
+--8<-- "pages/core-concepts/cache/snippets/cache_expire.py:expire"
 ```
 
 When you need access to the timestamp itself — for example, to display "last fetched" information or to implement custom staleness logic — store a timestamp alongside the value instead:

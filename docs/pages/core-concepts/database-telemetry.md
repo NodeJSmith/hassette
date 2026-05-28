@@ -57,7 +57,7 @@ The `execution_id`, `trigger_context_id`, and `trigger_origin` columns were adde
 
 ## Configuration
 
-All database settings are optional. The defaults work well for most installations.
+All database settings are optional. The defaults work well out of the box.
 
 ```toml
 --8<-- "pages/core-concepts/snippets/database-telemetry/db_config.toml"

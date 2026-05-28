@@ -1,6 +1,6 @@
 # Custom State Classes
 
-Hassette's dynamic state registry allows you to define custom state classes for domains that aren't included in the core framework. This is useful for:
+You can define custom state classes for domains that aren't included in the core framework. This is useful for:
 
 - Custom integrations and components in your Home Assistant instance
 - Third-party integrations not yet supported by Hassette
@@ -74,7 +74,7 @@ You can define custom attributes specific to your domain by creating an attribut
 
 ## Using Custom States in Apps
 
-Once defined, custom state classes work seamlessly with Hassette's APIs:
+Once defined, custom state classes work with all of Hassette's APIs:
 
 ### Via get_states()
 
@@ -126,7 +126,7 @@ Here's a complete example with a custom integration:
 2. **Use Literal for domain** - Always use `Literal["domain_name"]` to enable auto-registration. A plain `str` annotation does not carry a value at class definition time, so the registry cannot extract the domain name automatically.
 3. **Choose the right base class** - Match the base class to your entity's state value type
 4. **Document your attributes** - Add docstrings to custom attribute classes
-5. **Use typing** - Leverage type hints throughout for better IDE support and type checking
+5. **Use typing** - Use type hints throughout for better IDE support and type checking
 
 ## Troubleshooting
 
@@ -135,7 +135,7 @@ Here's a complete example with a custom integration:
 If your custom state class isn't being recognized:
 
 1. **Check the domain field** - Ensure you have `domain: Literal["your_domain"]`
-2. **Ensure that you are calling `__init_subclass__`** - If you override `__init_subclass__`, make sure to call `super().__init_subclass__()`
+2. **Call `super().__init_subclass__()`** - If you override `__init_subclass__`, call `super().__init_subclass__()` so registration still happens
 3. **Check for errors** - Look for registration errors in debug logs
 
 ### Type hints not working

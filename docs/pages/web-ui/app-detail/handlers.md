@@ -1,8 +1,8 @@
 # Handlers Tab
 
-The Handlers tab is the troubleshooting surface for a single app. It presents every event
-handler and scheduled job in a master-detail layout: the left panel lists all handlers and
-jobs, and the right panel shows full detail for whichever item is selected.
+Use the Handlers tab to troubleshoot a single app. It presents every event handler and
+scheduled job in a master-detail layout: the left panel lists all handlers and jobs, and
+the right panel shows full detail for whichever item is selected.
 
 Use it to read invocation history, inspect modifier configuration, locate the registration
 source, and trace a failure from the error type through the full traceback to the line in
@@ -65,7 +65,7 @@ The registration source shows the exact Python call that registered this handler
 at startup — for example:
 
 ```python
-self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+--8<-- "pages/web-ui/app-detail/snippets/handler_registration.py:register"
 ```
 
 ### Modifier chips

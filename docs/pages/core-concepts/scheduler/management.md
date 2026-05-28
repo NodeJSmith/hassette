@@ -30,7 +30,7 @@ To stop a job from running, call `cancel()`.
 Cancel all jobs in a named group at once with `cancel_group()`:
 
 ```python
-self.scheduler.cancel_group("morning")
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:cancel_group"
 ```
 
 This cancels each job in the group — removing it from the scheduler queue and recording it as cancelled in the database — then clears the group entry. No-op if the group does not exist.
@@ -40,11 +40,7 @@ This cancels each job in the group — removing it from the scheduler queue and 
 Query registered jobs with `list_jobs()`:
 
 ```python
-# All jobs for this app
-all_jobs = self.scheduler.list_jobs()
-
-# Only jobs in a specific group
-morning_jobs = self.scheduler.list_jobs(group="morning")
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:list_jobs"
 ```
 
 ### Checking Cancellation State
@@ -52,19 +48,16 @@ morning_jobs = self.scheduler.list_jobs(group="morning")
 `ScheduledJob` does not expose a `cancelled` attribute. Once a job is cancelled it is removed from the scheduler's queue, so the canonical way to check whether a job is still active is to query `list_jobs()`:
 
 ```python
-def is_running(self) -> bool:
-    return self.my_job in self.scheduler.list_jobs()
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:is_running"
 ```
 
 For the common case of guarding against a double-cancel (for example, when multiple code paths may both call `cancel()`), store the reference as `None` after cancelling and check before calling:
 
 ```python
-if self.my_job is not None:
-    self.my_job.cancel()
-    self.my_job = None
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:cancel_null"
 ```
 
-Calling `cancel()` on an already-cancelled job is a silent no-op — Hassette checks the job's internal state at entry and returns immediately if it has already been dequeued. The null-reference pattern above is still recommended when you need to reason locally about whether your code path has already cancelled the job.
+Calling `cancel()` on an already-cancelled job is a silent no-op — Hassette checks the job's internal state at entry and returns immediately if it has already been dequeued. The null-reference pattern above is still recommended when you need to know locally whether you've already cancelled the job.
 
 ### Automatic Cleanup
 
@@ -80,20 +73,9 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
    --8<-- "pages/core-concepts/scheduler/snippets/scheduler_naming.py"
    ```
 
-2. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances might run concurrently. Use an `asyncio.Lock` to guard the handler body:
+2. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances will run concurrently. Use an `asyncio.Lock` to guard the handler body:
    ```python
-   import asyncio
-
-   class MyApp(App[AppConfig]):
-       async def on_initialize(self):
-           self._sync_lock = asyncio.Lock()
-           self.scheduler.run_every(self.sync_data, seconds=30)
-
-       async def sync_data(self):
-           if self._sync_lock.locked():
-               return  # previous run still in progress — skip this tick
-           async with self._sync_lock:
-               ...  # do work
+   --8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
    ```
 
 ## Self-Cancelling Job Pattern
@@ -143,45 +125,13 @@ Both levels can be sync or async.
 ### App-level error handler
 
 ```python
-from hassette.scheduler.error_context import SchedulerErrorContext
-
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        # Register first to avoid the reload gap
-        self.scheduler.on_error(self.on_job_error)
-
-        self.scheduler.run_every(self.check_sensors, minutes=5)
-
-    async def on_job_error(self, ctx: SchedulerErrorContext) -> None:
-        self.logger.error(
-            "Job '%s' failed: %s\n%s",
-            ctx.job_name,
-            ctx.exception,
-            ctx.traceback,
-        )
-
-    async def check_sensors(self) -> None:
-        raise ValueError("sensor unavailable")
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_error_handler_app.py"
 ```
 
 ### Per-registration error handler
 
 ```python
-from hassette.scheduler.error_context import SchedulerErrorContext
-
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        self.scheduler.run_every(
-            self.sync_data,
-            minutes=10,
-            on_error=self.on_sync_error,
-        )
-
-    async def on_sync_error(self, ctx: SchedulerErrorContext) -> None:
-        self.logger.warning("Sync failed: %s", ctx.exception)
-
-    async def sync_data(self) -> None:
-        raise RuntimeError("sync error")
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_error_handler_per_job.py"
 ```
 
 ### What `SchedulerErrorContext` contains

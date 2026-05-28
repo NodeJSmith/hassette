@@ -4,7 +4,7 @@ Every page in the Hassette web UI shares the same chrome: a sidebar for navigati
 
 ## Sidebar
 
-The sidebar is the primary navigation surface. It stays visible on all pages and updates in real time as app statuses change.
+The sidebar handles navigation. It stays visible on all pages and updates in real time as app statuses change.
 
 ![Sidebar](../../_static/web_ui_detail_sidebar.png)
 

@@ -2,7 +2,7 @@
 
 The `hassette` CLI lets you query a running Hassette instance from the terminal. Check system health, inspect app status, browse listener invocations, tail logs, and review scheduled jobs — all without opening a browser or composing raw HTTP requests.
 
-The CLI queries the same REST API used by the web UI. You get the same data, formatted for the terminal by default or serialized to JSON for scripting.
+The CLI queries the same REST API the web UI uses. You get the same data, formatted for the terminal by default or serialized to JSON for scripting.
 
 ## Quick Start
 

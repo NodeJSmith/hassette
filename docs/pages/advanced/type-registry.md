@@ -1,8 +1,6 @@
 # TypeRegistry
 
-Home Assistant sends nearly all values as strings over its API — even numbers and booleans. The TypeRegistry is Hassette's mechanism for automatically converting those strings to the correct Python types before they reach your code.
-
-The TypeRegistry provides automatic type conversion for raw values from Home Assistant — converting string values to their proper Python types (integers, floats, booleans, datetimes, etc.) throughout the framework.
+Home Assistant sends nearly all values as strings over its API — even numbers and booleans. The TypeRegistry converts those strings to the correct Python types (integers, floats, booleans, datetimes, etc.) before they reach your code.
 
 ## When Do I Need This?
 
@@ -69,7 +67,7 @@ The TypeRegistry uses a dictionary with `(from_type, to_type)` tuples as keys fo
 
 ## Integration with State Models
 
-The TypeRegistry integrates seamlessly with Hassette's state model system through the `value_type` ClassVar.
+The TypeRegistry works with Hassette's state model system through the `value_type` ClassVar.
 
 ### The value_type ClassVar
 
@@ -111,7 +109,7 @@ The conversion attempts each type in the Union until one succeeds, preserving th
 
 ## Integration with Dependency Injection
 
-The TypeRegistry powers automatic type conversion in the dependency injection system, particularly for custom extractors.
+The TypeRegistry handles automatic type conversion in the dependency injection system, particularly for custom extractors.
 
 ### Type Conversion in Custom Extractors
 
@@ -148,7 +146,7 @@ The TypeRegistry and StateRegistry work together but serve different purposes:
 
 ## Built-in Converters
 
-Hassette includes comprehensive built-in conversion:
+Hassette includes built-in converters for all standard HA types:
 
 ### Numeric Conversions
 
@@ -267,7 +265,7 @@ Always specify `value_type` in custom state models:
 
 ### 2. Use Type Hints with Custom Extractors
 
-Leverage type hints for automatic conversion in dependency injection:
+Use type hints for automatic conversion in dependency injection:
 
 ```python
 --8<-- "pages/advanced/snippets/type-registry/best_practice_type_hints.py"

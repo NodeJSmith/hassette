@@ -1,6 +1,6 @@
 # Writing Event Handlers
 
-Once you've subscribed to an event, you need a handler to process it. Hassette handlers are flexible, supporting dependency injection (DI), custom keyword arguments, and various event patterns.
+Once you've subscribed to an event, you need a handler to process it. Hassette supports dependency injection (DI), custom keyword arguments, and various event patterns — so your handlers can be as simple or detailed as you need.
 
 ## Event Model
 
@@ -99,45 +99,13 @@ Both levels can be sync or async.
 ### App-level error handler
 
 ```python
-from hassette.bus.error_context import BusErrorContext
-
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        # Register first to avoid the reload gap
-        self.bus.on_error(self.on_bus_error)
-
-        self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
-
-    async def on_bus_error(self, ctx: BusErrorContext) -> None:
-        self.logger.error(
-            "Handler failed for topic=%s: %s\n%s",
-            ctx.topic,
-            ctx.exception,
-            ctx.traceback,
-        )
-
-    async def on_light_change(self, event) -> None:
-        raise ValueError("something went wrong")
+--8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_app.py"
 ```
 
 ### Per-registration error handler
 
 ```python
-from hassette.bus.error_context import BusErrorContext
-
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        self.bus.on_state_change(
-            "sensor.temperature",
-            handler=self.on_temp_change,
-            on_error=self.on_temp_error,
-        )
-
-    async def on_temp_error(self, ctx: BusErrorContext) -> None:
-        self.logger.warning("Temperature handler failed: %s", ctx.exception)
-
-    async def on_temp_change(self, event) -> None:
-        raise RuntimeError("temp sensor error")
+--8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_per_reg.py"
 ```
 
 ### What `BusErrorContext` contains
@@ -168,17 +136,7 @@ Every call to `bus.on_state_change()`, `bus.on_attribute_change()`, or `bus.on()
 `registration_task` is an `asyncio.Future` that resolves with `None` when the database persistence attempt completes. It is a **completion signal**, not a success signal — it resolves regardless of whether persistence succeeded or failed.
 
 ```python
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
-
-        # Wait until the listener is persisted to the DB before continuing
-        if sub.registration_task is not None:
-            await sub.registration_task
-
-        # Check whether persistence actually succeeded
-        if sub.listener.db_id is None:
-            self.logger.warning("Listener was not persisted to the database")
+--8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:await_persistence"
 ```
 
 Use `registration_task` when your initialization logic depends on a listener being fully registered before proceeding (e.g., integration tests verifying telemetry, startup sequences with strict ordering requirements).
@@ -201,33 +159,13 @@ Routing and database registration are independent operations. Understanding the 
 **Check `db_id` to confirm persistence succeeded.** After awaiting `registration_task`, inspect `sub.listener.db_id is not None` to know whether the telemetry row was written.
 
 ```python
-class MyApp(App[AppConfig]):
-    async def on_initialize(self):
-        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
-
-        # Handler is already routable here — no await needed for event delivery.
-        # Await only if you need to know whether persistence succeeded.
-        if sub.registration_task is not None:
-            await sub.registration_task  # resolves whether DB write succeeded or failed
-
-        if sub.listener.db_id is None:
-            self.logger.warning("Listener was not persisted — telemetry unavailable")
-        # Either way, the handler is routing and will receive events.
+--8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:routing_independence"
 ```
 
 **Sequential operations are deterministic.** Because routing is synchronous, cancel-then-resubscribe sequences have no race conditions:
 
 ```python
-async def on_initialize(self):
-    self.sub = self.bus.on_state_change("light.kitchen", handler=self.on_light)
-
-async def resubscribe(self):
-    # Cancel the old subscription — routing removal is immediate.
-    self.sub.cancel()
-
-    # Register the replacement — it is routable before this line returns.
-    # The old handler is guaranteed gone; no overlap, no gap.
-    self.sub = self.bus.on_state_change("light.kitchen", handler=self.on_light)
+--8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:resubscribe"
 ```
 
 ## See Also

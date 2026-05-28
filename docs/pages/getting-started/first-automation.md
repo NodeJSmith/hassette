@@ -10,7 +10,7 @@
 - How to schedule recurring tasks with `self.scheduler`
 - How to call a Home Assistant service with `self.api`
 
-**Prerequisites**: You've completed the [Quickstart guide](index.md) and have Hassette running.
+**Prerequisites**: Hassette is installed and running (the [Quickstart guide](index.md) covers setup).
 
 ---
 

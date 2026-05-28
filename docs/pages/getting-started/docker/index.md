@@ -12,7 +12,7 @@ This guide walks through deploying Hassette with Docker Compose, the recommended
 - A long-lived access token from your Home Assistant profile
 
 !!! note
-    If you don't have a token yet, follow the steps in the [Creating a Home Assistant token](../ha_token.md) guide.
+    If you don't have a token yet, the [Creating a Home Assistant token](../ha_token.md) page walks through generating one from the HA UI.
 
 ## Quick Start
 
@@ -137,7 +137,7 @@ With this configuration, Hassette restarts apps when you change files in `./apps
 
 ### Graceful Shutdown
 
-Hassette handles `SIGTERM` (sent by `docker stop` and `docker compose down`) to shut down gracefully — finalizing the active session, draining pending database writes, and closing all connections cleanly.
+Hassette handles `SIGTERM` (sent by `docker stop` and `docker compose down`) to shut down gracefully. It finalizes the active session, drains pending database writes, and closes all connections.
 
 The compose examples include `stop_grace_period: 45s` to give Hassette enough time to complete its shutdown sequence. Docker's default of 10 seconds is too short and will force-kill the process before it finishes, leaving sessions marked as `unknown` on the next startup.
 

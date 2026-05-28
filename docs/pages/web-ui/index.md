@@ -1,6 +1,6 @@
 # Web UI
 
-The hassette web UI gives you a real-time window into your running automations — app health at a glance, per-handler invocation history, structured logs, and full system configuration. It is served alongside the REST API by the same `WebApiService` and requires no separate process.
+The hassette web UI gives you a real-time window into your running automations — app health at a glance, per-handler invocation history, structured logs, and full system configuration. It runs as part of the same process as the REST API, so there's nothing extra to start.
 
 ![Apps page](../../_static/web_ui_apps.png)
 

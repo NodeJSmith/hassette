@@ -78,13 +78,7 @@ Hassette inspects your handler's type annotations at subscription time and injec
 If you have existing synchronous code and don't want to add `async`/`await` everywhere, use `AppSync`:
 
 ```python
-from hassette import AppSync
-
-
-class MyApp(AppSync):
-    def on_initialize_sync(self):
-        # Everything here is synchronous
-        self.api.sync.call_service("light", "turn_on", target={"entity_id": "light.kitchen"})
+--8<-- "pages/migration/snippets/concepts_appsync.py"
 ```
 
 `AppSync` runs in a managed thread and provides `self.api.sync` for blocking API access. It is a good intermediate step when migrating apps with heavy synchronous logic.

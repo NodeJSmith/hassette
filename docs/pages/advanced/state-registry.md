@@ -1,9 +1,6 @@
 # State Registry
 
-!!! info "Prerequisites"
-    This page assumes familiarity with [Custom States](custom-states.md). Read that first if you haven't defined a custom state class yet.
-
-The **StateRegistry** maintains a mapping between Home Assistant domains (like `light`, `sensor`, `switch`) and their corresponding Pydantic state model classes. It enables automatic type conversion when working with state data from Home Assistant.
+The **StateRegistry** maps Home Assistant domains (like `light`, `sensor`, `switch`) to Pydantic state model classes, so raw dictionaries from HA become typed Python objects automatically. If you haven't defined a [custom state class](custom-states.md) yet, that page covers the basics of creating one.
 
 ## When Do I Need This?
 
@@ -17,7 +14,7 @@ You need this page when:
 
 ## What is the State Registry?
 
-When Home Assistant sends state change events, the state data arrives as untyped dictionaries. The StateRegistry allows Hassette to automatically convert these dictionaries into typed Pydantic models based on the entity's domain:
+When Home Assistant sends state change events, the state data arrives as untyped dictionaries. The StateRegistry converts these dictionaries into typed Pydantic models based on the entity's domain:
 
 ```python
 --8<-- "pages/advanced/snippets/state-registry/raw_data_example.py"
@@ -46,7 +43,7 @@ When you need to convert state data, the registry provides lookup functions:
 
 ## Relationship with TypeRegistry
 
-The StateRegistry and [TypeRegistry](type-registry.md) work together to provide complete type conversion for Home Assistant state data:
+The StateRegistry and [TypeRegistry](type-registry.md) handle different parts of type conversion for Home Assistant state data:
 
 - **StateRegistry** → Determines which state model class to use based on domain
 - **TypeRegistry** → Converts raw values to proper Python types during model validation
@@ -87,16 +84,12 @@ This means when you work with state models, numeric values, booleans, and dateti
 
 ### Why Two Registries?
 
-**Separation of Concerns:**
+Each registry answers a different question:
 
 - StateRegistry: **"What model class?"** (domain → model mapping)
 - TypeRegistry: **"What type?"** (value → type conversion)
 
-This separation allows:
-
-1. StateRegistry to focus on domain logic and model selection
-2. TypeRegistry to be reused throughout the framework (DI system, custom extractors, etc.)
-3. Easy extension of either system independently
+Splitting them means the TypeRegistry can be reused throughout the framework (DI system, custom extractors) and you can extend either one without touching the other.
 
 **Example Benefits:**
 ```python
@@ -124,7 +117,7 @@ The `try_convert_state` method:
 
 ### Via Dependency Injection
 
-The StateRegistry integrates seamlessly with [dependency injection](../core-concepts/bus/dependency-injection.md):
+The StateRegistry works with [dependency injection](../core-concepts/bus/dependency-injection.md) automatically:
 
 ```python
 --8<-- "pages/advanced/snippets/state-registry/di_integration.py"
@@ -212,10 +205,9 @@ The StateRegistry can be imported from Hassette directly:
 --8<-- "pages/advanced/snippets/state-registry/accessing_registry.py"
 ```
 
-In apps, you typically don't need direct access - the DI system and API methods handle conversions automatically.
+In apps, you don't need direct access — the DI system and API methods handle conversions for you.
 
 If you do need to access it, it is accessible through `self.hassette.state_registry`.
-
 
 ## See Also
 

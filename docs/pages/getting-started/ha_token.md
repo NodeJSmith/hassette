@@ -22,17 +22,15 @@ Long-lived access tokens belong to your Home Assistant user account and grant th
 
    ![Copy Long-Lived Access Token](../../_static/ha-copy-token.png)
 
-#### Save the token somewhere safe, such as in a password manager, as you'll need it to configure Hassette.
-
 ## What to do with the token
 
-Once you have the token, add it to `config/.env`:
+Add it to `config/.env`:
 
 ```bash
 --8<-- "pages/getting-started/snippets/env_token.sh"
 ```
 
-See the [Quickstart](index.md) guide for the full configuration steps.
+The [Quickstart](index.md) guide covers the rest of the configuration.
 
 !!! warning "Keep your token secret"
     The token has the same permissions as your Home Assistant user account. Never commit it to version control or share it publicly. If a token is exposed, revoke it immediately from the same Security tab and generate a new one.

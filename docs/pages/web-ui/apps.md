@@ -65,8 +65,8 @@ Select a status to narrow the table to only apps in that state. The available op
 - **failed** — apps that have encountered an unhandled error
 - **stopped** — apps manually stopped via the UI or API
 - **disabled** — apps disabled in `hassette.toml`
-- **blocked** — apps waiting for a dependency to become ready (typically resolves automatically
-  at startup)
+- **blocked** — apps waiting for a dependency to become ready (resolves automatically
+  at startup once the dependency is available)
 
 Options with a count of zero are hidden from the popover.
 

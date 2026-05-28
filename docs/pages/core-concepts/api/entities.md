@@ -1,6 +1,6 @@
 # Retrieving Entities & States
 
-The API allows you to retrieve the current state of any entity in Home Assistant.
+Use the API to retrieve the current state of any entity in Home Assistant.
 
 ## Terminology
 
@@ -52,7 +52,7 @@ Entities wrap the state object. Currently `BaseEntity` and `LightEntity` are ava
 
 ## API vs StateManager
 
-The API methods above fetch states directly from Home Assistant over the network. For most use cases, prefer `self.states` instead — it provides instant, synchronous access from a local cache:
+The API methods above fetch states directly from Home Assistant over the network. Prefer `self.states` instead — it gives you instant, synchronous access from a local cache:
 
 - `self.states.light["kitchen"]` — Domain-specific typed access
 - `self.states.get("light.kitchen")` — Direct lookup by entity ID, no `await` needed
@@ -61,7 +61,7 @@ The API methods above fetch states directly from Home Assistant over the network
 
     When you know the domain at write time, use `self.states.light` instead of `self.states.get()`. Domain access returns fully typed state objects (e.g., `LightState`) with autocomplete for domain-specific attributes. `get()` returns `BaseState | None`, so you lose attribute-level type safety.
 
-Use the API when you need guaranteed fresh data from Home Assistant. For most other cases, `self.states` provides a more efficient and convenient way to access state information.
+Use the API when you need guaranteed fresh data from Home Assistant — otherwise, `self.states` is faster and simpler.
 
 See [States](../states/index.md) for full details.
 

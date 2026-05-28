@@ -492,16 +492,7 @@ When a `Service` transitions to FAILED, `ServiceWatcher` reads that service's `r
 **Usage:**
 
 ```python
-from hassette.resources.base import Service, RestartSpec
-from hassette.types.enums import RestartType
-
-class MyService(Service):
-    restart_spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=3,
-        budget_period_seconds=120,
-        fatal_error_names=("SchemaVersionError",),
-    )
+--8<-- "pages/core-concepts/snippets/internals_restart_spec.py"
 ```
 
 #### RestartType

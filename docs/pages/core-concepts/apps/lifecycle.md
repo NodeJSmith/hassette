@@ -1,12 +1,12 @@
 # App Lifecycle
 
-Every app follows a structured lifecycle with clear startup and shutdown phases. Hassette ensures that all resources are managed automatically, so you can focus on your automation logic.
+Every app goes through startup and shutdown phases. You don't need to manage resources yourself — Hassette handles that, so you can focus on your automation logic.
 
 ## Initialization
 
 During startup, Hassette transitions the app through `STARTING → RUNNING`.
 
-Hassette ensures that all core services (API, Bus, Scheduler) are fully ready before calling your initialization hooks.
+All core services (API, Bus, Scheduler) are fully ready before your initialization hooks run.
 
 The initialization hooks are called in this order:
 
@@ -41,7 +41,7 @@ After the shutdown hooks run, Hassette automatically performs cleanup:
 - Cancels all scheduled jobs created by `self.scheduler`.
 - Cancels any background tasks tracked by the app.
 
-This means you generally do **not** need to manually unsubscribe or cancel jobs in `on_shutdown`. Only implement shutdown logic if you have allocated external resources (like opening a file or a raw socket).
+This means you do **not** need to manually unsubscribe or cancel jobs in `on_shutdown`. Only implement shutdown logic if you have allocated external resources (like opening a file or a raw socket).
 
 !!! warning
     **Do not override** `initialize`, `shutdown`, or `cleanup` methods directly. These are internal methods that manage resource setup, lifecycle ordering, and teardown — they are marked final to prevent accidental overrides that could break the resource contract.

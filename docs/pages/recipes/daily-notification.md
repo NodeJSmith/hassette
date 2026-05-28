@@ -32,23 +32,13 @@ daily_notification:
 **Include sensor data** — Fetch a sensor value before sending:
 
 ```python
-async def send_notification(self) -> None:
-    temp_state = await self.api.get_state("sensor.outdoor_temperature")
-    message = f"Good morning! It's {temp_state.state}° outside."
-    await self.api.call_service(
-        "notify",
-        self.app_config.notify_service,
-        message=message,
-        title="Daily Reminder",
-    )
+--8<-- "pages/recipes/snippets/daily_notification_handler.py:send_notification"
 ```
 
 **Weekdays only** — Swap `run_daily` for `run_cron` to skip weekends:
 
 ```python
-# Parse the "HH:MM" config value into a cron expression
-h, m = self.app_config.notify_time.split(":")
-self.scheduler.run_cron(self.send_notification, f"{m} {h} * * 1-5")
+--8<-- "pages/recipes/snippets/daily_notification_handler.py:cron_parse"
 ```
 
 ## See Also

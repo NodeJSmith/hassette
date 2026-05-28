@@ -176,7 +176,7 @@ For the service restart layer behavior, see [Service Supervision](../internals.m
 
 ### Timeouts
 
-Hassette enforces execution timeouts on scheduled jobs and event handlers to prevent runaway tasks from blocking the system. Two global config fields control the defaults:
+Hassette enforces execution timeouts on scheduled jobs and event handlers to prevent runaway tasks from blocking your apps. Two global config fields control the defaults:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
@@ -264,7 +264,7 @@ Filter out noisy events at the bus level before they reach your apps.
 |---------|-------|------|---------|-------------|
 | `autodetect` | `[hassette.apps]` | boolean | `true` | Automatically discover apps in the app directory. |
 | `run_app_precheck` | `[hassette]` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
-| `allow_startup_if_app_precheck_fails` | `[hassette]` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
+| `allow_startup_if_app_precheck_fails` | `[hassette]` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Not recommended — failed prechecks usually indicate broken apps that will crash at runtime. |
 | `extend_exclude_dirs` | `[hassette.apps]` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `exclude_dirs`** — it adds to the defaults rather than replacing them. |
 | `exclude_dirs` | `[hassette.apps]` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
 

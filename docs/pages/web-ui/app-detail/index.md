@@ -1,13 +1,7 @@
 # App Detail
 
-The App Detail page gives you a focused view of a single app — its health, handlers, source
-code, logs, and configuration. You reach it by clicking any app key in the
-[Apps page](../apps.md) or in the sidebar.
-
-The page is divided into tabs. Each tab addresses one concern: the overview tab for at-a-glance
-health monitoring, the handlers tab for drill-down into individual handlers and jobs, the code
-tab for viewing the source file, the logs tab for per-app log entries, and the config tab for
-the app's current configuration.
+Click any app key in the [Apps page](../apps.md) or sidebar to open its detail view — health,
+handlers, source code, logs, and configuration, organized into five tabs.
 
 ## Breadcrumb
 

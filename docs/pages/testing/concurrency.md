@@ -30,7 +30,7 @@ If you run pytest sequentially (no `-n` flag), you do not need this marker.
 
 ## pytest-asyncio Mode
 
-See [Installation](index.md#installation) on the Quick Start page for the required `asyncio_mode = "auto"` configuration and the false-green warning.
+The `asyncio_mode = "auto"` setting is required — without it, async tests silently pass without running. See [Installation](index.md#installation) for setup and the false-green warning.
 
 ## `DrainFailure` Exception Hierarchy
 

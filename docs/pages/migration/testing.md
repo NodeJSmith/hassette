@@ -27,13 +27,7 @@ asyncio_mode = "auto"
 Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward will overwrite the simulated state with the seeded value, silently corrupting subsequent reads.
 
 ```python
-# Correct: seed first, simulate second
-await harness.set_state("binary_sensor.motion", "off")
-await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
-
-# Wrong: set_state() after simulate_state_change() overwrites the simulated state
-await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
-await harness.set_state("binary_sensor.motion", "off")  # clobbers the simulated state
+--8<-- "pages/migration/snippets/testing_seed_order.py"
 ```
 
 ## Full Reference

@@ -22,16 +22,7 @@ The primary entry point for scheduling. All convenience methods delegate here. U
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
 ```python
-from hassette.scheduler import Every, Daily, Cron
-
-# Fixed interval
-job = self.scheduler.schedule(self.check_sensors, Every(minutes=5))
-
-# Daily at a specific time
-job = self.scheduler.schedule(self.morning_routine, Daily(at="07:00"), group="morning")
-
-# Cron expression
-job = self.scheduler.schedule(self.workday_task, Cron("0 9 * * 1-5"))
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_schedule_examples.py"
 ```
 
 ---
@@ -201,19 +192,7 @@ Run on a schedule defined by a cron expression. Accepts both 5-field (standard U
 Schedule related jobs into a named group for bulk management. Pass `group=` to any scheduling method or to `schedule()` directly.
 
 ```python
-class MorningApp(App[AppConfig]):
-    async def on_initialize(self):
-        self.scheduler.run_daily(self.open_blinds, at="08:00", group="morning")
-        self.scheduler.run_daily(self.play_music, at="08:05", group="morning")
-        self.scheduler.run_daily(self.start_coffee, at="08:10", group="morning")
-
-    async def on_vacation_start(self):
-        # Cancel all morning jobs at once
-        self.scheduler.cancel_group("morning")
-
-    async def open_blinds(self): ...
-    async def play_music(self): ...
-    async def start_coffee(self): ...
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_groups.py"
 ```
 
 | Method | Description |
@@ -228,10 +207,7 @@ class MorningApp(App[AppConfig]):
 Add random offset to a job's enqueue time with the `jitter=` parameter. This spreads out jobs that would otherwise fire at the exact same instant — useful for avoiding thundering-herd scenarios when many apps schedule work at the same wall-clock time.
 
 ```python
-from hassette.scheduler.triggers import Daily
-
-# Spread the actual fire time by up to 30 seconds
-self.scheduler.schedule(self.check_sensors, Daily(at="06:00"), jitter=30)
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_jitter.py:jitter"
 ```
 
 Jitter is applied to the heap sort index only — the logical `next_run` timestamp remains unjittered. This means the trigger's interval grid is not affected by jitter, only the order in which co-scheduled jobs are dispatched.
@@ -264,7 +240,7 @@ Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_ch
 
 ## Passing Arguments to Handlers
 
-All scheduling methods accept `args` and `kwargs` to pass data to the scheduled handler at call time. This avoids capturing mutable state in closures.
+All scheduling methods accept `args` and `kwargs` to pass data to the scheduled handler at call time, so you avoid capturing mutable state in closures.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_args_kwargs.py"
@@ -274,44 +250,16 @@ All scheduling methods accept `args` and `kwargs` to pass data to the scheduled 
 
 ## Custom Triggers
 
-You can create your own trigger by implementing the `TriggerProtocol`. This is useful for scheduling patterns not covered by the built-in triggers — for example, polling based on solar elevation.
+Implement `TriggerProtocol` to handle scheduling patterns the built-in triggers don't cover — for example, polling based on solar elevation.
 
 ```python
-from typing import Literal
-from whenever import ZonedDateTime
-
-from hassette.scheduler import TriggerProtocol
-
-
-class SolarPollTrigger:
-    """Polls on a fixed interval for use with elevation-based logic in the callback."""
-
-    def __init__(self, check_every: int = 60):
-        self.check_every = check_every
-
-    def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        return current_time.add(seconds=self.check_every)
-
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        return current_time.add(seconds=self.check_every)
-
-    def trigger_label(self) -> str:
-        return f"solar_poll (every {self.check_every}s)"
-
-    def trigger_detail(self) -> str | None:
-        return f"every {self.check_every}s"
-
-    def trigger_db_type(self) -> Literal["interval", "cron", "once", "after", "custom"]:
-        return "custom"
-
-    def trigger_id(self) -> str:
-        return f"solar_poll:{self.check_every}"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_custom_trigger.py:trigger_class"
 ```
 
 Use it with `schedule()`:
 
 ```python
-self.scheduler.schedule(self.check_sun_elevation, SolarPollTrigger(check_every=30))
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_custom_trigger.py:trigger_usage"
 ```
 
 The `TriggerProtocol` requires six methods:

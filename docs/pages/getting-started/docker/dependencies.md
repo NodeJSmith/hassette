@@ -4,7 +4,7 @@ This guide explains how to install Python packages for your Hassette apps when r
 
 ## Overview
 
-Hassette's Docker startup script installs project dependencies automatically and optionally discovers `requirements.txt` files when enabled. It supports two methods:
+Hassette's Docker startup script installs project dependencies automatically and optionally discovers `requirements.txt` files when enabled. Two methods are available:
 
 1. **Project-based** — using `pyproject.toml` and `uv.lock` (recommended for complex projects)
 2. **Requirements files** — using `requirements.txt` (simple approach, opt-in)
@@ -23,7 +23,7 @@ When the container starts, the [startup script](https://github.com/NodeJSmith/ha
 
 ### Key Behaviors
 
-1. **Export-then-install**: When a `uv.lock` is found, the startup script exports your resolved dependencies to a temporary requirements file and installs them through the constraints file. This routes all dependency resolution through a single enforcement point rather than bypassing constraints.
+1. **Export-then-install**: When a `uv.lock` is found, the startup script exports your resolved dependencies to a temporary requirements file and installs them through the constraints file. This routes all dependency resolution through the constraints file rather than bypassing it.
 2. **Opt-in requirements discovery**: `requirements.txt` files are only discovered when `HASSETTE__INSTALL_DEPS=1` is set. By default, no requirements files are scanned.
 3. **Exact filename match**: Only files named exactly `requirements.txt` are discovered — not `requirements-dev.txt`, `requirements_test.txt`, or other variants. This prevents dev and test dependencies from being silently installed in the production container.
 4. **Constraints protection for all installs**: Every `uv pip install` — whether from a project lockfile or a `requirements.txt` — passes `-c /app/constraints.txt`. Conflicts produce a clear error message before the container exits.
@@ -147,7 +147,7 @@ The `uv_cache` Docker volume caches downloaded packages. Combined with `uv.lock`
 
 ### Pre-building a Custom Image
 
-For the fastest startup times, build a custom image with your dependencies pre-installed. Use the export-then-install pattern to ensure constraints are respected:
+For the fastest startup times, build a custom image with your dependencies pre-installed. Use the export-then-install pattern so the constraints file is still enforced:
 
 ```dockerfile
 --8<-- "pages/getting-started/docker/snippets/custom-image.dockerfile"

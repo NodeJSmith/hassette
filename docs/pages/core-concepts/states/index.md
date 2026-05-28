@@ -31,7 +31,7 @@ flowchart TD
 
 ## Using the StateManager
 
-Whenever possible you should use `self.states` over making API calls to read entity states. This provides:
+Use `self.states` instead of API calls to read entity states. It gives you:
 
 - **Speed**: Instant access from local memory.
 - **Simplicity**: Synchronous access without `await`.
@@ -102,9 +102,7 @@ Every domain accessor (e.g., `self.states.light`) returns a `DomainStates` objec
 Hassette ships typed state classes for every standard Home Assistant domain. Import them from `hassette.models.states` (or via the `states` alias imported from `hassette`):
 
 ```python
-from hassette import states
-
-# e.g. states.LightState, states.SunState, states.BinarySensorState
+--8<-- "pages/core-concepts/snippets/states_import.py"
 ```
 
 ??? info "Full list of built-in state classes"
