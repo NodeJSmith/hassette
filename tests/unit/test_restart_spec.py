@@ -2,7 +2,7 @@
 
 import pytest
 
-from hassette.resources.base import RestartSpec
+from hassette.resources.restart import RestartSpec
 from hassette.types.enums import RestartType
 
 

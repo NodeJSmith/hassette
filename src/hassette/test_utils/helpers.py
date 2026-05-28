@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict
-    from hassette.resources.base import Service
+    from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})

@@ -473,7 +473,7 @@ When a `Service` transitions to FAILED, `ServiceWatcher` reads that service's `r
 
 #### RestartSpec
 
-`RestartSpec` is a frozen dataclass in `hassette.resources.base`:
+`RestartSpec` is a frozen dataclass in `hassette.resources.restart`:
 
 | Field | Type | Default | Description |
 |---|---|---|---|

@@ -10,7 +10,9 @@ from hassette.event_handling.accessors import get_path
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE

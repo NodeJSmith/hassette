@@ -25,7 +25,9 @@ from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent, HassetteInvocationCompletedEvent
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.types.enums import RestartType, Topic

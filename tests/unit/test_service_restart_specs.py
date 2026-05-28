@@ -14,7 +14,7 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
-from hassette.resources.base import RestartSpec
+from hassette.resources.restart import RestartSpec
 from hassette.types.enums import RestartType
 
 ALL_SERVICES = [

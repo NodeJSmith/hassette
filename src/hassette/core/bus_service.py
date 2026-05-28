@@ -14,7 +14,8 @@ from hassette.core.registration_tracker import RegistrationTracker
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
@@ -27,6 +28,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
     from hassette.events.hass.raw import HassStateDict
+    from hassette.resources.base import Resource
 
 _DISPATCH_STABILITY_SLEEP = 0.005
 _DISPATCH_IDLE_DEFAULT_TIMEOUT = 2.0

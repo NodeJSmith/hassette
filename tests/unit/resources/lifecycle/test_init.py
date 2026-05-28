@@ -23,7 +23,9 @@ import pytest
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.core.scheduler_service import _ScheduledJobQueue
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus

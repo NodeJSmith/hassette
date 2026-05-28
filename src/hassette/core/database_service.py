@@ -16,7 +16,8 @@ from sqlalchemy import create_engine
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import SchemaVersionError
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 

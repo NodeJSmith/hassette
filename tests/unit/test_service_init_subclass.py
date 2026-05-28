@@ -5,7 +5,8 @@ from abc import abstractmethod
 
 import pytest
 
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 
 
 class TestServiceSubclassWarning:

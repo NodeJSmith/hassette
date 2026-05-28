@@ -2,7 +2,9 @@
 
 import asyncio
 
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from tests.unit.resources.conftest import ConcreteResource
 
 __all__ = [

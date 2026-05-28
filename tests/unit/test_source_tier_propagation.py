@@ -14,7 +14,8 @@ from unittest.mock import Mock
 import pytest
 
 from hassette.app.app import App, AppSync
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource
+from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
 

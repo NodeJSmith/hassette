@@ -31,7 +31,8 @@ from hassette.exceptions import (
     InvalidLifecycleTransitionError,
     RetryableConnectionClosedError,
 )
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE

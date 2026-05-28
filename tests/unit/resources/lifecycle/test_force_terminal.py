@@ -18,7 +18,9 @@ from unittest.mock import MagicMock
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette, wait_for
