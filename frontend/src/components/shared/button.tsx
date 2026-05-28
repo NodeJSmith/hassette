@@ -12,8 +12,7 @@ interface ButtonProps extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 
   ghost?: boolean;
   icon?: boolean;
   class?: string;
-  /** Callback ref for accessing the underlying <button> DOM element. */
-  buttonRef?: (el: HTMLButtonElement | null) => void;
+  buttonRef?: preact.Ref<HTMLButtonElement>;
 }
 
 export function Button({

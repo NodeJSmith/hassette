@@ -43,10 +43,10 @@ export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${
 export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
 export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
-  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, signal ? { signal } : undefined);
+  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, { signal });
 
 export const getAppSource = (appKey: string, signal?: AbortSignal) =>
-  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, signal ? { signal } : undefined);
+  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, { signal });
 
 // ---- Telemetry ----
 
@@ -58,13 +58,13 @@ export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number |
 export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }),
-    signal ? { signal } : undefined,
+    { signal },
   );
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }),
-    signal ? { signal } : undefined,
+    { signal },
   );
 
 export const getAppActivity = (
@@ -76,7 +76,7 @@ export const getAppActivity = (
 ) =>
   apiFetch<ActivityFeedEntryData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
-    signal ? { signal } : undefined,
+    { signal },
   );
 
 export const getHandlerInvocations = (
@@ -85,30 +85,21 @@ export const getHandlerInvocations = (
   since?: number | null,
   signal?: AbortSignal,
 ) =>
-  apiFetch<HandlerInvocationData[]>(
-    buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }),
-    signal ? { signal } : undefined,
-  );
+  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }), {
+    signal,
+  });
 
 export const getJobExecutions = (
   jobId: number,
   limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
-) =>
-  apiFetch<JobExecutionData[]>(
-    buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }),
-    signal ? { signal } : undefined,
-  );
+) => apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }), { signal });
 
 export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(
-    buildUrl("/telemetry/dashboard/app-grid", { since }),
-    signal ? { signal } : undefined,
-  );
+  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });
 
-export const getTelemetryStatus = (signal?: AbortSignal) =>
-  apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
+export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetryStatus>("/telemetry/status", { signal });
 
 // ---- System config ----
 
@@ -141,7 +132,7 @@ export const getRecentLogs = (
       execution_id: params?.execution_id,
       source_tier: params?.source_tier,
     }),
-    signal ? { signal } : undefined,
+    { signal },
   );
 
 export const getLogsByExecution = (executionId: string, limit?: number) =>
@@ -153,12 +144,12 @@ export const setLogLevel = (logger: string, level: string) =>
 // ---- Bus ----
 
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
-  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), signal ? { signal } : undefined);
+  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
 
 // ---- Scheduler (global) ----
 
 export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
-  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), signal ? { signal } : undefined);
+  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), { signal });
 
 // ---- System status ----
 

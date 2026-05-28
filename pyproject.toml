@@ -9,6 +9,7 @@ description = "Hassette is a simple, modern, async-first Python framework for bu
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.14"
 keywords = [
     "home-assistant",
@@ -22,7 +23,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -40,7 +40,8 @@ dependencies = [
     "alembic>=1.13",
     "anyio>=4.10.0",
     "structlog>=24.4",
-    "fastapi>=0.128.6",
+    "fastapi>=0.134.0",
+    "starlette>=1.0.1",  # explicit floor for CVE-2026-48710 fix
     "croniter>=6.0.0",
     "deepdiff>=8.6.1",
     "diskcache>=5.6.3",
