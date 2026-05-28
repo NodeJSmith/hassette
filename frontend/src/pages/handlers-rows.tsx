@@ -80,12 +80,8 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       </td>
       <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
       <td class="ht-text-mono ht-text-sm">{row.runs}</td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>
-        {row.failed > 0 ? row.failed : "—"}
-      </td>
-      <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>
-        {row.timed_out > 0 ? row.timed_out : "—"}
-      </td>
+      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
+      <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
       <td class="ht-text-mono ht-text-sm">{avgDur}</td>
       <td class={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>

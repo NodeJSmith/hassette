@@ -18,11 +18,13 @@ export function AppTableRow({
   liveStatus,
   isExpanded,
   onToggle,
+  muteStatus = false,
 }: {
   app: AppRow;
   liveStatus?: string;
   isExpanded: boolean;
   onToggle: () => void;
+  muteStatus?: boolean;
 }) {
   const [errorExpanded, setErrorExpanded] = useState(false);
   const showErrorExpanded = errorExpanded && !!app.error_message;
@@ -61,7 +63,7 @@ export function AppTableRow({
                 </button>
               )}
             </span>
-            <StatusShape kind={kind} size={7} />
+            <StatusShape kind={kind} size={7} muted={muteStatus} />
             <AppLink appKey={app.app_key} />
             <span class={styles.className}>{app.class_name}</span>
             {app.auto_loaded && <Chip variant="muted">auto</Chip>}
@@ -134,7 +136,7 @@ export function AppTableRow({
               <td class={styles.nameCell}>
                 <div class={styles.nameCellInner}>
                   <span class={styles.instanceCorner}>└</span>
-                  <StatusShape kind={instKind} size={6} />
+                  <StatusShape kind={instKind} size={6} muted={muteStatus} />
                   <AppLink appKey={app.app_key} instanceIndex={inst.index}>
                     {inst.instance_name}
                   </AppLink>

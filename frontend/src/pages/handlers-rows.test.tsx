@@ -104,11 +104,11 @@ describe("HandlerTableRow", () => {
     expect(failedCell).toBeDefined();
   });
 
-  it("shows '—' for failed when failed is 0", () => {
+  it("shows 0 for failed when failed is 0", () => {
     const { container } = renderTableRow(createRow({ failed: 0 }));
     // 6th td (index 5) is the failed cell
     const tds = container.querySelectorAll("td");
-    expect(tds[5].textContent).toBe("—");
+    expect(tds[5].textContent).toBe("0");
   });
 
   it("shows timed_out with warning class when timed_out > 0", () => {
@@ -118,11 +118,11 @@ describe("HandlerTableRow", () => {
     expect(warningCell?.textContent).toBe("3");
   });
 
-  it("shows '—' for timed_out when timed_out is 0", () => {
+  it("shows 0 for timed_out when timed_out is 0", () => {
     const { container } = renderTableRow(createRow({ timed_out: 0 }));
     // 7th td (index 6) is the timed_out cell
     const tds = container.querySelectorAll("td");
-    expect(tds[6].textContent).toBe("—");
+    expect(tds[6].textContent).toBe("0");
   });
 
   it("shows error rate via formatRate", () => {

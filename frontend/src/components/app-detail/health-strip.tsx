@@ -22,7 +22,7 @@ export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProp
     { label: isSmallMobile ? "Calls" : "Invocations", value: totalAll },
     {
       label: "Success Rate",
-      value: totalAll > 0 ? `${successRate}%` : "—",
+      value: totalAll > 0 ? `${successRate}%` : "0%",
       tone: totalErrors > 0 ? "warn" : undefined,
     },
   ];
@@ -30,18 +30,18 @@ export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProp
   if (isSmallMobile) {
     cells.push({
       label: "Errors",
-      value: totalErrors > 0 ? totalErrors : "—",
+      value: totalErrors,
       tone: totalErrors > 0 ? "err" : undefined,
     });
   } else {
     cells.push({
       label: "Failed",
-      value: totalFailed > 0 ? totalFailed : "—",
+      value: totalFailed,
       tone: totalFailed > 0 ? "err" : undefined,
     });
     cells.push({
       label: "Timed Out",
-      value: totalTimedOut > 0 ? totalTimedOut : "—",
+      value: totalTimedOut,
       tone: totalTimedOut > 0 ? "warn" : undefined,
     });
   }

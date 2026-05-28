@@ -46,6 +46,7 @@ ALLOWLIST: list[str] = [
     "ht-section-label",
     # Table infrastructure
     "ht-table-card-scroll",
+    "ht-table-section",
     # Utilities (text)
     "ht-text-",
     # Utilities (display)

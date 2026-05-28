@@ -7,7 +7,6 @@
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   overflow: hidden;
-  margin-bottom: var(--sp-4);
 }
 
 .cell {
@@ -28,8 +27,9 @@
   align-items: baseline;
   gap: var(--sp-1h);
   margin-top: var(--sp-0);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-stat);
+  font-weight: var(--fw-medium);
   line-height: 1.1;
   color: var(--ink-1);
 }
@@ -45,6 +45,11 @@
 }
 .valueMute {
   color: var(--ink-3);
+}
+
+.zeroCell .label,
+.zeroCell .value {
+  color: var(--ink-4);
 }
 
 @media screen and (max-width: 768px) {

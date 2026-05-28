@@ -177,6 +177,9 @@ export function AppsPage() {
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
 
+  const uniqueStatuses = Object.keys(statusCounts);
+  const allSameStatus = uniqueStatuses.length === 1;
+
   const clearFilters = () => qp.set({ filter: null, search: null });
 
   const columnFilters: ColumnFilters = {
@@ -250,70 +253,71 @@ export function AppsPage() {
         <h1 class="ht-display">apps</h1>
       </div>
 
-      {/* Stats strip */}
-      <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
-
-      {searchInput}
-      <TableCard footer={footer}>
-        {filtered.length === 0 ? (
-          <EmptyState title={emptyStateTitle}>
-            {(filter !== "all" || q) && (
-              <Button ghost size="sm" onClick={clearFilters}>
-                clear filters
-              </Button>
-            )}
-          </EmptyState>
-        ) : (
-          <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
-            <colgroup>
-              <col style="width: 35%" />
-              <col style="width: 12%" />
-              <col style="width: 22%" />
-              <col style="width: 10%" />
-              <col style="width: 11%" />
-              <col style="width: 10%" />
-            </colgroup>
-            <thead>
-              <tr>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="name">
-                  app
-                </SortHeader>
-                <SortHeader
-                  sort={sort}
-                  onSort={handleSort}
-                  sortKey="status"
-                  ariaLabel="status"
-                  filterContent={columnFilters.status.content}
-                  hasActiveFilter={columnFilters.status.active}
-                >
-                  status
-                </SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="error">
-                  last error
-                </SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
-                  runs
-                </SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="last">
-                  last fired
-                </SortHeader>
-                <th scope="col">actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((app) => (
-                <AppTableRow
-                  key={app.app_key}
-                  app={app}
-                  liveStatus={appStatus.value[app.app_key]?.status}
-                  isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
-                  onToggle={() => toggleExpand(app.app_key)}
-                />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </TableCard>
+      <div class="ht-table-section">
+        <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
+        {searchInput}
+        <TableCard footer={footer}>
+          {filtered.length === 0 ? (
+            <EmptyState title={emptyStateTitle}>
+              {(filter !== "all" || q) && (
+                <Button ghost size="sm" onClick={clearFilters}>
+                  clear filters
+                </Button>
+              )}
+            </EmptyState>
+          ) : (
+            <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
+              <colgroup>
+                <col style="width: 35%" />
+                <col style="width: 12%" />
+                <col style="width: 22%" />
+                <col style="width: 10%" />
+                <col style="width: 11%" />
+                <col style="width: 10%" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                    app
+                  </SortHeader>
+                  <SortHeader
+                    sort={sort}
+                    onSort={handleSort}
+                    sortKey="status"
+                    ariaLabel="status"
+                    filterContent={columnFilters.status.content}
+                    hasActiveFilter={columnFilters.status.active}
+                  >
+                    status
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={handleSort} sortKey="error">
+                    last error
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                    runs
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={handleSort} sortKey="last">
+                    last fired
+                  </SortHeader>
+                  <th scope="col">actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((app) => (
+                  <AppTableRow
+                    key={app.app_key}
+                    app={app}
+                    liveStatus={appStatus.value[app.app_key]?.status}
+                    isExpanded={app.instance_count > 1 && expanded.value.has(app.app_key)}
+                    onToggle={() => toggleExpand(app.app_key)}
+                    muteStatus={allSameStatus}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </TableCard>
+      </div>
     </div>
   );
 }

@@ -73,19 +73,21 @@ export function LogsPage() {
       <div class="ht-page-header">
         <h1 class="ht-display">logs</h1>
       </div>
-      {searchInput}
-      <TableCard footer={footer} data-testid="logs-card">
-        <LogTableWithDrawer drawerProps={log.drawerProps}>
-          {log.isEmpty ? (
-            <EmptyState
-              title="no log lines in window"
-              body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
-            />
-          ) : (
-            <LogTableView {...log.tableProps} />
-          )}
-        </LogTableWithDrawer>
-      </TableCard>
+      <div class="ht-table-section">
+        {searchInput}
+        <TableCard footer={footer} data-testid="logs-card">
+          <LogTableWithDrawer drawerProps={log.drawerProps}>
+            {log.isEmpty ? (
+              <EmptyState
+                title="no log lines in window"
+                body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
+              />
+            ) : (
+              <LogTableView {...log.tableProps} />
+            )}
+          </LogTableWithDrawer>
+        </TableCard>
+      </div>
     </div>
   );
 }

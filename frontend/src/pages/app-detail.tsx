@@ -4,7 +4,6 @@ import { useEffect } from "preact/hooks";
 import { Link, useLocation } from "wouter";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
-import { AppDetailBreadcrumb } from "../components/app-detail/app-detail-breadcrumb";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import { CodeTab } from "../components/app-detail/code-tab";
@@ -155,15 +154,8 @@ export function AppDetailPage({ params }: Props) {
 
   return (
     <div class="ht-page">
-      <AppDetailBreadcrumb
-        appKey={appKey}
-        isMultiInstance={isMultiInstance}
-        showParentOverview={showParentOverview}
-        instanceName={currentInstance?.instance_name ?? `Instance ${resolvedInstanceIndex}`}
-      />
-
-      {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
-        <div class="ht-mb-3">
+      <div class={styles.identity}>
+        {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
           <InstanceSwitcher
             instances={manifest.instances}
             currentIndex={resolvedInstanceIndex}
@@ -171,37 +163,38 @@ export function AppDetailPage({ params }: Props) {
               navigate(`/apps/${appKey}/${activeTab}?instance=${idx}`);
             }}
           />
+        )}
+
+        <AppDetailHeader
+          appKey={appKey}
+          liveStatus={liveStatus}
+          manifest={manifest}
+          currentInstance={currentInstance}
+          resolvedInstanceIndex={resolvedInstanceIndex}
+          showParentOverview={showParentOverview}
+        />
+
+        <div
+          class={styles.tabStrip}
+          role="tablist"
+          aria-label="App sections"
+          onKeyDown={(e: KeyboardEvent) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            e.preventDefault();
+            const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
+            const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
+            const next =
+              e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+            tabs[next]?.focus();
+            tabs[next]?.click();
+          }}
+        >
+          <Tab id="overview" label="overview" {...tabProps} />
+          {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
+          <Tab id="code" label="code" {...tabProps} />
+          <Tab id="logs" label="logs" {...tabProps} />
+          <Tab id="config" label="config" {...tabProps} />
         </div>
-      )}
-
-      <AppDetailHeader
-        appKey={appKey}
-        liveStatus={liveStatus}
-        manifest={manifest}
-        currentInstance={currentInstance}
-        resolvedInstanceIndex={resolvedInstanceIndex}
-        showParentOverview={showParentOverview}
-      />
-
-      <div
-        class={clsx(styles.tabStrip, "ht-mb-4")}
-        role="tablist"
-        aria-label="App sections"
-        onKeyDown={(e: KeyboardEvent) => {
-          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-          e.preventDefault();
-          const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
-          const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
-          const next = e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
-          tabs[next]?.focus();
-          tabs[next]?.click();
-        }}
-      >
-        <Tab id="overview" label="overview" {...tabProps} />
-        {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
-        <Tab id="code" label="code" {...tabProps} />
-        <Tab id="logs" label="logs" {...tabProps} />
-        <Tab id="config" label="config" {...tabProps} />
       </div>
 
       {activeTab === "overview" && (

@@ -1,5 +1,12 @@
 /* App detail page — component-scoped styles */
 
+/* — Page identity group (header + tabs) — */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
 /* — Tab panel (content below the tab strip) — */
 .tabPanel {
   display: flex;
@@ -180,47 +187,12 @@
   text-overflow: ellipsis;
 }
 
-/* — Breadcrumb (app detail only) — */
-
-.breadcrumb {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  margin-bottom: var(--sp-4);
-  background: var(--bg-chrome);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line-2);
-}
-
-.breadcrumb a {
-  color: var(--ink-3);
-  text-decoration: none;
-}
-
-.breadcrumb a:hover {
-  color: var(--ink-1);
-  text-decoration: underline;
-}
-
-.breadcrumbSeparator {
-  color: var(--ink-3);
-}
-
-.breadcrumbCurrent {
-  color: var(--ink-1);
-  font-weight: var(--fw-medium);
-}
-
 /* — Heading-4 (app detail only) — */
 
 .heading4 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-h2);
-  font-weight: var(--fw-normal);
+  font-weight: var(--fw-semibold);
   display: flex;
   align-items: center;
   gap: 0.35em;
