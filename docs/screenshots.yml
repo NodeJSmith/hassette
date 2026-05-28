@@ -32,9 +32,13 @@
 #   wait       Milliseconds to wait after page load before capturing.
 #              Default 2000ms gives fonts and async data time to settle.
 #
-#   wait_for   CSS selector to wait for before capturing. Required for
-#              elements that appear via async Preact state updates (e.g.,
-#              command palette, column picker popover, log drawer).
+#   wait_for   JavaScript expression that must evaluate to truthy before
+#              capturing. Passed to Playwright's page.waitForFunction()
+#              via shot-scraper. Required for elements that appear via
+#              async Preact state updates. Use
+#              document.querySelector('...') to wait for an element to
+#              exist. Note: wait_for is a pre-capture gate; selector is
+#              a post-capture crop. Both may reference the same element.
 #
 # Adding a new screenshot
 # -----------------------
@@ -129,7 +133,7 @@
   width: 1400
   height: 900
   wait: 2000
-  wait_for: "[data-testid='cmd-palette']"
+  wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
 
 - url: "http://localhost:{port}/logs"
@@ -138,7 +142,7 @@
   width: 1400
   height: 900
   wait: 2000
-  wait_for: "[data-testid='column-picker-popover']"
+  wait_for: "document.querySelector('[data-testid=\"column-picker-popover\"]')"
   javascript: "document.querySelector('[data-testid=\"column-picker\"]')?.click()"
 
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
@@ -156,12 +160,14 @@
   wait: 2000
   javascript: "const row = document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]'); if (row) { row.dataset.screenshotTarget = 'true'; row.scrollIntoView(); }"
 
-- url: "http://localhost:{port}/apps/motion_lights/overview"
+# instance=0 selects a specific instance so the switcher tab bar renders
+- url: "http://localhost:{port}/apps/motion_lights/overview?instance=0"
   output: docs/_static/web_ui_detail_instance_switcher.png
   selector: "[data-testid='instance-switcher']"
   width: 1400
   height: 900
   wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"instance-switcher\"]')"
 
 - url: "http://localhost:{port}/logs"
   output: docs/_static/web_ui_detail_log_drawer.png
@@ -169,5 +175,5 @@
   width: 1400
   height: 900
   wait: 2000
-  wait_for: "[data-testid='log-detail-drawer']"
+  wait_for: "document.querySelector('[data-testid=\"log-detail-drawer\"]')"
   javascript: "document.querySelector('tbody tr')?.click()"

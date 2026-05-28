@@ -1,7 +1,7 @@
 # Design: Automated Doc Screenshot Capture
 
 **Date:** 2026-05-27
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-05-21-automated-doc-screenshots/research.md
 
@@ -84,7 +84,7 @@ The screenshots are currently stale and have been through multiple releases. The
 
 - **Do not conflate with visual regression testing.** Screenshots should update when the UI changes, not fail. This is doc generation, not pixel-diff testing.
 - **Do not write per-screenshot Playwright scripts.** The YAML manifest pattern exists to avoid the anti-pattern of 14+ bespoke scripts that each handle different interactions (documented in research brief).
-- **Do not modify `scripts/hassette_demo.py`.** The wrapper script is a consumer of the demo environment, not a modifier. If the demo script needs changes, that is a separate issue.
+- **Minimize modifications to `scripts/hassette_demo.py`.** The wrapper script is a consumer of the demo environment, not a modifier. Changes to the demo script are acceptable only when the CLI interface it calls changes (e.g., the `hassette run` breaking change required adding the `run` subcommand).
 
 ## Dependencies and Assumptions
 
@@ -305,7 +305,7 @@ No tests to remove.
 
 ### Behavioral Invariants
 - Existing `docs/_static/web_ui_*.png` files must be reproducible — running the script should produce screenshots that match the current manual captures in content (not necessarily pixel-identical, but showing the same UI state and elements)
-- The demo environment (`scripts/hassette_demo.py`) must not be modified
+- The demo environment (`scripts/hassette_demo.py`) should not be modified beyond CLI interface sync (e.g., adding `run` subcommand after a breaking change)
 - E2e tests and their Playwright/Chromium setup must not be affected
 
 ### Blast Radius

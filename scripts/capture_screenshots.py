@@ -120,9 +120,14 @@ def main() -> None:
         sys.exit(1)
 
     demo_db = repo_root / ".demo-data" / "hassette.db"
-    if demo_db.exists():
-        demo_db.unlink()
-        print(f"Deleted stale demo DB: {demo_db}", flush=True)
+    deleted_files: list[str] = []
+    for suffix in ("", "-shm", "-wal"):
+        db_file = demo_db.with_name(demo_db.name + suffix)
+        if db_file.exists():
+            db_file.unlink()
+            deleted_files.append(db_file.name)
+    if deleted_files:
+        print(f"Cleaned stale demo DB files: {', '.join(deleted_files)}", flush=True)
 
     demo_script = repo_root / "scripts" / "hassette_demo.py"
     print("Starting demo environment...", flush=True)

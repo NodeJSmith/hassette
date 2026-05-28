@@ -311,7 +311,16 @@ def main() -> None:
     hassette_log = Path(_tmp_dir) / "hassette.log"
     _hassette_log_fh = hassette_log.open("w")  # closed in teardown()
     _hassette_proc = subprocess.Popen(
-        ["uv", "run", "python", "-m", "hassette", "--config-file", str(repo_root / "examples" / "hassette.toml")],
+        [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "hassette",
+            "--config-file",
+            str(repo_root / "examples" / "hassette.toml"),
+            "run",
+        ],
         env=hassette_env,
         cwd=str(repo_root),
         start_new_session=True,
