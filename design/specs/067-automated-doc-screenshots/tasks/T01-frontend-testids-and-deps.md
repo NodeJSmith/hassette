@@ -32,5 +32,5 @@ Make five small changes across the codebase:
 - The `pyproject.toml` uses `[dependency-groups]` (PEP 735), not `[project.optional-dependencies]` for the dev group.
 
 ## Verify
-- [ ] FR#4: `data-testid="log-detail-drawer"` exists on the `<aside>` in `log-detail-drawer.tsx`
-- [ ] AC#3: `data-testid="column-picker-popover"` exists on the popover `<div>` in `column-filter-popover/index.tsx`; `data-testid="handler-failed-count"` exists on the failed-count `<span>` in `unified-handler-row.tsx`
+- [ ] FR#4: `data-testid="log-detail-drawer"` exists on the `<aside>` in `log-detail-drawer.tsx`; `data-testid="column-picker-popover"` exists on the popover `<div>` in `column-filter-popover/index.tsx`; `data-testid="handler-failed-count"` exists on the failed-count `<span>` in `unified-handler-row.tsx`
+- [ ] AC#3: `grep 'shot-scraper' pyproject.toml` matches the dev dependency group; `grep 'failure_interval.*5.0' examples/demo_stimulator.py` matches the reduced interval

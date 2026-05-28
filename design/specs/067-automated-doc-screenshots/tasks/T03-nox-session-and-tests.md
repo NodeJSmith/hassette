@@ -46,4 +46,4 @@ This test verifies AC#6 — that the manifest is the single source of truth and 
 - The nox session goes near the other utility sessions (after `system` or `system_with_coverage`). Check `noxfile.py` for the exact insertion point.
 
 ## Verify
-- [ ] AC#6: The test validates that adding a new screenshot entry (with url, output, width) to the manifest is structurally valid without any script changes — the manifest schema is the contract, not the script logic
+- [ ] AC#6: `timeout 60 uv run pytest tests/unit/test_screenshot_manifest.py -v` exits 0; the test asserts 16 entries, all with `url`/`output`/`width` fields, no duplicate outputs, and `{port}` in every URL
