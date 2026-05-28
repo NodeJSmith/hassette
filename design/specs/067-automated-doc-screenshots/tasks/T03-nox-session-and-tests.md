@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add nox session and manifest validation test"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["AC#6"]
 ---

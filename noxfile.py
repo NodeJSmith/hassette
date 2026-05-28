@@ -102,6 +102,12 @@ def system(session: "Session"):
     _run_system_tests(session, marker="system_destructive")
 
 
+@nox.session(python=False)
+def screenshots(session: "Session"):
+    """Capture all documentation screenshots via the YAML manifest."""
+    session.run("uv", "run", "python", "scripts/capture_screenshots.py", external=True)
+
+
 @nox.session
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
