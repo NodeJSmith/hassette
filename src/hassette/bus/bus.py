@@ -90,6 +90,7 @@ from typing_extensions import Sentinel, TypedDict
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
+from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
@@ -141,12 +142,14 @@ class Bus(Resource):
         assert self.hassette._bus_service is not None, "Bus service not initialized"
         self.bus_service = self.hassette._bus_service
         self.priority = priority
-        self._registered_keys: set[tuple[str, int, str, str, str]] = set()
+        self._registered_keys: set[tuple[str, int, str, str]] = set()
+        self._registered_handler_names: dict[tuple[str, int, str, str], str] = {}
         self._error_handler: BusErrorHandlerType | None = None
 
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.
         self._registered_keys.clear()
+        self._registered_handler_names.clear()
         self._error_handler = None
         self.mark_ready(reason="Bus initialized")
 
@@ -188,44 +191,59 @@ class Bus(Resource):
         for ``Subscription.registration_task``.
 
         Raises:
-            ValueError: If the listener's natural key is already registered on this bus instance.
+            ListenerNameRequiredError: If the listener has no ``name`` (required for all DB-registered
+                listeners, including once-listeners; cancel-listeners bypass this path entirely).
+            DuplicateListenerError: If the listener's natural key is already registered on this bus instance.
         """
-        self.check_listener_collision(listener)
+        if listener.identity.name is None:
+            raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
+        self.register_and_check_collision(listener)
         self.bus_service.add_listener(listener)
 
-    def check_listener_collision(self, listener: "Listener") -> None:
-        """Raise ValueError if a non-once listener's natural key is already registered."""
+    def register_and_check_collision(self, listener: "Listener") -> None:
+        """Register a non-once listener's natural key, raising DuplicateListenerError on a same-session clash.
+
+        Mutates the per-bus key registry as a side effect — this is the single point where in-session
+        duplicate detection happens. Once-listeners are exempt and are not registered.
+        """
         if listener.options.once:
             return
         natural_key = self._listener_natural_key(listener)
         if natural_key in self._registered_keys:
-            key_str = natural_key[-1] or listener.identity.handler_name
-            raise ValueError(
-                f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
-                f"on topic '{listener.topic}' (key={key_str!r}). "
-                f"Add name= to disambiguate if intentional."
+            existing_handler = self._registered_handler_names.get(natural_key, "<unknown>")
+            raise DuplicateListenerError(
+                name=listener.identity.name or "",
+                topic=listener.topic,
+                existing_handler=existing_handler,
+                duplicate_handler=listener.identity.handler_name,
             )
         self._registered_keys.add(natural_key)
+        self._registered_handler_names[natural_key] = listener.identity.handler_name
 
-    def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
-        """Compute the natural key tuple for a listener (for collision tracking)."""
-        human_description = P.summarize_top_level(listener.predicate) if listener.predicate is not None else ""
+    def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str]:
+        """Compute the natural key tuple for a listener (for collision tracking).
+
+        CANONICAL form: ``(app_key, instance_index, name, topic)``.
+        Matches the SQL unique index defined in 001.sql and the repository upsert ON CONFLICT target.
+        """
         return (
             listener.identity.app_key,
             listener.identity.instance_index,
-            listener.identity.handler_name,
+            listener.identity.name or "",
             listener.topic,
-            listener.identity.name if listener.identity.name is not None else human_description,
         )
 
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus."""
-        self._registered_keys.discard(self._listener_natural_key(listener))
+        natural_key = self._listener_natural_key(listener)
+        self._registered_keys.discard(natural_key)
+        self._registered_handler_names.pop(natural_key, None)
         self.bus_service.remove_listener(listener)
 
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
         self._registered_keys.clear()
+        self._registered_handler_names.clear()
         self.bus_service.remove_listeners_by_owner(self.owner_id)
 
     def get_listeners(self) -> list["Listener"]:
@@ -328,6 +346,9 @@ class Bus(Resource):
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)
 
+        if name is None:
+            raise ListenerNameRequiredError(handler_method=handler_name, topic=topic)
+
         identity = ListenerIdentity(
             owner_id=self.owner_id,
             app_key=app_key,
@@ -368,7 +389,7 @@ class Bus(Resource):
             logger=self.logger,
         )
 
-        self.check_listener_collision(listener)
+        self.register_and_check_collision(listener)
 
         def unsubscribe() -> None:
             self.remove_listener(listener)
@@ -610,6 +631,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to service call events.
@@ -620,6 +643,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -643,6 +667,8 @@ class Bus(Resource):
             where=None,
             kwargs=kwargs,
             log_params={"domain": domain, "service": service, "where": where},
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -653,6 +679,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to component loaded events.
@@ -662,6 +690,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -681,6 +710,8 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"component": component, "where": where},
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -692,6 +723,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to service registered events.
@@ -702,6 +735,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -724,6 +758,8 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"domain": domain, "service": service, "where": where},
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -732,6 +768,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant restart events.
@@ -740,13 +777,14 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
-            domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, **opts
+            domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_homeassistant_start(
@@ -754,6 +792,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant start events.
@@ -762,13 +801,14 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
-            domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, **opts
+            domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_homeassistant_stop(
@@ -776,6 +816,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant stop events.
@@ -784,13 +825,14 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.on_call_service(
-            domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, **opts
+            domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_hassette_service_status(
@@ -800,6 +842,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service status events.
@@ -809,6 +853,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -828,6 +873,8 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"status": status, "where": where},
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -837,6 +884,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service failed events.
@@ -845,6 +893,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -852,7 +901,7 @@ class Bus(Resource):
         """
 
         return self.on_hassette_service_status(
-            status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, **opts
+            status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_hassette_service_crashed(
@@ -861,6 +910,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service crashed events.
@@ -869,6 +919,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -876,7 +927,7 @@ class Bus(Resource):
         """
 
         return self.on_hassette_service_status(
-            status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, **opts
+            status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_hassette_service_started(
@@ -885,6 +936,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service started events.
@@ -893,6 +945,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -900,7 +953,7 @@ class Bus(Resource):
         """
 
         return self.on_hassette_service_status(
-            status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, **opts
+            status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
     def on_websocket_connected(
@@ -909,6 +962,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to websocket connected events.
@@ -917,6 +971,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -924,7 +979,12 @@ class Bus(Resource):
         """
 
         return self.on(
-            topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED,
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            **opts,
         )
 
     def on_websocket_disconnected(
@@ -933,6 +993,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to websocket disconnected events.
@@ -941,6 +1002,7 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -948,7 +1010,12 @@ class Bus(Resource):
         """
 
         return self.on(
-            topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED, handler=handler, where=where, kwargs=kwargs, **opts
+            topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED,
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            **opts,
         )
 
     def on_app_state_changed(
@@ -959,6 +1026,8 @@ class Bus(Resource):
         status: ResourceStatus | None = None,
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instance state change events.
@@ -969,6 +1038,7 @@ class Bus(Resource):
             status: Filter events for a specific status.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -991,6 +1061,8 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"app_key": app_key, "status": status, "where": where},
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -1001,6 +1073,7 @@ class Bus(Resource):
         app_key: str | None = None,
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instances reaching RUNNING status.
@@ -1010,6 +1083,7 @@ class Bus(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -1017,7 +1091,13 @@ class Bus(Resource):
         """
 
         return self.on_app_state_changed(
-            handler=handler, app_key=app_key, status=ResourceStatus.RUNNING, where=where, kwargs=kwargs, **opts
+            handler=handler,
+            app_key=app_key,
+            status=ResourceStatus.RUNNING,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            **opts,
         )
 
     def on_app_stopping(
@@ -1027,6 +1107,7 @@ class Bus(Resource):
         app_key: str | None = None,
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        name: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instances entering STOPPING status.
@@ -1036,6 +1117,7 @@ class Bus(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Stable name for this listener. Required on all DB-registered listeners.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -1043,7 +1125,13 @@ class Bus(Resource):
         """
 
         return self.on_app_state_changed(
-            handler=handler, app_key=app_key, status=ResourceStatus.STOPPING, where=where, kwargs=kwargs, **opts
+            handler=handler,
+            app_key=app_key,
+            status=ResourceStatus.STOPPING,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            **opts,
         )
 
 

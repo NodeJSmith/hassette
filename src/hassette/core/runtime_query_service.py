@@ -109,27 +109,37 @@ class RuntimeQueryService(Resource):
             self.bus.on(
                 topic=Topic.HASS_EVENT_STATE_CHANGED,
                 handler=self._on_state_change,
+                name="hassette.rqs.on_state_change",
             )
         )
-        self._subscriptions.append(self.bus.on_app_state_changed(handler=self._on_app_state_changed))
+        self._subscriptions.append(
+            self.bus.on_app_state_changed(handler=self._on_app_state_changed, name="hassette.rqs.on_app_state_changed")
+        )
         self._subscriptions.append(
             self.bus.on(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=self._on_service_status,
+                name="hassette.rqs.on_service_status",
             )
         )
-        self._subscriptions.append(self.bus.on_websocket_connected(handler=self._on_ws_connected))
-        self._subscriptions.append(self.bus.on_websocket_disconnected(handler=self._on_ws_disconnected))
+        self._subscriptions.append(
+            self.bus.on_websocket_connected(handler=self._on_ws_connected, name="hassette.rqs.on_ws_connected")
+        )
+        self._subscriptions.append(
+            self.bus.on_websocket_disconnected(handler=self._on_ws_disconnected, name="hassette.rqs.on_ws_disconnected")
+        )
         self._subscriptions.append(
             self.bus.on(
                 topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
                 handler=self._on_invocation_completed,
+                name="hassette.rqs.on_invocation_completed",
             )
         )
         self._subscriptions.append(
             self.bus.on(
                 topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
                 handler=self._on_execution_completed,
+                name="hassette.rqs.on_execution_completed",
             )
         )
 

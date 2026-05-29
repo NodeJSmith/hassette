@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add registration error exceptions and name= validation"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#20", "AC#6", "AC#14"]
 ---

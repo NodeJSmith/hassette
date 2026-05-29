@@ -59,8 +59,8 @@ class StateProxy(Resource):
 
         self.subscribe_to_events()
 
-        self.bus.on_websocket_connected(handler=self.on_reconnect)
-        self.bus.on_websocket_disconnected(handler=self.on_disconnect)
+        self.bus.on_websocket_connected(handler=self.on_reconnect, name="hassette.state_proxy.on_reconnect")
+        self.bus.on_websocket_disconnected(handler=self.on_disconnect, name="hassette.state_proxy.on_disconnect")
 
         # Perform initial state sync
         try:
@@ -81,7 +81,11 @@ class StateProxy(Resource):
             self.scheduler.scheduler_service.dequeue_job(self.poll_job)
             self.poll_job = None
 
-        self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
+        self.state_change_sub = self.bus.on(
+            topic=Topic.HASS_EVENT_STATE_CHANGED,
+            handler=self._on_state_change,
+            name="hassette.state_proxy.on_state_change",
+        )
         if not self.hassette.config.disable_state_proxy_polling:
             self.poll_job = self.scheduler.run_every(
                 self._load_cache,
