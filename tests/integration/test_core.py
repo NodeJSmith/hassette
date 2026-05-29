@@ -24,7 +24,8 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
-from hassette.resources.base import Resource, RestartSpec
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
 from hassette.test_utils import wait_for
 from hassette.utils.service_utils import topological_sort, validate_dependency_graph

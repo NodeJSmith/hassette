@@ -8,7 +8,9 @@ import uvicorn
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_query_service import TelemetryQueryService
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.web.app import create_fastapi_app

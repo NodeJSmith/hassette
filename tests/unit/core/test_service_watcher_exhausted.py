@@ -14,7 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events.hassette import ServiceStatusPayload
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette
 from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType

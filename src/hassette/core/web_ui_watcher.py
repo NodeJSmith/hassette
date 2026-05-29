@@ -5,7 +5,8 @@ from typing import ClassVar
 
 from watchfiles import awatch
 
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 

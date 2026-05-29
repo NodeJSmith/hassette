@@ -7,7 +7,9 @@ import warnings
 import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
-from hassette.resources.base import FinalMeta, RestartSpec, Service
+from hassette.resources.base import FinalMeta
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 

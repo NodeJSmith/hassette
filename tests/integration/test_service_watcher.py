@@ -14,7 +14,8 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.test_utils import make_service_failed_event, make_service_running_event, preserve_config, wait_for
 from hassette.test_utils.reset import reset_hassette_lifecycle
 from hassette.types import ResourceStatus, Topic

@@ -1,4 +1,5 @@
-from hassette.resources.base import RestartSpec, Service
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 
 

@@ -13,7 +13,9 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.registration_tracker import RegistrationTracker
-from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.base import Resource
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.serialization import safe_json_serialize
