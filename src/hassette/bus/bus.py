@@ -182,13 +182,12 @@ class Bus(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 
-    def add_listener(self, listener: "Listener") -> None:
+    async def add_listener(self, listener: "Listener") -> None:
         """Add a pre-built listener to the bus.
 
         This is the direct entry point for callers that construct a ``Listener``
         externally. The normal registration flow (``on_state_change``, ``on()``,
-        etc.) goes through ``_on_internal`` instead, which captures the DB task
-        for ``Subscription.registration_task``.
+        etc.) goes through ``_on_internal`` instead.
 
         Raises:
             ListenerNameRequiredError: If the listener has no ``name`` (required for all DB-registered
@@ -198,7 +197,7 @@ class Bus(Resource):
         if listener.identity.name is None:
             raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
         self.register_and_check_collision(listener)
-        self.bus_service.add_listener(listener)
+        await self.bus_service.add_listener(listener)
 
     def register_and_check_collision(self, listener: "Listener") -> None:
         """Register a non-once listener's natural key, raising DuplicateListenerError on a same-session clash.
@@ -250,7 +249,7 @@ class Bus(Resource):
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
 
-    def on(
+    async def on(
         self,
         *,
         topic: str,
@@ -288,12 +287,10 @@ class Bus(Resource):
             on_error: Optional per-listener error handler.
 
         Returns:
-            A subscription object. `sub.cancel()` removes the listener. `sub.registration_task`
-            is a completion signal that resolves (with None) when the database persistence attempt
-            finishes — await it for deterministic ordering. Check `sub.listener.db_id` to verify
-            whether persistence succeeded.
+            A subscription object. `sub.cancel()` removes the listener.
+            `sub.listener.db_id` is a valid integer immediately on return.
         """
-        return self._on_internal(
+        return await self._on_internal(
             topic=topic,
             handler=handler,
             where=where,
@@ -308,7 +305,7 @@ class Bus(Resource):
             duration_config=None,
         )
 
-    def _on_internal(
+    async def _on_internal(
         self,
         *,
         topic: str,
@@ -332,6 +329,9 @@ class Bus(Resource):
         Builds all sub-structs (ListenerIdentity, ListenerOptions, HandlerInvoker)
         here and calls Listener.create() via the sub-struct path. Source location is
         captured before construction (while user code is still on the stack).
+
+        DB registration is awaited inline — the listener's db_id is set and the
+        listener is routable before this method returns.
         """
         parent = self.parent
         assert parent is not None
@@ -340,7 +340,7 @@ class Bus(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
-        # Capture source while user code is still on the stack (before async spawn boundary)
+        # Capture source while user code is still on the stack (before async boundary)
         source_location, registration_source = capture_registration_source()
 
         handler_name = callable_name(handler)
@@ -394,10 +394,10 @@ class Bus(Resource):
         def unsubscribe() -> None:
             self.remove_listener(listener)
 
-        registration_task = self.bus_service.add_listener(listener)
-        return Subscription(listener, unsubscribe, registration_task)
+        await self.bus_service.add_listener(listener)
+        return Subscription(listener, unsubscribe)
 
-    def _subscribe(
+    async def _subscribe(
         self,
         *,
         method_name: str,
@@ -449,7 +449,7 @@ class Bus(Resource):
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
-        return self._on_internal(
+        return await self._on_internal(
             topic=topic,
             handler=handler,
             where=preds,
@@ -482,7 +482,7 @@ class Bus(Resource):
             if other:
                 preds.append(P.AllOf.ensure_iterable(other))
 
-    def on_state_change(
+    async def on_state_change(
         self,
         entity_id: str,
         *,
@@ -529,7 +529,7 @@ class Bus(Resource):
             entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name=f"entity '{entity_id}'",
             topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             handler=handler,
@@ -546,7 +546,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_attribute_change(
+    async def on_attribute_change(
         self,
         entity_id: str,
         attr: str,
@@ -605,7 +605,7 @@ class Bus(Resource):
             entity_id, attr, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name=f"entity '{entity_id}' attribute '{attr}'",
             topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             handler=handler,
@@ -623,7 +623,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_call_service(
+    async def on_call_service(
         self,
         domain: str | None = None,
         service: str | None = None,
@@ -659,7 +659,7 @@ class Bus(Resource):
 
         self._normalize_service_where(preds, where)
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name="call_service",
             topic=Topic.HASS_EVENT_CALL_SERVICE,
             handler=handler,
@@ -672,7 +672,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_component_loaded(
+    async def on_component_loaded(
         self,
         component: str | None = None,
         *,
@@ -702,7 +702,7 @@ class Bus(Resource):
         if component is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name="component_loaded",
             topic=Topic.HASS_EVENT_COMPONENT_LOADED,
             handler=handler,
@@ -715,7 +715,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_service_registered(
+    async def on_service_registered(
         self,
         domain: str | None = None,
         service: str | None = None,
@@ -750,7 +750,7 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name="service_registered",
             topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
             handler=handler,
@@ -763,7 +763,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_homeassistant_restart(
+    async def on_homeassistant_restart(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -783,11 +783,11 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(
+        return await self.on_call_service(
             domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_homeassistant_start(
+    async def on_homeassistant_start(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -807,11 +807,11 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(
+        return await self.on_call_service(
             domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_homeassistant_stop(
+    async def on_homeassistant_stop(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
@@ -831,11 +831,11 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.on_call_service(
+        return await self.on_call_service(
             domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_hassette_service_status(
+    async def on_hassette_service_status(
         self,
         status: ResourceStatus | None = None,
         *,
@@ -865,7 +865,7 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name="hassette.service_status",
             topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
             handler=handler,
@@ -878,7 +878,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_hassette_service_failed(
+    async def on_hassette_service_failed(
         self,
         *,
         handler: "HandlerType",
@@ -900,11 +900,11 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(
+        return await self.on_hassette_service_status(
             status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_hassette_service_crashed(
+    async def on_hassette_service_crashed(
         self,
         *,
         handler: "HandlerType",
@@ -926,11 +926,11 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(
+        return await self.on_hassette_service_status(
             status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_hassette_service_started(
+    async def on_hassette_service_started(
         self,
         *,
         handler: "HandlerType",
@@ -952,11 +952,11 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on_hassette_service_status(
+        return await self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    def on_websocket_connected(
+    async def on_websocket_connected(
         self,
         *,
         handler: "HandlerType",
@@ -978,7 +978,7 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on(
+        return await self.on(
             topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED,
             handler=handler,
             where=where,
@@ -987,7 +987,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_websocket_disconnected(
+    async def on_websocket_disconnected(
         self,
         *,
         handler: "HandlerType",
@@ -1009,7 +1009,7 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on(
+        return await self.on(
             topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED,
             handler=handler,
             where=where,
@@ -1018,7 +1018,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_app_state_changed(
+    async def on_app_state_changed(
         self,
         *,
         handler: "HandlerType",
@@ -1053,7 +1053,7 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        return self._subscribe(
+        return await self._subscribe(
             method_name="app_state_changed",
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
             handler=handler,
@@ -1066,7 +1066,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_app_running(
+    async def on_app_running(
         self,
         *,
         handler: "HandlerType",
@@ -1090,7 +1090,7 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on_app_state_changed(
+        return await self.on_app_state_changed(
             handler=handler,
             app_key=app_key,
             status=ResourceStatus.RUNNING,
@@ -1100,7 +1100,7 @@ class Bus(Resource):
             **opts,
         )
 
-    def on_app_stopping(
+    async def on_app_stopping(
         self,
         *,
         handler: "HandlerType",
@@ -1124,7 +1124,7 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        return self.on_app_state_changed(
+        return await self.on_app_state_changed(
             handler=handler,
             app_key=app_key,
             status=ResourceStatus.STOPPING,

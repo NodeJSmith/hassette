@@ -5,7 +5,6 @@ Tests cover:
 - ``is_dispatch_idle`` — returns True when ``_dispatch_idle_event`` is set,
   False when it is cleared.
 - ``dispatch_pending_count`` — returns the current value of ``_dispatch_pending``.
-- ``drain_framework_registrations()`` — drains only framework keys.
 
 These properties are the recommended public surface for drain helpers and test
 infrastructure. The tests verify that they delegate to the correct private fields
@@ -18,9 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.bus_service import BusService
-from hassette.core.registration_tracker import RegistrationTracker
 from hassette.test_utils import make_mock_hassette
-from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
 
 
 @pytest.fixture
@@ -109,47 +106,6 @@ def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusSe
     assert bus_service.is_dispatch_idle is True
     # Counter is still 1 but is not authoritative for the idle check
     assert bus_service.dispatch_pending_count == 1
-
-
-async def test_drain_framework_registrations_drains_only_framework_keys(bus_service: BusService) -> None:
-    """drain_framework_registrations() awaits only keys matching is_framework_key()."""
-    drained: list[str] = []
-
-    bus_service._reg_tracker = RegistrationTracker()
-    bus_service._reg_tracker._tasks["my_app"] = []
-    bus_service._reg_tracker._tasks[FRAMEWORK_APP_KEY] = []
-    bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}service_watcher"] = []
-    bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}core"] = []
-
-    async def recording_await(app_key: str) -> None:
-        drained.append(app_key)
-
-    bus_service.await_registrations_complete = recording_await  # pyright: ignore[reportAttributeAccessIssue]
-
-    await bus_service.drain_framework_registrations()
-
-    assert "my_app" not in drained
-    assert FRAMEWORK_APP_KEY in drained
-    assert f"{FRAMEWORK_APP_KEY_PREFIX}service_watcher" in drained
-    assert f"{FRAMEWORK_APP_KEY_PREFIX}core" in drained
-
-
-async def test_drain_framework_registrations_uses_list_snapshot(bus_service: BusService) -> None:
-    """drain_framework_registrations() snapshots keys before iterating to avoid RuntimeError."""
-    drained: list[str] = []
-    framework_key = f"{FRAMEWORK_APP_KEY_PREFIX}core"
-
-    bus_service._reg_tracker = RegistrationTracker()
-    bus_service._reg_tracker._tasks[framework_key] = []
-
-    async def recording_await(app_key: str) -> None:
-        drained.append(app_key)
-        bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}new_key"] = []
-
-    bus_service.await_registrations_complete = recording_await  # pyright: ignore[reportAttributeAccessIssue]
-
-    await bus_service.drain_framework_registrations()
-    assert framework_key in drained
 
 
 def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:

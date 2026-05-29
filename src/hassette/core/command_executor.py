@@ -296,7 +296,7 @@ class CommandExecutor(Service):
     def _log_timeout_rate_limited(self, cmd: InvokeHandler | ExecuteJob, result: ExecutionResult) -> None:
         """Log a timeout WARNING, rate-limited per entity (60s suppression window).
 
-        Uses the in-memory ID (``listener_id`` for handlers, ``job.job_id`` for jobs)
+        Uses the in-memory ID (``listener_id`` for handlers, object identity for jobs)
         to key the suppression window. Lazily evicts stale entries (>60s old)
         during each check.
         """
@@ -308,8 +308,8 @@ class CommandExecutor(Service):
                 entity_id = cmd.listener.listener_id
                 label = f"listener_id={cmd.listener.listener_id}, topic={cmd.topic}"
             case ExecuteJob():
-                entity_id = cmd.job.job_id
-                label = f"job_id={cmd.job.job_id}, job_db_id={cmd.job_db_id}"
+                entity_id = id(cmd.job)
+                label = f"job_db_id={cmd.job_db_id}, name={cmd.job.name}"
 
         # Lazy eviction of stale entries, then cap to bound memory under sustained unavailability
         stale_ids = [k for k, ts in self._timeout_warn_timestamps.items() if now - ts > _TIMEOUT_WARN_SUPPRESS_SECS]
@@ -554,7 +554,6 @@ class CommandExecutor(Service):
         Returns:
             The row ID of the inserted row.
         """
-        await self.hassette.wait_for_ready([self.hassette.database_service])
         listener_id = await self.hassette.database_service.submit(self.repository.register_listener(registration))
         rqs = self.hassette._runtime_query_service
         if rqs is not None and listener_id != 0:
@@ -570,7 +569,6 @@ class CommandExecutor(Service):
         Returns:
             The row ID of the inserted row.
         """
-        await self.hassette.wait_for_ready([self.hassette.database_service])
         job_id = await self.hassette.database_service.submit(self.repository.register_job(registration))
         rqs = self.hassette._runtime_query_service
         if rqs is not None and job_id != 0:

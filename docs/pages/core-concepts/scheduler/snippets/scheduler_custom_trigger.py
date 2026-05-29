@@ -29,13 +29,15 @@ class SolarPollTrigger:
 
     def trigger_id(self) -> str:
         return f"solar_poll:{self.check_every}"
+
+
 # --8<-- [end:trigger_class]
 
 
 class SolarApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:trigger_usage]
-        self.scheduler.schedule(self.check_sun_elevation, SolarPollTrigger(check_every=30))
+        await self.scheduler.schedule(self.check_sun_elevation, SolarPollTrigger(check_every=30))
         # --8<-- [end:trigger_usage]
 
     async def check_sun_elevation(self) -> None: ...

@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Make listener and job registration synchronous"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#5", "FR#6", "AC#7"]
 ---

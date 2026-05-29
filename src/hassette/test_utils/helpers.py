@@ -412,7 +412,7 @@ def make_service_running_event(service: "Service") -> HassetteServiceEvent:
     )
 
 
-def wire_up_app_state_listener(
+async def wire_up_app_state_listener(
     bus: "Bus",
     event: asyncio.Event,
     app_key: str,
@@ -423,12 +423,18 @@ def wire_up_app_state_listener(
     async def handler() -> None:
         bus.task_bucket.post_to_loop(event.set)
 
-    bus.on_app_state_changed(handler=handler, app_key=app_key, status=status, once=True)
+    await bus.on_app_state_changed(
+        handler=handler,
+        app_key=app_key,
+        status=status,
+        once=True,
+        name=f"hassette.test_utils.wire_up_{app_key}_{status}",
+    )
 
 
-def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
+async def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
     """Wire up a listener that fires when a specific app reaches RUNNING status."""
-    wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
+    await wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
 
 
 def make_task_bucket() -> MagicMock:

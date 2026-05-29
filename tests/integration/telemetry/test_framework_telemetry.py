@@ -71,12 +71,11 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
             pass
 
         bus = harness.bus
-        bus.on(
+        await bus.on(
             topic="test.topic",
             handler=test_handler,
             name="hassette.test.listener",
         )
-        await harness.bus_service.await_registrations_complete(bus.parent.app_key)
 
         listeners = harness.bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0

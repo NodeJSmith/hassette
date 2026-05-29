@@ -9,35 +9,35 @@ Examples:
     One-time delayed execution::
 
         # Run in 30 seconds
-        self.scheduler.run_in(self.cleanup_task, 30)
+        await self.scheduler.run_in(self.cleanup_task, 30)
 
         # Run once at 7:00 AM today (or tomorrow if 07:00 has already passed)
-        self.scheduler.run_once(self.morning_routine, at="07:00")
+        await self.scheduler.run_once(self.morning_routine, at="07:00")
 
     Recurring execution::
 
         # Every 5 minutes
-        self.scheduler.run_every(self.check_sensors, minutes=5)
+        await self.scheduler.run_every(self.check_sensors, minutes=5)
 
         # Every hour
-        self.scheduler.run_hourly(self.log_status)
+        await self.scheduler.run_hourly(self.log_status)
 
         # Every day at 6:30 AM (wall-clock anchored, DST-safe)
-        self.scheduler.run_daily(self.morning_routine, at="06:30")
+        await self.scheduler.run_daily(self.morning_routine, at="06:30")
 
         # Every 5 minutes
-        self.scheduler.run_minutely(self.quick_check, minutes=5)
+        await self.scheduler.run_minutely(self.quick_check, minutes=5)
 
     Cron-style scheduling::
 
         # Weekdays at 9 AM
-        self.scheduler.run_cron(self.workday_routine, "0 9 * * 1-5")
+        await self.scheduler.run_cron(self.workday_routine, "0 9 * * 1-5")
 
     Job groups::
 
         # Schedule multiple jobs in a named group for bulk cancellation
-        self.scheduler.run_daily(self.open_blinds, at="08:00", group="morning")
-        self.scheduler.run_daily(self.play_music, at="08:05", group="morning")
+        await self.scheduler.run_daily(self.open_blinds, at="08:00", group="morning")
+        await self.scheduler.run_daily(self.play_music, at="08:05", group="morning")
 
         # Cancel all jobs in the group
         self.scheduler.cancel_group("morning")
@@ -46,14 +46,14 @@ Examples:
 
         from hassette.scheduler import Every, Daily, Cron
 
-        job = self.scheduler.schedule(self.my_func, Every(hours=1))
-        job = self.scheduler.schedule(self.my_func, Daily(at="07:00"), group="morning")
-        job = self.scheduler.schedule(self.my_func, Cron("0 9 * * 1-5"))
+        job = await self.scheduler.schedule(self.my_func, Every(hours=1))
+        job = await self.scheduler.schedule(self.my_func, Daily(at="07:00"), group="morning")
+        job = await self.scheduler.schedule(self.my_func, Cron("0 9 * * 1-5"))
 
     Job management::
 
         # Named job for easier management
-        job = self.scheduler.run_daily(self.backup_data, at="02:00", name="daily_backup")
+        job = await self.scheduler.run_daily(self.backup_data, at="02:00", name="daily_backup")
 
         # Cancel a specific job
         job.cancel()
@@ -161,10 +161,14 @@ class Scheduler(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
-    def add_job(
+    async def add_job(
         self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"
     ) -> "ScheduledJob":
         """Add a job to the scheduler.
+
+        DB registration is awaited inline — ``job.db_id`` is set before this
+        method returns, eliminating the window where a job fires with
+        ``db_id=None``.
 
         Args:
             job: The job to add.
@@ -177,7 +181,8 @@ class Scheduler(Resource):
 
         Returns:
             The added job, or the existing job when ``if_exists="skip"`` and a
-            matching job is already registered.
+            matching job is already registered. ``job.db_id`` is a valid
+            integer on return.
 
         Raises:
             TypeError: If job is not a ScheduledJob.
@@ -216,7 +221,7 @@ class Scheduler(Resource):
             self._jobs_by_group[job.group].add(job)
 
         job.set_app_error_handler_resolver(lambda: self._error_handler)
-        self.scheduler_service.add_job(job)
+        await self.scheduler_service.add_job(job)
 
         return job
 
@@ -291,18 +296,19 @@ class Scheduler(Resource):
         return list(self._jobs_by_group.get(group, set()))
 
     def get_job_db_ids(self) -> list[int]:
-        """Return the DB IDs of all registered jobs that have been persisted.
+        """Return the DB IDs of all registered jobs.
 
         Used by post-ready reconciliation in ``AppLifecycleService.initialize_instances()``
-        to build the ``live_job_ids`` set. Jobs whose ``db_id`` is still ``None``
-        (registration pending) are excluded.
+        to build the ``live_job_ids`` set. With synchronous registration, all jobs
+        have a ``db_id`` set by the time ``on_initialize`` completes. The
+        ``db_id is not None`` guard is kept as a defensive filter.
 
         Returns:
-            List of integer DB row IDs for registered jobs with a resolved ``db_id``.
+            List of integer DB row IDs for registered jobs.
         """
         return [job.db_id for job in self._jobs_by_name.values() if job.db_id is not None]
 
-    def schedule(
+    async def schedule(
         self,
         func: "JobCallable",
         trigger: "TriggerProtocol",
@@ -346,7 +352,7 @@ class Scheduler(Resource):
             kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            The scheduled job.
+            The scheduled job. ``job.db_id`` is a valid integer on return.
         """
 
         if jitter is not None and jitter < 0:
@@ -389,9 +395,9 @@ class Scheduler(Resource):
             registration_source=registration_source or "",
             source_tier=source_tier,
         )
-        return self.add_job(job, if_exists=if_exists)
+        return await self.add_job(job, if_exists=if_exists)
 
-    def run_in(
+    async def run_in(
         self,
         func: "JobCallable",
         delay: float,
@@ -426,7 +432,7 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = After(seconds=float(delay))
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -440,7 +446,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_once(
+    async def run_once(
         self,
         func: "JobCallable",
         at: str | ZonedDateTime,
@@ -481,7 +487,7 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Once(at=at, if_past=if_past)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -495,7 +501,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_every(
+    async def run_every(
         self,
         func: "JobCallable",
         hours: float = 0,
@@ -534,7 +540,7 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Every(hours=hours, minutes=minutes, seconds=seconds)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -548,7 +554,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_minutely(
+    async def run_minutely(
         self,
         func: "JobCallable",
         minutes: int = 1,
@@ -585,7 +591,7 @@ class Scheduler(Resource):
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
         trigger = Every(minutes=minutes)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -599,7 +605,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_hourly(
+    async def run_hourly(
         self,
         func: "JobCallable",
         hours: int = 1,
@@ -636,7 +642,7 @@ class Scheduler(Resource):
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
         trigger = Every(hours=hours)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -650,7 +656,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_daily(
+    async def run_daily(
         self,
         func: "JobCallable",
         at: str = "00:00",
@@ -688,7 +694,7 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Daily(at=at)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,
@@ -702,7 +708,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    def run_cron(
+    async def run_cron(
         self,
         func: "JobCallable",
         expression: str,
@@ -744,7 +750,7 @@ class Scheduler(Resource):
             ValueError: If the cron expression is syntactically invalid.
         """
         trigger = Cron(expression)
-        return self.schedule(
+        return await self.schedule(
             func,
             trigger,
             name=name,

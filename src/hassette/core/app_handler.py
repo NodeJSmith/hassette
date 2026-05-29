@@ -94,7 +94,7 @@ class AppHandler(Resource):
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.logger.debug("Watching for app changes...")
-            self.bus.on(
+            await self.bus.on(
                 topic=str(Topic.HASSETTE_EVENT_FILE_WATCHER),
                 handler=self.lifecycle.handle_change_event,
                 name="hassette.app_handler.handle_change_event",

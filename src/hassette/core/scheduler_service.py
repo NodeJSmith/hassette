@@ -11,8 +11,8 @@ from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
+from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ScheduledJobRegistration
-from hassette.core.registration_tracker import RegistrationTracker
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -32,6 +32,7 @@ T = TypeVar("T")
 class SchedulerService(Service):
     """Service that manages scheduled jobs."""
 
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
         restart_type=RestartType.PERMANENT,
         budget_intensity=2,
@@ -50,9 +51,6 @@ class SchedulerService(Service):
     _executor: "CommandExecutor"
     """Command executor for running jobs and persisting registration/execution records."""
 
-    _reg_tracker: RegistrationTracker
-    """Tracks pending DB registration tasks per app_key for await barrier support."""
-
     _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
     """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
 
@@ -62,7 +60,6 @@ class SchedulerService(Service):
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
-        self._reg_tracker = RegistrationTracker()
         self._removal_callbacks = {}
 
     @property
@@ -170,7 +167,7 @@ class SchedulerService(Service):
             offset = random.uniform(0, job.jitter)
             jittered_time = job.next_run.add(seconds=offset)
             job.fire_at = jittered_time
-            job.sort_index = (jittered_time.timestamp_nanos(), job.job_id)
+            job.sort_index = (jittered_time.timestamp_nanos(), id(job))
             self.logger.debug(
                 "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
                 offset,
@@ -237,44 +234,12 @@ class SchedulerService(Service):
 
         return TimeDelta(seconds=delay)
 
-    def add_job(self, job: "ScheduledJob") -> None:
-        """Push a job to the queue and register it with the executor.
+    async def add_job(self, job: "ScheduledJob") -> None:
+        """Register the job in DB, then push it to the queue.
 
-        When the job belongs to an app (has app_key), the job is enqueued
-        first (so it can be dispatched immediately), then DB registration
-        runs in the same task. Until ``db_id`` is set, the dispatch path
-        uses direct invocation (no telemetry record).
-
-        Registration tasks are tracked per ``app_key`` so
-        ``await_registrations_complete()`` can drain them before reconciliation.
-        """
-        app_key = job.app_key or job.owner_id
-        task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
-        self._reg_tracker.prune_and_track(app_key, task)
-
-    async def await_registrations_complete(self, app_key: str) -> None:
-        """Wait for all pending DB registration tasks for an app to complete.
-
-        Called by ``AppLifecycleService.reconcile_app_registrations()`` before
-        reconciliation to ensure all job ``db_id`` values are populated. Tasks
-        that error (DB unavailable) complete with ``db_id = None`` — the job is
-        excluded from ``live_job_ids`` but not actively retired.
-
-        Has a configurable timeout (``config.registration_await_timeout``, default 30s)
-        to prevent indefinite hangs if the DB write queue stalls.
-
-        Args:
-            app_key: The app key whose pending registration tasks to await.
-        """
-        timeout = float(self.hassette.config.lifecycle.registration_await_timeout)
-        await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
-
-    async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
-        """Enqueue the job, then register in DB.
-
-        The job is enqueued first so it can be dispatched immediately.
-        ``db_id`` is set once DB registration completes; until then, dispatch
-        produces an orphan execution record with ``job_id=None``.
+        DB registration is awaited inline — job.db_id is set before the job
+        is enqueued to the scheduler heap. This eliminates the window where a
+        job fires with db_id=None.
 
         Trigger type dispatch uses the TriggerProtocol methods exclusively.
         Non-protocol triggers are rejected synchronously by ``Scheduler.schedule()``
@@ -307,16 +272,8 @@ class SchedulerService(Service):
             group=job.group,
             name_auto=job.name_auto,
         )
+        job.mark_registered(await self._executor.register_job(reg))
         await self._enqueue_job(job)
-        try:
-            job.mark_registered(await self._executor.register_job(reg))
-        except Exception:
-            self.logger.exception(
-                "Failed to register job in DB for owner_id=%s name=%s; "
-                "job will run without telemetry until next restart",
-                job.owner_id,
-                job.name,
-            )
 
     async def _dispatch_and_log(self, job: "ScheduledJob") -> None:
         """Dispatch a job and log its execution.
@@ -407,8 +364,8 @@ class SchedulerService(Service):
             next_run = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None
         except Exception:
             self.logger.exception(
-                "reschedule_job: trigger raised for job_id=%s callable=%s trigger=%r",
-                job.job_id,
+                "reschedule_job: trigger raised for db_id=%s callable=%s trigger=%r",
+                job.db_id,
                 getattr(job.job, "__qualname__", str(job.job)),
                 job.trigger,
             )

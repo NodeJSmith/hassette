@@ -8,9 +8,9 @@ from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import Listener, Subscription
 from hassette.bus.router import Router
+from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
 from hassette.core.registration import ListenerRegistration
-from hassette.core.registration_tracker import RegistrationTracker
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
@@ -40,6 +40,7 @@ _HASSETTE_TOPIC_PREFIX = "hassette."
 class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
+    depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService]
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
         restart_type=RestartType.PERMANENT,
         budget_intensity=2,
@@ -51,9 +52,6 @@ class BusService(Service):
 
     router: "Router"
     """Router to manage event listeners."""
-
-    _reg_tracker: RegistrationTracker
-    """Tracks pending DB registration tasks per app_key for await barrier support."""
 
     def __init__(
         self,
@@ -67,7 +65,6 @@ class BusService(Service):
         self.stream = stream
         self._executor = executor
         self.router = Router()
-        self._reg_tracker = RegistrationTracker()
         # Dispatch tracking for deterministic drain in test harnesses.
         self._dispatch_pending: int = 0
         self._dispatch_idle_event: asyncio.Event = asyncio.Event()
@@ -114,17 +111,17 @@ class BusService(Service):
         if self._dispatch_pending == 0:
             self._dispatch_idle_event.set()
 
-    def add_listener(self, listener: "Listener") -> "asyncio.Task[None]":
+    async def add_listener(self, listener: "Listener") -> int:
         """Add a listener to the bus.
 
-        Route insertion is synchronous. DB registration is spawned as a background
-        task. For duration listeners, wires the timer and delegates cancel listener
-        creation to ``DurationHoldManager``. Immediate-fire tasks are tracked in
+        Route insertion is synchronous. DB registration is awaited inline before
+        returning — the listener's db_id is set and valid on return. For duration
+        listeners, wires the timer and delegates cancel listener creation to
+        ``DurationHoldManager``. Immediate-fire tasks are tracked in
         ``_dispatch_pending`` so ``await_dispatch_idle`` drains them.
 
         Returns:
-            The DB registration task (used by ``Bus._on_internal`` to populate
-            ``Subscription.registration_task``).
+            The db_id assigned to the listener by the database.
         """
         if listener.duration_config is not None and listener.duration_config.duration is not None:
 
@@ -141,14 +138,13 @@ class BusService(Service):
                 on_cancel=on_timer_cancel,
             )
 
-        # Sync: insert route immediately — listener is routable before this returns.
-        self.router.add_route(listener.topic, listener)
-
-        # Async: spawn DB registration as a background task.
-        app_key = listener.identity.app_key or listener.identity.owner_id
+        # Await DB registration inline — db_id is set before route insertion.
         reg = self._build_registration(listener)
-        task = self.task_bucket.spawn(self._register_in_db(listener, reg), name="bus:register_in_db")
-        self._reg_tracker.prune_and_track(app_key, task)
+        db_id = await self._executor.register_listener(reg)
+        listener.mark_registered(db_id)
+
+        # Sync: insert route — listener is routable after DB registration.
+        self.router.add_route(listener.topic, listener)
 
         if listener.duration_config is not None and listener.duration_config.immediate:
             self._dispatch_pending += 1
@@ -159,11 +155,7 @@ class BusService(Service):
             )
             immediate_task.add_done_callback(self._on_dispatch_done)
 
-        return task
-
-    async def drain_framework_registrations(self) -> None:
-        """Drain all pending framework registration tasks."""
-        await self._reg_tracker.drain_framework_keys(self.await_registrations_complete)
+        return db_id
 
     def _build_registration(self, listener: Listener) -> ListenerRegistration:
         """Build a ``ListenerRegistration`` struct from listener identity and options."""
@@ -192,30 +184,6 @@ class BusService(Service):
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
         )
 
-    async def _register_in_db(self, listener: Listener, reg: ListenerRegistration) -> None:
-        """Persist a listener to the database for telemetry.
-
-        Routing has already completed synchronously before this is spawned.
-        Suppresses both ``CancelledError`` and ``Exception`` so ``registration_task``
-        always resolves cleanly. A failure here does not affect event delivery.
-        """
-        try:
-            listener.mark_registered(await self._executor.register_listener(reg))
-        except asyncio.CancelledError:  # noqa: ASYNC103 — deliberately suppressed per AC#6
-            self.logger.warning(
-                "DB registration cancelled for owner_id=%s topic=%s; "
-                "listener will run without telemetry until next restart",
-                listener.identity.owner_id,
-                listener.topic,
-            )
-        except Exception:
-            self.logger.exception(
-                "Failed to register listener in DB for owner_id=%s topic=%s; "
-                "listener will run without telemetry until next restart",
-                listener.identity.owner_id,
-                listener.topic,
-            )
-
     def remove_listener(self, listener: "Listener") -> None:
         """Synchronously cancel and remove a listener from the routing table."""
         listener.cancel()
@@ -230,15 +198,6 @@ class BusService(Service):
     def get_listeners_by_owner(self, owner: str) -> list["Listener"]:
         """Get all listeners owned by a specific owner."""
         return self.router.get_listeners_by_owner(owner)
-
-    async def await_registrations_complete(self, app_key: str) -> None:
-        """Wait for all pending DB registration tasks for an app to complete.
-
-        Has a configurable timeout (``config.registration_await_timeout``, default 30s).
-        Tasks that error complete with ``db_id = None`` — listener runs without telemetry.
-        """
-        timeout = float(self.hassette.config.lifecycle.registration_await_timeout)
-        await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
 
     def _should_log_event(self, event: "Event[Any]") -> bool:
         """Determine if an event should be logged based on its type."""

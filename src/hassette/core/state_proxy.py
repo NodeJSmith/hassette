@@ -57,10 +57,10 @@ class StateProxy(Resource):
         """
         self.logger.debug("Dependencies ready, performing initial state sync")
 
-        self.subscribe_to_events()
+        await self.subscribe_to_events()
 
-        self.bus.on_websocket_connected(handler=self.on_reconnect, name="hassette.state_proxy.on_reconnect")
-        self.bus.on_websocket_disconnected(handler=self.on_disconnect, name="hassette.state_proxy.on_disconnect")
+        await self.bus.on_websocket_connected(handler=self.on_reconnect, name="hassette.state_proxy.on_reconnect")
+        await self.bus.on_websocket_disconnected(handler=self.on_disconnect, name="hassette.state_proxy.on_disconnect")
 
         # Perform initial state sync
         try:
@@ -72,7 +72,7 @@ class StateProxy(Resource):
             self.logger.exception("Failed to perform initial state sync: %s", e)
             raise
 
-    def subscribe_to_events(self) -> None:
+    async def subscribe_to_events(self) -> None:
         # Cancel existing subscriptions to prevent leaks on rapid reconnect
         if self.state_change_sub is not None:
             self.state_change_sub.cancel()
@@ -81,13 +81,13 @@ class StateProxy(Resource):
             self.scheduler.scheduler_service.dequeue_job(self.poll_job)
             self.poll_job = None
 
-        self.state_change_sub = self.bus.on(
+        self.state_change_sub = await self.bus.on(
             topic=Topic.HASS_EVENT_STATE_CHANGED,
             handler=self._on_state_change,
             name="hassette.state_proxy.on_state_change",
         )
         if not self.hassette.config.disable_state_proxy_polling:
-            self.poll_job = self.scheduler.run_every(
+            self.poll_job = await self.scheduler.run_every(
                 self._load_cache,
                 seconds=self.hassette.config.state_proxy_poll_interval_seconds,
                 if_exists="skip",
@@ -310,7 +310,7 @@ class StateProxy(Resource):
         try:
             await self._load_cache()
 
-            self.subscribe_to_events()
+            await self.subscribe_to_events()
             self.mark_ready(reason="Connected")
             await self._emit_readiness_event()
         except Exception as e:

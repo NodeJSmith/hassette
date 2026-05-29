@@ -1,17 +1,15 @@
-"""Contract tests for Bus routing vs DB registration independence.
+"""Contract tests for Bus synchronous registration.
 
-These tests verify the core architectural contract introduced by the sync-routing
-redesign: routing (event delivery) and database registration (telemetry persistence)
-are independent operations. A DB failure must not prevent event delivery, and the
-registration_task completion signal must resolve regardless of outcome.
+These tests verify the core architectural contract: registration is synchronous —
+db_id is set and the listener is routable before on_state_change() / on() returns.
 
 Tests:
-- AC#2: DB failure doesn't affect routing — handler is invoked with db_id=None
+- AC#7: sub.listener.db_id is a valid integer immediately after on() returns
+- FR#5: listener is routable only after DB registration completes (db_id set before route insertion)
 - AC#5: Router methods are synchronous plain def (no async, no FairAsyncRLock)
-- AC#6: registration_task resolves with None even when DB registration fails
+- AC#2 (updated): DB failure propagates out of on() — fails app startup rather than degrading silently
 """
 
-import asyncio
 import importlib.util
 import inspect
 import pathlib
@@ -22,11 +20,6 @@ import pytest
 
 from hassette.bus.router import Router
 from hassette.events.base import Event
-
-
-class _CustomDbError(Exception):
-    pass
-
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
@@ -65,132 +58,75 @@ def bus_service(contract_harness: "HassetteHarness") -> "BusService":
     return contract_harness.bus_service
 
 
-async def test_db_failure_does_not_prevent_event_delivery(
+async def test_db_id_set_immediately_after_on_returns(
     bus: "Bus",
-    bus_service: "BusService",
-    contract_harness: "HassetteHarness",
 ) -> None:
-    """AC#2: A handler receives events even when its database registration fails.
+    """AC#7: sub.listener.db_id is a valid integer immediately after on() returns.
 
-    The routing contract: route insertion is synchronous and unconditional. DB
-    registration is a fire-and-forget background task whose failure must not affect
-    whether the handler is present in the routing table or receives dispatched events.
+    Under synchronous registration, the DB INSERT is awaited inline before
+    returning to the caller. No background task, no deferred future to await.
+    """
+    sub = await bus.on(topic="test.contract.immediate_db_id", handler=handler_contract, name="immediate_test")
+
+    assert sub.listener.db_id is not None, "db_id must be set immediately on return"
+    assert isinstance(sub.listener.db_id, int), f"db_id must be int, got {type(sub.listener.db_id)}"
+    assert sub.listener.db_id > 0, f"db_id must be a positive integer, got {sub.listener.db_id}"
+
+
+async def test_listener_routable_after_registration(
+    bus: "Bus",
+) -> None:
+    """FR#5: Listener is in routing table and has a db_id immediately after on() returns.
+
+    Under synchronous registration, both db_id assignment and route insertion
+    happen inside add_listener() before returning. The listener must be fully
+    ready (routable + persisted) by the time on() returns to the caller.
     """
     received: list[Event] = []
-    handler_called = asyncio.Event()
 
     async def capturing_handler(event: Event) -> None:
         received.append(event)
-        contract_harness.hassette.task_bucket.post_to_loop(handler_called.set)
 
-    # Patch _executor.register_listener to raise — simulates DB write failure.
-    # Keep the patch active while awaiting registration_task: the background DB task
-    # runs after bus.on() returns, so the patch must stay in effect until the task finishes.
-    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))):
-        sub = bus.on(topic="test.contract.db_failure", handler=capturing_handler)
+    sub = await bus.on(topic="test.contract.routable", handler=capturing_handler, name="routable_test")
 
-        # Handler must be immediately routable despite the pending DB failure
-        listeners = bus.get_listeners()
-        assert len(listeners) == 1, "Handler must be present in routing table even with DB failure"
-        assert listeners[0].listener_id == sub.listener.listener_id
-
-        # Wait for registration_task to settle so DB error has been processed
-        if sub.registration_task is not None:
-            await sub.registration_task
-
-        # DB registration failed → db_id must be None
-        assert sub.listener.db_id is None, "db_id must be None when DB registration failed"
-
-    # Now dispatch an event and confirm the handler fires
-    event = Event(topic="test.contract.db_failure", payload=None)
-    await contract_harness.hassette.send_event("test.contract.db_failure", event)
-
-    await asyncio.wait_for(handler_called.wait(), timeout=3.0)
-
-    assert len(received) == 1, "Handler must be invoked despite DB failure"
-
-
-async def test_db_failure_handler_still_in_routing_table(
-    bus: "Bus",
-    bus_service: "BusService",
-) -> None:
-    """AC#2 supplement: After DB failure, the handler remains in get_listeners().
-
-    This confirms routing independence: DB failure does not trigger route removal.
-    """
-    # Keep patch active while awaiting — background task runs after bus.on() returns
-    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=Exception("DB error"))):
-        sub = bus.on(topic="test.contract.still_routed", handler=handler_contract)
-
-        # Settle the registration_task so the exception has been caught and swallowed
-        if sub.registration_task is not None:
-            await sub.registration_task
-
-    # Route must still be present after DB failure
+    # Both conditions hold immediately — no await needed
     listeners = bus.get_listeners()
-    assert len(listeners) == 1
-    assert listeners[0].listener_id == sub.listener.listener_id
-    assert sub.listener.db_id is None
+    assert len(listeners) == 1, "Handler must be in routing table immediately"
+    assert sub.listener.db_id is not None, "db_id must be set immediately"
+    assert sub.listener.db_id > 0, "db_id must be positive"
 
 
-async def test_registration_task_resolves_on_db_failure(
+async def test_subscription_has_no_registration_task(
+    bus: "Bus",
+) -> None:
+    """FR#6: Subscription has no registration_task field.
+
+    The registration_task completion signal is removed. db_id is the only
+    identifier and is set synchronously before on() returns.
+    """
+    sub = await bus.on(topic="test.contract.no_task", handler=handler_contract, name="no_task_test")
+
+    assert not hasattr(sub, "registration_task"), "Subscription must not have registration_task field"
+
+
+async def test_db_failure_propagates_out_of_on(
     bus: "Bus",
     bus_service: "BusService",
 ) -> None:
-    """AC#6: Awaiting registration_task after a DB failure resolves with None (no exception).
+    """AC#2 (failure mode shift): DB failure propagates out of on().
 
-    registration_task is a completion signal, not a success signal. It must resolve
-    regardless of whether the DB write succeeded or failed. This allows callers to
-    use it as a barrier without needing exception handling.
-
-    The patch must remain active while awaiting registration_task — the background
-    DB task runs after bus.on() returns, so exiting the context manager before the
-    task completes would allow the real stub to run and set db_id.
+    Under synchronous registration, registration errors propagate out of
+    on_initialize() and mark the app FAILED — no silent degradation.
     """
-    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))):
-        sub = bus.on(topic="test.contract.task_resolves", handler=handler_contract)
+    with (
+        patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))),
+        pytest.raises(RuntimeError, match="DB down"),
+    ):
+        await bus.on(topic="test.contract.db_failure", handler=handler_contract, name="db_fail_test")
 
-        assert sub.registration_task is not None, "registration_task must be set"
-
-        # Must resolve without raising — catching any exception here would indicate a bug
-        result = await sub.registration_task
-        assert result is None, f"registration_task must resolve with None, got {result!r}"
-
-        # Confirm DB persistence did not succeed
-        assert sub.listener.db_id is None
-
-
-async def test_registration_task_resolves_on_exception_subclass(
-    bus: "Bus",
-    bus_service: "BusService",
-) -> None:
-    """AC#6 variant: registration_task resolves when the executor raises a non-RuntimeError.
-
-    The patch must remain active while awaiting registration_task — the background DB
-    task runs after bus.on() returns, so the patch must stay in effect until the task
-    completes.
-    """
-
-    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=_CustomDbError("custom"))):
-        sub = bus.on(topic="test.contract.custom_exc", handler=handler_contract)
-
-        assert sub.registration_task is not None
-        result = await sub.registration_task
-        assert result is None
-        assert sub.listener.db_id is None
-
-
-async def test_registration_task_resolves_on_success(
-    bus: "Bus",
-) -> None:
-    """AC#6 baseline: registration_task resolves with None when DB registration succeeds."""
-    sub = bus.on(topic="test.contract.task_success", handler=handler_contract)
-
-    assert sub.registration_task is not None
-    result = await sub.registration_task
-    assert result is None
-    # On success, db_id must be set (the harness stub returns a sequential int)
-    assert sub.listener.db_id is not None, "db_id must be set after successful registration"
+    # No listeners should be routable after a failure
+    listeners = bus.get_listeners()
+    assert len(listeners) == 0, "No listener must be routable when DB registration fails"
 
 
 class TestRouterSyncContract:
@@ -214,12 +150,7 @@ class TestRouterSyncContract:
     ]
 
     def test_all_router_methods_are_plain_def(self) -> None:
-        """AC#5: All 7 Router mutation and query methods are plain def, not async def.
-
-        A coroutine function returns a coroutine object instead of executing immediately.
-        Any Router method that is async would reintroduce deferred routing and break
-        the synchronous ordering guarantee.
-        """
+        """AC#5: All 7 Router mutation and query methods are plain def, not async def."""
         router = Router()
         all_method_names = self.ROUTER_MUTATION_METHODS + self.ROUTER_QUERY_METHODS
 
@@ -231,26 +162,21 @@ class TestRouterSyncContract:
             )
 
     def test_router_mutation_methods_are_plain_def(self) -> None:
-        """AC#5: Router mutation methods (add_route, remove_*, clear_owner) are plain def."""
+        """AC#5: Router mutation methods are plain def."""
         router = Router()
         for name in self.ROUTER_MUTATION_METHODS:
             method = getattr(router, name)
             assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (mutation method)"
 
     def test_router_query_methods_are_plain_def(self) -> None:
-        """AC#5: Router query methods (get_topic_listeners, get_listeners_by_owner) are plain def."""
+        """AC#5: Router query methods are plain def."""
         router = Router()
         for name in self.ROUTER_QUERY_METHODS:
             method = getattr(router, name)
             assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (query method)"
 
     def test_router_has_no_lock_attribute(self) -> None:
-        """AC#5: Router instance has no lock attribute.
-
-        The previous design used FairAsyncRLock. Removing the lock is intentional —
-        asyncio's cooperative scheduler guarantees that code between await points runs
-        atomically, and all Router methods have no await points.
-        """
+        """AC#5: Router instance has no lock attribute."""
         router = Router()
         assert not hasattr(router, "lock"), (
             "Router must not have a lock attribute. "
@@ -258,11 +184,7 @@ class TestRouterSyncContract:
         )
 
     def test_router_source_has_no_fair_async_rlock(self) -> None:
-        """AC#5: router.py does not import or use FairAsyncRLock.
-
-        Verifies the source-level constraint, not just the runtime instance. This
-        catches cases where FairAsyncRLock is imported but unused (lint dead code).
-        """
+        """AC#5: router.py does not import or use FairAsyncRLock."""
         spec = importlib.util.find_spec("hassette.bus.router")
         assert spec is not None
         assert spec.origin is not None

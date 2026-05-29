@@ -33,6 +33,14 @@ Update end-to-end and system tests to work with the unified execution endpoints,
 - `tests/unit/test_schema_migration.py` — schema structure validation
 - `tests/unit/core/conftest.py` — CREATE TABLE statements for test DB
 
+**Step 5: ASYNC-EVERYWHERE test adaptation (added during T04, 2026-05-29).** The public bus/scheduler registration API is now `async`. Integration/system tests that register via `bus.on_*` / `scheduler.run_*` / `schedule` / `add_job` must `await` those calls AND use `AsyncMock` (not `Mock`) for any mocked `bus`/`scheduler`/service registration methods (a plain `Mock` raises `object Mock can't be used in 'await' expression`). Known-affected files (non-exhaustive — re-scan):
+- `tests/integration/test_state_proxy.py` (currently failing: "coroutine 'Bus.on_state_change' was never awaited" + `await Mock`; also still references `bus._registered_keys` — keep working, that attr is retained)
+- `tests/integration/test_app_test_harness.py`
+- `tests/integration/test_drain_iterative.py`
+- `tests/integration/bus/test_bus.py`
+- `tests/system/apps/bus_handler_app.py`
+- Also fold in the T03-deferred `tests/unit/bus/test_bus.py` rewrite (name=-required contract; the redundant `Bus._registered_keys` set can be collapsed into `_registered_handler_names` once these tests are rewritten — see [[deferred-items]]).
+
 ## Focus
 - E2e tests run with Playwright against a real backend — the schema must be correct before these pass.
 - System tests use Docker — run via `uv run nox -s system` and `uv run nox -s e2e`.

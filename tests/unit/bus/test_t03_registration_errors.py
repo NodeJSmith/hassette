@@ -7,7 +7,6 @@ Verify criteria:
 - AC#14: Error message names both the duplicate name and the topic
 """
 
-import asyncio
 import typing
 
 import pytest
@@ -36,13 +35,13 @@ async def handler_b(event) -> None:
 async def test_registering_without_name_raises(bus: "Bus") -> None:
     """FR#3: Bus.on() without name= raises ListenerNameRequiredError."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
-        bus.on(topic="test.topic", handler=handler_a)
+        await bus.on(topic="test.topic", handler=handler_a)
 
 
 async def test_name_required_error_has_handler_and_topic_attrs(bus: "Bus") -> None:
     """AC#6: ListenerNameRequiredError carries handler_method and topic as instance attrs."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError) as exc_info:
-        bus.on(topic="test.topic.entity", handler=handler_a)
+        await bus.on(topic="test.topic.entity", handler=handler_a)
 
     err = exc_info.value
     assert hasattr(err, "handler_method"), "ListenerNameRequiredError must have handler_method attr"
@@ -55,7 +54,7 @@ async def test_name_required_error_has_handler_and_topic_attrs(bus: "Bus") -> No
 async def test_name_required_error_message_includes_handler_and_topic(bus: "Bus") -> None:
     """AC#6: Error message text includes handler name and topic for clear diagnosis."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError) as exc_info:
-        bus.on(topic="light.kitchen", handler=handler_a)
+        await bus.on(topic="light.kitchen", handler=handler_a)
 
     msg = str(exc_info.value)
     assert "light.kitchen" in msg
@@ -65,16 +64,14 @@ async def test_name_required_error_message_includes_handler_and_topic(bus: "Bus"
 async def test_on_state_change_without_name_raises(bus: "Bus") -> None:
     """FR#3: on_state_change() without name= also raises ListenerNameRequiredError."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
-        bus.on_state_change("light.kitchen", handler=handler_a)
+        await bus.on_state_change("light.kitchen", handler=handler_a)
 
 
 async def test_providing_name_does_not_raise(bus: "Bus") -> None:
     """FR#3 negative: providing name= succeeds without error."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
+    with mock_add_listener(bus):
         # Should not raise
-        sub = bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+        sub = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         assert sub is not None
 
 
@@ -85,22 +82,18 @@ async def test_providing_name_does_not_raise(bus: "Bus") -> None:
 
 async def test_duplicate_name_and_topic_raises(bus: "Bus") -> None:
     """FR#20: Registering two handlers with the same name+topic raises DuplicateListenerError."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        bus.on(topic="test.topic", handler=handler_a, name="kitchen_light")
+    with mock_add_listener(bus):
+        await bus.on(topic="test.topic", handler=handler_a, name="kitchen_light")
         with pytest.raises(DuplicateListenerError):
-            bus.on(topic="test.topic", handler=handler_b, name="kitchen_light")
+            await bus.on(topic="test.topic", handler=handler_b, name="kitchen_light")
 
 
 async def test_duplicate_error_has_correct_attrs(bus: "Bus") -> None:
     """AC#14: DuplicateListenerError carries name, topic, existing_handler, duplicate_handler."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        bus.on(topic="light.kitchen", handler=handler_a, name="kitchen_light")
+    with mock_add_listener(bus):
+        await bus.on(topic="light.kitchen", handler=handler_a, name="kitchen_light")
         with pytest.raises(DuplicateListenerError) as exc_info:
-            bus.on(topic="light.kitchen", handler=handler_b, name="kitchen_light")
+            await bus.on(topic="light.kitchen", handler=handler_b, name="kitchen_light")
 
     err = exc_info.value
     assert err.name == "kitchen_light"
@@ -111,12 +104,10 @@ async def test_duplicate_error_has_correct_attrs(bus: "Bus") -> None:
 
 async def test_duplicate_error_message_names_both_name_and_topic(bus: "Bus") -> None:
     """AC#14: Error message includes both the duplicate name and the topic."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        bus.on(topic="light.kitchen", handler=handler_a, name="kitchen_light")
+    with mock_add_listener(bus):
+        await bus.on(topic="light.kitchen", handler=handler_a, name="kitchen_light")
         with pytest.raises(DuplicateListenerError) as exc_info:
-            bus.on(topic="light.kitchen", handler=handler_b, name="kitchen_light")
+            await bus.on(topic="light.kitchen", handler=handler_b, name="kitchen_light")
 
     msg = str(exc_info.value)
     assert "kitchen_light" in msg
@@ -125,22 +116,18 @@ async def test_duplicate_error_message_names_both_name_and_topic(bus: "Bus") -> 
 
 async def test_same_name_different_topics_no_error(bus: "Bus") -> None:
     """Same name with different topics is not a collision — topic is part of the key."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        bus.on(topic="light.kitchen", handler=handler_a, name="my_listener")
+    with mock_add_listener(bus):
+        await bus.on(topic="light.kitchen", handler=handler_a, name="my_listener")
         # Different topic — must not raise
-        bus.on(topic="light.bedroom", handler=handler_b, name="my_listener")
+        await bus.on(topic="light.bedroom", handler=handler_b, name="my_listener")
 
 
 async def test_once_listeners_exempt_from_duplicate_error(bus: "Bus") -> None:
     """Once-listeners with duplicate name+topic are exempt from DuplicateListenerError."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
+    with mock_add_listener(bus):
+        await bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
         # Second once-listener with same name+topic must not raise
-        bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
+        await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
 
 
 # ---------------------------------------------------------------------------
@@ -150,10 +137,8 @@ async def test_once_listeners_exempt_from_duplicate_error(bus: "Bus") -> None:
 
 async def test_listener_natural_key_is_canonical_4_tuple(bus: "Bus") -> None:
     """_listener_natural_key returns exactly (app_key, instance_index, name, topic)."""
-    future = asyncio.get_running_loop().create_future()
-    with mock_add_listener(bus) as add_mock:
-        add_mock.return_value = future
-        sub = bus.on(topic="hass.state_changed.light.kitchen", handler=handler_a, name="kitchen")
+    with mock_add_listener(bus):
+        sub = await bus.on(topic="hass.state_changed.light.kitchen", handler=handler_a, name="kitchen")
         key = bus._listener_natural_key(sub.listener)
 
     assert len(key) == 4, f"Natural key must be a 4-tuple, got {len(key)}-tuple: {key}"

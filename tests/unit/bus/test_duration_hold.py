@@ -463,8 +463,7 @@ class TestCreateCancelListener:
         sub = manager.create_cancel_listener(listener)
 
         assert isinstance(sub, Subscription)
-        assert sub.registration_task is not None
-        assert sub.registration_task.done()
+        assert not hasattr(sub, "registration_task"), "cancel-listener Subscription must not have registration_task"
         # Route inserted into router for the entity's state_changed topic
         entity_topic = "hass.event.state_changed.light.kitchen"
         listeners_in_route = router.get_topic_listeners(entity_topic)
@@ -504,8 +503,11 @@ class TestCreateCancelListener:
         sub.cancel()
         assert len(router.get_topic_listeners(entity_topic)) == 0
 
-    async def test_registration_task_is_pre_resolved(self) -> None:
-        """create_cancel_listener returns a Subscription with an already-resolved future."""
+    def test_cancel_listener_subscription_has_no_registration_task(self) -> None:
+        """create_cancel_listener returns a Subscription without registration_task.
+
+        Cancel-listeners bypass DB registration entirely; no registration_task field.
+        """
         task_bucket = make_task_bucket_with_spawn()
         manager = DurationHoldManager(
             executor=make_executor(),
@@ -527,9 +529,7 @@ class TestCreateCancelListener:
 
         sub = manager.create_cancel_listener(listener)
 
-        assert sub.registration_task is not None
-        assert sub.registration_task.done()
-        assert sub.registration_task.result() is None
+        assert not hasattr(sub, "registration_task"), "cancel-listener Subscription must not have registration_task"
 
 
 class TestComputeElapsed:

@@ -272,67 +272,6 @@ class TestRefreshConfig:
 class TestReconcileAppRegistrations:
     """Tests for reconcile_app_registrations — the post-ready reconciliation helper."""
 
-    async def test_scheduler_barrier_awaited_before_job_ids_collected(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        mock_app_instance: AsyncMock,
-    ) -> None:
-        """Scheduler await barrier is called before live_job_ids are collected.
-
-        Finding 1 (CRITICAL): SchedulerService.await_registrations_complete() must be
-        awaited before collecting job db_ids to ensure all pending registration tasks
-        have flushed. Without this barrier, jobs whose registration tasks haven't
-        completed yet have db_id=None and are absent from live_job_ids — causing
-        reconciliation to incorrectly retire their DB rows.
-        """
-        call_order: list[str] = []
-
-        async def _track_scheduler_barrier(app_key: str) -> None:
-            call_order.append(f"scheduler_barrier:{app_key}")
-
-        def _track_get_job_ids() -> list[int]:
-            call_order.append("get_job_db_ids")
-            return []
-
-        mock_hassette.scheduler_service.await_registrations_complete = AsyncMock(side_effect=_track_scheduler_barrier)
-        mock_app_instance.scheduler.get_job_db_ids = Mock(side_effect=_track_get_job_ids)
-
-        instances = {0: mock_app_instance}
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        # scheduler barrier must appear before get_job_db_ids
-        assert "scheduler_barrier:test_app" in call_order, "Scheduler barrier was not called"
-        assert "get_job_db_ids" in call_order, "get_job_db_ids was not called"
-        scheduler_idx = call_order.index("scheduler_barrier:test_app")
-        job_ids_idx = call_order.index("get_job_db_ids")
-        assert scheduler_idx < job_ids_idx, (
-            f"Scheduler barrier ({scheduler_idx}) must come before get_job_db_ids ({job_ids_idx})"
-        )
-
-    async def test_bus_barrier_awaited_before_scheduler_barrier(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        mock_app_instance: AsyncMock,
-    ) -> None:
-        """Bus await barrier is called before scheduler barrier."""
-        call_order: list[str] = []
-
-        async def _track_bus_barrier(_app_key: str) -> None:
-            call_order.append("bus_barrier")
-
-        async def _track_scheduler_barrier(_app_key: str) -> None:
-            call_order.append("scheduler_barrier")
-
-        mock_hassette.bus_service.await_registrations_complete = AsyncMock(side_effect=_track_bus_barrier)
-        mock_hassette.scheduler_service.await_registrations_complete = AsyncMock(side_effect=_track_scheduler_barrier)
-
-        instances = {0: mock_app_instance}
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        assert call_order.index("bus_barrier") < call_order.index("scheduler_barrier")
-
     async def test_reconcile_calls_reconcile_registrations(
         self,
         lifecycle_service: AppLifecycleService,

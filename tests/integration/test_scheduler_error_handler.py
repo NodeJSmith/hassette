@@ -34,7 +34,7 @@ async def test_app_level_error_handler_called_on_job_failure(hassette_with_sched
         raise ValueError("job failed")
 
     scheduler.on_error(on_error)
-    scheduler.run_in(bad_job, delay=0.01)
+    await scheduler.run_in(bad_job, delay=0.01)
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
 
@@ -63,7 +63,7 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarn
         raise RuntimeError("per-job failure")
 
     scheduler.on_error(app_level_handler)
-    scheduler.run_in(bad_job, delay=0.01, on_error=per_job_handler)
+    await scheduler.run_in(bad_job, delay=0.01, on_error=per_job_handler)
 
     await asyncio.wait_for(per_job_ran.wait(), timeout=2.0)
 
@@ -86,7 +86,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHa
         hassette.task_bucket.post_to_loop(ran.set)
         raise KeyError("unhandled job error")
 
-    scheduler.run_in(bad_job, delay=0.01)
+    await scheduler.run_in(bad_job, delay=0.01)
 
     # Job ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(ran.wait(), timeout=2.0)
@@ -110,7 +110,7 @@ async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hass
         raise ValueError(f"failed for {sensor_id}")
 
     scheduler.on_error(on_error)
-    scheduler.run_in(bad_job, delay=0.01, args=("sensor.kitchen",), kwargs={"count": 3})
+    await scheduler.run_in(bad_job, delay=0.01, args=("sensor.kitchen",), kwargs={"count": 3})
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
 

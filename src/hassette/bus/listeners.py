@@ -1,4 +1,3 @@
-import itertools
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -14,8 +13,6 @@ from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
-    import asyncio
-
     from hassette import TaskBucket
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
@@ -23,14 +20,13 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
-# next_id() is only called at listener creation time on the event loop thread.
-# itertools.count.__next__ is C-atomic. No lock needed unless the project targets
-# free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-_listener_id_seq = itertools.count(1)
+_listener_id_counter = 0
 
 
 def next_id() -> int:
-    return next(_listener_id_seq)
+    global _listener_id_counter
+    _listener_id_counter += 1
+    return _listener_id_counter
 
 
 @dataclass(slots=True)
@@ -462,23 +458,6 @@ class Subscription:
 
     unsubscribe: Callable[[], None]
     """Function to call to unsubscribe the listener."""
-
-    registration_task: "asyncio.Future[None] | None" = None
-    """Completion signal for the listener's database persistence attempt.
-
-    Routing is synchronous — the listener is immediately routable in the in-memory
-    router table before this future resolves. ``registration_task`` tracks only DB
-    persistence, which is independent of routing. A listener that fails to persist
-    to the database is still active and receiving events.
-
-    The future resolves with None when the persistence attempt is complete, regardless
-    of whether persistence succeeded or failed — including ``CancelledError`` from a
-    timeout (completion signal, not success signal). Callers check
-    ``listener.db_id is not None`` to detect persistence failures.
-
-    None for Subscription instances constructed without a task (backward compat),
-    or for cancel-listener subscriptions that skip DB registration.
-    """
 
     def cancel(self) -> None:
         """Cancel the subscription by calling the unsubscribe function."""

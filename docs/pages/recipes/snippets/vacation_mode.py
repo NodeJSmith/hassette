@@ -32,7 +32,7 @@ class VacationMode(App[VacationModeConfig]):
 
     async def on_vacation_start(self) -> None:
         self.logger.info("Vacation mode enabled — starting presence simulation")
-        self._presence_job = self.scheduler.run_every(
+        self._presence_job = await self.scheduler.run_every(
             self.simulate_presence,
             seconds=self.app_config.check_interval,
             name=PRESENCE_JOB_NAME,

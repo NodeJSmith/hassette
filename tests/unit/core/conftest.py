@@ -89,11 +89,9 @@ def mock_hassette() -> AsyncMock:
     hassette.command_executor = MagicMock()
     hassette.command_executor.reconcile_registrations = AsyncMock()
     hassette.bus_service = MagicMock()
-    hassette.bus_service.await_registrations_complete = AsyncMock()
     hassette.bus_service.router = MagicMock()
     hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
     hassette.scheduler_service = MagicMock()
-    hassette.scheduler_service.await_registrations_complete = AsyncMock()
     hassette.session_id = 1
     return hassette
 
@@ -224,7 +222,6 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     svc.hassette.config.bus_excluded_domains = ()
     svc.hassette.config.bus_excluded_entities = ()
     svc.hassette.config.logging.all_events = False
-    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()
     svc._executor.register_listener = AsyncMock(return_value=0)

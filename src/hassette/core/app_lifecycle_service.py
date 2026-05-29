@@ -525,12 +525,8 @@ class AppLifecycleService(Resource):
         try:
             bus_service = self.hassette.bus_service
 
-            # Await barrier: ensure all pending listener registrations are flushed.
-            await bus_service.await_registrations_complete(app_key)
-            # Await barrier: ensure all pending job registrations are flushed.
-            await self.hassette.scheduler_service.await_registrations_complete(app_key)
-
             # Collect live listener IDs from all instances.
+            # Registration is synchronous — db_ids are set before on_initialize() returns.
             live_listener_ids: set[int] = set()
             for inst in instances.values():
                 try:

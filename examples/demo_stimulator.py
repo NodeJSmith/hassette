@@ -36,14 +36,14 @@ class DemoStimulator(App[DemoStimulatorConfig]):
         cfg = self.app_config
         self.cycle = 0
 
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "input_boolean.test_toggle",
             handler=self.on_toggle_changed,
         )
 
-        self.scheduler.run_in(self.trigger_activity_burst, BURST_DELAY_SECONDS, name="initial_burst")
+        await self.scheduler.run_in(self.trigger_activity_burst, BURST_DELAY_SECONDS, name="initial_burst")
 
-        self.scheduler.run_every(
+        await self.scheduler.run_every(
             self.trigger_activity_cycle,
             seconds=cfg.activity_interval,
             name="activity_cycle",
@@ -51,7 +51,7 @@ class DemoStimulator(App[DemoStimulatorConfig]):
         )
 
         if cfg.enable_failure:
-            self.scheduler.run_every(
+            await self.scheduler.run_every(
                 self.failing_job,
                 seconds=cfg.failure_interval,
                 name="sensor_health_check",
@@ -83,7 +83,7 @@ class DemoStimulator(App[DemoStimulatorConfig]):
             target={"entity_id": "input_boolean.test_toggle"},
         )
 
-        self.scheduler.run_in(self.trigger_cooldown, BURST_DELAY_SECONDS, name="cooldown")
+        await self.scheduler.run_in(self.trigger_cooldown, BURST_DELAY_SECONDS, name="cooldown")
 
     async def trigger_cooldown(self) -> None:
         """Reset states after the burst."""

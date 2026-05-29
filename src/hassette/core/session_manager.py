@@ -49,7 +49,7 @@ class SessionManager(Resource):
 
     async def on_initialize(self) -> None:
         """Register crash listener and signal readiness."""
-        self.bus.on(
+        await self.bus.on(
             topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
             handler=self.on_service_crashed,
             name="hassette.session_manager.on_service_crashed",

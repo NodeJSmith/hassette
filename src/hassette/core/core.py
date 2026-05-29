@@ -488,17 +488,6 @@ class Hassette(Resource):
                 await self.shutdown()
                 return
 
-        try:
-            await asyncio.wait_for(
-                self.bus_service.drain_framework_registrations(),
-                timeout=self.config.lifecycle.registration_await_timeout,
-            )
-        except TimeoutError:
-            self.logger.warning(
-                "drain_framework_registrations timed out after %ds — proceeding with startup",
-                self.config.lifecycle.registration_await_timeout,
-            )
-
         # Clean up stale once=True listeners from previous sessions. Safe to run here
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that

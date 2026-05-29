@@ -39,13 +39,13 @@ class PresenceTracker(App[PresenceTrackerConfig]):
         self.logger.info("Tracking presence for %s via %s", cfg.person_name, cfg.tracker_entity)
 
         # Watch for tracker state changes
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             cfg.tracker_entity,
             handler=self.on_tracker_change,
         )
 
         # Periodic status log — group for easy filtering in the dashboard
-        self.scheduler.run_every(
+        await self.scheduler.run_every(
             self.log_status,
             seconds=cfg.status_interval,
             name=f"{cfg.person_name}_status",
@@ -64,7 +64,7 @@ class PresenceTracker(App[PresenceTrackerConfig]):
 
         # If person is already away, subscribe to zone changes
         if initial_status == "away":
-            self._subscribe_to_zone()
+            await self._subscribe_to_zone()
 
     async def on_tracker_change(
         self,
@@ -87,19 +87,20 @@ class PresenceTracker(App[PresenceTrackerConfig]):
         if new_state.value != "home" and self._zone_subscription is None:
             # Person left home — subscribe to zone changes
             self.logger.info("%s left home, subscribing to zone.home changes", cfg.person_name)
-            self._subscribe_to_zone()
+            await self._subscribe_to_zone()
         elif new_state.value == "home" and self._zone_subscription is not None:
             # Person returned home — unsubscribe from zone changes
             self.logger.info("%s returned home, cancelling zone subscription", cfg.person_name)
             self._zone_subscription.cancel()
             self._zone_subscription = None
 
-    def _subscribe_to_zone(self) -> None:
+    async def _subscribe_to_zone(self) -> None:
         """Dynamically subscribe to zone.home occupancy changes."""
-        self._zone_subscription = self.bus.on_state_change(
+        self._zone_subscription = await self.bus.on_state_change(
             "zone.home",
             changed=C.Increased(),
             handler=self.on_zone_occupancy_increased,
+            name="presence_tracker.on_zone_occupancy_increased",
         )
         self.logger.info("Subscribed to zone.home occupancy changes")
 

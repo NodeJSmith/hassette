@@ -9,13 +9,14 @@ Verifies:
 """
 
 import typing
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hassette.app.app import App, AppSync
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
+from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
 
@@ -116,6 +117,11 @@ def make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     mock_service = Mock()
     mock_service.register_removal_callback = Mock()
     mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
+
+    async def _add_job(job: ScheduledJob) -> None:
+        job.mark_registered(1)
+
+    mock_service.add_job = AsyncMock(side_effect=_add_job)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}
@@ -127,14 +133,14 @@ async def job_fn() -> None:
 
 
 class TestSchedulerSourceTierPropagation:
-    def test_framework_scheduler_creates_framework_job(self) -> None:
+    async def test_framework_scheduler_creates_framework_job(self) -> None:
         """Scheduler.schedule() with a framework parent sets source_tier='framework'."""
         scheduler = make_scheduler_with_parent("framework")
-        job = scheduler.schedule(job_fn, After(seconds=10))
+        job = await scheduler.schedule(job_fn, After(seconds=10))
         assert job.source_tier == "framework"
 
-    def test_app_scheduler_creates_app_job(self) -> None:
+    async def test_app_scheduler_creates_app_job(self) -> None:
         """Scheduler.schedule() with an app parent sets source_tier='app'."""
         scheduler = make_scheduler_with_parent("app")
-        job = scheduler.schedule(job_fn, After(seconds=10))
+        job = await scheduler.schedule(job_fn, After(seconds=10))
         assert job.source_tier == "app"

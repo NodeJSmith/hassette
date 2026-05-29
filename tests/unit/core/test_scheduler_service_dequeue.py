@@ -16,7 +16,6 @@ from unittest.mock import MagicMock
 from fair_async_rlock import FairAsyncRLock
 
 import hassette.utils.date_utils as date_utils
-from hassette.core.registration_tracker import RegistrationTracker
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 
@@ -35,9 +34,7 @@ def make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with a real _ScheduledJobQueue."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-    svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()
     svc._wakeup_event = asyncio.Event()

@@ -3,7 +3,7 @@ from hassette import App, AppConfig
 
 class WeatherApp(App[AppConfig]):
     async def on_initialize(self):
-        self.scheduler.run_every(self.update_weather, 60)
+        await self.scheduler.run_every(self.update_weather, 60)
 
     async def get_weather(self, location: str) -> dict:
         cache_key = f"weather:{location}"

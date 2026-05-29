@@ -10,7 +10,6 @@ from hassette.app.app_config import AppConfig
 from hassette.core.commands import ExecuteJob
 from hassette.scheduler import ScheduledJob
 from hassette.scheduler.triggers import Every
-from hassette.test_utils import wait_for
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
 from hassette.utils.date_utils import now
@@ -28,7 +27,9 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
         captured_arguments.append((a, b, flag))
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=0.01, args=(1, 2), kwargs={"flag": True}
+    )
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -46,7 +47,9 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteH
         captured_arguments.append((name, count))
         event_loop.call_soon_threadsafe(job_executed.set)
 
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01, args=("sensor",), kwargs={"count": 3})
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=0.01, args=("sensor",), kwargs={"count": 3}
+    )
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -96,8 +99,8 @@ async def test_run_job_calls_executor(hassette_with_scheduler: HassetteHarness) 
     executor.execute.side_effect = _capturing_execute
     executor.execute.reset_mock()
 
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.05)
-    # Simulate an app-owned job by setting db_id (internal jobs have db_id=None and bypass executor)
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=0.05)
+    # db_id is now set immediately after await run_in returns; override for this test
     scheduled_job.mark_registered(99)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
@@ -119,7 +122,7 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
     executor = scheduler_service._executor
     executor.execute.reset_mock()
 
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01)
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=0.01)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -131,9 +134,10 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
 
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarness) -> None:
-    """Adding a job triggers register_job() and sets job.db_id.
+    """Adding a job triggers register_job() and sets job.db_id immediately on return.
 
-    All jobs now go through DB registration regardless of app_key (#547).
+    All jobs go through DB registration regardless of app_key (#547).
+    With async registration, db_id is set before run_in() returns — no polling needed.
     """
     db_id = 99
 
@@ -144,16 +148,12 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarn
     executor = scheduler_service._executor
     executor.register_job = AsyncMock(return_value=db_id)
 
-    job_executed = asyncio.Event()
-
     async def target() -> None:
-        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+        pass
 
-    scheduled_job = scheduler.run_in(target, delay=0.5)
+    scheduled_job = await scheduler.run_in(target, delay=0.5)
 
-    await wait_for(lambda: scheduled_job.db_id is not None, desc="job registered")
-
-    assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
+    assert scheduled_job.db_id is not None, "job.db_id should be set immediately after await run_in() returns"
     assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
 
     scheduled_job.cancel()
@@ -173,10 +173,10 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: HassetteHarnes
         return _job
 
     reference = now()
-    hassette_with_scheduler.scheduler.run_once(
+    await hassette_with_scheduler.scheduler.run_once(
         make_job("late", late_job_complete), at=reference.add(seconds=0.4), name="late_job"
     )
-    hassette_with_scheduler.scheduler.run_once(
+    await hassette_with_scheduler.scheduler.run_once(
         make_job("early", early_job_complete), at=reference.add(seconds=0.1), name="early_job"
     )
 
@@ -253,7 +253,7 @@ class _OnceExhaustionApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         # Schedule a Once job at a time far in the future (we'll freeze past it)
-        self.scheduler.run_once(self.task, at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0), name="once_job")
+        await self.scheduler.run_once(self.task, at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0), name="once_job")
 
     async def task(self) -> None:
         self.fired = True
@@ -267,7 +267,7 @@ class _AfterExhaustionApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         # After(seconds=10) — will fire when we freeze 10+ seconds into the future
-        self.scheduler.run_in(self.task, delay=10, name="after_job")
+        await self.scheduler.run_in(self.task, delay=10, name="after_job")
 
     async def task(self) -> None:
         self.fired = True
@@ -277,9 +277,9 @@ class _GroupApp(App[_ExhaustionConfig]):
     """App that schedules jobs in a named group."""
 
     async def on_initialize(self) -> None:
-        self.scheduler.run_every(lambda: None, hours=1, name="g1", group="morning")
-        self.scheduler.run_every(lambda: None, hours=2, name="g2", group="morning")
-        self.scheduler.run_every(lambda: None, hours=3, name="g3", group="morning")
+        await self.scheduler.run_every(lambda: None, hours=1, name="g1", group="morning")
+        await self.scheduler.run_every(lambda: None, hours=2, name="g2", group="morning")
+        await self.scheduler.run_every(lambda: None, hours=3, name="g3", group="morning")
 
 
 class _OnceGroupApp(App[_ExhaustionConfig]):
@@ -289,14 +289,14 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
 
     async def on_initialize(self) -> None:
         self.fired = False
-        self.scheduler.run_once(
+        await self.scheduler.run_once(
             self.task,
             at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0),
             name="once_in_group",
             group="morning",
         )
         # Add a recurring job so the group isn't empty after exhaustion
-        self.scheduler.run_every(lambda: None, hours=1, name="recurring_in_group", group="morning")
+        await self.scheduler.run_every(lambda: None, hours=1, name="recurring_in_group", group="morning")
 
     async def task(self) -> None:
         self.fired = True
@@ -357,7 +357,7 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
     async with AppTestHarness(_OnceExhaustionApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
-        job = scheduler.schedule(lambda: None, Every(hours=1), name="jittered_job", jitter=60)
+        job = await scheduler.schedule(lambda: None, Every(hours=1), name="jittered_job", jitter=60)
 
         assert job.jitter == 60, "jitter field should be stored on the job"
         assert job.next_run.nanosecond == 0, "next_run should be rounded to whole seconds"
@@ -452,8 +452,8 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     async def target() -> None:
         hassette_with_scheduler.task_bucket.post_to_loop(job_done.set)
 
-    # Schedule a job and simulate it having been persisted with db_id=42
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=10)
+    # Schedule a job; with async registration db_id is already set, but we override to test cancel path
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=10)
     scheduled_job.mark_registered(db_id)
 
     # Cancel via the back-reference (job.cancel() → scheduler.cancel_job())
@@ -485,9 +485,12 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     async def target() -> None:
         pass
 
-    # Schedule a job without calling mark_registered — db_id remains None
-    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=10)
-    assert scheduled_job.db_id is None, "db_id should be None before registration"
+    # Override register_job to return None so db_id stays None — tests the defensive cancel guard.
+    # With async registration db_id is normally always set; this covers the edge case where
+    # a DB failure or mock returns None.
+    executor.register_job.return_value = None
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=10)
+    assert scheduled_job.db_id is None, "db_id should be None when register_job returns None"
 
     # Cancel via back-reference — must not raise
     scheduled_job.cancel()
