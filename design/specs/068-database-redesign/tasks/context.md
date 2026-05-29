@@ -9,17 +9,16 @@ None.
 ## Key Decisions
 1. Unify `handler_invocations` + `job_executions` into a single `executions` table with a `kind` discriminator. Registration tables (`listeners`, `scheduled_jobs`) stay separate.
 2. Two nullable FK columns (`listener_id`, `job_id`) with CHECK constraint enforcing exactly one non-null per row.
-3. `name=` becomes required on all DB-registered listeners. Natural key: `(owner_key, instance_index, name, topic)`. Cancel-listeners are exempt (bypass DB). Once-listeners participate in upsert dedup.
+3. `name=` becomes required on all DB-registered listeners. Natural key: `(app_key, instance_index, name, topic)`. Cancel-listeners are exempt (bypass DB). Once-listeners participate in upsert dedup.
 4. Synchronous registration — DB INSERT awaited inline, no background tasks. DB row ID is the only identifier.
 5. Replace Alembic with `PRAGMA user_version` + ~35-line runner. Migration chain resets to 001 (delete-recreate).
-6. `app_key` renames to `owner_key` across all layers (mechanical codemod, separate first commit).
-7. `_listener_meta`/`_job_meta` dicts replaced by adding `owner_key`/`instance_index` directly to completion event payloads.
-8. `AppHealthSummary` retains split fields (`total_invocations`/`total_executions`) for API stability. Aggregation queries reconstruct by kind.
-9. `ActivityFeedEntry.row_id` switches to `execution_id` UUID.
-10. `dropped_no_session` counter removed from all layers (dead code under synchronous registration).
+6. `_listener_meta`/`_job_meta` dicts replaced by adding `app_key`/`instance_index` directly to completion event payloads.
+7. `AppHealthSummary` retains split fields (`total_invocations`/`total_executions`) for API stability. Aggregation queries reconstruct by kind.
+8. `ActivityFeedEntry.row_id` switches to `execution_id` UUID.
+9. `dropped_no_session` counter removed from all layers (dead code under synchronous registration).
 
 ## Constraints & Anti-Patterns
-- The `owner_key` rename MUST land as a separate commit before any schema changes — ~613 occurrences would obscure structural diffs.
+- Do NOT rename `app_key` to `owner_key` — that rename was considered and dropped (challenge 2026-05-29; `owner_key` is a synonym, not a broader concept). `app_key` is the canonical name across every layer (DB columns, models, payloads, frontend, CLI).
 - Upsert `ON CONFLICT` target must exactly match the unique index expression — divergence causes silent INSERT.
 - `_RETENTION_TABLES` and parent-guard DELETEs hard-code table names — must update to `executions`.
 - `BusService` and `SchedulerService` must both declare `depends_on: [DatabaseService]`.

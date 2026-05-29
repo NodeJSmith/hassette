@@ -3,7 +3,7 @@ task_id: "T12"
 title: "Update frontend types, endpoints, and routing"
 status: "planned"
 depends_on: ["T11"]
-implements: ["FR#14", "AC#3"]
+implements: ["AC#3"]
 ---
 
 ## Summary
@@ -40,5 +40,4 @@ Regenerate frontend types from the updated OpenAPI and WS schemas. Update endpoi
 - The `row_id` field in activity feed entries changes from `'h-123'` / `'j-456'` to UUID format.
 
 ## Verify
-- [ ] FR#14: Frontend uses `owner_key` consistently (from T01, verified here)
 - [ ] AC#3: Frontend builds without type errors (`cd frontend && npm run build`); full e2e verification in T15

@@ -18,7 +18,7 @@ Merge the dual-branch record building (`_build_record`) and dual-list persist lo
 
 **Step 4: Merge `_drain_and_persist()`** — merge dual drain logic.
 
-**Step 5: Collapse event emission** — update `_emit_completion_events()` to emit a single event type on one topic instead of two separate topics (`HASSETTE_EVENT_INVOCATION_COMPLETED` and `HASSETTE_EVENT_EXECUTION_COMPLETED`). Define or rename the unified topic constant (e.g., `Topic.HASSETTE_EVENT_EXECUTION_COMPLETED`). The payload already includes `owner_key` and `instance_index` (from T06) and `kind` to distinguish handler vs job.
+**Step 5: Collapse event emission** — update `_emit_completion_events()` to emit a single event type on one topic instead of two separate topics (`HASSETTE_EVENT_INVOCATION_COMPLETED` and `HASSETTE_EVENT_EXECUTION_COMPLETED`). Define or rename the unified topic constant (e.g., `Topic.HASSETTE_EVENT_EXECUTION_COMPLETED`). The payload already includes `app_key` and `instance_index` (from T06) and `kind` to distinguish handler vs job.
 
 **Step 6: Update tests** — `test_command_executor.py` (both unit and integration) has dual-list persist tests. Update for unified records. Remove sentinel=0 filtering tests (eliminated in T04).
 

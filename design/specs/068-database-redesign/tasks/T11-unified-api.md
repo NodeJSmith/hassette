@@ -19,12 +19,12 @@ Create the unified REST execution endpoints and the unified WebSocket message ty
 
 **Step 2: Unified WS message** — in `web/models.py`:
 - Delete `InvocationCompletedWsMessage` and `ExecutionCompletedWsMessage`.
-- Create unified `ExecutionCompletedData(BaseModel)` with fields: `kind: Literal["handler", "job"]`, `owner_key: str`, `instance_index: int`, `status: str`, `duration_ms: float`, `error_type: str | None`, `listener_id: int | None`, `job_id: int | None`.
+- Create unified `ExecutionCompletedData(BaseModel)` with fields: `kind: Literal["handler", "job"]`, `app_key: str`, `instance_index: int`, `status: str`, `duration_ms: float`, `error_type: str | None`, `listener_id: int | None`, `job_id: int | None`.
 - Create `ExecutionCompletedWsMessage(BaseModel)` with `type: Literal["execution_completed"]`, `data: list[ExecutionCompletedData]`, `timestamp: float`.
 - Update `WsServerMessage` discriminated union to include the new message type.
 
 **Step 3: Update RuntimeQueryService** — in `runtime_query_service.py`:
-- Merge `_on_invocation_completed()` and `_on_execution_completed()` into a single `_on_execution_completed()` that reads `owner_key`/`instance_index` from the event payload (enriched in T06).
+- Merge `_on_invocation_completed()` and `_on_execution_completed()` into a single `_on_execution_completed()` that reads `app_key`/`instance_index` from the event payload (enriched in T06).
 - Update the subscription to use the single unified event topic (defined in T09). Remove the subscription to the old invocation topic.
 - Merge `_pending_invocations`/`_pending_executions` into `_pending_completions`.
 - Update `_flush_completions()` to emit a single `execution_completed` message type.

@@ -16,11 +16,11 @@ Rewrite `telemetry_repository.py` to write to the unified `executions` table. Me
 
 **Step 3: Update `persist_batch_with_fk_fallback()` and `_insert_row_with_fk_fallback()`** — rewrite for the unified `executions` table. The FK fallback sets `listener_id=NULL` or `job_id=NULL` depending on kind.
 
-**Step 4: Update `register_listener()` upsert** — change the `ON CONFLICT` target to match the new unique index expression `(owner_key, instance_index, name, topic)`. No `WHERE once = 0` filter, no `COALESCE`, no `handler_method` in the key. `name` is `NOT NULL`.
+**Step 4: Update `register_listener()` upsert** — change the `ON CONFLICT` target to match the new unique index expression `(app_key, instance_index, name, topic)`. No `WHERE once = 0` filter, no `COALESCE`, no `handler_method` in the key. `name` is `NOT NULL`.
 
 **Step 5: Update reconciliation queries** — `_build_delete_query()` and `_build_retire_query()` reference `handler_invocations`/`job_executions` in `NOT EXISTS`/`EXISTS` subqueries. Change to `executions` with the correct FK column (`listener_id` or `job_id`). See design doc Reconciliation and Retention section.
 
-**Step 6: Verify upsert/index alignment** — write a unit test that queries `sqlite_master` for the unique index definition and asserts it matches the `ON CONFLICT` target verbatim (FR#4 structural test).
+**Step 6: Verify upsert/index alignment** — write a unit test that queries `sqlite_master` for the unique index definition and asserts (a) it matches the repository's `ON CONFLICT` target verbatim, and (b) its columns are exactly the canonical tuple `(app_key, instance_index, name, topic)` (FR#4 structural test). Part (b) ties the DB index to the same source of truth that T03 pins the in-memory `_listener_natural_key()` against — together these guard all three definition sites against drift.
 
 **Step 7: Update existing tests** — `test_telemetry_repository.py` has dual table INSERT/upsert tests. Update for unified table.
 

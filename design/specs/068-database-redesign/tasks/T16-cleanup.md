@@ -2,7 +2,7 @@
 task_id: "T16"
 title: "Final cleanup and verification"
 status: "planned"
-depends_on: ["T09", "T10", "T14", "T15"]
+depends_on: ["T09", "T10", "T14", "T15", "T17"]
 implements: ["FR#2", "FR#19", "AC#1", "AC#4", "AC#5"]
 ---
 
@@ -31,6 +31,7 @@ Final pass — verify all behavioral invariants, run the full test suite, confir
 - `grep -r "RegistrationTracker" src/hassette/ --include="*.py"` — zero
 - `grep -r "mark_registered" src/hassette/ --include="*.py"` — zero
 - `grep -r "dropped_no_session\|droppedNoSession" src/hassette/ frontend/src/` — zero
+- `grep -rn "HandlerInvocation\|JobExecution" src/hassette/cli/ --include="*.py"` — zero (CLI migrated to unified `Execution` in T17)
 
 **Step 4: Verify schema:**
 - Run migrations on fresh DB, inspect with `sqlite3` — confirm `executions` table with correct columns, indexes, CHECK constraints

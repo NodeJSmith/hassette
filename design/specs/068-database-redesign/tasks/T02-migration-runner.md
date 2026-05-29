@@ -2,7 +2,7 @@
 task_id: "T02"
 title: "Replace Alembic with PRAGMA user_version migration runner"
 status: "planned"
-depends_on: ["T01"]
+depends_on: []
 implements: ["FR#7", "FR#8", "FR#9", "FR#17", "AC#4", "AC#8", "AC#11"]
 ---
 
@@ -20,8 +20,8 @@ Follow the `_source_tier_clause` convention for helper functions (see Convention
 
 **Step 2: Write `migrations/001.sql`** with the unified schema DDL. Tables:
 - `sessions` — carry over from current schema, but DROP the `dropped_no_session` column
-- `listeners` — carry over, but update unique index to `(owner_key, instance_index, name, topic)` (no `WHERE once = 0` filter, no `handler_method` in key, no `COALESCE` fallback). `name` is `NOT NULL`.
-- `scheduled_jobs` — carry over unchanged (natural key `owner_key, instance_index, job_name` already name-based)
+- `listeners` — carry over, but update unique index to `(app_key, instance_index, name, topic)` (no `WHERE once = 0` filter, no `handler_method` in key, no `COALESCE` fallback). `name` is `NOT NULL`.
+- `scheduled_jobs` — carry over unchanged (natural key `app_key, instance_index, job_name` already name-based)
 - `executions` — unified table with: `id INTEGER PRIMARY KEY AUTOINCREMENT`, `kind TEXT NOT NULL CHECK (kind IN ('handler', 'job'))`, `listener_id INTEGER REFERENCES listeners(id) ON DELETE SET NULL`, `job_id INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL`, `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`, `session_id`, `execution_start_ts`, `duration_ms`, `status`, `error_type`, `error_message`, `error_traceback`, `is_di_failure`, `source_tier`, `execution_id TEXT UNIQUE`, `trigger_context_id`, `trigger_origin` (nullable — handler-only). New columns: `trigger_mode TEXT` (nullable), `retry_count INTEGER NOT NULL DEFAULT 0`, `attempt_number INTEGER NOT NULL DEFAULT 1`, `args_json TEXT NOT NULL DEFAULT '[]'`, `kwargs_json TEXT NOT NULL DEFAULT '{}'`.
 - `log_records` — carry over unchanged
 - 6 indexes on executions (see design doc Architecture > Schema > Index plan)

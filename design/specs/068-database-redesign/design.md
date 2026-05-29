@@ -90,9 +90,9 @@ Separately, listener identity relies on a computed key (handler method + topic +
 - **FR#9** Each migration is atomic — a crash mid-migration leaves the database at the previous version, not a partially-applied state
 - **FR#10** The API returns execution records from a single interface with a kind indicator distinguishing handler and job executions
 - **FR#11** Real-time execution notifications use a single unified message type with a kind indicator
-- **FR#12** The field currently named "app_key" renames to "owner_key" in the storage layer
-- **FR#13** The "owner_key" rename propagates to API responses and real-time message payloads
-- **FR#14** The "owner_key" rename propagates to the frontend
+- ~~**FR#12** The field currently named "app_key" renames to "owner_key" in the storage layer~~ — **WITHDRAWN 2026-05-29** (challenge review). `owner_key` was verified to be a synonym for `app_key`, not a broader concept: `Resource.app_key` (`resources/base.py:217`) already returns framework-prefixed keys and is documented as the telemetry identity key, and `source_tier` already discriminates app vs framework. The rename adds no semantic content at ~613 occurrences of cost. `app_key` is retained everywhere.
+- ~~**FR#13** The "owner_key" rename propagates to API responses and real-time message payloads~~ — **WITHDRAWN** (see FR#12).
+- ~~**FR#14** The "owner_key" rename propagates to the frontend~~ — **WITHDRAWN** (see FR#12).
 - **FR#15** The "dropped before session ready" counter is removed from the execution pipeline
 - **FR#16** The "dropped before session ready" API field, frontend status badge, and `dropped_no_session` column on the `sessions` table are removed from the new 001.sql schema
 - **FR#17** The kind indicator is constrained to its two valid values at the storage level
@@ -148,11 +148,11 @@ Both exceptions include the handler method name and topic as instance attributes
 - **AC#2** End-to-end tests pass for the unified execution interface and real-time notifications — maps to FR#10, FR#11
 - **AC#3** Frontend manual verification: handlers page shows unified list, detail pages load, activity feed updates in real time — maps to FR#10, FR#11
 - **AC#4** Demo script produces expected database structure: unified execution table with kind indicator, native version tracking set correctly, no legacy migration metadata — maps to FR#1, FR#7, FR#9
-- **AC#5** Static analysis and type checking pass with zero errors — maps to FR#12, FR#13, FR#14
+- **AC#5** Static analysis and type checking pass with zero errors — global quality gate across all FRs (originally mapped to the withdrawn FR#12–14; retained as the overall pyright/build gate)
 - **AC#6** Registering a listener without a name raises a clear error at call time — maps to FR#3
 - **AC#7** A registered listener has a valid integer database ID immediately on return — no deferred registration to await — maps to FR#5, FR#6
 - **AC#8** The migration tool and its transitive dependencies are no longer listed as project dependencies — maps to FR#8
-- **AC#9** No references to the old field name ("app_key") remain in production source code — maps to FR#12, FR#13, FR#14
+- ~~**AC#9** No references to the old field name ("app_key") remain in production source code~~ — **WITHDRAWN 2026-05-29** (challenge review). The `app_key`→`owner_key` rename was dropped; `app_key` is the retained name. See withdrawn FR#12.
 - **AC#10** No references to the removed session-readiness counter remain in production code — maps to FR#15, FR#16
 - **AC#11** The kind indicator rejects values other than its two valid options at the storage level — maps to FR#17
 - **AC#12** Known future columns are present in the initial schema without requiring a follow-up migration — maps to FR#19
@@ -161,7 +161,6 @@ Both exceptions include the handler method name and topic as instance attributes
 
 ## Key Constraints
 
-- The `owner_key` rename must land as a dedicated first commit via mechanical codemod, before any schema changes — the ~613 occurrences would obscure structural diffs if bundled.
 - The upsert `ON CONFLICT` target must exactly match the unique index expression — any divergence causes SQLite to silently INSERT instead of UPDATE.
 - `_RETENTION_TABLES` and parent-guard DELETE queries in `database_service.py` hard-code table names — these must be updated to reference the unified `executions` table with `kind` discriminator filters.
 - `BusService` and `SchedulerService` must both declare `depends_on: [DatabaseService]` to guarantee DB readiness before synchronous registration.
@@ -198,11 +197,11 @@ Index plan for the unified table (10 current indexes → 6):
 
 ### Listener Identity
 
-Natural key: `(owner_key, instance_index, name, topic)`. `name` is `NOT NULL`. `handler_method` exits the key (stays as display-only metadata). `predicate_description` and `human_description` stay as metadata columns. The upsert conflict target matches this key exactly. The current unique index filter `WHERE once = 0` is removed — once-listeners participate in upsert deduplication so that executions across multiple sessions link to the same listener row. The `once` column stays as a behavioral flag but exits the index.
+Natural key: `(app_key, instance_index, name, topic)`. `name` is `NOT NULL`. `handler_method` exits the key (stays as display-only metadata). `predicate_description` and `human_description` stay as metadata columns. The upsert conflict target matches this key exactly. The current unique index filter `WHERE once = 0` is removed — once-listeners participate in upsert deduplication so that executions across multiple sessions link to the same listener row. The `once` column stays as a behavioral flag but exits the index.
 
 Framework services that already provide names: ServiceWatcher (5), AppHandler (1), SessionManager (1). Need names added: StateProxy (1), RuntimeQueryService (~6). Cancel-listeners are exempt (bypass DB registration entirely).
 
-The `scheduled_jobs` natural key (`owner_key, instance_index, job_name`) is already name-based and does not change — `job_name` auto-generates from the callable name if not provided by the user. The `log_records` table (added in migration 009) is unaffected by the redesign and carries over into the new 001.sql unchanged.
+The `scheduled_jobs` natural key (`app_key, instance_index, job_name`) is already name-based and does not change — `job_name` auto-generates from the callable name if not provided by the user. The `log_records` table (added in migration 009) is unaffected by the redesign and carries over into the new 001.sql unchanged.
 
 ### Synchronous Registration
 
@@ -212,7 +211,7 @@ The `scheduled_jobs` natural key (`owner_key, instance_index, job_name`) is alre
 
 `RegistrationTracker` (entire class), `drain_framework_registrations()`, `await_registrations_complete()` barriers, and `Subscription.registration_task` are all removed.
 
-The `_listener_meta`/`_job_meta` in-memory dicts in `RuntimeQueryService` (populated as a side-effect of `CommandExecutor.register_listener/job()`) are also removed. These existed to enrich WS completion messages with `owner_key` without a DB read — the completion event payloads intentionally excluded ownership info to decouple CommandExecutor from the web layer. Under synchronous registration, the decoupling cost outweighs the benefit: the Listener/ScheduledJob object is guaranteed alive and in-memory when its handler fires, so `owner_key` and `instance_index` can be added directly to the completion event payloads (`InvocationCompletedPayload`, `ExecutionCompletedPayload`). This eliminates the cache, the registration side-effects in CommandExecutor, and the pruning logic — without adding DB reads to the broadcast path.
+The `_listener_meta`/`_job_meta` in-memory dicts in `RuntimeQueryService` (populated as a side-effect of `CommandExecutor.register_listener/job()`) are also removed. These existed to enrich WS completion messages with `app_key` without a DB read — the completion event payloads intentionally excluded ownership info to decouple CommandExecutor from the web layer. Under synchronous registration, the decoupling cost outweighs the benefit: the Listener/ScheduledJob object is guaranteed alive and in-memory when its handler fires, so `app_key` and `instance_index` can be added directly to the completion event payloads (`InvocationCompletedPayload`, `ExecutionCompletedPayload`). This eliminates the cache, the registration side-effects in CommandExecutor, and the pruning logic — without adding DB reads to the broadcast path.
 
 ### Migration Runner
 
@@ -256,7 +255,7 @@ Unified WebSocket message: `execution_completed` with a discriminated union payl
 ```python
 class ExecutionCompletedData(BaseModel):
     kind: Literal["handler", "job"]
-    owner_key: str
+    app_key: str
     instance_index: int
     status: str
     duration_ms: float
@@ -278,7 +277,6 @@ Frontend predicate closures must narrow by `kind` before accessing kind-specific
 - Two WS signals merge to one; two `case` branches merge
 - `/listener/:id` and `/job/:id` path-based routing replaces `h-`/`j-` prefix; `handler-ids.ts` deleted
 - `droppedNoSession` signal and badge removed from status bar
-- `owner_key` rename propagated to dynamic dict key in `use-websocket.ts`, structural cast in `recent-activity-section.tsx`, and `create-app-state.ts` signal names
 
 ## Replacement Targets
 
@@ -298,7 +296,7 @@ Frontend predicate closures must narrow by `kind` before accessing kind-specific
 | `handler-ids.ts` (frontend) | Path-based routing (`/listener/:id`, `/job/:id`) | Delete file |
 | `dropped_no_session` counter + API field + frontend badge | Nothing — dead code after synchronous registration | Delete from all layers |
 | `persist_batch_with_fk_fallback` + `_insert_row_with_fk_fallback` in `telemetry_repository.py` | Rewritten for unified `executions` table with `kind` discriminator | Rewrite — hardcoded `handler_invocations`/`job_executions` table names |
-| `_listener_meta` + `_job_meta` dicts in `RuntimeQueryService` | `owner_key` and `instance_index` added directly to completion event payloads — object guaranteed in-memory under synchronous registration | Delete dicts, registration side-effects in `CommandExecutor`, and pruning logic in `RuntimeQueryService` |
+| `_listener_meta` + `_job_meta` dicts in `RuntimeQueryService` | `app_key` and `instance_index` added directly to completion event payloads — object guaranteed in-memory under synchronous registration | Delete dicts, registration side-effects in `CommandExecutor`, and pruning logic in `RuntimeQueryService` |
 
 ## Migration
 
@@ -422,6 +420,7 @@ All new/modified telemetry route handlers use this pattern for graceful degradat
 - `tests/unit/core/test_telemetry_query_service.py` — mirrored query tests; merge pairs
 - `tests/system/conftest.py:262` — uses `sub.listener.db_id is not None` as gate; simplify (always set)
 - `tests/e2e/` — frontend tests referencing handler/job endpoints by URL; update paths
+- `tests/unit/cli/test_commands_listener.py`, `tests/unit/cli/test_commands_job.py` — mock the renamed detail endpoint and the unified `Execution` response shape (T17)
 
 ### New Test Coverage
 
@@ -462,7 +461,7 @@ All new/modified telemetry route handlers use this pattern for graceful degradat
 - `core/command_executor.py` — unified record building, persist logic, sentinel removal
 - `core/bus_service.py` — synchronous registration, `depends_on` addition
 - `core/scheduler_service.py` — synchronous registration, `depends_on` addition
-- `web/models.py` — unified WS messages, `owner_key` rename on 10+ models
+- `web/models.py` — unified WS messages
 - `pyproject.toml` — dependency removal
 
 **Repository/query layer (bulk of the change):**
@@ -475,6 +474,10 @@ All new/modified telemetry route handlers use this pattern for graceful degradat
 - `web/telemetry_helpers.py` — minor (metadata display)
 - `web/mappers.py` — minor (field name updates)
 
+**CLI:**
+- `cli/commands/listener.py` — import unified `Execution` (was `HandlerInvocation`), detail endpoint `/telemetry/handler/{id}/invocations` → `/telemetry/listener/{id}/executions`
+- `cli/commands/job.py` — import unified `Execution` (was `JobExecution`), unified response shape
+
 **Bus/scheduler internals:**
 - `bus/listeners.py` — remove `_listener_id_seq`, remove `registration_task` from Subscription
 - `bus/bus.py` — remove task capture in `_on_internal()`
@@ -486,10 +489,10 @@ All new/modified telemetry route handlers use this pattern for graceful degradat
 - `core/core.py` — remove framework drain call
 
 **Frontend:**
-- `use-websocket.ts` — merged signals, `owner_key` rename
+- `use-websocket.ts` — merged signals
 - `create-app-state.ts` — merged signal, remove `droppedNoSession`
 - `listener-detail.tsx`, `job-detail.tsx` — endpoint path updates
-- `recent-activity-section.tsx` — `owner_key` structural cast fix
+- `recent-activity-section.tsx` — React key switches to `execution_id` (row_id format change)
 - `handlers-tab.tsx` — path-based routing
 - `handler-rows.ts` — updated types
 - `handler-ids.ts` — delete file
@@ -531,4 +534,6 @@ All new/modified telemetry route handlers use this pattern for graceful degradat
 
 None — all questions resolved during brief exploration, challenge review, and design review.
 
-<!-- Gap check 2026-05-29: 5 production code gaps included — events/hassette.py (payload fields) → T04 Step 8, events/__init__.py (re-exports) → T04 Step 8, runtime_query_service.py (meta dict removal) → T04 Step 8, session_manager.py (dropped_no_session UPDATE) → T04 Step 7, test_utils/web_mocks.py (get_drop_counters mock) → T04 Step 7, registration.py (owner_key rename) → T01. ~15 test file gaps → T04 Step 9, T06 Step 7, T08 Step 10, T09 Step 6, T13. -->
+<!-- Gap check 2026-05-29: production code gaps included — events/hassette.py (payload fields) → T06 Step 1, events/__init__.py (re-exports) → T06 Step 1, runtime_query_service.py (meta dict removal) → T06 Step 3, session_manager.py (dropped_no_session UPDATE) → T05 Step 2, test_utils/web_mocks.py (get_drop_counters mock) → T05 Step 5. ~15 test file gaps → T04 Step 7, T06 Step 5, T08 Step 7, T09 Step 6, T13. -->
+<!-- Design-review fix 2026-05-29: CLI blast radius (cli/commands/listener.py, job.py — deleted HandlerInvocation/JobExecution models + renamed detail endpoint) was untracked; now owned by T17 (depends T07, T11; gates into T16). Listener natural-key drift guard added across T03 (in-memory key) + T08 (DB index structural test). -->
+<!-- Challenge 2026-05-29: app_key→owner_key rename DROPPED. Critics verified owner_key is a synonym for app_key (Resource.app_key already returns framework-prefixed keys and is documented as the telemetry identity key; source_tier already discriminates app vs framework). T01 deleted; FR#12/13/14 and AC#9 withdrawn; app_key retained across all layers. Natural key is (app_key, instance_index, name, topic). Tasks renumbered set: T02–T17 (no T01). -->

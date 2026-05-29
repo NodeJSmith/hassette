@@ -15,8 +15,7 @@ Merge the two WS completion signals into one, update predicate closures to narro
 - Remove `droppedNoSession` signal.
 
 **Step 2: Merge WS handler** — in `hooks/use-websocket.ts`:
-- Merge the two `case` branches (`invocation_completed`, `execution_completed`) into one `case "execution_completed"`.
-- Update the dynamic dict key to use `owner_key` (already renamed in T01).
+- Merge the two `case` branches (`invocation_completed`, `execution_completed`) into one `case "execution_completed"`. The `msg.data.app_key` dynamic dict key is unchanged (no rename).
 
 **Step 3: Update predicate closures** — in `components/app-detail/listener-detail.tsx` and `job-detail.tsx`:
 - Current: predicates access `e.listener_id` or `e.job_id` on a single-kind signal.
