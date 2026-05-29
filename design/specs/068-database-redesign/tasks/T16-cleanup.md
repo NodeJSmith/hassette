@@ -1,8 +1,8 @@
 ---
-task_id: "T14"
+task_id: "T16"
 title: "Final cleanup and verification"
 status: "planned"
-depends_on: ["T07", "T08", "T12", "T13"]
+depends_on: ["T09", "T10", "T14", "T15"]
 implements: ["FR#2", "FR#19", "AC#1", "AC#4", "AC#5"]
 ---
 
@@ -25,7 +25,7 @@ Final pass — verify all behavioral invariants, run the full test suite, confir
 - CSS lint tools if applicable
 
 **Step 3: Verify no stale references:**
-- `grep -r "handler_invocations\|job_executions" src/hassette/ --include="*.py"` — should return zero (except maybe comments)
+- `grep -r "handler_invocations\|job_executions" src/hassette/ --include="*.py"` — zero (except comments)
 - `grep -r "registration_task" src/hassette/ --include="*.py"` — zero
 - `grep -r "_listener_id_seq\|JOB_ID_SEQ" src/hassette/ --include="*.py"` — zero
 - `grep -r "RegistrationTracker" src/hassette/ --include="*.py"` — zero
@@ -33,7 +33,7 @@ Final pass — verify all behavioral invariants, run the full test suite, confir
 - `grep -r "dropped_no_session\|droppedNoSession" src/hassette/ frontend/src/` — zero
 
 **Step 4: Verify schema:**
-- Run migrations on fresh DB, inspect with `sqlite3` — confirm `executions` table exists with correct columns, indexes, CHECK constraints
+- Run migrations on fresh DB, inspect with `sqlite3` — confirm `executions` table with correct columns, indexes, CHECK constraints
 - Confirm `PRAGMA user_version` is set correctly
 - Confirm no `alembic_version` table exists
 
@@ -42,7 +42,6 @@ Final pass — verify all behavioral invariants, run the full test suite, confir
 ## Focus
 - This task should NOT write new code unless fixing issues found during verification.
 - If any verification step fails, the fix belongs in the originating task — re-open that task rather than patching here.
-- The `registration.py` dataclass fields should be `owner_key` (from T01) — verify.
 
 ## Verify
 - [ ] FR#2: `listeners` and `scheduled_jobs` tables exist as separate tables with distinct schemas

@@ -1,20 +1,20 @@
 ---
-task_id: "T09"
+task_id: "T11"
 title: "Unify REST API and WS message types"
 status: "planned"
-depends_on: ["T05", "T08"]
+depends_on: ["T05", "T06", "T07", "T10"]
 implements: ["FR#10", "FR#11", "AC#2"]
 ---
 
 ## Summary
-Create the unified REST execution endpoints and the unified WebSocket message type. Replace dual response models with discriminated union types.
+Create the unified REST execution endpoints and the unified WebSocket message type. Replace dual response models with discriminated union types. Update RuntimeQueryService to subscribe to the single unified event topic and merge its two handler methods.
 
 ## Prompt
 **Step 1: Unified REST endpoints** — in `web/routes/telemetry.py`:
 - Combined list: `GET /telemetry/executions?kind=handler|job` — returns discriminated union response.
 - Detail: `GET /telemetry/listener/{id}/executions` — returns executions for one listener.
 - Detail: `GET /telemetry/job/{id}/executions` — returns executions for one job.
-- All three share the same query function from T08 with different FK filter params.
+- All three share the same query function from T10 with different FK filter params.
 - Use the `DB_ERRORS` catch pattern for graceful degradation.
 
 **Step 2: Unified WS message** — in `web/models.py`:
@@ -23,9 +23,13 @@ Create the unified REST execution endpoints and the unified WebSocket message ty
 - Create `ExecutionCompletedWsMessage(BaseModel)` with `type: Literal["execution_completed"]`, `data: list[ExecutionCompletedData]`, `timestamp: float`.
 - Update `WsServerMessage` discriminated union to include the new message type.
 
-**Step 3: Update `runtime_query_service.py`** WS broadcast — merge the two handler methods (`_on_invocation_completed`, `_on_execution_completed`) into a single `_on_execution_completed` that reads `owner_key`/`instance_index` from the event payload. Merge `_pending_invocations`/`_pending_executions` into `_pending_completions`. Update `_flush_completions()` to emit a single `execution_completed` message type.
+**Step 3: Update RuntimeQueryService** — in `runtime_query_service.py`:
+- Merge `_on_invocation_completed()` and `_on_execution_completed()` into a single `_on_execution_completed()` that reads `owner_key`/`instance_index` from the event payload (enriched in T06).
+- Update the subscription to use the single unified event topic (defined in T09). Remove the subscription to the old invocation topic.
+- Merge `_pending_invocations`/`_pending_executions` into `_pending_completions`.
+- Update `_flush_completions()` to emit a single `execution_completed` message type.
 
-**Step 4: Update `web/mappers.py`** and `web/telemetry_helpers.py`** — field name updates.
+**Step 4: Update `web/mappers.py` and `web/telemetry_helpers.py`** — field name updates.
 
 **Step 5: Regenerate schemas** — run `uv run python scripts/export_schemas.py --types`.
 
@@ -35,7 +39,7 @@ Create the unified REST execution endpoints and the unified WebSocket message ty
 - Test: WS `execution_completed` message has correct discriminated union structure
 
 ## Focus
-- The `get_drop_counters()` return in `web/routes/telemetry.py` changed from 4-tuple to 3-tuple in T04 — verify the unpacking is correct.
+- The `get_drop_counters()` return in `web/routes/telemetry.py` changed from 4-tuple to 3-tuple in T05 — verify the unpacking is correct.
 - `test_ws_models.py` has model validation tests for the old WS types — update.
 - `test_schema_freshness.py` checks model export lists — update.
 - `tests/integration/web_api/test_telemetry.py` tests endpoint responses — update URLs and response shapes.

@@ -1,8 +1,8 @@
 ---
-task_id: "T11"
+task_id: "T13"
 title: "Merge frontend WS signals and remove droppedNoSession"
 status: "planned"
-depends_on: ["T09", "T10"]
+depends_on: ["T11", "T12"]
 implements: ["FR#11", "FR#16", "AC#3"]
 ---
 
@@ -21,7 +21,7 @@ Merge the two WS completion signals into one, update predicate closures to narro
 **Step 3: Update predicate closures** — in `components/app-detail/listener-detail.tsx` and `job-detail.tsx`:
 - Current: predicates access `e.listener_id` or `e.job_id` on a single-kind signal.
 - New: predicates must narrow by kind first: `e.kind === 'handler' && e.listener_id === targetId`.
-- Without narrowing, `e.listener_id` is `undefined` on job rows — silent comparison failure.
+- Without narrowing, `e.listener_id` is `null` on job rows — the comparison silently fails.
 
 **Step 4: Update `components/app-detail/recent-activity-section.tsx`:**
 - Merge the two signal entries into one with the unified predicate.
@@ -35,11 +35,11 @@ Merge the two WS completion signals into one, update predicate closures to narro
 **Step 6: Verify** — run `cd frontend && npm run build` to confirm no type errors.
 
 ## Focus
-- The TypeScript narrowing pattern is critical — `e.kind === 'handler' && e.listener_id === targetId`. Without the kind guard, `e.listener_id` on a job row is `null`, not `undefined` — the comparison silently fails (no crash, wrong result).
+- The TypeScript narrowing pattern is critical — `e.kind === 'handler' && e.listener_id === targetId`. Without the kind guard, the comparison silently produces wrong results (no crash).
 - `diagnostics.tsx` has 5 distinct `droppedNoSession` references — don't miss any.
 - `status-bar.tsx` and `alert-banner.tsx` are in the `components/layout/` directory.
 
 ## Verify
 - [ ] FR#11: Frontend subscribes to unified `execution_completed` WS message
 - [ ] FR#16: No `droppedNoSession` references in frontend (`grep -r droppedNoSession frontend/src/` returns zero)
-- [ ] AC#3: Frontend builds without type errors; full e2e verification in T13
+- [ ] AC#3: Frontend builds without type errors; full e2e verification in T15

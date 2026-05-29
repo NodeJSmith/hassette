@@ -1,8 +1,8 @@
 ---
-task_id: "T06"
+task_id: "T08"
 title: "Unify repository write path for executions table"
 status: "planned"
-depends_on: ["T02", "T05"]
+depends_on: ["T02", "T07"]
 implements: ["FR#1", "FR#4", "AC#1"]
 ---
 
@@ -20,14 +20,13 @@ Rewrite `telemetry_repository.py` to write to the unified `executions` table. Me
 
 **Step 5: Update reconciliation queries** — `_build_delete_query()` and `_build_retire_query()` reference `handler_invocations`/`job_executions` in `NOT EXISTS`/`EXISTS` subqueries. Change to `executions` with the correct FK column (`listener_id` or `job_id`). See design doc Reconciliation and Retention section.
 
-**Step 6: Verify upsert/index alignment** — write a unit test that queries `sqlite_master` for the unique index definition and asserts it matches the `ON CONFLICT` target verbatim (FR#4 structural test from design doc).
+**Step 6: Verify upsert/index alignment** — write a unit test that queries `sqlite_master` for the unique index definition and asserts it matches the `ON CONFLICT` target verbatim (FR#4 structural test).
 
 **Step 7: Update existing tests** — `test_telemetry_repository.py` has dual table INSERT/upsert tests. Update for unified table.
 
 ## Focus
 - The upsert `ON CONFLICT` target must EXACTLY match the unique index expression — divergence causes SQLite to silently INSERT instead of UPDATE.
-- The once-listener INSERT fork at `telemetry_repository.py:309-310` relied on `WHERE once = 0` partial index. With the filter removed, once-listeners now participate in upsert like everything else. Remove the fork.
-- `RetryableBatch` in `command_executor.py` currently has separate `invocations` and `job_executions` lists — that's updated in T07, not here. This task focuses on the repository layer.
+- The once-listener INSERT fork at `telemetry_repository.py:309-310` relied on `WHERE once = 0` partial index. With the filter removed, once-listeners participate in upsert like everything else. Remove the fork.
 - `_RETENTION_TABLES` and parent-guard DELETE queries in `database_service.py` should already be updated in T02 — verify.
 
 ## Verify

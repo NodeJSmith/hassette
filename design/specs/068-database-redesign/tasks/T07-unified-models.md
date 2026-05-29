@@ -1,5 +1,5 @@
 ---
-task_id: "T05"
+task_id: "T07"
 title: "Unify execution models and record types"
 status: "planned"
 depends_on: ["T02"]
@@ -15,7 +15,6 @@ Replace `HandlerInvocation` + `JobExecution` models with a unified `Execution` m
 - Create unified `Execution` model with `kind: Literal["handler", "job"]`, all shared fields, and optional handler-only fields (`trigger_context_id`, `trigger_origin`). Include new columns: `trigger_mode`, `retry_count`, `attempt_number`, `args_json`, `kwargs_json`.
 - `ActivityFeedEntry.row_id` now uses `execution_id` (UUID string) instead of `'h-' || rowid` / `'j-' || rowid`.
 - Keep `AppHealthSummary` split fields unchanged (`total_invocations`/`total_executions`, etc.).
-- Remove `dropped_no_session` from `SessionRecord` if not already done in T04.
 
 **Step 2: Update `bus/invocation_record.py`** (if separate from `invocation.py`):
 - Replace `HandlerInvocationRecord` with a unified `ExecutionRecord` that includes `kind` field.
@@ -26,15 +25,14 @@ Replace `HandlerInvocation` + `JobExecution` models with a unified `Execution` m
 **Step 4: Write unit tests:**
 - Test: unified Execution model accepts both handler and job kinds
 - Test: kind field rejects invalid values via Pydantic validation
-- Test: new columns (trigger_mode, retry_count, attempt_number, args_json, kwargs_json) exist on the model with correct defaults
+- Test: new columns exist on the model with correct defaults
 - Test: handler-only fields are None when kind="job"
 
 ## Focus
 - `HandlerInvocationRecord` lives in `bus/invocation_record.py` — verify the exact path.
 - `JobExecutionRecord` lives in `scheduler/classes.py`.
-- Both record types are consumed by `CommandExecutor._build_record()` and `_persist_batch()` — those are updated in T06.
-- `test_telemetry_models.py` has existing tests for the old models — update or replace.
-- `test_model_types.py` may have type annotation tests — check and update.
+- Both record types are consumed by `CommandExecutor._build_record()` and `_persist_batch()` — those are updated in T09.
+- `test_telemetry_models.py` and `test_model_types.py` have existing tests — update or replace.
 - `e2e/mock_fixtures.py` builds test data using old model types — update.
 
 ## Verify
