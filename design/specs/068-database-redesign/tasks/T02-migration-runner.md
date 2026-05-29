@@ -3,7 +3,7 @@ task_id: "T02"
 title: "Replace Alembic with PRAGMA user_version migration runner"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#7", "FR#8", "FR#9", "AC#4", "AC#8"]
+implements: ["FR#7", "FR#8", "FR#9", "FR#17", "AC#4", "AC#8", "AC#11"]
 ---
 
 ## Summary
@@ -43,7 +43,7 @@ Follow the `_source_tier_clause` convention for helper functions (see Convention
 - Existing `_handle_schema_version()` mismatch logic must survive — integer comparison instead of string.
 - `_RETENTION_TABLES` in `database_service.py` must be updated: reduce from 3 entries to 2 (`log_records`, `executions`).
 - Parent-guard DELETE queries for retired listeners/jobs must reference `executions` instead of `handler_invocations`/`job_executions`.
-- The `session_manager.py` UPDATE statement references `dropped_no_session` — the column no longer exists in the new schema, so this UPDATE must be removed.
+- The `session_manager.py` UPDATE statement references `dropped_no_session` — the column no longer exists in the new schema. T04 Step 7 owns this removal; note it here as a dependency, not an action for this task.
 - No other Python file imports `alembic` or `sqlalchemy` — the removal is contained.
 
 ## Verify
@@ -52,3 +52,5 @@ Follow the `_source_tier_clause` convention for helper functions (see Convention
 - [ ] FR#9: A test simulating crash mid-migration leaves DB at previous version
 - [ ] AC#4: Running migrations on a fresh DB produces the expected schema (unified `executions` table, `PRAGMA user_version` set, no `alembic_version` table)
 - [ ] AC#8: `pip show alembic` returns "not found" after `uv sync`
+- [ ] FR#17: `CHECK (kind IN ('handler', 'job'))` constraint exists in 001.sql DDL
+- [ ] AC#11: Unit test confirms invalid kind values are rejected at the SQL level

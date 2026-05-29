@@ -43,4 +43,4 @@ Regenerate frontend types from the updated OpenAPI and WS schemas. Update endpoi
 ## Verify
 - [ ] FR#14: Frontend uses `owner_key` consistently (from T01, verified here)
 - [ ] FR#16: No `droppedNoSession` references remain in frontend
-- [ ] AC#3: Handlers page shows unified list, detail pages load (manual verification)
+- [ ] AC#3: Frontend builds without type errors (`cd frontend && npm run build`); full e2e verification in T13

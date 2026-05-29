@@ -42,4 +42,4 @@ Merge the two WS completion signals into one, update predicate closures to narro
 ## Verify
 - [ ] FR#11: Frontend subscribes to unified `execution_completed` WS message
 - [ ] FR#16: No `droppedNoSession` references in frontend (`grep -r droppedNoSession frontend/src/` returns zero)
-- [ ] AC#3: Activity feed updates in real time with unified signal (manual verification)
+- [ ] AC#3: Frontend builds without type errors; full e2e verification in T13
