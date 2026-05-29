@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Replace Alembic with PRAGMA user_version migration runner"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "FR#8", "FR#9", "FR#17", "AC#4", "AC#8", "AC#11"]
 ---

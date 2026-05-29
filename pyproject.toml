@@ -37,7 +37,6 @@ dependencies = [
     "cyclopts>=4.0,<5.0",
     "httpx>=0.28.0",
     "aiosqlite>=0.20",
-    "alembic>=1.13",
     "anyio>=4.10.0",
     "structlog>=24.4",
     "fastapi>=0.134.0",
