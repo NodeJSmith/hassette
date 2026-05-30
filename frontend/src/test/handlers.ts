@@ -19,8 +19,7 @@ type ConfigResponse = components["schemas"]["ConfigResponse"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
-type HandlerInvocation = components["schemas"]["HandlerInvocation"];
-type JobExecution = components["schemas"]["JobExecution"];
+type Execution = components["schemas"]["Execution"];
 type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
@@ -99,14 +98,14 @@ export const handlers = [
     return HttpResponse.json<ActivityFeedEntry[]>([]);
   }),
 
-  // GET /api/telemetry/handler/:listener_id/invocations
-  http.get("/api/telemetry/handler/:listener_id/invocations", () => {
-    return HttpResponse.json<HandlerInvocation[]>([]);
+  // GET /api/telemetry/listener/:listener_id/executions
+  http.get("/api/telemetry/listener/:listener_id/executions", () => {
+    return HttpResponse.json<Execution[]>([]);
   }),
 
   // GET /api/telemetry/job/:job_id/executions
   http.get("/api/telemetry/job/:job_id/executions", () => {
-    return HttpResponse.json<JobExecution[]>([]);
+    return HttpResponse.json<Execution[]>([]);
   }),
 
   // GET /api/scheduler/jobs
@@ -125,7 +124,6 @@ export const handlers = [
       degraded: false,
       dropped_overflow: 0,
       dropped_exhausted: 0,
-      dropped_no_session: 0,
       dropped_shutdown: 0,
       error_handler_failures: 0,
     });

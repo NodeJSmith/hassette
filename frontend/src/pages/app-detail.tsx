@@ -64,7 +64,7 @@ function Tab({
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, invocationCompleted, executionCompleted } = useAppState();
+  const { appStatus, executionCompleted } = useAppState();
   const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -96,13 +96,13 @@ export function AppDetailPage({ params }: Props) {
   );
 
   useQueryInvalidator(
-    invocationCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    executionCompleted,
+    (events) => events?.some((e) => e.kind === "handler" && e.app_key === appKey) ?? false,
     queryKeys.appListeners.prefix(appKey),
   );
   useQueryInvalidator(
     executionCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    (events) => events?.some((e) => e.kind === "job" && e.app_key === appKey) ?? false,
     queryKeys.appJobs.prefix(appKey),
   );
 

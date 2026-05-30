@@ -1,6 +1,6 @@
 import { batch, computed, type Signal, signal } from "@preact/signals";
 
-import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload, WsLogPayload } from "../api/ws-types";
+import type { WsExecutionCompletedPayload, WsLogPayload } from "../api/ws-types";
 import { getStoredValue } from "../utils/local-storage";
 import { RingBuffer } from "../utils/ring-buffer";
 import { isTheme } from "../utils/theme";
@@ -159,16 +159,10 @@ export function createAppState() {
     systemVersion: signal<string | null>(null),
 
     /**
-     * Latest batch of invocation_completed WS events.
-     * Written by useWebSocket when an invocation_completed message arrives.
-     * Consumers subscribe to this signal to trigger debounced refetches.
-     */
-    invocationCompleted: signal<WsInvocationCompletedPayload[] | null>(null),
-
-    /**
-     * Latest batch of execution_completed WS events.
+     * Latest batch of execution_completed WS events (handler invocations and job executions).
      * Written by useWebSocket when an execution_completed message arrives.
      * Consumers subscribe to this signal to trigger debounced refetches.
+     * Use the ``kind`` field to distinguish handler invocations from job executions.
      */
     executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
 
@@ -194,12 +188,6 @@ export function createAppState() {
      * Updated by the telemetry health poller from /api/telemetry/status.
      */
     droppedExhausted: signal(0),
-
-    /**
-     * Count of telemetry events dropped due to missing write prerequisite at drain time.
-     * Startup-transient — typically ignorable unless chronic.
-     */
-    droppedNoSession: signal(0),
 
     /**
      * Count of telemetry events dropped during shutdown flush (DB unavailable).

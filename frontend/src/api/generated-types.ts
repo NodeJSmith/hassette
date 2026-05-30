@@ -280,8 +280,8 @@ export interface paths {
          * Telemetry Status
          * @description Health check for the telemetry database.
          *
-         *     Runs a representative query exercising the listeners -> handler_invocations
-         *     join path. Returns 503 with ``degraded: true`` when the database is
+         *     Runs a representative query against the unified ``executions`` table.
+         *     Returns 503 with ``degraded: true`` when the database is
          *     unavailable; 200 with ``degraded: false`` when healthy.
          */
         get: operations["telemetry_status_api_telemetry_status_get"];
@@ -377,7 +377,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/handler/{listener_id}/invocations": {
+    "/api/telemetry/executions": {
         parameters: {
             query?: never;
             header?: never;
@@ -385,10 +385,33 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Handler Invocations
-         * @description Invocation history for a specific handler.
+         * List Executions
+         * @description Combined execution list (handler invocations and job executions).
+         *
+         *     Filter by ``kind=handler`` or ``kind=job`` to restrict to one type.
+         *     Each record includes a ``kind`` field that discriminates the execution type.
          */
-        get: operations["handler_invocations_api_telemetry_handler__listener_id__invocations_get"];
+        get: operations["list_executions_api_telemetry_executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/listener/{listener_id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listener Executions
+         * @description Execution history for a specific listener (handler invocations).
+         */
+        get: operations["listener_executions_api_telemetry_listener__listener_id__executions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -806,25 +829,24 @@ export interface components {
             };
         };
         /**
-         * FileWatcherConfigResponse
-         * @description Sanitized file watcher configuration fields.
+         * Execution
+         * @description Unified execution record returned by queries against the ``executions`` table.
+         *
+         *     Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
+         *     ``kind`` discriminates between handler invocations and job executions.
+         *     Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+         *     ``None`` for job executions.
          */
-        FileWatcherConfigResponse: {
-            /** Watch Files */
-            watch_files: boolean;
-            /** Debounce Milliseconds */
-            debounce_milliseconds: number;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * HandlerInvocation
-         * @description Single invocation record returned by ``get_handler_invocations()``.
-         */
-        HandlerInvocation: {
+        Execution: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "handler" | "job";
+            /** Listener Id */
+            listener_id?: number | null;
+            /** Job Id */
+            job_id?: number | null;
             /** Execution Start Ts */
             execution_start_ts: number;
             /** Duration Ms */
@@ -848,6 +870,43 @@ export interface components {
             trigger_context_id?: string | null;
             /** Trigger Origin */
             trigger_origin?: string | null;
+            /** Trigger Mode */
+            trigger_mode?: string | null;
+            /**
+             * Retry Count
+             * @default 0
+             */
+            retry_count: number;
+            /**
+             * Attempt Number
+             * @default 1
+             */
+            attempt_number: number;
+            /**
+             * Args Json
+             * @default []
+             */
+            args_json: string;
+            /**
+             * Kwargs Json
+             * @default {}
+             */
+            kwargs_json: string;
+        };
+        /**
+         * FileWatcherConfigResponse
+         * @description Sanitized file watcher configuration fields.
+         */
+        FileWatcherConfigResponse: {
+            /** Watch Files */
+            watch_files: boolean;
+            /** Debounce Milliseconds */
+            debounce_milliseconds: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /**
          * InvocationStatus
@@ -859,31 +918,6 @@ export interface components {
          * @enum {string}
          */
         InvocationStatus: "success" | "error" | "cancelled" | "timed_out";
-        /**
-         * JobExecution
-         * @description Single execution record returned by ``get_job_executions()``.
-         */
-        JobExecution: {
-            /** Execution Start Ts */
-            execution_start_ts: number;
-            /** Duration Ms */
-            duration_ms: number;
-            status: components["schemas"]["InvocationStatus"];
-            /**
-             * Source Tier
-             * @default app
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
-            /** Error Type */
-            error_type: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Error Traceback */
-            error_traceback?: string | null;
-            /** Execution Id */
-            execution_id?: string | null;
-        };
         /**
          * JobSummary
          * @description Per-job summary returned by ``get_job_summary()``.
@@ -1246,11 +1280,6 @@ export interface components {
              * @default 0
              */
             dropped_exhausted: number;
-            /**
-             * Dropped No Session
-             * @default 0
-             */
-            dropped_no_session: number;
             /**
              * Dropped Shutdown
              * @default 0
@@ -1903,7 +1932,41 @@ export interface operations {
             };
         };
     };
-    handler_invocations_api_telemetry_handler__listener_id__invocations_get: {
+    list_executions_api_telemetry_executions_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by kind: 'handler' or 'job'. */
+                kind?: ("handler" | "job") | null;
+                limit?: number;
+                since?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Execution"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listener_executions_api_telemetry_listener__listener_id__executions_get: {
         parameters: {
             query?: {
                 limit?: number;
@@ -1923,7 +1986,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HandlerInvocation"][];
+                    "application/json": components["schemas"]["Execution"][];
                 };
             };
             /** @description Validation Error */
@@ -1957,7 +2020,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobExecution"][];
+                    "application/json": components["schemas"]["Execution"][];
                 };
             };
             /** @description Validation Error */

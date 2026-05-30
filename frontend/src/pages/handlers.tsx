@@ -57,10 +57,18 @@ export function HandlersPage() {
     error: jobsError,
   } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
-  const { invocationCompleted, executionCompleted } = useAppState();
+  const { executionCompleted } = useAppState();
 
-  useQueryInvalidator(invocationCompleted, () => true, queryKeys.allListeners());
-  useQueryInvalidator(executionCompleted, () => true, queryKeys.allJobs());
+  useQueryInvalidator(
+    executionCompleted,
+    (events) => events?.some((e) => e.kind === "handler") ?? false,
+    queryKeys.allListeners(),
+  );
+  useQueryInvalidator(
+    executionCompleted,
+    (events) => events?.some((e) => e.kind === "job") ?? false,
+    queryKeys.allJobs(),
+  );
 
   const allListeners = listeners ?? [];
   const allJobs = jobs ?? [];

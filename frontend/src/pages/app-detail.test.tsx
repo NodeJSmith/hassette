@@ -520,11 +520,14 @@ describe("AppDetailPage", () => {
 
   it("passes selectedHandler prop from params.handler to HandlersTab", async () => {
     setupApi(createManifest());
-    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "h-42" }} />, {
-      wrapper: createWrapper(state),
-    });
+    const { findByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "listener/42" }} />,
+      {
+        wrapper: createWrapper(state),
+      },
+    );
     await findByTestId("handlers-tab");
-    expect(capturedSelectedHandler).toBe("h-42");
+    expect(capturedSelectedHandler).toBe("listener/42");
   });
 
   it("passes null selectedHandler to HandlersTab when no handler param", async () => {

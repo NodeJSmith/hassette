@@ -2,8 +2,8 @@ import { handlerKindLabel } from "../../utils/status";
 import type { UnifiedItem } from "./unified-handler-row";
 
 export function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): string {
-  const prefix = item.kind === "listener" ? "h" : "j";
-  return `/apps/${appKey}/handlers/${prefix}-${item.id}${instanceQs}`;
+  const segment = item.kind === "listener" ? `listener/${item.id}` : `job/${item.id}`;
+  return `/apps/${appKey}/handlers/${segment}${instanceQs}`;
 }
 
 export function isFailing(item: UnifiedItem): boolean {

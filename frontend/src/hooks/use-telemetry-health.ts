@@ -36,7 +36,6 @@ export function useTelemetryHealth(appState: AppState): void {
       appState.telemetryDegraded.value = result.degraded;
       appState.droppedOverflow.value = result.dropped_overflow ?? 0;
       appState.droppedExhausted.value = result.dropped_exhausted ?? 0;
-      appState.droppedNoSession.value = result.dropped_no_session ?? 0;
       appState.droppedShutdown.value = result.dropped_shutdown ?? 0;
       appState.errorHandlerFailures.value = result.error_handler_failures ?? 0;
       // Reset backoff on success

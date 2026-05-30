@@ -1,7 +1,7 @@
 ---
 task_id: "T12"
 title: "Update frontend types, endpoints, and routing"
-status: "planned"
+status: "done"
 depends_on: ["T11"]
 implements: ["AC#3"]
 ---

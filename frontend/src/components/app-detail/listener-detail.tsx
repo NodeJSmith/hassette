@@ -1,5 +1,5 @@
 import type { ListenerData } from "../../api/endpoints";
-import { getHandlerInvocations } from "../../api/endpoints";
+import { getListenerExecutions } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
@@ -67,18 +67,18 @@ interface Props {
 }
 
 export function ListenerDetail({ listener, onSwitchToCode }: Props) {
-  const { data: invocations, isPending: loading } = useScopedQuery(
-    queryKeys.handlerInvocations(listener.listener_id),
-    (since, signal) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
+  const { data: executions, isPending: loading } = useScopedQuery(
+    queryKeys.listenerExecutions(listener.listener_id),
+    (since, signal) => getListenerExecutions(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
-  const { invocationCompleted } = useAppState();
+  const { executionCompleted } = useAppState();
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   useQueryInvalidator(
-    invocationCompleted,
-    (events) => events?.some((e) => e.listener_id === listener.listener_id) ?? false,
-    queryKeys.handlerInvocations(listener.listener_id),
+    executionCompleted,
+    (events) => events?.some((e) => e.kind === "handler" && e.listener_id === listener.listener_id) ?? false,
+    queryKeys.listenerExecutions(listener.listener_id),
   );
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
@@ -108,11 +108,11 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
       statsCells={buildListenerStatsCells(listener, lastInvokedLabel)}
       statsTestId="handler-stats-row"
       executionHeading="invocations"
-      executionRecords={invocations ?? []}
+      executionRecords={executions ?? []}
       executionKind="handler"
       executionTableId={`invocation-table-${listener.listener_id}`}
       executionLoading={loading}
-      executionHasData={invocations !== undefined}
+      executionHasData={executions !== undefined}
     />
   );
 }

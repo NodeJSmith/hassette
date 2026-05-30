@@ -13,8 +13,7 @@ export type AppHealthData = components["schemas"]["AppHealthResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
 export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 export type JobData = components["schemas"]["JobSummary"];
-export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
-export type JobExecutionData = components["schemas"]["JobExecution"];
+export type ExecutionData = components["schemas"]["Execution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
 export type AppConfigData = components["schemas"]["AppConfigResponse"];
@@ -79,13 +78,13 @@ export const getAppActivity = (
     { signal },
   );
 
-export const getHandlerInvocations = (
+export const getListenerExecutions = (
   listenerId: number,
   limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
 ) =>
-  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }), {
+  apiFetch<ExecutionData[]>(buildUrl(`/telemetry/listener/${listenerId}/executions`, { limit, since }), {
     signal,
   });
 
@@ -94,7 +93,20 @@ export const getJobExecutions = (
   limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
-) => apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }), { signal });
+) => apiFetch<ExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }), { signal });
+
+export const getExecutions = (
+  params?: {
+    kind?: "handler" | "job" | null;
+    limit?: number | null;
+    since?: number | null;
+  },
+  signal?: AbortSignal,
+) =>
+  apiFetch<ExecutionData[]>(
+    buildUrl("/telemetry/executions", { kind: params?.kind, limit: params?.limit, since: params?.since }),
+    { signal },
+  );
 
 export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });

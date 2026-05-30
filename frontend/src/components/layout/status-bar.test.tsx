@@ -116,7 +116,6 @@ describe("StatusBar — dropped events indicator", () => {
         connection: signal("connected"),
         droppedOverflow: signal(3),
         droppedExhausted: signal(0),
-        droppedNoSession: signal(0),
         droppedShutdown: signal(0),
       },
     });
@@ -130,12 +129,11 @@ describe("StatusBar — dropped events indicator", () => {
         connection: signal("connected"),
         droppedOverflow: signal(1),
         droppedExhausted: signal(2),
-        droppedNoSession: signal(1),
         droppedShutdown: signal(1),
       },
     });
     const indicator = getByTestId("dropped-events-indicator");
-    expect(indicator.textContent).toContain("5 dropped");
+    expect(indicator.textContent).toContain("4 dropped");
   });
 
   it("hides dropped events indicator when total is 0", () => {
@@ -143,7 +141,6 @@ describe("StatusBar — dropped events indicator", () => {
       stateOverrides: {
         droppedOverflow: signal(0),
         droppedExhausted: signal(0),
-        droppedNoSession: signal(0),
         droppedShutdown: signal(0),
       },
     });

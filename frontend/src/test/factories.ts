@@ -10,7 +10,7 @@
  */
 
 import type { components } from "../api/generated-types";
-import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload } from "../api/ws-types";
+import type { WsExecutionCompletedPayload } from "../api/ws-types";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigResponse = components["schemas"]["ConfigResponse"];
@@ -22,8 +22,7 @@ type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
-type HandlerInvocation = components["schemas"]["HandlerInvocation"];
-type JobExecution = components["schemas"]["JobExecution"];
+type Execution = components["schemas"]["Execution"];
 
 // ---- Individual object factories ----
 
@@ -204,24 +203,11 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
   } satisfies LogEntryResponse;
 }
 
-export function createInvocationCompletedPayload(
-  overrides: Partial<WsInvocationCompletedPayload> = {},
-): WsInvocationCompletedPayload {
-  return {
-    listener_id: 1,
-    app_key: "test_app",
-    instance_index: 0,
-    status: "success",
-    duration_ms: 42,
-    error_type: null,
-    ...overrides,
-  };
-}
-
 export function createExecutionCompletedPayload(
   overrides: Partial<WsExecutionCompletedPayload> = {},
 ): WsExecutionCompletedPayload {
   return {
+    kind: "job",
     job_id: 1,
     app_key: "test_app",
     instance_index: 0,
@@ -237,39 +223,52 @@ export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse
     degraded: false,
     dropped_overflow: 0,
     dropped_exhausted: 0,
-    dropped_no_session: 0,
     dropped_shutdown: 0,
     error_handler_failures: 0,
     ...overrides,
   } satisfies TelemetryStatusResponse;
 }
 
-export function createInvocation(overrides: Partial<HandlerInvocation> = {}): HandlerInvocation {
-  return {
-    execution_start_ts: 1700000000,
-    duration_ms: 50,
-    status: "success",
-    source_tier: "app",
-    error_type: null,
-    error_message: null,
-    execution_id: null,
-    trigger_context_id: null,
-    trigger_origin: null,
-    ...overrides,
-  } satisfies HandlerInvocation;
-}
-
-export function createExecution(overrides: Partial<JobExecution> = {}): JobExecution {
-  return {
-    execution_start_ts: 1700000000,
-    duration_ms: 75,
-    status: "success",
-    source_tier: "app",
-    error_type: null,
-    error_message: null,
-    execution_id: null,
-    ...overrides,
-  } satisfies JobExecution;
+export function createExecution(kind: "handler" | "job", overrides: Partial<Execution> = {}): Execution {
+  const base: Execution =
+    kind === "handler"
+      ? {
+          kind: "handler",
+          listener_id: 1,
+          job_id: null,
+          execution_start_ts: 1700000000,
+          duration_ms: 50,
+          status: "success",
+          source_tier: "app",
+          error_type: null,
+          error_message: null,
+          execution_id: null,
+          trigger_context_id: null,
+          trigger_origin: null,
+          retry_count: 0,
+          attempt_number: 1,
+          args_json: "[]",
+          kwargs_json: "{}",
+        }
+      : {
+          kind: "job",
+          listener_id: null,
+          job_id: 1,
+          execution_start_ts: 1700000000,
+          duration_ms: 75,
+          status: "success",
+          source_tier: "app",
+          error_type: null,
+          error_message: null,
+          execution_id: null,
+          trigger_context_id: null,
+          trigger_origin: null,
+          retry_count: 0,
+          attempt_number: 1,
+          args_json: "[]",
+          kwargs_json: "{}",
+        };
+  return { ...base, ...overrides } satisfies Execution;
 }
 
 export function createSystemConfig(overrides: Partial<ConfigResponse> = {}): ConfigResponse {

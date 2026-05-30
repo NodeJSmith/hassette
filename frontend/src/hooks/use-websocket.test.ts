@@ -545,7 +545,7 @@ describe("useWebSocket", () => {
     expect(state.logs.toArray()).toHaveLength(0);
   });
 
-  it("writes invocation_completed batch to invocationCompleted signal", () => {
+  it("writes execution_completed handler batch to executionCompleted signal", () => {
     const state = createAppState();
     const queryClient = createTestQueryClient();
 
@@ -562,8 +562,17 @@ describe("useWebSocket", () => {
     });
 
     const batch = [
-      { listener_id: 1, app_key: "my_app", instance_index: 0, status: "success", duration_ms: 42, error_type: null },
       {
+        kind: "handler",
+        listener_id: 1,
+        app_key: "my_app",
+        instance_index: 0,
+        status: "success",
+        duration_ms: 42,
+        error_type: null,
+      },
+      {
+        kind: "handler",
         listener_id: 2,
         app_key: "my_app",
         instance_index: 0,
@@ -574,13 +583,13 @@ describe("useWebSocket", () => {
     ];
 
     act(() => {
-      ws.simulateMessage({ type: "invocation_completed", data: batch, timestamp: 1000 });
+      ws.simulateMessage({ type: "execution_completed", data: batch, timestamp: 1000 });
     });
 
-    expect(state.invocationCompleted.value).toEqual(batch);
+    expect(state.executionCompleted.value).toEqual(batch);
   });
 
-  it("writes execution_completed batch to executionCompleted signal", () => {
+  it("writes execution_completed job batch to executionCompleted signal", () => {
     const state = createAppState();
     const queryClient = createTestQueryClient();
 
@@ -597,7 +606,15 @@ describe("useWebSocket", () => {
     });
 
     const batch = [
-      { job_id: 5, app_key: "my_app", instance_index: 0, status: "success", duration_ms: 80, error_type: null },
+      {
+        kind: "job",
+        job_id: 5,
+        app_key: "my_app",
+        instance_index: 0,
+        status: "success",
+        duration_ms: 80,
+        error_type: null,
+      },
     ];
 
     act(() => {
@@ -691,10 +708,10 @@ describe("useWebSocket", () => {
     });
 
     act(() => {
-      ws.simulateMessage({ type: "invocation_completed", data: "not-an-array", timestamp: 1000 });
+      ws.simulateMessage({ type: "execution_completed", data: "not-an-array", timestamp: 1000 });
     });
 
-    expect(state.invocationCompleted.value).toBeNull();
+    expect(state.executionCompleted.value).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[ws] invalid message:"), expect.anything());
 
     warnSpy.mockRestore();

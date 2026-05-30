@@ -8,7 +8,7 @@ export const queryKeys = {
   allListeners: () => ["all-listeners"] as const,
   allJobs: () => ["all-jobs"] as const,
   dashboardGrid: () => ["dashboard-grid"] as const,
-  handlerInvocations: (listenerId: number) => ["handler-invocations", listenerId] as const,
+  listenerExecutions: (listenerId: number) => ["listener-executions", listenerId] as const,
   jobExecutions: (jobId: number) => ["job-executions", jobId] as const,
   appListeners: {
     base: (appKey: string, idx: number) => ["app-listeners", appKey, idx] as const,

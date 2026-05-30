@@ -63,7 +63,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
 
   useQueryInvalidator(
     executionCompleted,
-    (events) => events?.some((e) => e.job_id === job.job_id) ?? false,
+    (events) => events?.some((e) => e.kind === "job" && e.job_id === job.job_id) ?? false,
     queryKeys.jobExecutions(job.job_id),
   );
 

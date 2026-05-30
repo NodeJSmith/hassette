@@ -27,7 +27,6 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
     telemetryDegraded,
     droppedOverflow,
     droppedExhausted,
-    droppedNoSession,
     droppedShutdown,
     errorHandlerFailures,
   } = useAppState();
@@ -35,9 +34,8 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
   const isDegraded = telemetryDegraded.value;
   const overflow = droppedOverflow.value;
   const exhausted = droppedExhausted.value;
-  const noSession = droppedNoSession.value;
   const shutdown = droppedShutdown.value;
-  const droppedTotal = overflow + exhausted + noSession + shutdown;
+  const droppedTotal = overflow + exhausted + shutdown;
   const ehFailures = errorHandlerFailures.value;
 
   const nextTheme = theme.value === "dark" ? "light" : "dark";
@@ -92,7 +90,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
           <span
             class={styles.wsIndicator}
             aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
-            title={`buffer full: ${overflow}, write failed: ${exhausted}, no session: ${noSession}, during shutdown: ${shutdown}`}
+            title={`buffer full: ${overflow}, write failed: ${exhausted}, during shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
           >
             <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />

@@ -6,7 +6,7 @@ import { useCorrectUrl } from "./use-correct-url";
 const mockNavigate = vi.fn();
 
 vi.mock("wouter", () => ({
-  useLocation: () => ["/apps/foo/handlers/h-999", mockNavigate],
+  useLocation: () => ["/apps/foo/handlers/listener/999", mockNavigate],
 }));
 
 beforeEach(() => {

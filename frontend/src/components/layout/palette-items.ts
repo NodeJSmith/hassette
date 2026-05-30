@@ -1,6 +1,5 @@
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { reloadApp, stopApp } from "../../api/endpoints";
-import { formatListenerId } from "../../utils/handler-ids";
 
 const DOCS_URL = "https://hassette.readthedocs.io";
 
@@ -141,7 +140,7 @@ export function buildHandlerItems(
     label: l.handler_method,
     sub: `${l.app_key} · ${l.topic}`,
     action: () => {
-      navigate(`/apps/${l.app_key}/handlers/${formatListenerId(l.listener_id)}`);
+      navigate(`/apps/${l.app_key}/handlers/listener/${l.listener_id}`);
       onClose();
     },
   }));

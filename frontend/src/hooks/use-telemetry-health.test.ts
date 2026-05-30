@@ -29,7 +29,6 @@ describe("useTelemetryHealth", () => {
       degraded: false,
       dropped_overflow: 0,
       dropped_exhausted: 0,
-      dropped_no_session: 0,
       dropped_shutdown: 0,
       error_handler_failures: 0,
     });
@@ -100,7 +99,6 @@ describe("useTelemetryHealth", () => {
       degraded: true,
       dropped_overflow: 0,
       dropped_exhausted: 0,
-      dropped_no_session: 0,
       dropped_shutdown: 0,
       error_handler_failures: 0,
     });
@@ -169,7 +167,6 @@ describe("useTelemetryHealth", () => {
         degraded: false,
         dropped_overflow: 0,
         dropped_exhausted: 0,
-        dropped_no_session: 0,
         dropped_shutdown: 0,
         error_handler_failures: 0,
       })
@@ -177,7 +174,6 @@ describe("useTelemetryHealth", () => {
         degraded: false,
         dropped_overflow: 0,
         dropped_exhausted: 0,
-        dropped_no_session: 0,
         dropped_shutdown: 0,
         error_handler_failures: 0,
       });
@@ -215,7 +211,6 @@ describe("useTelemetryHealth", () => {
       degraded: false,
       dropped_overflow: 0,
       dropped_exhausted: 0,
-      dropped_no_session: 0,
       dropped_shutdown: 0,
       error_handler_failures: 0,
     });
@@ -279,13 +274,12 @@ describe("useTelemetryHealth", () => {
     expect(mockedGetTelemetryStatus).toHaveBeenCalledTimes(1);
   });
 
-  it("propagates dropped_overflow and dropped_exhausted to app state", async () => {
+  it("propagates dropped_overflow, dropped_exhausted, dropped_shutdown to app state", async () => {
     const state = createAppState();
     mockedGetTelemetryStatus.mockResolvedValue({
       degraded: false,
       dropped_overflow: 5,
       dropped_exhausted: 3,
-      dropped_no_session: 2,
       dropped_shutdown: 1,
       error_handler_failures: 7,
     });
@@ -297,7 +291,6 @@ describe("useTelemetryHealth", () => {
     });
     expect(state.droppedOverflow.value).toBe(5);
     expect(state.droppedExhausted.value).toBe(3);
-    expect(state.droppedNoSession.value).toBe(2);
     expect(state.droppedShutdown.value).toBe(1);
     expect(state.errorHandlerFailures.value).toBe(7);
   });

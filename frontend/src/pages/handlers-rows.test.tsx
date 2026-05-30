@@ -16,7 +16,7 @@ vi.mock("wouter", () => ({
 function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
   return {
     kind: "listener",
-    id: "h-1",
+    id: "listener/1",
     app_key: "my_app",
     name: "on_light_change",
     handler_method: "my_app.MyApp.on_light_change",
@@ -65,10 +65,10 @@ describe("HandlerTableRow", () => {
   });
 
   it("shows name as a link pointing to handler deep-link", () => {
-    const row = createRow({ app_key: "my_app", id: "h-1", name: "on_light_change" });
+    const row = createRow({ app_key: "my_app", id: "listener/1", name: "on_light_change" });
     const { getByRole } = renderTableRow(row);
     const link = getByRole("link", { name: /on_light_change/ });
-    expect((link as HTMLAnchorElement).href).toContain("/apps/my_app/handlers/h-1");
+    expect((link as HTMLAnchorElement).href).toContain("/apps/my_app/handlers/listener/1");
   });
 
   it("name cell has title set to handler_method", () => {
@@ -156,13 +156,13 @@ describe("HandlerTableRow", () => {
   });
 
   it("has correct data-testid for listener row", () => {
-    const { getByTestId } = renderTableRow(createRow({ kind: "listener", id: "h-1" }));
-    expect(getByTestId("listener-row-h-1")).toBeDefined();
+    const { getByTestId } = renderTableRow(createRow({ kind: "listener", id: "listener/1" }));
+    expect(getByTestId("listener-row-listener/1")).toBeDefined();
   });
 
   it("has correct data-testid for job row", () => {
-    const { getByTestId } = renderTableRow(createRow({ kind: "job", id: "j-10" }));
-    expect(getByTestId("job-row-j-10")).toBeDefined();
+    const { getByTestId } = renderTableRow(createRow({ kind: "job", id: "job/10" }));
+    expect(getByTestId("job-row-job/10")).toBeDefined();
   });
 });
 
@@ -176,10 +176,10 @@ describe("HandlerMobileRow", () => {
   }
 
   it("renders as an anchor with correct href", () => {
-    const row = createRow({ app_key: "my_app", id: "h-1" });
+    const row = createRow({ app_key: "my_app", id: "listener/1" });
     const { container } = renderMobileRow(row);
     const anchor = container.querySelector("a");
-    expect(anchor?.getAttribute("href")).toBe("/apps/my_app/handlers/h-1");
+    expect(anchor?.getAttribute("href")).toBe("/apps/my_app/handlers/listener/1");
   });
 
   it("shows app_key", () => {
@@ -233,7 +233,7 @@ describe("HandlerMobileRow", () => {
   });
 
   it("has correct data-testid", () => {
-    const { getByTestId } = renderMobileRow(createRow({ kind: "listener", id: "h-1" }));
-    expect(getByTestId("listener-row-h-1")).toBeDefined();
+    const { getByTestId } = renderMobileRow(createRow({ kind: "listener", id: "listener/1" }));
+    expect(getByTestId("listener-row-listener/1")).toBeDefined();
   });
 });

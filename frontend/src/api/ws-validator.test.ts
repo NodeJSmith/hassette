@@ -12,11 +12,12 @@ describe("validateWsMessage", () => {
     expect(validateWsMessage(msg)).toEqual(msg);
   });
 
-  it("validates an invocation_completed message with array data", () => {
+  it("validates an execution_completed message with array data", () => {
     const msg = {
-      type: "invocation_completed",
+      type: "execution_completed",
       data: [
         {
+          kind: "handler",
           listener_id: 1,
           app_key: "my_app",
           instance_index: 0,

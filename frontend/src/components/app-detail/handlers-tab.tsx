@@ -6,7 +6,6 @@ import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useSignal } from "../../hooks/use-signal";
-import { formatJobId, formatListenerId, parseHandlerId } from "../../utils/handler-ids";
 import { Button } from "../shared/button";
 import { EmptyState } from "../shared/empty-state";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -14,6 +13,16 @@ import styles from "./handlers-tab.module.css";
 import { HandlersHealthStrip } from "./health-strip";
 import { JobDetail } from "./job-detail";
 import { ListenerDetail } from "./listener-detail";
+
+/** Parse a path-based handler segment like "listener/123" or "job/456". */
+function parseSelectedHandler(raw: string | null): { kind: "listener" | "job"; id: number } | null {
+  if (!raw) return null;
+  const listenerMatch = /^listener\/(\d+)$/.exec(raw);
+  if (listenerMatch) return { kind: "listener", id: parseInt(listenerMatch[1], 10) };
+  const jobMatch = /^job\/(\d+)$/.exec(raw);
+  if (jobMatch) return { kind: "job", id: parseInt(jobMatch[1], 10) };
+  return null;
+}
 
 interface Props {
   listeners: ListenerData[];
@@ -61,7 +70,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
 
-  const parsed = selectedHandler ? parseHandlerId(selectedHandler) : null;
+  const parsed = parseSelectedHandler(selectedHandler);
 
   const selectedListener =
     parsed?.kind === "listener" ? (listeners.find((l) => l.listener_id === parsed.id) ?? null) : null;
@@ -80,8 +89,8 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
-    const encoded = id.kind === "listener" ? formatListenerId(id.id) : formatJobId(id.id);
-    navigate(`/apps/${appKey}/handlers/${encoded}${instanceQs}`);
+    const segment = id.kind === "listener" ? `listener/${id.id}` : `job/${id.id}`;
+    navigate(`/apps/${appKey}/handlers/${segment}${instanceQs}`);
   };
 
   if (!hasItems) {

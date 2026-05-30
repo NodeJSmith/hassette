@@ -30,7 +30,6 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
 
 const COMPAT_ALIASES = `
 export type WsLogPayload = LogEntryResponse;
-export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
 // InvocationStatus is also defined in generated-types.ts (from OpenAPI).

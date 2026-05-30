@@ -118,14 +118,12 @@ export function RecentActivitySection({
     getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since, signal),
   );
 
-  const { invocationCompleted, executionCompleted, tick } = useAppState();
+  const { executionCompleted, tick } = useAppState();
   useSubscribe(tick);
 
   useQueryInvalidator(
-    [
-      [invocationCompleted, (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false],
-      [executionCompleted, (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false],
-    ],
+    executionCompleted,
+    (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false,
     queryKeys.appActivity.prefix(appKey),
   );
 
