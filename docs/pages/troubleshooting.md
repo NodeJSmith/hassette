@@ -34,7 +34,7 @@ When Home Assistant becomes unreachable or disconnects mid-session, Hassette han
 **What happens immediately:**
 
 1. The WebSocket receive loop detects the disconnect (closed frame, connection reset, or server disconnect) and raises internally.
-2. Hassette fires a `hassette.event.websocket_disconnected` event on the bus — your apps can subscribe to it via `self.bus.on_websocket_disconnected(handler=...)` to react (for example, to pause outgoing calls).
+2. Hassette fires a `hassette.event.websocket_disconnected` event on the bus — your apps can subscribe to it via `await self.bus.on_websocket_disconnected(handler=..., name="ws_disconnect")` to react (for example, to pause outgoing calls).
 3. The `WebsocketService` is marked not-ready and the framework begins reconnecting.
 
 **Reconnection sequence:**

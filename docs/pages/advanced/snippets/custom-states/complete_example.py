@@ -26,9 +26,10 @@ class ImageState(StringBaseState):
 class ImageMonitorApp(App):
     async def on_initialize(self):
         # Monitor all image entities
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             entity_id="image.*",
             handler=self.on_image_change,  # Glob pattern
+            name="image_monitor",
         )
 
     async def on_image_change(

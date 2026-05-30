@@ -7,7 +7,7 @@ class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         self.bus.on_error(self.on_bus_error)
 
-        self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+        await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
 
     async def on_bus_error(self, ctx: BusErrorContext) -> None:
         self.logger.error(

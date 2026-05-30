@@ -300,7 +300,7 @@ class ListenerNameRequiredError(HassetteError):
             f"  handler: {handler_method}\n"
             f"  topic:   {topic}\n\n"
             f"Provide a stable name via the `name=` parameter:\n\n"
-            f'  self.bus.on_state_change({topic!r}, handler=self.handler, name="my_listener")'
+            f'  await self.bus.on_state_change({topic!r}, handler=self.handler, name="my_listener")'
         )
 
 

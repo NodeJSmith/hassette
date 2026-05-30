@@ -4,10 +4,10 @@ from hassette import App
 class CustomEventApp(App):
     async def on_initialize(self):
         # Subscribe to a custom internal event
-        self.bus.on(topic="my_custom_event", handler=self.on_custom_event)
+        await self.bus.on(topic="my_custom_event", handler=self.on_custom_event, name="custom_event")
 
         # Subscribe to specific raw HA event
-        self.bus.on(topic="hass.event.call_service", handler=self.on_any_service)
+        await self.bus.on(topic="hass.event.call_service", handler=self.on_any_service, name="any_service")
 
     async def on_custom_event(self, event):
         pass

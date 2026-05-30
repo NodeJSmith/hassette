@@ -11,10 +11,11 @@ class SensorThresholdApp(App[ThresholdConfig]):
     """Alert when a sensor value exceeds a configured threshold."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.entity_id,
             handler=self.on_threshold_exceeded,
             changed_to=C.Comparison("gt", self.app_config.threshold),
+            name="threshold_monitor",
         )
 
     async def on_threshold_exceeded(

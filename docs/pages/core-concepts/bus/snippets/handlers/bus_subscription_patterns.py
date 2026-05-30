@@ -8,29 +8,25 @@ class MyApp(App[AppConfig]):
 
     async def on_initialize(self) -> None:
         # --8<-- [start:await_persistence]
-        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
+        # Registration is synchronous — db_id is set before this line returns.
+        sub = await self.bus.on_state_change(
+            "sensor.temperature", handler=self.on_temp, name="temp_monitor"
+        )
 
-        # Wait until the listener is persisted to the DB before continuing
-        if sub.registration_task is not None:
-            await sub.registration_task
-
-        # Check whether persistence actually succeeded
-        if sub.listener.db_id is None:
-            self.logger.warning("Listener was not persisted to the database")
+        # db_id is always set immediately after the awaited call returns.
+        self.logger.info("Listener registered with db_id=%d", sub.listener.db_id)
         # --8<-- [end:await_persistence]
 
     # --8<-- [start:routing_independence]
     async def register_with_check(self) -> None:
-        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
+        # Await the registration — routing and DB persistence both complete before
+        # this line returns. The handler receives events from this point on.
+        sub = await self.bus.on_state_change(
+            "sensor.temperature", handler=self.on_temp, name="temp_check"
+        )
 
-        # Handler is already routable here — no await needed for event delivery.
-        # Await only if you need to know whether persistence succeeded.
-        if sub.registration_task is not None:
-            await sub.registration_task  # resolves whether DB write succeeded or failed
-
-        if sub.listener.db_id is None:
-            self.logger.warning("Listener was not persisted — telemetry unavailable")
-        # Either way, the handler is routing and will receive events.
+        # db_id is guaranteed set — no guard needed.
+        self.logger.info("Listener db_id=%d", sub.listener.db_id)
     # --8<-- [end:routing_independence]
 
     # --8<-- [start:resubscribe]
@@ -39,9 +35,11 @@ class MyApp(App[AppConfig]):
             # Cancel the old subscription — routing removal is immediate.
             self.sub.cancel()
 
-        # Register the replacement — it is routable before this line returns.
-        # The old handler is guaranteed gone; no overlap, no gap.
-        self.sub = self.bus.on_state_change("light.kitchen", handler=self.on_light)
+        # Register the replacement — routing and DB persistence both complete
+        # before this line returns. The old handler is guaranteed gone; no overlap.
+        self.sub = await self.bus.on_state_change(
+            "light.kitchen", handler=self.on_light, name="kitchen_light"
+        )
     # --8<-- [end:resubscribe]
 
     async def on_temp(self, event: RawStateChangeEvent) -> None: ...

@@ -9,7 +9,7 @@ class DoorApp(App):
         # Triggers if:
         # - brightness > 254 AND
         # - rgb_color != [0, 0, 0]
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "light.office",
             handler=self.on_light_change,
             where=[
@@ -18,6 +18,7 @@ class DoorApp(App):
             ],
             # NOTE: changed=False is required if we want this to fire even when only attributes change
             changed=False,
+            name="office_bright_color",
         )
 
     async def on_light_change(self, brightness: Annotated[int, A.get_attr_new("brightness")]):

@@ -19,15 +19,17 @@ class VacationMode(App[VacationModeConfig]):
     _presence_job: ScheduledJob | None = None
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.vacation_toggle,
             changed_to="on",
             handler=self.on_vacation_start,
+            name="vacation_start",
         )
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.vacation_toggle,
             changed_to="off",
             handler=self.on_vacation_end,
+            name="vacation_end",
         )
 
     async def on_vacation_start(self) -> None:

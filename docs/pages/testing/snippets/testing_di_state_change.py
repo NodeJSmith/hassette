@@ -9,10 +9,11 @@ class SecurityConfig(AppConfig):
 
 class SecurityApp(App[SecurityConfig]):
     async def on_initialize(self):
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.door_entity,
             changed_to="on",
             handler=self.on_door_opened,
+            name="door_opened",
         )
 
     async def on_door_opened(self, new_state: D.StateNew[states.BinarySensorState]):

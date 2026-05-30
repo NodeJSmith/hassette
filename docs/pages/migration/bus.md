@@ -26,7 +26,7 @@ In AppDaemon, `self.listen_state()` listens for state changes on an entity. Call
 
 ### Hassette: with Dependency Injection (recommended)
 
-In Hassette, `self.bus.on_state_change()` is the equivalent. Handler signatures are flexible — use type annotations and Hassette extracts the data for you:
+In Hassette, `self.bus.on_state_change()` is an `async` method — it must be awaited. Handler signatures are flexible — use type annotations and Hassette extracts the data for you:
 
 ```python
 --8<-- "pages/migration/snippets/bus_hassette_state_change_di.py"
@@ -101,7 +101,7 @@ Available dependency markers for service call handlers include:
     --8<-- "pages/migration/snippets/bus_cancel_subscription.py"
     ```
 
-In Hassette, the subscription object returned by `on_state_change()`, `on_call_service()`, and `on()` all support `.cancel()`.
+In Hassette, the subscription object returned by `on_state_change()`, `on_call_service()`, and `on()` all support `.cancel()`. All three methods are `async` and must be awaited.
 
 ## Common Migration Patterns
 

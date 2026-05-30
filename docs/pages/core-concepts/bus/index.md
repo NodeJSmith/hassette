@@ -120,23 +120,13 @@ If a handler raises an exception, Hassette catches it, logs it at `ERROR` level 
 This is the same behavior as scheduled jobs: unhandled exceptions are logged to error but do not crash anything.
 
 ??? info "Registration Identity"
-    All subscription methods accept an optional `name=` parameter that sets a stable natural key for the listener:
+    All `bus.on_*()` subscription methods require a `name=` parameter — a stable string identifier that forms the listener's natural key `(app_key, instance_index, name, topic)`. Omitting `name=` raises `ListenerNameRequiredError` at call time. Registering a second listener with the same `(name, topic)` in the same app session raises `DuplicateListenerError`.
 
     ```python
     --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
     ```
 
-    Without `name=`, Hassette derives a natural key from the handler function name, topic, and predicate signature. If two subscriptions share the same derived key — for example, two calls to `on_state_change` for the same entity with the same handler — registering the second one raises a `ValueError`:
-
-    ```
-    ValueError: Duplicate listener registration detected for handler 'on_motion'
-    on topic 'hass.event.state_changed.binary_sensor.motion' (key='on_motion'). Add name= to disambiguate if intentional.
-    ```
-
-    The `name=` parameter resolves this: it replaces the derived key with your explicit value, making each registration distinct.
-
-    !!! note "Persistence"
-        Listener and job names survive restarts. When Hassette starts, existing registrations are matched by their natural key and updated in place rather than re-inserted. See [Registration Persistence](../database-telemetry.md#registration-persistence) for details.
+    See [Subscription and Registration](handlers.md#subscription-and-registration) in the Handlers guide for the full error details and upsert semantics across restarts.
 
 ## Next Steps
 

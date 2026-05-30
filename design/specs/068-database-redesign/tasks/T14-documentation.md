@@ -1,7 +1,7 @@
 ---
 task_id: "T14"
 title: "Update documentation for new registration and schema"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#3", "FR#5", "AC#6"]
 ---

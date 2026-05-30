@@ -16,10 +16,11 @@ Examples:
 
     value_is = P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")
 
-    self.bus.on_call_service(
+    await self.bus.on_call_service(
         "light.turn_on",
         handler=handler,
         where=value_is,
+        name="living_room_turn_on",
     )
     ```
 
@@ -34,10 +35,11 @@ Examples:
         condition="San Francisco",
     )
 
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "sensor.my_device_location",
         handler=handler,
         changed_to=value_is,
+        name="device_location",
     )
     ```
 """

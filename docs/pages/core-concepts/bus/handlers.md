@@ -123,46 +123,63 @@ Both levels can be sync or async.
 
 ## Subscription and Registration
 
-Every call to `bus.on_state_change()`, `bus.on_attribute_change()`, or `bus.on()` returns a `Subscription` object.
+Every `bus.on_*()` method — `on_state_change()`, `on_attribute_change()`, `on_call_service()`, `on_component_loaded()`, and `on()` — is `async` and must be awaited. It returns a `Subscription` object once both routing and database registration are complete.
 
 | Attribute | Description |
 |-----------|-------------|
 | `sub.cancel()` | Removes the listener immediately. |
 | `sub.listener` | The underlying `Listener` object. |
-| `sub.registration_task` | Completion signal for database persistence (see below). |
+| `sub.listener.db_id` | Integer database row ID — always set when the awaited call returns. |
 
-### Awaiting persistence confirmation
+### The `name=` parameter (required)
 
-`registration_task` is an `asyncio.Future` that resolves with `None` when the database persistence attempt completes. It is a **completion signal**, not a success signal — it resolves regardless of whether persistence succeeded or failed.
+All database-registered listeners require a `name=` parameter — a stable string identifier for the listener. The name is part of the natural key `(app_key, instance_index, name, topic)` used for upsert deduplication across restarts.
+
+```python
+await self.bus.on_state_change(
+    "light.kitchen",
+    handler=self.on_light_change,
+    name="kitchen_light",  # required
+)
+```
+
+The name must be unique within a single app instance for a given topic. Two listeners with the same name on different topics are distinct — topic is part of the key.
+
+**`ListenerNameRequiredError`** is raised at call time when `name=` is omitted. The error includes the handler method and topic:
+
+```
+ListenerNameRequiredError: Listener registration requires a name.
+
+  handler: MyApp.on_light_change
+  topic:   light.kitchen
+
+Provide a stable name via the `name=` parameter:
+
+  await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
+```
+
+**`DuplicateListenerError`** is raised when a second listener with the same `(name, topic)` is registered within the same app session. Cross-session registrations with the same name and topic update the existing record via upsert — not an error.
+
+```
+DuplicateListenerError: A listener named 'kitchen_light' is already registered for topic 'light.kitchen'.
+
+  existing handler: MyApp.on_light_change
+  duplicate handler: MyApp.on_light_change_v2
+
+Use a different name for the second listener, or remove the first registration before re-registering.
+```
+
+### Registration is complete when the awaited call returns
+
+Routing and database persistence both complete before `on_state_change()` returns. `sub.listener.db_id` is a valid integer immediately — no further awaiting or checking is needed.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:await_persistence"
 ```
 
-Use `registration_task` when your initialization logic depends on a listener being fully registered before proceeding (e.g., integration tests verifying telemetry, startup sequences with strict ordering requirements).
+### Sequential operations are deterministic
 
-!!! note "registration_task may be None"
-    `registration_task` is `None` for subscriptions created without a backing registration task (e.g., cancel-listener subscriptions that skip DB registration, or Subscription instances constructed directly in tests). Always guard with `if sub.registration_task is not None`.
-
-### Routing vs registration independence
-
-Routing and database registration are independent operations. Understanding the distinction matters for sequential handler management (cancel-then-resubscribe, bulk replacement) and for reasoning about failure modes.
-
-**Routing is synchronous.** When `bus.on_state_change()` (or any registration method) returns, the handler is immediately present in the routing table and will receive events. No await, no background task, no window where the handler is absent.
-
-**DB registration is asynchronous and may fail independently.** The database write happens in a background task after routing completes. If the write fails — due to a transient DB error, a timeout, or session cleanup during shutdown — the failure is logged but the handler is not removed from the routing table. Event delivery continues unaffected.
-
-**A failed registration does not remove the handler.** Route insertion is unconditional. DB failure is not treated as a signal to undo the route.
-
-**`registration_task` resolves when the persistence attempt completes, regardless of outcome.** It is a completion signal, not a success signal. Awaiting it tells you "the attempt finished" — not "it succeeded".
-
-**Check `db_id` to confirm persistence succeeded.** After awaiting `registration_task`, inspect `sub.listener.db_id is not None` to know whether the telemetry row was written.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:routing_independence"
-```
-
-**Sequential operations are deterministic.** Because routing is synchronous, cancel-then-resubscribe sequences have no race conditions:
+Cancel-then-resubscribe sequences have no race conditions — both routing removal and the new registration complete before the next statement runs:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:resubscribe"

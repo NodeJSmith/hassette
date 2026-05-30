@@ -3,11 +3,12 @@ from hassette import App, D, states
 
 class TempApp(App):
     async def on_initialize(self):
-        self.bus.on_attribute_change(
+        await self.bus.on_attribute_change(
             "climate.thermostat",
             "temperature",
             handler=self.on_temp_change,
             kwargs={"threshold": 75.0},
+            name="thermostat_temp",
         )
 
     async def on_temp_change(self, new_state: D.StateNew[states.ClimateState], threshold: float):

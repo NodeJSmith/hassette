@@ -9,7 +9,7 @@ class MyAppConfig(AppConfig):
 class MyApp(App[MyAppConfig]):
     async def on_initialize(self):
         self.logger.info(self.app_config.greeting)
-        self.bus.on_state_change("sun.*", handler=self.on_sun_change)
+        await self.bus.on_state_change("sun.*", handler=self.on_sun_change, name="sun_change")
         await self.scheduler.run_minutely(self.log_heartbeat)  # first run fires after 1 minute
 
     async def on_sun_change(self, event: RawStateChangeEvent):

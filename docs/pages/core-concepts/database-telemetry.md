@@ -18,38 +18,28 @@ Framework-internal handlers (telemetry workers, WebSocket service, scheduler ser
 ??? note "Internal detail"
     Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. The Handler health grid filters out all framework keys, while the stats strip and Error Spotlight include all tiers by default.
 
-## Invocation and Execution Columns
+## Execution Columns
 
-Each handler invocation and job execution record captures the following fields.
+Handler invocations and job executions are stored together in a single `executions` table. A `kind` column (`'handler'` or `'job'`) distinguishes the two. Handler rows carry a `listener_id` foreign key; job rows carry a `job_id` foreign key. Exactly one of the two is non-null per row.
 
-### Handler invocations
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `execution_start_ts` | float | Unix timestamp when the handler started executing |
-| `duration_ms` | float | Wall-clock time the handler took, in milliseconds |
-| `status` | string | Outcome: `success`, `error`, `cancelled`, or `timed_out` |
-| `is_di_failure` | boolean | Whether the invocation failed due to a dependency injection error |
-| `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
-| `error_type` | string \| null | Exception class name, if the handler raised an error |
-| `error_message` | string \| null | Exception message, if the handler raised an error |
-| `error_traceback` | string \| null | Full Python traceback, if the handler raised an error |
-| `execution_id` | string \| null | UUID that ties this invocation to a specific trigger delivery. `null` for rows written before this feature was added. |
-| `trigger_context_id` | string \| null | UUID identifying the event that triggered this handler. For HA events, this is `context.id` from the originating Home Assistant event context and is stable across all handlers that receive the same event. For hassette-internal events, this is unique per event firing. `null` for rows written before this feature was added. |
-| `trigger_origin` | string \| null | Where the trigger originated: `LOCAL` (Home Assistant local action), `REMOTE` (Home Assistant remote action), or `HASSETTE` (framework-generated internal event). `null` for rows written before this feature was added. |
-
-### Job executions
+The following columns are present on every row regardless of `kind`.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `execution_start_ts` | float | Unix timestamp when the job started executing |
-| `duration_ms` | float | Wall-clock time the job took, in milliseconds |
+| `kind` | string | `'handler'` for bus listener invocations; `'job'` for scheduled job executions |
+| `listener_id` | integer \| null | Foreign key into `listeners`. Set for handler rows; `null` for job rows. |
+| `job_id` | integer \| null | Foreign key into `scheduled_jobs`. Set for job rows; `null` for handler rows. |
+| `execution_start_ts` | float | Unix timestamp when execution started |
+| `duration_ms` | float | Wall-clock time in milliseconds |
 | `status` | string | Outcome: `success`, `error`, `cancelled`, or `timed_out` |
+| `is_di_failure` | boolean | Whether the execution failed due to a dependency injection error (handler rows only; always `0` for job rows) |
 | `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
-| `error_type` | string \| null | Exception class name, if the job raised an error |
-| `error_message` | string \| null | Exception message, if the job raised an error |
-| `error_traceback` | string \| null | Full Python traceback, if the job raised an error |
-| `execution_id` | string \| null | UUID that ties this execution to a specific scheduler invocation. `null` for rows written before this feature was added. |
+| `error_type` | string \| null | Exception class name, if execution raised an error |
+| `error_message` | string \| null | Exception message, if execution raised an error |
+| `error_traceback` | string \| null | Full Python traceback, if execution raised an error |
+| `execution_id` | string \| null | UUID tying this row to a specific trigger delivery or scheduler invocation. `null` for rows written before this feature was added. |
+| `trigger_context_id` | string \| null | UUID identifying the event that triggered a handler. For HA events, this is `context.id` from the originating Home Assistant event and is stable across all handlers receiving the same event. For Hassette-internal events, unique per firing. `null` for job rows and for rows written before this feature was added. |
+| `trigger_origin` | string \| null | Where the trigger originated: `LOCAL`, `REMOTE`, or `HASSETTE`. `null` for job rows and for rows written before this feature was added. |
 
 ### Pre-migration rows
 
@@ -73,7 +63,7 @@ All database settings are optional. The defaults work well out of the box.
 
 Hassette runs two automatic maintenance routines:
 
-1. **Time-based retention** — every hour, records older than `retention_days` are deleted from the handler invocations and job executions tables. Internal bookkeeping records (session tracking) are not affected by retention cleanup.
+1. **Time-based retention** — every hour, records older than `retention_days` are deleted from the `executions` table. Internal bookkeeping records (session tracking) are not affected by retention cleanup.
 2. **Size-based failsafe** — every hour, if the total database size (including WAL files) exceeds `max_size_mb`, the oldest execution records are deleted in batches until the database is back under the limit.
 
 Both routines run in the background and do not block normal operation.

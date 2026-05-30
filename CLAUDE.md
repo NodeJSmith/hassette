@@ -56,7 +56,7 @@ hassette app health <key> --instance office
 
 **App** (`src/hassette/app/app.py`) - Base class for user automations. Generic over `AppConfig` type. Each app gets its own Bus, Scheduler, Api, and StateManager. Lifecycle hooks: `on_initialize`, `on_ready`, `on_shutdown`.
 
-**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. Supports glob patterns, predicates, conditions, debounce, throttle. The internal `Listener` dataclass composes four sub-structs: `ListenerIdentity` (ownership/telemetry fields), `ListenerOptions` (behavioral timing parameters), `HandlerInvoker` (handler invocation, dispatch, rate limiting), and `DurationConfig` (duration-hold configuration and timer lifecycle). Registration methods return a `Subscription` with a `registration_task` completion signal — await it for deterministic startup ordering; check `listener.db_id` to verify persistence.
+**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. All registration methods are `async` and must be awaited. `name=` is required on every DB-registered listener — omitting it raises `ListenerNameRequiredError` at call time. Supports glob patterns, predicates, conditions, debounce, throttle. The internal `Listener` dataclass composes four sub-structs: `ListenerIdentity` (ownership/telemetry fields), `ListenerOptions` (behavioral timing parameters), `HandlerInvoker` (handler invocation, dispatch, rate limiting), and `DurationConfig` (duration-hold configuration and timer lifecycle). Registration is synchronous with the DB — `sub.listener.db_id` is a valid integer immediately when the awaited call returns. `Subscription` no longer has a `registration_task` field.
 
 **Scheduler** (`src/hassette/scheduler/`) - Task scheduling via trigger objects. Primary entry: `schedule(func, trigger)`. Convenience methods: `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`. Trigger types: `After`, `Once`, `Every`, `Daily`, `Cron` (all in `hassette.scheduler.triggers`). Custom triggers implement `TriggerProtocol`. Supports job groups (`group=`, `cancel_group()`, `list_jobs(group=)`) and jitter (`jitter=`).
 
@@ -85,6 +85,8 @@ Located in `src/hassette/event_handling/`:
 
 Services declare a `restart_spec` class attribute (`RestartSpec`) that controls supervision behavior: restart type (`PERMANENT`, `TRANSIENT`, or `TEMPORARY`), sliding-window budget (intensity + period), backoff parameters, and error routing (fatal vs. non-retryable error names). The `ServiceWatcher` reads this spec when a service fails.
 
+`BusService` and `SchedulerService` both declare `depends_on: [DatabaseService]` — the database is guaranteed ready before any listener or job registration can occur.
+
 ## App Pattern
 
 ```python
@@ -94,8 +96,8 @@ class MyConfig(AppConfig):
 
 class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
-        self.scheduler.run_in(self.my_task, 5)
+        await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
+        await self.scheduler.run_in(self.my_task, 5)
 
     async def on_light_change(self, event: RawStateChangeEvent):
         pass

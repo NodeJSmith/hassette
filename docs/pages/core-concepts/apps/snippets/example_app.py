@@ -6,9 +6,10 @@ class ExampleApp(App[AppConfig]):
         self.logger.info("Hello from ExampleApp!")
 
         # Subscribe using the bus helper
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "light.living_room",
             handler=self.on_light_change,
+            name="living_room_light",
         )
 
     async def on_light_change(

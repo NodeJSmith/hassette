@@ -7,9 +7,10 @@ class MotionCycleApp(App[AppConfig]):
 
     async def on_initialize(self) -> None:
         await self.ensure_cycle_counter()
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
+            name="motion_cycle",
         )
 
     async def on_motion(self) -> None:

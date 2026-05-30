@@ -5,25 +5,31 @@ The Bus provides a clean interface for listening to state changes, service calls
 from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions
 and cleanup. Use predicates and conditions to filter events precisely.
 
+All registration methods (``on_state_change``, ``on_attribute_change``, ``on_call_service``,
+``on``) are ``async`` and must be awaited. The ``name=`` parameter is required on every call —
+omitting it raises ``ListenerNameRequiredError`` at call time. Registration completes inline:
+``sub.listener.db_id`` is a valid integer immediately when the awaited call returns.
+
 Examples:
     Basic state change subscription
 
     ```python
-    # Listen to all changes on an entity
-    self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+    # Listen to all changes on an entity — name= is required
+    await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
     ```
 
     State change with value filters
 
     ```python
     # Only when light turns on
-    self.bus.on_state_change("light.kitchen", changed_to="on", handler=self.on_light_on)
+    await self.bus.on_state_change("light.kitchen", changed_to="on", handler=self.on_light_on, name="kitchen_on")
 
     # Only when temperature increases above 20
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "sensor.temperature",
         changed_to=lambda temp: temp > 20,
-        handler=self.on_temp_high
+        handler=self.on_temp_high,
+        name="temp_high",
     )
     ```
 
@@ -31,10 +37,11 @@ Examples:
 
     ```python
     # Monitor battery level changes
-    self.bus.on_attribute_change(
+    await self.bus.on_attribute_change(
         "sensor.phone_battery",
         "battery_level",
-        handler=self.on_battery_change
+        handler=self.on_battery_change,
+        name="phone_battery",
     )
     ```
 
@@ -42,10 +49,11 @@ Examples:
 
     ```python
     # Listen to light service calls
-    self.bus.on_call_service(
+    await self.bus.on_call_service(
         domain="light",
         service="turn_on",
-        handler=self.on_light_service_call
+        handler=self.on_light_service_call,
+        name="light_turn_on",
     )
     ```
 
@@ -55,13 +63,14 @@ Examples:
     from hassette import C
 
     # All lights in kitchen
-    self.bus.on_state_change("light.*kitchen*", handler=self.on_kitchen_light)
+    await self.bus.on_state_change("light.*kitchen*", handler=self.on_kitchen_light, name="kitchen_lights")
 
     # Comparison condition - temperature increased
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "sensor.temperature",
         changed=C.Increased(),
-        handler=self.on_high_temp
+        handler=self.on_high_temp,
+        name="temp_increased",
     )
     ```
 
@@ -69,13 +78,13 @@ Examples:
 
     ```python
     # Run only once
-    self.bus.on_state_change("light.kitchen", handler=handler, once=True)
+    await self.bus.on_state_change("light.kitchen", handler=handler, once=True, name="kitchen_once")
 
     # Debounce rapid changes (wait 5 seconds after last event)
-    self.bus.on_state_change("sensor.motion", handler=handler, debounce=5.0)
+    await self.bus.on_state_change("sensor.motion", handler=handler, debounce=5.0, name="motion_debounced")
 
     # Throttle frequent events (max once per 10 seconds)
-    self.bus.on_state_change("sensor.temperature", handler=handler, throttle=10.0)
+    await self.bus.on_state_change("sensor.temperature", handler=handler, throttle=10.0, name="temp_throttled")
     ```
 """
 
@@ -266,9 +275,9 @@ class Bus(Resource):
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
-        This is the public registration method. For internal use (duration-hold listeners,
-        attribute listeners), use the convenience methods on_state_change() and
-        on_attribute_change() which call _on_internal() with the full parameter set.
+        This is the public registration method for raw topic subscriptions. This method is
+        ``async`` and must be awaited. Registration completes before the call returns —
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             topic: The event topic to listen to.
@@ -282,13 +291,18 @@ class Bus(Resource):
             timeout: Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
                 None means fall through to the config default.
             timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
-            name: Optional stable name for this listener. When provided, it replaces the predicate
-                summary in the natural key and disambiguates registrations that would otherwise collide.
+            name: Required. Stable string identifier for this listener. Forms part of the natural
+                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
 
         Returns:
-            A subscription object. `sub.cancel()` removes the listener.
-            `sub.listener.db_id` is a valid integer immediately on return.
+            A subscription object. ``sub.cancel()`` removes the listener.
+            ``sub.listener.db_id`` is a valid integer immediately on return.
+
+        Raises:
+            ListenerNameRequiredError: If ``name`` is not provided.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
         return await self._on_internal(
             topic=topic,
@@ -500,6 +514,10 @@ class Bus(Resource):
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
 
+        This method is ``async`` and must be awaited. Registration — routing and database
+        persistence — completes before the call returns. ``sub.listener.db_id`` is a valid
+        integer immediately on return.
+
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             handler: The function to call when the event matches.
@@ -510,10 +528,19 @@ class Bus(Resource):
             where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
                 full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
+            name: Required. A stable string identifier for this listener. Forms part of the natural
+                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options like `once`, `debounce` and `throttle`.
 
         Returns:
-            A subscription object that can be used to manage the listener.
+            A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
+            removes the listener from routing.
+
+        Raises:
+            ListenerNameRequiredError: If ``name`` is not provided.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered on this bus in the current session.
         """
         if immediate and is_glob(entity_id):
             raise ValueError(
@@ -565,6 +592,9 @@ class Bus(Resource):
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
 
+        This method is ``async`` and must be awaited. Registration completes before the call
+        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             attr: The attribute name to filter changes on (e.g., "volume").
@@ -575,10 +605,15 @@ class Bus(Resource):
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            A subscription object that can be used to manage the listener.
+            A subscription object. ``sub.listener.db_id`` is set immediately.
+
+        Raises:
+            ListenerNameRequiredError: If ``name`` is not provided.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
         if immediate and is_glob(entity_id):
             raise ValueError(
@@ -637,17 +672,25 @@ class Bus(Resource):
     ) -> Subscription:
         """Subscribe to service call events.
 
+        This method is ``async`` and must be awaited. Registration completes before the call
+        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+
         Args:
             domain: The domain to filter service calls (e.g., "light").
             service: The service to filter service calls (e.g., "turn_on").
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable string identifier for this listener. Omitting it raises
+                ``ListenerNameRequiredError`` at call time.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
-            A subscription object that can be used to manage the listener.
+            A subscription object. ``sub.listener.db_id`` is set immediately.
+
+        Raises:
+            ListenerNameRequiredError: If ``name`` is not provided.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
 
         preds: list[Predicate] = []
@@ -853,7 +896,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. A stable string identifier for this listener. Forms part of the
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert
+                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                at call time.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:
@@ -893,7 +939,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. A stable string identifier for this listener. Forms part of the
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert
+                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                at call time.
             **opts: Additional options like `once`, `debounce`, and `throttle`.
 
         Returns:

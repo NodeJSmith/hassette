@@ -5,10 +5,11 @@ from hassette.events import RawStateChangeEvent
 
 class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "sensor.temperature",
             handler=self.on_temp_change,
             on_error=self.on_temp_error,
+            name="temp_sensor",
         )
 
     async def on_temp_error(self, ctx: BusErrorContext) -> None:
