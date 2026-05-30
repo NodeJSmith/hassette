@@ -5,7 +5,7 @@ from typing import Any
 
 from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.core.telemetry.helpers import DEFAULT_QUERY_LIMIT, _row_to_dict, _since_clause, _source_tier_clause
-from hassette.core.telemetry_models import ActivityFeedEntry, AppLastError, Execution, HandlerInvocation, JobExecution
+from hassette.core.telemetry_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.types.types import QuerySourceTier
 
 
@@ -371,78 +371,3 @@ async def check_execution_predates_retention_cutoff(tqs: "Any", execution_id: st
     if row is not None:
         return float(row[0]) < cutoff
     return False
-
-
-# ---------------------------------------------------------------------------
-# Backward-compat wrapper helpers (return old model types for T11/T17 callers)
-# ---------------------------------------------------------------------------
-
-
-async def get_handler_invocations_compat(
-    tqs: "Any",
-    listener_id: int,
-    limit: int = DEFAULT_QUERY_LIMIT,
-    since: float | None = None,
-) -> list[HandlerInvocation]:
-    """Backward-compat wrapper - T11/T17 migrate callers to get_executions.
-
-    Reads from ``executions`` with ``kind='handler'`` and maps to
-    ``HandlerInvocation`` for existing callers.
-    """
-    since_clause, since_params = _since_clause(since, "e.execution_start_ts")
-    query = f"""
-        SELECT
-            e.execution_start_ts,
-            e.duration_ms,
-            e.status,
-            e.source_tier,
-            e.error_type,
-            e.error_message,
-            e.error_traceback,
-            e.execution_id,
-            e.trigger_context_id,
-            e.trigger_origin
-        FROM executions e
-        WHERE e.kind = 'handler'
-          AND e.listener_id = :listener_id {since_clause}
-        ORDER BY e.execution_start_ts DESC
-        LIMIT :limit
-    """
-    params: dict[str, Any] = {"listener_id": listener_id, "limit": limit, **since_params}
-    async with tqs.execute(query, params) as cursor:
-        rows = await cursor.fetchall()
-    return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
-
-
-async def get_job_executions_compat(
-    tqs: "Any",
-    job_id: int,
-    limit: int = DEFAULT_QUERY_LIMIT,
-    since: float | None = None,
-) -> list[JobExecution]:
-    """Backward-compat wrapper - T11/T17 migrate callers to get_executions.
-
-    Reads from ``executions`` with ``kind='job'`` and maps to
-    ``JobExecution`` for existing callers.
-    """
-    since_clause, since_params = _since_clause(since, "e.execution_start_ts")
-    query = f"""
-        SELECT
-            e.execution_start_ts,
-            e.duration_ms,
-            e.status,
-            e.source_tier,
-            e.error_type,
-            e.error_message,
-            e.error_traceback,
-            e.execution_id
-        FROM executions e
-        WHERE e.kind = 'job'
-          AND e.job_id = :job_id {since_clause}
-        ORDER BY e.execution_start_ts DESC
-        LIMIT :limit
-    """
-    params: dict[str, Any] = {"job_id": job_id, "limit": limit, **since_params}
-    async with tqs.execute(query, params) as cursor:
-        rows = await cursor.fetchall()
-    return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]

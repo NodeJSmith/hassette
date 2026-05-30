@@ -11,7 +11,7 @@ from hassette.cli.commands.job import (
     cmd_job,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_job_execution, make_job_summary
+from hassette.test_utils.web_helpers import make_execution, make_job_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ class TestCmdJob:
 class TestCmdJobDetail:
     def test_calls_executions_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> fetches from GET /api/telemetry/job/{id}/executions."""
-        execution = make_job_execution()
+        execution = make_execution(kind="job", job_id=1)
         client, _ = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
@@ -202,7 +202,7 @@ class TestCmdJobDetail:
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> --limit 5 passes limit=5 as a query param."""
-        execution = make_job_execution()
+        execution = make_execution(kind="job", job_id=1)
         client, _ = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
@@ -226,7 +226,7 @@ class TestCmdJobDetail:
 
     def test_since_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> --since passes since as a query param."""
-        execution = make_job_execution()
+        execution = make_execution(kind="job", job_id=1)
         client, _ = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
@@ -251,7 +251,7 @@ class TestCmdJobDetail:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> renders a table with status and duration."""
-        execution = make_job_execution(duration_ms=8.5)
+        execution = make_execution(kind="job", job_id=1, duration_ms=8.5)
         client, _ = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/1/executions", 200, [execution.model_dump()])]
         )
@@ -266,7 +266,7 @@ class TestCmdJobDetail:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> --json outputs the executions as a JSON array."""
-        execution = make_job_execution(duration_ms=15.0)
+        execution = make_execution(kind="job", job_id=1, duration_ms=15.0)
         client, _ = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/1/executions", 200, [execution.model_dump()])]
         )

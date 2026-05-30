@@ -13,8 +13,6 @@ from hassette.core.telemetry.execution_queries import (
     check_execution_predates_retention_cutoff,
     get_app_recent_activity,
     get_executions,
-    get_handler_invocations_compat,
-    get_job_executions_compat,
     get_per_app_activity_buckets,
     get_per_app_last_errors,
     get_recent_invocations_1h,
@@ -46,8 +44,6 @@ from hassette.core.telemetry_models import (
     AppHealthSummary,
     AppLastError,
     Execution,
-    HandlerInvocation,
-    JobExecution,
     JobSummary,
     ListenerSummary,
     SessionRecord,
@@ -174,26 +170,6 @@ class TelemetryQueryService(Resource):
         Replaces the split ``get_handler_invocations`` / ``get_job_executions`` pair.
         """
         return await get_executions(self, listener_id=listener_id, job_id=job_id, kind=kind, limit=limit, since=since)
-
-    async def get_handler_invocations(
-        self, listener_id: int, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
-    ) -> list[HandlerInvocation]:
-        """Return recent invocation records for a specific listener.
-
-        Backward-compat wrapper - T11/T17 migrate callers to get_executions.
-        Reads from ``executions`` (kind='handler') against the unified table.
-        """
-        return await get_handler_invocations_compat(self, listener_id, limit=limit, since=since)
-
-    async def get_job_executions(
-        self, job_id: int, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
-    ) -> list[JobExecution]:
-        """Return recent execution records for a specific scheduled job.
-
-        Backward-compat wrapper - T11/T17 migrate callers to get_executions.
-        Reads from ``executions`` (kind='job') against the unified table.
-        """
-        return await get_job_executions_compat(self, job_id, limit=limit, since=since)
 
     async def get_app_recent_activity(
         self,

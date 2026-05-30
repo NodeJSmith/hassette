@@ -1,7 +1,7 @@
 ---
 task_id: "T17"
 title: "Update CLI commands for unified execution model and endpoints"
-status: "planned"
+status: "done"
 depends_on: ["T07", "T11"]
 implements: ["FR#10", "AC#1"]
 ---

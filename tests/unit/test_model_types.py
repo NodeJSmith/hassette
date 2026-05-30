@@ -7,7 +7,7 @@ type that rejects values outside that set at validation time.
 import pytest
 from pydantic import ValidationError
 
-from hassette.core.telemetry_models import ActivityFeedEntry, HandlerInvocation, JobExecution, LogRecord
+from hassette.core.telemetry_models import ActivityFeedEntry, Execution, LogRecord
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import InvocationStatus
 from hassette.web.models import (
@@ -23,14 +23,15 @@ from hassette.web.models import (
 )
 
 # ---------------------------------------------------------------------------
-# InvocationStatus — HandlerInvocation.status
+# InvocationStatus — Execution.status
 # ---------------------------------------------------------------------------
 
 
 class TestInvocationStatus:
     def test_rejects_bogus_status(self) -> None:
         with pytest.raises(ValidationError):
-            HandlerInvocation(
+            Execution(
+                kind="handler",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status="bogus",
@@ -40,7 +41,8 @@ class TestInvocationStatus:
 
     def test_accepts_all_valid_values(self) -> None:
         for value in ("success", "error", "cancelled", "timed_out"):
-            obj = HandlerInvocation(
+            obj = Execution(
+                kind="handler",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status=value,
@@ -51,7 +53,8 @@ class TestInvocationStatus:
 
     def test_rejects_bogus_on_job_execution(self) -> None:
         with pytest.raises(ValidationError):
-            JobExecution(
+            Execution(
+                kind="job",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status="pending",
@@ -71,7 +74,8 @@ class TestInvocationStatus:
             )
 
     def test_serialises_to_plain_string(self) -> None:
-        obj = HandlerInvocation(
+        obj = Execution(
+            kind="handler",
             execution_start_ts=1.0,
             duration_ms=10.0,
             status="success",

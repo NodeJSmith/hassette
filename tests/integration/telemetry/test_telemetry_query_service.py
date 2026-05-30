@@ -370,8 +370,8 @@ class TestGetJobSummary:
         assert row.last_error_ts is None
 
 
-class TestGetHandlerInvocations:
-    async def test_get_handler_invocations_ordered(
+class TestGetExecutionsForListener:
+    async def test_get_executions_handler_ordered(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
@@ -393,8 +393,8 @@ class TestGetHandlerInvocations:
         assert rows[2].execution_start_ts == pytest.approx(base_ts + 2)
 
 
-class TestGetJobExecutions:
-    async def test_get_job_executions_ordered(
+class TestGetExecutionsForJob:
+    async def test_get_executions_job_ordered(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],

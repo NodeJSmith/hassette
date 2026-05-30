@@ -11,7 +11,7 @@ from hassette.cli.commands.listener import (
     cmd_listener,
 )
 from hassette.cli.context import CLIContext
-from hassette.test_utils.web_helpers import make_handler_invocation, make_listener_with_summary
+from hassette.test_utils.web_helpers import make_execution, make_listener_with_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
 # ---------------------------------------------------------------------------
@@ -179,10 +179,10 @@ class TestCmdListener:
 
 class TestCmdListenerDetail:
     def test_calls_invocations_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """listener <id> fetches from GET /api/telemetry/handler/{id}/invocations."""
-        invocation = make_handler_invocation()
+        """listener <id> fetches from GET /api/telemetry/listener/{id}/executions."""
+        invocation = make_execution(kind="handler", listener_id=42)
         client, _ = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/handler/42/invocations", 200, [invocation.model_dump()])]
+            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         called_paths: list[str] = []
         original_get = client.get
@@ -198,13 +198,13 @@ class TestCmdListenerDetail:
         ):
             cmd_listener(listener_id=42)
 
-        assert "/api/telemetry/handler/42/invocations" in called_paths
+        assert "/api/telemetry/listener/42/executions" in called_paths
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --limit 5 passes limit=5 as a query param."""
-        invocation = make_handler_invocation()
+        invocation = make_execution(kind="handler", listener_id=42)
         client, _ = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/handler/42/invocations", 200, [invocation.model_dump()])]
+            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         received_params: list[dict] = []
         original_get = client.get
@@ -220,15 +220,15 @@ class TestCmdListenerDetail:
         ):
             cmd_listener(listener_id=42, limit=5)
 
-        invocations_call = next(r for r in received_params if "invocations" in r["path"])
-        assert invocations_call["params"] is not None
-        assert invocations_call["params"]["limit"] == 5
+        executions_call = next(r for r in received_params if "executions" in r["path"])
+        assert executions_call["params"] is not None
+        assert executions_call["params"]["limit"] == 5
 
     def test_since_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --since passes since as a query param."""
-        invocation = make_handler_invocation()
+        invocation = make_execution(kind="handler", listener_id=42)
         client, _ = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/handler/42/invocations", 200, [invocation.model_dump()])]
+            [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         received_params: list[dict] = []
         original_get = client.get
@@ -245,15 +245,15 @@ class TestCmdListenerDetail:
         ):
             cmd_listener(listener_id=42, since=since_epoch)
 
-        invocations_call = next(r for r in received_params if "invocations" in r["path"])
-        assert invocations_call["params"] is not None
-        assert invocations_call["params"]["since"] == since_epoch
+        executions_call = next(r for r in received_params if "executions" in r["path"])
+        assert executions_call["params"] is not None
+        assert executions_call["params"]["since"] == since_epoch
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> renders a table with status and duration."""
-        invocation = make_handler_invocation(duration_ms=12.5)
+        invocation = make_execution(kind="handler", listener_id=1, duration_ms=12.5)
         client, _ = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/handler/1/invocations", 200, [invocation.model_dump()])]
+            [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
         with (
             capture_stdout() as buf,
@@ -266,9 +266,9 @@ class TestCmdListenerDetail:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --json outputs the invocations as a JSON array."""
-        invocation = make_handler_invocation(duration_ms=20.0)
+        invocation = make_execution(kind="handler", listener_id=1, duration_ms=20.0)
         client, _ = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/handler/1/invocations", 200, [invocation.model_dump()])]
+            [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
         captured: list[str] = []
 

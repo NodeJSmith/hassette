@@ -141,31 +141,6 @@ class Execution(BaseModel):
     """JSON-encoded keyword arguments for job executions. '{}' for handler invocations."""
 
 
-class HandlerInvocation(BaseModel):
-    """Single invocation record returned by ``get_handler_invocations()``.
-
-    Kept for backwards compatibility with ``TelemetryQueryService`` consumers.
-    Will be replaced by ``Execution`` when T10 migrates the query service.
-    """
-
-    execution_start_ts: float
-    duration_ms: float
-    status: InvocationStatus
-    source_tier: SourceTier = "app"
-    error_type: str | None
-    error_message: str | None
-    error_traceback: str | None = None
-    execution_id: str | None = None
-    """UUID string identifying the specific execution instance. None when not populated.
-
-    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
-    """
-    trigger_context_id: str | None = None
-    """event_id from the triggering event payload. None for non-event-triggered invocations."""
-    trigger_origin: str | None = None
-    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None when not available."""
-
-
 class JobSummary(BaseModel):
     """Per-job summary returned by ``get_job_summary()``.
 
@@ -215,27 +190,6 @@ class JobSummary(BaseModel):
     """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     max_duration_ms: float | None = None
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
-
-
-class JobExecution(BaseModel):
-    """Single execution record returned by ``get_job_executions()``.
-
-    Kept for backwards compatibility with ``TelemetryQueryService`` consumers.
-    Will be replaced by ``Execution`` when T10 migrates the query service.
-    """
-
-    execution_start_ts: float
-    duration_ms: float
-    status: InvocationStatus
-    source_tier: SourceTier = "app"
-    error_type: str | None
-    error_message: str | None
-    error_traceback: str | None = None
-    execution_id: str | None = None
-    """UUID string identifying the specific execution instance. None when not populated.
-
-    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
-    """
 
 
 class ListenerGlobalStats(BaseModel):
