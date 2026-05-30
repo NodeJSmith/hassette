@@ -36,7 +36,9 @@ async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHar
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", handler=handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "light.kitchen", handler=handler, changed=False, immediate=True, name="immediate_fires_when_state_matches"
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
 
@@ -59,7 +61,9 @@ async def test_immediate_no_fire_when_state_does_not_match(
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change("light.kitchen", handler=handler, changed_to="on", immediate=True)
+    await bus.on_state_change(
+        "light.kitchen", handler=handler, changed_to="on", immediate=True, name="immediate_no_fire_state_mismatch"
+    )
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
@@ -77,7 +81,9 @@ async def test_immediate_no_fire_entity_not_found(bus_harness: tuple[HassetteHar
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change("sensor.nonexistent", handler=handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "sensor.nonexistent", handler=handler, changed=False, immediate=True, name="immediate_no_fire_entity_not_found"
+    )
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
@@ -98,7 +104,9 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("sensor.temp", handler=handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "sensor.temp", handler=handler, changed=False, immediate=True, name="immediate_synthetic_event_structure"
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
 
@@ -132,7 +140,14 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
         call_count += 1
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("switch.outlet", handler=handler, changed=False, immediate=True, once=True)
+    await bus.on_state_change(
+        "switch.outlet",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        once=True,
+        name="immediate_once_consumes_invocation",
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
     assert call_count == 1
@@ -162,7 +177,9 @@ async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hass
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05)
+    await bus.on_state_change(
+        "sensor.motion", handler=handler, changed=False, immediate=True, debounce=0.05, name="immediate_with_debounce"
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
 
@@ -177,7 +194,7 @@ async def test_immediate_glob_entity_rejected(bus_harness: tuple[HassetteHarness
         pass
 
     with pytest.raises(ValueError, match=r"immediate=True.*glob"):
-        bus.on_state_change("light.*", handler=handler, immediate=True)
+        await bus.on_state_change("light.*", handler=handler, immediate=True, name="immediate_glob_rejected")
 
 
 async def test_immediate_attribute_change_with_attr_did_change(
@@ -198,7 +215,9 @@ async def test_immediate_attribute_change_with_attr_did_change(
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_attribute_change("light.office", "brightness", handler=handler, immediate=True)
+    await bus.on_attribute_change(
+        "light.office", "brightness", handler=handler, immediate=True, name="immediate_attr_change_did_change"
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
 
@@ -227,7 +246,9 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
         hassette.task_bucket.post_to_loop(fired.set)
 
     # changed=False means no StateDidChange predicate — any state triggers dispatch
-    bus.on_state_change("binary_sensor.door", handler=handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "binary_sensor.door", handler=handler, changed=False, immediate=True, name="immediate_changed_false_any_entity"
+    )
 
     await asyncio.wait_for(fired.wait(), timeout=2.0)
 
@@ -258,12 +279,13 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.boiler",
         handler=handler,
         changed=False,
         immediate=True,
         duration=5.0,
+        name="immediate_duration_fires_elapsed_exceeds",
     )
 
     # Elapsed (10s) >= duration (5s) → should fire immediately
@@ -292,12 +314,13 @@ async def test_immediate_duration_starts_timer_for_remaining(
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.fan",
         handler=handler,
         changed=False,
         immediate=True,
         duration=5.0,
+        name="immediate_duration_starts_timer_remaining",
     )
 
     # negative-assertion: no event-driven alternative
@@ -323,12 +346,13 @@ async def test_immediate_duration_last_changed_none(bus_harness: tuple[HassetteH
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.pump",
         handler=handler,
         changed=False,
         immediate=True,
         duration=60.0,  # long enough that we won't wait for it
+        name="immediate_duration_last_changed_none",
     )
 
     # Should NOT fire immediately — full 60s timer starts
@@ -354,12 +378,13 @@ async def test_immediate_duration_negative_elapsed_clamped(
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.heater",
         handler=handler,
         changed=False,
         immediate=True,
         duration=5.0,
+        name="immediate_duration_negative_elapsed_clamped",
     )
 
     # negative-assertion: no event-driven alternative
@@ -385,12 +410,13 @@ async def test_immediate_duration_attribute_change_always_zero(
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_attribute_change(
+    await bus.on_attribute_change(
         "light.lamp",
         "brightness",
         handler=handler,
         immediate=True,
         duration=10.0,  # long duration so we never wait for it
+        name="immediate_duration_attr_change_always_zero",
     )
 
     # negative-assertion: no event-driven alternative
@@ -421,13 +447,14 @@ async def test_immediate_duration_once_fires_exactly_once(
         call_count += 1
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.oven",
         handler=handler,
         changed=False,
         immediate=True,
         duration=5.0,
         once=True,
+        name="immediate_duration_once_fires_exactly_once",
     )
 
     # Should fire immediately (elapsed 10s >= duration 5s)

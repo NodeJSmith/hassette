@@ -40,7 +40,13 @@ async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarne
         raise ValueError("duration handler failed")
 
     bus.on_error(on_error)
-    bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen",
+        changed_to="on",
+        handler=bad_handler,
+        duration=DURATION,
+        name="duration_app_level_error_handler",
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -74,12 +80,13 @@ async def test_duration_per_listener_error_handler_wins(
         raise RuntimeError("per-listener duration failure")
 
     bus.on_error(app_level_handler)
-    bus.on_state_change(
+    await bus.on_state_change(
         "light.kitchen",
         changed_to="on",
         handler=bad_handler,
         duration=DURATION,
         on_error=per_listener_handler,
+        name="duration_per_listener_error_handler_wins",
     )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -111,7 +118,13 @@ async def test_duration_error_handler_receives_original_event(
         raise TypeError("check event in context")
 
     bus.on_error(on_error)
-    bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen",
+        changed_to="on",
+        handler=bad_handler,
+        duration=DURATION,
+        name="duration_error_handler_receives_original_event",
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -145,7 +158,14 @@ async def test_duration_once_error_handler_and_removal(
         raise ValueError("once + duration + error")
 
     bus.on_error(on_error)
-    bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION, once=True)
+    await bus.on_state_change(
+        "light.kitchen",
+        changed_to="on",
+        handler=bad_handler,
+        duration=DURATION,
+        once=True,
+        name="duration_once_error_handler_and_removal",
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -184,7 +204,9 @@ async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarn
         raise ValueError("immediate handler failed")
 
     bus.on_error(on_error)
-    bus.on_state_change("light.kitchen", handler=bad_handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "light.kitchen", handler=bad_handler, changed=False, immediate=True, name="immediate_app_level_error_handler"
+    )
 
     await asyncio.wait_for(error_ran.wait(), timeout=2.0)
 
@@ -217,12 +239,13 @@ async def test_immediate_per_listener_error_handler_wins(
         raise RuntimeError("per-listener immediate failure")
 
     bus.on_error(app_level_handler)
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.outlet",
         handler=bad_handler,
         changed=False,
         immediate=True,
         on_error=per_listener_handler,
+        name="immediate_per_listener_error_handler_wins",
     )
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
@@ -256,7 +279,14 @@ async def test_immediate_once_error_handler_and_removal(
         raise ValueError("immediate + once + error")
 
     bus.on_error(on_error)
-    bus.on_state_change("switch.outlet", handler=bad_handler, changed=False, immediate=True, once=True)
+    await bus.on_state_change(
+        "switch.outlet",
+        handler=bad_handler,
+        changed=False,
+        immediate=True,
+        once=True,
+        name="immediate_once_error_handler_and_removal",
+    )
 
     await asyncio.wait_for(error_ran.wait(), timeout=2.0)
     assert call_count == 1
@@ -289,7 +319,13 @@ async def test_immediate_error_handler_receives_synthetic_event(
         raise TypeError("check synthetic event in error context")
 
     bus.on_error(on_error)
-    bus.on_state_change("sensor.temp", handler=bad_handler, changed=False, immediate=True)
+    await bus.on_state_change(
+        "sensor.temp",
+        handler=bad_handler,
+        changed=False,
+        immediate=True,
+        name="immediate_error_handler_receives_synthetic_event",
+    )
 
     await asyncio.wait_for(error_ran.wait(), timeout=2.0)
 
@@ -324,12 +360,13 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
         raise ValueError("immediate + duration + error (elapsed exceeds)")
 
     bus.on_error(on_error)
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.boiler",
         handler=bad_handler,
         changed=False,
         immediate=True,
         duration=5.0,
+        name="immediate_duration_elapsed_exceeds_error_handler",
     )
 
     await asyncio.wait_for(error_ran.wait(), timeout=2.0)
@@ -362,12 +399,13 @@ async def test_immediate_duration_remaining_timer_error_handler(
         raise RuntimeError("timer fire after remaining")
 
     bus.on_error(on_error)
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.fan",
         handler=bad_handler,
         changed=False,
         immediate=True,
         duration=5.0,
+        name="immediate_duration_remaining_timer_error_handler",
     )
 
     # negative-assertion: no event-driven alternative
@@ -408,13 +446,14 @@ async def test_immediate_duration_per_listener_error_handler(
         raise TypeError("three-way combo per-listener")
 
     bus.on_error(app_level_handler)
-    bus.on_state_change(
+    await bus.on_state_change(
         "switch.heater",
         handler=bad_handler,
         changed=False,
         immediate=True,
         duration=5.0,
         on_error=per_listener_handler,
+        name="immediate_duration_per_listener_error_handler",
     )
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)

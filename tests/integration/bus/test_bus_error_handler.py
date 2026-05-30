@@ -27,7 +27,7 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
         raise ValueError("listener failed")
 
     bus.on_error(on_error)
-    bus.on(topic="test.app_level", handler=bad_handler)
+    await bus.on(topic="test.app_level", handler=bad_handler, name="app_level_bad_handler")
 
     event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
     await hassette.send_event("test.app_level", event)
@@ -60,7 +60,9 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
         raise RuntimeError("per-listener failure")
 
     bus.on_error(app_level_handler)
-    bus.on(topic="test.per_listener", handler=bad_handler, on_error=per_listener_handler)
+    await bus.on(
+        topic="test.per_listener", handler=bad_handler, on_error=per_listener_handler, name="per_listener_bad_handler"
+    )
 
     event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
     await hassette.send_event("test.per_listener", event)
@@ -86,7 +88,7 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
         hassette.task_bucket.post_to_loop(completed.set)
         raise KeyError("unhandled error")
 
-    bus.on(topic="test.no_handler", handler=bad_handler)
+    await bus.on(topic="test.no_handler", handler=bad_handler, name="no_handler_bad_handler")
 
     event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
     await hassette.send_event("test.no_handler", event)
@@ -127,8 +129,8 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     async def fail_b(_event: Event) -> None:
         raise TypeError("fail B")
 
-    bus.on(topic="test.multi_a", handler=fail_a, on_error=handler_a)
-    bus.on(topic="test.multi_b", handler=fail_b, on_error=handler_b)
+    await bus.on(topic="test.multi_a", handler=fail_a, on_error=handler_a, name="multi_fail_a")
+    await bus.on(topic="test.multi_b", handler=fail_b, on_error=handler_b, name="multi_fail_b")
 
     ev = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
     await hassette.send_event("test.multi_a", ev)
@@ -154,7 +156,7 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
         raise AttributeError("late registration test")
 
     # Register the listener BEFORE calling on_error()
-    bus.on(topic="test.late_registration", handler=bad_handler)
+    await bus.on(topic="test.late_registration", handler=bad_handler, name="late_registration_bad_handler")
 
     # Register error handler AFTER the listener
     async def on_error(ctx: BusErrorContext) -> None:
@@ -187,8 +189,8 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     async def bad_handler_b(_event: Event) -> None:
         raise TypeError("listener B failed")
 
-    bus.on(topic="test.multi_late.a", handler=bad_handler_a)
-    bus.on(topic="test.multi_late.b", handler=bad_handler_b)
+    await bus.on(topic="test.multi_late.a", handler=bad_handler_a, name="multi_late_a")
+    await bus.on(topic="test.multi_late.b", handler=bad_handler_b, name="multi_late_b")
 
     async def on_error(ctx: BusErrorContext) -> None:
         error_contexts.append(ctx)
@@ -223,7 +225,9 @@ async def test_on_call_service_error_handler(hassette_with_bus: "HassetteHarness
     async def bad_handler(_event: Event) -> None:
         raise ValueError("service handler failed")
 
-    bus.on_call_service(domain="light", service="turn_on", handler=bad_handler, on_error=on_error)
+    await bus.on_call_service(
+        domain="light", service="turn_on", handler=bad_handler, on_error=on_error, name="on_call_service_error_handler"
+    )
 
     event = create_call_service_event(domain="light", service="turn_on")
     await hassette.send_event(event.topic, event)

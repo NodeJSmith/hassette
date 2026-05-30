@@ -1,7 +1,7 @@
 ---
 task_id: "T15b"
 title: "Async-adapt integration bus core tests"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["AC#1"]
 ---
