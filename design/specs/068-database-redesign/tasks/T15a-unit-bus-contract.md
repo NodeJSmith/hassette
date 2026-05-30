@@ -1,7 +1,7 @@
 ---
 task_id: "T15a"
 title: "Rewrite unit bus tests to name=-required contract"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["AC#1"]
 ---
