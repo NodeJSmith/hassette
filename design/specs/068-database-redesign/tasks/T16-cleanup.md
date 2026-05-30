@@ -2,7 +2,7 @@
 task_id: "T16"
 title: "Final cleanup and verification"
 status: "planned"
-depends_on: ["T09", "T10", "T14", "T15", "T17"]
+depends_on: ["T09", "T10", "T14", "T15a", "T15b", "T15c", "T15d", "T15e", "T15f", "T15g", "T15h", "T15i", "T15j", "T15k", "T17"]
 implements: ["FR#2", "FR#19", "AC#1", "AC#4", "AC#5"]
 ---
 
@@ -22,7 +22,15 @@ Final pass — verify all behavioral invariants, run the full test suite, confir
 - `timeout 300 uv run nox -s dev -- -n 2` (unit + integration)
 - `uv run pyright` (type checking)
 - `cd frontend && npm run build` (frontend types)
+- `uv run nox -s system` (Docker — full system suite; collection-only was verified in T15i, the GREEN run is owned here)
+- `uv run nox -s e2e` (Playwright — full e2e suite; collection-only was verified in T15j, the GREEN run is owned here. AC#2)
+- AC#3 manual verification: handlers page shows unified list, detail pages load, activity feed updates
 - CSS lint tools if applicable
+
+**Step 5b: Resolve deferred review observations** (from [[deferred-items]]):
+- `summary_queries.get_log_records` uses `SELECT *` — switch to an explicit column list so a future `log_records` column can't silently leak into API responses (T10→T16 robustness nit; not a current leak).
+- `executions` FK columns are `ON DELETE SET NULL` but the FK-mutex CHECK requires exactly one of `listener_id`/`job_id` non-null — deleting a listener/job that still has executions would `SET NULL` → CHECK violation. Benign (reconciliation only deletes childless registrations) but document the invariant or reconsider ON DELETE behavior (T09→T16).
+- **AppSync review** (user-flagged): async-everywhere on the bus/scheduler public API breaks synchronous apps — they cannot `await self.bus.on_*`. Surface a plan (sync facades over async registration, or async-only app requirement + `AppSync` deprecation). This is a heads-up to the user, not necessarily an in-scope fix for this spec — flag it explicitly in the final summary.
 
 **Step 3: Verify no stale references:**
 - `grep -r "handler_invocations\|job_executions" src/hassette/ --include="*.py"` — zero (except comments)

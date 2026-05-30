@@ -1,7 +1,7 @@
 ---
 task_id: "T11"
 title: "Unify REST API and WS message types"
-status: "planned"
+status: "done"
 depends_on: ["T05", "T06", "T07", "T10"]
 implements: ["FR#10", "FR#11", "AC#2"]
 ---
