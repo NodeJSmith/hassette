@@ -45,7 +45,6 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 
 - `uv run nox -s dev` for local test runs. `uv run nox -s tests` for CI-equivalent (Python 3.11–3.13).
 - `uv run pyright` for type checking.
-- Tests co-locate with implementation: code and unit tests ship in the same commit.
 - Two test harnesses: `HassetteHarness` (real components, integration tests) and `create_hassette_stub()` (MagicMock, web/API tests).
 - E2E tests use Playwright with Chromium.
 
