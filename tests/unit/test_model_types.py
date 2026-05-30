@@ -16,7 +16,6 @@ from hassette.web.models import (
     AppManifestResponse,
     DashboardAppGridEntry,
     ExecutionCompletedData,
-    InvocationCompletedData,
     ListenerWithSummary,
     LogEntryResponse,
     ServiceInfoResponse,
@@ -425,45 +424,44 @@ class TestLogLevelType:
 
 
 class TestWebSocketPayloadStatus:
-    def test_invocation_completed_data_rejects_bogus(self) -> None:
-        with pytest.raises(ValidationError):
-            InvocationCompletedData(
-                listener_id=1,
-                app_key="my_app",
-                instance_index=0,
-                status="pending",
-                duration_ms=10.0,
-            )
-
-    def test_execution_completed_data_rejects_bogus(self) -> None:
+    def test_execution_completed_data_rejects_bogus_kind(self) -> None:
+        """kind must be 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             ExecutionCompletedData(
-                job_id=1,
+                kind="unknown",  # pyright: ignore[reportArgumentType]
                 app_key="my_app",
                 instance_index=0,
-                status="pending",
+                status="success",
                 duration_ms=10.0,
             )
 
-    def test_invocation_completed_data_accepts_valid(self) -> None:
-        obj = InvocationCompletedData(
+    def test_execution_completed_data_handler_kind(self) -> None:
+        obj = ExecutionCompletedData(
+            kind="handler",
             listener_id=1,
             app_key="my_app",
             instance_index=0,
-            status="timed_out",
+            status="success",
             duration_ms=10.0,
         )
-        assert obj.status == InvocationStatus.TIMED_OUT
+        assert obj.kind == "handler"
+        assert obj.listener_id == 1
+        assert obj.job_id is None
 
-    def test_execution_completed_data_accepts_valid(self) -> None:
+    def test_execution_completed_data_job_kind(self) -> None:
         obj = ExecutionCompletedData(
-            job_id=1,
+            kind="job",
+            job_id=7,
             app_key="my_app",
             instance_index=0,
-            status="cancelled",
-            duration_ms=10.0,
+            status="error",
+            duration_ms=99.0,
+            error_type="TimeoutError",
         )
-        assert obj.status == InvocationStatus.CANCELLED
+        assert obj.kind == "job"
+        assert obj.job_id == 7
+        assert obj.listener_id is None
+        assert obj.error_type == "TimeoutError"
 
 
 # ---------------------------------------------------------------------------

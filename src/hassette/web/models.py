@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, InvocationStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
 
 ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
 """Status values for app manifests (manifest-scoped, 5 values).
@@ -232,33 +232,21 @@ class ServiceStatusWsMessage(BaseModel):
     timestamp: float
 
 
-class InvocationCompletedData(BaseModel):
-    """Payload for invocation_completed WebSocket messages."""
-
-    listener_id: int
-    app_key: str
-    instance_index: int
-    status: InvocationStatus
-    duration_ms: float
-    error_type: str | None = None
-
-
 class ExecutionCompletedData(BaseModel):
-    """Payload for execution_completed WebSocket messages."""
+    """Payload for execution_completed WebSocket messages.
 
-    job_id: int
+    ``kind`` discriminates handler invocations from job executions.
+    ``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.
+    """
+
+    kind: Literal["handler", "job"]
     app_key: str
     instance_index: int
-    status: InvocationStatus
+    status: str
     duration_ms: float
     error_type: str | None = None
-
-
-class InvocationCompletedWsMessage(BaseModel):
-    type: Literal["invocation_completed"]
-    data: list[InvocationCompletedData]
-    """Per-drain batch: all invocations persisted in one ``_drain_and_persist()`` cycle."""
-    timestamp: float
+    listener_id: int | None = None
+    job_id: int | None = None
 
 
 class ExecutionCompletedWsMessage(BaseModel):
@@ -275,7 +263,6 @@ WsServerMessage = Annotated[
     | ConnectivityWsMessage
     | StateChangedWsMessage
     | ServiceStatusWsMessage
-    | InvocationCompletedWsMessage
     | ExecutionCompletedWsMessage,
     Field(discriminator="type"),
 ]

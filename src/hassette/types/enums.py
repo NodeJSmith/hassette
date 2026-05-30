@@ -37,9 +37,6 @@ class Topic(StrEnum):
     HASSETTE_EVENT_APP_STATE_CHANGED = "hassette.event.app_state_changed"
     """App instance state change events"""
 
-    HASSETTE_EVENT_INVOCATION_COMPLETED = "hassette.event.invocation_completed"
-    """Handler invocation persisted to telemetry database"""
-
     HASSETTE_EVENT_EXECUTION_COMPLETED = "hassette.event.execution_completed"
     """Scheduled job execution persisted to telemetry database"""
 

@@ -42,6 +42,7 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
         )
     )
     ts.get_all_app_summaries = AsyncMock(return_value={})
+    ts.get_executions = AsyncMock(return_value=[])
     ts.get_handler_invocations = AsyncMock(return_value=[])
     ts.get_job_executions = AsyncMock(return_value=[])
     ts.get_slow_handlers = AsyncMock(return_value=[])
@@ -193,8 +194,7 @@ def create_mock_runtime_query_service(
     svc._ws_drops = 0
     svc._ws_drops_since_last_log = 0
     svc._ws_drops_last_logged = 0.0
-    svc._pending_invocations = []
-    svc._pending_executions = []
+    svc._pending_completions = []
     svc._flush_scheduled = False
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())

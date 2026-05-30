@@ -166,18 +166,6 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
 
 
 @dataclass(slots=True, frozen=True)
-class InvocationCompletedPayload:
-    """Payload for handler invocation completed events."""
-
-    listener_id: int | None
-    status: str
-    duration_ms: float
-    app_key: str = ""
-    instance_index: int = 0
-    error_type: str | None = None
-
-
-@dataclass(slots=True, frozen=True)
 class ExecutionCompletedPayload:
     """Payload for a completed execution — handler invocation or scheduled job.
 
@@ -193,33 +181,6 @@ class ExecutionCompletedPayload:
     app_key: str = ""
     instance_index: int = 0
     error_type: str | None = None
-
-
-class HassetteInvocationCompletedEvent(Event[HassettePayload[InvocationCompletedPayload]]):
-    """Event emitted after a handler invocation is persisted to telemetry."""
-
-    @classmethod
-    def from_record(
-        cls,
-        listener_id: int | None,
-        status: str,
-        duration_ms: float,
-        app_key: str = "",
-        instance_index: int = 0,
-        error_type: str | None = None,
-    ) -> "HassetteInvocationCompletedEvent":
-        payload = InvocationCompletedPayload(
-            listener_id=listener_id,
-            status=status,
-            duration_ms=duration_ms,
-            app_key=app_key,
-            instance_index=instance_index,
-            error_type=error_type,
-        )
-        return cls(
-            topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
-            payload=HassettePayload(event_type="invocation_completed", data=payload),
-        )
 
 
 class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPayload]]):

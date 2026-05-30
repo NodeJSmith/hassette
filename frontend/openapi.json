@@ -692,7 +692,7 @@
           "telemetry"
         ],
         "summary": "Telemetry Status",
-        "description": "Health check for the telemetry database.\n\nRuns a representative query exercising the listeners -> handler_invocations\njoin path. Returns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
+        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
         "operationId": "telemetry_status_api_telemetry_status_get",
         "responses": {
           "200": {
@@ -1108,14 +1108,102 @@
         }
       }
     },
-    "/api/telemetry/handler/{listener_id}/invocations": {
+    "/api/telemetry/executions": {
       "get": {
         "tags": [
           "telemetry"
         ],
-        "summary": "Handler Invocations",
-        "description": "Invocation history for a specific handler.",
-        "operationId": "handler_invocations_api_telemetry_handler__listener_id__invocations_get",
+        "summary": "List Executions",
+        "description": "Combined execution list (handler invocations and job executions).\n\nFilter by ``kind=handler`` or ``kind=job`` to restrict to one type.\nEach record includes a ``kind`` field that discriminates the execution type.",
+        "operationId": "list_executions_api_telemetry_executions_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "handler",
+                    "job"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by kind: 'handler' or 'job'.",
+              "title": "Kind"
+            },
+            "description": "Filter by kind: 'handler' or 'job'."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Execution"
+                  },
+                  "title": "Response List Executions Api Telemetry Executions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/listener/{listener_id}/executions": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Listener Executions",
+        "description": "Execution history for a specific listener (handler invocations).",
+        "operationId": "listener_executions_api_telemetry_listener__listener_id__executions_get",
         "parameters": [
           {
             "name": "listener_id",
@@ -1163,9 +1251,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/HandlerInvocation"
+                    "$ref": "#/components/schemas/Execution"
                   },
-                  "title": "Response Handler Invocations Api Telemetry Handler  Listener Id  Invocations Get"
+                  "title": "Response Listener Executions Api Telemetry Listener  Listener Id  Executions Get"
                 }
               }
             }
@@ -1238,7 +1326,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/JobExecution"
+                    "$ref": "#/components/schemas/Execution"
                   },
                   "title": "Response Job Executions Api Telemetry Job  Job Id  Executions Get"
                 }
@@ -2220,40 +2308,38 @@
         ],
         "title": "EventEntry"
       },
-      "FileWatcherConfigResponse": {
+      "Execution": {
         "properties": {
-          "watch_files": {
-            "type": "boolean",
-            "title": "Watch Files"
+          "kind": {
+            "type": "string",
+            "enum": [
+              "handler",
+              "job"
+            ],
+            "title": "Kind"
           },
-          "debounce_milliseconds": {
-            "type": "integer",
-            "title": "Debounce Milliseconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "watch_files",
-          "debounce_milliseconds"
-        ],
-        "title": "FileWatcherConfigResponse",
-        "description": "Sanitized file watcher configuration fields."
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "HandlerInvocation": {
-        "properties": {
+          "listener_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listener Id"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
           "execution_start_ts": {
             "type": "number",
             "title": "Execution Start Ts"
@@ -2339,18 +2425,82 @@
               }
             ],
             "title": "Trigger Origin"
+          },
+          "trigger_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Mode"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "attempt_number": {
+            "type": "integer",
+            "title": "Attempt Number",
+            "default": 1
+          },
+          "args_json": {
+            "type": "string",
+            "title": "Args Json",
+            "default": "[]"
+          },
+          "kwargs_json": {
+            "type": "string",
+            "title": "Kwargs Json",
+            "default": "{}"
           }
         },
         "type": "object",
         "required": [
+          "kind",
           "execution_start_ts",
           "duration_ms",
           "status",
           "error_type",
           "error_message"
         ],
-        "title": "HandlerInvocation",
-        "description": "Single invocation record returned by ``get_handler_invocations()``."
+        "title": "Execution",
+        "description": "Unified execution record returned by queries against the ``executions`` table.\n\nReplaces the split ``HandlerInvocation`` / ``JobExecution`` models.\n``kind`` discriminates between handler invocations and job executions.\nHandler-only fields (``trigger_context_id``, ``trigger_origin``) default to\n``None`` for job executions."
+      },
+      "FileWatcherConfigResponse": {
+        "properties": {
+          "watch_files": {
+            "type": "boolean",
+            "title": "Watch Files"
+          },
+          "debounce_milliseconds": {
+            "type": "integer",
+            "title": "Debounce Milliseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "watch_files",
+          "debounce_milliseconds"
+        ],
+        "title": "FileWatcherConfigResponse",
+        "description": "Sanitized file watcher configuration fields."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "InvocationStatus": {
         "type": "string",
@@ -2362,84 +2512,6 @@
         ],
         "title": "InvocationStatus",
         "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
-      },
-      "JobExecution": {
-        "properties": {
-          "execution_start_ts": {
-            "type": "number",
-            "title": "Execution Start Ts"
-          },
-          "duration_ms": {
-            "type": "number",
-            "title": "Duration Ms"
-          },
-          "status": {
-            "$ref": "#/components/schemas/InvocationStatus"
-          },
-          "source_tier": {
-            "type": "string",
-            "enum": [
-              "app",
-              "framework"
-            ],
-            "title": "Source Tier",
-            "default": "app"
-          },
-          "error_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Type"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "error_traceback": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Traceback"
-          },
-          "execution_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Execution Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "execution_start_ts",
-          "duration_ms",
-          "status",
-          "error_type",
-          "error_message"
-        ],
-        "title": "JobExecution",
-        "description": "Single execution record returned by ``get_job_executions()``."
       },
       "JobSummary": {
         "properties": {

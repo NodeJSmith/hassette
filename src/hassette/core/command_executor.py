@@ -834,10 +834,6 @@ class CommandExecutor(Service):
         (both handler and job kinds). The payload's ``kind`` field distinguishes
         handler from job completions.
 
-        Note: ``HASSETTE_EVENT_INVOCATION_COMPLETED`` is intentionally NOT emitted
-        here after T09; handler completions now flow through the unified execution
-        topic. RQS will be updated in T11 to subscribe to the single unified topic.
-
         Payloads include ``app_key`` and ``instance_index`` sourced directly from the
         in-memory record (populated at build time from the Listener/ScheduledJob object).
 

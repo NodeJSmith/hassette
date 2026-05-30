@@ -7,7 +7,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 
 import time
 from logging import getLogger
-from typing import cast
+from typing import Literal, cast
 
 from fastapi import APIRouter, Path, Query, Response
 
@@ -16,8 +16,7 @@ from hassette.core.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
     AppLastError,
-    HandlerInvocation,
-    JobExecution,
+    Execution,
     JobSummary,
 )
 from hassette.core.telemetry_query_service import DEFAULT_QUERY_LIMIT
@@ -59,8 +58,8 @@ async def telemetry_status(
 ) -> TelemetryStatusResponse:
     """Health check for the telemetry database.
 
-    Runs a representative query exercising the listeners -> handler_invocations
-    join path. Returns 503 with ``degraded: true`` when the database is
+    Runs a representative query against the unified ``executions`` table.
+    Returns 503 with ``degraded: true`` when the database is
     unavailable; 200 with ``degraded: false`` when healthy.
     """
     try:
@@ -254,34 +253,55 @@ async def app_jobs(
     return enrich_jobs_with_heap(db_jobs, live_jobs)
 
 
-@router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])
-async def handler_invocations(
+@router.get("/executions", response_model=list[Execution])
+async def list_executions(
+    telemetry: TelemetryDep,
+    response: Response,
+    kind: Literal["handler", "job"] | None = Query(default=None, description="Filter by kind: 'handler' or 'job'."),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+) -> list[Execution]:
+    """Combined execution list (handler invocations and job executions).
+
+    Filter by ``kind=handler`` or ``kind=job`` to restrict to one type.
+    Each record includes a ``kind`` field that discriminates the execution type.
+    """
+    try:
+        return await telemetry.get_executions(kind=kind, limit=limit, since=since)
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch executions", exc_info=True)
+        response.status_code = 503
+        return []
+
+
+@router.get("/listener/{listener_id}/executions", response_model=list[Execution])
+async def listener_executions(
     listener_id: int,
     telemetry: TelemetryDep,
     response: Response,
     limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-) -> list[HandlerInvocation]:
-    """Invocation history for a specific handler."""
+) -> list[Execution]:
+    """Execution history for a specific listener (handler invocations)."""
     try:
-        return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, since=since))
+        return await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
     except DB_ERRORS:
-        LOGGER.warning("Failed to fetch invocations for listener %s", listener_id, exc_info=True)
+        LOGGER.warning("Failed to fetch executions for listener %s", listener_id, exc_info=True)
         response.status_code = 503
         return []
 
 
-@router.get("/job/{job_id}/executions", response_model=list[JobExecution])
+@router.get("/job/{job_id}/executions", response_model=list[Execution])
 async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
     response: Response,
     limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=MAX_QUERY_LIMIT),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-) -> list[JobExecution]:
+) -> list[Execution]:
     """Execution history for a specific job."""
     try:
-        return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, since=since))
+        return await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch executions for job %s", job_id, exc_info=True)
         response.status_code = 503

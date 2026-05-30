@@ -16,7 +16,6 @@ from hassette.web.models import (
     ConnectedWsMessage,
     ConnectivityWsMessage,
     ExecutionCompletedWsMessage,
-    InvocationCompletedWsMessage,
     LogWsMessage,
     ServiceStatusWsMessage,
     StateChangedWsMessage,
@@ -179,15 +178,16 @@ class TestWsServerMessageDiscriminates:
 
 
 class TestCompletionWsMessages:
-    """invocation_completed and execution_completed carry list payloads (per-drain batching)."""
+    """execution_completed carries a unified list payload (per-drain batching, kind discriminates handler/job)."""
 
     adapter = TypeAdapter(WsServerMessage)
 
-    def test_invocation_completed_discriminates(self) -> None:
+    def test_handler_execution_discriminates(self) -> None:
         raw = {
-            "type": "invocation_completed",
+            "type": "execution_completed",
             "data": [
                 {
+                    "kind": "handler",
                     "listener_id": 1,
                     "app_key": "my_app",
                     "instance_index": 0,
@@ -199,18 +199,20 @@ class TestCompletionWsMessages:
             "timestamp": 1234567890.0,
         }
         msg = self.adapter.validate_python(raw)
-        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 1
+        assert msg.data[0].kind == "handler"
         assert msg.data[0].listener_id == 1
         assert msg.data[0].app_key == "my_app"
         assert msg.data[0].status == "success"
         assert msg.data[0].error_type is None
 
-    def test_execution_completed_discriminates(self) -> None:
+    def test_job_execution_discriminates(self) -> None:
         raw = {
             "type": "execution_completed",
             "data": [
                 {
+                    "kind": "job",
                     "job_id": 7,
                     "app_key": "scheduler_app",
                     "instance_index": 1,
@@ -224,23 +226,33 @@ class TestCompletionWsMessages:
         msg = self.adapter.validate_python(raw)
         assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 1
+        assert msg.data[0].kind == "job"
         assert msg.data[0].job_id == 7
         assert msg.data[0].error_type == "TimeoutError"
 
-    def test_invocation_completed_empty_batch_valid(self) -> None:
-        """An empty batch list is valid (flush with nothing to emit never happens, but schema must accept it)."""
-        raw = {"type": "invocation_completed", "data": [], "timestamp": 1234567890.0}
+    def test_execution_completed_empty_batch_valid(self) -> None:
+        """An empty batch list is valid (schema must accept it even if flush skips empty batches)."""
+        raw = {"type": "execution_completed", "data": [], "timestamp": 1234567890.0}
         msg = self.adapter.validate_python(raw)
-        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert isinstance(msg, ExecutionCompletedWsMessage)
         assert msg.data == []
 
-    def test_invocation_completed_multi_record_batch(self) -> None:
+    def test_execution_completed_mixed_batch(self) -> None:
+        """A batch may contain both handler and job entries in one message."""
         raw = {
-            "type": "invocation_completed",
+            "type": "execution_completed",
             "data": [
-                {"listener_id": 1, "app_key": "a", "instance_index": 0, "status": "success", "duration_ms": 1.0},
                 {
-                    "listener_id": 2,
+                    "kind": "handler",
+                    "listener_id": 1,
+                    "app_key": "a",
+                    "instance_index": 0,
+                    "status": "success",
+                    "duration_ms": 1.0,
+                },
+                {
+                    "kind": "job",
+                    "job_id": 5,
                     "app_key": "b",
                     "instance_index": 1,
                     "status": "error",
@@ -251,8 +263,10 @@ class TestCompletionWsMessages:
             "timestamp": 1234567890.0,
         }
         msg = self.adapter.validate_python(raw)
-        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 2
+        assert msg.data[0].kind == "handler"
+        assert msg.data[1].kind == "job"
         assert msg.data[1].error_type == "ValueError"
 
 
