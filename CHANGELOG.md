@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0](https://github.com/NodeJSmith/hassette/compare/v0.36.0...v0.37.0) (2026-05-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* bus registration methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on_component_loaded`, `on`) are now async and must be awaited, and `name=` is now required on every registration (it was optional). Change `self.bus.on_state_change(...)` to `await self.bus.on_state_change(..., name="...")`. Omitting `name=` raises `ListenerNameRequiredError`.
+
+### Features
+
+* add automated doc screenshot capture pipeline ([#912](https://github.com/NodeJSmith/hassette/issues/912)) ([901b81b](https://github.com/NodeJSmith/hassette/commit/901b81be7fe26e7b890532926b4a26a8fb1aa2b9))
+* redesign telemetry database around a unified executions table ([#922](https://github.com/NodeJSmith/hassette/issues/922)) ([b97a495](https://github.com/NodeJSmith/hassette/commit/b97a4953a326584790576d37aecb5a5fc00cb4ff))
+
+
+### Refactoring
+
+* decompose bus_service.py into focused modules ([#919](https://github.com/NodeJSmith/hassette/issues/919)) ([477e10c](https://github.com/NodeJSmith/hassette/commit/477e10c88f2cd24f7a9f004d476ac22694d49411))
+* extract Service and RestartSpec from resources/base.py ([#921](https://github.com/NodeJSmith/hassette/issues/921)) ([69f77e9](https://github.com/NodeJSmith/hassette/commit/69f77e9711bc059a81fd1f5733d6b1fa302ee94e)), closes [#813](https://github.com/NodeJSmith/hassette/issues/813)
+* standardize abort handling, extract predicate scaffold, widen Button ref type ([#909](https://github.com/NodeJSmith/hassette/issues/909)) ([f747ad9](https://github.com/NodeJSmith/hassette/commit/f747ad9bf970cbe4e0b8931cb73db90438045f1b))
+
+
+### Documentation
+
+* add documentation quality rules for voice, structure, and examples ([#910](https://github.com/NodeJSmith/hassette/issues/910)) ([c489b58](https://github.com/NodeJSmith/hassette/commit/c489b581333614bb9a780c012d47632b52df7cd6))
+* add Svelte-derived voice guide for documentation rewrites ([#920](https://github.com/NodeJSmith/hassette/issues/920)) ([0174ab9](https://github.com/NodeJSmith/hassette/commit/0174ab97947513302649d8046f40d9701aac0edd))
+* audit docs against quality rules — voice fixes and snippet migration ([#917](https://github.com/NodeJSmith/hassette/issues/917)) ([2fa8cfb](https://github.com/NodeJSmith/hassette/commit/2fa8cfbeeb7fa3ac476b516c02a2ca9baaec9b60))
+* fix stale README and add link-check CI ([#918](https://github.com/NodeJSmith/hassette/issues/918)) ([9361da0](https://github.com/NodeJSmith/hassette/commit/9361da0e981b95d8430adffc98800c679b8e5720))
+
+
+### Miscellaneous
+
+* remove deprecated license classifier, simplify signal passing, fix starlette CVE ([#907](https://github.com/NodeJSmith/hassette/issues/907)) ([c9ad12f](https://github.com/NodeJSmith/hassette/commit/c9ad12f4e15b5ee047c3249c241bab0c8b96a0e3))
+
 ## [0.36.0](https://github.com/NodeJSmith/hassette/compare/v0.35.0...v0.36.0) (2026-05-28)
 
 
