@@ -21,7 +21,6 @@ def make_bus() -> Bus:
     mock_parent.source_tier = "app"
     mock_parent.class_name = "TestParent"
     bus.parent = mock_parent
-    bus._registered_keys = set()
     bus._registered_handler_names = {}
     bus._unique_name = "test_bus"
     bus.unique_id = "test_bus_id"

@@ -106,7 +106,7 @@ class TestStateProxyInit:
                 await proxy.on_initialize()
 
         # Clear collision-detection state so the retry doesn't raise "duplicate listener"
-        proxy.bus._registered_keys.clear()
+        proxy.bus._registered_handler_names.clear()
         await proxy.on_initialize()  # Ensure it can be used in later tests
 
 

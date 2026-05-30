@@ -151,13 +151,11 @@ class Bus(Resource):
         assert self.hassette._bus_service is not None, "Bus service not initialized"
         self.bus_service = self.hassette._bus_service
         self.priority = priority
-        self._registered_keys: set[tuple[str, int, str, str]] = set()
         self._registered_handler_names: dict[tuple[str, int, str, str], str] = {}
         self._error_handler: BusErrorHandlerType | None = None
 
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.
-        self._registered_keys.clear()
         self._registered_handler_names.clear()
         self._error_handler = None
         self.mark_ready(reason="Bus initialized")
@@ -217,15 +215,14 @@ class Bus(Resource):
         if listener.options.once:
             return
         natural_key = self._listener_natural_key(listener)
-        if natural_key in self._registered_keys:
-            existing_handler = self._registered_handler_names.get(natural_key, "<unknown>")
+        if natural_key in self._registered_handler_names:
+            existing_handler = self._registered_handler_names[natural_key]
             raise DuplicateListenerError(
                 name=listener.identity.name or "",
                 topic=listener.topic,
                 existing_handler=existing_handler,
                 duplicate_handler=listener.identity.handler_name,
             )
-        self._registered_keys.add(natural_key)
         self._registered_handler_names[natural_key] = listener.identity.handler_name
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str]:
@@ -244,13 +241,11 @@ class Bus(Resource):
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus."""
         natural_key = self._listener_natural_key(listener)
-        self._registered_keys.discard(natural_key)
         self._registered_handler_names.pop(natural_key, None)
         self.bus_service.remove_listener(listener)
 
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
-        self._registered_keys.clear()
         self._registered_handler_names.clear()
         self.bus_service.remove_listeners_by_owner(self.owner_id)
 

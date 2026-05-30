@@ -1,7 +1,7 @@
 ---
 task_id: "T15k"
 title: "Collapse redundant Bus._registered_keys into _registered_handler_names"
-status: "planned"
+status: "done"
 depends_on: ["T15a", "T15b", "T15c", "T15d", "T15e"]
 implements: ["AC#1"]
 ---
