@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Unify execution models and record types"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#1", "FR#17", "AC#11", "AC#12"]
 ---

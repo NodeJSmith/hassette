@@ -96,8 +96,57 @@ class ListenerSummary(BaseModel):
     last_error_traceback: str | None = None
 
 
+class Execution(BaseModel):
+    """Unified execution record returned by queries against the ``executions`` table.
+
+    Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
+    ``kind`` discriminates between handler invocations and job executions.
+    Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+    ``None`` for job executions.
+    """
+
+    kind: Literal["handler", "job"]
+    """Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."""
+
+    listener_id: int | None = None
+    """The owning listener row id. Set when kind='handler', None for job executions."""
+    job_id: int | None = None
+    """The owning scheduled-job row id. Set when kind='job', None for handler invocations."""
+
+    execution_start_ts: float
+    duration_ms: float
+    status: InvocationStatus
+    source_tier: SourceTier = "app"
+    error_type: str | None
+    error_message: str | None
+    error_traceback: str | None = None
+    execution_id: str | None = None
+    """UUID string identifying the specific execution instance. None when not populated.
+
+    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
+    """
+    trigger_context_id: str | None = None
+    """event_id from the triggering event payload. None for job executions and non-event-triggered invocations."""
+    trigger_origin: str | None = None
+    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None for job executions."""
+    trigger_mode: str | None = None
+    """Trigger mode string (e.g., 'immediate', 'debounced'). None when not set."""
+    retry_count: int = 0
+    """Number of retry attempts before this execution. 0 for first attempts."""
+    attempt_number: int = 1
+    """Ordinal attempt number (1-based). 1 for first attempt."""
+    args_json: str = "[]"
+    """JSON-encoded positional arguments for job executions. '[]' for handler invocations."""
+    kwargs_json: str = "{}"
+    """JSON-encoded keyword arguments for job executions. '{}' for handler invocations."""
+
+
 class HandlerInvocation(BaseModel):
-    """Single invocation record returned by ``get_handler_invocations()``."""
+    """Single invocation record returned by ``get_handler_invocations()``.
+
+    Kept for backwards compatibility with ``TelemetryQueryService`` consumers.
+    Will be replaced by ``Execution`` when T10 migrates the query service.
+    """
 
     execution_start_ts: float
     duration_ms: float
@@ -169,7 +218,11 @@ class JobSummary(BaseModel):
 
 
 class JobExecution(BaseModel):
-    """Single execution record returned by ``get_job_executions()``."""
+    """Single execution record returned by ``get_job_executions()``.
+
+    Kept for backwards compatibility with ``TelemetryQueryService`` consumers.
+    Will be replaced by ``Execution`` when T10 migrates the query service.
+    """
 
     execution_start_ts: float
     duration_ms: float
@@ -281,8 +334,13 @@ class ActivityFeedEntry(BaseModel):
     """A single activity entry for the cross-app recent activity feed."""
 
     row_id: str
-    """Stable unique identifier for this entry. Prefixed with ``'h-'`` for handler invocations
-    and ``'j-'`` for job executions, followed by the SQLite rowid."""
+    """Stable unique identifier for this entry.
+
+    Currently prefixed with ``'h-'`` for handler invocations and ``'j-'`` for job
+    executions, followed by the SQLite rowid.  After T10 migrates the query service to
+    the unified ``executions`` table this field will carry the ``execution_id`` UUID
+    directly; the type remains ``str`` throughout.
+    """
 
     status: InvocationStatus
     """Invocation/execution status."""
