@@ -14,16 +14,18 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 
-from hassette_codegen.sync_facade import (  # noqa: E402
+from hassette_codegen.output import format_via_ruff  # noqa: E402
+from hassette_codegen.sync_facade.ast_utils import desync_docstring  # noqa: E402
+from hassette_codegen.sync_facade.recording import generate_sync_recording  # noqa: E402
+from hassette_codegen.sync_facade.recording_imports import (  # noqa: E402
     _build_precise_import_block,
     _collect_module_level_import_map,
     _collect_referenced_symbols,
     _derive_recording_imports_strict,
-    _format_via_ruff,
+)
+from hassette_codegen.sync_facade.recording_transform import (  # noqa: E402
     _RecordingBodyRewriter,
-    desync_docstring,
     gen_recording_method,
-    generate_sync_recording,
     is_not_implemented_only,
 )
 
@@ -244,7 +246,7 @@ async def foo(self):
 
 
 def test_check_mode_normalizes_through_ruff() -> None:
-    """_format_via_ruff produces byte-identical output for code differing only in whitespace."""
+    """format_via_ruff produces byte-identical output for code differing only in whitespace."""
     # One version with extra blank lines and trailing whitespace
     content_messy = (
         "x = 1\n"
@@ -257,11 +259,11 @@ def test_check_mode_normalizes_through_ruff() -> None:
     # The canonical form
     content_clean = "x = 1\n\n\ny = 2\n"
 
-    normalized_messy = _format_via_ruff(content_messy)
-    normalized_clean = _format_via_ruff(content_clean)
+    normalized_messy = format_via_ruff(content_messy)
+    normalized_clean = format_via_ruff(content_clean)
 
     assert normalized_messy == normalized_clean, (
-        f"_format_via_ruff did not normalize to identical output.\n"
+        f"format_via_ruff did not normalize to identical output.\n"
         f"Messy → {normalized_messy!r}\n"
         f"Clean → {normalized_clean!r}"
     )
@@ -355,8 +357,8 @@ def test_desync_docstring_removes_inline_async_sentence() -> None:
     assert "must be awaited" not in result
     assert "``async``" not in result
     assert "Registration completes before the call returns" in result
-    # No line should exceed the body width once indented 8 spaces (120 - 8 = 112).
-    assert all(len(line) <= 112 for line in result.splitlines()), result
+    max_body_width = 120 - 8  # line limit minus method-body indent
+    assert all(len(line) <= max_body_width for line in result.splitlines()), result
 
 
 def test_desync_docstring_preserves_summary_blank_line() -> None:

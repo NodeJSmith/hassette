@@ -98,10 +98,7 @@ def format_signature_and_call(func: ast.FunctionDef | ast.AsyncFunctionDef) -> t
         if i == 0 and arg.arg == "self":
             continue
 
-        if i < len(args.posonlyargs):
-            call_parts.append(arg.arg)
-        else:
-            call_parts.append(arg.arg)
+        call_parts.append(arg.arg)
 
         if i == len(args.posonlyargs) - 1 and args.posonlyargs:
             sig_parts.append("/")

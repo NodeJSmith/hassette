@@ -58,6 +58,18 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 '''
 
+FIXED_HEADER_SYMBOLS: set[str] = {"Any", "typing", "TYPE_CHECKING", "RecordingApi"}
+"""Symbols always provided by the fixed module header — excluded from dynamic import derivation."""
+
+
+def _find_class(module: ast.Module, name: str, source_label: str) -> ast.ClassDef:
+    """Find a class by name in a parsed module, raising SystemExit if not found."""
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            return node
+    raise SystemExit(f"Could not find class `{name}` in {source_label}")
+
+
 # Template for the module header of the generated recording facade file.
 # {imports} is replaced with the dynamically-derived import block.
 # {type_checking_imports} is replaced with the TYPE_CHECKING import block.
@@ -116,13 +128,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     api_source = api_path.read_text(encoding="utf8")
     api_module = _safe_parse(api_source, str(api_path))
 
-    api_class: ast.ClassDef | None = None
-    for node in api_module.body:
-        if isinstance(node, ast.ClassDef) and node.name == "Api":
-            api_class = node
-            break
-    if api_class is None:
-        raise SystemExit("Could not find class `Api` in api.py")
+    api_class = _find_class(api_module, "Api", str(api_path))
 
     # Collect all public async methods on Api (ordered, no overloads, no lifecycle)
     api_methods: list[ast.AsyncFunctionDef] = [
@@ -135,13 +141,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     recording_source = recording_api_path.read_text(encoding="utf8")
     recording_module = _safe_parse(recording_source, str(recording_api_path))
 
-    recording_class: ast.ClassDef | None = None
-    for node in recording_module.body:
-        if isinstance(node, ast.ClassDef) and node.name == "RecordingApi":
-            recording_class = node
-            break
-    if recording_class is None:
-        raise SystemExit("Could not find class `RecordingApi` in recording_api.py")
+    recording_class = _find_class(recording_module, "RecordingApi", str(recording_api_path))
 
     # Build map of async method name → AST node for RecordingApi
     recording_async_map: dict[str, ast.AsyncFunctionDef] = {}
@@ -164,8 +164,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     api_tc_map = _collect_type_checking_import_map(api_source)
     combined_tc_map = {**api_tc_map, **recording_tc_map}
 
-    # Symbols that are always provided by the fixed header (no need to derive dynamically)
-    fixed_header_symbols: set[str] = {"Any", "typing", "TYPE_CHECKING", "RecordingApi"}
+    fixed_header_symbols = FIXED_HEADER_SYMBOLS
 
     # Generate each method; track body nodes for import derivation.
     generated_methods: list[str] = []

@@ -8,6 +8,7 @@ from hassette_codegen.output import atomic_write, format_via_ruff
 from hassette_codegen.sync_facade.generic import generate_sync, generate_sync_bus, generate_sync_scheduler
 from hassette_codegen.sync_facade.recording import generate_sync_recording
 
+# cli.py → sync_facade/ → hassette_codegen/ → src/ → codegen/ → repo root
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 

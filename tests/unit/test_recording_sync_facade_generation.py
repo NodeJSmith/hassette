@@ -85,3 +85,27 @@ def test_generator_check_mode_api_exits_zero() -> None:
         f"--- stderr ---\n{result.stderr}\n"
         f"--- stdout ---\n{result.stdout}"
     )
+
+
+def test_generator_check_mode_bus_exits_zero() -> None:
+    """Generator --target bus --check exits 0 when bus/sync.py is current."""
+    result = run_generator_check("bus")
+    assert result.returncode == 0, (
+        "Generator --target bus --check exited non-zero — bus/sync.py has drifted.\n"
+        "Re-run locally to update it:\n"
+        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target bus\n\n"
+        f"--- stderr ---\n{result.stderr}\n"
+        f"--- stdout ---\n{result.stdout}"
+    )
+
+
+def test_generator_check_mode_scheduler_exits_zero() -> None:
+    """Generator --target scheduler --check exits 0 when scheduler/sync.py is current."""
+    result = run_generator_check("scheduler")
+    assert result.returncode == 0, (
+        "Generator --target scheduler --check exited non-zero — scheduler/sync.py has drifted.\n"
+        "Re-run locally to update it:\n"
+        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target scheduler\n\n"
+        f"--- stderr ---\n{result.stderr}\n"
+        f"--- stdout ---\n{result.stdout}"
+    )

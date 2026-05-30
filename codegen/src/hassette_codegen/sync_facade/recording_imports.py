@@ -64,8 +64,8 @@ def _collect_module_level_import_map(source: str) -> dict[str, str]:
             )
             if is_type_checking:
                 continue
-            # Non-TYPE_CHECKING if blocks: recurse one level for both
-            # `from X import Y` and bare `import X` statements (e.g., a future
+            # Non-TYPE_CHECKING if blocks: walk the subtree for any
+            # `from X import Y` and bare `import X` statements (e.g.,
             # `if sys.version_info >= (3, 11): import tomllib`).
             for child in ast.walk(node):
                 if child is node:
