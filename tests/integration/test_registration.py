@@ -6,7 +6,7 @@ Tests verify:
 3. The guard still routes listeners/jobs through the in-memory path (Router add, Queue enqueue)
 """
 
-import asyncio
+import inspect
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -76,7 +76,7 @@ def stub_task_bucket() -> MagicMock:
     task.done.return_value = True
 
     def _spawn(coro: object, **kwargs: object) -> MagicMock:  # noqa: ARG001
-        if asyncio.iscoroutine(coro):
+        if inspect.iscoroutine(coro):
             coro.close()
         return task
 

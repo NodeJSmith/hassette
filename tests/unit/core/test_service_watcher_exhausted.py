@@ -96,7 +96,7 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     watcher.logger = logging.getLogger("hassette.test.service_watcher")
     # Task bucket mock
     task_bucket = MagicMock()
-    task_bucket.spawn = Mock(side_effect=lambda coro, **_kw: asyncio.ensure_future(coro))
+    task_bucket.spawn = Mock(side_effect=lambda coro, **_kw: asyncio.create_task(coro))
     watcher.task_bucket = task_bucket
     return watcher
 

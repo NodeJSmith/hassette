@@ -34,11 +34,11 @@ def make_timer(
     """
     cancel_sub_mock = MagicMock(name="cancel_sub")
 
-    # task_bucket.spawn: use asyncio.ensure_future so tasks actually run
+    # task_bucket.spawn: use asyncio.create_task so tasks actually run
     task_bucket_mock = MagicMock(name="task_bucket")
 
     def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.ensure_future(coro)
+        return asyncio.create_task(coro)
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
 
@@ -141,7 +141,7 @@ async def test_start_recreates_cancel_subscription() -> None:
     task_bucket_mock = MagicMock(name="task_bucket")
 
     def spawn_side_effect(coro, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.ensure_future(coro)
+        return asyncio.create_task(coro)
 
     task_bucket_mock.spawn = MagicMock(side_effect=spawn_side_effect)
 

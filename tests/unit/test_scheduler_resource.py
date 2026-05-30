@@ -1,6 +1,6 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-import asyncio
+import inspect
 from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -161,7 +161,7 @@ class TestCancelGroup:
 
         def _spawn_and_close(coro, *, name=""):
             spawned_coroutines.append((coro, name))
-            if asyncio.iscoroutine(coro):
+            if inspect.iscoroutine(coro):
                 coro.close()  # clean up to avoid "never awaited" warnings
 
         scheduler.scheduler_service.task_bucket = MagicMock()

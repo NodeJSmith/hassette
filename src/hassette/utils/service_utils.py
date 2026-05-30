@@ -202,8 +202,8 @@ async def wait_for_ready(
         await asyncio.gather(*(r.wait_ready(timeout=None) for r in resources))
         return True
 
-    wait_task = asyncio.ensure_future(_wait_all())
-    shutdown_task = asyncio.ensure_future(shutdown_event.wait())
+    wait_task = asyncio.create_task(_wait_all())
+    shutdown_task = asyncio.create_task(shutdown_event.wait())
     try:
         done, _ = await asyncio.wait(
             {wait_task, shutdown_task},

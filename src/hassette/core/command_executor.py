@@ -137,8 +137,8 @@ class CommandExecutor(Service):
         flush_interval = self.hassette.config.database.max_flush_interval_seconds
 
         while True:
-            get_fut = asyncio.ensure_future(self._write_queue.get())
-            shutdown_fut = asyncio.ensure_future(self.shutdown_event.wait())
+            get_fut = asyncio.create_task(self._write_queue.get())
+            shutdown_fut = asyncio.create_task(self.shutdown_event.wait())
 
             done, pending = await asyncio.wait(
                 [get_fut, shutdown_fut],

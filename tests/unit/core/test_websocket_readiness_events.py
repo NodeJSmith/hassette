@@ -57,13 +57,13 @@ class TestWebsocketReadinessEvents:
                 async def _fail():
                     raise RetryableConnectionClosedError("peer gone")
 
-                return asyncio.ensure_future(_fail())
+                return asyncio.create_task(_fail())
 
             # Second call: clean exit
             async def _clean():
                 pass
 
-            return asyncio.ensure_future(_clean())
+            return asyncio.create_task(_clean())
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -111,7 +111,7 @@ class TestWebsocketReadinessEvents:
             async def _fail():
                 raise RetryableConnectionClosedError("stable drop")
 
-            return asyncio.ensure_future(_fail())
+            return asyncio.create_task(_fail())
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -153,7 +153,7 @@ class TestWebsocketReadinessEvents:
             async def _noop():
                 pass
 
-            return asyncio.ensure_future(_noop())
+            return asyncio.create_task(_noop())
 
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)

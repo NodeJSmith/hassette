@@ -10,7 +10,7 @@ readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 keywords = [
     "home-assistant",
     "automation",
@@ -27,6 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Home Automation",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Framework :: AsyncIO",
