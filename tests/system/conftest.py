@@ -2,12 +2,15 @@
 
 import asyncio
 import contextlib
+import faulthandler
 import json
 import logging
 import os
 import shutil
 import socket
 import subprocess
+import sys
+import threading
 import time
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -34,6 +37,37 @@ HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDA
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 15  # seconds
+
+# Seconds to wait after the session reports its result before declaring the interpreter
+# wedged at shutdown. Normal teardown — Docker compose down plus coverage write — finishes
+# well within this even under load; a leaked non-daemon thread hangs it for minutes. Set
+# above worst-case healthy teardown, well below the 10-minute job timeout.
+EXIT_WATCHDOG_TIMEOUT = 60  # seconds
+
+
+def pytest_sessionfinish(exitstatus: int) -> None:
+    """Force a fast, diagnostic exit if a leaked non-daemon thread blocks shutdown.
+
+    aiosqlite's connection worker thread is not a daemon, so a `Hassette` instance that
+    leaks an unclosed DB connection wedges interpreter exit indefinitely (see issue #923).
+    Arm a daemon watchdog that dumps every thread's traceback and force-exits non-zero if
+    shutdown stalls, so CI fails fast with the stuck thread's stack instead of hanging to
+    the job timeout. On a clean exit the process is gone long before the watchdog wakes.
+    """
+
+    def force_exit_if_stalled() -> None:
+        time.sleep(EXIT_WATCHDOG_TIMEOUT)
+        sys.stderr.write(
+            f"\n[system-conftest] interpreter still alive {EXIT_WATCHDOG_TIMEOUT}s after session "
+            "finish — a non-daemon thread is blocking shutdown (see #923). Thread tracebacks:\n"
+        )
+        sys.stderr.flush()  # flush our message before faulthandler writes to the raw fd
+        faulthandler.dump_traceback()
+        # exitstatus is 0 when every test passed — but reaching this watchdog means the
+        # process hung at shutdown, which is itself a failure, so never exit 0 here.
+        os._exit(exitstatus or 1)
+
+    threading.Thread(target=force_exit_if_stalled, name="exit-hang-watchdog", daemon=True).start()
 
 
 class SystemTestConfig(HassetteConfig):
