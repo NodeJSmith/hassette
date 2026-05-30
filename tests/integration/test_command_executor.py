@@ -7,13 +7,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.utils.execution import ExecutionResult
 
@@ -83,7 +82,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     # Record should have been queued
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "cancelled"
     assert record.listener_id == 1
 
@@ -103,7 +102,7 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "error"
     assert record.error_type == "DependencyError"
     assert record.error_message == "missing dep"
@@ -126,7 +125,7 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "error"
     assert record.error_type == "HassetteError"
     assert record.error_message == "framework error"
@@ -147,7 +146,7 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "error"
     assert record.error_type == "ValueError"
     assert record.error_message == "oops"
@@ -170,7 +169,7 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "success"
     assert record.listener_id == 1
     assert record.error_type is None
@@ -197,7 +196,7 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "timed_out"
 
 
@@ -215,7 +214,7 @@ async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.status == "success"
 
 
@@ -285,7 +284,9 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
 
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
-    """Records placed in the write queue appear in handler_invocations after drain."""
+    """Records placed in the write queue appear in executions after drain."""
+    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
+
     db_service, session_id = initialized_db
 
     # First register a listener to get a valid listener_id FK
@@ -293,15 +294,13 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     listener_id = await executor.register_listener(reg)
 
     # Queue a success record directly
-    record = HandlerInvocationRecord(
+    record = _ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=10.0,
         status="success",
-        error_type=None,
-        error_message=None,
-        error_traceback=None,
     )
     executor._write_queue.put_nowait(record)
 
@@ -310,7 +309,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
     # Verify it landed in DB
     cursor = await db_service.db.execute(
-        "SELECT status, listener_id, session_id FROM handler_invocations WHERE listener_id = ?",
+        "SELECT status, listener_id, session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
     rows = await cursor.fetchall()
@@ -322,6 +321,8 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """_flush_queue() persists remaining records before returning."""
+    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
+
     db_service, session_id = initialized_db
 
     reg = make_listener_registration()
@@ -329,15 +330,13 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
     # Put two records in the queue
     for _ in range(2):
-        record = HandlerInvocationRecord(
+        record = _ExecutionRecord(
+            kind="handler",
             listener_id=listener_id,
             session_id=session_id,
             execution_start_ts=time.time(),
             duration_ms=5.0,
             status="success",
-            error_type=None,
-            error_message=None,
-            error_traceback=None,
         )
         executor._write_queue.put_nowait(record)
 
@@ -347,7 +346,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     assert executor._write_queue.empty()
 
     cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM handler_invocations WHERE listener_id = ?",
+        "SELECT COUNT(*) FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
     row = await cursor.fetchone()
@@ -355,7 +354,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
 
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
-    """Successful job execution queues a JobExecutionRecord with status='success'."""
+    """Successful job execution queues a unified ExecutionRecord with kind='job'."""
     job = make_mock_job()
     callable_mock = AsyncMock(return_value=None)
 
@@ -364,14 +363,15 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, JobExecutionRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "job"
     assert record.status == "success"
     assert record.job_id == 42
     assert record.duration_ms >= 0
 
 
 async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
-    """Job error is swallowed and queues a JobExecutionRecord with status='error'."""
+    """Job error is swallowed and queues a unified ExecutionRecord with kind='job'."""
     job = make_mock_job()
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
@@ -380,7 +380,8 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, JobExecutionRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "job"
     assert record.status == "error"
     assert record.error_type == "RuntimeError"
     assert record.error_message == "job failed"
@@ -407,7 +408,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     result.duration_ms = 1.0
 
     record = exc._build_record(cmd, result, time.time(), "test-exec-id")
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.session_id == 99
     assert record.listener_id == 5
 
@@ -416,46 +417,50 @@ async def test_persist_batch_drops_presession_records(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """_persist_batch() silently drops records with session_id=0 (FK sentinel).
+    """_persist_batch() silently drops records with session_id=None when session unavailable.
 
-    Regression: records queued before _create_session() runs would have violated
-    the sessions FK constraint. The 0-sentinel matches the existing listener_id=0
-    pattern for the registration race.
+    Records queued before _create_session() runs have session_id=None. When the session
+    is unavailable at drain time, those records are dropped with a warning.
     """
     db_service, session_id = initialized_db
     reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
 
     now = time.time()
-    valid = HandlerInvocationRecord(
+    valid = ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
         session_id=session_id,
         execution_start_ts=now,
         duration_ms=5.0,
         status="success",
-        error_type=None,
-        error_message=None,
-        error_traceback=None,
     )
-    pre_session = HandlerInvocationRecord(
+    pre_session = ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
-        session_id=0,  # startup race sentinel
+        session_id=None,  # pre-session record
         execution_start_ts=now,
         duration_ms=3.0,
         status="success",
-        error_type=None,
-        error_message=None,
-        error_traceback=None,
     )
 
-    await executor._persist_batch([valid, pre_session], [])
+    # Patch session_id to raise RuntimeError so the "session not ready" path is triggered
+    import unittest.mock
+
+    executor.hassette.session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
+    type(executor.hassette).session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
+
+    await executor._persist_batch([valid, pre_session])
+
+    # Restore session_id to the real value for the next assertion query
+    type(executor.hassette).session_id = unittest.mock.PropertyMock(return_value=session_id)
 
     cursor = await db_service.db.execute(
-        "SELECT session_id FROM handler_invocations WHERE listener_id = ?",
+        "SELECT session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
     rows = await cursor.fetchall()
-    # Only the valid record written — pre-session record silently dropped
+    # valid record has session_id set — it is persisted; pre_session has None — dropped
     assert len(rows) == 1
     assert rows[0][0] == session_id
 
@@ -568,10 +573,10 @@ async def test_fk_preserved_across_restart(
     listener_id = await executor.register_listener(reg)
     assert listener_id > 0
 
-    # Create an invocation history row
+    # Create an execution history row
     await db_service.db.execute(
-        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('handler', ?, ?, ?, ?, ?)",
         (listener_id, session_id, time.time(), 1.0, "success"),
     )
     await db_service.db.commit()
@@ -579,15 +584,15 @@ async def test_fk_preserved_across_restart(
     # Simulate restart: re-register with same natural key (upsert)
     new_id = await executor.register_listener(reg)
 
-    # Must return the SAME ID — FK reference in handler_invocations is preserved
+    # Must return the SAME ID — FK reference in executions is preserved
     assert new_id == listener_id, (
         f"Re-registration must return the same listener_id={listener_id}, got {new_id}. "
-        "FK references from handler_invocations would be orphaned if the ID changes."
+        "FK references from executions would be orphaned if the ID changes."
     )
 
-    # Verify the invocation still references the same listener
+    # Verify the execution still references the same listener
     cursor = await db_service.db.execute(
-        "SELECT listener_id FROM handler_invocations WHERE listener_id = ?",
+        "SELECT listener_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
     rows = await cursor.fetchall()
@@ -628,8 +633,8 @@ async def test_reconciliation_ordering(
 
     # Create history for id_b (so it gets retired, not deleted)
     await db_service.db.execute(
-        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('handler', ?, ?, ?, ?, ?)",
         (id_b, session_id, time.time(), 1.0, "success"),
     )
     await db_service.db.commit()

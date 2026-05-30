@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette import HassetteConfig
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
@@ -154,7 +154,8 @@ async def test_command_executor_records_source_tier_on_error(framework_hassette:
     # Verify record was queued with correct source_tier
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "handler"
     assert record.source_tier == "framework"
     assert record.status == "error"
     assert record.error_type == "ValueError"
@@ -197,7 +198,7 @@ async def test_command_executor_job_registration_with_source_tier(framework_hass
 
 
 async def test_queue_persistence_via_drain_and_persist(framework_hassette: MagicMock) -> None:
-    """Records queued → _drain_and_persist() → persisted to DB."""
+    """Records queued → _drain_and_persist() → persisted to executions table."""
     hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
@@ -243,10 +244,10 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     # Drain and persist
     await executor._drain_and_persist()
 
-    # Query the database
+    # Query the unified executions table
     rows = await db_service.submit(
         db_service.db.execute(
-            "SELECT listener_id, source_tier, status FROM handler_invocations WHERE listener_id = ?",
+            "SELECT listener_id, source_tier, status FROM executions WHERE listener_id = ?",
             (listener_id,),
         )
     )
@@ -256,47 +257,6 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     queried_listener_id, source_tier, status = rows_list[0]
     assert queried_listener_id == listener_id
     assert source_tier == "app"
-    assert status == "success"
-
-
-async def test_pre_registration_orphan_persisted_with_null_listener_id(framework_hassette: MagicMock) -> None:
-    """Handler invocation before DB registration → listener_id=None in DB."""
-    hassette = framework_hassette
-    executor = CommandExecutor(hassette, parent=hassette)
-    await executor.on_initialize()
-
-    db_service = hassette.database_service
-
-    # Queue an invocation record with listener_id=None (pre-registration)
-    listener = MagicMock()
-    listener.invoker.invoke = AsyncMock()
-    listener.invoker.error_handler = None
-
-    mock_event = MagicMock()
-    mock_event.payload.event_id = None
-    mock_event.payload.origin = None
-    cmd = InvokeHandler(
-        listener=listener,
-        event=mock_event,
-        topic="test",
-        listener_id=None,  # Not yet registered
-        source_tier="app",
-        effective_timeout=None,
-    )
-    await executor.execute(cmd)
-
-    # Drain and persist
-    await executor._drain_and_persist()
-
-    # Query the database for orphan records
-    rows = await db_service.submit(
-        db_service.db.execute("SELECT listener_id, status FROM handler_invocations WHERE listener_id IS NULL")
-    )
-    rows_list = await rows.fetchall()
-
-    assert len(rows_list) > 0
-    listener_id, status = rows_list[0]
-    assert listener_id is None
     assert status == "success"
 
 
@@ -437,57 +397,3 @@ async def test_get_drop_counters_returns_tuple(framework_hassette: MagicMock) ->
     assert overflow == 0
     assert exhausted == 0
     assert shutdown == 0
-
-
-async def test_sentinel_filtering_listener_id_zero(framework_hassette: MagicMock) -> None:
-    """Sentinel filtering: listener_id=0 dropped (regression check)."""
-    hassette = framework_hassette
-    executor = CommandExecutor(hassette, parent=hassette)
-    await executor.on_initialize()
-
-    db_service = hassette.database_service
-
-    # Build a record with listener_id=0 (sentinel)
-    bad_record = HandlerInvocationRecord(
-        listener_id=0,  # Sentinel value
-        session_id=hassette.session_id,
-        execution_start_ts=0,
-        duration_ms=1,
-        status="success",
-        source_tier="app",
-    )
-
-    # Try to persist it
-    await executor._persist_batch([bad_record], [])
-
-    # Verify it was not persisted (silently dropped with REGRESSION log)
-    rows = await db_service.submit(db_service.db.execute("SELECT COUNT(*) FROM handler_invocations"))
-    rows_list = await rows.fetchall()
-    assert rows_list[0][0] == 0  # No records persisted
-
-
-async def test_sentinel_filtering_session_id_zero(framework_hassette: MagicMock) -> None:
-    """Sentinel filtering: session_id=0 dropped (regression check)."""
-    hassette = framework_hassette
-    executor = CommandExecutor(hassette, parent=hassette)
-    await executor.on_initialize()
-
-    db_service = hassette.database_service
-
-    # Build a record with session_id=0 (sentinel)
-    bad_record = HandlerInvocationRecord(
-        listener_id=1,
-        session_id=0,  # Sentinel value
-        execution_start_ts=0,
-        duration_ms=1,
-        status="success",
-        source_tier="app",
-    )
-
-    # Try to persist it
-    await executor._persist_batch([bad_record], [])
-
-    # Verify it was not persisted
-    rows = await db_service.submit(db_service.db.execute("SELECT COUNT(*) FROM handler_invocations"))
-    rows_list = await rows.fetchall()
-    assert rows_list[0][0] == 0  # No records persisted

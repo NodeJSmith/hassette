@@ -1,11 +1,7 @@
-"""Unified execution record dataclass for tracking handler and job executions.
-
-``ExecutionRecord`` replaces the split ``HandlerInvocationRecord`` (bus) and
-``JobExecutionRecord`` (scheduler) dataclasses.  Those types remain in place
-until ``command_executor`` is migrated in T09.
-"""
+"""Unified execution record dataclass for tracking handler and job executions."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 from hassette.types.types import SourceTier
 
@@ -20,7 +16,7 @@ class ExecutionRecord:
     on both kinds; handlers use the defaults (``'[]'`` / ``'{}'``).
     """
 
-    kind: str
+    kind: Literal["handler", "job"]
     """Execution type: 'handler' for bus invocations, 'job' for scheduled-job executions."""
 
     session_id: int | None

@@ -359,8 +359,10 @@ class TestJobRecordFields:
         record = executor._write_queue.get_nowait()
         assert record.execution_id is not None
         assert is_valid_uuid7(record.execution_id)
-        assert not hasattr(record, "trigger_context_id")
-        assert not hasattr(record, "trigger_origin")
+        # Unified ExecutionRecord carries trigger fields for all kinds; they are None for jobs.
+        assert record.kind == "job"
+        assert record.trigger_context_id is None
+        assert record.trigger_origin is None
 
 
 class TestErrorHandlerExecutionIdInheritance:

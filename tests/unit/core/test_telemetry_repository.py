@@ -10,11 +10,9 @@ import aiosqlite
 import pytest
 
 import hassette.core.telemetry_repository as telemetry_repository_module
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
-from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 # DDL mirrors 001.sql — unified schema with executions table replacing handler_invocations/job_executions
@@ -672,27 +670,26 @@ async def test_upsert_with_name_overrides_key(
     assert id_a != id_b
 
 
-async def test_persist_batch_inserts_handler_executions(
+async def test_persist_execution_batch_inserts_handler_records(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch() inserts handler invocation records into the unified executions table."""
+    """persist_execution_batch() inserts handler ExecutionRecords into the executions table."""
     listener_id = await repo.register_listener(make_listener_registration())
 
     now = time.time()
     records = [
-        HandlerInvocationRecord(
+        ExecutionRecord(
+            kind="handler",
             listener_id=listener_id,
             session_id=session_id,
             execution_start_ts=now,
             duration_ms=5.0,
             status="success",
-            error_type=None,
-            error_message=None,
-            error_traceback=None,
         ),
-        HandlerInvocationRecord(
+        ExecutionRecord(
+            kind="handler",
             listener_id=listener_id,
             session_id=session_id,
             execution_start_ts=now + 1,
@@ -704,7 +701,7 @@ async def test_persist_batch_inserts_handler_executions(
         ),
     ]
 
-    await repo.persist_batch(records, [])
+    await repo.persist_execution_batch(records)
 
     cursor = await db.execute(
         "SELECT status, duration_ms, kind FROM executions WHERE listener_id = ? ORDER BY execution_start_ts",
@@ -718,17 +715,18 @@ async def test_persist_batch_inserts_handler_executions(
     assert rows[1]["kind"] == "handler"
 
 
-async def test_persist_batch_inserts_job_executions(
+async def test_persist_execution_batch_inserts_job_records(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch() inserts job execution records into the unified executions table."""
+    """persist_execution_batch() inserts job ExecutionRecords into the executions table."""
     job_id = await repo.register_job(make_job_registration())
 
     now = time.time()
     records = [
-        JobExecutionRecord(
+        ExecutionRecord(
+            kind="job",
             job_id=job_id,
             session_id=session_id,
             execution_start_ts=now,
@@ -737,7 +735,7 @@ async def test_persist_batch_inserts_job_executions(
         ),
     ]
 
-    await repo.persist_batch([], records)
+    await repo.persist_execution_batch(records)
 
     cursor = await db.execute(
         "SELECT status, job_id, kind FROM executions WHERE job_id = ?",
@@ -750,12 +748,12 @@ async def test_persist_batch_inserts_job_executions(
     assert rows[0]["kind"] == "job"
 
 
-async def test_persist_batch_handles_empty_lists(
+async def test_persist_execution_batch_handles_empty_list(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
 ) -> None:
-    """persist_batch() with empty lists completes without error and inserts nothing."""
-    await repo.persist_batch([], [])
+    """persist_execution_batch() with empty list completes without error and inserts nothing."""
+    await repo.persist_execution_batch([])
 
     cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
@@ -968,24 +966,26 @@ async def test_reconcile_rollback_on_exception(
         await repo.reconcile_registrations("test_app", [], [])
 
 
-async def test_persist_batch_with_fk_fallback_success_path(
+async def test_persist_execution_batch_with_fk_fallback_success_path(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() inserts records when no FK violations occur."""
+    """persist_execution_batch_with_fk_fallback() inserts records when no FK violations occur."""
     listener_id = await repo.register_listener(make_listener_registration())
     job_id = await repo.register_job(make_job_registration())
 
     now = time.time()
-    invocation = HandlerInvocationRecord(
+    handler_rec = ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
         session_id=session_id,
         execution_start_ts=now,
         duration_ms=5.0,
         status="success",
     )
-    job_exec = JobExecutionRecord(
+    job_rec = ExecutionRecord(
+        kind="job",
         job_id=job_id,
         session_id=session_id,
         execution_start_ts=now,
@@ -993,7 +993,7 @@ async def test_persist_batch_with_fk_fallback_success_path(
         status="success",
     )
 
-    dropped = await repo.persist_batch_with_fk_fallback([invocation], [job_exec])
+    dropped = await repo.persist_execution_batch_with_fk_fallback([handler_rec, job_rec])
 
     assert dropped == 0
 
@@ -1010,15 +1010,16 @@ async def test_persist_batch_with_fk_fallback_success_path(
     assert row[1] == "job"
 
 
-async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_nulls_listener_fk_on_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() nulls listener_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() nulls listener_id on FK violation and still inserts."""
     now = time.time()
     bad_listener_id = 99999
-    invocation = HandlerInvocationRecord(
+    record = ExecutionRecord(
+        kind="handler",
         listener_id=bad_listener_id,
         session_id=session_id,
         execution_start_ts=now,
@@ -1026,7 +1027,7 @@ async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
         status="success",
     )
 
-    dropped = await repo.persist_batch_with_fk_fallback([invocation], [])
+    dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
     assert dropped == 0
 
@@ -1036,15 +1037,16 @@ async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
     assert row[0] is None, "listener_id should be nulled after FK violation"
 
 
-async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_nulls_job_fk_on_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() nulls job_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() nulls job_id on FK violation and still inserts."""
     now = time.time()
     bad_job_id = 99999
-    job_exec = JobExecutionRecord(
+    record = ExecutionRecord(
+        kind="job",
         job_id=bad_job_id,
         session_id=session_id,
         execution_start_ts=now,
@@ -1052,7 +1054,7 @@ async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
         status="success",
     )
 
-    dropped = await repo.persist_batch_with_fk_fallback([], [job_exec])
+    dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
     assert dropped == 0
 
@@ -1062,14 +1064,15 @@ async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
     assert row[0] is None, "job_id should be nulled after FK violation"
 
 
-async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
+async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() increments dropped count when null-FK retry also fails."""
+    """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
     now = time.time()
-    invocation = HandlerInvocationRecord(
+    record = ExecutionRecord(
+        kind="handler",
         listener_id=None,
         session_id=session_id,
         execution_start_ts=now,
@@ -1093,19 +1096,20 @@ async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
         return await original_execute(sql)
 
     with patch.object(db, "execute", side_effect=patched_execute):
-        dropped = await repo.persist_batch_with_fk_fallback([invocation], [])
+        dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
     assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
 
 
-async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
+async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_failure(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() increments dropped count for job rows when null-FK retry fails."""
+    """persist_execution_batch_with_fk_fallback() counts dropped for job rows when null-FK retry fails."""
     now = time.time()
-    job_exec = JobExecutionRecord(
+    record = ExecutionRecord(
+        kind="job",
         job_id=None,
         session_id=session_id,
         execution_start_ts=now,
@@ -1129,27 +1133,28 @@ async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
         return await original_execute(sql)
 
     with patch.object(db, "execute", side_effect=patched_execute):
-        dropped = await repo.persist_batch_with_fk_fallback([], [job_exec])
+        dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
     assert dropped == 1, "Job row that fails even with null FK should be counted as dropped"
 
 
-async def test_persist_batch_with_fk_fallback_empty_lists(
+async def test_persist_execution_batch_with_fk_fallback_empty_list(
     repo: TelemetryRepository,
 ) -> None:
-    """persist_batch_with_fk_fallback() with empty lists returns 0 dropped."""
-    dropped = await repo.persist_batch_with_fk_fallback([], [])
+    """persist_execution_batch_with_fk_fallback() with empty list returns 0 dropped."""
+    dropped = await repo.persist_execution_batch_with_fk_fallback([])
     assert dropped == 0
 
 
-async def test_persist_batch_with_fk_fallback_rollback_on_exception(
+async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch_with_fk_fallback() rolls back on unexpected errors."""
+    """persist_execution_batch_with_fk_fallback() rolls back on unexpected errors."""
     now = time.time()
-    invocation = HandlerInvocationRecord(
+    record = ExecutionRecord(
+        kind="handler",
         listener_id=None,
         session_id=session_id,
         execution_start_ts=now,
@@ -1170,18 +1175,19 @@ async def test_persist_batch_with_fk_fallback_rollback_on_exception(
         patch.object(db, "execute", side_effect=patched_execute),
         pytest.raises(RuntimeError, match="simulated connection failure"),
     ):
-        await repo.persist_batch_with_fk_fallback([invocation], [])
+        await repo.persist_execution_batch_with_fk_fallback([record])
 
 
-async def test_persist_batch_rollback_on_exception(
+async def test_persist_execution_batch_rollback_on_exception(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_batch() rolls back and re-raises on unexpected error."""
+    """persist_execution_batch() rolls back and re-raises on unexpected error."""
     listener_id = await repo.register_listener(make_listener_registration())
     now = time.time()
-    invocation = HandlerInvocationRecord(
+    record = ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
         session_id=session_id,
         execution_start_ts=now,
@@ -1196,7 +1202,7 @@ async def test_persist_batch_rollback_on_exception(
         patch.object(db, "executemany", side_effect=failing_executemany),
         pytest.raises(RuntimeError, match="simulated executemany failure"),
     ):
-        await repo.persist_batch([invocation], [])
+        await repo.persist_execution_batch([record])
 
     cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()

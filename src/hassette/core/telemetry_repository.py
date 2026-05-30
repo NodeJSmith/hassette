@@ -6,10 +6,8 @@ import time
 import typing
 from typing import Any
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import is_framework_key
 
 if typing.TYPE_CHECKING:
@@ -53,56 +51,6 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "args_json": record.args_json,
         "kwargs_json": record.kwargs_json,
     }
-
-
-def _inv_to_execution_record(record: HandlerInvocationRecord) -> ExecutionRecord:
-    """Convert a HandlerInvocationRecord to an ExecutionRecord.
-
-    TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-    """
-    return ExecutionRecord(
-        kind="handler",
-        listener_id=record.listener_id,
-        job_id=None,
-        session_id=record.session_id,
-        execution_start_ts=record.execution_start_ts,
-        duration_ms=record.duration_ms,
-        status=record.status,
-        app_key=record.app_key,
-        instance_index=record.instance_index,
-        source_tier=record.source_tier,
-        is_di_failure=record.is_di_failure,
-        error_type=record.error_type,
-        error_message=record.error_message,
-        error_traceback=record.error_traceback,
-        execution_id=record.execution_id,
-        trigger_context_id=record.trigger_context_id,
-        trigger_origin=record.trigger_origin,
-    )
-
-
-def _job_to_execution_record(record: JobExecutionRecord) -> ExecutionRecord:
-    """Convert a JobExecutionRecord to an ExecutionRecord.
-
-    TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-    """
-    return ExecutionRecord(
-        kind="job",
-        listener_id=None,
-        job_id=record.job_id,
-        session_id=record.session_id,
-        execution_start_ts=record.execution_start_ts,
-        duration_ms=record.duration_ms,
-        status=record.status,
-        app_key=record.app_key,
-        instance_index=record.instance_index,
-        source_tier=record.source_tier,
-        is_di_failure=record.is_di_failure,
-        error_type=record.error_type,
-        error_message=record.error_message,
-        error_traceback=record.error_traceback,
-        execution_id=record.execution_id,
-    )
 
 
 def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
@@ -621,43 +569,3 @@ class TelemetryRepository:
             raise
 
         return dropped
-
-    # TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-    async def persist_batch(
-        self,
-        invocations: list[HandlerInvocationRecord],
-        job_executions: list[JobExecutionRecord],
-    ) -> None:
-        """Write a batch of execution records to the unified executions table.
-
-        Accepts the legacy dual-list signature used by ``CommandExecutor``; maps each
-        record to an ``ExecutionRecord`` and delegates to the unified persist path.
-
-        TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-
-        Args:
-            invocations: Handler invocation records to insert.
-            job_executions: Job execution records to insert.
-        """
-        records = [_inv_to_execution_record(r) for r in invocations]
-        records += [_job_to_execution_record(r) for r in job_executions]
-        await self.persist_execution_batch(records)
-
-    # TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-    async def persist_batch_with_fk_fallback(
-        self,
-        invocations: list[HandlerInvocationRecord],
-        job_executions: list[JobExecutionRecord],
-    ) -> int:
-        """Insert records row-by-row with FK violation fallback (best-effort per record).
-
-        Accepts the legacy dual-list signature used by ``CommandExecutor``; maps each
-        record to an ``ExecutionRecord`` and delegates to the unified FK-fallback persist.
-
-        TEMPORARY adapter — T09 migrates command_executor to ExecutionRecord and removes this.
-
-        Returns the number of records that were dropped (failed even with null FK).
-        """
-        records = [_inv_to_execution_record(r) for r in invocations]
-        records += [_job_to_execution_record(r) for r in job_executions]
-        return await self.persist_execution_batch_with_fk_fallback(records)

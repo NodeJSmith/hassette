@@ -3,7 +3,6 @@
 Tests cover:
 - Bounded queue with overflow handling
 - RetryableBatch expansion in drain and flush
-- Sentinel guard: id=0 → drop, id=None → persist
 - Error classification in _persist_batch
 - FK violation row-by-row fallback
 - source_tier and is_di_failure in _build_record
@@ -20,21 +19,24 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.commands import InvokeHandler
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry_repository import TelemetryRepository
-from hassette.scheduler.classes import JobExecutionRecord
 
 
-def make_invocation(
+def make_execution_record(
+    kind: str = "handler",
     listener_id: int | None = 1,
+    job_id: int | None = None,
     session_id: int = 1,
     source_tier: str = "app",
     is_di_failure: bool = False,
-) -> HandlerInvocationRecord:
-    return HandlerInvocationRecord(
+) -> ExecutionRecord:
+    return ExecutionRecord(
+        kind=kind,
         listener_id=listener_id,
+        job_id=job_id,
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=1.0,
@@ -44,18 +46,34 @@ def make_invocation(
     )
 
 
+# Convenience aliases for readability in tests
+def make_invocation(
+    listener_id: int | None = 1,
+    session_id: int = 1,
+    source_tier: str = "app",
+    is_di_failure: bool = False,
+) -> ExecutionRecord:
+    return make_execution_record(
+        kind="handler",
+        listener_id=listener_id,
+        job_id=None,
+        session_id=session_id,
+        source_tier=source_tier,
+        is_di_failure=is_di_failure,
+    )
+
+
 def make_job_record(
     job_id: int | None = 1,
     session_id: int = 1,
     source_tier: str = "app",
-) -> JobExecutionRecord:
-    return JobExecutionRecord(
+) -> ExecutionRecord:
+    return make_execution_record(
+        kind="job",
+        listener_id=None,
         job_id=job_id,
         session_id=session_id,
-        execution_start_ts=time.time(),
-        duration_ms=1.0,
-        status="success",
-        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+        source_tier=source_tier,
     )
 
 
@@ -122,119 +140,78 @@ async def test_retryable_batch_expanded_in_drain():
 
     inv = make_invocation(listener_id=5)
     job = make_job_record(job_id=7)
-    batch = RetryableBatch(invocations=[inv], job_executions=[job], retry_count=1)
+    batch = RetryableBatch(records=[inv, job], retry_count=1)
 
     executor._write_queue.put_nowait(batch)
 
-    captured_invocations = []
-    captured_job_executions = []
-    captured_retry_counts = []
+    captured_records: list[ExecutionRecord] = []
+    captured_retry_counts: list[int] = []
 
-    async def fake_persist_batch(invocations, job_executions, *, retry_count=0):
-        captured_invocations.extend(invocations)
-        captured_job_executions.extend(job_executions)
+    async def fake_persist(records, *, retry_count=0):
+        captured_records.extend(records)
         captured_retry_counts.append(retry_count)
 
-    executor._persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
+    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     await executor._drain_and_persist()
 
-    assert inv in captured_invocations
-    assert job in captured_job_executions
+    assert inv in captured_records
+    assert job in captured_records
     # RetryableBatch should preserve its retry_count (was 1)
     assert 1 in captured_retry_counts
 
 
-async def test_sentinel_guard_drops_id_zero():
-    """Records with listener_id=0 are dropped with a REGRESSION log, not persisted."""
-    executor = init_executor()
-
-    invocations = [make_invocation(listener_id=0, session_id=1)]
-    job_executions: list[JobExecutionRecord] = []
-
-    persist_batch_called = False
-
-    async def fake_persist_batch(_invs, _jobs):
-        nonlocal persist_batch_called
-        persist_batch_called = True
-
-    executor.repository.persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def direct_submit(coro):
-        return await coro
-
-    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
-
-    await CommandExecutor._persist_batch(executor, invocations, job_executions)  # pyright: ignore[reportArgumentType]
-
-    # REGRESSION log must have fired
-    executor.logger.error.assert_called()
-    error_calls = [str(c) for c in executor.logger.error.call_args_list]
-    assert any("REGRESSION" in c for c in error_calls)
-
-    # persist_batch must not have been called (all records filtered out)
-    assert not persist_batch_called
-
-
-async def test_sentinel_guard_allows_id_none():
-    """Records with listener_id=None are NOT dropped — they represent pre-reg orphans."""
+async def test_id_none_records_persist():
+    """Records with listener_id=None (pre-registration orphans) are NOT dropped."""
     executor = init_executor()
 
     none_inv = make_invocation(listener_id=None, session_id=1)
-    invocations = [none_inv]
-    job_executions: list[JobExecutionRecord] = []
+    records = [none_inv]
 
-    persist_calls: list[tuple[list, list]] = []
+    persist_calls: list[list[ExecutionRecord]] = []
 
-    async def fake_persist_batch(invs, jobs):
-        persist_calls.append((list(invs), list(jobs)))
+    async def fake_persist_batch(recs):
+        persist_calls.append(list(recs))
 
-    executor.repository.persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, invocations, job_executions)  # pyright: ignore[reportArgumentType]
-
-    # Should NOT have logged REGRESSION (no id=0 sentinel dropped)
-    error_calls = [str(c) for c in executor.logger.error.call_args_list]
-    regression_errors = [c for c in error_calls if "REGRESSION" in c and "listener" in c.lower()]
-    assert len(regression_errors) == 0
+    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have attempted to persist
     assert len(persist_calls) == 1
-    persisted_invocations = persist_calls[0][0]
-    assert none_inv in persisted_invocations
+    assert none_inv in persist_calls[0]
 
 
 async def test_operational_error_triggers_retry():
-    """OperationalError from persist_batch causes re-enqueue as RetryableBatch."""
+    """OperationalError from persist_execution_batch causes re-enqueue as RetryableBatch."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
-    invocations = [inv]
-    job_executions: list[JobExecutionRecord] = []
+    records = [inv]
 
-    async def fail_persist(_invs, _jobs):
+    async def fail_persist(_recs):
         raise sqlite3.OperationalError("disk I/O error")
 
-    executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, invocations, job_executions)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have re-enqueued as RetryableBatch
     assert not executor._write_queue.empty()
     queued = executor._write_queue.get_nowait()
     assert isinstance(queued, RetryableBatch)
     assert queued.retry_count == 1
-    assert inv in queued.invocations
+    assert inv in queued.records
 
 
 async def test_max_retries_drops_batch():
@@ -242,15 +219,12 @@ async def test_max_retries_drops_batch():
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
-    exhausted_batch = RetryableBatch(invocations=[inv], job_executions=[], retry_count=3)
+    exhausted_batch = RetryableBatch(records=[inv], retry_count=3)
 
-    invocations = list(exhausted_batch.invocations)
-    job_executions = list(exhausted_batch.job_executions)
-
-    async def fail_persist(_invs, _jobs):
+    async def fail_persist(_recs):
         raise sqlite3.OperationalError("disk I/O error")
 
-    executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
@@ -259,7 +233,7 @@ async def test_max_retries_drops_batch():
 
     # Pass retry_count=3 to indicate exhausted batch
     await CommandExecutor._persist_batch(  # pyright: ignore[reportArgumentType]
-        executor, invocations, job_executions, retry_count=3
+        executor, exhausted_batch.records, retry_count=3
     )
 
     # Should NOT have re-enqueued (retry_count >= 3)
@@ -269,22 +243,22 @@ async def test_max_retries_drops_batch():
 
 
 async def test_data_error_drops_immediately():
-    """DataError from persist_batch → drop immediately + REGRESSION log, no re-enqueue."""
+    """DataError from persist_execution_batch → drop immediately + REGRESSION log, no re-enqueue."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
 
-    async def fail_persist(_invs, _jobs):
+    async def fail_persist(_recs):
         raise sqlite3.DataError("column mismatch")
 
-    executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, [inv], [])  # pyright: ignore[reportArgumentType]
+    await CommandExecutor._persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
 
     # No re-enqueue
     assert executor._write_queue.empty()
@@ -295,37 +269,37 @@ async def test_data_error_drops_immediately():
 
 
 async def test_integrity_error_row_by_row_fallback():
-    """IntegrityError triggers FK fallback via persist_batch_with_fk_fallback; dropped count tracked."""
+    """IntegrityError triggers FK fallback via persist_execution_batch_with_fk_fallback; dropped count tracked."""
     executor = init_executor()
 
     inv_good = make_invocation(listener_id=1, session_id=1)
     inv_bad = make_invocation(listener_id=999, session_id=1)  # FK violation
-    invocations = [inv_good, inv_bad]
+    records = [inv_good, inv_bad]
 
     # Simulate: batch call raises IntegrityError; FK fallback returns 1 dropped record
-    async def fake_persist_batch(invs, _jobs):
-        if len(invs) > 1:
+    async def fake_persist_batch(recs):
+        if len(recs) > 1:
             raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
 
-    async def fake_fk_fallback(_invs, _jobs):
+    async def fake_fk_fallback(_recs):
         return 1  # 1 record dropped
 
-    executor.repository.persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
-    executor.repository.persist_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, invocations, [])  # pyright: ignore[reportArgumentType]
+    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have incremented dropped_exhausted for the 1 record that failed even with null FK
     assert executor._dropped_exhausted == 1
 
 
 def test_build_record_reads_source_tier():
-    """_build_record sets source_tier from cmd.source_tier."""
+    """_build_record sets source_tier from cmd.source_tier and returns ExecutionRecord."""
     executor = init_executor()
 
     listener = MagicMock()
@@ -350,7 +324,8 @@ def test_build_record_reads_source_tier():
 
     record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "handler"
     assert record.source_tier == "framework"
     assert record.listener_id == 5
 
@@ -381,7 +356,7 @@ def test_build_record_reads_is_di_failure():
 
     record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.is_di_failure is True
 
 
@@ -399,10 +374,10 @@ async def test_flush_queue_handles_db_closed():
 
     executor.hassette.database_service.submit = fail_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def fake_persist(_invs, _jobs):
+    async def fake_persist(_recs):
         pass
 
-    executor.repository.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     # _flush_queue must NOT raise — shutdown must complete
     await executor._flush_queue()
@@ -411,8 +386,8 @@ async def test_flush_queue_handles_db_closed():
     assert executor.logger.error.called or executor.logger.warning.called
 
 
-async def test_persist_batch_includes_source_tier():
-    """TelemetryRepository.persist_batch INSERT includes source_tier column."""
+async def test_persist_execution_batch_includes_source_tier():
+    """TelemetryRepository.persist_execution_batch INSERT includes source_tier column."""
     schema = """
 PRAGMA foreign_keys = ON;
 
@@ -424,87 +399,31 @@ CREATE TABLE sessions (
     status TEXT NOT NULL,
     error_type TEXT,
     error_message TEXT,
-    error_traceback TEXT,
-    source_tier TEXT NOT NULL DEFAULT 'framework'
-        CHECK (source_tier IN ('app', 'framework'))
+    error_traceback TEXT
 );
 
-CREATE TABLE listeners (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key TEXT NOT NULL,
-    instance_index INTEGER NOT NULL,
-    handler_method TEXT NOT NULL,
-    topic TEXT NOT NULL,
-    debounce REAL,
-    throttle REAL,
-    once INTEGER NOT NULL DEFAULT 0,
-    priority INTEGER NOT NULL DEFAULT 0,
-    predicate_description TEXT,
-    human_description TEXT,
-    source_location TEXT NOT NULL,
-    registration_source TEXT,
-    name TEXT,
-    retired_at REAL,
-    source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
-);
-
-CREATE UNIQUE INDEX idx_listeners_natural
-    ON listeners(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
-    WHERE once = 0;
-
-CREATE TABLE scheduled_jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key TEXT NOT NULL,
-    instance_index INTEGER NOT NULL,
-    job_name TEXT NOT NULL,
-    handler_method TEXT NOT NULL,
-    trigger_type TEXT,
-    repeat INTEGER NOT NULL DEFAULT 0,
-    args_json TEXT NOT NULL DEFAULT '[]',
-    kwargs_json TEXT NOT NULL DEFAULT '{}',
-    source_location TEXT NOT NULL,
-    registration_source TEXT,
-    retired_at REAL,
-    source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
-);
-
-CREATE UNIQUE INDEX idx_scheduled_jobs_natural
-    ON scheduled_jobs(app_key, instance_index, job_name);
-
-CREATE TABLE handler_invocations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    listener_id INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    session_id INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_ts REAL NOT NULL,
-    duration_ms REAL NOT NULL CHECK (duration_ms >= 0.0),
-    status TEXT NOT NULL CHECK (status IN ('success', 'error', 'cancelled')),
-    error_type TEXT,
-    error_message TEXT,
-    error_traceback TEXT,
-    is_di_failure INTEGER NOT NULL DEFAULT 0,
-    source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework')),
-    execution_id TEXT,
-    trigger_context_id TEXT,
-    trigger_origin TEXT
-);
-
-CREATE TABLE job_executions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
-    session_id INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_ts REAL NOT NULL,
-    duration_ms REAL NOT NULL CHECK (duration_ms >= 0.0),
-    status TEXT NOT NULL CHECK (status IN ('success', 'error', 'cancelled')),
-    error_type TEXT,
-    error_message TEXT,
-    error_traceback TEXT,
-    is_di_failure INTEGER NOT NULL DEFAULT 0,
-    source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework')),
-    execution_id TEXT
+CREATE TABLE executions (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind                  TEXT    NOT NULL CHECK (kind IN ('handler', 'job')),
+    listener_id           INTEGER,
+    job_id                INTEGER,
+    session_id            INTEGER NOT NULL REFERENCES sessions(id),
+    execution_start_ts    REAL    NOT NULL,
+    duration_ms           REAL    NOT NULL,
+    status                TEXT    NOT NULL,
+    error_type            TEXT,
+    error_message         TEXT,
+    error_traceback       TEXT,
+    is_di_failure         INTEGER NOT NULL DEFAULT 0,
+    source_tier           TEXT    NOT NULL DEFAULT 'app',
+    execution_id          TEXT UNIQUE,
+    trigger_context_id    TEXT,
+    trigger_origin        TEXT,
+    trigger_mode          TEXT,
+    retry_count           INTEGER NOT NULL DEFAULT 0,
+    attempt_number        INTEGER NOT NULL DEFAULT 1,
+    args_json             TEXT    NOT NULL DEFAULT '[]',
+    kwargs_json           TEXT    NOT NULL DEFAULT '{}'
 );
 """
 
@@ -515,8 +434,8 @@ CREATE TABLE job_executions (
 
         # Insert a session so FK reference works
         await db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status, source_tier) VALUES (?, ?, ?, ?)",
-            (time.time(), time.time(), "running", "framework"),
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, ?)",
+            (time.time(), time.time(), "running"),
         )
         await db.commit()
 
@@ -524,7 +443,8 @@ CREATE TABLE job_executions (
         mock_db_service.db = db
         repo = TelemetryRepository(mock_db_service)
 
-        inv = HandlerInvocationRecord(
+        record = ExecutionRecord(
+            kind="handler",
             listener_id=None,
             session_id=1,
             execution_start_ts=time.time(),
@@ -534,9 +454,9 @@ CREATE TABLE job_executions (
             is_di_failure=False,
         )
 
-        await repo.persist_batch([inv], [])
+        await repo.persist_execution_batch([record])
 
-        cursor = await db.execute("SELECT source_tier, is_di_failure FROM handler_invocations WHERE id = 1")
+        cursor = await db.execute("SELECT source_tier, is_di_failure FROM executions WHERE id = 1")
         row = await cursor.fetchone()
         assert row is not None
         assert row["source_tier"] == "framework"
@@ -549,8 +469,7 @@ async def test_retryable_batch_future_not_before_is_requeued():
 
     inv = make_invocation(listener_id=5, session_id=1)
     batch = RetryableBatch(
-        invocations=[inv],
-        job_executions=[],
+        records=[inv],
         retry_count=1,
         not_before=time.monotonic() + 9999.0,
     )
@@ -581,25 +500,24 @@ async def test_retryable_batch_past_not_before_is_persisted():
 
     inv = make_invocation(listener_id=5, session_id=1)
     batch = RetryableBatch(
-        invocations=[inv],
-        job_executions=[],
+        records=[inv],
         retry_count=1,
         not_before=time.monotonic() - 1.0,  # already elapsed
     )
     executor._write_queue.put_nowait(batch)
 
-    persist_args: list[tuple[list, list, int]] = []
+    persist_args: list[tuple[list[ExecutionRecord], int]] = []
 
-    async def fake_persist(invs, jobs, *, retry_count=0):
-        persist_args.append((list(invs), list(jobs), retry_count))
+    async def fake_persist(records, *, retry_count=0):
+        persist_args.append((list(records), retry_count))
 
     executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     await executor._drain_and_persist()
 
     assert len(persist_args) == 1
-    persisted_invs, _, persisted_retry = persist_args[0]
-    assert inv in persisted_invs
+    persisted_records, persisted_retry = persist_args[0]
+    assert inv in persisted_records
     assert persisted_retry == 1
     assert executor._write_queue.empty()
 
@@ -609,12 +527,11 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
-    invocations = [inv]
 
-    async def fail_persist(_invs, _jobs):
+    async def fail_persist(_recs):
         raise sqlite3.OperationalError("disk I/O error")
 
-    executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     async def direct_submit(coro):
         return await coro
@@ -623,7 +540,7 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
 
     before = time.monotonic()
     # retry_count=0 → backoff should be 1s (retry_count + 1 = 1)
-    await CommandExecutor._persist_batch(executor, invocations, [], retry_count=0)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor._persist_batch(executor, [inv], retry_count=0)  # pyright: ignore[reportArgumentType]
     after = time.monotonic()
 
     assert not executor._write_queue.empty()
@@ -641,10 +558,10 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         executor = init_executor()
         inv = make_invocation(listener_id=5, session_id=1)
 
-        async def fail_persist(_invs, _jobs):
+        async def fail_persist(_recs):
             raise sqlite3.OperationalError("disk I/O error")
 
-        executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+        executor.repository.persist_execution_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
 
         async def direct_submit(coro):
             return await coro
@@ -652,7 +569,7 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
         before = time.monotonic()
-        await CommandExecutor._persist_batch(executor, [inv], [], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
+        await CommandExecutor._persist_batch(executor, [inv], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
         after = time.monotonic()
 
         queued = executor._write_queue.get_nowait()

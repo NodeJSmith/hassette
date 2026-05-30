@@ -151,7 +151,7 @@ class TestCompletionPayloadEnrichment:
         """app_key and instance_index from the payload are stored in the pending dict."""
         runtime.broadcast = AsyncMock()
         ev = HassetteExecutionCompletedEvent.from_record(
-            job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
+            kind="job", job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
         )
         await runtime._on_execution_completed(ev)
         assert runtime._pending_executions[0]["app_key"] == "climate"
@@ -219,10 +219,10 @@ class TestCompletionBatching:
         runtime.broadcast = fake_broadcast
 
         ev1 = HassetteExecutionCompletedEvent.from_record(
-            job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
+            kind="job", job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
         )
         ev2 = HassetteExecutionCompletedEvent.from_record(
-            job_id=11, status="success", duration_ms=30.0, app_key="scheduler_app", instance_index=0
+            kind="job", job_id=11, status="success", duration_ms=30.0, app_key="scheduler_app", instance_index=0
         )
 
         await runtime._on_execution_completed(ev1)
@@ -284,7 +284,7 @@ class TestCompletionBatching:
             listener_id=1, status="success", duration_ms=5.0, app_key="my_app", instance_index=0
         )
         exec_ev = HassetteExecutionCompletedEvent.from_record(
-            job_id=10, status="success", duration_ms=8.0, app_key="my_app", instance_index=0
+            kind="job", job_id=10, status="success", duration_ms=8.0, app_key="my_app", instance_index=0
         )
 
         await runtime._on_invocation_completed(inv_ev)

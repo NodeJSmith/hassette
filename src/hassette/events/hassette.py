@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from hassette.events.base import Event, HassettePayload
 from hassette.types import ResourceRole, ResourceStatus, Topic
@@ -179,11 +179,17 @@ class InvocationCompletedPayload:
 
 @dataclass(slots=True, frozen=True)
 class ExecutionCompletedPayload:
-    """Payload for scheduled job execution completed events."""
+    """Payload for a completed execution — handler invocation or scheduled job.
 
-    job_id: int | None
+    ``kind`` distinguishes the two: ``listener_id`` is set when ``kind == "handler"``,
+    ``job_id`` when ``kind == "job"``.
+    """
+
+    kind: Literal["handler", "job"]
     status: str
     duration_ms: float
+    listener_id: int | None = None
+    job_id: int | None = None
     app_key: str = ""
     instance_index: int = 0
     error_type: str | None = None
@@ -222,17 +228,21 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
     @classmethod
     def from_record(
         cls,
-        job_id: int | None,
+        kind: Literal["handler", "job"],
         status: str,
         duration_ms: float,
+        listener_id: int | None = None,
+        job_id: int | None = None,
         app_key: str = "",
         instance_index: int = 0,
         error_type: str | None = None,
     ) -> "HassetteExecutionCompletedEvent":
         payload = ExecutionCompletedPayload(
-            job_id=job_id,
+            kind=kind,
             status=status,
             duration_ms=duration_ms,
+            listener_id=listener_id,
+            job_id=job_id,
             app_key=app_key,
             instance_index=instance_index,
             error_type=error_type,

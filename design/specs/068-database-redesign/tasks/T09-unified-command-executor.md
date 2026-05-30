@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Unify command executor record building and persist logic"
-status: "planned"
+status: "done"
 depends_on: ["T05", "T06", "T07", "T08"]
 implements: ["FR#1", "AC#1"]
 ---
