@@ -21,6 +21,7 @@ from hassette_codegen.sync_facade import (  # noqa: E402
     _derive_recording_imports_strict,
     _format_via_ruff,
     _RecordingBodyRewriter,
+    desync_docstring,
     gen_recording_method,
     generate_sync_recording,
     is_not_implemented_only,
@@ -338,6 +339,54 @@ async def foo(self):
 """
     )
     assert is_not_implemented_only(func) is True
+
+
+def test_desync_docstring_removes_inline_async_sentence() -> None:
+    """An async/awaited sentence wrapped mid-paragraph is removed without joining long lines."""
+    # Mirrors Bus.on(): the async sentence breaks across a line, so a naive collapse would
+    # join "subscriptions." and "Registration" into a >120-char line.
+    doc = (
+        "This is the public registration method for raw topic subscriptions. This method is\n"
+        "``async`` and must be awaited. Registration completes before the call returns —\n"
+        "``sub.listener.db_id`` is a valid integer immediately on return."
+    )
+    result = desync_docstring(doc)
+
+    assert "must be awaited" not in result
+    assert "``async``" not in result
+    assert "Registration completes before the call returns" in result
+    # No line should exceed the body width once indented 8 spaces (120 - 8 = 112).
+    assert all(len(line) <= 112 for line in result.splitlines()), result
+
+
+def test_desync_docstring_preserves_summary_blank_line() -> None:
+    """When the async sentence starts the body paragraph, the summary's blank line survives."""
+    doc = (
+        "Subscribe to state changes for a specific entity.\n"
+        "\n"
+        "This method is ``async`` and must be awaited. Registration completes before the call\n"
+        "returns. ``sub.listener.db_id`` is a valid integer immediately on return."
+    )
+    result = desync_docstring(doc)
+
+    assert "must be awaited" not in result
+    # Summary line stays on its own, separated by a blank line from the body.
+    assert result.startswith("Subscribe to state changes for a specific entity.\n\n")
+
+
+def test_desync_docstring_rewrites_awaited_inline_phrase() -> None:
+    """The scheduler's 'awaited inline' phrasing becomes 'completes inline'."""
+    doc = "DB registration is awaited inline — ``job.db_id`` is set before this method returns."
+    result = desync_docstring(doc)
+
+    assert "awaited inline" not in result
+    assert "DB registration completes inline" in result
+
+
+def test_desync_docstring_leaves_async_free_docstrings_untouched() -> None:
+    """A docstring with no async phrasing is returned unchanged (e.g. Api method docs)."""
+    doc = "Get all entities in Home Assistant.\n\nReturns:\n    A list of states."
+    assert desync_docstring(doc) == doc
 
 
 def test_is_not_implemented_only_rejects_real_body() -> None:

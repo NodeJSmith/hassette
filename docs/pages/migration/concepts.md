@@ -81,7 +81,7 @@ If you have existing synchronous code and don't want to add `async`/`await` ever
 --8<-- "pages/migration/snippets/concepts_appsync.py"
 ```
 
-`AppSync` runs in a managed thread and provides `self.api.sync` for blocking API access. It is a good intermediate step when migrating apps with heavy synchronous logic.
+`AppSync` runs its lifecycle hooks in a managed thread. Because the bus, scheduler, and API are async, register and call them through their `.sync` facades — `self.bus.sync`, `self.scheduler.sync`, and `self.api.sync`. It is a good intermediate step when migrating apps with heavy synchronous logic.
 
 ## See Also
 
