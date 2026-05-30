@@ -18,6 +18,10 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - **No section divider comments** between methods.
 - **Dependencies as parameters.** Functions receive collaborators, not create them inline. If testing requires `mock.patch` more than one level deep, the code needs restructuring.
 - **Mock only at boundaries.** External APIs, databases, time, filesystem. Use real instances for internal collaborators.
+- **No mutable default arguments** on functions or methods.
+- **Every coroutine call must be awaited.** Forgetting `await` silently does nothing.
+- **Explicit timeouts on external calls.** No implicit "wait forever."
+- **No bare `except:` or silent `except Exception: pass`.** Use `contextlib.suppress` with a specific type when intentional.
 
 ## TypeScript Rules
 
@@ -47,16 +51,3 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - `uv run pyright` for type checking.
 - Two test harnesses: `HassetteHarness` (real components, integration tests) and `create_hassette_stub()` (MagicMock, web/API tests).
 - E2E tests use Playwright with Chromium.
-
-## Patterns to Flag in Review
-
-- `from __future__ import annotations` anywhere — always reject.
-- `Optional[X]` — suggest `X | None`.
-- Mutable default arguments on functions/methods.
-- `mock.patch` nested more than one level deep — suggests a DI problem.
-- Bare `except:` or `except Exception: pass` — errors must be surfaced or explicitly suppressed with `contextlib.suppress`.
-- Missing `await` on coroutine calls.
-- External service calls without explicit timeouts.
-- `className=` in JSX (should be `class=` for Preact).
-- Raw hex/pixel values instead of design tokens in CSS.
-- Inline `style={}` for static layout properties.
