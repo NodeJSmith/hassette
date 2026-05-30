@@ -3,14 +3,13 @@
 import logging
 import sqlite3
 import time
-import typing
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.types.types import is_framework_key
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     import aiosqlite
 
     from hassette.core.database_service import DatabaseService

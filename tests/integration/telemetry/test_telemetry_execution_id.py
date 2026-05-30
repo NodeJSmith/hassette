@@ -7,12 +7,10 @@ import time
 
 import pytest
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.telemetry_repository import TelemetryRepository, _execution_insert_params
-from hassette.scheduler.classes import JobExecutionRecord
 
 from .helpers import (
     insert_job,
@@ -33,9 +31,11 @@ def make_inv_record(
     execution_id: str | None = None,
     trigger_context_id: str | None = None,
     trigger_origin: str | None = None,
-) -> HandlerInvocationRecord:
-    return HandlerInvocationRecord(
+) -> ExecutionRecord:
+    return ExecutionRecord(
+        kind="handler",
         listener_id=listener_id,
+        job_id=None,
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=10.0,
@@ -51,9 +51,11 @@ def make_job_record(
     session_id: int,
     *,
     execution_id: str | None = None,
-) -> JobExecutionRecord:
-    return JobExecutionRecord(
+) -> ExecutionRecord:
+    return ExecutionRecord(
+        kind="job",
         job_id=job_id,
+        listener_id=None,
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=20.0,
@@ -77,7 +79,7 @@ class TestHandlerInvocationExecutionId:
             trigger_origin="LOCAL",
         )
 
-        await repo.persist_batch([record], [])
+        await repo.persist_execution_batch([record])
 
         results = await query_service.get_handler_invocations(listener_id, limit=10)
         assert len(results) == 1
@@ -94,7 +96,7 @@ class TestHandlerInvocationExecutionId:
         listener_id = await insert_listener(db_svc)
         record = make_inv_record(listener_id, session_id, execution_id=None)
 
-        await repo.persist_batch([record], [])
+        await repo.persist_execution_batch([record])
 
         results = await query_service.get_handler_invocations(listener_id, limit=10)
         assert len(results) == 1
@@ -121,7 +123,7 @@ class TestHandlerInvocationExecutionId:
             trigger_origin="REMOTE",
         )
 
-        dropped = await repo.persist_batch_with_fk_fallback([record], [])
+        dropped = await repo.persist_execution_batch_with_fk_fallback([record])
         assert dropped == 1  # CHECK prevents a null-FK orphan; the row is dropped
 
         async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
@@ -185,7 +187,7 @@ class TestJobExecutionExecutionId:
         job_id = await insert_job(db_svc)
         record = make_job_record(job_id, session_id, execution_id="def-789")
 
-        await repo.persist_batch([], [record])
+        await repo.persist_execution_batch([record])
 
         results = await query_service.get_job_executions(job_id, limit=10)
         assert len(results) == 1

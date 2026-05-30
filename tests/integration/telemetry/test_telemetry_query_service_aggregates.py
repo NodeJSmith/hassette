@@ -360,18 +360,18 @@ class TestCrossSessionAndRetiredRows:
 
         # Insert old retired listener (no invocations needed)
         cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
             "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
+            "VALUES ('test_app', 0, 'on_old', 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
             (old_retired_at,),
         )
         old_listener_id = cursor.lastrowid
 
         # Insert recent retired listener (should survive cleanup)
         cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
             "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
+            "VALUES ('test_app', 0, 'on_recent', 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
             (recent_retired_at,),
         )
         recent_listener_id = cursor.lastrowid
@@ -539,9 +539,13 @@ class TestGetSlowHandlersLeftJoin:
         listener_id = await insert_listener(db_svc, handler_method="on_slow")
 
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=500.0)
-        # Delete the listener
+        # Delete the listener with FK enforcement off so ON DELETE SET NULL doesn't
+        # fire — the execution row keeps its listener_id (pointing to a now-gone row),
+        # satisfying the CHECK constraint while making the LEFT JOIN return null app_key.
+        await db_svc.db.execute("PRAGMA foreign_keys = OFF")
         await db_svc.db.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
         await db_svc.db.commit()
+        await db_svc.db.execute("PRAGMA foreign_keys = ON")
 
         rows = await query_service.get_slow_handlers(threshold_ms=100.0)
         assert len(rows) == 1

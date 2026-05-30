@@ -1,7 +1,7 @@
 ---
 task_id: "T10"
 title: "Decompose and unify query service"
-status: "planned"
+status: "done"
 depends_on: ["T07", "T08"]
 implements: ["FR#1", "FR#18", "AC#13"]
 ---

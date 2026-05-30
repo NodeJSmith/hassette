@@ -13,11 +13,15 @@ async def insert_listener(
     *,
     app_key: str = "test_app",
     instance_index: int = 0,
-    name: str = "test_listener",
+    name: str | None = None,
     handler_method: str = "on_event",
     topic: str = "hass.event.state_changed",
     source_tier: str = "app",
 ) -> int:
+    # Default the natural-key name to handler_method so callers that vary handler_method
+    # (the pre-unification discriminator) get distinct names and don't collide on the
+    # (app_key, instance_index, name, topic) unique index.
+    name = name if name is not None else handler_method
     cursor = await db_svc.db.execute(
         """INSERT INTO listeners
                (app_key, instance_index, name, handler_method, topic,
