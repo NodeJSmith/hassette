@@ -86,8 +86,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         )
         tables = sorted(row[0] for row in cursor.fetchall())
         assert tables == [
-            "handler_invocations",
-            "job_executions",
+            "executions",
             "listeners",
             "log_records",
             "scheduled_jobs",
@@ -96,30 +95,28 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        # 14 original idx_ indexes + 3 new idx_lr_ indexes + 2 new perf indexes = 19
-        assert len(indexes) == 19
-        assert "idx_hi_listener_time" in indexes
-        assert "idx_hi_listener_status_time" in indexes
-        assert "idx_hi_status_time" in indexes
-        assert "idx_hi_time" in indexes
-        assert "idx_hi_session" in indexes
-        assert "idx_je_job_time" in indexes
-        assert "idx_je_job_status_time" in indexes
-        assert "idx_je_status_time" in indexes
-        assert "idx_je_time" in indexes
-        assert "idx_je_session" in indexes
+        # 001.sql defines 13 idx_* indexes (2 listeners, 2 scheduled_jobs, 6 executions, 3 log_records)
+        assert len(indexes) == 13
         assert "idx_listeners_app" in indexes
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes
         assert "idx_scheduled_jobs_natural" in indexes
+        assert "idx_exec_listener_time" in indexes
+        assert "idx_exec_job_time" in indexes
+        assert "idx_exec_status_time" in indexes
+        assert "idx_exec_time" in indexes
+        assert "idx_exec_session" in indexes
+        assert "idx_exec_source_tier_time" in indexes
         assert "idx_lr_time" in indexes
         assert "idx_lr_exec" in indexes
         assert "idx_lr_app_time" in indexes
 
+        # No uq_* unique indexes in the unified schema (natural-key uniqueness is
+        # handled by idx_listeners_natural / idx_scheduled_jobs_natural); execution_id
+        # uniqueness is declared inline as UNIQUE on the column, not as a named uq_ index.
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'uq_%'")
         unique_indexes = sorted(row[0] for row in cursor.fetchall())
-        assert "uq_hi_execution_id" in unique_indexes
-        assert "uq_je_execution_id" in unique_indexes
+        assert unique_indexes == []
     finally:
         conn.close()
 
@@ -193,11 +190,11 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
-    # Insert a listener for FK reference
+    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
     await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", TEST_SOURCE_LOCATION),
+        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
     )
     await db.commit()
 
@@ -213,27 +210,27 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     old_ts = now - (8 * SECONDS_PER_DAY)  # 8 days ago (beyond 7-day retention)
     recent_ts = now - (1 * SECONDS_PER_DAY)  # 1 day ago (within retention)
 
-    # Insert old and recent handler_invocations
+    # Insert old and recent handler executions (kind='handler', listener_id set)
     await db.execute(
-        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-        "VALUES (1, ?, ?, 10.0, 'success')",
+        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
         (session_id, old_ts),
     )
     await db.execute(
-        "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-        "VALUES (1, ?, ?, 10.0, 'success')",
+        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
         (session_id, recent_ts),
     )
 
-    # Insert old and recent job_executions
+    # Insert old and recent job executions (kind='job', job_id set)
     await db.execute(
-        "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status) "
-        "VALUES (1, ?, ?, 5.0, 'success')",
+        "INSERT INTO executions (kind, job_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('job', 1, ?, ?, 5.0, 'success')",
         (session_id, old_ts),
     )
     await db.execute(
-        "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status) "
-        "VALUES (1, ?, ?, 5.0, 'success')",
+        "INSERT INTO executions (kind, job_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('job', 1, ?, ?, 5.0, 'success')",
         (session_id, recent_ts),
     )
     await db.commit()
@@ -242,16 +239,12 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
 
     await initialized_service._db_write_queue.join()
 
-    # Old records should be deleted, recent ones retained
-    cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
+    # Old records should be deleted, recent ones retained.
+    # Both handler and job records now live in executions; 2 old removed, 2 recent kept.
+    cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 1
-
-    cursor = await db.execute("SELECT COUNT(*) FROM job_executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 1
+    assert row[0] == 2
 
 
 async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> None:
@@ -514,21 +507,21 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
-    # Insert a listener for FK reference
+    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
     await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", TEST_SOURCE_LOCATION),
+        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
     )
     await db.commit()
 
-    # Insert some records so there is something to delete
+    # Insert some executions so there is something for the size failsafe to delete
     now = time.time()
     for i in range(10):
         ts = now - (100 - i)
         await db.execute(
-            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-            "VALUES (1, ?, ?, 10.0, 'success')",
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
             (session_id, ts),
         )
     await db.commit()
@@ -547,8 +540,8 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     for i in range(10):
         ts = now - (50 - i)
         await db.execute(
-            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-            "VALUES (1, ?, ?, 10.0, 'success')",
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
             (session_id, ts),
         )
     await db.commit()

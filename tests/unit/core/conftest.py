@@ -39,10 +39,18 @@ CREATE INDEX idx_lr_time ON log_records(timestamp);
 CREATE INDEX idx_lr_exec ON log_records(execution_id) WHERE execution_id IS NOT NULL;
 CREATE INDEX idx_lr_app_time ON log_records(app_key, timestamp);
 
+CREATE TABLE sessions (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at            REAL NOT NULL DEFAULT 0,
+    last_heartbeat_at     REAL NOT NULL DEFAULT 0,
+    status                TEXT NOT NULL DEFAULT 'running'
+);
+
 CREATE TABLE listeners (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     app_key               TEXT NOT NULL,
     instance_index        INTEGER NOT NULL DEFAULT 0,
+    name                  TEXT NOT NULL DEFAULT '',
     handler_method        TEXT NOT NULL DEFAULT '',
     topic                 TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
@@ -59,16 +67,12 @@ CREATE TABLE scheduled_jobs (
     retired_at            REAL
 );
 
-CREATE TABLE handler_invocations (
+CREATE TABLE executions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind                  TEXT NOT NULL DEFAULT 'handler',
     listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-CREATE TABLE job_executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
+    session_id            INTEGER NOT NULL DEFAULT 0,
     execution_start_ts    REAL NOT NULL,
     duration_ms           REAL NOT NULL DEFAULT 0,
     status                TEXT NOT NULL DEFAULT 'success'

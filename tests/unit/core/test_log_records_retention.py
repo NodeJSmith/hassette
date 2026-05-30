@@ -185,7 +185,7 @@ class TestSizeFailsafePrePass:
     async def seed_both_tables(
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, log_count: int = 10, exec_count: int = 5
     ) -> None:
-        """Seed log_records and handler_invocations."""
+        """Seed log_records and executions."""
 
         now = time.time()
         logs = [
@@ -210,7 +210,7 @@ class TestSizeFailsafePrePass:
 
         for i in range(exec_count):
             await db.execute(
-                "INSERT INTO handler_invocations (execution_start_ts) VALUES (?)",
+                "INSERT INTO executions (kind, execution_start_ts) VALUES ('handler', ?)",
                 (now - i * 10,),
             )
         await db.commit()
@@ -218,7 +218,7 @@ class TestSizeFailsafePrePass:
     async def test_size_failsafe_deletes_log_records_before_execution_records(
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, mock_hassette_for_db: MagicMock
     ) -> None:
-        """Size failsafe pre-pass deletes from log_records before handler_invocations."""
+        """Size failsafe pre-pass deletes from log_records before execution records."""
 
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
@@ -238,8 +238,8 @@ class TestSizeFailsafePrePass:
         service._get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # handler_invocations should NOT be touched (log_records were sufficient)
-        cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
+        # executions should NOT be touched (log_records were sufficient)
+        cursor = await db.execute("SELECT COUNT(*) FROM executions")
         exec_count = (await cursor.fetchone())[0]
         assert exec_count == 5  # untouched
 
@@ -282,7 +282,7 @@ class TestSizeFailsafePrePass:
         await service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # Execution records should have been deleted (pre-pass was insufficient)
-        cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
+        cursor = await db.execute("SELECT COUNT(*) FROM executions")
         exec_remaining = (await cursor.fetchone())[0]
         assert exec_remaining < 5  # some deleted
 

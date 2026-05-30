@@ -1,7 +1,7 @@
 ---
 task_id: "T15h"
 title: "Update database service and schema-validation tests"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T08"]
 implements: ["AC#1"]
 ---
