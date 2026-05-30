@@ -1,7 +1,7 @@
 ---
 task_id: "T15f"
 title: "Update telemetry query-service tests for unified executions"
-status: "planned"
+status: "done"
 depends_on: ["T10", "T11"]
 implements: ["FR#10", "AC#1"]
 ---

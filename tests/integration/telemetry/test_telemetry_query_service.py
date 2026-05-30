@@ -6,8 +6,7 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
-    HandlerInvocation,
-    JobExecution,
+    Execution,
     JobSummary,
     ListenerSummary,
     SessionRecord,
@@ -386,9 +385,9 @@ class TestGetHandlerInvocations:
             await insert_invocation(db_svc, listener_id, session_id, execution_start_ts=base_ts + i)
 
         # limit=3 returns 3 most recent
-        rows = await query_service.get_handler_invocations(listener_id, limit=3)
+        rows = await query_service.get_executions(listener_id=listener_id, kind="handler", limit=3)
         assert len(rows) == 3
-        assert all(isinstance(r, HandlerInvocation) for r in rows)
+        assert all(isinstance(r, Execution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 4)
         assert rows[1].execution_start_ts == pytest.approx(base_ts + 3)
         assert rows[2].execution_start_ts == pytest.approx(base_ts + 2)
@@ -408,9 +407,9 @@ class TestGetJobExecutions:
         for i in range(3):
             await insert_execution(db_svc, job_id, session_id, execution_start_ts=base_ts + i)
 
-        rows = await query_service.get_job_executions(job_id, limit=2)
+        rows = await query_service.get_executions(job_id=job_id, kind="job", limit=2)
         assert len(rows) == 2
-        assert all(isinstance(r, JobExecution) for r in rows)
+        assert all(isinstance(r, Execution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 2)
         assert rows[1].execution_start_ts == pytest.approx(base_ts + 1)
 

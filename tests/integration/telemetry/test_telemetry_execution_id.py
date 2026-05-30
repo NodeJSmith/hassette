@@ -81,7 +81,7 @@ class TestHandlerInvocationExecutionId:
 
         await repo.persist_execution_batch([record])
 
-        results = await query_service.get_handler_invocations(listener_id, limit=10)
+        results = await query_service.get_executions(listener_id=listener_id, kind="handler", limit=10)
         assert len(results) == 1
         inv = results[0]
         assert inv.execution_id == "abc-123"
@@ -98,7 +98,7 @@ class TestHandlerInvocationExecutionId:
 
         await repo.persist_execution_batch([record])
 
-        results = await query_service.get_handler_invocations(listener_id, limit=10)
+        results = await query_service.get_executions(listener_id=listener_id, kind="handler", limit=10)
         assert len(results) == 1
         assert results[0].execution_id is None
 
@@ -189,11 +189,11 @@ class TestJobExecutionExecutionId:
 
         await repo.persist_execution_batch([record])
 
-        results = await query_service.get_job_executions(job_id, limit=10)
+        results = await query_service.get_executions(job_id=job_id, kind="job", limit=10)
         assert len(results) == 1
         je = results[0]
         assert je.execution_id == "def-789"
-        assert not hasattr(je, "trigger_context_id"), "JobExecution must not have trigger_context_id"
+        assert je.trigger_context_id is None, "Job executions must have trigger_context_id=None"
 
     async def test_job_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
         """_execution_insert_params() keys for kind=job must match the executions table columns."""
