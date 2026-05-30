@@ -40,7 +40,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App] or 
 
 ## Dates and Times
 
-Hassette uses the [`whenever`](https://whenever.readthedocs.io) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Python's `datetime` has a mutable API and makes it easy to accidentally create "naive" (timezone-unaware) objects — a common source of bugs in time-sensitive automations. `whenever` is always timezone-aware and immutable, so incorrect comparisons between naive and aware times become type errors rather than silent failures. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
+Hassette uses the [`whenever`](https://whenever.readthedocs.io/en/latest/) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Python's `datetime` has a mutable API and makes it easy to accidentally create "naive" (timezone-unaware) objects — a common source of bugs in time-sensitive automations. `whenever` is always timezone-aware and immutable, so incorrect comparisons between naive and aware times become type errors rather than silent failures. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:imports"
