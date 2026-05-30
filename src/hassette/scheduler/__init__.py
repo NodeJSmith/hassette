@@ -12,6 +12,7 @@ from hassette.types import TriggerProtocol
 from .classes import ScheduledJob
 from .error_context import SchedulerErrorContext
 from .scheduler import Scheduler
+from .sync import SchedulerSyncFacade
 from .triggers import After, Cron, Daily, Every, Once
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "ScheduledJob",
     "Scheduler",
     "SchedulerErrorContext",
+    "SchedulerSyncFacade",
     "TriggerProtocol",
 ]

@@ -671,3 +671,38 @@ class BusSyncFacade(Resource):
         return self.task_bucket.run_sync(
             self._bus.on_app_stopping(handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, **opts)
         )
+
+    def on_error(self, handler: "BusErrorHandlerType") -> None:
+        """Register an app-level error handler for this bus.
+
+        The handler is called when any listener on this bus raises an exception
+        (including ``TimeoutError``) and the listener does not have its own
+        per-registration error handler.
+
+        This is an app-level fallback — it is resolved at dispatch time, not at listener
+        registration time. A later call to ``on_error()`` replaces any previously registered
+        handler.
+
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
+        app shutdown may be cancelled before they complete. Do not rely on error handlers
+        for delivery-critical alerting during system teardown.
+
+        Args:
+            handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`."""
+
+        return self._bus.on_error(handler)
+
+    def remove_listener(self, listener: "Listener") -> None:
+        """Remove a listener from the bus."""
+
+        return self._bus.remove_listener(listener)
+
+    def remove_all_listeners(self) -> None:
+        """Remove all listeners owned by this bus's owner."""
+
+        return self._bus.remove_all_listeners()
+
+    def get_listeners(self) -> list["Listener"]:
+        """Get all listeners owned by this bus's owner."""
+
+        return self._bus.get_listeners()

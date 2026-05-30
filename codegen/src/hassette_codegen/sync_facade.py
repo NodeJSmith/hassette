@@ -9,6 +9,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
+from typing import TypeGuard
 
 # When run as a script (not as part of the installed package), ensure the
 # codegen/src directory is on sys.path so sibling module imports work.
@@ -334,6 +335,14 @@ LIFECYCLE_METHODS = frozenset(
 )
 """Resource lifecycle hooks that should NOT be wrapped as sync facades."""
 
+INTERNAL_METHODS = frozenset(
+    {
+        "register_and_check_collision",
+        "get_job_db_ids",
+    }
+)
+"""Public sync methods that are framework-internal plumbing, not user-facing."""
+
 
 def _safe_parse(source: str, filename: str) -> ast.Module:
     """Parse Python source, raising SystemExit with a clean message on SyntaxError."""
@@ -343,7 +352,7 @@ def _safe_parse(source: str, filename: str) -> ast.Module:
         raise SystemExit(f"Syntax error in {filename}: {e}") from e
 
 
-def is_overload(func: ast.AsyncFunctionDef) -> bool:
+def is_overload(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Return True if this function is an @overload stub."""
     for deco in func.decorator_list:
         if isinstance(deco, ast.Name) and deco.id == "overload":
@@ -353,7 +362,7 @@ def is_overload(func: ast.AsyncFunctionDef) -> bool:
     return False
 
 
-def format_signature_and_call(func: ast.AsyncFunctionDef) -> tuple[str, str]:
+def format_signature_and_call(func: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[str, str]:
     """Return (signature_source, call_arguments_source) for a function.
 
     - Signature includes `self` exactly as in the original.
@@ -490,7 +499,7 @@ def gen_wrapper(func: ast.AsyncFunctionDef, wrapped_attr: str = "_api") -> str:
     return body
 
 
-def _is_wrappable(node: ast.stmt) -> bool:
+def _is_wrappable(node: ast.stmt) -> TypeGuard[ast.AsyncFunctionDef]:
     """Return True if a class-body node is a public async method that should be wrapped.
 
     Excludes overloads, Resource lifecycle hooks, and underscore-prefixed methods
@@ -502,6 +511,42 @@ def _is_wrappable(node: ast.stmt) -> bool:
         and node.name not in LIFECYCLE_METHODS
         and not node.name.startswith("_")
     )
+
+
+def _is_delegatable(node: ast.stmt) -> TypeGuard[ast.FunctionDef]:
+    """Return True if a class-body node is a public sync method that should be delegated.
+
+    Matches plain ``def`` methods that are not properties, lifecycle hooks, overloads,
+    private, or internal plumbing. These get simple pass-through delegation on the facade.
+    """
+    if not isinstance(node, ast.FunctionDef):
+        return False
+    if node.name.startswith("_") or node.name in LIFECYCLE_METHODS or node.name in INTERNAL_METHODS:
+        return False
+    if is_overload(node):
+        return False
+    for deco in node.decorator_list:
+        if isinstance(deco, ast.Name) and deco.id == "property":
+            return False
+    return True
+
+
+def gen_delegate(func: ast.FunctionDef, wrapped_attr: str) -> str:
+    """Emit a sync delegate method that passes through to ``self.<wrapped_attr>``."""
+    sig, call = format_signature_and_call(func)
+    name = func.name
+    returns = f" -> {ast.unparse(func.returns)}" if func.returns else ""
+
+    doc = ast.get_docstring(func)
+    if doc:
+        doc = desync_docstring(doc)
+        doc_str = textwrap.indent('"""' + doc + '"""', " " * 8)
+        doc_block = f"\n{doc_str}\n\n"
+    else:
+        doc_block = "\n"
+
+    body = f"    def {name}({sig}){returns}:{doc_block}        return self.{wrapped_attr}.{name}({call})\n"
+    return body
 
 
 def _generate_facade(source_path: Path, class_name: str, *, header: str, class_header: str, wrapped_attr: str) -> str:
@@ -527,8 +572,9 @@ def _generate_facade(source_path: Path, class_name: str, *, header: str, class_h
         raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
 
     wrappers = [gen_wrapper(node, wrapped_attr) for node in target_class.body if _is_wrappable(node)]
+    delegates = [gen_delegate(node, wrapped_attr) for node in target_class.body if _is_delegatable(node)]
 
-    return header + class_header + "\n".join(wrappers)
+    return header + class_header + "\n".join(wrappers + delegates)
 
 
 def generate_sync(api_path: Path) -> str:

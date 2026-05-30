@@ -510,3 +510,69 @@ class SchedulerSyncFacade(Resource):
                 kwargs=kwargs,
             )
         )
+
+    def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
+        """Register an app-level error handler for this scheduler.
+
+        The handler is called when any job on this scheduler raises an exception
+        (including ``TimeoutError``) and the job does not have its own
+        per-registration error handler.
+
+        This is an app-level fallback — it is resolved at dispatch time, not at job
+        registration time. A later call to ``on_error()`` replaces any previously
+        registered handler.
+
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
+        app shutdown may be cancelled before they complete. Do not rely on error handlers
+        for delivery-critical alerting during system teardown.
+
+        Args:
+            handler: A sync or async callable that accepts a
+                :class:`~hassette.scheduler.error_context.SchedulerErrorContext`."""
+
+        return self._scheduler.on_error(handler)
+
+    def cancel_job(self, job: "ScheduledJob") -> None:
+        """Cancel an individual job and persist the cancellation to the database.
+
+        Idempotent: a second cancel on the same job is a silent no-op. Raises
+        ``ValueError`` if the job belongs to a different scheduler instance.
+        Spawns a durable ``mark_job_cancelled`` DB write (when ``db_id`` is set),
+        dequeues the job from the service, and sets ``job._dequeued = True``.
+
+        Must NOT call ``job.cancel()`` internally — that delegates back here and
+        would cause infinite recursion.
+
+        Args:
+            job: The job to cancel.
+
+        Raises:
+            ValueError: If the job belongs to a different scheduler instance."""
+
+        return self._scheduler.cancel_job(job)
+
+    def cancel_group(self, group: str) -> None:
+        """Cancel all jobs in the given group.
+
+        Delegates to ``cancel_job`` per-member, which handles the DB write,
+        dequeue, and ``_dequeued`` flag. Dict cleanup (``_jobs_by_group`` and
+        ``_jobs_by_name``) is handled by the ``_on_job_removed`` callback
+        fired by ``scheduler_service.dequeue_job``. No-op if the group does
+        not exist.
+
+        Args:
+            group: The group name to cancel."""
+
+        return self._scheduler.cancel_group(group)
+
+    def list_jobs(self, group: str | None = None) -> list["ScheduledJob"]:
+        """Return all or group-filtered jobs.
+
+        Args:
+            group: If provided, return only jobs in this group.
+                If ``None`` (default), return all jobs.
+
+        Returns:
+            List of ScheduledJob instances."""
+
+        return self._scheduler.list_jobs(group)
