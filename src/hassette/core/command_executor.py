@@ -388,6 +388,8 @@ class CommandExecutor(Service):
                     execution_start_ts=execution_start_ts,
                     duration_ms=result.duration_ms,
                     status=result.status,
+                    app_key=cmd.listener.identity.app_key,
+                    instance_index=cmd.listener.identity.instance_index,
                     source_tier=cmd.source_tier,
                     is_di_failure=result.is_di_failure,
                     error_type=result.error_type,
@@ -404,6 +406,8 @@ class CommandExecutor(Service):
                     execution_start_ts=execution_start_ts,
                     duration_ms=result.duration_ms,
                     status=result.status,
+                    app_key=cmd.job.app_key,
+                    instance_index=cmd.job.instance_index,
                     source_tier=cmd.source_tier,
                     is_di_failure=result.is_di_failure,
                     error_type=result.error_type,
@@ -550,9 +554,6 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         listener_id = await self.hassette.database_service.submit(self.repository.register_listener(registration))
-        rqs = self.hassette._runtime_query_service
-        if rqs is not None and listener_id != 0:
-            rqs.register_listener_meta(listener_id, registration.app_key, registration.instance_index)
         return listener_id
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
@@ -565,9 +566,6 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         job_id = await self.hassette.database_service.submit(self.repository.register_job(registration))
-        rqs = self.hassette._runtime_query_service
-        if rqs is not None and job_id != 0:
-            rqs.register_job_meta(job_id, registration.app_key, registration.instance_index)
         return job_id
 
     async def mark_job_cancelled(self, db_id: int) -> None:
@@ -609,9 +607,6 @@ class CommandExecutor(Service):
                 session_id=session_id,
             )
         )
-        rqs = self.hassette._runtime_query_service
-        if rqs is not None:
-            rqs.prune_meta(app_key, set(live_listener_ids), set(live_job_ids))
 
     async def _drain_and_persist(
         self,
@@ -873,34 +868,44 @@ class CommandExecutor(Service):
         invocations: list[HandlerInvocationRecord],
         job_executions: list[JobExecutionRecord],
     ) -> None:
-        """Emit lightweight bus topic events for persisted invocation and execution records.
+        """Emit bus topic events for persisted invocation and execution records.
 
         Fires ``HASSETTE_EVENT_INVOCATION_COMPLETED`` for each handler invocation
         and ``HASSETTE_EVENT_EXECUTION_COMPLETED`` for each job execution.
 
-        The payloads carry only ``listener_id``/``job_id`` plus execution result fields.
-        ``RuntimeQueryService`` resolves ``app_key`` and ``instance_index`` from its own
-        listener/job-meta registry at broadcast time — ``CommandExecutor`` has no enrichment
-        responsibility.
+        Payloads include ``app_key`` and ``instance_index`` sourced directly from the
+        in-memory record (populated at build time from the Listener/ScheduledJob object).
 
         Errors are suppressed so that emission failures never affect telemetry persistence.
         """
         try:
             app_invocations = [r for r in invocations if r.source_tier == "app"]
+            app_executions = [r for r in job_executions if r.source_tier == "app"]
+            # Regression guard (mirrors the sentinel-zero check in _persist_batch): an app-tier
+            # completion should always carry an owner. An empty app_key means registration misfired.
+            unowned = sum(1 for r in (*app_invocations, *app_executions) if not r.app_key)
+            if unowned:
+                self.logger.warning(
+                    "Emitting %d app-tier completion event(s) with empty app_key — telemetry will be unattributed",
+                    unowned,
+                )
             for record in app_invocations:
                 inv_event = HassetteInvocationCompletedEvent.from_record(
                     listener_id=record.listener_id,
                     status=record.status,
                     duration_ms=record.duration_ms,
+                    app_key=record.app_key,
+                    instance_index=record.instance_index,
                     error_type=record.error_type,
                 )
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_INVOCATION_COMPLETED, inv_event)
-            app_executions = [r for r in job_executions if r.source_tier == "app"]
             for record in app_executions:
                 exec_event = HassetteExecutionCompletedEvent.from_record(
                     job_id=record.job_id,
                     status=record.status,
                     duration_ms=record.duration_ms,
+                    app_key=record.app_key,
+                    instance_index=record.instance_index,
                     error_type=record.error_type,
                 )
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_EXECUTION_COMPLETED, exec_event)

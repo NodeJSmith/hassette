@@ -364,6 +364,12 @@ class JobExecutionRecord:
 
     duration_ms: float
     status: str  # "success", "error", "cancelled", "timed_out"
+    app_key: str = ""
+    """App key that owns this job. Empty string for framework-internal jobs."""
+
+    instance_index: int = 0
+    """Instance index within the app."""
+
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 

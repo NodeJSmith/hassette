@@ -167,31 +167,25 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
 
 @dataclass(slots=True, frozen=True)
 class InvocationCompletedPayload:
-    """Lightweight payload for handler invocation completed events.
-
-    Carries only the DB-level IDs and execution result.  ``app_key`` and
-    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
-    resolves them from its own listener-meta registry at broadcast time.
-    """
+    """Payload for handler invocation completed events."""
 
     listener_id: int | None
     status: str
     duration_ms: float
+    app_key: str = ""
+    instance_index: int = 0
     error_type: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
 class ExecutionCompletedPayload:
-    """Lightweight payload for scheduled job execution completed events.
-
-    Carries only the DB-level IDs and execution result.  ``app_key`` and
-    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
-    resolves them from its own job-meta registry at broadcast time.
-    """
+    """Payload for scheduled job execution completed events."""
 
     job_id: int | None
     status: str
     duration_ms: float
+    app_key: str = ""
+    instance_index: int = 0
     error_type: str | None = None
 
 
@@ -204,12 +198,16 @@ class HassetteInvocationCompletedEvent(Event[HassettePayload[InvocationCompleted
         listener_id: int | None,
         status: str,
         duration_ms: float,
+        app_key: str = "",
+        instance_index: int = 0,
         error_type: str | None = None,
     ) -> "HassetteInvocationCompletedEvent":
         payload = InvocationCompletedPayload(
             listener_id=listener_id,
             status=status,
             duration_ms=duration_ms,
+            app_key=app_key,
+            instance_index=instance_index,
             error_type=error_type,
         )
         return cls(
@@ -227,12 +225,16 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
         job_id: int | None,
         status: str,
         duration_ms: float,
+        app_key: str = "",
+        instance_index: int = 0,
         error_type: str | None = None,
     ) -> "HassetteExecutionCompletedEvent":
         payload = ExecutionCompletedPayload(
             job_id=job_id,
             status=status,
             duration_ms=duration_ms,
+            app_key=app_key,
+            instance_index=instance_index,
             error_type=error_type,
         )
         return cls(

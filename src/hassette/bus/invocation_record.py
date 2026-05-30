@@ -29,6 +29,12 @@ class HandlerInvocationRecord:
     status: str
     """Outcome: 'success', 'error', 'cancelled', or 'timed_out'."""
 
+    app_key: str = ""
+    """App key that owns this listener. Empty string for framework-internal handlers."""
+
+    instance_index: int = 0
+    """Instance index within the app."""
+
     source_tier: SourceTier = "app"
     """Whether this invocation originates from a user app or the framework itself."""
 

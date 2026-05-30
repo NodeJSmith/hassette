@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Enrich completion event payloads and remove meta dicts"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#5"]
 ---

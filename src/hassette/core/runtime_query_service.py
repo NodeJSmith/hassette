@@ -56,17 +56,6 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
-    _listener_meta: dict[int, tuple[str, int]]
-    """Maps listener DB-ID → (app_key, instance_index) for completion event enrichment.
-
-    Populated by :meth:`register_listener_meta` (called from ``CommandExecutor`` at
-    registration time).  Stale entries are pruned by :meth:`prune_meta` during
-    reconciliation after app reloads.
-    """
-
-    _job_meta: dict[int, tuple[str, int]]
-    """Maps job DB-ID → (app_key, instance_index) for completion event enrichment."""
-
     _pending_invocations: list[dict]
     """Invocation completion dicts accumulated within the current drain tick, flushed as a batch."""
 
@@ -87,8 +76,6 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
-        self._listener_meta: dict[int, tuple[str, int]] = {}
-        self._job_meta: dict[int, tuple[str, int]] = {}
         self._pending_invocations: list[dict] = []
         self._pending_executions: list[dict] = []
         self._flush_scheduled = False
@@ -232,13 +219,11 @@ class RuntimeQueryService(Resource):
     async def _on_invocation_completed(self, event: Event[Any]) -> None:
         """Accumulate an invocation completion into the pending batch for this drain tick."""
         data: InvocationCompletedPayload = event.payload.data
-        lid = data.listener_id if data.listener_id is not None else 0
-        app_key, instance_index = self._listener_meta.get(lid, ("", 0))
         self._pending_invocations.append(
             {
-                "listener_id": lid,
-                "app_key": app_key,
-                "instance_index": instance_index,
+                "listener_id": data.listener_id if data.listener_id is not None else 0,
+                "app_key": data.app_key,
+                "instance_index": data.instance_index,
                 "status": data.status,
                 "duration_ms": data.duration_ms,
                 "error_type": data.error_type,
@@ -249,13 +234,11 @@ class RuntimeQueryService(Resource):
     async def _on_execution_completed(self, event: Event[Any]) -> None:
         """Accumulate a job execution completion into the pending batch for this drain tick."""
         data: ExecutionCompletedPayload = event.payload.data
-        jid = data.job_id if data.job_id is not None else 0
-        app_key, instance_index = self._job_meta.get(jid, ("", 0))
         self._pending_executions.append(
             {
-                "job_id": jid,
-                "app_key": app_key,
-                "instance_index": instance_index,
+                "job_id": data.job_id if data.job_id is not None else 0,
+                "app_key": data.app_key,
+                "instance_index": data.instance_index,
                 "status": data.status,
                 "duration_ms": data.duration_ms,
                 "error_type": data.error_type,
@@ -302,40 +285,6 @@ class RuntimeQueryService(Resource):
             entry = {"type": "execution_completed", "data": executions, "timestamp": now}
             self._event_buffer.append(entry)
             await self.broadcast(entry)
-
-    def register_listener_meta(self, listener_db_id: int, app_key: str, instance_index: int) -> None:
-        """Record the (app_key, instance_index) for a newly registered listener DB row.
-
-        Called by ``CommandExecutor.register_listener`` immediately after the DB insert so that
-        ``RuntimeQueryService`` can enrich completion WS messages with app identity without the
-        ``CommandExecutor`` needing to know about the web layer.
-
-        Args:
-            listener_db_id: The ``id`` of the newly inserted ``listeners`` row.
-            app_key: The app key that owns this listener.
-            instance_index: The instance index within the app.
-        """
-        self._listener_meta[listener_db_id] = (app_key, instance_index)
-
-    def register_job_meta(self, job_db_id: int, app_key: str, instance_index: int) -> None:
-        """Record the (app_key, instance_index) for a newly registered scheduled job DB row.
-
-        Called by ``CommandExecutor.register_job`` immediately after the DB insert so that
-        ``RuntimeQueryService`` can enrich completion WS messages with app identity.
-
-        Args:
-            job_db_id: The ``id`` of the newly inserted ``scheduled_jobs`` row.
-            app_key: The app key that owns this job.
-            instance_index: The instance index within the app.
-        """
-        self._job_meta[job_db_id] = (app_key, instance_index)
-
-    def prune_meta(self, app_key: str, live_listener_ids: set[int], live_job_ids: set[int]) -> None:
-        """Remove stale entries for *one app* from the meta dicts after reconciliation."""
-        self._listener_meta = {
-            k: v for k, v in self._listener_meta.items() if v[0] != app_key or k in live_listener_ids
-        }
-        self._job_meta = {k: v for k, v in self._job_meta.items() if v[0] != app_key or k in live_job_ids}
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()
