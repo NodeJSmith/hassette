@@ -11,7 +11,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - **No `from __future__ import annotations`.** Breaks Pydantic, FastAPI, dataclasses, and runtime type inspection. Always flag this.
 - **No `Optional[X]`.** Use `X | None`.
 - **No lazy imports.** All imports at the top of the file. Only exception: `TYPE_CHECKING` guards for circular import avoidance.
-- **Immutability.** Create new objects, never mutate existing ones. PySpark-style DataFrame reassignment is fine (rebinds to a new immutable object).
+- **Immutability.** Create new objects, never mutate existing ones.
 - **Use `whenever` instead of stdlib `datetime`.** Convert at boundaries when libraries require stdlib types.
 - **No `_` prefix on methods.** All methods are public. This is a framework, not a library with external consumers.
 - **Early returns.** Guard clauses at the top, happy path at the bottom.
