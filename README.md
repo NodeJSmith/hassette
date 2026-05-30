@@ -7,8 +7,8 @@
 
 [![PyPI version](https://badge.fury.io/py/hassette.svg)](https://badge.fury.io/py/hassette)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation Status](https://readthedocs.org/projects/hassette/badge/?version=stable)](https://hassette.readthedocs.io/en/stable/?badge=stable)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/license/MIT)
+[![Documentation Status](https://app.readthedocs.org/projects/hassette/badge/?version=stable)](https://hassette.readthedocs.io/en/stable/?badge=stable)
 [![codecov](https://codecov.io/github/NodeJSmith/hassette/graph/badge.svg?token=I3E5S2E3X8)](https://codecov.io/github/NodeJSmith/hassette)
 
 A simple, modern, async-first Python framework for building Home Assistant automations.
@@ -71,11 +71,11 @@ See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/
 
 Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for complete working examples:
 
-- [motion_lights.py](https://github.com/NodeJSmith/hassette/tree/main/examples/motion_lights.py) - Motion-activated lights with debounce
-- [climate_controller.py](https://github.com/NodeJSmith/hassette/tree/main/examples/climate_controller.py) - Temperature monitoring with glob patterns
-- [cover_scheduler.py](https://github.com/NodeJSmith/hassette/tree/main/examples/cover_scheduler.py) - Cron/daily scheduling for blinds
-- [presence_tracker.py](https://github.com/NodeJSmith/hassette/tree/main/examples/presence_tracker.py) - Dynamic subscription management
-- [security_monitor.py](https://github.com/NodeJSmith/hassette/tree/main/examples/security_monitor.py) - Synchronous app with throttle
+- [motion_lights.py](https://github.com/NodeJSmith/hassette/blob/main/examples/motion_lights.py) - Motion-activated lights with debounce
+- [climate_controller.py](https://github.com/NodeJSmith/hassette/blob/main/examples/climate_controller.py) - Temperature monitoring with glob patterns
+- [cover_scheduler.py](https://github.com/NodeJSmith/hassette/blob/main/examples/cover_scheduler.py) - Cron/daily scheduling for blinds
+- [presence_tracker.py](https://github.com/NodeJSmith/hassette/blob/main/examples/presence_tracker.py) - Dynamic subscription management
+- [security_monitor.py](https://github.com/NodeJSmith/hassette/blob/main/examples/security_monitor.py) - Synchronous app with throttle
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/) - Docker deployment setup
@@ -85,7 +85,7 @@ Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/exa
 
 Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.x.0`) while the API stabilizes.
 
-Development is tracked in our [GitHub project](https://github.com/users/NodeJSmith/projects/1). Open an issue or PR if you'd like to contribute!
+Open an issue or PR if you'd like to contribute!
 
 ### Recent Highlights
 

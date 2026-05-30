@@ -9,11 +9,11 @@ The canonical sequence for any time-control test is:
 ```
 
 !!! note "`whenever` is installed automatically"
-    Time control examples on this page import from [`whenever`](https://whenever.readthedocs.io/) — Hassette's date/time library. It's a direct dependency of `hassette`, so it's installed automatically. No separate install needed.
+    Time control examples on this page import from [`whenever`](https://whenever.readthedocs.io/en/latest/) — Hassette's date/time library. It's a direct dependency of `hassette`, so it's installed automatically. No separate install needed.
 
 ## `freeze_time(instant)`
 
-Freezes `hassette.utils.date_utils.now` at the given time. Accepts an `Instant` or `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/) library. No stdlib `datetime` — the scheduler uses `whenever` types throughout.
+Freezes `hassette.utils.date_utils.now` at the given time. Accepts an `Instant` or `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library. No stdlib `datetime` — the scheduler uses `whenever` types throughout.
 
 ```python
 --8<-- "pages/testing/snippets/testing_freeze_time.py"
