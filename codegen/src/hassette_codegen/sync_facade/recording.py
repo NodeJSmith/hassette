@@ -6,15 +6,15 @@ from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
     LIFECYCLE_METHODS,
-    _safe_parse,
     is_overload,
+    safe_parse,
 )
 from hassette_codegen.sync_facade.recording_imports import (
-    _build_precise_import_block,
-    _collect_annotation_symbols,
-    _collect_module_level_import_map,
     _collect_referenced_symbols,
-    _collect_type_checking_import_map,
+    build_precise_import_block,
+    collect_annotation_symbols,
+    collect_module_level_import_map,
+    collect_type_checking_import_map,
 )
 from hassette_codegen.sync_facade.recording_transform import (
     gen_recording_method,
@@ -108,7 +108,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     """Generate the full RecordingSyncFacade source.
 
     Imports are derived via ``_collect_referenced_symbols`` +
-    ``_build_precise_import_block`` directly. This pair is **lenient** about
+    ``build_precise_import_block`` directly. This pair is **lenient** about
     unknown symbols (it skips any name that doesn't appear in the symbol map)
     because body-copied method bodies reference many lowercase symbols that are
     local variables, parameters, or comprehension targets — not imports. The
@@ -126,7 +126,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     """
     # Parse Api to get the ordered method list
     api_source = api_path.read_text(encoding="utf8")
-    api_module = _safe_parse(api_source, str(api_path))
+    api_module = safe_parse(api_source, str(api_path))
 
     api_class = _find_class(api_module, "Api", str(api_path))
 
@@ -139,7 +139,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     # Parse RecordingApi
     recording_source = recording_api_path.read_text(encoding="utf8")
-    recording_module = _safe_parse(recording_source, str(recording_api_path))
+    recording_module = safe_parse(recording_source, str(recording_api_path))
 
     recording_class = _find_class(recording_module, "RecordingApi", str(recording_api_path))
 
@@ -154,14 +154,14 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     # Build the symbol map from both recording_api.py and api.py imports.
     # api.py imports cover stub signatures (PlainDateTime, ZonedDateTime, StrEnum, etc.)
-    recording_symbol_map = _collect_module_level_import_map(recording_source)
-    api_symbol_map = _collect_module_level_import_map(api_source)
+    recording_symbol_map = collect_module_level_import_map(recording_source)
+    api_symbol_map = collect_module_level_import_map(api_source)
     # Merge: recording_api takes precedence (it's the primary source)
     combined_symbol_map = {**api_symbol_map, **recording_symbol_map}
 
     # Also collect TYPE_CHECKING imports from both files (symbols only available at type-check time)
-    recording_tc_map = _collect_type_checking_import_map(recording_source)
-    api_tc_map = _collect_type_checking_import_map(api_source)
+    recording_tc_map = collect_type_checking_import_map(recording_source)
+    api_tc_map = collect_type_checking_import_map(api_source)
     combined_tc_map = {**api_tc_map, **recording_tc_map}
 
     fixed_header_symbols = FIXED_HEADER_SYMBOLS
@@ -183,7 +183,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
         if use_body_copy:
             assert rec_func is not None
             # Collect annotation symbols from the recording_api signature
-            runtime_syms, string_syms = _collect_annotation_symbols(rec_func)
+            runtime_syms, string_syms = collect_annotation_symbols(rec_func)
             all_runtime_annotation_symbols |= runtime_syms
             all_string_ref_symbols |= string_syms
             # Body-copy from RecordingApi
@@ -192,7 +192,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
             all_body_nodes.extend(body_nodes)
         else:
             # Stub — use the Api signature for the stub type annotations
-            runtime_syms, string_syms = _collect_annotation_symbols(api_func)
+            runtime_syms, string_syms = collect_annotation_symbols(api_func)
             all_runtime_annotation_symbols |= runtime_syms
             all_string_ref_symbols |= string_syms
             method_src = gen_recording_stub(api_func)
@@ -203,7 +203,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     needed_symbols = (body_symbols | all_runtime_annotation_symbols) - fixed_header_symbols
 
     # Build a precise import block — only the symbols actually needed, not whole multi-symbol lines
-    import_block = _build_precise_import_block(needed_symbols, combined_symbol_map)
+    import_block = build_precise_import_block(needed_symbols, combined_symbol_map)
 
     # Build the TYPE_CHECKING block for forward-reference symbols not available at runtime.
     # These are string annotations (quoted types) that only need to be resolvable for type checkers.
@@ -215,12 +215,12 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     for sym in sorted(type_checking_symbols):
         if sym in combined_tc_map:
             # Build a single-symbol import line for this type-checking-only symbol
-            precise = _build_precise_import_block({sym}, combined_tc_map)
+            precise = build_precise_import_block({sym}, combined_tc_map)
             if precise:
                 type_checking_extra_lines.append(f"    {precise}")
         elif sym in combined_symbol_map:
             # Fall back to runtime symbol map (might be a type not tagged as TC-only)
-            precise = _build_precise_import_block({sym}, combined_symbol_map)
+            precise = build_precise_import_block({sym}, combined_symbol_map)
             if precise:
                 type_checking_extra_lines.append(f"    {precise}")
     type_checking_imports = ("\n" + "\n".join(type_checking_extra_lines) + "\n") if type_checking_extra_lines else "\n"

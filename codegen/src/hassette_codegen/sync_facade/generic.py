@@ -5,11 +5,11 @@ import textwrap
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
-    _is_delegatable,
-    _is_wrappable,
-    _safe_parse,
     desync_docstring,
     format_signature_and_call,
+    is_delegatable,
+    is_wrappable,
+    safe_parse,
 )
 
 HEADER = '''"""Auto-generated synchronous facade for `Api`.
@@ -256,7 +256,7 @@ def _generate_facade(source_path: Path, class_name: str, *, header: str, class_h
     the drift gate, exactly as the ``ApiSyncFacade`` header is maintained today.
     """
     source = source_path.read_text(encoding="utf8")
-    module = _safe_parse(source, str(source_path))
+    module = safe_parse(source, str(source_path))
 
     target_class: ast.ClassDef | None = None
     for node in module.body:
@@ -267,8 +267,8 @@ def _generate_facade(source_path: Path, class_name: str, *, header: str, class_h
     if target_class is None:
         raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
 
-    wrappers = [gen_wrapper(node, wrapped_attr) for node in target_class.body if _is_wrappable(node)]
-    delegates = [gen_delegate(node, wrapped_attr) for node in target_class.body if _is_delegatable(node)]
+    wrappers = [gen_wrapper(node, wrapped_attr) for node in target_class.body if is_wrappable(node)]
+    delegates = [gen_delegate(node, wrapped_attr) for node in target_class.body if is_delegatable(node)]
 
     return header + class_header + "\n".join(wrappers + delegates)
 

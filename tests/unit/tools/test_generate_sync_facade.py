@@ -18,10 +18,10 @@ from hassette_codegen.output import format_via_ruff  # noqa: E402
 from hassette_codegen.sync_facade.ast_utils import desync_docstring  # noqa: E402
 from hassette_codegen.sync_facade.recording import generate_sync_recording  # noqa: E402
 from hassette_codegen.sync_facade.recording_imports import (  # noqa: E402
-    _build_precise_import_block,
-    _collect_module_level_import_map,
     _collect_referenced_symbols,
     _derive_recording_imports_strict,
+    build_precise_import_block,
+    collect_module_level_import_map,
 )
 from hassette_codegen.sync_facade.recording_transform import (  # noqa: E402
     _RecordingBodyRewriter,
@@ -187,12 +187,12 @@ async def get_state(self, entity_id: str):
 
 def test_derive_imports_from_body_references() -> None:
     """The production import-derivation pair (_collect_referenced_symbols +
-    _build_precise_import_block) returns correct imports for type-like symbols
+    build_precise_import_block) returns correct imports for type-like symbols
     (EntityNotFoundError, BaseState) referenced in a body, sourced from
     recording_api.py's import statements.
     """
     recording_source = RECORDING_API_PATH.read_text(encoding="utf-8")
-    symbol_map = _collect_module_level_import_map(recording_source)
+    symbol_map = collect_module_level_import_map(recording_source)
 
     # Construct a synthetic body that references EntityNotFoundError and BaseState as Name nodes.
     # We use `model is BaseState` so BaseState appears as a plain ast.Name in the body.
@@ -212,7 +212,7 @@ async def foo(self, entity_id: str, model):
     body_nodes = [rewriter.visit(copy.deepcopy(stmt)) for stmt in func.body]
 
     referenced = _collect_referenced_symbols(body_nodes)
-    import_block = _build_precise_import_block(referenced, symbol_map)
+    import_block = build_precise_import_block(referenced, symbol_map)
 
     assert "EntityNotFoundError" in import_block
     assert "BaseState" in import_block
@@ -225,7 +225,7 @@ def test_derive_imports_raises_on_unknown_symbol() -> None:
     Lowercase variable names are assumed to be local variables and skipped.
     """
     recording_source = RECORDING_API_PATH.read_text(encoding="utf-8")
-    symbol_map = _collect_module_level_import_map(recording_source)
+    symbol_map = collect_module_level_import_map(recording_source)
 
     # Body references XUnknownTypeSymbol — an uppercase symbol not in recording_api.py imports.
     source = """\

@@ -2,16 +2,16 @@
 
 import ast
 
-from hassette_codegen.sync_facade.ast_utils import BUILTIN_NAMES, WELL_KNOWN_NAMES, _safe_parse
+from hassette_codegen.sync_facade.ast_utils import BUILTIN_NAMES, WELL_KNOWN_NAMES, safe_parse
 
 
-def _collect_type_checking_import_map(source: str) -> dict[str, str]:
+def collect_type_checking_import_map(source: str) -> dict[str, str]:
     """Build a symbol â†’ import-statement-source map from TYPE_CHECKING blocks only.
 
     These symbols are only available at type-check time and must be placed in
     ``if typing.TYPE_CHECKING:`` blocks in the generated file.
     """
-    module = _safe_parse(source, "<source>")
+    module = safe_parse(source, "<source>")
     symbol_map: dict[str, str] = {}
 
     for node in module.body:
@@ -35,18 +35,18 @@ def _collect_type_checking_import_map(source: str) -> dict[str, str]:
     return symbol_map
 
 
-def _collect_module_level_import_map(source: str) -> dict[str, str]:
+def collect_module_level_import_map(source: str) -> dict[str, str]:
     """Build a symbol â†’ import-statement-source map from only module-level imports.
 
     For ``from X import A, B, C`` lines, each symbol is mapped individually to
-    the whole import line. However, ``_build_precise_import_block`` should be
+    the whole import line. However, ``build_precise_import_block`` should be
     used when you need only the symbols actually required (to avoid emitting
     unused imports from multi-symbol import lines).
 
     This skips TYPE_CHECKING blocks and only includes imports at the module
     top level (not inside functions or classes).
     """
-    module = _safe_parse(source, "<source>")
+    module = safe_parse(source, "<source>")
     symbol_map: dict[str, str] = {}
 
     def _add_import_node(import_node: ast.ImportFrom | ast.Import) -> None:
@@ -78,7 +78,7 @@ def _collect_module_level_import_map(source: str) -> dict[str, str]:
     return symbol_map
 
 
-def _build_precise_import_block(
+def build_precise_import_block(
     needed_symbols: set[str],
     symbol_map: dict[str, str],
 ) -> str:
@@ -171,7 +171,7 @@ def _derive_recording_imports_strict(  # pyright: ignore[reportUnusedFunction] â
     and are silently skipped.
 
     Used **only by the unit test for the error case**. Production generation
-    uses ``_build_precise_import_block`` directly (which is silently lenient
+    uses ``build_precise_import_block`` directly (which is silently lenient
     about unknown symbols and emits only the lines for symbols it can resolve)
     because method bodies reference many lowercase symbols that are local
     variables, parameters, or comprehension targets â€” not imports.
@@ -193,7 +193,7 @@ def _derive_recording_imports_strict(  # pyright: ignore[reportUnusedFunction] â
     return "\n".join(sorted(import_lines))
 
 
-def _collect_annotation_symbols(func: ast.AsyncFunctionDef) -> tuple[set[str], set[str]]:
+def collect_annotation_symbols(func: ast.AsyncFunctionDef) -> tuple[set[str], set[str]]:
     """Collect Name ids from all type annotations in a function's signature and return type.
 
     Returns:

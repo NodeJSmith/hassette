@@ -53,7 +53,7 @@ INTERNAL_METHODS = frozenset(
 """Public sync methods that are framework-internal plumbing, not user-facing."""
 
 
-def _safe_parse(source: str, filename: str) -> ast.Module:
+def safe_parse(source: str, filename: str) -> ast.Module:
     """Parse Python source, raising SystemExit with a clean message on SyntaxError."""
     try:
         return ast.parse(source, filename=filename)
@@ -166,7 +166,7 @@ def desync_docstring(doc: str) -> str:
     return _AWAITED_INLINE_PHRASE.sub("completes inline", doc)
 
 
-def _is_wrappable(node: ast.stmt) -> TypeGuard[ast.AsyncFunctionDef]:
+def is_wrappable(node: ast.stmt) -> TypeGuard[ast.AsyncFunctionDef]:
     """Return True if a class-body node is a public async method that should be wrapped.
 
     Excludes overloads, Resource lifecycle hooks, and underscore-prefixed methods
@@ -180,7 +180,7 @@ def _is_wrappable(node: ast.stmt) -> TypeGuard[ast.AsyncFunctionDef]:
     )
 
 
-def _is_delegatable(node: ast.stmt) -> TypeGuard[ast.FunctionDef]:
+def is_delegatable(node: ast.stmt) -> TypeGuard[ast.FunctionDef]:
     """Return True if a class-body node is a public sync method that should be delegated.
 
     Matches plain ``def`` methods that are not properties, lifecycle hooks, overloads,
