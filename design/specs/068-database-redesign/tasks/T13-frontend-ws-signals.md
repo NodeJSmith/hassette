@@ -1,7 +1,7 @@
 ---
 task_id: "T13"
 title: "Merge frontend WS signals and remove droppedNoSession"
-status: "planned"
+status: "done"
 depends_on: ["T11", "T12"]
 implements: ["FR#11", "FR#16", "AC#3"]
 ---
