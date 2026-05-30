@@ -38,14 +38,14 @@ class MotionLights(App[MotionLightsConfig]):
         )
 
         # Motion detected → turn light on immediately
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             cfg.motion_entity,
             changed_to="on",
             handler=self.on_motion_detected,
         )
 
         # Motion cleared → turn light off after a delay
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             cfg.motion_entity,
             changed_to="off",
             handler=self.on_motion_cleared,

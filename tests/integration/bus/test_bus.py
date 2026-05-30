@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import typing
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -53,7 +53,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
     async def handler(_event):
         await asyncio.sleep(0)
 
-    add_listener_mock = Mock()
+    add_listener_mock = AsyncMock()
     remove_listener_mock = Mock()
     original_service = bus.bus_service
     original_remove = bus.remove_listener
@@ -61,7 +61,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
     bus.remove_listener = remove_listener_mock
 
     try:
-        subscription = bus.on(
+        subscription = await bus.on(
             topic="demo.topic",
             handler=handler,
             where=[lambda _: True],
@@ -69,6 +69,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
             once=once,
             debounce=debounce,
             throttle=throttle,
+            name="demo_topic",
         )
 
         assert isinstance(subscription, Subscription)
@@ -95,12 +96,13 @@ async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_state_change(
+    subscription = await bus.on_state_change(
         "sensor.kitchen",
         handler=handler,
         changed_from="off",
         changed_to="on",
         kwargs=None,
+        name="sensor_kitchen_state",
     )
 
     listener = subscription.listener
@@ -122,12 +124,13 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_attribute_change(
+    subscription = await bus.on_attribute_change(
         "light.office",
         "brightness",
         handler=handler,
         changed_from=100,
         changed_to=200,
+        name="light_office_brightness",
     )
 
     listener = subscription.listener
@@ -163,11 +166,12 @@ async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
         pass
 
     extra_guard = Guard(lambda event: event.payload.data.service_data.get("brightness", 0) > 150)
-    subscription = bus.on_call_service(
+    subscription = await bus.on_call_service(
         domain="light",
         service="turn_on",
         handler=handler,
         where=[{"entity_id": IsOrContains("light.kitchen")}, extra_guard],
+        name="light_turn_on_service",
     )
 
     listener = subscription.listener
@@ -208,7 +212,7 @@ async def test_once_listener_removed(hassette_with_bus: "HassetteHarness") -> No
         received_payloads.append(event.payload.value)
         hassette_with_bus.task_bucket.post_to_loop(first_invocation.set)
 
-    hassette.bus.on(topic="custom.once", handler=handler, once=True)
+    await hassette.bus.on(topic="custom.once", handler=handler, once=True, name="custom_once")
 
     await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=1)))
 
@@ -238,7 +242,7 @@ async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_wi
         # Yield to let the second dispatch task run concurrently
         await asyncio.sleep(0)
 
-    hassette.bus.on(topic="custom.rapid", handler=handler, once=True)
+    await hassette.bus.on(topic="custom.rapid", handler=handler, once=True, name="custom_rapid")
 
     # Send two events back-to-back — both enter dispatch before removal task executes
     ev1 = Event(topic="custom.rapid", payload=SimpleNamespace(value=1))
@@ -262,7 +266,7 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus: "HassetteHarness"
     async def handler(_event: Event[SimpleNamespace]) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_received.set)
 
-    hassette.bus.on(topic="custom.cleanup", handler=handler, once=True)
+    await hassette.bus.on(topic="custom.cleanup", handler=handler, once=True, name="custom_cleanup")
 
     await hassette.send_event("custom.cleanup", Event(topic="custom.cleanup", payload=SimpleNamespace(value=9)))
 
@@ -283,7 +287,7 @@ async def test_bus_uses_kwargs(hassette_with_bus: "HassetteHarness") -> None:
         formatted_messages.append(f"Value: {event.payload.value}{suffix}")
         hassette_with_bus.task_bucket.post_to_loop(event_processed.set)
 
-    hassette.bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"})
+    await hassette.bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"}, name="custom_args")
 
     await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
 
@@ -325,9 +329,11 @@ async def assert_glob_matching(
             harness.task_bucket.post_to_loop(events_processed.set)
 
     if use_attribute:
-        harness.bus.on_attribute_change(entity_id=entity_id, attr="friendly_name", handler=handler)
+        await harness.bus.on_attribute_change(
+            entity_id=entity_id, attr="friendly_name", handler=handler, name="glob_attr_match"
+        )
     else:
-        harness.bus.on_state_change(entity_id=entity_id, handler=handler)
+        await harness.bus.on_state_change(entity_id=entity_id, handler=handler, name="glob_state_match")
 
     for eid in GLOB_ENTITIES:
         attrs = {"friendly_name": f"{eid} Name"} if use_attribute else {}
@@ -368,7 +374,7 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_state_change("sensor.eager_test", handler=handler)
+    subscription = await bus.on_state_change("sensor.eager_test", handler=handler, name="eager_test")
     listener = subscription.listener
 
     await wait_for(lambda: listener.db_id is not None, desc="listener registered")
@@ -391,7 +397,7 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
         if set(received_entity_ids) == expected:
             hassette_with_bus.task_bucket.post_to_loop(events_processed.set)
 
-    hassette.bus.on_state_change(entity_id="*", handler=handler)
+    await hassette.bus.on_state_change(entity_id="*", handler=handler, name="all_state_changes")
 
     await hassette.send_event(
         Topic.HASS_EVENT_STATE_CHANGED,
@@ -422,7 +428,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
     def handler(_event: Event) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_handled.set)
 
-    hassette.bus.on(topic="custom.exec_test", handler=handler)
+    await hassette.bus.on(topic="custom.exec_test", handler=handler, name="exec_test")
 
     # Simulate an app-owned listener by setting db_id (internal listeners have db_id=None)
     await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="registration task completed")
@@ -458,7 +464,7 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette.bus.on(topic="custom.internal_test", handler=handler)
+    await hassette.bus.on(topic="custom.internal_test", handler=handler, name="internal_test")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -487,7 +493,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from internal handler")
 
-    hassette.bus.on(topic="custom.error_test", handler=failing_handler)
+    await hassette.bus.on(topic="custom.error_test", handler=failing_handler, name="error_test")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -516,7 +522,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette.bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1)
+    await hassette.bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1, name="debounce_test")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -550,7 +556,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette.bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
+    await hassette.bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0, name="throttle_test")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -588,7 +594,7 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
         hassette.task_bucket.post_to_loop(event_handled.set)
 
     # Internal bus (no app_key) — listener gets db_id=None, but still routes through executor
-    hassette.bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1)
+    await hassette.bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1, name="internal_debounce")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -623,7 +629,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
         call_count += 1
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette.bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0)
+    await hassette.bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0, name="internal_throttle")
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -658,7 +664,9 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from debounced internal handler")
 
-    hassette.bus.on(topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05)
+    await hassette.bus.on(
+        topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05, name="internal_debounce_error"
+    )
 
     executor = hassette.bus_service._executor
     executor.execute.reset_mock()
@@ -687,7 +695,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
         nonlocal handler_fired
         handler_fired = True
 
-    hassette.bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
+    await hassette.bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5, name="cancel_debounce")
 
     # Wait until listener appears in the router (registration is async + DB-backed)
     topic = "custom.cancel_debounce"
@@ -728,7 +736,7 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_state_change("light.kitchen", handler=handler, immediate=True)
+    subscription = await bus.on_state_change("light.kitchen", handler=handler, immediate=True, name="kitchen_immediate")
     assert subscription.listener.duration_config.immediate is True
     assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
@@ -739,7 +747,7 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_state_change("light.kitchen", handler=handler, duration=5.0)
+    subscription = await bus.on_state_change("light.kitchen", handler=handler, duration=5.0, name="kitchen_duration")
     assert subscription.listener.duration_config.duration == 5.0
     assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
@@ -751,10 +759,10 @@ async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
         pass
 
     with pytest.raises(ValueError, match="immediate"):
-        bus.on_state_change("light.*", handler=handler, immediate=True)
+        await bus.on_state_change("light.*", handler=handler, immediate=True, name="glob_immediate_1")
 
     with pytest.raises(ValueError, match="immediate"):
-        bus.on_state_change("light.kitchen?", handler=handler, immediate=True)
+        await bus.on_state_change("light.kitchen?", handler=handler, immediate=True, name="glob_immediate_2")
 
 
 async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
@@ -763,7 +771,9 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, immediate=True)
+    subscription = await bus.on_attribute_change(
+        "light.kitchen", "brightness", handler=handler, immediate=True, name="kitchen_brightness_immediate"
+    )
     assert subscription.listener.duration_config.immediate is True
     assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
@@ -774,7 +784,9 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
     def handler(event: Event) -> None:
         pass
 
-    subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, duration=5.0)
+    subscription = await bus.on_attribute_change(
+        "light.kitchen", "brightness", handler=handler, duration=5.0, name="kitchen_brightness_duration"
+    )
     assert subscription.listener.duration_config.duration == 5.0
     assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
@@ -786,4 +798,6 @@ async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> No
         pass
 
     with pytest.raises(ValueError, match="immediate"):
-        bus.on_attribute_change("light.*", "brightness", handler=handler, immediate=True)
+        await bus.on_attribute_change(
+            "light.*", "brightness", handler=handler, immediate=True, name="glob_attr_immediate"
+        )

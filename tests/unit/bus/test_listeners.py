@@ -1,6 +1,5 @@
 """Unit tests for Listener immediate, duration, entity_id, error_handler, and cancel-listener factory."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -198,19 +197,14 @@ class TestCreateCancelListener:
         )
         assert listener.listener_id > 0
 
-    def test_cancel_subscription_has_resolved_future(self) -> None:
-        """A Subscription for a cancel-listener receives an already-resolved Future (AC#9)."""
-        loop = asyncio.new_event_loop()
-        try:
-            resolved: asyncio.Future[None] = loop.create_future()
-            resolved.set_result(None)
-            sub = Subscription(
-                listener=MagicMock(),
-                unsubscribe=MagicMock(),
-                registration_task=resolved,
-            )
-            assert sub.registration_task is not None
-            assert sub.registration_task.done()
-            assert sub.registration_task.result() is None
-        finally:
-            loop.close()
+    def test_cancel_subscription_has_no_registration_task(self) -> None:
+        """A Subscription for a cancel-listener has no registration_task field (AC#7).
+
+        Under synchronous registration, Subscription has no registration_task.
+        Cancel-listeners bypass DB registration entirely.
+        """
+        sub = Subscription(
+            listener=MagicMock(),
+            unsubscribe=MagicMock(),
+        )
+        assert not hasattr(sub, "registration_task"), "Subscription must not have registration_task field"

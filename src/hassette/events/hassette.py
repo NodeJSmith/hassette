@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from hassette.events.base import Event, HassettePayload
 from hassette.types import ResourceRole, ResourceStatus, Topic
@@ -166,56 +166,21 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
 
 
 @dataclass(slots=True, frozen=True)
-class InvocationCompletedPayload:
-    """Lightweight payload for handler invocation completed events.
-
-    Carries only the DB-level IDs and execution result.  ``app_key`` and
-    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
-    resolves them from its own listener-meta registry at broadcast time.
-    """
-
-    listener_id: int | None
-    status: str
-    duration_ms: float
-    error_type: str | None = None
-
-
-@dataclass(slots=True, frozen=True)
 class ExecutionCompletedPayload:
-    """Lightweight payload for scheduled job execution completed events.
+    """Payload for a completed execution — handler invocation or scheduled job.
 
-    Carries only the DB-level IDs and execution result.  ``app_key`` and
-    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
-    resolves them from its own job-meta registry at broadcast time.
+    ``kind`` distinguishes the two: ``listener_id`` is set when ``kind == "handler"``,
+    ``job_id`` when ``kind == "job"``.
     """
 
-    job_id: int | None
+    kind: Literal["handler", "job"]
     status: str
     duration_ms: float
+    listener_id: int | None = None
+    job_id: int | None = None
+    app_key: str = ""
+    instance_index: int = 0
     error_type: str | None = None
-
-
-class HassetteInvocationCompletedEvent(Event[HassettePayload[InvocationCompletedPayload]]):
-    """Event emitted after a handler invocation is persisted to telemetry."""
-
-    @classmethod
-    def from_record(
-        cls,
-        listener_id: int | None,
-        status: str,
-        duration_ms: float,
-        error_type: str | None = None,
-    ) -> "HassetteInvocationCompletedEvent":
-        payload = InvocationCompletedPayload(
-            listener_id=listener_id,
-            status=status,
-            duration_ms=duration_ms,
-            error_type=error_type,
-        )
-        return cls(
-            topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
-            payload=HassettePayload(event_type="invocation_completed", data=payload),
-        )
 
 
 class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPayload]]):
@@ -224,15 +189,23 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
     @classmethod
     def from_record(
         cls,
-        job_id: int | None,
+        kind: Literal["handler", "job"],
         status: str,
         duration_ms: float,
+        listener_id: int | None = None,
+        job_id: int | None = None,
+        app_key: str = "",
+        instance_index: int = 0,
         error_type: str | None = None,
     ) -> "HassetteExecutionCompletedEvent":
         payload = ExecutionCompletedPayload(
-            job_id=job_id,
+            kind=kind,
             status=status,
             duration_ms=duration_ms,
+            listener_id=listener_id,
+            job_id=job_id,
+            app_key=app_key,
+            instance_index=instance_index,
             error_type=error_type,
         )
         return cls(

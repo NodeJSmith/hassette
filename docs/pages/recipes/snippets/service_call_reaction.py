@@ -15,11 +15,12 @@ class LightGroupApp(App[LightGroupConfig]):
     """Mirror accent light whenever the primary light is turned on."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_call_service(
+        await self.bus.on_call_service(
             domain="light",
             service="turn_on",
             where=P.ServiceDataWhere({"entity_id": self.app_config.primary_light}),
             handler=self.on_primary_turned_on,
+            name="primary_light_on",
         )
 
     async def on_primary_turned_on(self, event: CallServiceEvent) -> None:

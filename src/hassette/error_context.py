@@ -17,7 +17,7 @@ class ErrorContext:
             traceback pins originating stack frame locals until this context is
             garbage-collected (bounded by ``error_handler_timeout_seconds``).
         traceback: Formatted traceback string.
-        execution_id: UUID4 identifying the execution that failed, or None.
+        execution_id: UUIDv7 identifying the execution that failed, or None.
     """
 
     exception: BaseException

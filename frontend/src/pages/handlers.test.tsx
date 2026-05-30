@@ -99,7 +99,7 @@ describe("HandlersPage", () => {
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
     // app_b listener should be excluded
-    expect(queryAllByTestId("listener-row-h-2")).toHaveLength(0);
+    expect(queryAllByTestId("listener-row-listener/2")).toHaveLength(0);
   });
 
   it("renders a search input above the table", async () => {
@@ -193,7 +193,7 @@ describe("HandlersPage", () => {
     expect((await findAllByTestId(/listener-row-/)).length).toBe(1);
     expect((await findAllByTestId(/job-row-/)).length).toBe(1);
     // job_b should be excluded — wait for data loaded above first, then assert
-    expect(queryAllByTestId(/job-row-j-11/).length).toBe(0);
+    expect(queryAllByTestId(/job-row-job\/11/).length).toBe(0);
   });
 
   it("renders a footer with handler and job counts", async () => {
@@ -290,6 +290,6 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     );
     const { findByRole } = renderWithAppState(<HandlersPage />, { stateOverrides });
     const link = await findByRole("link", { name: /on_motion/i });
-    expect((link as HTMLAnchorElement).href).toContain("/apps/motion_lights/handlers/h-42");
+    expect((link as HTMLAnchorElement).href).toContain("/apps/motion_lights/handlers/listener/42");
   });
 });

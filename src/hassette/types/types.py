@@ -39,7 +39,7 @@ SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
 
 
-class InvocationStatus(StrEnum):
+class ExecutionStatus(StrEnum):
     """Status values for handler invocations and job executions.
 
     Covers all values allowed by the CHECK constraints in migrations 001 and 005.

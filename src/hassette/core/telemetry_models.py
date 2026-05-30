@@ -15,7 +15,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from hassette.types.types import LOG_LEVEL_TYPE, InvocationStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus, SourceTier
 
 
 class AppLastError(NamedTuple):
@@ -96,12 +96,26 @@ class ListenerSummary(BaseModel):
     last_error_traceback: str | None = None
 
 
-class HandlerInvocation(BaseModel):
-    """Single invocation record returned by ``get_handler_invocations()``."""
+class Execution(BaseModel):
+    """Unified execution record returned by queries against the ``executions`` table.
+
+    Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
+    ``kind`` discriminates between handler invocations and job executions.
+    Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+    ``None`` for job executions.
+    """
+
+    kind: Literal["handler", "job"]
+    """Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."""
+
+    listener_id: int | None = None
+    """The owning listener row id. Set when kind='handler', None for job executions."""
+    job_id: int | None = None
+    """The owning scheduled-job row id. Set when kind='job', None for handler invocations."""
 
     execution_start_ts: float
     duration_ms: float
-    status: InvocationStatus
+    status: ExecutionStatus
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
@@ -112,9 +126,19 @@ class HandlerInvocation(BaseModel):
     UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
     """
     trigger_context_id: str | None = None
-    """event_id from the triggering event payload. None for non-event-triggered invocations."""
+    """event_id from the triggering event payload. None for job executions and non-event-triggered invocations."""
     trigger_origin: str | None = None
-    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None when not available."""
+    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None for job executions."""
+    trigger_mode: str | None = None
+    """Trigger mode string (e.g., 'immediate', 'debounced'). None when not set."""
+    retry_count: int = 0
+    """Number of retry attempts before this execution. 0 for first attempts."""
+    attempt_number: int = 1
+    """Ordinal attempt number (1-based). 1 for first attempt."""
+    args_json: str = "[]"
+    """JSON-encoded positional arguments for job executions. '[]' for handler invocations."""
+    kwargs_json: str = "{}"
+    """JSON-encoded keyword arguments for job executions. '{}' for handler invocations."""
 
 
 class JobSummary(BaseModel):
@@ -168,23 +192,6 @@ class JobSummary(BaseModel):
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
 
 
-class JobExecution(BaseModel):
-    """Single execution record returned by ``get_job_executions()``."""
-
-    execution_start_ts: float
-    duration_ms: float
-    status: InvocationStatus
-    source_tier: SourceTier = "app"
-    error_type: str | None
-    error_message: str | None
-    error_traceback: str | None = None
-    execution_id: str | None = None
-    """UUID string identifying the specific execution instance. None when not populated.
-
-    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
-    """
-
-
 class ListenerGlobalStats(BaseModel):
     """Listener aggregate stats within ``GlobalSummary``."""
 
@@ -227,7 +234,6 @@ class SessionRecord(BaseModel):
     duration_seconds: float | None
     dropped_overflow: int = 0
     dropped_exhausted: int = 0
-    dropped_no_session: int = 0
     dropped_shutdown: int = 0
 
 
@@ -282,11 +288,15 @@ class ActivityFeedEntry(BaseModel):
     """A single activity entry for the cross-app recent activity feed."""
 
     row_id: str
-    """Stable unique identifier for this entry. Prefixed with ``'h-'`` for handler invocations
-    and ``'j-'`` for job executions, followed by the SQLite rowid."""
+    """Stable unique identifier for this entry.
 
-    status: InvocationStatus
-    """Invocation/execution status."""
+    Carries the ``execution_id`` UUID when present. Rows that predate the
+    ``execution_id`` column fall back to ``'h-'`` (handler) or ``'j-'`` (job)
+    prefixing the SQLite rowid. The type is always ``str``.
+    """
+
+    status: ExecutionStatus
+    """Handler or job execution status."""
 
     timestamp: float
     """Unix epoch float for when the invocation/execution started."""

@@ -208,11 +208,15 @@
       "type": "object"
     },
     "ExecutionCompletedData": {
-      "description": "Payload for execution_completed WebSocket messages.",
+      "description": "Payload for execution_completed WebSocket messages.\n\n``kind`` discriminates handler invocations from job executions.\n``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.",
       "properties": {
-        "job_id": {
-          "title": "Job Id",
-          "type": "integer"
+        "kind": {
+          "enum": [
+            "handler",
+            "job"
+          ],
+          "title": "Kind",
+          "type": "string"
         },
         "app_key": {
           "title": "App Key",
@@ -223,7 +227,8 @@
           "type": "integer"
         },
         "status": {
-          "$ref": "#/$defs/InvocationStatus"
+          "title": "Status",
+          "type": "string"
         },
         "duration_ms": {
           "title": "Duration Ms",
@@ -240,10 +245,34 @@
           ],
           "default": null,
           "title": "Error Type"
+        },
+        "listener_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listener Id"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Id"
         }
       },
       "required": [
-        "job_id",
+        "kind",
         "app_key",
         "instance_index",
         "status",
@@ -278,89 +307,6 @@
       ],
       "title": "ExecutionCompletedWsMessage",
       "type": "object"
-    },
-    "InvocationCompletedData": {
-      "description": "Payload for invocation_completed WebSocket messages.",
-      "properties": {
-        "listener_id": {
-          "title": "Listener Id",
-          "type": "integer"
-        },
-        "app_key": {
-          "title": "App Key",
-          "type": "string"
-        },
-        "instance_index": {
-          "title": "Instance Index",
-          "type": "integer"
-        },
-        "status": {
-          "$ref": "#/$defs/InvocationStatus"
-        },
-        "duration_ms": {
-          "title": "Duration Ms",
-          "type": "number"
-        },
-        "error_type": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Error Type"
-        }
-      },
-      "required": [
-        "listener_id",
-        "app_key",
-        "instance_index",
-        "status",
-        "duration_ms"
-      ],
-      "title": "InvocationCompletedData",
-      "type": "object"
-    },
-    "InvocationCompletedWsMessage": {
-      "properties": {
-        "type": {
-          "const": "invocation_completed",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "items": {
-            "$ref": "#/$defs/InvocationCompletedData"
-          },
-          "title": "Data",
-          "type": "array"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "InvocationCompletedWsMessage",
-      "type": "object"
-    },
-    "InvocationStatus": {
-      "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses.",
-      "enum": [
-        "success",
-        "error",
-        "cancelled",
-        "timed_out"
-      ],
-      "title": "InvocationStatus",
-      "type": "string"
     },
     "LogEntryResponse": {
       "properties": {
@@ -719,7 +665,6 @@
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
       "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
-      "invocation_completed": "#/$defs/InvocationCompletedWsMessage",
       "log": "#/$defs/LogWsMessage",
       "service_status": "#/$defs/ServiceStatusWsMessage",
       "state_changed": "#/$defs/StateChangedWsMessage"
@@ -744,9 +689,6 @@
     },
     {
       "$ref": "#/$defs/ServiceStatusWsMessage"
-    },
-    {
-      "$ref": "#/$defs/InvocationCompletedWsMessage"
     },
     {
       "$ref": "#/$defs/ExecutionCompletedWsMessage"

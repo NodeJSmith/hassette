@@ -6,12 +6,12 @@ import pytest
 from whenever import ZonedDateTime
 
 from hassette.app.app_config import AppConfig
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_models import HandlerErrorRecord, JobErrorRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
-from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.scheduler.classes import ScheduledJob
 from hassette.test_utils.helpers import create_listener
 from hassette.utils.execution import ExecutionResult, track_execution
 
@@ -65,35 +65,31 @@ class TestInvokeHandlerSourceTier:
             )
 
 
-class TestHandlerInvocationRecordNullable:
-    def test_handler_invocation_record_nullable_listener_id(self) -> None:
-        """HandlerInvocationRecord(listener_id=None, ...) is valid."""
-        record = HandlerInvocationRecord(
+class TestExecutionRecordHandlerNullable:
+    def test_execution_record_nullable_listener_id(self) -> None:
+        """ExecutionRecord(kind='handler', listener_id=None, ...) is valid."""
+        record = ExecutionRecord(
+            kind="handler",
             listener_id=None,
             session_id=1,
             execution_start_ts=1234567890.0,
             duration_ms=5.0,
             status="success",
-            error_type=None,
-            error_message=None,
-            error_traceback=None,
             source_tier="framework",
         )
 
         assert record.listener_id is None
         assert record.source_tier == "framework"
 
-    def test_handler_invocation_record_with_int_listener_id(self) -> None:
-        """HandlerInvocationRecord still accepts int listener_id."""
-        record = HandlerInvocationRecord(
+    def test_execution_record_with_int_listener_id(self) -> None:
+        """ExecutionRecord still accepts int listener_id."""
+        record = ExecutionRecord(
+            kind="handler",
             listener_id=99,
             session_id=1,
             execution_start_ts=1234567890.0,
             duration_ms=5.0,
             status="success",
-            error_type=None,
-            error_message=None,
-            error_traceback=None,
             source_tier="app",
         )
 
@@ -218,10 +214,11 @@ class TestScheduledJobSourceTier:
         assert job.source_tier == "framework"
 
 
-class TestJobExecutionRecordNullable:
-    def test_job_execution_record_nullable_job_id(self) -> None:
-        """JobExecutionRecord(job_id=None, ...) is valid."""
-        record = JobExecutionRecord(
+class TestExecutionRecordJobNullable:
+    def test_execution_record_nullable_job_id(self) -> None:
+        """ExecutionRecord(kind='job', job_id=None, ...) is valid."""
+        record = ExecutionRecord(
+            kind="job",
             job_id=None,
             session_id=1,
             execution_start_ts=1234567890.0,
@@ -233,9 +230,10 @@ class TestJobExecutionRecordNullable:
         assert record.job_id is None
         assert record.source_tier == "framework"
 
-    def test_job_execution_record_with_int_job_id(self) -> None:
-        """JobExecutionRecord still accepts int job_id."""
-        record = JobExecutionRecord(
+    def test_execution_record_with_int_job_id(self) -> None:
+        """ExecutionRecord still accepts int job_id."""
+        record = ExecutionRecord(
+            kind="job",
             job_id=77,
             session_id=1,
             execution_start_ts=1234567890.0,

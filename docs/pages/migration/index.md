@@ -37,7 +37,7 @@ When you migrate from AppDaemon, you change four areas:
 
 1. **Configuration** — `appdaemon.yaml` + `apps.yaml` become a single `hassette.toml`. App arguments become typed Pydantic models instead of raw dictionaries.
 2. **App structure** — `Hass` subclass with `initialize()` becomes an `App` subclass with `async def on_initialize()`.
-3. **Event handlers** — `self.listen_state(...)` and `self.listen_event(...)` become `self.bus.on_state_change(...)` and `self.bus.on_call_service(...)`.
+3. **Event handlers** — `self.listen_state(...)` and `self.listen_event(...)` become `await self.bus.on_state_change(..., name=...)` and `await self.bus.on_call_service(..., name=...)` (async; `name=` required).
 4. **API calls** — synchronous `self.call_service(...)` becomes `await self.api.call_service(...)`.
 
 The scheduler API is similar to AppDaemon's, with named parameters and richer job objects.
@@ -70,9 +70,9 @@ The table below maps the most common AppDaemon operations to their Hassette equi
 
 | Action | AppDaemon | Hassette |
 |--------|-----------|----------|
-| Listen for a state change | `self.listen_state(self.cb, "binary_sensor.door", new="on")` | `self.bus.on_state_change("binary_sensor.door", handler=self.cb, changed_to="on")` |
-| React on attribute threshold | `self.listen_state(self.cb, "sensor.x", attribute="battery", below=20)` | `self.bus.on_attribute_change("sensor.x", "battery", handler=self.cb, changed_to=lambda v: v < 20)` |
-| Monitor service calls | `self.listen_event(self.on_service, "call_service", domain="light")` | `self.bus.on_call_service(domain="light", handler=self.on_service)` |
+| Listen for a state change | `self.listen_state(self.cb, "binary_sensor.door", new="on")` | `await self.bus.on_state_change("binary_sensor.door", handler=self.cb, changed_to="on", name="...")` |
+| React on attribute threshold | `self.listen_state(self.cb, "sensor.x", attribute="battery", below=20)` | `await self.bus.on_attribute_change("sensor.x", "battery", handler=self.cb, changed_to=lambda v: v < 20, name="...")` |
+| Monitor service calls | `self.listen_event(self.on_service, "call_service", domain="light")` | `await self.bus.on_call_service(domain="light", handler=self.on_service, name="...")` |
 | Schedule something in 60 seconds | `self.run_in(self.turn_off, 60)` | `self.scheduler.run_in(self.turn_off, delay=60)` |
 | Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, at="07:30")` |
 | Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("light.kitchen")` |

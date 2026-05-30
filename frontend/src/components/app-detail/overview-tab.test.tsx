@@ -11,16 +11,10 @@ import { server } from "../../test/server";
 import { OverviewTab } from "./overview-tab";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
-type InvocationEvent = {
-  listener_id: number;
-  app_key: string;
-  instance_index: number;
-  status: string;
-  duration_ms: number;
-  error_type: string | null;
-};
 type ExecutionEvent = {
-  job_id: number;
+  kind: "handler" | "job";
+  listener_id?: number | null;
+  job_id?: number | null;
   app_key: string;
   instance_index: number;
   status: string;
@@ -194,7 +188,7 @@ describe("OverviewTab — Error Spotlight", () => {
     const entry = getByTestId("overview-spotlight-entry-listener-7");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/h-7");
+    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/listener/7");
   });
 
   it("links failing job entry to handlers tab with correct job ID", () => {
@@ -207,7 +201,7 @@ describe("OverviewTab — Error Spotlight", () => {
     const entry = getByTestId("overview-spotlight-entry-job-20");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/j-20");
+    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/job/20");
   });
 
   it("links entry includes instanceQs when provided", () => {
@@ -219,7 +213,7 @@ describe("OverviewTab — Error Spotlight", () => {
     });
     const entry = getByTestId("overview-spotlight-entry-listener-3");
     const anchor = entry.querySelector("a");
-    expect(anchor!.getAttribute("href")).toBe("/apps/test_app/handlers/h-3?instance=1");
+    expect(anchor!.getAttribute("href")).toBe("/apps/test_app/handlers/listener/3?instance=1");
   });
 });
 
@@ -328,7 +322,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       instanceQs: "",
     });
     fireEvent.click(getByTestId("overview-health-card-listener-4"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-4");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
   });
 
   it("clicking a job card navigates to the correct handler detail page", () => {
@@ -340,7 +334,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       instanceQs: "",
     });
     fireEvent.click(getByTestId("overview-health-card-job-15"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/j-15");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/15");
   });
 
   it("card navigation includes instanceQs", () => {
@@ -352,7 +346,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       instanceQs: "?instance=2",
     });
     fireEvent.click(getByTestId("overview-health-card-listener-6"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-6?instance=2");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/6?instance=2");
   });
 });
 
@@ -364,7 +358,7 @@ describe("OverviewTab — Recent Activity", () => {
   it("renders activity data from the endpoint", async () => {
     const entries: ActivityFeedEntry[] = [
       {
-        row_id: "h-1",
+        row_id: "00000000-0000-0000-0000-000000000001",
         status: "success",
         timestamp: 1700000100,
         app_key: "test_app",
@@ -398,7 +392,7 @@ describe("OverviewTab — Recent Activity", () => {
   it("shows status shape, handler name, duration, and relative time per row", async () => {
     const entries: ActivityFeedEntry[] = [
       {
-        row_id: "h-2",
+        row_id: "00000000-0000-0000-0000-000000000002",
         status: "error",
         timestamp: 1700000200,
         app_key: "test_app",
@@ -545,38 +539,7 @@ describe("OverviewTab — Real-time refetch", () => {
     );
   }
 
-  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
-    const { getFetchCount } = setupActivityCounter();
-    const invocationCompleted = signal<InvocationEvent[] | null>(null);
-    renderWithSignalOverrides({ invocationCompleted });
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
-    const countAfterMount = getFetchCount();
-
-    invocationCompleted.value = [
-      { listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null },
-    ];
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
-  });
-
-  it("does not refetch when invocationCompleted events are for a different app_key", async () => {
-    const { getFetchCount } = setupActivityCounter();
-    const invocationCompleted = signal<InvocationEvent[] | null>(null);
-    renderWithSignalOverrides({ invocationCompleted });
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
-    const countAfterMount = getFetchCount();
-
-    invocationCompleted.value = [
-      { listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null },
-    ];
-
-    await new Promise((r) => setTimeout(r, 700));
-    expect(getFetchCount()).toBe(countAfterMount);
-  });
-
-  it("refetches activity when executionCompleted signal changes with matching app_key", async () => {
+  it("refetches activity when executionCompleted signal changes with matching app_key (handler)", async () => {
     const { getFetchCount } = setupActivityCounter();
     const executionCompleted = signal<ExecutionEvent[] | null>(null);
     renderWithSignalOverrides({ executionCompleted });
@@ -585,7 +548,62 @@ describe("OverviewTab — Real-time refetch", () => {
     const countAfterMount = getFetchCount();
 
     executionCompleted.value = [
-      { job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null },
+      {
+        kind: "handler",
+        listener_id: 1,
+        app_key: "test_app",
+        instance_index: 0,
+        status: "success",
+        duration_ms: 10,
+        error_type: null,
+      },
+    ];
+
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
+  });
+
+  it("does not refetch when executionCompleted events are for a different app_key", async () => {
+    const { getFetchCount } = setupActivityCounter();
+    const executionCompleted = signal<ExecutionEvent[] | null>(null);
+    renderWithSignalOverrides({ executionCompleted });
+
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
+
+    executionCompleted.value = [
+      {
+        kind: "handler",
+        listener_id: 99,
+        app_key: "other_app",
+        instance_index: 0,
+        status: "success",
+        duration_ms: 5,
+        error_type: null,
+      },
+    ];
+
+    await new Promise((r) => setTimeout(r, 700));
+    expect(getFetchCount()).toBe(countAfterMount);
+  });
+
+  it("refetches activity when executionCompleted signal changes with matching app_key (job)", async () => {
+    const { getFetchCount } = setupActivityCounter();
+    const executionCompleted = signal<ExecutionEvent[] | null>(null);
+    renderWithSignalOverrides({ executionCompleted });
+
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
+
+    executionCompleted.value = [
+      {
+        kind: "job",
+        job_id: 5,
+        app_key: "test_app",
+        instance_index: 0,
+        status: "success",
+        duration_ms: 20,
+        error_type: null,
+      },
     ];
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });

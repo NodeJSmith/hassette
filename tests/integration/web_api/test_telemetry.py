@@ -6,12 +6,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.core.telemetry_models import (
-    HandlerInvocation,
-    JobExecution,
+    Execution,
     ListenerSummary,
 )
-from hassette.core.telemetry_query_service import AppHealthAggregates
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -112,32 +111,73 @@ class TestTelemetryDashboard:
             assert "status" in app_entry
 
 
-class TestTelemetryHandlerInvocations:
-    async def test_returns_invocations(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(
+class TestTelemetryExecutions:
+    async def test_list_executions_returns_all(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             return_value=[
-                HandlerInvocation(
+                Execution(
+                    kind="handler",
+                    listener_id=1,
                     execution_start_ts=1234567890.0,
                     duration_ms=42.5,
                     status="success",
                     error_type=None,
                     error_message=None,
-                    error_traceback=None,
+                ),
+                Execution(
+                    kind="job",
+                    job_id=7,
+                    execution_start_ts=1234567891.0,
+                    duration_ms=100.0,
+                    status="success",
+                    error_type=None,
+                    error_message=None,
+                ),
+            ]
+        )
+        response = await client.get("/api/telemetry/executions")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["kind"] == "handler"
+        assert data[1]["kind"] == "job"
+
+    async def test_list_executions_kind_filter_forwarded(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
+        response = await client.get("/api/telemetry/executions?kind=handler")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
+        assert call_kwargs["kind"] == "handler"
+
+    async def test_listener_executions_returns_handler_executions(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
+            return_value=[
+                Execution(
+                    kind="handler",
+                    listener_id=1,
+                    execution_start_ts=1234567890.0,
+                    duration_ms=42.5,
+                    status="success",
+                    error_type=None,
+                    error_message=None,
                 )
             ]
         )
-        response = await client.get("/api/telemetry/handler/1/invocations")
+        response = await client.get("/api/telemetry/listener/1/executions")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         assert data[0]["duration_ms"] == 42.5
+        assert data[0]["kind"] == "handler"
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
+        assert call_kwargs["listener_id"] == 1
 
-
-class TestTelemetryJobExecutions:
-    async def test_returns_executions(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(
+    async def test_job_executions_returns_job_executions(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             return_value=[
-                JobExecution(
+                Execution(
+                    kind="job",
+                    job_id=1,
                     execution_start_ts=1234567890.0,
                     duration_ms=100.0,
                     status="success",
@@ -151,6 +191,9 @@ class TestTelemetryJobExecutions:
         data = response.json()
         assert len(data) == 1
         assert data[0]["status"] == "success"
+        assert data[0]["kind"] == "job"
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
+        assert call_kwargs["job_id"] == 1
 
 
 class TestTelemetryStatus:
@@ -201,24 +244,24 @@ class TestTelemetrySinceParam:
         call_kwargs = mock_hassette.telemetry_query_service.get_job_summary.call_args.kwargs
         assert call_kwargs["since"] == pytest.approx(1700000003.0)
 
-    async def test_handler_invocations_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        response = await client.get("/api/telemetry/handler/1/invocations?since=1700000005.0")
+    async def test_listener_executions_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/listener/1/executions?since=1700000005.0")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["since"] == pytest.approx(1700000005.0)
 
-    async def test_handler_invocations_omitted_since_is_none(
+    async def test_listener_executions_omitted_since_is_none(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        response = await client.get("/api/telemetry/handler/1/invocations")
+        response = await client.get("/api/telemetry/listener/1/executions")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["since"] is None
 
     async def test_job_executions_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         response = await client.get("/api/telemetry/job/1/executions?since=1700000009.0")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_job_executions.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["since"] == pytest.approx(1700000009.0)
 
     async def test_app_activity_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
@@ -303,14 +346,15 @@ class TestSourceTierParameter:
         assert response.status_code == 422
 
 
-class TestHandlerInvocationsExpanded:
-    """Extended coverage for /api/telemetry/handler/{id}/invocations."""
+class TestListenerExecutionsExpanded:
+    """Extended coverage for /api/telemetry/listener/{id}/executions."""
 
     async def test_limit_param_respected(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """When limit=2, service is called with limit=2 and at most 2 results come back."""
-
-        invocations = [
-            HandlerInvocation(
+        executions = [
+            Execution(
+                kind="handler",
+                listener_id=1,
                 execution_start_ts=float(1000 + i),
                 duration_ms=float(10 + i),
                 status="success",
@@ -319,56 +363,40 @@ class TestHandlerInvocationsExpanded:
             )
             for i in range(5)
         ]
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(return_value=invocations[:2])
-        response = await client.get("/api/telemetry/handler/1/invocations?limit=2")
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=executions[:2])
+        response = await client.get("/api/telemetry/listener/1/executions?limit=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
-        call_kwargs = mock_hassette.telemetry_query_service.get_handler_invocations.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["limit"] == 2
+        assert call_kwargs["listener_id"] == 1
 
     async def test_empty_result(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Listener with no invocations returns an empty list."""
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(return_value=[])
-        response = await client.get("/api/telemetry/handler/99/invocations")
+        """Listener with no executions returns an empty list."""
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
+        response = await client.get("/api/telemetry/listener/99/executions")
         assert response.status_code == 200
         assert response.json() == []
 
     async def test_ordering_descending_by_execution_start_ts(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """Results are returned in descending execution_start_ts order (newest first).
-
-        The ordering is enforced by the DB query layer; the endpoint returns data
-        in the order provided by the service. This test verifies the endpoint does
-        not reorder the data and passes it through faithfully.
-        """
-
-        invocations = [
-            HandlerInvocation(
-                execution_start_ts=1000003.0,
+        """Results are returned in descending execution_start_ts order (newest first)."""
+        executions = [
+            Execution(
+                kind="handler",
+                listener_id=1,
+                execution_start_ts=ts,
                 duration_ms=10.0,
                 status="success",
                 error_type=None,
                 error_message=None,
-            ),
-            HandlerInvocation(
-                execution_start_ts=1000002.0,
-                duration_ms=20.0,
-                status="error",
-                error_type="ValueError",
-                error_message="bad value",
-            ),
-            HandlerInvocation(
-                execution_start_ts=1000001.0,
-                duration_ms=5.0,
-                status="success",
-                error_type=None,
-                error_message=None,
-            ),
+            )
+            for ts in [1000003.0, 1000002.0, 1000001.0]
         ]
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(return_value=invocations)
-        response = await client.get("/api/telemetry/handler/1/invocations")
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=executions)
+        response = await client.get("/api/telemetry/listener/1/executions")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3
@@ -381,9 +409,10 @@ class TestJobExecutionsExpanded:
 
     async def test_limit_param_respected(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """When limit=2, service is called with limit=2 and at most 2 results come back."""
-
         executions = [
-            JobExecution(
+            Execution(
+                kind="job",
+                job_id=1,
                 execution_start_ts=float(2000 + i),
                 duration_ms=float(50 + i),
                 status="success",
@@ -392,17 +421,18 @@ class TestJobExecutionsExpanded:
             )
             for i in range(5)
         ]
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(return_value=executions[:2])
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=executions[:2])
         response = await client.get("/api/telemetry/job/1/executions?limit=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
-        call_kwargs = mock_hassette.telemetry_query_service.get_job_executions.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["limit"] == 2
+        assert call_kwargs["job_id"] == 1
 
     async def test_empty_result(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Job with no executions returns an empty list."""
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(return_value=[])
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
         response = await client.get("/api/telemetry/job/99/executions")
         assert response.status_code == 200
         assert response.json() == []
@@ -410,36 +440,20 @@ class TestJobExecutionsExpanded:
     async def test_ordering_descending_by_execution_start_ts(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """Results are returned in descending execution_start_ts order (newest first).
-
-        The ordering is enforced by the DB query layer; the endpoint returns data
-        in the order provided by the service. This test verifies pass-through fidelity.
-        """
-
+        """Results are returned in descending execution_start_ts order (newest first)."""
         executions = [
-            JobExecution(
-                execution_start_ts=2000003.0,
+            Execution(
+                kind="job",
+                job_id=1,
+                execution_start_ts=ts,
                 duration_ms=100.0,
                 status="success",
                 error_type=None,
                 error_message=None,
-            ),
-            JobExecution(
-                execution_start_ts=2000002.0,
-                duration_ms=200.0,
-                status="error",
-                error_type="TimeoutError",
-                error_message="timed out",
-            ),
-            JobExecution(
-                execution_start_ts=2000001.0,
-                duration_ms=50.0,
-                status="success",
-                error_type=None,
-                error_message=None,
-            ),
+            )
+            for ts in [2000003.0, 2000002.0, 2000001.0]
         ]
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(return_value=executions)
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=executions)
         response = await client.get("/api/telemetry/job/1/executions")
         assert response.status_code == 200
         data = response.json()

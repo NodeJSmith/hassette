@@ -5,14 +5,13 @@ import time
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry_models import (
-    HandlerInvocation,
-    JobExecution,
+    Execution,
     JobSummary,
     ListenerSummary,
     SessionRecord,
 )
-from hassette.core.telemetry_query_service import TelemetryQueryService
 
 from .helpers import (
     BASE_TS,
@@ -371,8 +370,8 @@ class TestGetJobSummary:
         assert row.last_error_ts is None
 
 
-class TestGetHandlerInvocations:
-    async def test_get_handler_invocations_ordered(
+class TestGetExecutionsForListener:
+    async def test_get_executions_handler_ordered(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
@@ -386,16 +385,16 @@ class TestGetHandlerInvocations:
             await insert_invocation(db_svc, listener_id, session_id, execution_start_ts=base_ts + i)
 
         # limit=3 returns 3 most recent
-        rows = await query_service.get_handler_invocations(listener_id, limit=3)
+        rows = await query_service.get_executions(listener_id=listener_id, kind="handler", limit=3)
         assert len(rows) == 3
-        assert all(isinstance(r, HandlerInvocation) for r in rows)
+        assert all(isinstance(r, Execution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 4)
         assert rows[1].execution_start_ts == pytest.approx(base_ts + 3)
         assert rows[2].execution_start_ts == pytest.approx(base_ts + 2)
 
 
-class TestGetJobExecutions:
-    async def test_get_job_executions_ordered(
+class TestGetExecutionsForJob:
+    async def test_get_executions_job_ordered(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
@@ -408,9 +407,9 @@ class TestGetJobExecutions:
         for i in range(3):
             await insert_execution(db_svc, job_id, session_id, execution_start_ts=base_ts + i)
 
-        rows = await query_service.get_job_executions(job_id, limit=2)
+        rows = await query_service.get_executions(job_id=job_id, kind="job", limit=2)
         assert len(rows) == 2
-        assert all(isinstance(r, JobExecution) for r in rows)
+        assert all(isinstance(r, Execution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 2)
         assert rows[1].execution_start_ts == pytest.approx(base_ts + 1)
 

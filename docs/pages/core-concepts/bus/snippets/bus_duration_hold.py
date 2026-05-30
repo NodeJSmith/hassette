@@ -5,31 +5,34 @@ class DurationHoldApp(App[AppConfig]):
     async def on_initialize(self):
         # --8<-- [start:duration_hold]
         # Only fire if motion stays on for 30 continuous seconds
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_sustained_motion,
             changed_to="on",
             duration=30,
+            name="motion_sustained",
         )
 
         # Fire once after the door has been open for 5 minutes
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.front_door",
             handler=self.on_door_left_open,
             changed_to="on",
             duration=300,
             once=True,
+            name="front_door_open_long",
         )
 
         # Restart-resilient: if the light was already on when the app started
         # and has been on for more than 10 minutes, fire immediately.
         # If it has been on for less, start a timer for the remaining time.
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "light.porch",
             handler=self.on_porch_on_too_long,
             changed_to="on",
             duration=600,
             immediate=True,
+            name="porch_on_too_long",
         )
         # --8<-- [end:duration_hold]
 

@@ -8,10 +8,11 @@ class MotionApp(App[AppConfig]):
     async def on_initialize(self):
         # --8<-- [start:subscribe]
         # Subscribe to state changes
-        sub = self.bus.on_state_change(
+        sub = await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
             changed_to="on",
+            name="motion_on",
         )
 
         # Subscriptions are cleaned up automatically on shutdown.

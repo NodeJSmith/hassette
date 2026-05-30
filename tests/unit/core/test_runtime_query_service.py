@@ -11,7 +11,6 @@ from hassette.core.domain_models import SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
-    HassetteInvocationCompletedEvent,
     HassetteServiceEvent,
 )
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -95,10 +94,7 @@ def runtime(mock_hassette):
     svc._start_time = 1704067200.0  # 2024-01-01 00:00:00
     svc._subscriptions = []
     svc.logger = MagicMock()
-    svc._listener_meta = {}
-    svc._job_meta = {}
-    svc._pending_invocations = []
-    svc._pending_executions = []
+    svc._pending_completions = []
     svc._flush_scheduled = False
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
@@ -136,62 +132,49 @@ class TestEventBuffer:
         assert len(events) == 1
 
 
-class TestListenerJobMetaRegistration:
-    """Register_listener_meta / register_job_meta store (app_key, instance_index) keyed by DB ID."""
+class TestCompletionPayloadEnrichment:
+    """app_key, instance_index, and kind are read directly from event payload."""
 
-    def test_register_listener_meta_stores_mapping(self, runtime: RuntimeQueryService) -> None:
-        runtime.register_listener_meta(listener_db_id=42, app_key="lights", instance_index=1)
-        assert runtime._listener_meta[42] == ("lights", 1)
-
-    def test_register_job_meta_stores_mapping(self, runtime: RuntimeQueryService) -> None:
-        runtime.register_job_meta(job_db_id=99, app_key="climate", instance_index=0)
-        assert runtime._job_meta[99] == ("climate", 0)
-
-    def test_prune_meta_scopes_to_app_listeners(self, runtime: RuntimeQueryService) -> None:
-        runtime.register_listener_meta(1, "app_a", 0)
-        runtime.register_listener_meta(2, "app_b", 0)
-        runtime.prune_meta("app_a", set(), set())
-        assert 1 not in runtime._listener_meta
-        assert 2 in runtime._listener_meta
-
-    def test_prune_meta_scopes_to_app_jobs(self, runtime: RuntimeQueryService) -> None:
-        runtime.register_job_meta(10, "app_a", 0)
-        runtime.register_job_meta(20, "app_b", 0)
-        runtime.prune_meta("app_a", set(), set())
-        assert 10 not in runtime._job_meta
-        assert 20 in runtime._job_meta
-
-    def test_prune_meta_keeps_live_ids_for_reconciling_app(self, runtime: RuntimeQueryService) -> None:
-        runtime.register_listener_meta(1, "app_a", 0)
-        runtime.register_listener_meta(2, "app_a", 0)
-        runtime.prune_meta("app_a", {1}, set())
-        assert 1 in runtime._listener_meta
-        assert 2 not in runtime._listener_meta
-
-    def test_unknown_listener_id_returns_empty_fallback_on_flush(self, runtime: RuntimeQueryService) -> None:
-        """Completion events for unknown listener IDs get empty app_key / zero index."""
-        # Simulate an invocation event arriving without prior meta registration
-        runtime._pending_invocations.append(
-            {
-                "listener_id": 999,
-                "app_key": "",
-                "instance_index": 0,
-                "status": "success",
-                "duration_ms": 5.0,
-                "error_type": None,
-            }
+    async def test_handler_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
+        """app_key and instance_index from a handler execution are stored in the pending dict."""
+        runtime.broadcast = AsyncMock()
+        ev = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=42, status="success", duration_ms=5.0, app_key="lights", instance_index=1
         )
-        assert runtime._pending_invocations[0]["app_key"] == ""
+        await runtime._on_execution_completed(ev)
+        assert runtime._pending_completions[0]["app_key"] == "lights"
+        assert runtime._pending_completions[0]["instance_index"] == 1
+        assert runtime._pending_completions[0]["kind"] == "handler"
+        assert runtime._pending_completions[0]["listener_id"] == 42
+
+    async def test_job_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
+        """app_key and instance_index from a job execution are stored in the pending dict."""
+        runtime.broadcast = AsyncMock()
+        ev = HassetteExecutionCompletedEvent.from_record(
+            kind="job", job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
+        )
+        await runtime._on_execution_completed(ev)
+        assert runtime._pending_completions[0]["app_key"] == "climate"
+        assert runtime._pending_completions[0]["instance_index"] == 2
+        assert runtime._pending_completions[0]["kind"] == "job"
+        assert runtime._pending_completions[0]["job_id"] == 99
+
+    async def test_payload_defaults_to_empty_app_key(self, runtime: RuntimeQueryService) -> None:
+        """Events without app_key default to empty string and zero index."""
+        runtime.broadcast = AsyncMock()
+        ev = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=999, status="success", duration_ms=5.0
+        )
+        await runtime._on_execution_completed(ev)
+        assert runtime._pending_completions[0]["app_key"] == ""
+        assert runtime._pending_completions[0]["instance_index"] == 0
 
 
 class TestCompletionBatching:
-    """Per-drain batching: all completions in one tick become one WS message per type."""
+    """Per-drain batching: all completions in one tick become one unified execution_completed message."""
 
-    async def test_invocation_completion_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
-        """Multiple _on_invocation_completed calls in the same tick emit one broadcast."""
-        runtime.register_listener_meta(1, "my_app", 0)
-        runtime.register_listener_meta(2, "my_app", 0)
-
+    async def test_handler_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
+        """Multiple handler execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
 
         async def fake_broadcast(msg: dict) -> None:
@@ -199,13 +182,21 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        ev1 = HassetteInvocationCompletedEvent.from_record(listener_id=1, status="success", duration_ms=10.0)
-        ev2 = HassetteInvocationCompletedEvent.from_record(
-            listener_id=2, status="failed", duration_ms=20.0, error_type="ValueError"
+        ev1 = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
+        )
+        ev2 = HassetteExecutionCompletedEvent.from_record(
+            kind="handler",
+            listener_id=2,
+            status="failed",
+            duration_ms=20.0,
+            app_key="my_app",
+            instance_index=0,
+            error_type="ValueError",
         )
 
-        await runtime._on_invocation_completed(ev1)
-        await runtime._on_invocation_completed(ev2)
+        await runtime._on_execution_completed(ev1)
+        await runtime._on_execution_completed(ev2)
 
         # Flush should not have fired yet (still in the same tick)
         assert len(broadcast_calls) == 0
@@ -215,19 +206,17 @@ class TestCompletionBatching:
 
         assert len(broadcast_calls) == 1
         msg = broadcast_calls[0]
-        assert msg["type"] == "invocation_completed"
+        assert msg["type"] == "execution_completed"
         assert len(msg["data"]) == 2
+        assert msg["data"][0]["kind"] == "handler"
         assert msg["data"][0]["listener_id"] == 1
         assert msg["data"][0]["app_key"] == "my_app"
         assert msg["data"][1]["listener_id"] == 2
         assert msg["data"][1]["status"] == "failed"
         assert msg["data"][1]["error_type"] == "ValueError"
 
-    async def test_execution_completion_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
-        """Multiple _on_execution_completed calls in the same tick emit one broadcast."""
-        runtime.register_job_meta(10, "scheduler_app", 0)
-        runtime.register_job_meta(11, "scheduler_app", 0)
-
+    async def test_job_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
+        """Multiple job execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
 
         async def fake_broadcast(msg: dict) -> None:
@@ -235,8 +224,12 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        ev1 = HassetteExecutionCompletedEvent.from_record(job_id=10, status="success", duration_ms=50.0)
-        ev2 = HassetteExecutionCompletedEvent.from_record(job_id=11, status="success", duration_ms=30.0)
+        ev1 = HassetteExecutionCompletedEvent.from_record(
+            kind="job", job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
+        )
+        ev2 = HassetteExecutionCompletedEvent.from_record(
+            kind="job", job_id=11, status="success", duration_ms=30.0, app_key="scheduler_app", instance_index=0
+        )
 
         await runtime._on_execution_completed(ev1)
         await runtime._on_execution_completed(ev2)
@@ -248,45 +241,46 @@ class TestCompletionBatching:
         msg = broadcast_calls[0]
         assert msg["type"] == "execution_completed"
         assert len(msg["data"]) == 2
+        assert msg["data"][0]["kind"] == "job"
+        assert msg["data"][1]["kind"] == "job"
 
     async def test_flush_completions_written_to_event_buffer(self, runtime: RuntimeQueryService) -> None:
         """Batched completion messages are appended to _event_buffer for replay."""
-        runtime.register_listener_meta(5, "buf_app", 0)
         runtime.broadcast = AsyncMock()
 
-        ev = HassetteInvocationCompletedEvent.from_record(listener_id=5, status="success", duration_ms=1.0)
-        await runtime._on_invocation_completed(ev)
+        ev = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=5, status="success", duration_ms=1.0, app_key="buf_app", instance_index=0
+        )
+        await runtime._on_execution_completed(ev)
         await runtime._flush_completions()
 
         assert len(runtime._event_buffer) == 1
         buffered = runtime._event_buffer[0]
-        assert buffered["type"] == "invocation_completed"
+        assert buffered["type"] == "execution_completed"
         assert buffered["data"][0]["listener_id"] == 5
+        assert buffered["data"][0]["kind"] == "handler"
 
-    async def test_flush_resets_pending_lists(self, runtime: RuntimeQueryService) -> None:
-        """After flush, pending lists are empty."""
-        runtime.register_listener_meta(3, "app", 0)
+    async def test_flush_resets_pending_list(self, runtime: RuntimeQueryService) -> None:
+        """After flush, _pending_completions is empty."""
         runtime.broadcast = AsyncMock()
 
-        ev = HassetteInvocationCompletedEvent.from_record(listener_id=3, status="success", duration_ms=1.0)
-        await runtime._on_invocation_completed(ev)
-        assert len(runtime._pending_invocations) == 1
+        ev = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=3, status="success", duration_ms=1.0, app_key="app", instance_index=0
+        )
+        await runtime._on_execution_completed(ev)
+        assert len(runtime._pending_completions) == 1
 
         await runtime._flush_completions()
-        assert len(runtime._pending_invocations) == 0
-        assert len(runtime._pending_executions) == 0
+        assert len(runtime._pending_completions) == 0
 
     async def test_flush_noop_when_no_pending(self, runtime: RuntimeQueryService) -> None:
-        """Flush with empty pending lists does not call broadcast."""
+        """Flush with empty pending list does not call broadcast."""
         runtime.broadcast = AsyncMock()
         await runtime._flush_completions()
         runtime.broadcast.assert_not_awaited()
 
-    async def test_mixed_invocation_and_execution_emit_separate_messages(self, runtime: RuntimeQueryService) -> None:
-        """Both types present → two separate broadcast messages (one per type)."""
-        runtime.register_listener_meta(1, "my_app", 0)
-        runtime.register_job_meta(10, "my_app", 0)
-
+    async def test_mixed_handler_and_job_emit_single_message(self, runtime: RuntimeQueryService) -> None:
+        """Handler and job completions in same tick emit one unified message, not two."""
         broadcast_calls: list[dict] = []
 
         async def fake_broadcast(msg: dict) -> None:
@@ -294,16 +288,24 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        inv_ev = HassetteInvocationCompletedEvent.from_record(listener_id=1, status="success", duration_ms=5.0)
-        exec_ev = HassetteExecutionCompletedEvent.from_record(job_id=10, status="success", duration_ms=8.0)
+        handler_ev = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=1, status="success", duration_ms=5.0, app_key="my_app", instance_index=0
+        )
+        job_ev = HassetteExecutionCompletedEvent.from_record(
+            kind="job", job_id=10, status="success", duration_ms=8.0, app_key="my_app", instance_index=0
+        )
 
-        await runtime._on_invocation_completed(inv_ev)
-        await runtime._on_execution_completed(exec_ev)
+        await runtime._on_execution_completed(handler_ev)
+        await runtime._on_execution_completed(job_ev)
         await runtime._flush_completions()
 
-        assert len(broadcast_calls) == 2
-        types = {m["type"] for m in broadcast_calls}
-        assert types == {"invocation_completed", "execution_completed"}
+        # Single message containing both handler and job entries
+        assert len(broadcast_calls) == 1
+        msg = broadcast_calls[0]
+        assert msg["type"] == "execution_completed"
+        assert len(msg["data"]) == 2
+        kinds = {item["kind"] for item in msg["data"]}
+        assert kinds == {"handler", "job"}
 
 
 class TestSystemStatus:

@@ -3,86 +3,67 @@
 import logging
 import sqlite3
 import time
-import typing
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import is_framework_key
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     import aiosqlite
 
     from hassette.core.database_service import DatabaseService
 
 
-def _inv_insert_params(record: HandlerInvocationRecord) -> dict[str, Any]:
-    """Build the named-parameter dict for a handler_invocations INSERT.
+def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
+    """Build the named-parameter dict for an executions INSERT.
 
-    Includes all columns written by ``persist_batch()`` and
-    ``persist_batch_with_fk_fallback()``. Both paths must stay in sync with
-    this function — derive their column lists from ``params.keys()`` rather
-    than hardcoding strings.
-
-    The ``is_di_failure`` field is converted to ``int`` here (required by
-    SQLite — booleans are not a native SQLite type).
+    All booleans are converted to int (SQLite has no native bool type).
+    Columns match the ``executions`` table in 001.sql exactly.
 
     Args:
-        record: The handler invocation record to convert.
+        record: The unified execution record to convert.
 
     Returns:
         A dict of named parameters ready for ``db.execute()`` or
         ``db.executemany()``.
     """
     return {
+        "kind": record.kind,
         "listener_id": record.listener_id,
-        "session_id": record.session_id,
-        "execution_start_ts": record.execution_start_ts,
-        "duration_ms": record.duration_ms,
-        "status": record.status,
-        "source_tier": record.source_tier,
-        "is_di_failure": 1 if record.is_di_failure else 0,
-        "error_type": record.error_type,
-        "error_message": record.error_message,
-        "error_traceback": record.error_traceback,
-        "execution_id": record.execution_id,
-        "trigger_context_id": record.trigger_context_id,
-        "trigger_origin": record.trigger_origin,
-    }
-
-
-def _job_insert_params(record: JobExecutionRecord) -> dict[str, Any]:
-    """Build the named-parameter dict for a job_executions INSERT.
-
-    Includes all columns written by ``persist_batch()`` and
-    ``persist_batch_with_fk_fallback()``. Both paths must stay in sync with
-    this function — derive their column lists from ``params.keys()`` rather
-    than hardcoding strings.
-
-    The ``is_di_failure`` field is converted to ``int`` here (required by
-    SQLite — booleans are not a native SQLite type).
-
-    Args:
-        record: The job execution record to convert.
-
-    Returns:
-        A dict of named parameters ready for ``db.execute()`` or
-        ``db.executemany()``.
-    """
-    return {
         "job_id": record.job_id,
         "session_id": record.session_id,
         "execution_start_ts": record.execution_start_ts,
         "duration_ms": record.duration_ms,
         "status": record.status,
-        "source_tier": record.source_tier,
-        "is_di_failure": 1 if record.is_di_failure else 0,
         "error_type": record.error_type,
         "error_message": record.error_message,
         "error_traceback": record.error_traceback,
+        "is_di_failure": 1 if record.is_di_failure else 0,
+        "source_tier": record.source_tier,
         "execution_id": record.execution_id,
+        "trigger_context_id": record.trigger_context_id,
+        "trigger_origin": record.trigger_origin,
+        "trigger_mode": record.trigger_mode,
+        "retry_count": record.retry_count,
+        "attempt_number": record.attempt_number,
+        "args_json": record.args_json,
+        "kwargs_json": record.kwargs_json,
     }
+
+
+# Every execution row inserts the same columns, so derive the INSERT statement once from a
+# representative record's parameter keys. The batch and FK-fallback paths share this constant,
+# which makes it impossible for them to build mismatched column lists.
+_EXECUTION_INSERT_COLUMNS = tuple(
+    _execution_insert_params(
+        ExecutionRecord(kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status="success")
+    )
+)
+_EXECUTION_INSERT_SQL = (
+    f"INSERT INTO executions ({', '.join(_EXECUTION_INSERT_COLUMNS)}) "
+    f"VALUES ({', '.join(f':{c}' for c in _EXECUTION_INSERT_COLUMNS)})"
+)
 
 
 def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
@@ -94,12 +75,11 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     return "FOREIGN KEY" in str(exc).upper()
 
 
-def _listener_insert_params(registration: ListenerRegistration, once: bool) -> dict[str, Any]:
+def _listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]:
     """Build the named-parameter dict for a listeners INSERT.
 
     Args:
         registration: The listener registration data.
-        once: Value to store in the ``once`` column (0 or 1).
 
     Returns:
         A dict of named parameters ready for ``db.execute()``.
@@ -111,13 +91,13 @@ def _listener_insert_params(registration: ListenerRegistration, once: bool) -> d
         "topic": registration.topic,
         "debounce": registration.debounce,
         "throttle": registration.throttle,
-        "once": 1 if once else 0,
+        "once": 1 if registration.once else 0,
         "priority": registration.priority,
         "predicate_description": registration.predicate_description,
         "human_description": registration.human_description,
         "source_location": registration.source_location,
         "registration_source": registration.registration_source,
-        "name": registration.name,
+        "name": registration.name or "",
         "source_tier": registration.source_tier,
         "immediate": 1 if registration.immediate else 0,
         "duration": registration.duration,
@@ -127,69 +107,66 @@ def _listener_insert_params(registration: ListenerRegistration, once: bool) -> d
 
 async def _insert_row_with_fk_fallback(
     db: "aiosqlite.Connection",
-    table: str,
-    columns: str,
-    values_clause: str,
     record_params: dict,
     fk_field: str,
     logger: logging.Logger,
-) -> int:
-    """Try to INSERT one row; on FK violation, null the FK field and retry.
-
-    This implements the try-FK-null-retry pattern used by
-    ``persist_batch_with_fk_fallback`` for both handler_invocations and
-    job_executions rows.
+) -> bool:
+    """Try to INSERT one row into executions; on FK violation, null the FK field and retry.
 
     Args:
         db: An open aiosqlite connection.
-        table: Target table name (e.g. ``"handler_invocations"``).
-        columns: Column list string for the INSERT.
-        values_clause: Values clause string matching ``columns``.
         record_params: Named-parameter dict for the initial INSERT attempt.
-        fk_field: The FK column name to null on violation (e.g. ``"listener_id"``).
+        fk_field: The FK column name to null on violation (``"listener_id"`` or ``"job_id"``).
         logger: Logger instance for warning/error messages.
 
     Returns:
-        1 if the row was dropped (failed even after nulling FK), 0 on success.
+        True if the row was dropped (failed even after nulling FK), False on success.
     """
-    sql = f"INSERT INTO {table} ({columns}) VALUES ({values_clause})"
     try:
-        await db.execute(sql, record_params)
-        return 0
+        await db.execute(_EXECUTION_INSERT_SQL, record_params)
+        return False
     except sqlite3.IntegrityError as exc:
         if not _is_fk_violation(exc):
             logger.error(
-                "Non-FK IntegrityError on %s row (%s=%s) — dropping: %s",
-                table,
+                "Non-FK IntegrityError on executions row (%s=%s) — dropping: %s",
                 fk_field,
                 record_params.get(fk_field),
                 exc,
             )
-            return 1
+            return True
         logger.warning(
-            "FK violation on %s row (%s=%s) — nulling FK and retrying",
-            table,
+            "FK violation on executions row (%s=%s) — nulling FK and retrying",
             fk_field,
             record_params.get(fk_field),
         )
         nulled_params = {**record_params, fk_field: None}
         try:
-            await db.execute(sql, nulled_params)
-            return 0
+            await db.execute(_EXECUTION_INSERT_SQL, nulled_params)
+            return False
         except sqlite3.IntegrityError as retry_exc:
             logger.error(
-                "Failed to persist %s row even with null FK — dropping: %s",
-                table,
+                "Failed to persist executions row even with null FK — dropping: %s",
                 retry_exc,
             )
-            return 1
+            return True
+
+
+# The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
+# f-string SQL. Today every caller passes string literals, but an allowlist keeps that
+# interpolation injection-safe if a non-literal value is ever passed in.
+_RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
+_RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
+
+
+def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
+    if table not in _RECONCILE_TABLES or history_fk not in _RECONCILE_FK_COLUMNS:
+        raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
 
 
 def _build_delete_query(
     table: str,
     app_key: str,
     live_ids: list[int],
-    history_table: str,
     history_fk: str,
     extra_where: str = "",
 ) -> tuple[str, dict]:
@@ -199,13 +176,13 @@ def _build_delete_query(
         table: Table to delete from (e.g. ``"listeners"``).
         app_key: The app key to scope the DELETE.
         live_ids: IDs to exclude from deletion.
-        history_table: Related history table (e.g. ``"handler_invocations"``).
-        history_fk: FK column in the history table (e.g. ``"listener_id"``).
+        history_fk: FK column in the executions table (e.g. ``"listener_id"``).
         extra_where: Optional additional WHERE fragment (leading ``AND`` included).
 
     Returns:
         A ``(sql, params)`` tuple.
     """
+    _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
@@ -219,7 +196,7 @@ def _build_delete_query(
         WHERE app_key = :app_key{extra_where}
           {not_in_clause}
           AND NOT EXISTS (
-              SELECT 1 FROM {history_table} WHERE {history_fk} = {table}.id
+              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
           )
     """
     return sql, params
@@ -229,7 +206,6 @@ def _build_retire_query(
     table: str,
     app_key: str,
     live_ids: list[int],
-    history_table: str,
     history_fk: str,
     now: float,
     extra_where: str = "",
@@ -240,14 +216,14 @@ def _build_retire_query(
         table: Table to update (e.g. ``"listeners"``).
         app_key: The app key to scope the UPDATE.
         live_ids: IDs to exclude from retirement.
-        history_table: Related history table (e.g. ``"handler_invocations"``).
-        history_fk: FK column in the history table (e.g. ``"listener_id"``).
+        history_fk: FK column in the executions table (e.g. ``"listener_id"``).
         now: Epoch timestamp for ``retired_at``.
         extra_where: Optional additional WHERE fragment (leading ``AND`` included).
 
     Returns:
         A ``(sql, params)`` tuple.
     """
+    _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key, "now": now}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
@@ -262,7 +238,7 @@ def _build_retire_query(
           {not_in_clause}
           AND retired_at IS NULL
           AND EXISTS (
-              SELECT 1 FROM {history_table} WHERE {history_fk} = {table}.id
+              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
           )
     """
     return sql, params
@@ -285,15 +261,15 @@ class TelemetryRepository:
     async def register_listener(self, registration: ListenerRegistration) -> int:
         """Upsert a listener registration into the listeners table.
 
-        For ``once=False`` listeners, uses ``INSERT ... ON CONFLICT DO UPDATE`` to
-        preserve the row ID across restarts (FK preservation). Mutable fields are
-        updated on conflict; identity fields (including ``human_description`` and
-        ``name``) are left unchanged. ``retired_at`` is reset to NULL when a retired
-        row is re-registered.
+        Uses ``INSERT ... ON CONFLICT DO UPDATE`` to preserve the row ID across
+        restarts (FK preservation). The conflict target exactly matches the unique
+        index ``idx_listeners_natural ON listeners(app_key, instance_index, name, topic)``.
+        Mutable fields are updated on conflict; identity fields are left unchanged.
+        ``retired_at`` is reset to NULL when a retired row is re-registered.
 
-        For ``once=True`` listeners, uses a plain ``INSERT`` — these are ephemeral
-        and are excluded from the partial unique index, so the upsert path does not
-        apply.
+        Both once=True and once=False listeners participate in the same upsert path.
+        The unique index covers all listeners; once=True listeners with a non-empty
+        stable name can still benefit from ID preservation across restarts.
 
         Args:
             registration: The listener registration data.
@@ -306,64 +282,38 @@ class TelemetryRepository:
         """
         db = self._db_service.db
 
-        if registration.once:
-            # once=True listeners: always insert fresh — partial index (WHERE once = 0)
-            # excludes them from uniqueness enforcement, so ON CONFLICT would never fire.
-            cursor = await db.execute(
-                """
-                INSERT INTO listeners (
-                    app_key, instance_index, handler_method, topic,
-                    debounce, throttle, once, priority,
-                    predicate_description, human_description,
-                    source_location, registration_source, name, source_tier,
-                    immediate, duration, entity_id
-                ) VALUES (
-                    :app_key, :instance_index, :handler_method, :topic,
-                    :debounce, :throttle, :once, :priority,
-                    :predicate_description, :human_description,
-                    :source_location, :registration_source, :name, :source_tier,
-                    :immediate, :duration, :entity_id
-                )
-                RETURNING id
-                """,
-                _listener_insert_params(registration, once=True),
+        cursor = await db.execute(
+            """
+            INSERT INTO listeners (
+                app_key, instance_index, handler_method, topic,
+                debounce, throttle, once, priority,
+                predicate_description, human_description,
+                source_location, registration_source, name, source_tier,
+                immediate, duration, entity_id
+            ) VALUES (
+                :app_key, :instance_index, :handler_method, :topic,
+                :debounce, :throttle, :once, :priority,
+                :predicate_description, :human_description,
+                :source_location, :registration_source, :name, :source_tier,
+                :immediate, :duration, :entity_id
             )
-        else:
-            # once=False listeners: upsert — return existing ID on conflict so FK
-            # references in handler_invocations survive across restarts.
-            cursor = await db.execute(
-                """
-                INSERT INTO listeners (
-                    app_key, instance_index, handler_method, topic,
-                    debounce, throttle, once, priority,
-                    predicate_description, human_description,
-                    source_location, registration_source, name, source_tier,
-                    immediate, duration, entity_id
-                ) VALUES (
-                    :app_key, :instance_index, :handler_method, :topic,
-                    :debounce, :throttle, :once, :priority,
-                    :predicate_description, :human_description,
-                    :source_location, :registration_source, :name, :source_tier,
-                    :immediate, :duration, :entity_id
-                )
-                ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
-                WHERE once = 0
-                DO UPDATE SET
-                    debounce = excluded.debounce,
-                    throttle = excluded.throttle,
-                    priority = excluded.priority,
-                    predicate_description = excluded.predicate_description,
-                    source_location = excluded.source_location,
-                    registration_source = excluded.registration_source,
-                    source_tier = excluded.source_tier,
-                    immediate = excluded.immediate,
-                    duration = excluded.duration,
-                    entity_id = excluded.entity_id,
-                    retired_at = NULL
-                RETURNING id
-                """,
-                _listener_insert_params(registration, once=False),
-            )
+            ON CONFLICT(app_key, instance_index, name, topic)
+            DO UPDATE SET
+                debounce = excluded.debounce,
+                throttle = excluded.throttle,
+                priority = excluded.priority,
+                predicate_description = excluded.predicate_description,
+                source_location = excluded.source_location,
+                registration_source = excluded.registration_source,
+                source_tier = excluded.source_tier,
+                immediate = excluded.immediate,
+                duration = excluded.duration,
+                entity_id = excluded.entity_id,
+                retired_at = NULL
+            RETURNING id
+            """,
+            _listener_insert_params(registration),
+        )
 
         row = await cursor.fetchone()
         await db.commit()
@@ -477,11 +427,11 @@ class TelemetryRepository:
         """Reconcile listener and job registrations for an app after initialization.
 
         For non-once listeners and jobs not in the live ID sets:
-        - Rows without invocation/execution history are deleted outright.
+        - Rows without execution history in ``executions`` are deleted outright.
         - Rows with history have ``retired_at`` set to the current time.
 
         For once=True listeners not in the live ID set and not in the current session,
-        deletes them (guarded by NOT EXISTS for current-session invocations).
+        deletes them (guarded by NOT EXISTS for current-session executions).
 
         Args:
             app_key: The app key to reconcile.
@@ -503,15 +453,13 @@ class TelemetryRepository:
         try:
             # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
             # so without this BEGIN, each execute() below auto-commits individually and the
-            # rollback() in the except clause is a no-op. This pattern mirrors
-            # persist_batch_with_fk_fallback().
+            # rollback() in the except clause is a no-op.
             await db.execute("BEGIN")
 
             sql, params = _build_delete_query(
                 "listeners",
                 app_key,
                 live_listener_ids,
-                "handler_invocations",
                 "listener_id",
                 extra_where=" AND once = 0",
             )
@@ -521,7 +469,6 @@ class TelemetryRepository:
                 "listeners",
                 app_key,
                 live_listener_ids,
-                "handler_invocations",
                 "listener_id",
                 now,
                 extra_where=" AND once = 0",
@@ -543,7 +490,7 @@ class TelemetryRepository:
                       AND source_tier = :source_tier
                       {not_in_clause}
                       AND NOT EXISTS (
-                          SELECT 1 FROM handler_invocations
+                          SELECT 1 FROM executions
                           WHERE listener_id = listeners.id AND session_id = :session_id
                       )
                     """,
@@ -552,9 +499,8 @@ class TelemetryRepository:
             else:
                 # session_id is unavailable (DB write queue backpressure at startup).
                 # Skip once=True deletion entirely — any row that fired before reconciliation
-                # but whose invocation hasn't flushed yet would be orphaned without the
+                # but whose execution hasn't flushed yet would be orphaned without the
                 # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
-                # This condition is correlated with heavy-load scenarios where the risk is real.
                 logging.getLogger(__name__).debug(
                     "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
                     app_key,
@@ -564,7 +510,6 @@ class TelemetryRepository:
                 "scheduled_jobs",
                 app_key,
                 live_job_ids,
-                "job_executions",
                 "job_id",
             )
             await db.execute(sql, params)
@@ -573,7 +518,6 @@ class TelemetryRepository:
                 "scheduled_jobs",
                 app_key,
                 live_job_ids,
-                "job_executions",
                 "job_id",
                 now,
             )
@@ -584,22 +528,36 @@ class TelemetryRepository:
             await db.rollback()
             raise
 
-    async def persist_batch_with_fk_fallback(
-        self,
-        invocations: list[HandlerInvocationRecord],
-        job_executions: list[JobExecutionRecord],
-    ) -> int:
-        """Insert records row-by-row with FK violation fallback (best-effort per record).
+    async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
+        """Write a batch of unified execution records to the executions table.
+
+        Args:
+            records: Execution records to insert. All must have session_id set.
+        """
+        if not records:
+            return
+
+        db = self._db_service.db
+
+        try:
+            await db.execute("BEGIN")
+            params_list = [_execution_insert_params(r) for r in records]
+            await db.executemany(_EXECUTION_INSERT_SQL, params_list)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+    async def persist_execution_batch_with_fk_fallback(self, records: list[ExecutionRecord]) -> int:
+        """Insert execution records row-by-row with FK violation fallback (best-effort per record).
 
         Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
         failed with IntegrityError. Each record is inserted individually; on FK violation
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.
 
-        Atomicity is best-effort per record, not per batch: if an individual record fails
-        even after FK nulling (e.g. disk error), it is silently dropped and the remaining
-        records are still committed. This is intentional for append-only telemetry — losing
-        one record to a transient error is preferable to losing the entire batch.
+        Atomicity is best-effort per record: if an individual record fails even after FK
+        nulling, it is silently dropped and remaining records are still committed.
 
         Returns the number of records that were dropped (failed even with null FK).
         """
@@ -607,31 +565,17 @@ class TelemetryRepository:
         dropped = 0
         logger = logging.getLogger(__name__)
 
-        # Derive column and values clauses from the shared params functions.
-        # A sentinel record is used only to obtain the key order; all values
-        # are overridden per-record below. This ensures the column list in the
-        # FK-fallback path is always identical to the one used by persist_batch().
-        _inv_sentinel = _inv_insert_params(invocations[0]) if invocations else {}
-        _job_sentinel = _job_insert_params(job_executions[0]) if job_executions else {}
-        inv_cols = ", ".join(_inv_sentinel.keys()) if _inv_sentinel else ""
-        inv_vals = ", ".join(f":{k}" for k in _inv_sentinel) if _inv_sentinel else ""
-        job_cols = ", ".join(_job_sentinel.keys()) if _job_sentinel else ""
-        job_vals = ", ".join(f":{k}" for k in _job_sentinel) if _job_sentinel else ""
+        if not records:
+            return 0
 
         try:
             await db.execute("BEGIN")
 
-            for record in invocations:
-                params = _inv_insert_params(record)
-                dropped += await _insert_row_with_fk_fallback(
-                    db, "handler_invocations", inv_cols, inv_vals, params, "listener_id", logger
-                )
-
-            for record in job_executions:
-                params = _job_insert_params(record)
-                dropped += await _insert_row_with_fk_fallback(
-                    db, "job_executions", job_cols, job_vals, params, "job_id", logger
-                )
+            for record in records:
+                params = _execution_insert_params(record)
+                fk_field = "listener_id" if record.kind == "handler" else "job_id"
+                if await _insert_row_with_fk_fallback(db, params, fk_field, logger):
+                    dropped += 1
 
             await db.commit()
         except Exception:
@@ -639,49 +583,3 @@ class TelemetryRepository:
             raise
 
         return dropped
-
-    async def persist_batch(
-        self,
-        invocations: list[HandlerInvocationRecord],
-        job_executions: list[JobExecutionRecord],
-    ) -> None:
-        """Write a batch of execution records to the DB in a single transaction.
-
-        Sentinel filtering (listener_id == 0, session_id == 0) is performed by
-        the caller (``CommandExecutor._drain_and_persist``) before calling this
-        method. This method writes all records it receives without additional
-        filtering.
-
-        Args:
-            invocations: Handler invocation records to insert into handler_invocations.
-            job_executions: Job execution records to insert into job_executions.
-        """
-        if not invocations and not job_executions:
-            return
-
-        db = self._db_service.db
-
-        try:
-            await db.execute("BEGIN")
-            if invocations:
-                inv_params = [_inv_insert_params(r) for r in invocations]
-                inv_cols = ", ".join(inv_params[0].keys())
-                inv_vals = ", ".join(f":{k}" for k in inv_params[0])
-                await db.executemany(
-                    f"INSERT INTO handler_invocations ({inv_cols}) VALUES ({inv_vals})",
-                    inv_params,
-                )
-
-            if job_executions:
-                job_params = [_job_insert_params(r) for r in job_executions]
-                job_cols = ", ".join(job_params[0].keys())
-                job_vals = ", ".join(f":{k}" for k in job_params[0])
-                await db.executemany(
-                    f"INSERT INTO job_executions ({job_cols}) VALUES ({job_vals})",
-                    job_params,
-                )
-
-            await db.commit()
-        except Exception:
-            await db.rollback()
-            raise

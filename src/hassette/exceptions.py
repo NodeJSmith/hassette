@@ -284,6 +284,53 @@ class InvalidLifecycleTransitionError(HassetteError):
         super().__init__(f"Invalid lifecycle transition for '{resource_name}': {from_status!r} → {to_status!r}")
 
 
+class ListenerNameRequiredError(HassetteError):
+    """Raised at call time when ``name=`` is omitted on a DB-registered listener.
+
+    Attributes:
+        handler_method: Fully-qualified name of the handler function.
+        topic: The event topic the listener was being registered for.
+    """
+
+    def __init__(self, handler_method: str, topic: str) -> None:
+        self.handler_method = handler_method
+        self.topic = topic
+        super().__init__(
+            f"Listener registration requires a name.\n\n"
+            f"  handler: {handler_method}\n"
+            f"  topic:   {topic}\n\n"
+            f"Provide a stable name via the `name=` parameter:\n\n"
+            f'  await self.bus.on_state_change({topic!r}, handler=self.handler, name="my_listener")'
+        )
+
+
+class DuplicateListenerError(HassetteError):
+    """Raised at call time when a second listener with the same ``(name, topic)`` is
+    registered within the same app instance in the same session.
+
+    Detected in-memory by the Bus before any database write. Cross-session duplicates
+    are handled by upsert and are not an error.
+
+    Attributes:
+        name: The stable name that collided.
+        topic: The event topic both listeners were registered for.
+        existing_handler: Fully-qualified name of the already-registered handler.
+        duplicate_handler: Fully-qualified name of the handler that triggered the error.
+    """
+
+    def __init__(self, name: str, topic: str, existing_handler: str, duplicate_handler: str) -> None:
+        self.name = name
+        self.topic = topic
+        self.existing_handler = existing_handler
+        self.duplicate_handler = duplicate_handler
+        super().__init__(
+            f"A listener named {name!r} is already registered for topic {topic!r}.\n\n"
+            f"  existing handler: {existing_handler}\n"
+            f"  duplicate handler: {duplicate_handler}\n\n"
+            f"Use a different name for the second listener, or remove the first registration before re-registering."
+        )
+
+
 class RegistryValidationError(HassetteError):
     """Raised when startup registry validation finds error-level issues.
 

@@ -7,7 +7,7 @@ class LightApp(App):
     async def on_initialize(self):
         # Logical OR (AnyOf)
         # Triggers if ANY of the conditions match
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "light.office",
             handler=self.on_light_change,
             where=P.AnyOf(
@@ -17,6 +17,7 @@ class LightApp(App):
                 )
             ),
             changed=False,
+            name="office_bright_or_white",
         )
 
     async def on_light_change(

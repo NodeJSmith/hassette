@@ -18,12 +18,12 @@ import asyncio
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fair_async_rlock import FairAsyncRLock
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
-from hassette.core.registration_tracker import RegistrationTracker
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
@@ -33,9 +33,7 @@ def make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-    svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()
 
@@ -124,10 +122,10 @@ class TestRescheduleExceptionRemovesJob:
         svc._job_queue.remove_job.assert_called_once_with(job)
         svc.logger.exception.assert_called_once()
 
-        # Verify the log message contains job_id, callable name, trigger repr context
+        # Verify the log message contains db_id, callable name, trigger repr context
         call_args = svc.logger.exception.call_args
         log_msg = call_args[0][0]
-        assert "job_id" in log_msg
+        assert "db_id" in log_msg
         assert "callable" in log_msg
         assert "trigger" in log_msg
 
@@ -239,12 +237,10 @@ class TestJitter:
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.lifecycle.registration_await_timeout = 30
         svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
         svc.hassette.config.scheduler.min_delay_seconds = 0.1
         svc.hassette.config.scheduler.max_delay_seconds = 300.0
         svc.hassette.config.scheduler.default_delay_seconds = 10.0
-        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
@@ -364,8 +360,6 @@ class TestEnqueueThenRegisterUsesProtocol:
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.lifecycle.registration_await_timeout = 30
-        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
@@ -393,7 +387,7 @@ class TestEnqueueThenRegisterUsesProtocol:
             app_key="my_app",
         )
 
-        await svc._enqueue_then_register(job)
+        await svc.add_job(job)
 
         assert len(captured_registrations) == 1
         reg = captured_registrations[0]
@@ -521,17 +515,16 @@ class TestNonFutureGuard:
         svc.logger.warning.assert_called_once()
 
 
-class TestEnqueueThenRegisterDbFailure:
-    async def test_enqueue_then_register_logs_on_db_failure(self) -> None:
-        """When register_job raises, _enqueue_then_register logs exception and does NOT re-raise.
+class TestAddJobDbFailure:
+    async def test_add_job_propagates_db_failure(self) -> None:
+        """When register_job raises, add_job propagates the exception.
 
-        The job is already enqueued before registration; a DB failure must not crash
-        the scheduler or silently drop the job — it runs without telemetry instead.
+        Under synchronous registration, DB failures propagate out of add_job()
+        and fail app startup rather than degrading silently. The job is NOT
+        enqueued when registration fails.
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.lifecycle.registration_await_timeout = 30
-        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
@@ -554,14 +547,12 @@ class TestEnqueueThenRegisterDbFailure:
             app_key="my_app",
         )
 
-        # Must not raise
-        await svc._enqueue_then_register(job)
+        # Must propagate the DB error
+        with pytest.raises(RuntimeError, match="DB unavailable"):
+            await svc.add_job(job)
 
-        # logger.exception must have been called with owner_id and name context
-        svc.logger.exception.assert_called_once()
-        call_args = svc.logger.exception.call_args
-        log_msg = call_args[0][0]
-        assert "owner_id" in log_msg or "Failed to register" in log_msg
+        # Job must NOT be enqueued when registration fails
+        svc._job_queue.add.assert_not_called()
 
 
 class TestBehindScheduleWarning:

@@ -18,7 +18,7 @@ class DailyNotificationConfig(AppConfig):
 
 class DailyNotificationApp(App[DailyNotificationConfig]):
     async def on_initialize(self) -> None:
-        self.scheduler.run_daily(
+        await self.scheduler.run_daily(
             self.send_notification,
             at=self.app_config.notify_time,
         )

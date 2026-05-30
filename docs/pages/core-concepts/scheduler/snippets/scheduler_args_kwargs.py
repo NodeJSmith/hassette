@@ -4,7 +4,7 @@ from hassette import App, AppConfig
 class NotifyApp(App[AppConfig]):
     async def on_initialize(self):
         # Pass positional arguments to the handler
-        self.scheduler.run_in(
+        await self.scheduler.run_in(
             self.send_alert,
             delay=30.0,
             name="startup_alert",
@@ -12,7 +12,7 @@ class NotifyApp(App[AppConfig]):
         )
 
         # Pass keyword arguments to the handler
-        self.scheduler.run_every(
+        await self.scheduler.run_every(
             self.log_status,
             seconds=300,
             name="status_log",
@@ -20,7 +20,7 @@ class NotifyApp(App[AppConfig]):
         )
 
         # Combine args and kwargs
-        self.scheduler.run_daily(
+        await self.scheduler.run_daily(
             self.generate_report,
             at="06:00",
             name="daily_report",

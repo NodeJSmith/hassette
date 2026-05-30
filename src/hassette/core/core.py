@@ -37,7 +37,7 @@ from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
 from .state_proxy import StateProxy
-from .telemetry_query_service import TelemetryQueryService
+from .telemetry.query_service import TelemetryQueryService
 from .web_api_service import WebApiService
 from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
@@ -261,7 +261,7 @@ class Hassette(Resource):
             raise RuntimeError("wire_services() has not been called")
         return self._command_executor
 
-    def get_drop_counters(self) -> tuple[int, int, int, int]:
+    def get_drop_counters(self) -> tuple[int, int, int]:
         return self.command_executor.get_drop_counters()
 
     def get_error_handler_failures(self) -> int:
@@ -488,17 +488,6 @@ class Hassette(Resource):
                 await self.shutdown()
                 return
 
-        try:
-            await asyncio.wait_for(
-                self.bus_service.drain_framework_registrations(),
-                timeout=self.config.lifecycle.registration_await_timeout,
-            )
-        except TimeoutError:
-            self.logger.warning(
-                "drain_framework_registrations timed out after %ds — proceeding with startup",
-                self.config.lifecycle.registration_await_timeout,
-            )
-
         # Clean up stale once=True listeners from previous sessions. Safe to run here
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
@@ -619,8 +608,8 @@ class Hassette(Resource):
                 if self._command_executor is not None:
                     counters = self._command_executor.get_drop_counters()
                 else:
-                    counters = (0, 0, 0, 0)
+                    counters = (0, 0, 0)
             except Exception:
-                counters = (0, 0, 0, 0)
+                counters = (0, 0, 0)
             if self._session_manager is not None:
                 await self._session_manager.finalize_session(drop_counters=counters)

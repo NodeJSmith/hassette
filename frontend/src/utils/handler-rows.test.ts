@@ -15,9 +15,9 @@ describe("listenerToRow", () => {
     expect(row.kind).toBe("listener");
   });
 
-  it("prefixes id with h-", () => {
+  it("sets id to listener/N format", () => {
     const row = listenerToRow(createListener({ listener_id: 42 }));
-    expect(row.id).toBe("h-42");
+    expect(row.id).toBe("listener/42");
   });
 
   it("maps app_key", () => {
@@ -86,9 +86,9 @@ describe("jobToRow", () => {
     expect(row.kind).toBe("job");
   });
 
-  it("prefixes id with j-", () => {
+  it("sets id to job/N format", () => {
     const row = jobToRow(createJob({ job_id: 7 }));
-    expect(row.id).toBe("j-7");
+    expect(row.id).toBe("job/7");
   });
 
   it("maps app_key", () => {
@@ -172,7 +172,7 @@ function desc(key: HandlerSortKey): SortState<HandlerSortKey> {
 function row(overrides: Partial<UnifiedRow>): UnifiedRow {
   return {
     kind: "listener",
-    id: "h-1",
+    id: "listener/1",
     app_key: "app_a",
     name: "handler",
     handler_method: "app.Handler.handler",

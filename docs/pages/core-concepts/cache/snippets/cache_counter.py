@@ -7,10 +7,11 @@ class MotionCounterApp(App[AppConfig]):
         self.motion_count = self.cache.get("motion_count", 0)
         self.logger.info("Motion count restored: %s", self.motion_count)
 
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
             where=P.StateTo("on"),
+            name="motion_counter",
         )
 
     async def on_motion(self, event):

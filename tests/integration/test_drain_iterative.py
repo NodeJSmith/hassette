@@ -34,7 +34,7 @@ class Depth1App(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self.turn_on_called = False
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="depth1_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         await self.api.turn_on("light.kitchen")
@@ -53,7 +53,7 @@ class Depth2App(App[DrainTestConfig]):
     """Handler spawns a task via task_bucket.spawn; spawned task calls api.turn_on."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="depth2_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self.secondary(), name="my_secondary_task")
@@ -84,7 +84,7 @@ class Depth3App(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self.task_b_gate = asyncio.Event()
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="depth3_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self.task_a(), name="task_a")
@@ -133,7 +133,7 @@ class PerpetualSpawnApp(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self._keep_spawning = True
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="perpetual_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self.spawner(), name="my_handler:perpetual")
@@ -181,7 +181,7 @@ class SingleExceptionApp(App[DrainTestConfig]):
     """
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="single_exc_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self._crashing_work(), name="my_crashing_task")
@@ -217,7 +217,7 @@ class TwoSpawnedExceptionApp(App[DrainTestConfig]):
     """Handler spawns two tasks that each raise a different exception."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="two_exc_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self._crash_value(), name="crash_value_task")
@@ -265,7 +265,7 @@ class DebounceHintApp(App[DrainTestConfig]):
     """
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="debounce_hint_test")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         # Spawn a long-running task named like a debounce task to trigger the hint

@@ -38,13 +38,13 @@ class ClimateController(App[ClimateControllerConfig]):
         )
 
         # Watch all temperature sensors via glob pattern
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "sensor.*temperature*",
             changed=C.Increased(),
             handler=self.on_temp_increased,
         )
 
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "sensor.*temperature*",
             changed=C.Decreased(),
             changed_from=C.Present(),
@@ -52,14 +52,14 @@ class ClimateController(App[ClimateControllerConfig]):
         )
 
         # Watch HVAC current_temperature attribute
-        self.bus.on_attribute_change(
+        await self.bus.on_attribute_change(
             cfg.climate_entity,
             "current_temperature",
             handler=self.on_hvac_temp_change,
         )
 
         # Periodic climate summary — group for easy filtering in the dashboard
-        self.scheduler.run_every(
+        await self.scheduler.run_every(
             self.log_climate_summary,
             seconds=cfg.check_interval,
             name="climate_summary",

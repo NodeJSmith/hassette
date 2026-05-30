@@ -19,20 +19,22 @@ class VacationMode(App[VacationModeConfig]):
     _presence_job: ScheduledJob | None = None
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.vacation_toggle,
             changed_to="on",
             handler=self.on_vacation_start,
+            name="vacation_start",
         )
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.vacation_toggle,
             changed_to="off",
             handler=self.on_vacation_end,
+            name="vacation_end",
         )
 
     async def on_vacation_start(self) -> None:
         self.logger.info("Vacation mode enabled — starting presence simulation")
-        self._presence_job = self.scheduler.run_every(
+        self._presence_job = await self.scheduler.run_every(
             self.simulate_presence,
             seconds=self.app_config.check_interval,
             name=PRESENCE_JOB_NAME,

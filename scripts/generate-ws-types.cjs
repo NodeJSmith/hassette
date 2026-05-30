@@ -30,10 +30,9 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
 
 const COMPAT_ALIASES = `
 export type WsLogPayload = LogEntryResponse;
-export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
-// InvocationStatus is also defined in generated-types.ts (from OpenAPI).
+// ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
 // CI enforces freshness of both files atomically.
 `;

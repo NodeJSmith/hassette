@@ -6,7 +6,7 @@ from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_next_run, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.core.telemetry_models import JobExecution, JobSummary
+from hassette.core.telemetry_models import Execution, JobSummary
 
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
@@ -56,7 +56,7 @@ def cmd_job(
             list,
             params=params,
         )
-        executions = [JobExecution.model_validate(e) for e in raw]
+        executions = [Execution.model_validate(e) for e in raw]
         render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
         return
 

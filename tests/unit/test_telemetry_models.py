@@ -2,9 +2,8 @@
 
 from hassette.core.telemetry_models import (
     AppHealthSummary,
+    Execution,
     GlobalSummary,
-    HandlerInvocation,
-    JobExecution,
     JobSummary,
     ListenerSummary,
     SessionSummary,
@@ -118,21 +117,70 @@ class TestListenerSummary:
         assert model.last_invoked_at is None
 
 
-class TestHandlerInvocation:
-    def test_handler_invocation_from_dict(self) -> None:
+class TestExecution:
+    def test_handler_execution_from_dict(self) -> None:
         data = {
+            "kind": "handler",
+            "listener_id": 7,
             "execution_start_ts": 1700000000.0,
             "duration_ms": 12.5,
             "status": "success",
             "error_type": None,
             "error_message": None,
-            "error_traceback": None,
         }
-        model = HandlerInvocation.model_validate(data)
+        model = Execution.model_validate(data)
+        assert model.kind == "handler"
+        assert model.listener_id == 7
         assert model.execution_start_ts == 1700000000.0
         assert model.duration_ms == 12.5
         assert model.status == "success"
         assert model.error_type is None
+
+    def test_job_execution_from_dict(self) -> None:
+        data = {
+            "kind": "job",
+            "job_id": 3,
+            "execution_start_ts": 1700000000.0,
+            "duration_ms": 20.0,
+            "status": "error",
+            "error_type": "RuntimeError",
+            "error_message": "something broke",
+        }
+        model = Execution.model_validate(data)
+        assert model.kind == "job"
+        assert model.job_id == 3
+        assert model.status == "error"
+        assert model.error_type == "RuntimeError"
+
+    def test_optional_fields_default_to_none(self) -> None:
+        model = Execution.model_validate(
+            {
+                "kind": "handler",
+                "execution_start_ts": 1.0,
+                "duration_ms": 0.0,
+                "status": "success",
+                "error_type": None,
+                "error_message": None,
+            }
+        )
+        assert model.listener_id is None
+        assert model.job_id is None
+        assert model.execution_id is None
+        assert model.trigger_context_id is None
+
+    def test_error_traceback_round_trips(self) -> None:
+        model = Execution.model_validate(
+            {
+                "kind": "handler",
+                "execution_start_ts": 1.0,
+                "duration_ms": 1.0,
+                "status": "error",
+                "error_type": "ValueError",
+                "error_message": "bad",
+                "error_traceback": "Traceback (most recent call last):\n  ...",
+            }
+        )
+        assert model.error_traceback == "Traceback (most recent call last):\n  ..."
 
 
 class TestJobSummary:
@@ -159,20 +207,6 @@ class TestJobSummary:
         assert model.job_id == 5
         assert model.total_executions == 3
         assert model.total_duration_ms == 75.0
-
-
-class TestJobExecution:
-    def test_job_execution_from_dict(self) -> None:
-        data = {
-            "execution_start_ts": 1700000000.0,
-            "duration_ms": 20.0,
-            "status": "error",
-            "error_type": "RuntimeError",
-            "error_message": "something broke",
-        }
-        model = JobExecution.model_validate(data)
-        assert model.status == "error"
-        assert model.error_type == "RuntimeError"
 
 
 class TestGlobalSummary:

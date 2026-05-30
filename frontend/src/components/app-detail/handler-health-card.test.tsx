@@ -227,7 +227,7 @@ describe("HandlerHealthCard — card click navigation", () => {
     const card = getByTestId("overview-health-card-listener-4");
     fireEvent.click(card);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-4");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
   });
 
   it("navigates to job handler detail page when job card is clicked", () => {
@@ -238,7 +238,7 @@ describe("HandlerHealthCard — card click navigation", () => {
     const card = getByTestId("overview-health-card-job-9");
     fireEvent.click(card);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/j-9");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/9");
   });
 });
 
@@ -255,7 +255,7 @@ describe("HandlerHealthCard — Enter key navigation", () => {
     const card = getByTestId("overview-health-card-listener-5");
     fireEvent.keyDown(card, { key: "Enter" });
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-5");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
   });
 
   it("navigates when Space key is pressed on the card", () => {
@@ -266,7 +266,7 @@ describe("HandlerHealthCard — Enter key navigation", () => {
     const card = getByTestId("overview-health-card-listener-5");
     fireEvent.keyDown(card, { key: " " });
 
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-5");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/5");
   });
 });
 

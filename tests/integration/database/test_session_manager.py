@@ -3,7 +3,7 @@
 import sqlite3
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -197,7 +197,7 @@ async def test_on_service_crashed_no_session(session_manager: SessionManager, db
 async def test_on_service_crashed_db_not_initialized(db_hassette: MagicMock) -> None:
     """on_service_crashed returns early when database is not initialized."""
     db_service_mock = MagicMock()
-    type(db_service_mock).db = PropertyMock(side_effect=RuntimeError("not initialized"))
+    db_service_mock.is_db_ready = False
 
     sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
@@ -216,7 +216,7 @@ async def test_finalize_session_no_session(session_manager: SessionManager) -> N
 async def test_finalize_session_db_not_initialized(db_hassette: MagicMock) -> None:
     """finalize_session returns early when database is not initialized."""
     db_service_mock = MagicMock()
-    type(db_service_mock).db = PropertyMock(side_effect=RuntimeError("not initialized"))
+    db_service_mock.is_db_ready = False
 
     sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
@@ -246,3 +246,75 @@ async def test_finalize_session_db_error(session_manager: SessionManager, db_ser
 
     # Should not raise — _do_finalize_session catches the exception and logs
     await session_manager.finalize_session()
+
+
+async def test_cleanup_once_listeners_removes_stale_once_listener(
+    session_manager: SessionManager, db_service: DatabaseService
+) -> None:
+    """cleanup_stale_once_listeners deletes once=True listeners from stopped sessions.
+
+    Regression test for the bug where _do_cleanup_once_listeners queried the deleted
+    handler_invocations table instead of executions. The error was swallowed by the
+    try/except, so once=True listeners silently accumulated across sessions.
+
+    Setup:
+    - A stopped session (stopped_at IS NOT NULL) with a once=True listener.
+    - An executions row (kind='handler', listener_id set) linking that listener to the stopped session.
+    - A current (running) session with NO execution for that listener.
+
+    Expected: cleanup_stale_once_listeners() deletes the once=True listener row.
+    """
+    db = db_service.db
+    now = time.time()
+
+    # Insert a stopped session (stopped_at IS NOT NULL)
+    cursor = await db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status, stopped_at) VALUES (?, ?, 'success', ?)",
+        (now - 600, now - 300, now - 300),
+    )
+    await db.commit()
+    stopped_session_id = cursor.lastrowid
+    assert stopped_session_id is not None
+
+    # Insert a once=True listener owned by the stopped session context (session_id tracked via executions)
+    cursor = await db.execute(
+        """
+        INSERT INTO listeners
+            (app_key, instance_index, name, handler_method, topic, once, source_location, source_tier)
+        VALUES ('test_app', 0, 'test_once_listener', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
+        """,
+    )
+    await db.commit()
+    listener_id = cursor.lastrowid
+    assert listener_id is not None
+
+    # Insert an executions row for that listener in the stopped session
+    cursor = await db.execute(
+        """
+        INSERT INTO executions
+            (kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier)
+        VALUES ('handler', ?, ?, ?, 5.0, 'success', 'app')
+        """,
+        (listener_id, stopped_session_id, now - 400),
+    )
+    await db.commit()
+
+    # Create the current running session (no execution for this listener)
+    await session_manager.create_session()
+    current_session_id = session_manager.session_id
+
+    # Confirm the listener exists before cleanup
+    cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None, "Listener must exist before cleanup"
+
+    # Run cleanup
+    await session_manager.cleanup_stale_once_listeners()
+
+    # The once=True listener from the stopped session should be deleted
+    cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is None, (
+        f"once=True listener (id={listener_id}) from stopped session {stopped_session_id} "
+        f"should be deleted; current_session_id={current_session_id}"
+    )

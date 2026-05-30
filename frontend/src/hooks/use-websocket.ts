@@ -141,13 +141,20 @@ export function useWebSocket(state: AppState): void {
               };
               break;
 
-            case "invocation_completed":
-              state.invocationCompleted.value = msg.data;
-              break;
-
             case "execution_completed":
               state.executionCompleted.value = msg.data;
               break;
+
+            case "connectivity":
+            case "state_changed":
+              // Intentionally ignored — not consumed by the frontend UI.
+              break;
+
+            default: {
+              const _exhaustive: never = msg;
+              void _exhaustive;
+              break;
+            }
           }
         });
       };

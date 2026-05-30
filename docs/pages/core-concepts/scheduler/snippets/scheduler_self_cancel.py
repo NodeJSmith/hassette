@@ -7,7 +7,7 @@ class PollApp(App[AppConfig]):
 
     async def on_initialize(self):
         # Store a reference so the handler can cancel itself.
-        self._poll_job = self.scheduler.run_every(
+        self._poll_job = await self.scheduler.run_every(
             self.wait_for_device,
             seconds=10,
             name="device_poll",

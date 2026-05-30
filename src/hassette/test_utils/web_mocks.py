@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_query_service import AppHealthAggregates
+from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
@@ -42,8 +42,7 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
         )
     )
     ts.get_all_app_summaries = AsyncMock(return_value={})
-    ts.get_handler_invocations = AsyncMock(return_value=[])
-    ts.get_job_executions = AsyncMock(return_value=[])
+    ts.get_executions = AsyncMock(return_value=[])
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
     ts.check_health = AsyncMock(return_value=None)
@@ -159,7 +158,7 @@ def create_hassette_stub(
 
     wire_telemetry_stubs(hassette)
 
-    hassette.get_drop_counters.return_value = (0, 0, 0, 0)
+    hassette.get_drop_counters.return_value = (0, 0, 0)
 
     hassette.children = []
 
@@ -193,11 +192,8 @@ def create_mock_runtime_query_service(
     svc._ws_drops = 0
     svc._ws_drops_since_last_log = 0
     svc._ws_drops_last_logged = 0.0
-    svc._pending_invocations = []
-    svc._pending_executions = []
+    svc._pending_completions = []
     svc._flush_scheduled = False
-    svc._listener_meta = {}
-    svc._job_meta = {}
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     svc.logger = MagicMock()

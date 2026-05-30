@@ -11,10 +11,10 @@ import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry_models import (
     AppHealthSummary,
 )
-from hassette.core.telemetry_query_service import TelemetryQueryService
 
 from .helpers import (
     BASE_TS,
@@ -117,7 +117,7 @@ class TestGetAllAppSummaries:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Multi-instance app: activity sums across all instances, handler_count reflects instance 0 only."""
+        """Multi-instance app: activity sums across all instances; handler_count is distinct identities across all."""
         db_svc, session_id = db
 
         # Instance 0: 2 listeners, 2 invocations
@@ -141,7 +141,7 @@ class TestGetAllAppSummaries:
         assert "app_m" in result
         m = result["app_m"]
 
-        # handler_count reflects instance 0 only (2 listeners)
+        # handler_count = distinct (name, topic) identities across all instances: {on_a, on_b} = 2
         assert m.handler_count == 2
         # total_invocations sums across ALL instances: 2 + 3 + 1 = 6
         assert m.total_invocations == 6
@@ -150,12 +150,35 @@ class TestGetAllAppSummaries:
         # avg_duration_ms is AVG over all 6 raw rows: (10+20+30+40+50+60)/6 = 35.0
         assert m.avg_duration_ms == pytest.approx(35.0)
 
+    async def test_get_all_app_summaries_asymmetric_instances_handler_count(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Asymmetric instances: handler_count is the union of distinct identities, not instance 0's set.
+
+        Instance 0 registers on_a, on_b; instance 1 adds on_c that instance 0 never had. The count
+        is 3 (the distinct union), which is where counting distinct identities across all instances
+        diverges from the older instance-0-only approach (which would report 2).
+        """
+        db_svc, _session_id = db
+
+        await insert_listener(db_svc, app_key="app_z", instance_index=0, handler_method="on_a")
+        await insert_listener(db_svc, app_key="app_z", instance_index=0, handler_method="on_b")
+        await insert_listener(db_svc, app_key="app_z", instance_index=1, handler_method="on_a")
+        await insert_listener(db_svc, app_key="app_z", instance_index=1, handler_method="on_c")
+
+        result = await query_service.get_all_app_summaries()
+        assert "app_z" in result
+        # Distinct identities across all instances: {on_a, on_b, on_c} = 3 (not 2).
+        assert result["app_z"].handler_count == 3
+
     async def test_get_all_app_summaries_multi_instance_job_aggregation(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Multi-instance app: job activity sums across all instances, job_count reflects instance 0 only."""
+        """Multi-instance app: job activity sums across all instances; job_count is distinct job names across all."""
         db_svc, session_id = db
 
         # Instance 0: 1 job, 2 executions
@@ -177,7 +200,7 @@ class TestGetAllAppSummaries:
         assert "app_j" in result
         j = result["app_j"]
 
-        # job_count reflects instance 0 only (1 job)
+        # job_count = distinct job_name across all instances: {cron_a} = 1
         assert j.job_count == 1
         # total_executions sums across ALL instances: 2 + 3 + 1 = 6
         assert j.total_executions == 6
@@ -360,18 +383,18 @@ class TestCrossSessionAndRetiredRows:
 
         # Insert old retired listener (no invocations needed)
         cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
             "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
+            "VALUES ('test_app', 0, 'on_old', 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
             (old_retired_at,),
         )
         old_listener_id = cursor.lastrowid
 
         # Insert recent retired listener (should survive cleanup)
         cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, handler_method, topic, "
+            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
             "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
+            "VALUES ('test_app', 0, 'on_recent', 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
             (recent_retired_at,),
         )
         recent_listener_id = cursor.lastrowid
@@ -539,9 +562,13 @@ class TestGetSlowHandlersLeftJoin:
         listener_id = await insert_listener(db_svc, handler_method="on_slow")
 
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=500.0)
-        # Delete the listener
+        # Delete the listener with FK enforcement off so ON DELETE SET NULL doesn't
+        # fire — the execution row keeps its listener_id (pointing to a now-gone row),
+        # satisfying the CHECK constraint while making the LEFT JOIN return null app_key.
+        await db_svc.db.execute("PRAGMA foreign_keys = OFF")
         await db_svc.db.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
         await db_svc.db.commit()
+        await db_svc.db.execute("PRAGMA foreign_keys = ON")
 
         rows = await query_service.get_slow_handlers(threshold_ms=100.0)
         assert len(rows) == 1

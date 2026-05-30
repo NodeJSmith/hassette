@@ -39,10 +39,18 @@ CREATE INDEX idx_lr_time ON log_records(timestamp);
 CREATE INDEX idx_lr_exec ON log_records(execution_id) WHERE execution_id IS NOT NULL;
 CREATE INDEX idx_lr_app_time ON log_records(app_key, timestamp);
 
+CREATE TABLE sessions (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at            REAL NOT NULL DEFAULT 0,
+    last_heartbeat_at     REAL NOT NULL DEFAULT 0,
+    status                TEXT NOT NULL DEFAULT 'running'
+);
+
 CREATE TABLE listeners (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     app_key               TEXT NOT NULL,
     instance_index        INTEGER NOT NULL DEFAULT 0,
+    name                  TEXT NOT NULL DEFAULT '',
     handler_method        TEXT NOT NULL DEFAULT '',
     topic                 TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
@@ -59,16 +67,12 @@ CREATE TABLE scheduled_jobs (
     retired_at            REAL
 );
 
-CREATE TABLE handler_invocations (
+CREATE TABLE executions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind                  TEXT NOT NULL DEFAULT 'handler',
     listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-CREATE TABLE job_executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
+    session_id            INTEGER NOT NULL DEFAULT 0,
     execution_start_ts    REAL NOT NULL,
     duration_ms           REAL NOT NULL DEFAULT 0,
     status                TEXT NOT NULL DEFAULT 'success'
@@ -89,11 +93,9 @@ def mock_hassette() -> AsyncMock:
     hassette.command_executor = MagicMock()
     hassette.command_executor.reconcile_registrations = AsyncMock()
     hassette.bus_service = MagicMock()
-    hassette.bus_service.await_registrations_complete = AsyncMock()
     hassette.bus_service.router = MagicMock()
     hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
     hassette.scheduler_service = MagicMock()
-    hassette.scheduler_service.await_registrations_complete = AsyncMock()
     hassette.session_id = 1
     return hassette
 
@@ -191,7 +193,6 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor._write_queue = asyncio.Queue(maxsize=1000)
     executor._dropped_overflow = 0
     executor._dropped_exhausted = 0
-    executor._dropped_no_session = 0
     executor._dropped_shutdown = 0
     executor._error_handler_failures = 0
     executor._last_capacity_warn_ts = 0.0
@@ -224,7 +225,6 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     svc.hassette.config.bus_excluded_domains = ()
     svc.hassette.config.bus_excluded_entities = ()
     svc.hassette.config.logging.all_events = False
-    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()
     svc._executor.register_listener = AsyncMock(return_value=0)

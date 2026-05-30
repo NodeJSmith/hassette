@@ -9,27 +9,19 @@ from unittest.mock import MagicMock
 import aiosqlite
 import pydantic
 import pytest
-from alembic import command as alembic_command
-from alembic.config import Config as AlembicConfig
-from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
 from hassette.config.models import LoggingConfig
 from hassette.core.database_service import DatabaseService
+from hassette.core.migration_runner import run_migrations
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry_models import LogRecord
-from hassette.core.telemetry_query_service import TelemetryQueryService
 
 from .conftest import LOG_RECORDS_TEST_DDL as DDL
 
-WORKTREE = Path(__file__).parent.parent.parent.parent
-
 
 def run_migrations_to_head(db_path: str) -> None:
-    config = AlembicConfig()
-    config.set_main_option("script_location", str(WORKTREE / "src" / "hassette" / "migrations"))
-    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    alembic_command.upgrade(config, "head")
+    run_migrations(Path(db_path))
 
 
 @pytest.fixture
@@ -70,7 +62,7 @@ def open_migrated_db(db_path: str) -> sqlite3.Connection:
     return sqlite3.connect(db_path)
 
 
-class TestMigration009:
+class TestMigration001LogRecords:
     @pytest.fixture
     def migrated_db(self, tmp_path: Path) -> Iterator[sqlite3.Connection]:
         conn = open_migrated_db(str(tmp_path / "test.db"))
@@ -80,9 +72,9 @@ class TestMigration009:
             conn.close()
 
     def test_migration_creates_log_records_table(self, migrated_db: sqlite3.Connection) -> None:
-        """Migration 009 creates the log_records table."""
+        """Migration 001 creates the log_records table."""
         cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-        tables = {row[0] for row in cursor.fetchall() if not row[0].startswith("alembic")}
+        tables = {row[0] for row in cursor.fetchall()}
         assert "log_records" in tables
 
     def test_migration_creates_log_records_columns(self, migrated_db: sqlite3.Connection) -> None:
@@ -125,20 +117,18 @@ class TestMigration009:
         indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_app_time" in indexes
 
-    def test_migration_version_is_010(self, tmp_path: Path) -> None:
-        """After full migration, the Alembic version is 010."""
+    def test_migration_version_is_1(self, tmp_path: Path) -> None:
+        """After full migration, PRAGMA user_version is 1."""
         db_path = str(tmp_path / "test.db")
         run_migrations_to_head(db_path)
 
-        engine = create_engine(f"sqlite:///{db_path}")
+        conn = sqlite3.connect(db_path)
         try:
-            with engine.connect() as conn:
-                ctx = MigrationContext.configure(conn)
-                version = ctx.get_current_revision()
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
         finally:
-            engine.dispose()
+            conn.close()
 
-        assert version == "010"
+        assert version == 1
 
 
 class TestRestartPersistence:

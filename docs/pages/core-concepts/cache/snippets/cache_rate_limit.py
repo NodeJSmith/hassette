@@ -3,10 +3,11 @@ from hassette import App, AppConfig, P
 
 class WaterLeakAlertApp(App[AppConfig]):
     async def on_initialize(self):
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.water_leak",
             handler=self.on_leak_detected,
             where=P.StateTo("on"),
+            name="water_leak",
         )
 
     async def on_leak_detected(self, event):

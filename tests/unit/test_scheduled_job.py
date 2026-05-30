@@ -91,12 +91,13 @@ class TestNewFields:
 
 class TestSetNextRun:
     def test_set_next_run_sort_index(self) -> None:
-        """set_next_run() updates sort_index correctly."""
+        """set_next_run() updates sort_index: (timestamp_nanos, id(self))."""
         job = make_job()
         new_time = ZonedDateTime(2030, 1, 1, 12, 0, tz="UTC")
         job.set_next_run(new_time)
         assert job.next_run == new_time.round(unit="second")
-        assert job.sort_index == (new_time.round(unit="second").timestamp_nanos(), job.job_id)
+        # sort_index tiebreaker is id(self), not job_id
+        assert job.sort_index == (new_time.round(unit="second").timestamp_nanos(), id(job))
 
 
 class TestFireAt:
@@ -114,12 +115,19 @@ class TestFireAt:
 
 
 class TestMarkRegistered:
-    def test_mark_registered_once(self) -> None:
-        """Second call to mark_registered() with different db_id does not raise and ignores new value."""
+    def test_mark_registered_sets_db_id(self) -> None:
+        """mark_registered() sets db_id to the given value."""
+        job = make_job()
+        assert job.db_id is None
+        job.mark_registered(42)
+        assert job.db_id == 42
+
+    def test_mark_registered_keeps_original_on_double_call(self) -> None:
+        """mark_registered() is first-call-wins: a second call does not overwrite the id."""
         job = make_job()
         job.mark_registered(42)
         assert job.db_id == 42
 
-        # Second call with a different db_id — no exception, but db_id must not change
+        # Second call is a no-op — the original id is kept (mirrors Listener.mark_registered)
         job.mark_registered(99)
-        assert job.db_id == 42  # still 42, new value ignored
+        assert job.db_id == 42

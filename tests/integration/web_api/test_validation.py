@@ -54,21 +54,21 @@ class TestDbErrorGuards:
         data = response.json()
         assert data == []
 
-    async def test_handler_invocations_db_error_returns_503(
+    async def test_listener_executions_db_error_returns_503(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """sqlite3.Error on handler_invocations returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(
+        """sqlite3.Error on listener executions returns 503 with empty list."""
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
-        response = await client.get("/api/telemetry/handler/1/invocations")
+        response = await client.get("/api/telemetry/listener/1/executions")
         assert response.status_code == 503
         data = response.json()
         assert data == []
 
     async def test_job_executions_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """sqlite3.Error on job_executions returns 503 with empty list."""
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(
+        """sqlite3.Error on job executions returns 503 with empty list."""
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
         response = await client.get("/api/telemetry/job/1/executions")
@@ -82,24 +82,22 @@ class TestStatusDropCounters:
 
     async def test_status_includes_drop_counters_zero(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Healthy status includes drop counters defaulting to zero."""
-        mock_hassette.get_drop_counters.return_value = (0, 0, 0, 0)
+        mock_hassette.get_drop_counters.return_value = (0, 0, 0)
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
         data = response.json()
         assert data["dropped_overflow"] == 0
         assert data["dropped_exhausted"] == 0
-        assert data["dropped_no_session"] == 0
         assert data["dropped_shutdown"] == 0
 
     async def test_status_includes_nonzero_drop_counters(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Non-zero drop counters from Hassette.get_drop_counters() appear in the response."""
-        mock_hassette.get_drop_counters.return_value = (7, 3, 2, 1)
+        mock_hassette.get_drop_counters.return_value = (7, 3, 1)
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
         data = response.json()
         assert data["dropped_overflow"] == 7
         assert data["dropped_exhausted"] == 3
-        assert data["dropped_no_session"] == 2
         assert data["dropped_shutdown"] == 1
 
     async def test_status_degraded_has_zero_drop_counters(
@@ -151,7 +149,6 @@ class TestTelemetryStatusDropCounterFallback:
         assert data["degraded"] is False
         assert data["dropped_overflow"] == 0
         assert data["dropped_exhausted"] == 0
-        assert data["dropped_no_session"] == 0
         assert data["dropped_shutdown"] == 0
 
     async def test_runtime_error_on_get_drop_counters_returns_zeros(
@@ -362,19 +359,19 @@ class TestLimitParameterValidation:
 
     # Skipped — covered by TestTelemetrySessionsEndpoint.test_sessions_endpoint_limit_parameter
 
-    async def test_handler_invocations_limit_zero_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/handler/1/invocations?limit=0")
+    async def test_listener_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/telemetry/listener/1/executions?limit=0")
         assert response.status_code == 422
 
-    async def test_handler_invocations_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/telemetry/handler/1/invocations?limit=501")
+    async def test_listener_executions_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/telemetry/listener/1/executions?limit=501")
         assert response.status_code == 422
 
-    async def test_handler_invocations_limit_at_max_accepted(
+    async def test_listener_executions_limit_at_max_accepted(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(return_value=[])
-        response = await client.get("/api/telemetry/handler/1/invocations?limit=500")
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
+        response = await client.get("/api/telemetry/listener/1/executions?limit=500")
         assert response.status_code == 200
 
     async def test_job_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
@@ -386,6 +383,6 @@ class TestLimitParameterValidation:
         assert response.status_code == 422
 
     async def test_job_executions_limit_at_max_accepted(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(return_value=[])
+        mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
         response = await client.get("/api/telemetry/job/1/executions?limit=500")
         assert response.status_code == 200

@@ -20,7 +20,7 @@ class EnergyTrackerApp(App[AppConfig]):
             EnergyStats(0.0, 0.0, self.now()),
         )
 
-        self.scheduler.run_hourly(self.update_stats)
+        await self.scheduler.run_hourly(self.update_stats)
 
     async def update_stats(self):
         current_usage = await self.get_current_usage()

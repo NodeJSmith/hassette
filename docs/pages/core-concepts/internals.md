@@ -88,11 +88,11 @@ graph BT
     subgraph wave0["Wave 0 — No Dependencies"]
         DB[DatabaseService]
         WS[WebsocketService]
-        BUS[BusService]
-        SCHED[SchedulerService]
     end
 
     subgraph wave1["Wave 1"]
+        BUS[BusService]
+        SCHED[SchedulerService]
         CMD[CommandExecutor]
         API[ApiResource]
     end
@@ -114,6 +114,8 @@ graph BT
         WEB[WebApiService]
     end
 
+    BUS --> DB
+    SCHED --> DB
     CMD --> DB
     TQS --> DB
     API --> WS
@@ -289,7 +291,35 @@ Built-in triggers: `After` (one-shot delay), `Once` (one-shot at time), `Every` 
 
 ---
 
-## 6. Api Internals
+## 6. Database Internals
+
+Hassette stores all telemetry in a local SQLite database managed by `DatabaseService`. Schema migrations use SQLite's native `PRAGMA user_version` — no external migration tool.
+
+### Schema and Migrations
+
+The migration runner reads `PRAGMA user_version` on startup and applies each numbered `.sql` file in order. Every migration runs inside `BEGIN IMMEDIATE` / `COMMIT`, with `PRAGMA user_version = N` as the final statement. A crash mid-migration leaves the database at the previous version; the next startup retries from where it left off.
+
+When the on-disk schema version is older than the code expects, the runner applies forward migrations. When it is newer (database created by a newer binary), `DatabaseService` raises `SchemaVersionError` — a fatal error that stops startup and requires manual intervention rather than automatic deletion. When the database is corrupt or otherwise unrecoverable, deleting it is safe: telemetry is observability data and does not affect app execution. Hassette recreates an empty database on the next startup.
+
+On a fresh database (`user_version = 0`), the runner configures `auto_vacuum = INCREMENTAL` via a separate `sqlite3.Connection` before any transaction, because `PRAGMA auto_vacuum` cannot be set inside `BEGIN IMMEDIATE`.
+
+### Unified Executions Table
+
+Handler invocations and scheduled job executions are stored in a single `executions` table with a `kind` discriminator (`'handler'` or `'job'`). Two nullable foreign keys — `listener_id` and `job_id` — point to the registration tables (`listeners` and `scheduled_jobs` respectively). A `CHECK` constraint enforces that exactly one is non-null per row.
+
+Registration tables remain separate: `listeners` stores bus listener registrations with their natural key `(app_key, instance_index, name, topic)`; `scheduled_jobs` stores scheduled job registrations.
+
+### Synchronous Registration
+
+`BusService` and `SchedulerService` both declare `depends_on: [DatabaseService]`, so the database is always ready before any listener or job registration can occur.
+
+Each `bus.on_state_change()` (and all other `bus.on_*()` methods) awaits the database INSERT inline before returning. The listener's `db_id` is a valid integer immediately when the awaited call returns — there is no background registration task or deferred persistence.
+
+The same applies to scheduler methods: `scheduler.run_every()` and all other `scheduler.run_*()` methods await the job registration before returning.
+
+---
+
+## 7. Api Internals
 
 The per-app `Api` handle delegates all transport to shared singletons. Single-entity reads use REST; bulk reads and service calls use WebSocket.
 
@@ -333,7 +363,7 @@ Auth: long-lived access token from `HassetteConfig.token`. Injected as `Bearer` 
 
 ---
 
-## 7. StateManager and StateProxy
+## 8. StateManager and StateProxy
 
 `StateProxy` maintains an in-memory cache of all entity states. `StateManager` provides typed per-app access with Pydantic model validation and caching.
 
@@ -379,7 +409,7 @@ flowchart TD
 
 ---
 
-## 8. Web/UI Layer
+## 9. Web/UI Layer
 
 The web layer is opt-in. `WebApiService` starts a uvicorn/FastAPI server. The frontend is a Preact SPA. Two data source services provide live and historical data.
 
@@ -419,7 +449,7 @@ flowchart TD
 
 ---
 
-## 9. Resource Lifecycle
+## 10. Resource Lifecycle
 
 Every component extends `Resource` (synchronous init) or `Service` (long-running `serve()` loop). The `LifecycleMixin` provides status transitions and readiness signaling.
 

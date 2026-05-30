@@ -9,7 +9,7 @@ class AuditConfig(AppConfig):
 
 class AuditApp(App[AuditConfig]):
     async def on_initialize(self):
-        self.bus.on_call_service(domain="light", handler=self.on_light_service)
+        await self.bus.on_call_service(domain="light", handler=self.on_light_service, name="light_service")
 
     async def on_light_service(self, domain: D.Domain):
         await self.api.call_service("notify", "log", message=f"Service called on {domain}")

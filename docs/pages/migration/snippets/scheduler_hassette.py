@@ -9,7 +9,7 @@ class NightLight(App[MyConfig]):
     # function which will be called at startup and reload
     async def on_initialize(self):
         # Schedule a daily callback that will call run_daily_callback() at 7pm every night
-        job = self.scheduler.run_daily(self.run_daily_callback, at="19:00")
+        job = await self.scheduler.run_daily(self.run_daily_callback, at="19:00")
         self.logger.info("Scheduled job: %r", job)
 
         # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 - Scheduled job: ScheduledJob(name='run_daily_callback', owner=NightLight.0)

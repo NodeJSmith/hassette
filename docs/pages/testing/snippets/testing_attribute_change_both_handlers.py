@@ -5,8 +5,8 @@ from hassette.test_utils import AppTestHarness
 class SensorApp(App[AppConfig]):
     async def on_initialize(self):
         # on_state_change with changed=False fires even when only attributes change
-        self.bus.on_state_change("sensor.temp", changed=False, handler=self.on_temp_state)
-        self.bus.on_attribute_change("sensor.temp", "temperature", handler=self.on_temp_attr)
+        await self.bus.on_state_change("sensor.temp", changed=False, handler=self.on_temp_state, name="temp_state")
+        await self.bus.on_attribute_change("sensor.temp", "temperature", handler=self.on_temp_attr, name="temp_attr")
 
     async def on_temp_state(self):
         await self.api.turn_on("light.indicator")

@@ -1,4 +1,3 @@
-import itertools
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -22,15 +21,6 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
-
-# next_id() is only called at job creation time on the event loop thread.
-# itertools.count.__next__ is C-atomic. No lock needed unless the project targets
-# free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-JOB_ID_SEQ = itertools.count(1)
-
-
-def next_id() -> int:
-    return next(JOB_ID_SEQ)
 
 
 class CronTrigger:
@@ -147,7 +137,7 @@ class ScheduledJob:
     """A job scheduled to run based on a trigger or at a specific time."""
 
     sort_index: tuple[int, int] = field(init=False, repr=False)
-    """Tuple of (next_run timestamp with nanoseconds, job_id) for ordering in a priority queue."""
+    """Tuple of (next_run timestamp with nanoseconds, object id) for ordering in a priority queue."""
 
     owner_id: str = field(compare=False)
     """Unique string identifier for the owner of the job, e.g., a component or integration name."""
@@ -215,9 +205,6 @@ class ScheduledJob:
     the ``@dataclass(order=True)`` heap ordering.
     """
 
-    job_id: int = field(default_factory=next_id, init=False, compare=False)
-    """Unique identifier for the job instance."""
-
     db_id: int | None = field(default=None, compare=False)
     """Database row ID for this job. Set by the executor after persistence; None until then."""
 
@@ -242,13 +229,12 @@ class ScheduledJob:
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
 
     def __hash__(self) -> int:
-        # Hashing on job_id is safe because @dataclass(order=True) generates __eq__
-        # based on all compare=True fields, and sort_index is (timestamp_nanos, job_id).
-        # Two jobs with the same sort_index necessarily share the same job_id (job_id
-        # comes from itertools.count in __post_init__), so the hash contract
-        # (a == b implies hash(a) == hash(b)) holds. If sort_index ever stops
-        # including job_id, this __hash__ MUST be re-evaluated.
-        return hash(self.job_id)
+        # Hashing on object identity is safe: each ScheduledJob is a unique object,
+        # and sort_index includes id(self) as the tiebreaker, so the hash contract
+        # (a == b implies hash(a) == hash(b)) holds. @dataclass(order=True) generates
+        # __eq__ based on all compare=True fields (sort_index only), so two distinct
+        # objects with the same sort_index are unequal and can safely share a hash bucket.
+        return id(self)
 
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
@@ -271,22 +257,19 @@ class ScheduledJob:
         self.kwargs = dict(self.kwargs)
 
     def mark_registered(self, db_id: int) -> None:
-        """Set the database ID after persistence. One-time assignment by SchedulerService."""
-        if self.db_id is not None:
-            LOGGER.warning(
-                "ScheduledJob %s already registered with db_id=%s, ignoring new db_id=%s",
-                self.job_id,
-                self.db_id,
-                db_id,
-            )
-            return
-        self.db_id = db_id
+        """Set the database ID. Called by SchedulerService.add_job() after persistence.
+
+        First call wins — a second call is a no-op, so a retry or double-registration
+        cannot overwrite the original id. Mirrors ``Listener.mark_registered``.
+        """
+        if self.db_id is None:
+            self.db_id = db_id
 
     def matches(self, other: "ScheduledJob") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
         Compares callable, trigger (by trigger_id()), group, args, and kwargs.
-        Does not compare runtime state (job_id, next_run, sort_index, _scheduler,
+        Does not compare runtime state (db_id, next_run, sort_index, _scheduler,
         _dequeued, owner, or any other mutable runtime field).
 
         Two jobs with identical callable/trigger/args but different groups are distinct
@@ -365,36 +348,4 @@ class ScheduledJob:
         rounded = next_run.round(unit="second")
         self.next_run = rounded
         self.fire_at = rounded
-        self.sort_index = (rounded.timestamp_nanos(), self.job_id)
-
-
-@dataclass(frozen=True)
-class JobExecutionRecord:
-    """Record of a single job execution for metrics tracking."""
-
-    job_id: int | None
-    """FK to the scheduled_jobs table entry for this job. None for framework-internal jobs."""
-
-    session_id: int | None
-    """Session during which the execution occurred.
-
-    None when enqueued before session creation; injected at drain time.
-    """
-
-    execution_start_ts: float
-    """Unix timestamp (epoch seconds) when execution began."""
-
-    duration_ms: float
-    status: str  # "success", "error", "cancelled", "timed_out"
-    source_tier: SourceTier = "app"
-    """Whether this execution originates from a user app or the framework itself."""
-
-    is_di_failure: bool = False
-    """True when the execution failed due to a DependencyError (or subclass)."""
-
-    error_message: str | None = None
-    error_type: str | None = None
-    error_traceback: str | None = None
-
-    execution_id: str | None = None
-    """UUID4 string identifying the specific execution instance. None when not populated."""
+        self.sort_index = (rounded.timestamp_nanos(), id(self))

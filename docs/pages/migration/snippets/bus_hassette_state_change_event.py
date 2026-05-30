@@ -7,9 +7,10 @@ class MyConfig(AppConfig):
 
 class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        sub = self.bus.on_state_change(
+        sub = await self.bus.on_state_change(
             entity_id=self.app_config.button_entity,
             handler=self.button_pressed,
+            name="button_pressed",
         )
         self.logger.info("Subscribed: %s", sub)
 

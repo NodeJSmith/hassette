@@ -1,6 +1,5 @@
 """Duration hold lifecycle manager for state-change listeners."""
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -256,8 +255,6 @@ class DurationHoldManager:
 
         Returns:
             A ``Subscription`` whose ``cancel()`` removes the listener from Router.
-            The subscription carries an already-resolved Future as registration_task
-            since cancel-listeners skip DB registration.
         """
         assert main_listener.duration_config is not None, "duration listener must have duration_config"
         duration_timer = main_listener.duration_config.timer
@@ -280,10 +277,7 @@ class DurationHoldManager:
             cancel_listener.cancel()
             self.router.remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
 
-        # Cancel listeners skip DB registration — provide an already-resolved future.
-        resolved: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        resolved.set_result(None)
-        return Subscription(cancel_listener, unsubscribe, registration_task=resolved)
+        return Subscription(cancel_listener, unsubscribe)
 
 
 def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:

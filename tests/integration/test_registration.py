@@ -149,108 +149,121 @@ async def test_job_registration_persists_correct_app_key(
     assert row[1] == 3, f"Expected instance_index=3, got {row[1]}"
 
 
-def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
-    """add_listener with app_key spawns a single bus:register_listener task.
+async def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
+    """add_listener with app_key registers the listener in DB inline and inserts the route.
 
-    Route insertion is synchronous; only the DB registration background task is spawned.
+    DB registration is now awaited inline (not spawned). Route insertion is synchronous.
     """
     executor_mock = MagicMock()
+    executor_mock.register_listener = AsyncMock(return_value=99)
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = stub_task_bucket()
 
     listener = make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
 
-    bus_service.add_listener(listener)
+    await bus_service.add_listener(listener)
 
-    # Single spawn: bus:register_listener (DB registration; route insertion is sync)
-    assert bus_service.task_bucket.spawn.call_count == 1
-    spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
+    # DB registration is awaited inline — executor.register_listener must be called once.
+    executor_mock.register_listener.assert_called_once()
 
 
-def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
-    """add_job with app_key spawns a single _register_then_enqueue task."""
+async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
+    """add_job with app_key registers the job in DB inline, then enqueues it.
+
+    DB registration and enqueue are now awaited inline (not spawned).
+    """
     executor_mock = MagicMock()
+    executor_mock.register_job = AsyncMock(return_value=55)
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = stub_task_bucket()
+    scheduler_service._job_queue = AsyncMock()
 
     job = make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
 
-    scheduler_service.add_job(job)
+    await scheduler_service.add_job(job)
 
-    assert scheduler_service.task_bucket.spawn.call_count == 1
+    # DB registration is awaited inline — executor.register_job must be called once.
+    executor_mock.register_job.assert_called_once()
+    reg_arg = executor_mock.register_job.call_args.args[0]
+    assert reg_arg.app_key == "my_app"
+    assert reg_arg.instance_index == 3
 
 
-def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMock) -> None:
-    """Listeners with empty app_key (non-App owners) still spawn one DB registration task.
+async def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMock) -> None:
+    """Listeners with empty app_key (non-App owners) are registered in DB inline.
 
-    Route insertion is now synchronous. The single spawn is the DB registration task
-    (bus:register_listener), which uses the owner_id as the app_key fallback.
+    DB registration is awaited inline regardless of app_key. Route insertion is synchronous.
     """
     executor_mock = MagicMock()
+    executor_mock.register_listener = AsyncMock(return_value=10)
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = stub_task_bucket()
 
     listener = make_mock_listener(app_key="", instance_index=0)
 
-    bus_service.add_listener(listener)
+    await bus_service.add_listener(listener)
 
-    # One spawn call: the DB registration task (route insertion is now synchronous).
-    assert bus_service.task_bucket.spawn.call_count == 1
-    spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
+    # DB registration is awaited inline — executor.register_listener must be called once.
+    executor_mock.register_listener.assert_called_once()
 
 
-def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
-    """Listeners with non-empty app_key spawn a single bus:register_listener task.
+async def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
+    """Listeners with non-empty app_key trigger executor.register_listener inline.
 
-    Route insertion is synchronous; the DB registration background task is always spawned.
+    DB registration is awaited inline; the route is inserted synchronously after.
     """
     executor_mock = MagicMock()
+    executor_mock.register_listener = AsyncMock(return_value=7)
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = stub_task_bucket()
 
     listener = make_mock_listener(app_key="my_app", instance_index=1)
 
-    bus_service.add_listener(listener)
+    await bus_service.add_listener(listener)
 
-    # Single spawn: bus:register_listener (DB registration; route insertion is now sync)
-    assert bus_service.task_bucket.spawn.call_count == 1
-    spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
+    executor_mock.register_listener.assert_called_once()
 
 
-def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock) -> None:
-    """Jobs with empty app_key (non-App owners) skip DB registration."""
+async def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock) -> None:
+    """Jobs with empty app_key (non-App owners) are registered in DB inline (#547).
+
+    All jobs now go through DB registration regardless of app_key.
+    """
     executor_mock = MagicMock()
+    executor_mock.register_job = AsyncMock(return_value=0)
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = stub_task_bucket()
+    scheduler_service._job_queue = AsyncMock()
 
     job = make_mock_job(app_key="", instance_index=0)
 
-    scheduler_service.add_job(job)
+    await scheduler_service.add_job(job)
 
-    # Only one spawn call: the _enqueue_job call
-    assert scheduler_service.task_bucket.spawn.call_count == 1
-    spawn_kwargs = scheduler_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "scheduler:add_job"
+    # executor.register_job is always called — empty app_key is no longer a skip signal.
+    executor_mock.register_job.assert_called_once()
+    reg_arg = executor_mock.register_job.call_args.args[0]
+    assert reg_arg.app_key == ""
 
 
-def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
-    """Jobs with non-empty app_key use a single combined register-then-enqueue task."""
+async def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
+    """Jobs with non-empty app_key trigger executor.register_job inline, then enqueue."""
     executor_mock = MagicMock()
+    executor_mock.register_job = AsyncMock(return_value=42)
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = stub_task_bucket()
+    scheduler_service._job_queue = AsyncMock()
 
     job = make_mock_job(app_key="my_app", instance_index=1)
 
-    scheduler_service.add_job(job)
+    await scheduler_service.add_job(job)
 
-    # Single spawn: _register_then_enqueue (DB registration + enqueue in sequence)
-    assert scheduler_service.task_bucket.spawn.call_count == 1
+    executor_mock.register_job.assert_called_once()
+    reg_arg = executor_mock.register_job.call_args.args[0]
+    assert reg_arg.app_key == "my_app"
+    assert reg_arg.instance_index == 1
 
 
 async def test_group_persisted_at_registration(

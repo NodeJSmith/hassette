@@ -115,9 +115,14 @@ export function App() {
                   <Route path="/">
                     <Redirect to="/apps" />
                   </Route>
-                  <Route path="/apps/:key/handlers/:handlerId">
-                    {(params: { key: string; handlerId: string }) => (
-                      <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />
+                  <Route path="/apps/:key/handlers/listener/:id">
+                    {(params: { key: string; id: string }) => (
+                      <AppDetailPage params={{ key: params.key, tab: "handlers", handler: `listener/${params.id}` }} />
+                    )}
+                  </Route>
+                  <Route path="/apps/:key/handlers/job/:id">
+                    {(params: { key: string; id: string }) => (
+                      <AppDetailPage params={{ key: params.key, tab: "handlers", handler: `job/${params.id}` }} />
                     )}
                   </Route>
                   <Route path="/apps/:key/handlers">

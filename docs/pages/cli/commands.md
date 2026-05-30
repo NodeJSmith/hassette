@@ -171,7 +171,7 @@ The invocation table shows status, duration, error details, timestamp, and execu
 
 - `hassette listener` → `GET /api/bus/listeners`
 - `hassette listener --app <key>` → `GET /api/telemetry/app/{key}/listeners`
-- `hassette listener <id>` → `GET /api/telemetry/handler/{id}/invocations`
+- `hassette listener <id>` → `GET /api/telemetry/listener/{id}/executions`
 
 ---
 
@@ -351,7 +351,6 @@ $ hassette telemetry
 │  degraded                False  │
 │  dropped_overflow        0      │
 │  dropped_exhausted       0      │
-│  dropped_no_session      0      │
 │  dropped_shutdown        0      │
 │  error_handler_failures  0      │
 ╰─────────────────────────────────╯

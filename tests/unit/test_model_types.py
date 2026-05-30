@@ -7,16 +7,15 @@ type that rejects values outside that set at validation time.
 import pytest
 from pydantic import ValidationError
 
-from hassette.core.telemetry_models import ActivityFeedEntry, HandlerInvocation, JobExecution, LogRecord
+from hassette.core.telemetry_models import ActivityFeedEntry, Execution, LogRecord
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import InvocationStatus
+from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppHealthResponse,
     AppInstanceResponse,
     AppManifestResponse,
     DashboardAppGridEntry,
     ExecutionCompletedData,
-    InvocationCompletedData,
     ListenerWithSummary,
     LogEntryResponse,
     ServiceInfoResponse,
@@ -24,14 +23,15 @@ from hassette.web.models import (
 )
 
 # ---------------------------------------------------------------------------
-# InvocationStatus — HandlerInvocation.status
+# ExecutionStatus — Execution.status
 # ---------------------------------------------------------------------------
 
 
-class TestInvocationStatus:
+class TestExecutionStatus:
     def test_rejects_bogus_status(self) -> None:
         with pytest.raises(ValidationError):
-            HandlerInvocation(
+            Execution(
+                kind="handler",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status="bogus",
@@ -41,18 +41,20 @@ class TestInvocationStatus:
 
     def test_accepts_all_valid_values(self) -> None:
         for value in ("success", "error", "cancelled", "timed_out"):
-            obj = HandlerInvocation(
+            obj = Execution(
+                kind="handler",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status=value,
                 error_type=None,
                 error_message=None,
             )
-            assert obj.status == InvocationStatus(value)
+            assert obj.status == ExecutionStatus(value)
 
     def test_rejects_bogus_on_job_execution(self) -> None:
         with pytest.raises(ValidationError):
-            JobExecution(
+            Execution(
+                kind="job",
                 execution_start_ts=1.0,
                 duration_ms=10.0,
                 status="pending",
@@ -72,7 +74,8 @@ class TestInvocationStatus:
             )
 
     def test_serialises_to_plain_string(self) -> None:
-        obj = HandlerInvocation(
+        obj = Execution(
+            kind="handler",
             execution_start_ts=1.0,
             duration_ms=10.0,
             status="success",
@@ -420,50 +423,49 @@ class TestLogLevelType:
 
 
 # ---------------------------------------------------------------------------
-# InvocationStatus on WebSocket payload models
+# ExecutionStatus on WebSocket payload models
 # ---------------------------------------------------------------------------
 
 
 class TestWebSocketPayloadStatus:
-    def test_invocation_completed_data_rejects_bogus(self) -> None:
-        with pytest.raises(ValidationError):
-            InvocationCompletedData(
-                listener_id=1,
-                app_key="my_app",
-                instance_index=0,
-                status="pending",
-                duration_ms=10.0,
-            )
-
-    def test_execution_completed_data_rejects_bogus(self) -> None:
+    def test_execution_completed_data_rejects_bogus_kind(self) -> None:
+        """kind must be 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             ExecutionCompletedData(
-                job_id=1,
+                kind="unknown",  # pyright: ignore[reportArgumentType]
                 app_key="my_app",
                 instance_index=0,
-                status="pending",
+                status="success",
                 duration_ms=10.0,
             )
 
-    def test_invocation_completed_data_accepts_valid(self) -> None:
-        obj = InvocationCompletedData(
+    def test_execution_completed_data_handler_kind(self) -> None:
+        obj = ExecutionCompletedData(
+            kind="handler",
             listener_id=1,
             app_key="my_app",
             instance_index=0,
-            status="timed_out",
+            status="success",
             duration_ms=10.0,
         )
-        assert obj.status == InvocationStatus.TIMED_OUT
+        assert obj.kind == "handler"
+        assert obj.listener_id == 1
+        assert obj.job_id is None
 
-    def test_execution_completed_data_accepts_valid(self) -> None:
+    def test_execution_completed_data_job_kind(self) -> None:
         obj = ExecutionCompletedData(
-            job_id=1,
+            kind="job",
+            job_id=7,
             app_key="my_app",
             instance_index=0,
-            status="cancelled",
-            duration_ms=10.0,
+            status="error",
+            duration_ms=99.0,
+            error_type="TimeoutError",
         )
-        assert obj.status == InvocationStatus.CANCELLED
+        assert obj.kind == "job"
+        assert obj.job_id == 7
+        assert obj.listener_id is None
+        assert obj.error_type == "TimeoutError"
 
 
 # ---------------------------------------------------------------------------

@@ -307,7 +307,7 @@ describe("CommandPalette — handlers", () => {
     expect(await screen.findByText("on_state_change")).toBeDefined();
   });
 
-  it("navigates to /apps/:key/handlers/h-:id when handler item is selected", async () => {
+  it("navigates to /apps/:key/handlers/listener/:id when handler item is selected", async () => {
     server.use(
       http.get("/api/bus/listeners", () =>
         HttpResponse.json<ListenerWithSummary[]>([
@@ -328,7 +328,7 @@ describe("CommandPalette — handlers", () => {
     const activeItem = container.querySelector("[role='option'][aria-selected='true']");
     expect(activeItem?.textContent).toContain("on_state_change");
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-42");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/42");
   });
 
   it("shows handlers section header when handlers are present", async () => {

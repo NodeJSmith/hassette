@@ -6,7 +6,7 @@ Verifies that source_location and registration_source are captured from user cod
 
 import typing
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -37,12 +37,12 @@ async def test_bus_on_state_change_captures_test_file_source(bus: "Bus") -> None
     async def my_handler(event) -> None:
         pass
 
-    add_listener_mock = Mock()
+    add_listener_mock = AsyncMock()
     original_service = bus.bus_service
     bus.bus_service = Mock(add_listener=add_listener_mock)
 
     try:
-        bus.on_state_change("light.kitchen", handler=my_handler)
+        await bus.on_state_change("light.kitchen", handler=my_handler, name="source_capture_test")
 
         add_listener_mock.assert_called_once()
         listener = add_listener_mock.call_args.args[0]
@@ -68,12 +68,12 @@ async def test_bus_on_captures_test_file_source(bus: "Bus") -> None:
     async def my_handler(event) -> None:
         pass
 
-    add_listener_mock = Mock()
+    add_listener_mock = AsyncMock()
     original_service = bus.bus_service
     bus.bus_service = Mock(add_listener=add_listener_mock)
 
     try:
-        bus.on(topic="test.topic", handler=my_handler)
+        await bus.on(topic="test.topic", handler=my_handler, name="bus_on_source_test")
 
         add_listener_mock.assert_called_once()
         listener = add_listener_mock.call_args.args[0]
@@ -92,13 +92,13 @@ async def test_scheduler_schedule_captures_test_file_source(scheduler: "Schedule
     async def my_job() -> None:
         pass
 
-    add_job_mock = Mock(return_value=None)
+    add_job_mock = AsyncMock(return_value=None)
     original_service = scheduler.scheduler_service
     scheduler.scheduler_service = Mock(add_job=add_job_mock)
 
     try:
         trigger = Every(hours=1)
-        job = scheduler.schedule(my_job, trigger, name="test_job")
+        job = await scheduler.schedule(my_job, trigger, name="test_job")
 
         assert job.source_location, "source_location should not be empty"
         assert THIS_FILE in job.source_location, (

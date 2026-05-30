@@ -9,11 +9,12 @@ class DebounceSensorApp(App[AppConfig]):
     """React to stable temperature changes and log when a threshold is crossed."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "sensor.outdoor_temperature",
             changed=C.Increased(),
             handler=self.on_temperature_stable,
             debounce=DEBOUNCE_SECONDS,
+            name="outdoor_temp_debounced",
         )
 
     async def on_temperature_stable(

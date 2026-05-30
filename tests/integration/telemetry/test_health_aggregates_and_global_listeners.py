@@ -12,8 +12,8 @@ Covers:
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry.query_service import AppHealthAggregates, TelemetryQueryService
 from hassette.core.telemetry_models import ListenerSummary
-from hassette.core.telemetry_query_service import AppHealthAggregates, TelemetryQueryService
 
 from .helpers import (
     BASE_TS,

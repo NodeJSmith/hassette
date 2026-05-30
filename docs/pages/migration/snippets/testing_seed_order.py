@@ -4,7 +4,7 @@ from hassette.test_utils import AppTestHarness
 
 class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion)
+        await self.bus.on_state_change("binary_sensor.motion", handler=self.on_motion, name="motion")
 
     async def on_motion(self) -> None: ...
 

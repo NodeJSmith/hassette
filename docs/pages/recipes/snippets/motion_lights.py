@@ -17,9 +17,10 @@ class MotionLights(App[MotionLightsConfig]):
     _off_job: ScheduledJob | None = None
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             self.app_config.motion_sensor,
             handler=self.on_motion,
+            name="motion_sensor",
         )
 
     async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
@@ -32,7 +33,7 @@ class MotionLights(App[MotionLightsConfig]):
 
         elif new_state.value is False:
             # Motion cleared — schedule the light to turn off after the delay.
-            self._off_job = self.scheduler.run_in(
+            self._off_job = await self.scheduler.run_in(
                 self.turn_off_light,
                 delay=self.app_config.off_delay,
                 name=OFF_JOB_NAME,

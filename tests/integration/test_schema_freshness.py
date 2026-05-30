@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import TypeAdapter
 
-from hassette.types.types import InvocationStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.models import WsServerMessage
 
@@ -61,7 +60,6 @@ class TestSchemaFreshness:
             "ConnectivityWsMessage",
             "StateChangedWsMessage",
             "ServiceStatusWsMessage",
-            "InvocationCompletedWsMessage",
             "ExecutionCompletedWsMessage",
         ],
     )
@@ -73,13 +71,10 @@ class TestSchemaFreshness:
         msg_schema = schema["$defs"][msg_type]
         assert "timestamp" in msg_schema.get("required", []), f"{msg_type} is missing 'timestamp' in required fields"
 
-    def test_invocation_status_enum_values_match_schema(self) -> None:
-        """InvocationStatus enum values in schema must match the Python enum."""
+    def test_execution_completed_has_kind_field(self) -> None:
+        """ExecutionCompletedData must include 'kind' in its required fields (FR#11)."""
         adapter = TypeAdapter(WsServerMessage)
         schema = adapter.json_schema()
 
-        schema_enum_values = set(schema["$defs"]["InvocationStatus"]["enum"])
-        python_enum_values = {s.value for s in InvocationStatus}
-        assert schema_enum_values == python_enum_values, (
-            f"InvocationStatus mismatch — schema: {schema_enum_values}, Python: {python_enum_values}"
-        )
+        data_schema = schema["$defs"]["ExecutionCompletedData"]
+        assert "kind" in data_schema.get("required", []), "ExecutionCompletedData is missing required 'kind' field"

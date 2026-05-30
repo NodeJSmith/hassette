@@ -52,15 +52,15 @@ describe("AppLink — instanceIndex as query param", () => {
 
 describe("AppLink — handlerId prop", () => {
   it("appends /handlers/:handlerId to the path when handlerId is set", () => {
-    const { container } = render(<AppLink appKey="my_app" handlerId="h-42" />);
+    const { container } = render(<AppLink appKey="my_app" handlerId="listener/42" />);
     const href = container.querySelector("a")?.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/h-42");
+    expect(href).toBe("/apps/my_app/handlers/listener/42");
   });
 
   it("combines handlerId path and instance query param", () => {
-    const { container } = render(<AppLink appKey="my_app" handlerId="h-42" instanceIndex={1} />);
+    const { container } = render(<AppLink appKey="my_app" handlerId="listener/42" instanceIndex={1} />);
     const href = container.querySelector("a")?.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/h-42?instance=1");
+    expect(href).toBe("/apps/my_app/handlers/listener/42?instance=1");
   });
 
   it("does not append handlers segment when handlerId is undefined", () => {

@@ -10,16 +10,7 @@ export type WsServerMessage =
   | ConnectivityWsMessage
   | StateChangedWsMessage
   | ServiceStatusWsMessage
-  | InvocationCompletedWsMessage
   | ExecutionCompletedWsMessage;
-/**
- * Status values for handler invocations and job executions.
- *
- * Covers all values allowed by the CHECK constraints in migrations 001 and 005.
- * Pydantic v2 coerces plain strings to enum members on construction and
- * serialises back to plain strings in JSON responses.
- */
-export type InvocationStatus = "success" | "error" | "cancelled" | "timed_out";
 
 export interface AppStatusChangedWsMessage {
   type: "app_status_changed";
@@ -123,22 +114,6 @@ export interface ServiceStatusData {
   ready?: boolean;
   ready_phase?: string | null;
 }
-export interface InvocationCompletedWsMessage {
-  type: "invocation_completed";
-  data: InvocationCompletedData[];
-  timestamp: number;
-}
-/**
- * Payload for invocation_completed WebSocket messages.
- */
-export interface InvocationCompletedData {
-  listener_id: number;
-  app_key: string;
-  instance_index: number;
-  status: InvocationStatus;
-  duration_ms: number;
-  error_type?: string | null;
-}
 export interface ExecutionCompletedWsMessage {
   type: "execution_completed";
   data: ExecutionCompletedData[];
@@ -146,20 +121,24 @@ export interface ExecutionCompletedWsMessage {
 }
 /**
  * Payload for execution_completed WebSocket messages.
+ *
+ * ``kind`` discriminates handler invocations from job executions.
+ * ``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.
  */
 export interface ExecutionCompletedData {
-  job_id: number;
+  kind: "handler" | "job";
   app_key: string;
   instance_index: number;
-  status: InvocationStatus;
+  status: string;
   duration_ms: number;
   error_type?: string | null;
+  listener_id?: number | null;
+  job_id?: number | null;
 }
 
 export type WsLogPayload = LogEntryResponse;
-export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
-// InvocationStatus is also defined in generated-types.ts (from OpenAPI).
+// ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
 // CI enforces freshness of both files atomically.

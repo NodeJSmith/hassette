@@ -8,10 +8,10 @@ import pytest
 import uuid_utils
 import whenever
 
-from hassette.bus.invocation_record import SYNTHETIC_ORIGIN
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.core.execution_record import SYNTHETIC_ORIGIN
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 
 from .conftest import make_executor
@@ -359,8 +359,10 @@ class TestJobRecordFields:
         record = executor._write_queue.get_nowait()
         assert record.execution_id is not None
         assert is_valid_uuid7(record.execution_id)
-        assert not hasattr(record, "trigger_context_id")
-        assert not hasattr(record, "trigger_origin")
+        # Unified ExecutionRecord carries trigger fields for all kinds; they are None for jobs.
+        assert record.kind == "job"
+        assert record.trigger_context_id is None
+        assert record.trigger_origin is None
 
 
 class TestErrorHandlerExecutionIdInheritance:

@@ -36,7 +36,9 @@ async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Ha
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_fires_after_held"
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
 
@@ -59,7 +61,9 @@ async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarne
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_cancelled_on_exit"
+    )
 
     # State enters "on" — timer starts
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -86,7 +90,9 @@ async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_resets_on_reentry"
+    )
 
     # First entry — timer starts
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -118,7 +124,9 @@ async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarn
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_double_check"
+    )
 
     # Trigger timer start
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -150,7 +158,9 @@ async def test_duration_with_once_fires_exactly_once(bus_harness: tuple[Hassette
         call_count += 1
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION, once=True)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, once=True, name="duration_once_fires_once"
+    )
 
     # First trigger
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -183,7 +193,14 @@ async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHar
         hassette.task_bucket.post_to_loop(fired.set)
         raise RuntimeError("intentional error in handler")
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION, once=True)
+    await bus.on_state_change(
+        "light.kitchen",
+        changed_to="on",
+        handler=handler,
+        duration=DURATION,
+        once=True,
+        name="duration_once_removal_on_exception",
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -213,7 +230,9 @@ async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[Hasse
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    sub = bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    sub = await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_cancel_stops_timer"
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -241,7 +260,13 @@ async def test_duration_not_cancelled_by_attribute_refresh(
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen",
+        changed_to="on",
+        handler=handler,
+        duration=DURATION,
+        name="duration_not_cancelled_by_attr_refresh",
+    )
 
     # Enter target state
     await send_state_change(harness, "light.kitchen", "off", "on")
@@ -284,8 +309,12 @@ async def test_duration_multiple_listeners_independent(bus_harness: tuple[Hasset
         received_long.append(event)
         hassette.task_bucket.post_to_loop(long_durationfired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler_short, duration=short)
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler_long, duration=long_duration)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler_short, duration=short, name="duration_multiple_short"
+    )
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler_long, duration=long_duration, name="duration_multiple_long"
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -309,7 +338,9 @@ async def test_duration_cancel_listener_uses_framework_tier(
     async def handler(event: RawStateChangeEvent) -> None:
         pass
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_framework_tier"
+    )
 
     # Give time for listener to be registered
     await asyncio.sleep(0.05)
@@ -333,7 +364,9 @@ async def test_duration_cancel_listener_same_owner_id(bus_harness: tuple[Hassett
     async def handler(event: RawStateChangeEvent) -> None:
         pass
 
-    sub = bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    sub = await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_cancel_same_owner_id"
+    )
     main_listener = sub.listener
 
     # Wait for timer to start (need a triggering event first)
@@ -373,7 +406,14 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
         hassette.task_bucket.post_to_loop(fired.set)
 
     # Monitor brightness specifically: timer starts when brightness changes
-    bus.on_attribute_change("light.kitchen", "brightness", changed_to=200, handler=handler, duration=DURATION)
+    await bus.on_attribute_change(
+        "light.kitchen",
+        "brightness",
+        changed_to=200,
+        handler=handler,
+        duration=DURATION,
+        name="duration_attr_cancel_predicate_fail",
+    )
 
     # Trigger: brightness changes to 200
     event = create_state_change_event(
@@ -417,7 +457,9 @@ async def test_duration_handler_receives_original_triggering_event(
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "light.kitchen", changed_to="on", handler=handler, duration=DURATION, name="duration_original_triggering_event"
+    )
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -443,7 +485,14 @@ async def test_changed_from_with_duration_fires(bus_harness: tuple[HassetteHarne
         received.append(event)
         hassette.task_bucket.post_to_loop(fired.set)
 
-    bus.on_state_change("door.front", changed_from="closed", changed_to="open", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "door.front",
+        changed_from="closed",
+        changed_to="open",
+        handler=handler,
+        duration=DURATION,
+        name="changed_from_duration_fires",
+    )
 
     await send_state_change(harness, "door.front", "closed", "open")
     await seed(harness, "door.front", "open")
@@ -463,7 +512,14 @@ async def test_changed_from_with_duration_cancels_on_revert(
     async def handler(event: RawStateChangeEvent) -> None:
         received.append(event)
 
-    bus.on_state_change("door.front", changed_from="closed", changed_to="open", handler=handler, duration=DURATION)
+    await bus.on_state_change(
+        "door.front",
+        changed_from="closed",
+        changed_to="open",
+        handler=handler,
+        duration=DURATION,
+        name="changed_from_duration_cancels_on_revert",
+    )
 
     await send_state_change(harness, "door.front", "closed", "open")
     await seed(harness, "door.front", "open")

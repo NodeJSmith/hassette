@@ -7,10 +7,11 @@ class MyConfig(AppConfig):
 
 class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
             changed_to="on",
+            name="motion_on",
         )
 
     async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):

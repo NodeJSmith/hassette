@@ -32,14 +32,17 @@ See [Mental Model](concepts.md) for the lifecycle differences.
 
 ## Step 3: Event Listeners
 
-- [ ] Convert each `self.listen_state(...)` to `self.bus.on_state_change(...)`
+- [ ] Convert each `self.listen_state(...)` to `await self.bus.on_state_change(...)`
+  - [ ] Add `await` — all `self.bus.on_*()` methods are async and must be awaited
+  - [ ] Add `name=` — a stable string identifier is required on every registration (e.g. `name="kitchen_light"`)
   - [ ] Move filter arguments: `new=` → `changed_to=`, `old=` → `changed_from=`
   - [ ] Update callback signatures to use dependency injection or accept an event object
   - [ ] Replace `self.cancel_listen_state(handle)` with `subscription.cancel()`
-- [ ] Convert each `self.listen_event("call_service", ...)` to `self.bus.on_call_service(...)`
+- [ ] Convert each `self.listen_event("call_service", ...)` to `await self.bus.on_call_service(...)`
+  - [ ] Add `await` and `name=`
   - [ ] Update callback signatures
   - [ ] Replace `self.cancel_listen_event(handle)` with `subscription.cancel()`
-- [ ] For attribute-level subscriptions, switch to `self.bus.on_attribute_change(...)`
+- [ ] For attribute-level subscriptions, switch to `await self.bus.on_attribute_change(...)`
 
 See [Bus & Events](bus.md) for side-by-side examples.
 

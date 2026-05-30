@@ -4,7 +4,7 @@ from hassette.scheduler.error_context import SchedulerErrorContext
 
 class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
-        self.scheduler.run_every(
+        await self.scheduler.run_every(
             self.sync_data,
             minutes=10,
             on_error=self.on_sync_error,

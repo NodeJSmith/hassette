@@ -14,16 +14,17 @@ used by both e2e and integration web tests.
 
 import re
 from types import SimpleNamespace
+from typing import Literal
 from unittest.mock import MagicMock
 
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.core.telemetry_models import ActivityFeedEntry, HandlerInvocation, JobExecution, JobSummary
+from hassette.core.telemetry_models import ActivityFeedEntry, Execution, JobSummary
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
-from hassette.types.types import InvocationStatus
+from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,
@@ -309,7 +310,6 @@ def make_telemetry_status_response(
     degraded: bool = False,
     dropped_overflow: int = 0,
     dropped_exhausted: int = 0,
-    dropped_no_session: int = 0,
     dropped_shutdown: int = 0,
     error_handler_failures: int = 0,
 ) -> TelemetryStatusResponse:
@@ -318,7 +318,6 @@ def make_telemetry_status_response(
         degraded=degraded,
         dropped_overflow=dropped_overflow,
         dropped_exhausted=dropped_exhausted,
-        dropped_no_session=dropped_no_session,
         dropped_shutdown=dropped_shutdown,
         error_handler_failures=error_handler_failures,
     )
@@ -440,7 +439,7 @@ def make_app_health_response(
 
 def make_activity_feed_entry(
     row_id: str = "h-1",
-    status: InvocationStatus = InvocationStatus.SUCCESS,
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     timestamp: float = SYNTHETIC_TIMESTAMP,
     app_key: str = "my_app",
     handler_name: str = "on_state_change",
@@ -532,22 +531,28 @@ def make_listener_with_summary(
     )
 
 
-def make_handler_invocation(
+def make_execution(
+    kind: Literal["handler", "job"] = "handler",
     execution_start_ts: float = SYNTHETIC_TIMESTAMP,
     duration_ms: float = 12.5,
-    status: InvocationStatus = InvocationStatus.SUCCESS,
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     error_type: str | None = None,
     error_message: str | None = None,
     execution_id: str | None = None,
-) -> HandlerInvocation:
-    """Build a HandlerInvocation with sensible defaults."""
-    return HandlerInvocation(
+    listener_id: int | None = None,
+    job_id: int | None = None,
+) -> Execution:
+    """Build an Execution with sensible defaults."""
+    return Execution(
+        kind=kind,
         execution_start_ts=execution_start_ts,
         duration_ms=duration_ms,
         status=status,
         error_type=error_type,
         error_message=error_message,
         execution_id=execution_id,
+        listener_id=listener_id,
+        job_id=job_id,
     )
 
 
@@ -596,25 +601,6 @@ def make_job_summary(
         last_error_type=last_error_type,
         last_error_message=last_error_message,
         group=group,
-    )
-
-
-def make_job_execution(
-    execution_start_ts: float = SYNTHETIC_TIMESTAMP,
-    duration_ms: float = 8.5,
-    status: InvocationStatus = InvocationStatus.SUCCESS,
-    error_type: str | None = None,
-    error_message: str | None = None,
-    execution_id: str | None = None,
-) -> JobExecution:
-    """Build a JobExecution with sensible defaults."""
-    return JobExecution(
-        execution_start_ts=execution_start_ts,
-        duration_ms=duration_ms,
-        status=status,
-        error_type=error_type,
-        error_message=error_message,
-        execution_id=execution_id,
     )
 
 

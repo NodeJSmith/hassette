@@ -39,7 +39,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         # if_exists="skip" makes this safe to call on app reload — if the job
         # already exists from a prior initialize(), it's silently skipped.
         # group="covers" lets users filter/view cover-related jobs together.
-        self.scheduler.run_cron(
+        await self.scheduler.run_cron(
             self.open_all_covers,
             f"{cfg.morning_open_minute} {cfg.morning_open_hour} * * 1-5",
             name="morning_open",
@@ -48,7 +48,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         )
 
         # Close covers every night
-        self.scheduler.run_daily(
+        await self.scheduler.run_daily(
             self.close_all_covers,
             at=f"{cfg.night_close_hour:02d}:{cfg.night_close_minute:02d}",
             name="night_close",
@@ -58,7 +58,7 @@ class CoverScheduler(App[CoverSchedulerConfig]):
 
         # Log cover positions every hour — jitter=30 spreads the check slightly
         # to avoid simultaneous API calls if multiple instances are running
-        self.scheduler.run_hourly(
+        await self.scheduler.run_hourly(
             self.log_cover_positions,
             name="position_log",
             group="monitoring",
@@ -67,13 +67,13 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         )
 
         # One-time sun state report 10 seconds after startup
-        self.scheduler.run_in(self.report_sun_state, 10, name="startup_sun_report")
+        await self.scheduler.run_in(self.report_sun_state, 10, name="startup_sun_report")
 
         # Listen for any cover state changes
-        self.bus.on_state_change("cover.*", handler=self.on_cover_change)
+        await self.bus.on_state_change("cover.*", handler=self.on_cover_change)
 
         # One-time listener: log when sun state first changes
-        self.bus.on_state_change("sun.sun", handler=self.on_sun_first_change, once=True)
+        await self.bus.on_state_change("sun.sun", handler=self.on_sun_first_change, once=True)
 
     async def on_shutdown(self) -> None:
         """Persist cover positions to cache before stopping."""

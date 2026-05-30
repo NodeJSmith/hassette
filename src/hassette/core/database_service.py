@@ -8,13 +8,9 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import aiosqlite
-from alembic import command
-from alembic.config import Config
-from alembic.runtime.migration import MigrationContext
-from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -90,14 +86,7 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="log pre-pass",
     ),
     RetentionTarget(
-        table="handler_invocations",
-        timestamp_col="execution_start_ts",
-        priority=1,
-        retention_days_getter=lambda cfg: cfg.database.retention_days,
-        failsafe_label="execution records",
-    ),
-    RetentionTarget(
-        table="job_executions",
+        table="executions",
         timestamp_col="execution_start_ts",
         priority=1,
         retention_days_getter=lambda cfg: cfg.database.retention_days,
@@ -109,7 +98,7 @@ _RETENTION_TABLES: list[RetentionTarget] = [
 class DatabaseService(Service):
     """Manages the SQLite database for operational telemetry.
 
-    Handles Alembic migrations, heartbeat updates, and retention cleanup
+    Handles PRAGMA user_version migrations, heartbeat updates, and retention cleanup
     of old execution records.
     """
 
@@ -155,6 +144,19 @@ class DatabaseService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.database_service
+
+    @property
+    def is_db_ready(self) -> bool:
+        """Whether the write database connection is open and usable."""
+        return self._db is not None
+
+    @property
+    def is_accepting_writes(self) -> bool:
+        """Whether the write queue is live and accepting submissions.
+
+        False before ``on_initialize()`` creates the queue and after shutdown drains it.
+        """
+        return self._db_write_queue is not None
 
     @property
     def db(self) -> aiosqlite.Connection:
@@ -233,13 +235,13 @@ class DatabaseService(Service):
             if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            elapsed = time.monotonic() - last_retention_run
-            if elapsed >= _RETENTION_INTERVAL_SECONDS:
+            time_since_retention = time.monotonic() - last_retention_run
+            if time_since_retention >= _RETENTION_INTERVAL_SECONDS:
                 await self._run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
-            elapsed_size = time.monotonic() - last_size_failsafe_run
-            if elapsed_size >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
+            time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
+            if time_since_size_failsafe >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
                 await self._run_size_failsafe()
                 last_size_failsafe_run = time.monotonic()
 
@@ -398,40 +400,20 @@ class DatabaseService(Service):
             return self.hassette.config.database.path.resolve()
         return self.hassette.config.data_dir / "hassette.db"
 
-    def _get_expected_head_revision(self) -> str:
-        """Return the Alembic head revision this code expects (synchronous).
+    def _get_expected_head_version(self) -> int:
+        """Return the highest migration version number from migrations_sql/ (synchronous).
 
-        Reads the head from Alembic's migration scripts rather than hard-coding,
-        so future migrations automatically update the expectation.
-
-        Validates that the revision ID is a zero-padded numeric string (project convention).
-        This assertion prevents future contributors from using Alembic's default hex IDs,
-        which would break the lexicographic ahead-check in _handle_schema_version.
+        Scans the migrations_sql/ directory for *.sql files with numeric stems
+        and returns the largest version number found.
         """
-        config = Config()
-        config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
-        script = ScriptDirectory.from_config(config)
-        heads = script.get_heads()
-        if len(heads) != 1:
-            raise RuntimeError(f"Expected exactly one Alembic head, got: {heads}")
-        head = heads[0]
-        if not head.isdigit() or len(head) < 3:
-            raise RuntimeError(
-                f"Alembic revision ID {head!r} is not a zero-padded numeric string (≥3 digits). "
-                "This project uses numeric revision IDs (e.g. '001') for lexicographic comparison. "
-                "Use 'alembic revision --rev-id NNN' to generate correctly formatted IDs."
-            )
-        return head
+        sql_files = _collect_migrations(None)
+        if not sql_files:
+            raise RuntimeError("No migration files found in migrations_sql/")
+        return max(sql_files)
 
-    def _get_current_db_revision(self, db_path: Path) -> str | None:
-        """Return the current Alembic revision in the on-disk DB, or None if none (synchronous)."""
-        engine = create_engine(f"sqlite:///{db_path.as_posix()}")
-        try:
-            with engine.connect() as conn:
-                ctx = MigrationContext.configure(conn)
-                return ctx.get_current_revision()
-        finally:
-            engine.dispose()
+    def _get_current_db_version(self, db_path: Path) -> int:
+        """Return PRAGMA user_version from the on-disk DB (synchronous). Returns 0 for fresh databases."""
+        return _read_user_version(db_path)
 
     async def _handle_schema_version(self, db_path: Path) -> None:
         """Check schema version and handle mismatches.
@@ -447,45 +429,43 @@ class DatabaseService(Service):
             db_path: Path to the SQLite database file.
 
         Raises:
-            SchemaVersionError: When the DB version is ahead of the expected head revision.
+            SchemaVersionError: When the DB version is ahead of the expected head version.
             RuntimeError: When the DB file cannot be deleted due to permissions.
         """
         if not db_path.exists():
             return
 
-        expected_head = await asyncio.to_thread(self._get_expected_head_revision)
-        current_rev = await asyncio.to_thread(self._get_current_db_revision, db_path)
+        expected_head = await asyncio.to_thread(self._get_expected_head_version)
+        current_version = await asyncio.to_thread(self._get_current_db_version, db_path)
 
-        if current_rev == expected_head:
+        if current_version == expected_head:
             return
 
-        if current_rev is None:
-            # No alembic_version table — treat as stale schema needing recreation
+        if current_version == 0:
+            # PRAGMA user_version = 0 on an existing file means either a fresh DB
+            # (no migrations applied) or a pre-PRAGMA-era Alembic-managed DB.
+            # Treat as stale schema needing recreation.
             self.logger.warning(
-                "Database has no schema version (expected %s) — recreating database (no production data to preserve).",
+                "Database has no schema version (expected %d) — recreating database (no production data to preserve).",
                 expected_head,
             )
+        elif current_version > expected_head:
+            self.logger.error(
+                "Database schema version %d is ahead of the code's expected head %d. "
+                "This usually means a newer binary created this database. "
+                "Refusing to auto-delete — upgrade the binary or remove the database manually.",
+                current_version,
+                expected_head,
+            )
+            raise SchemaVersionError(
+                f"Database schema version {current_version} is ahead of expected head "
+                f"{expected_head}. Cannot start safely."
+            )
         else:
-            # Compare revision strings lexicographically as a heuristic for ahead-check.
-            # A proper check compares against all known revisions; here we use the
-            # convention that revision IDs are padded numeric prefixes (e.g. "001").
-            if current_rev > expected_head:
-                self.logger.error(
-                    "Database schema version %r is ahead of the code's expected head %r. "
-                    "This usually means a newer binary created this database. "
-                    "Refusing to auto-delete — upgrade the binary or remove the database manually.",
-                    current_rev,
-                    expected_head,
-                )
-                raise SchemaVersionError(
-                    f"Database schema version {current_rev!r} is ahead of expected head "
-                    f"{expected_head!r}. Cannot start safely."
-                )
-
             self.logger.warning(
-                "Database schema version mismatch (current=%r, expected=%r) — "
+                "Database schema version mismatch (current=%d, expected=%d) — "
                 "recreating database (no production data to preserve).",
-                current_rev,
+                current_version,
                 expected_head,
             )
 
@@ -500,27 +480,11 @@ class DatabaseService(Service):
             ) from exc
 
     def _run_migrations(self) -> None:
-        """Run Alembic migrations to HEAD (synchronous, called via to_thread).
+        """Run PRAGMA user_version migrations to the latest version (synchronous, called via to_thread).
 
-        Sets auto_vacuum = INCREMENTAL before Alembic creates any tables. This must
-        happen before the first CREATE TABLE (including alembic_version), because
-        SQLite requires VACUUM to change auto_vacuum on a database with existing pages.
+        auto_vacuum = INCREMENTAL is set by the runner before any tables are created.
         """
-        conn = sqlite3.connect(self._db_path)
-        try:
-            current_mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
-            if current_mode != 2:
-                conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
-                # On a fresh (zero-page) DB this takes effect immediately.
-                # On an existing DB, this is a no-op without VACUUM — acceptable
-                # since _handle_schema_version deletes stale DBs before we get here.
-        finally:
-            conn.close()
-
-        config = Config()
-        config.set_main_option("script_location", str(Path(__file__).parent.parent / "migrations"))
-        config.set_main_option("sqlalchemy.url", f"sqlite:///{self._db_path.as_posix()}")
-        command.upgrade(config, "head")
+        run_migrations(self._db_path)
 
     async def _set_pragmas(self) -> None:
         """Configure SQLite PRAGMAs for performance and safety."""
@@ -534,7 +498,7 @@ class DatabaseService(Service):
         await db.execute("PRAGMA synchronous = NORMAL")
         await db.execute("PRAGMA busy_timeout = 5000")
         await db.execute("PRAGMA foreign_keys = ON")
-        # Intentionally a no-op — auto_vacuum is set via the Alembic migration before table creation.
+        # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
         # This line documents intent only.
         await db.execute("PRAGMA auto_vacuum = INCREMENTAL")
 
@@ -595,6 +559,11 @@ class DatabaseService(Service):
             now = time.time()
             deleted_by_table: dict[str, int] = {}
 
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
+            # so without this BEGIN each DELETE commits individually and the rollback() in the
+            # except clause is a no-op. The BEGIN makes the whole cleanup one atomic transaction.
+            await self.db.execute("BEGIN")
+
             for target in _RETENTION_TABLES:
                 cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
                 cursor = await self.db.execute(
@@ -606,28 +575,28 @@ class DatabaseService(Service):
             # Use the standard retention window for parent-guard deletes.
             cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
 
-            # Only delete retired listeners when ALL their child invocations have also aged out.
-            # This prevents orphaning recent handler_invocations whose parent row would be
-            # deleted because retired_at (set at restart time) diverges from last invocation time.
+            # Only delete retired listeners when ALL their child executions have also aged out.
+            # This prevents orphaning recent executions whose parent row would be
+            # deleted because retired_at (set at restart time) diverges from last execution time.
             cursor_rl = await self.db.execute(
                 """
                 DELETE FROM listeners
                 WHERE retired_at IS NOT NULL AND retired_at < ?
                   AND NOT EXISTS (
-                      SELECT 1 FROM handler_invocations
+                      SELECT 1 FROM executions
                       WHERE listener_id = listeners.id
                         AND execution_start_ts >= ?
                   )
                 """,
                 (cutoff, cutoff),
             )
-            # Same guard for scheduled_jobs / job_executions.
+            # Same guard for scheduled_jobs.
             cursor_rj = await self.db.execute(
                 """
                 DELETE FROM scheduled_jobs
                 WHERE retired_at IS NOT NULL AND retired_at < ?
                   AND NOT EXISTS (
-                      SELECT 1 FROM job_executions
+                      SELECT 1 FROM executions
                       WHERE job_id = scheduled_jobs.id
                         AND execution_start_ts >= ?
                   )
@@ -694,7 +663,7 @@ class DatabaseService(Service):
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         for priority in priorities:
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            group_label = group[0].failsafe_label
+            group_label = ", ".join(t.failsafe_label for t in group)
 
             for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
                 group_deleted = 0
@@ -707,6 +676,9 @@ class DatabaseService(Service):
                     n = cursor.rowcount or 0
                     total_deleted_by_table[target.table] += n
                     group_deleted += n
+                # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
+                # cannot run while the delete statements hold a write lock — without this
+                # commit it fails with "database table is locked".
                 await db.commit()
 
                 if group_deleted == 0:

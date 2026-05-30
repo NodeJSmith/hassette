@@ -71,7 +71,7 @@ class TestApps:
             results.append(kwargs)
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette.bus_service.add_listener(
+        await self.hassette.bus_service.add_listener(
             create_listener(
                 handler,
                 task_bucket=self.app_handler.task_bucket,
@@ -110,7 +110,7 @@ class TestApps:
         async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette.bus_service.add_listener(
+        await self.hassette.bus_service.add_listener(
             create_listener(
                 handler,
                 task_bucket=self.app_handler.task_bucket,
@@ -149,7 +149,7 @@ class TestApps:
         async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette.bus_service.add_listener(
+        await self.hassette.bus_service.add_listener(
             create_listener(
                 handler,
                 task_bucket=self.app_handler.task_bucket,

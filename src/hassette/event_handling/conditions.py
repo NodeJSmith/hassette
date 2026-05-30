@@ -16,10 +16,11 @@ Examples:
     ```python
     from hassette import C
 
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "sensor.my_phone_location",
         handler=handler,
         changed_to=C.Regex(r"^1101 Main .*"),
+        name="phone_location",
     )
     ```
 
@@ -28,10 +29,11 @@ Examples:
     ```python
     from hassette import C
 
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "sensor.my_phone_activity",
         handler=handler,
         changed_to=C.IsIn(["walking", "running"]),
+        name="phone_activity",
     )
     ```
 
@@ -40,10 +42,11 @@ Examples:
     ```python
     from hassette import C
 
-    self.bus.on_state_change(
+    await self.bus.on_state_change(
         "zone.home",
         handler=handler,
         changed=C.Increased(),
+        name="zone_home_count",
     )
     ```
 

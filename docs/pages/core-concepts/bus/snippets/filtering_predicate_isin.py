@@ -5,11 +5,12 @@ from hassette import A, App, C
 
 class MediaPlayerApp(App):
     async def on_initialize(self):
-        self.bus.on_attribute_change(
+        await self.bus.on_attribute_change(
             "media_player.living_room_tv",
             "app_name",
             handler=self.on_app_name_change,
             changed_to=C.IsIn(["Home Assistant Lovelace", "Netflix"]),
+            name="tv_app_change",
         )
 
     async def on_app_name_change(

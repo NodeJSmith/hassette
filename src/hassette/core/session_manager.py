@@ -49,7 +49,7 @@ class SessionManager(Resource):
 
     async def on_initialize(self) -> None:
         """Register crash listener and signal readiness."""
-        self.bus.on(
+        await self.bus.on(
             topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
             handler=self.on_service_crashed,
             name="hassette.session_manager.on_service_crashed",
@@ -87,9 +87,8 @@ class SessionManager(Resource):
         Must be called after CommandExecutor is ready, not during session creation,
         to avoid racing with unflushed invocation records from the previous session.
         """
-        session_id = self._session_id
-        if session_id is not None:
-            await self._database_service.submit(self._do_cleanup_once_listeners(session_id))
+        if self._session_id is not None:
+            await self._database_service.submit(self._do_cleanup_once_listeners())
 
     async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record service crash details in the session row.
@@ -104,13 +103,11 @@ class SessionManager(Resource):
                 self.logger.warning("Cannot record crash — no active session")
                 return
 
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
+            if not self._database_service.is_db_ready:
                 self.logger.warning("Cannot record crash — database not initialized")
                 return
 
-            if self._database_service._db_write_queue is None:
+            if not self._database_service.is_accepting_writes:
                 self.logger.warning("Cannot record crash — database write queue shut down")
                 return
 
@@ -121,7 +118,7 @@ class SessionManager(Resource):
     async def finalize_session(
         self,
         *,
-        drop_counters: tuple[int, int, int, int] = (0, 0, 0, 0),
+        drop_counters: tuple[int, int, int] = (0, 0, 0),
     ) -> None:
         """Write final session status and drop counters before shutdown.
 
@@ -130,15 +127,13 @@ class SessionManager(Resource):
         Acquires ``_session_lock`` to coordinate with ``on_service_crashed()``.
 
         Args:
-            drop_counters: (overflow, exhausted, no_session, shutdown) from CommandExecutor.
+            drop_counters: (overflow, exhausted, shutdown) from CommandExecutor.
         """
         async with self._session_lock:
             if self._session_id is None:
                 return
 
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
+            if not self._database_service.is_db_ready:
                 self.logger.warning("Cannot finalize session — database not initialized")
                 return
 
@@ -190,7 +185,7 @@ class SessionManager(Resource):
             await self._database_service.db.rollback()
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
-    async def _do_cleanup_once_listeners(self, current_session_id: int) -> None:
+    async def _do_cleanup_once_listeners(self) -> None:
         """Delete stale once=True listeners from previous sessions.
 
         Runs after session creation.  Removes ``once=True`` listener rows where:
@@ -199,55 +194,92 @@ class SessionManager(Resource):
 
         This prevents unbounded row growth from once=True listeners registered by
         long-running apps or framework components that restart across sessions.
+
+        Implementation note: executions.listener_id has ON DELETE SET NULL, but the
+        table CHECK requires exactly one of (listener_id, job_id) to be non-NULL.
+        Deleting a listener would cascade to NULL out listener_id and break that
+        constraint.  We therefore delete the executions rows for the stale listeners
+        first (within the same transaction), then delete the listener rows.
         """
         try:
-            await self._database_service.db.execute(
+            db = self._database_service.db
+
+            # Identify the stale once=True listener IDs up front.
+            # A listener is stale when:
+            #   - it fired at least once (an executions row exists for it), and
+            #   - none of its executions belong to a still-running session.
+            # The current session is running (stopped_at IS NULL), so a listener that
+            # fired in it is excluded automatically. Checking every owning session avoids
+            # the false positive an arbitrary single-row pick could produce.
+            stale_cursor = await db.execute(
                 """
-                DELETE FROM listeners
+                SELECT id FROM listeners
                 WHERE once = 1
-                  AND NOT EXISTS (
-                      SELECT 1 FROM handler_invocations
-                      WHERE listener_id = listeners.id AND session_id = ?
-                  )
                   AND EXISTS (
-                      SELECT 1 FROM sessions
-                      WHERE id = (
-                          SELECT session_id FROM handler_invocations
-                          WHERE listener_id = listeners.id
-                          LIMIT 1
-                      )
-                      AND stopped_at IS NOT NULL
+                      SELECT 1 FROM executions WHERE listener_id = listeners.id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM executions
+                      JOIN sessions ON sessions.id = executions.session_id
+                      WHERE executions.listener_id = listeners.id
+                        AND sessions.stopped_at IS NULL
                   )
                 """,
-                (current_session_id,),
             )
-            await self._database_service.db.commit()
-            self.logger.debug("Cleaned up stale once=True listeners from previous sessions")
+            stale_ids = [row[0] for row in await stale_cursor.fetchall()]
+
+            if not stale_ids:
+                return
+
+            placeholders = ",".join("?" * len(stale_ids))
+
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None
+            # (autocommit), so without this each DELETE commits on its own and a crash
+            # between the two leaves listener rows whose executions are already gone.
+            # The BEGIN makes both deletes one atomic transaction and lets rollback() work.
+            await db.execute("BEGIN")
+
+            # Step 1: delete executions referencing these listeners first.
+            # executions.listener_id has ON DELETE SET NULL, but the table CHECK requires
+            # exactly one of (listener_id, job_id) to be non-NULL.  Deleting the listener
+            # would cascade-NULL listener_id and violate that constraint.  Removing the
+            # executions rows first sidesteps the cascade entirely.
+            await db.execute(
+                f"DELETE FROM executions WHERE listener_id IN ({placeholders})",
+                stale_ids,
+            )
+
+            # Step 2: delete the listener rows (no FK cascade to worry about now).
+            await db.execute(
+                f"DELETE FROM listeners WHERE id IN ({placeholders})",
+                stale_ids,
+            )
+
+            await db.commit()
+            self.logger.debug("Cleaned up %d stale once=True listener(s) from previous sessions", len(stale_ids))
         except Exception:
             await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")
 
-    async def _do_finalize_session(self, drop_counters: tuple[int, int, int, int]) -> None:
+    async def _do_finalize_session(self, drop_counters: tuple[int, int, int]) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""
-        overflow, exhausted, no_session, shutdown = drop_counters
+        overflow, exhausted, shutdown = drop_counters
         try:
             now = time.time()
             if self._session_error:
                 # CRASHED event already wrote failure details — just set timestamps + counters
                 await self._database_service.db.execute(
                     "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?,"
-                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
                     " WHERE id = ?",
-                    (now, now, overflow, exhausted, no_session, shutdown, self._session_id),
+                    (now, now, overflow, exhausted, shutdown, self._session_id),
                 )
             else:
                 await self._database_service.db.execute(
                     "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?,"
-                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
                     " WHERE id = ?",
-                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, no_session, shutdown, self._session_id),
+                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, shutdown, self._session_id),
                 )
             await self._database_service.db.commit()
         except Exception:

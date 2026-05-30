@@ -8,7 +8,7 @@ class MyAppConfig(AppConfig):
 class MyApp(App[MyAppConfig]):
     async def on_initialize(self):
         self.logger.info(self.app_config.greeting)
-        self.bus.on_state_change("sun.*", handler=self.on_sun_change)
+        await self.bus.on_state_change("sun.*", handler=self.on_sun_change, name="sun_change")
 
     async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
         self.logger.info("Sun changed: %s", new_state.value)

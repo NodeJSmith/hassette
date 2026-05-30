@@ -1,19 +1,15 @@
-"""Tests for the schema migration (001_initial_schema) and related components."""
+"""Tests for the migration runner and schema produced by 001.sql."""
 
-import asyncio
 import sqlite3
 from pathlib import Path
 from typing import get_args
 from unittest.mock import MagicMock, patch
 
 import pytest
-from alembic import command
-from alembic.config import Config
-from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.core.migration_runner import run_migrations
 from hassette.test_utils.config import TEST_TOKEN
 from hassette.types.types import SourceTier
 
@@ -25,226 +21,217 @@ class TestSourceTierType:
         assert set(args) == {"app", "framework"}
 
 
-def run_migrations_to_head(db_path: str) -> None:
-    """Run Alembic migrations to HEAD against the given DB path."""
-    config = Config()
-    config.set_main_option(
-        "script_location",
-        str(Path(__file__).parent.parent.parent / "src" / "hassette" / "migrations"),
-    )
-    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    command.upgrade(config, "head")
-
-
-def get_db_version(db_path: str) -> str | None:
-    """Return the current Alembic version from the DB, or None if not set."""
-    engine = create_engine(f"sqlite:///{db_path}")
-    try:
-        with engine.connect() as conn:
-            ctx = MigrationContext.configure(conn)
-            return ctx.get_current_revision()
-    finally:
-        engine.dispose()
-
-
 class TestFreshMigration:
     def test_fresh_migration_creates_all_tables(self, tmp_path: Path) -> None:
-        """Running the migration creates all 5 required tables."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+        """Running the migration creates all required tables."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
             cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-            tables = {row[0] for row in cursor.fetchall() if not row[0].startswith("alembic")}
+            tables = {row[0] for row in cursor.fetchall()}
         finally:
             conn.close()
 
-        expected = {"sessions", "listeners", "scheduled_jobs", "handler_invocations", "job_executions"}
+        expected = {"sessions", "listeners", "scheduled_jobs", "executions", "log_records"}
         assert expected.issubset(tables)
 
     def test_all_tables_have_source_tier_column(self, tmp_path: Path) -> None:
-        """listeners, scheduled_jobs, handler_invocations, job_executions must have a source_tier column.
-
-        sessions does NOT have source_tier — it uses drop counter columns instead.
-        """
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+        """listeners, scheduled_jobs, executions, log_records all have a source_tier column."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
-            for table in ("listeners", "scheduled_jobs", "handler_invocations", "job_executions"):
+            for table in ("listeners", "scheduled_jobs", "executions"):
                 cursor = conn.execute(f"PRAGMA table_info({table})")
                 cols = {row[1] for row in cursor.fetchall()}
                 assert "source_tier" in cols, f"source_tier missing from {table}"
         finally:
             conn.close()
 
-    def test_handler_invocations_has_is_di_failure(self, tmp_path: Path) -> None:
-        """handler_invocations must have is_di_failure column."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+    def test_executions_has_kind_column(self, tmp_path: Path) -> None:
+        """executions table has kind column."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
-            cursor = conn.execute("PRAGMA table_info(handler_invocations)")
+            cursor = conn.execute("PRAGMA table_info(executions)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "kind" in cols
+        finally:
+            conn.close()
+
+    def test_executions_has_is_di_failure(self, tmp_path: Path) -> None:
+        """executions table has is_di_failure column."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(executions)")
             cols = {row[1] for row in cursor.fetchall()}
             assert "is_di_failure" in cols
         finally:
             conn.close()
 
-    def test_job_executions_has_is_di_failure(self, tmp_path: Path) -> None:
-        """job_executions must have is_di_failure column."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute("PRAGMA table_info(job_executions)")
-            cols = {row[1] for row in cursor.fetchall()}
-            assert "is_di_failure" in cols
-        finally:
-            conn.close()
-
-    def test_check_constraints_reject_invalid_status_handler_invocations(self, tmp_path: Path) -> None:
-        """handler_invocations with invalid status raises IntegrityError."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+    def test_check_constraints_reject_invalid_status(self, tmp_path: Path) -> None:
+        """executions with invalid status raises IntegrityError."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
-            # Insert a valid session first
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
-                    "INSERT INTO handler_invocations "
-                    "(session_id, execution_start_ts, duration_ms, status, source_tier) "
-                    "VALUES (1, 1.0, 10.0, 'invalid', 'app')"
+                    "INSERT INTO executions "
+                    "(kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
+                    "VALUES ('handler', 1, 1, 1.0, 10.0, 'invalid', 'app')"
                 )
         finally:
             conn.close()
 
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
-        """handler_invocations with negative duration_ms raises IntegrityError."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+        """executions with negative duration_ms raises IntegrityError."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
-                    "INSERT INTO handler_invocations "
-                    "(session_id, execution_start_ts, duration_ms, status, source_tier) "
-                    "VALUES (1, 1.0, -1.0, 'success', 'app')"
-                )
-        finally:
-            conn.close()
-
-    def test_check_constraints_reject_invalid_source_tier(self, tmp_path: Path) -> None:
-        """handler_invocations with invalid source_tier raises IntegrityError."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
-            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
-            conn.commit()
-            with pytest.raises(sqlite3.IntegrityError):
-                conn.execute(
-                    "INSERT INTO handler_invocations "
-                    "(session_id, execution_start_ts, duration_ms, status, source_tier) "
-                    "VALUES (1, 1.0, 10.0, 'success', 'invalid')"
+                    "INSERT INTO executions "
+                    "(kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
+                    "VALUES ('handler', 1, 1, 1.0, -1.0, 'success', 'app')"
                 )
         finally:
             conn.close()
 
     def test_nullable_listener_id_allows_null(self, tmp_path: Path) -> None:
-        """handler_invocations must allow NULL listener_id."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+        """executions must allow NULL listener_id when job_id is set."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
-            conn.commit()
             conn.execute(
-                "INSERT INTO handler_invocations "
-                "(listener_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
-                "VALUES (NULL, 1, 1.0, 10.0, 'success', 'framework')"
+                "INSERT INTO scheduled_jobs "
+                "(app_key, instance_index, job_name, handler_method, source_location, source_tier)"
+                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app')"
             )
             conn.commit()
-            cursor = conn.execute("SELECT listener_id FROM handler_invocations WHERE id = 1")
+            conn.execute(
+                "INSERT INTO executions "
+                "(kind, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
+                "VALUES ('job', 1, 1, 1.0, 10.0, 'success', 'app')"
+            )
+            conn.commit()
+            cursor = conn.execute("SELECT listener_id FROM executions WHERE id = 1")
             row = cursor.fetchone()
             assert row[0] is None
         finally:
             conn.close()
 
-    def test_views_filter_by_tier(self, tmp_path: Path) -> None:
-        """Views active_app_listeners and active_framework_listeners filter by source_tier."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            # Insert one app-tier listener and one framework-tier listener
-            conn.execute(
-                "INSERT INTO listeners "
-                "(app_key, instance_index, handler_method, topic, source_location, source_tier) "
-                "VALUES ('my_app', 0, 'on_state', 'state_changed', 'app.py:10', 'app')"
-            )
-            conn.execute(
-                "INSERT INTO listeners "
-                "(app_key, instance_index, handler_method, topic, source_location, source_tier) "
-                "VALUES ('framework', 0, 'on_event', 'all', 'core.py:5', 'framework')"
-            )
-            conn.commit()
-
-            # active_app_listeners should only have the app-tier one
-            cursor = conn.execute("SELECT source_tier FROM active_app_listeners")
-            tiers = [row[0] for row in cursor.fetchall()]
-            assert tiers == ["app"]
-
-            # active_framework_listeners should only have the framework-tier one
-            cursor = conn.execute("SELECT source_tier FROM active_framework_listeners")
-            tiers = [row[0] for row in cursor.fetchall()]
-            assert tiers == ["framework"]
-
-            # active_listeners (backward compat) should have both
-            cursor = conn.execute("SELECT source_tier FROM active_listeners ORDER BY source_tier")
-            tiers = [row[0] for row in cursor.fetchall()]
-            assert tiers == ["app", "framework"]
-        finally:
-            conn.close()
-
     def test_sessions_drop_counters_default_to_zero(self, tmp_path: Path) -> None:
-        """sessions table should default all drop counters to 0."""
-        db_path = str(tmp_path / "test.db")
-        run_migrations_to_head(db_path)
+        """sessions table defaults drop counters to 0."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.commit()
             cursor = conn.execute(
-                "SELECT dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown "
-                "FROM sessions WHERE id = 1"
+                "SELECT dropped_overflow, dropped_exhausted, dropped_shutdown FROM sessions WHERE id = 1"
             )
             row = cursor.fetchone()
-            assert row == (0, 0, 0, 0)
+            assert row == (0, 0, 0)
         finally:
             conn.close()
+
+    def test_sessions_has_no_dropped_no_session_column(self, tmp_path: Path) -> None:
+        """sessions table does NOT have dropped_no_session (removed in new schema)."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(sessions)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "dropped_no_session" not in cols
+        finally:
+            conn.close()
+
+    def test_views_filter_by_tier(self, tmp_path: Path) -> None:
+        """Views active_app_listeners and active_framework_listeners filter by source_tier."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO listeners "
+                "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
+                "VALUES ('my_app', 0, 'app_listener', 'on_state', 'state_changed', 'app.py:10', 'app')"
+            )
+            conn.execute(
+                "INSERT INTO listeners "
+                "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
+                "VALUES ('__hassette__', 0, 'fw_listener', 'on_event', 'all', 'core.py:5', 'framework')"
+            )
+            conn.commit()
+
+            cursor = conn.execute("SELECT source_tier FROM active_app_listeners")
+            tiers = [row[0] for row in cursor.fetchall()]
+            assert tiers == ["app"]
+
+            cursor = conn.execute("SELECT source_tier FROM active_framework_listeners")
+            tiers = [row[0] for row in cursor.fetchall()]
+            assert tiers == ["framework"]
+
+            cursor = conn.execute("SELECT source_tier FROM active_listeners ORDER BY source_tier")
+            tiers = [row[0] for row in cursor.fetchall()]
+            assert tiers == ["app", "framework"]
+        finally:
+            conn.close()
+
+    def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
+        """PRAGMA user_version is 1 after migration 001 runs."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            conn.close()
+
+        assert version == 1
 
 
 class TestDbVersionMismatch:
     def test_db_version_mismatch_recreates(self, tmp_path: Path) -> None:
         """When DB version != expected head, DatabaseService deletes and recreates the DB."""
+        import asyncio
+
         db_path = tmp_path / "test.db"
         db_path.touch()  # Simulate existing DB file
 
@@ -266,8 +253,8 @@ class TestDbVersionMismatch:
         svc.logger = MagicMock()
 
         with (
-            patch.object(DatabaseService, "_get_current_db_revision", return_value="000"),
-            patch.object(DatabaseService, "_get_expected_head_revision", return_value="001"),
+            patch.object(DatabaseService, "_get_current_db_version", return_value=0),
+            patch.object(DatabaseService, "_get_expected_head_version", return_value=1),
         ):
             asyncio.run(svc._handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)

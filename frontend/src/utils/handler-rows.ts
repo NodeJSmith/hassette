@@ -1,7 +1,6 @@
 import type { JobData, ListenerData } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { lastDotSegment } from "./format";
-import { formatJobId, formatListenerId } from "./handler-ids";
 
 export interface UnifiedRow {
   kind: "listener" | "job";
@@ -21,7 +20,7 @@ export interface UnifiedRow {
 export function listenerToRow(l: ListenerData): UnifiedRow {
   return {
     kind: "listener",
-    id: formatListenerId(l.listener_id),
+    id: `listener/${l.listener_id}`,
     app_key: l.app_key,
     name: lastDotSegment(l.handler_method),
     handler_method: l.handler_method,
@@ -38,7 +37,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
 export function jobToRow(j: JobData): UnifiedRow {
   return {
     kind: "job",
-    id: formatJobId(j.job_id),
+    id: `job/${j.job_id}`,
     app_key: j.app_key,
     name: j.job_name,
     handler_method: j.handler_method,

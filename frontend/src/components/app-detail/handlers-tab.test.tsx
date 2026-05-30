@@ -60,13 +60,13 @@ describe("HandlersTab", () => {
     expect(getByTestId("detail-placeholder")).toBeDefined();
   });
 
-  it("shows listener detail pane when selectedHandler='h-5'", () => {
-    const { getByTestId } = renderHandlersTab([createListener({ listener_id: 5 })], [], "h-5");
+  it("shows listener detail pane when selectedHandler='listener/5'", () => {
+    const { getByTestId } = renderHandlersTab([createListener({ listener_id: 5 })], [], "listener/5");
     expect(getByTestId("listener-detail-5")).toBeDefined();
   });
 
-  it("shows job detail pane when selectedHandler='j-20'", () => {
-    const { getByTestId } = renderHandlersTab([], [createJob({ job_id: 20 })], "j-20");
+  it("shows job detail pane when selectedHandler='job/20'", () => {
+    const { getByTestId } = renderHandlersTab([], [createJob({ job_id: 20 })], "job/20");
     expect(getByTestId("job-detail-20")).toBeDefined();
   });
 
@@ -78,7 +78,7 @@ describe("HandlersTab", () => {
       once: 0,
       immediate: 0,
     });
-    const { getByTestId, getByText } = renderHandlersTab([listener], [], "h-3");
+    const { getByTestId, getByText } = renderHandlersTab([listener], [], "listener/3");
     await waitFor(() => {
       expect(getByTestId("listener-detail-3")).toBeDefined();
     });
@@ -91,7 +91,7 @@ describe("HandlersTab", () => {
       trigger_label: "every 30s",
       trigger_type: "Every",
     });
-    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "j-8");
+    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "job/8");
     await waitFor(() => {
       expect(getByTestId("job-detail-8")).toBeDefined();
     });
@@ -106,7 +106,7 @@ describe("HandlersTab", () => {
       trigger_detail: "300s",
       trigger_type: "interval",
     });
-    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "j-9");
+    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "job/9");
     await waitFor(() => {
       expect(getByTestId("job-detail-9")).toBeDefined();
     });
@@ -120,7 +120,7 @@ describe("HandlersTab", () => {
       trigger_detail: "300s",
       trigger_type: "interval",
     });
-    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "j-10");
+    const { getByTestId, getAllByText } = renderHandlersTab([], [job], "job/10");
     await waitFor(() => {
       expect(getByTestId("job-detail-10")).toBeDefined();
     });
@@ -137,7 +137,7 @@ describe("HandlersTab", () => {
       listener_id: 8,
       source_location: "garage_alerts.py:42",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-8");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/8");
     await waitFor(() => {
       expect(getByTestId("handler-source-location")).toBeDefined();
     });
@@ -152,7 +152,7 @@ describe("HandlersTab", () => {
       failed: 2,
       timed_out: 1,
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-9");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/9");
     await waitFor(() => {
       expect(getByTestId("handler-stats-row")).toBeDefined();
     });
@@ -169,7 +169,7 @@ describe("HandlersTab", () => {
       last_error_type: "KeyError",
       last_error_message: "missing key 'state'",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-11");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/11");
     await waitFor(() => {
       expect(getByTestId("handler-error-banner")).toBeDefined();
     });
@@ -181,7 +181,7 @@ describe("HandlersTab", () => {
       listener_id: 12,
       registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-12");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/12");
     await waitFor(() => {
       expect(getByTestId("handler-registration-source")).toBeDefined();
     });
@@ -190,7 +190,7 @@ describe("HandlersTab", () => {
 
   it("handler detail: omits registration source when null", async () => {
     const listener = createListener({ listener_id: 13, registration_source: null });
-    const { getByTestId, queryByTestId } = renderHandlersTab([listener], [], "h-13");
+    const { getByTestId, queryByTestId } = renderHandlersTab([listener], [], "listener/13");
     await waitFor(() => {
       expect(getByTestId("listener-detail-13")).toBeDefined();
     });
@@ -204,7 +204,7 @@ describe("HandlersTab", () => {
       successful: 8,
       failed: 2,
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-20");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/20");
     await waitFor(() => {
       expect(getByTestId("handler-stats-row")).toBeDefined();
     });
@@ -215,14 +215,14 @@ describe("HandlersTab", () => {
 
   it("handler stats row: does not show cancelled when zero", async () => {
     const listener = createListener({ listener_id: 21, cancelled: 0 });
-    const { getByTestId, queryByText } = renderHandlersTab([listener], [], "h-21");
+    const { getByTestId, queryByText } = renderHandlersTab([listener], [], "listener/21");
     await waitFor(() => getByTestId("handler-stats-row"));
     expect(queryByText("Cancelled")).toBeNull();
   });
 
   it("handler stats row: shows cancelled count when > 0", async () => {
     const listener = createListener({ listener_id: 22, cancelled: 3 });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-22");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/22");
     await waitFor(() => getByTestId("handler-stats-row"));
     const statsRow = getByTestId("handler-stats-row");
     expect(statsRow.textContent).toContain("Cancelled");
@@ -236,7 +236,7 @@ describe("HandlersTab", () => {
       max_duration_ms: null,
       avg_duration_ms: 0,
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-23");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/23");
     await waitFor(() => getByTestId("handler-stats-row"));
     const statsRow = getByTestId("handler-stats-row");
     // Min and Max labels exist
@@ -258,7 +258,7 @@ describe("HandlersTab", () => {
       last_error_message: "bad value",
       last_error_traceback: "Traceback (most recent call last):\n  File test.py line 1\nValueError: bad value",
     });
-    const { getByTestId } = renderHandlersTab([listener], [], "h-24");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/24");
     await waitFor(() => getByTestId("handler-error-banner"));
     const banner = getByTestId("handler-error-banner");
     // Traceback toggle button should be present
@@ -280,7 +280,7 @@ describe("HandlersTab", () => {
       last_error_message: "something failed",
       last_error_traceback: "Traceback (most recent call last):\nRuntimeError: something failed",
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-30");
+    const { getByTestId } = renderHandlersTab([], [job], "job/30");
     await waitFor(() => getByTestId("job-detail-30"));
     const banner = getByTestId("job-error-banner");
     expect(banner.textContent).toContain("RuntimeError");
@@ -300,7 +300,7 @@ describe("HandlersTab", () => {
       failed: 2,
       timed_out: 1,
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-31");
+    const { getByTestId } = renderHandlersTab([], [job], "job/31");
     await waitFor(() => getByTestId("job-stats-row"));
     const statsRow = getByTestId("job-stats-row");
     expect(statsRow.textContent).toContain("Successful");
@@ -313,7 +313,7 @@ describe("HandlersTab", () => {
       failed: 2,
       timed_out: 1,
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-32");
+    const { getByTestId } = renderHandlersTab([], [job], "job/32");
     await waitFor(() => getByTestId("job-stats-row"));
     const statsRow = getByTestId("job-stats-row");
     // Both labels must be present as distinct cells
@@ -329,15 +329,15 @@ describe("HandlersTab", () => {
   });
 
   // URL-driven selection tests (T03)
-  it("selects listener by selectedHandler='h-1' prop", () => {
+  it("selects listener by selectedHandler='listener/1' prop", () => {
     const listeners = [createListener({ listener_id: 1 })];
-    const { getByTestId } = renderHandlersTab(listeners, [], "h-1");
+    const { getByTestId } = renderHandlersTab(listeners, [], "listener/1");
     expect(getByTestId("listener-detail-1")).toBeDefined();
   });
 
-  it("selects job by selectedHandler='j-10' prop", () => {
+  it("selects job by selectedHandler='job/10' prop", () => {
     const jobs = [createJob({ job_id: 10 })];
-    const { getByTestId } = renderHandlersTab([], jobs, "j-10");
+    const { getByTestId } = renderHandlersTab([], jobs, "job/10");
     expect(getByTestId("job-detail-10")).toBeDefined();
   });
 
@@ -348,19 +348,19 @@ describe("HandlersTab", () => {
 
   it("calls correctUrl when selectedHandler references a non-existent listener", () => {
     const listeners = [createListener({ listener_id: 1 })];
-    renderHandlersTab(listeners, [], "h-999");
+    renderHandlersTab(listeners, [], "listener/999");
     expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
   });
 
   it("calls correctUrl when selectedHandler references a non-existent job", () => {
     const jobs = [createJob({ job_id: 1 })];
-    renderHandlersTab([], jobs, "j-999");
+    renderHandlersTab([], jobs, "job/999");
     expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
   });
 
   it("does not call correctUrl when data is empty (loading guard)", () => {
     // Empty arrays = loading state / no data — should not correct URL
-    renderHandlersTab([], [], "h-999");
+    renderHandlersTab([], [], "listener/999");
     // The empty-state branch renders, no correctUrl call
     expect(mockCorrectUrl).not.toHaveBeenCalled();
   });
@@ -369,14 +369,14 @@ describe("HandlersTab", () => {
     const listeners = [createListener({ listener_id: 5 })];
     const { getByTestId } = renderHandlersTab(listeners, [], null);
     fireEvent.click(getByTestId("unified-row-listener-5"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-5");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/5");
   });
 
   it("clicking a job row navigates to job deep-link URL", () => {
     const jobs = [createJob({ job_id: 20 })];
     const { getByTestId } = renderHandlersTab([], jobs, null);
     fireEvent.click(getByTestId("unified-row-job-20"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/j-20");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/job/20");
   });
 
   it("clicking a listener row includes instanceQs in deep-link URL", () => {
@@ -386,7 +386,7 @@ describe("HandlersTab", () => {
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     fireEvent.click(getByTestId("unified-row-listener-3"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-3?instance=1");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/3?instance=1");
   });
 
   it("job detail: renders schedule chips when jitter and group are set", async () => {
@@ -396,7 +396,7 @@ describe("HandlersTab", () => {
       group: "my-group",
       trigger_type: "Every",
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-40");
+    const { getByTestId } = renderHandlersTab([], [job], "job/40");
     await waitFor(() => getByTestId("job-detail-40"));
     const chips = getByTestId("schedule-chips");
     expect(chips.textContent).toContain("±5s jitter");
@@ -405,7 +405,7 @@ describe("HandlersTab", () => {
 
   it("job detail: shows auto-generated name hint when name_auto is true", async () => {
     const job = createJob({ job_id: 41, name_auto: true });
-    const { getByTestId } = renderHandlersTab([], [job], "j-41");
+    const { getByTestId } = renderHandlersTab([], [job], "job/41");
     await waitFor(() => getByTestId("job-detail-41"));
     const hint = getByTestId("job-detail-41").querySelector("[aria-label='Auto-generated name']");
     expect(hint).not.toBeNull();
@@ -416,7 +416,7 @@ describe("HandlersTab", () => {
       job_id: 42,
       next_run: Date.now() / 1000 + 300,
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-42");
+    const { getByTestId } = renderHandlersTab([], [job], "job/42");
     await waitFor(() => getByTestId("job-detail-42"));
     expect(getByTestId("job-next-run")).toBeDefined();
     expect(getByTestId("job-next-run").textContent).toContain("next");
@@ -428,7 +428,7 @@ describe("HandlersTab", () => {
       next_run: null,
       fire_at: Date.now() / 1000 + 60,
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-43");
+    const { getByTestId } = renderHandlersTab([], [job], "job/43");
     await waitFor(() => getByTestId("job-detail-43"));
     expect(getByTestId("job-next-run")).toBeDefined();
     expect(getByTestId("job-next-run").textContent).toContain("fire at");
@@ -441,7 +441,7 @@ describe("HandlersTab", () => {
       last_error_type: "RuntimeError",
       last_error_message: "boom",
     });
-    const { getByTestId } = renderHandlersTab([], [job], "j-44");
+    const { getByTestId } = renderHandlersTab([], [job], "job/44");
     await waitFor(() => getByTestId("job-detail-44"));
     expect(getByTestId("handler-status-pill").textContent).toBe("failing");
   });
@@ -466,7 +466,7 @@ describe("HandlersTab", () => {
       <HandlersTab
         listeners={[listener]}
         jobs={[]}
-        selectedHandler="h-45"
+        selectedHandler="listener/45"
         appKey="test_app"
         instanceQs=""
         onSwitchToCode={onSwitch}

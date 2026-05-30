@@ -104,7 +104,7 @@ class ServiceWatcher(Resource):
         self._restarting = set()
         self._cooldown_tasks = {}
         self._cooldown_cycles = {}
-        self._register_internal_event_listeners()
+        await self._register_internal_event_listeners()
         self.mark_ready(reason="Service watcher initialized")
 
     @staticmethod
@@ -555,33 +555,33 @@ class ServiceWatcher(Resource):
             )
             await self.restart_service(synthetic_event)
 
-    def _register_internal_event_listeners(self) -> None:
+    async def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""
         topic = str(Topic.HASSETTE_EVENT_SERVICE_STATUS)
-        self.bus.on(
+        await self.bus.on(
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.FAILED),
         )
-        self.bus.on(
+        await self.bus.on(
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
         )
-        self.bus.on(
+        await self.bus.on(
             topic=topic,
             handler=self.log_service_event,
             name="hassette.service_watcher.log_service_event",
         )
-        self.bus.on(
+        await self.bus.on(
             topic=topic,
             handler=self._on_service_running,
             name="hassette.service_watcher._on_service_running",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.RUNNING),
         )
-        self.bus.on(
+        await self.bus.on(
             topic=topic,
             handler=self._on_bus_service_running,
             name="hassette.service_watcher._on_bus_service_running",

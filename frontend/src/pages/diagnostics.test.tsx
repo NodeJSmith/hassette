@@ -209,7 +209,6 @@ describe("DiagnosticsPage", () => {
       stateOverrides: {
         droppedOverflow: signal(5),
         droppedExhausted: signal(3),
-        droppedNoSession: signal(1),
         droppedShutdown: signal(2),
         errorHandlerFailures: signal(0),
       },
@@ -220,7 +219,6 @@ describe("DiagnosticsPage", () => {
     // Each row should be present
     expect(await findByTestId("diag-drop-overflow")).toBeDefined();
     expect(await findByTestId("diag-drop-exhausted")).toBeDefined();
-    expect(await findByTestId("diag-drop-no-session")).toBeDefined();
     expect(await findByTestId("diag-drop-shutdown")).toBeDefined();
     expect(await findByTestId("diag-drop-error-handler")).toBeDefined();
     // Overflow row shows correct count

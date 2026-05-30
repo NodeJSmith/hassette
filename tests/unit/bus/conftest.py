@@ -4,7 +4,7 @@ import contextlib
 import typing
 from collections.abc import Generator
 from typing import cast
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -42,12 +42,12 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
 
 @contextlib.contextmanager
 def mock_add_listener(bus: "Bus") -> Generator[Mock]:
-    """Replace bus.bus_service.add_listener with a Mock, restoring on exit.
+    """Replace bus.bus_service.add_listener with an AsyncMock, restoring on exit.
 
-    Default return is None (registration_task is optional). Tests that need
-    a real Future should set ``add_mock.return_value`` explicitly.
+    Default return is 1 (a fake db_id). Tests that need a specific db_id
+    should set ``add_mock.return_value`` explicitly.
     """
-    mock = Mock(return_value=None)
+    mock = AsyncMock(return_value=1)
     original = bus.bus_service.add_listener
     bus.bus_service.add_listener = mock
     try:

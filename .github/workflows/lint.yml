@@ -234,7 +234,7 @@ jobs:
               run: uv sync
 
             - name: Run slotscheck
-              run: uv run slotscheck -m hassette --exclude-modules "hassette.migrations"
+              run: uv run slotscheck -m hassette
 
     link-check:
         needs: changes

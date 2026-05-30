@@ -197,7 +197,6 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
 interface TelemetryPanelProps {
   droppedOverflow: number;
   droppedExhausted: number;
-  droppedNoSession: number;
   droppedShutdown: number;
   errorHandlerFailures: number;
   telemetryDegraded: boolean;
@@ -221,7 +220,6 @@ function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
 function TelemetryPanel({
   droppedOverflow,
   droppedExhausted,
-  droppedNoSession,
   droppedShutdown,
   errorHandlerFailures,
   telemetryDegraded,
@@ -230,7 +228,6 @@ function TelemetryPanel({
     !telemetryDegraded &&
     droppedOverflow === 0 &&
     droppedExhausted === 0 &&
-    droppedNoSession === 0 &&
     droppedShutdown === 0 &&
     errorHandlerFailures === 0;
 
@@ -254,7 +251,6 @@ function TelemetryPanel({
         <ul class={styles.dropList} aria-label="Drop counters">
           <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
           <DropCounterRow label="Write failed" value={droppedExhausted} testId="diag-drop-exhausted" />
-          <DropCounterRow label="No session" value={droppedNoSession} testId="diag-drop-no-session" />
           <DropCounterRow label="During shutdown" value={droppedShutdown} testId="diag-drop-shutdown" />
           <DropCounterRow
             label="Error handler failures"
@@ -275,7 +271,6 @@ export function DiagnosticsPage() {
     connection,
     droppedOverflow,
     droppedExhausted,
-    droppedNoSession,
     droppedShutdown,
     errorHandlerFailures,
     telemetryDegraded,
@@ -321,7 +316,6 @@ export function DiagnosticsPage() {
       <TelemetryPanel
         droppedOverflow={droppedOverflow.value}
         droppedExhausted={droppedExhausted.value}
-        droppedNoSession={droppedNoSession.value}
         droppedShutdown={droppedShutdown.value}
         errorHandlerFailures={errorHandlerFailures.value}
         telemetryDegraded={telemetryDegraded.value}

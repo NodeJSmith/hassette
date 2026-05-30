@@ -4,13 +4,13 @@ from hassette import App, AppConfig
 class NamedSubscriptionApp(App[AppConfig]):
     async def on_initialize(self):
         # --8<-- [start:registration_identity]
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion,
             name="motion_sensor_main",
         )
 
-        self.bus.on_state_change(
+        await self.bus.on_state_change(
             "binary_sensor.motion",
             handler=self.on_motion_log,
             name="motion_sensor_log",

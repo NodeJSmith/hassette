@@ -33,7 +33,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
-    from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
+    from hassette.events.hassette import ExecutionCompletedPayload
 
 _WS_CLIENT_QUEUE_MAX = 256
 _WS_DROP_LOG_INTERVAL = 10.0
@@ -56,22 +56,8 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
-    _listener_meta: dict[int, tuple[str, int]]
-    """Maps listener DB-ID → (app_key, instance_index) for completion event enrichment.
-
-    Populated by :meth:`register_listener_meta` (called from ``CommandExecutor`` at
-    registration time).  Stale entries are pruned by :meth:`prune_meta` during
-    reconciliation after app reloads.
-    """
-
-    _job_meta: dict[int, tuple[str, int]]
-    """Maps job DB-ID → (app_key, instance_index) for completion event enrichment."""
-
-    _pending_invocations: list[dict]
-    """Invocation completion dicts accumulated within the current drain tick, flushed as a batch."""
-
-    _pending_executions: list[dict]
-    """Execution completion dicts accumulated within the current drain tick, flushed as a batch."""
+    _pending_completions: list[dict]
+    """Execution completion dicts (handler and job) accumulated within the current drain tick, flushed as a batch."""
 
     _flush_scheduled: bool
     """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
@@ -87,10 +73,7 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
-        self._listener_meta: dict[int, tuple[str, int]] = {}
-        self._job_meta: dict[int, tuple[str, int]] = {}
-        self._pending_invocations: list[dict] = []
-        self._pending_executions: list[dict] = []
+        self._pending_completions: list[dict] = []
         self._flush_scheduled = False
 
     @property
@@ -106,30 +89,37 @@ class RuntimeQueryService(Resource):
 
         # Subscribe to bus events
         self._subscriptions.append(
-            self.bus.on(
+            await self.bus.on(
                 topic=Topic.HASS_EVENT_STATE_CHANGED,
                 handler=self._on_state_change,
+                name="hassette.rqs.on_state_change",
             )
         )
-        self._subscriptions.append(self.bus.on_app_state_changed(handler=self._on_app_state_changed))
         self._subscriptions.append(
-            self.bus.on(
+            await self.bus.on_app_state_changed(
+                handler=self._on_app_state_changed, name="hassette.rqs.on_app_state_changed"
+            )
+        )
+        self._subscriptions.append(
+            await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=self._on_service_status,
-            )
-        )
-        self._subscriptions.append(self.bus.on_websocket_connected(handler=self._on_ws_connected))
-        self._subscriptions.append(self.bus.on_websocket_disconnected(handler=self._on_ws_disconnected))
-        self._subscriptions.append(
-            self.bus.on(
-                topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
-                handler=self._on_invocation_completed,
+                name="hassette.rqs.on_service_status",
             )
         )
         self._subscriptions.append(
-            self.bus.on(
+            await self.bus.on_websocket_connected(handler=self._on_ws_connected, name="hassette.rqs.on_ws_connected")
+        )
+        self._subscriptions.append(
+            await self.bus.on_websocket_disconnected(
+                handler=self._on_ws_disconnected, name="hassette.rqs.on_ws_disconnected"
+            )
+        )
+        self._subscriptions.append(
+            await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
                 handler=self._on_execution_completed,
+                name="hassette.rqs.on_execution_completed",
             )
         )
 
@@ -215,36 +205,19 @@ class RuntimeQueryService(Resource):
     async def _on_ws_disconnected(self) -> None:
         await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=False))
 
-    async def _on_invocation_completed(self, event: Event[Any]) -> None:
-        """Accumulate an invocation completion into the pending batch for this drain tick."""
-        data: InvocationCompletedPayload = event.payload.data
-        lid = data.listener_id if data.listener_id is not None else 0
-        app_key, instance_index = self._listener_meta.get(lid, ("", 0))
-        self._pending_invocations.append(
-            {
-                "listener_id": lid,
-                "app_key": app_key,
-                "instance_index": instance_index,
-                "status": data.status,
-                "duration_ms": data.duration_ms,
-                "error_type": data.error_type,
-            }
-        )
-        await self._schedule_flush()
-
     async def _on_execution_completed(self, event: Event[Any]) -> None:
-        """Accumulate a job execution completion into the pending batch for this drain tick."""
+        """Accumulate an execution completion (handler or job) into the pending batch for this drain tick."""
         data: ExecutionCompletedPayload = event.payload.data
-        jid = data.job_id if data.job_id is not None else 0
-        app_key, instance_index = self._job_meta.get(jid, ("", 0))
-        self._pending_executions.append(
+        self._pending_completions.append(
             {
-                "job_id": jid,
-                "app_key": app_key,
-                "instance_index": instance_index,
+                "kind": data.kind,
+                "app_key": data.app_key,
+                "instance_index": data.instance_index,
                 "status": data.status,
                 "duration_ms": data.duration_ms,
                 "error_type": data.error_type,
+                "listener_id": data.listener_id,
+                "job_id": data.job_id,
             }
         )
         await self._schedule_flush()
@@ -253,8 +226,8 @@ class RuntimeQueryService(Resource):
         """Schedule a single flush task for the current event-loop tick if not already scheduled.
 
         All completion events arriving within the same drain cycle are collected in
-        ``_pending_invocations`` / ``_pending_executions`` before a single WS message
-        is broadcast — one message per ``_drain_and_persist()`` cycle, not one per record.
+        ``_pending_completions`` before a single WS message is broadcast -
+        one message per ``_drain_and_persist()`` cycle, not one per record.
         """
         if self._flush_scheduled:
             return
@@ -262,66 +235,25 @@ class RuntimeQueryService(Resource):
         self.task_bucket.spawn(self._flush_completions(), name="rqs:flush_completions")
 
     async def _flush_completions(self) -> None:
-        """Broadcast one WS message per type summarising all completions from the current drain tick.
+        """Broadcast a single ``execution_completed`` WS message for the current drain tick.
 
-        Emits an ``invocation_completed`` message (with a list payload) if any invocations are
-        pending, and an ``execution_completed`` message if any executions are pending.  Each
-        covers the full set persisted in one ``_drain_and_persist()`` cycle — one message per
-        drain, not one message per record.
+        All handler and job completions accumulated in ``_pending_completions`` are
+        emitted as one batched message. The ``kind`` field on each item discriminates
+        handler invocations from job executions. One message per ``_drain_and_persist()``
+        cycle, not one per record.
         """
         # Reset BEFORE the awaits so new events arriving during broadcast land in
-        # the fresh pending lists and _schedule_flush re-arms correctly.
+        # the fresh pending list and _schedule_flush re-arms correctly.
         self._flush_scheduled = False
         now = time.time()
 
-        invocations = self._pending_invocations
-        executions = self._pending_executions
-        self._pending_invocations = []
-        self._pending_executions = []
+        completions = self._pending_completions
+        self._pending_completions = []
 
-        if invocations:
-            entry = {"type": "invocation_completed", "data": invocations, "timestamp": now}
+        if completions:
+            entry = {"type": "execution_completed", "data": completions, "timestamp": now}
             self._event_buffer.append(entry)
             await self.broadcast(entry)
-
-        if executions:
-            entry = {"type": "execution_completed", "data": executions, "timestamp": now}
-            self._event_buffer.append(entry)
-            await self.broadcast(entry)
-
-    def register_listener_meta(self, listener_db_id: int, app_key: str, instance_index: int) -> None:
-        """Record the (app_key, instance_index) for a newly registered listener DB row.
-
-        Called by ``CommandExecutor.register_listener`` immediately after the DB insert so that
-        ``RuntimeQueryService`` can enrich completion WS messages with app identity without the
-        ``CommandExecutor`` needing to know about the web layer.
-
-        Args:
-            listener_db_id: The ``id`` of the newly inserted ``listeners`` row.
-            app_key: The app key that owns this listener.
-            instance_index: The instance index within the app.
-        """
-        self._listener_meta[listener_db_id] = (app_key, instance_index)
-
-    def register_job_meta(self, job_db_id: int, app_key: str, instance_index: int) -> None:
-        """Record the (app_key, instance_index) for a newly registered scheduled job DB row.
-
-        Called by ``CommandExecutor.register_job`` immediately after the DB insert so that
-        ``RuntimeQueryService`` can enrich completion WS messages with app identity.
-
-        Args:
-            job_db_id: The ``id`` of the newly inserted ``scheduled_jobs`` row.
-            app_key: The app key that owns this job.
-            instance_index: The instance index within the app.
-        """
-        self._job_meta[job_db_id] = (app_key, instance_index)
-
-    def prune_meta(self, app_key: str, live_listener_ids: set[int], live_job_ids: set[int]) -> None:
-        """Remove stale entries for *one app* from the meta dicts after reconciliation."""
-        self._listener_meta = {
-            k: v for k, v in self._listener_meta.items() if v[0] != app_key or k in live_listener_ids
-        }
-        self._job_meta = {k: v for k, v in self._job_meta.items() if v[0] != app_key or k in live_job_ids}
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()

@@ -121,19 +121,13 @@ function StatusFilterContent({
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, invocationCompleted, executionCompleted } = useAppState();
+  const { appStatus, effectiveTimePreset, uptimeSeconds, executionCompleted } = useAppState();
   const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) =>
     getDashboardAppGrid(since, signal),
   );
 
-  useQueryInvalidator(
-    [
-      [invocationCompleted, (events) => events !== null],
-      [executionCompleted, (events) => events !== null],
-    ],
-    queryKeys.dashboardGrid(),
-  );
+  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const qp = useQueryParams();

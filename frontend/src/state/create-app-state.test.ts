@@ -53,11 +53,6 @@ describe("createAppState", () => {
     expect(state.uptimeSeconds.value).toBeNull();
   });
 
-  it("has invocationCompleted signal defaulting to null", () => {
-    const state = createAppState();
-    expect(state.invocationCompleted.value).toBeNull();
-  });
-
   it("has executionCompleted signal defaulting to null", () => {
     const state = createAppState();
     expect(state.executionCompleted.value).toBeNull();

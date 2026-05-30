@@ -1,6 +1,8 @@
 """E2E tests for WebSocket infrastructure: connection indicator and SPA
 rendering stability when WS is unavailable, and the WS uptime-scoped fetch path."""
 
+import time
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -132,3 +134,99 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
     # None of the requests should include session_id
     session_id_requests = [u for u in api_requests if "session_id" in u]
     assert session_id_requests == [], f"Unexpected session_id in telemetry requests: {session_id_requests}"
+
+
+# ── execution_completed WS message ───────────────────────────────────────
+
+
+def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, live_server_ws_inject) -> None:
+    """An execution_completed WS message carrying kind triggers an activity refetch.
+
+    FR#11 — unified execution_completed message.
+
+    Uses live_server_ws_inject (WebSocket enabled) to:
+    1. Navigate to the app detail overview, which renders RecentActivitySection.
+    2. Wait for the WS indicator to reach 'Connected' (uptime_seconds received).
+    3. Start capturing network requests.
+    4. Inject a unified execution_completed WS message for 'my_app' with kind='handler'.
+    5. Assert the frontend re-fetches activity for my_app
+       (GET /api/telemetry/app/my_app/activity).
+
+    The useQueryInvalidator hook inside RecentActivitySection subscribes to the
+    executionCompleted signal and invalidates the activity query when any event's
+    app_key matches. The refetch is the observable proof that the message reached
+    the frontend and was parsed correctly.
+
+    Modelled on test_websocket_no_session_id_in_requests which also captures
+    requests after WS connects and then asserts their shape.
+    """
+    base = live_server_ws_inject.url
+    broadcast_sync = live_server_ws_inject.broadcast_sync
+
+    # Capture all /activity requests from page load onward.
+    all_activity_requests: list[str] = []
+
+    def _capture_all(request) -> None:
+        if "/api/telemetry/app/my_app/activity" in request.url:
+            all_activity_requests.append(request.url)
+
+    page.on("request", _capture_all)
+
+    page.goto(base + "/apps/my_app")
+
+    # Wait for WS to connect — uptime_seconds gate unblocks useScopedApi.
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
+
+    # The overview tab (with RecentActivitySection) must be visible before injection.
+    expect(page.locator("[data-testid='overview-tab']")).to_be_visible(timeout=10000)
+
+    # Wait for the initial activity fetch to complete before broadcasting.
+    # Poll until the activity endpoint has been called at least once.
+    deadline_initial = time.monotonic() + 10
+    while time.monotonic() < deadline_initial:
+        if all_activity_requests:
+            break
+        time.sleep(0.1)
+
+    assert all_activity_requests, "Initial activity fetch never fired — useScopedQuery may be gated"
+
+    initial_count = len(all_activity_requests)
+
+    # Inject a unified execution_completed WS message with kind='handler'.
+    broadcast_sync(
+        {
+            "type": "execution_completed",
+            "data": [
+                {
+                    "kind": "handler",
+                    "app_key": "my_app",
+                    "instance_index": 0,
+                    "status": "success",
+                    "duration_ms": 12.3,
+                    "error_type": None,
+                    "listener_id": 1,
+                    "job_id": None,
+                }
+            ],
+            "timestamp": time.time(),
+        }
+    )
+
+    # Allow debounce (500ms) + network round-trip to complete.
+    page.wait_for_timeout(1500)
+
+    # The useQueryInvalidator hook refetches the activity endpoint when
+    # execution_completed arrives with a matching app_key.
+    # Poll for 5s total to accommodate slower CI environments.
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if len(all_activity_requests) > initial_count:
+            break
+        time.sleep(0.1)
+
+    assert len(all_activity_requests) > initial_count, (
+        "Expected a GET /api/telemetry/app/my_app/activity refetch after "
+        "execution_completed WS message, but none arrived within 6.5s "
+        f"(initial fetches: {initial_count}, total after wait: {len(all_activity_requests)})"
+    )

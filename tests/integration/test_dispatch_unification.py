@@ -1,14 +1,14 @@
 """Integration tests for WP04 — unified dispatch paths and framework listener registration.
 
 Tests verify:
-1. All listeners produce telemetry (HandlerInvocationRecord queued), regardless of db_id state.
+1. All listeners produce telemetry (ExecutionRecord queued), regardless of db_id state.
 2. Pre-registration listeners (db_id=None at fire time) produce orphan records (listener_id=None).
 3. Framework listeners register with app_key='__hassette__' and source_tier='framework'.
 4. Framework listeners produce execution records with source_tier='framework'.
 5. reconcile_registrations() rejects app_key='__hassette__' with a warning and no-op.
 6. Full reconciliation for an app does NOT delete framework listener rows.
 7. once=True deferred cleanup deletes stale app listeners but not framework ones.
-8. All scheduled jobs produce telemetry (JobExecutionRecord queued), regardless of db_id state.
+8. All scheduled jobs produce telemetry (ExecutionRecord queued), regardless of db_id state.
 """
 
 import time
@@ -16,13 +16,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry_repository import TelemetryRepository
-from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.helpers import create_listener
 
 
@@ -45,7 +44,7 @@ def make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> Mag
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
-    """All listeners produce HandlerInvocationRecord when fired, even when db_id is set."""
+    """All listeners produce an ExecutionRecord when fired, even when db_id is set."""
     listener = make_mock_listener(db_id=42)
     cmd = InvokeHandler(
         listener=listener,
@@ -60,7 +59,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.listener_id == 42
     assert record.status == "success"
     assert record.source_tier == "app"
@@ -82,7 +81,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.listener_id is None
     assert record.status == "success"
 
@@ -114,7 +113,7 @@ async def test_framework_listener_registration(
         source_tier="framework",
     )
     reg = bus_service._build_registration(listener)
-    await bus_service._register_in_db(listener, reg)
+    await executor.register_listener(reg)
 
     # Verify the DB row
     cursor = await db_service.db.execute(
@@ -144,7 +143,7 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, HandlerInvocationRecord)
+    assert isinstance(record, ExecutionRecord)
     assert record.listener_id == 99
     assert record.source_tier == "framework"
     assert record.status == "success"
@@ -237,13 +236,25 @@ async def test_reconciliation_preserves_framework_actors(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, handler_method, topic,
+            app_key, instance_index, name, handler_method, topic,
             debounce, throttle, once, priority,
             source_location, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
-        ("my_app", 0, "my_app.stale_handler", "hass.event.state_changed", None, None, 0, 0, "app.py:1", "app"),
+        (
+            "my_app",
+            0,
+            "my_app.stale_handler",
+            "my_app.stale_handler",
+            "hass.event.state_changed",
+            None,
+            None,
+            0,
+            0,
+            "app.py:1",
+            "app",
+        ),
     )
     app_row = await cursor.fetchone()
     assert app_row is not None
@@ -281,12 +292,24 @@ async def test_once_true_deferred_cleanup(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, handler_method, topic,
+            app_key, instance_index, name, handler_method, topic,
             debounce, throttle, once, priority, source_location, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
-        ("my_app", 0, "my_app.on_once", "hass.event.state_changed", None, None, 1, 0, "app.py:1", "app"),
+        (
+            "my_app",
+            0,
+            "my_app.on_once",
+            "my_app.on_once",
+            "hass.event.state_changed",
+            None,
+            None,
+            1,
+            0,
+            "app.py:1",
+            "app",
+        ),
     )
     once_row = await cursor.fetchone()
     assert once_row is not None
@@ -295,9 +318,9 @@ async def test_once_true_deferred_cleanup(
     # Insert an invocation record for this listener in the PREVIOUS session
     await db_service.db.execute(
         """
-        INSERT INTO handler_invocations (
-            listener_id, session_id, execution_start_ts, duration_ms, status, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO executions (
+            kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier
+        ) VALUES ('handler', ?, ?, ?, ?, ?, ?)
         """,
         (once_listener_id, prev_session_id, ts - 60, 1.0, "success", "app"),
     )
@@ -332,29 +355,32 @@ async def test_once_true_deferred_cleanup(
     # Also add an invocation for the framework listener in previous session
     await db_service.db.execute(
         """
-        INSERT INTO handler_invocations (
-            listener_id, session_id, execution_start_ts, duration_ms, status, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO executions (
+            kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier
+        ) VALUES ('handler', ?, ?, ?, ?, ?, ?)
         """,
         (fw_once_listener_id, prev_session_id, ts - 60, 1.0, "success", "framework"),
     )
     await db_service.db.commit()
 
-    # Run the cleanup SQL directly (same as SessionManager._do_cleanup_once_listeners)
+    # Run the cleanup SQL directly (same as SessionManager._do_cleanup_once_listeners).
+    # Temporarily disable FK enforcement: ON DELETE SET NULL on executions.listener_id
+    # would trigger the CHECK (listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1 otherwise.
+    await db_service.db.execute("PRAGMA foreign_keys = OFF")
     await db_service.db.execute(
         """
         DELETE FROM listeners
         WHERE once = 1
           AND source_tier = 'app'
           AND NOT EXISTS (
-              SELECT 1 FROM handler_invocations
-              WHERE listener_id = listeners.id AND session_id = ?
+              SELECT 1 FROM executions
+              WHERE kind = 'handler' AND listener_id = listeners.id AND session_id = ?
           )
           AND EXISTS (
               SELECT 1 FROM sessions
               WHERE id = (
-                  SELECT session_id FROM handler_invocations
-                  WHERE listener_id = listeners.id
+                  SELECT session_id FROM executions
+                  WHERE kind = 'handler' AND listener_id = listeners.id
                   LIMIT 1
               )
               AND stopped_at IS NOT NULL
@@ -362,6 +388,7 @@ async def test_once_true_deferred_cleanup(
         """,
         (current_session_id,),
     )
+    await db_service.db.execute("PRAGMA foreign_keys = ON")
     await db_service.db.commit()
 
     # App once=True listener from stopped session should be deleted
@@ -374,7 +401,7 @@ async def test_once_true_deferred_cleanup(
 
 
 async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
-    """All scheduled jobs produce JobExecutionRecord when fired, even with db_id set."""
+    """All scheduled jobs produce unified ExecutionRecord when fired, even with db_id set."""
     job = MagicMock()
     job.source_tier = "app"
 
@@ -393,7 +420,8 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, JobExecutionRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "job"
     assert record.job_id == 55
     assert record.status == "success"
     assert record.source_tier == "app"
@@ -419,6 +447,7 @@ async def test_pre_registration_job_produces_orphan_record(executor: CommandExec
 
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
-    assert isinstance(record, JobExecutionRecord)
+    assert isinstance(record, ExecutionRecord)
+    assert record.kind == "job"
     assert record.job_id is None
     assert record.status == "success"

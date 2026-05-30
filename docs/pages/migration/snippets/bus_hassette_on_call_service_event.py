@@ -8,10 +8,11 @@ class MyConfig(AppConfig):
 
 class MyApp(App[MyConfig]):
     async def on_initialize(self):
-        sub = self.bus.on_call_service(
+        sub = await self.bus.on_call_service(
             service="press",
             handler=self.minimal_callback,
             where={"entity_id": self.app_config.button_entity},
+            name="button_press_event",
         )
         self.logger.info("Subscribed: %s", sub)
 
