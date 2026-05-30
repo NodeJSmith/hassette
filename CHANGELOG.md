@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0](https://github.com/NodeJSmith/hassette/compare/v0.36.0...v0.37.0) (2026-05-30)
+
+### ⚠ BREAKING CHANGES
+
+This release redesigns registration and telemetry. Most existing apps need code changes.
+
+#### Registration is now async
+
+Bus and scheduler registration methods are now `async` and must be awaited.
+
+`name=` is now required on every bus registration (it was optional). Omitting it raises `ListenerNameRequiredError`.
+
+```python
+# before
+self.bus.on_state_change("light.kitchen", handler=self.on_change)
+self.scheduler.run_in(self.task, 5)
+
+# after
+await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen_light")
+await self.scheduler.run_in(self.task, 5)
+```
+
+Affected bus methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on_component_loaded`, `on`.
+
+Affected scheduler methods: `schedule`, `run_in`, `run_once`, `run_every`, `run_minutely`, `run_hourly`, `run_daily`, `run_cron`.
+
+`Subscription.registration_task` is removed. Registration completes inline now, so `sub.listener.db_id` is a valid integer as soon as the awaited call returns.
+
+#### Unified executions model
+
+`HandlerInvocation` and `JobExecution` are replaced by a single `Execution` model with a `kind` discriminator (`"listener"` or `"job"`).
+
+The REST endpoint `/api/telemetry/handler/{id}/invocations` is now `/api/telemetry/listener/{id}/executions`. The WebSocket signals are unified under the same `executions` shape.
+
+#### Migration runner replaces Alembic
+
+The Alembic migration stack is replaced by a PRAGMA `user_version` runner with plain SQL files. Existing databases are migrated automatically on first startup. No manual migration steps required, but any tooling that reads `alembic_version` will need updating.
+
+#### Removed: `dropped_no_session`
+
+The `dropped_no_session` counter is removed from the API response, the dashboard status badge, and the `sessions` table.
+
+### Features
+
+* redesign telemetry database around a unified executions table ([#922](https://github.com/NodeJSmith/hassette/issues/922)) ([b97a495](https://github.com/NodeJSmith/hassette/commit/b97a4953a326584790576d37aecb5a5fc00cb4ff))
+
+### Bug Fixes
+
+* fix starlette host header injection (CVE-2026-48710) ([#907](https://github.com/NodeJSmith/hassette/issues/907)) ([c9ad12f](https://github.com/NodeJSmith/hassette/commit/c9ad12f4e15b5ee047c3249c241bab0c8b96a0e3))
+
+### Internal
+
+* decompose bus_service.py into focused modules ([#919](https://github.com/NodeJSmith/hassette/issues/919))
+* extract Service and RestartSpec from resources/base.py ([#921](https://github.com/NodeJSmith/hassette/issues/921))
+* docs voice guide, quality rules, and audit ([#910](https://github.com/NodeJSmith/hassette/issues/910), [#917](https://github.com/NodeJSmith/hassette/issues/917), [#920](https://github.com/NodeJSmith/hassette/issues/920))
+
 ## [0.36.0](https://github.com/NodeJSmith/hassette/compare/v0.35.0...v0.36.0) (2026-05-28)
 
 
