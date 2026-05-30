@@ -1,6 +1,6 @@
 """Unit tests for TelemetryQueryService module-level SQL helper functions."""
 
-from hassette.core.telemetry_query_service import _since_clause
+from hassette.core.telemetry.helpers import _since_clause
 
 
 class TestSinceClause:

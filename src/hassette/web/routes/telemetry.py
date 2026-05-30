@@ -12,6 +12,7 @@ from typing import Literal, cast
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.core.telemetry.query_service import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.core.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
@@ -19,7 +20,6 @@ from hassette.core.telemetry_models import (
     Execution,
     JobSummary,
 )
-from hassette.core.telemetry_query_service import DEFAULT_QUERY_LIMIT
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
@@ -308,9 +308,6 @@ async def job_executions(
         return []
 
 
-NUM_SPARKLINE_BUCKETS = 12
-
-
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
 async def dashboard_app_grid(
     runtime: RuntimeDep,
@@ -337,7 +334,7 @@ async def dashboard_app_grid(
             per_app_buckets = await telemetry.get_per_app_activity_buckets(
                 since,
                 now,
-                num_buckets=NUM_SPARKLINE_BUCKETS,
+                num_buckets=DEFAULT_SPARKLINE_BUCKETS,
                 source_tier="app",
             )
         except DB_ERRORS:

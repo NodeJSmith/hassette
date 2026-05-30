@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.migration_runner import _collect_migrations, run_migrations
+from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -400,11 +400,7 @@ class DatabaseService(Service):
 
     def _get_current_db_version(self, db_path: Path) -> int:
         """Return PRAGMA user_version from the on-disk DB (synchronous). Returns 0 for fresh databases."""
-        conn = sqlite3.connect(db_path)
-        try:
-            return conn.execute("PRAGMA user_version").fetchone()[0]
-        finally:
-            conn.close()
+        return _read_user_version(db_path)
 
     async def _handle_schema_version(self, db_path: Path) -> None:
         """Check schema version and handle mismatches.
@@ -549,6 +545,11 @@ class DatabaseService(Service):
             config = self.hassette.config
             now = time.time()
             deleted_by_table: dict[str, int] = {}
+
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
+            # so without this BEGIN each DELETE commits individually and the rollback() in the
+            # except clause is a no-op. The BEGIN makes the whole cleanup one atomic transaction.
+            await self.db.execute("BEGIN")
 
             for target in _RETENTION_TABLES:
                 cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)

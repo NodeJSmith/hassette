@@ -18,7 +18,7 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.mock_hassette import make_mock_hassette

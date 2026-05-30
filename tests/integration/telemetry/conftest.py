@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 

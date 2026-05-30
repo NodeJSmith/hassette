@@ -37,7 +37,7 @@ from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
 from .state_proxy import StateProxy
-from .telemetry_query_service import TelemetryQueryService
+from .telemetry.query_service import TelemetryQueryService
 from .web_api_service import WebApiService
 from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService

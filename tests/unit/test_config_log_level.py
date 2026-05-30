@@ -31,7 +31,7 @@ from hassette.core.scheduler_service import SchedulerService, _ScheduledJobQueue
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService

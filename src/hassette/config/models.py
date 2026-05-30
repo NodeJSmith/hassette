@@ -47,14 +47,14 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Path to the SQLite database file. Defaults to data_dir / "hassette.db" when None."""
 
     retention_days: int = Field(default=7, ge=1)
-    """Number of days to retain execution records (handler_invocations, job_executions)."""
+    """Number of days to retain execution records in the ``executions`` table."""
 
     max_size_mb: float = Field(default=500, ge=0)
     """Maximum database file size in MB. When exceeded, oldest execution records are deleted.
     0 disables the size failsafe."""
 
     migration_timeout_seconds: int = Field(default=120, ge=10)
-    """Maximum seconds to wait for Alembic migrations to complete at startup."""
+    """Maximum seconds to wait for SQL schema migrations to complete at startup."""
 
     write_queue_max: int = Field(default=2000, ge=1)
     """Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth

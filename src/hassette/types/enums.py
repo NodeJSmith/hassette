@@ -38,7 +38,7 @@ class Topic(StrEnum):
     """App instance state change events"""
 
     HASSETTE_EVENT_EXECUTION_COMPLETED = "hassette.event.execution_completed"
-    """Scheduled job execution persisted to telemetry database"""
+    """Handler or job execution persisted to the telemetry database"""
 
     # Home Assistant events
 

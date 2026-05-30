@@ -13,6 +13,9 @@ from pathlib import Path
 # resolve in both editable and wheel installs. Intentionally no __init__.py.
 _MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations_sql"
 
+# SQLite PRAGMA auto_vacuum mode value for INCREMENTAL.
+_AUTO_VACUUM_INCREMENTAL = 2
+
 
 def run_migrations(db_path: Path, *, target: int | None = None) -> None:
     """Apply pending migrations to the database at db_path (synchronous).
@@ -72,13 +75,13 @@ def _set_auto_vacuum(db_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
         current_mode = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
-        if current_mode == 2:
+        if current_mode == _AUTO_VACUUM_INCREMENTAL:
             return
         conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
         # SQLite silently ignores the change if pages already exist. Re-read to
         # confirm it took effect rather than running the DB in the wrong mode.
         applied = conn.execute("PRAGMA auto_vacuum").fetchone()[0]
-        if applied != 2:
+        if applied != _AUTO_VACUUM_INCREMENTAL:
             warnings.warn(
                 f"auto_vacuum could not be set to INCREMENTAL (got {applied}); "
                 "the database may have been opened before tables were created.",
@@ -105,5 +108,7 @@ def _apply_migration(db_path: Path, version: int, sql_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(script)
+    except sqlite3.Error as exc:
+        raise RuntimeError(f"Migration {version} ({sql_path.name}) failed: {exc}") from exc
     finally:
         conn.close()

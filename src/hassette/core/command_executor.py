@@ -16,11 +16,10 @@ import structlog.contextvars
 import uuid_utils
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.invocation_record import SYNTHETIC_ORIGIN
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
-from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext

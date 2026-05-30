@@ -21,7 +21,7 @@ from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource

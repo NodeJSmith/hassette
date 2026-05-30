@@ -16,7 +16,28 @@ from hassette.types.types import QuerySourceTier, is_framework_key
 DEFAULT_QUERY_LIMIT = 50
 """Default row cap for telemetry list queries. Single source of truth across query modules."""
 
+DEFAULT_SESSION_LIST_LIMIT = 20
+"""Default number of recent sessions returned by get_session_list."""
+
+DEFAULT_LOG_RECORDS_LIMIT = 100
+"""Default row cap for get_log_records."""
+
+DEFAULT_EXECUTION_LOG_LIMIT = 500
+"""Default row cap for log records of a single execution (get_log_records_by_execution)."""
+
+DEFAULT_SPARKLINE_BUCKETS = 12
+"""Default number of time buckets for per-app activity sparklines."""
+
+# Exports the package's public constants plus the clause-builders shared by the query
+# mixins. The clause-builders keep their underscore prefix (package-internal, not for
+# callers outside hassette.core.telemetry); listing them here marks them as exported so
+# the cross-module imports don't read as unused.
 __all__ = [
+    "DEFAULT_EXECUTION_LOG_LIMIT",
+    "DEFAULT_LOG_RECORDS_LIMIT",
+    "DEFAULT_QUERY_LIMIT",
+    "DEFAULT_SESSION_LIST_LIMIT",
+    "DEFAULT_SPARKLINE_BUCKETS",
     "AppHealthAggregates",
     "_build_app_summaries",
     "_row_to_dict",

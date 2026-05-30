@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.core.telemetry_models import (
     Execution,
     ListenerSummary,
 )
-from hassette.core.telemetry_query_service import AppHealthAggregates
 
 if TYPE_CHECKING:
     from httpx import AsyncClient

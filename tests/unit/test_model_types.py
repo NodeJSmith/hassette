@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from hassette.core.telemetry_models import ActivityFeedEntry, Execution, LogRecord
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import InvocationStatus
+from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppHealthResponse,
     AppInstanceResponse,
@@ -23,11 +23,11 @@ from hassette.web.models import (
 )
 
 # ---------------------------------------------------------------------------
-# InvocationStatus — Execution.status
+# ExecutionStatus — Execution.status
 # ---------------------------------------------------------------------------
 
 
-class TestInvocationStatus:
+class TestExecutionStatus:
     def test_rejects_bogus_status(self) -> None:
         with pytest.raises(ValidationError):
             Execution(
@@ -49,7 +49,7 @@ class TestInvocationStatus:
                 error_type=None,
                 error_message=None,
             )
-            assert obj.status == InvocationStatus(value)
+            assert obj.status == ExecutionStatus(value)
 
     def test_rejects_bogus_on_job_execution(self) -> None:
         with pytest.raises(ValidationError):
@@ -423,7 +423,7 @@ class TestLogLevelType:
 
 
 # ---------------------------------------------------------------------------
-# InvocationStatus on WebSocket payload models
+# ExecutionStatus on WebSocket payload models
 # ---------------------------------------------------------------------------
 
 

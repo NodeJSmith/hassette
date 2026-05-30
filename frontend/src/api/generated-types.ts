@@ -522,7 +522,7 @@ export interface components {
         ActivityFeedEntry: {
             /** Row Id */
             row_id: string;
-            status: components["schemas"]["InvocationStatus"];
+            status: components["schemas"]["ExecutionStatus"];
             /** Timestamp */
             timestamp: number;
             /** App Key */
@@ -851,7 +851,7 @@ export interface components {
             execution_start_ts: number;
             /** Duration Ms */
             duration_ms: number;
-            status: components["schemas"]["InvocationStatus"];
+            status: components["schemas"]["ExecutionStatus"];
             /**
              * Source Tier
              * @default app
@@ -894,6 +894,16 @@ export interface components {
             kwargs_json: string;
         };
         /**
+         * ExecutionStatus
+         * @description Status values for handler invocations and job executions.
+         *
+         *     Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+         *     Pydantic v2 coerces plain strings to enum members on construction and
+         *     serialises back to plain strings in JSON responses.
+         * @enum {string}
+         */
+        ExecutionStatus: "success" | "error" | "cancelled" | "timed_out";
+        /**
          * FileWatcherConfigResponse
          * @description Sanitized file watcher configuration fields.
          */
@@ -908,16 +918,6 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /**
-         * InvocationStatus
-         * @description Status values for handler invocations and job executions.
-         *
-         *     Covers all values allowed by the CHECK constraints in migrations 001 and 005.
-         *     Pydantic v2 coerces plain strings to enum members on construction and
-         *     serialises back to plain strings in JSON responses.
-         * @enum {string}
-         */
-        InvocationStatus: "success" | "error" | "cancelled" | "timed_out";
         /**
          * JobSummary
          * @description Per-job summary returned by ``get_job_summary()``.

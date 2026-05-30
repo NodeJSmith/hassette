@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_query_service import AppHealthAggregates
+from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app

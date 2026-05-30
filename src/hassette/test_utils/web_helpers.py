@@ -24,7 +24,7 @@ from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppMani
 from hassette.core.telemetry_models import ActivityFeedEntry, Execution, JobSummary
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
-from hassette.types.types import InvocationStatus
+from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,
@@ -439,7 +439,7 @@ def make_app_health_response(
 
 def make_activity_feed_entry(
     row_id: str = "h-1",
-    status: InvocationStatus = InvocationStatus.SUCCESS,
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     timestamp: float = SYNTHETIC_TIMESTAMP,
     app_key: str = "my_app",
     handler_name: str = "on_state_change",
@@ -535,7 +535,7 @@ def make_execution(
     kind: Literal["handler", "job"] = "handler",
     execution_start_ts: float = SYNTHETIC_TIMESTAMP,
     duration_ms: float = 12.5,
-    status: InvocationStatus = InvocationStatus.SUCCESS,
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     error_type: str | None = None,
     error_message: str | None = None,
     execution_id: str | None = None,

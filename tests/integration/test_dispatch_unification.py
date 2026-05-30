@@ -44,7 +44,7 @@ def make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> Mag
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
-    """All listeners produce HandlerInvocationRecord when fired, even when db_id is set."""
+    """All listeners produce an ExecutionRecord when fired, even when db_id is set."""
     listener = make_mock_listener(db_id=42)
     cmd = InvokeHandler(
         listener=listener,

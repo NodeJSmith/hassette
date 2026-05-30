@@ -12,7 +12,7 @@ from hassette.web.dependencies import DB_ERRORS, HassetteDep, TelemetryDep
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
 if TYPE_CHECKING:
-    from hassette.core.telemetry_query_service import TelemetryQueryService
+    from hassette.core.telemetry.query_service import TelemetryQueryService
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 

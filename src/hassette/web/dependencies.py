@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from hassette.api import Api
     from hassette.core.runtime_query_service import RuntimeQueryService
     from hassette.core.scheduler_service import SchedulerService
-    from hassette.core.telemetry_query_service import TelemetryQueryService
+    from hassette.core.telemetry.query_service import TelemetryQueryService
 
 
 def get_hassette(request: Request) -> "Hassette":

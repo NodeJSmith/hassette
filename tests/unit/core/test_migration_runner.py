@@ -191,7 +191,7 @@ def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:
     sql2 = tmp_path / "002.sql"
     sql2.write_text("CREATE TABLE v2 (id INTEGER PRIMARY KEY);\nNOT VALID SQL;")
 
-    with pytest.raises(sqlite3.OperationalError):
+    with pytest.raises(RuntimeError, match="Migration 2"):
         _apply_migration(db_path, 2, sql2)
 
     # user_version must still be 1 — the failed migration left no trace

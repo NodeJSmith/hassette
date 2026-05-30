@@ -15,7 +15,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from hassette.types.types import LOG_LEVEL_TYPE, InvocationStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus, SourceTier
 
 
 class AppLastError(NamedTuple):
@@ -115,7 +115,7 @@ class Execution(BaseModel):
 
     execution_start_ts: float
     duration_ms: float
-    status: InvocationStatus
+    status: ExecutionStatus
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
@@ -290,14 +290,13 @@ class ActivityFeedEntry(BaseModel):
     row_id: str
     """Stable unique identifier for this entry.
 
-    Currently prefixed with ``'h-'`` for handler invocations and ``'j-'`` for job
-    executions, followed by the SQLite rowid.  After T10 migrates the query service to
-    the unified ``executions`` table this field will carry the ``execution_id`` UUID
-    directly; the type remains ``str`` throughout.
+    Carries the ``execution_id`` UUID when present. Rows that predate the
+    ``execution_id`` column fall back to ``'h-'`` (handler) or ``'j-'`` (job)
+    prefixing the SQLite rowid. The type is always ``str``.
     """
 
-    status: InvocationStatus
-    """Invocation/execution status."""
+    status: ExecutionStatus
+    """Handler or job execution status."""
 
     timestamp: float
     """Unix epoch float for when the invocation/execution started."""

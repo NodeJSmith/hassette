@@ -14,8 +14,8 @@ from hassette.config.config import HassetteConfig
 from hassette.config.models import LoggingConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry_models import LogRecord
-from hassette.core.telemetry_query_service import TelemetryQueryService
 
 from .conftest import LOG_RECORDS_TEST_DDL as DDL
 

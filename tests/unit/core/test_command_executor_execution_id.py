@@ -8,10 +8,10 @@ import pytest
 import uuid_utils
 import whenever
 
-from hassette.bus.invocation_record import SYNTHETIC_ORIGIN
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.core.execution_record import SYNTHETIC_ORIGIN
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 
 from .conftest import make_executor

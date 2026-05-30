@@ -9,7 +9,7 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry_repository import TelemetryRepository, _execution_insert_params
 
 from .helpers import (
@@ -68,7 +68,7 @@ class TestHandlerInvocationExecutionId:
     async def test_persist_and_query_handler_invocation_with_execution_id(
         self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
-        """Persist a HandlerInvocationRecord with all three new fields and query them back."""
+        """Persist a handler ExecutionRecord with all three new fields and query them back."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
         record = make_inv_record(
@@ -182,7 +182,7 @@ class TestJobExecutionExecutionId:
     async def test_persist_and_query_job_execution_with_execution_id(
         self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
-        """Persist a JobExecutionRecord with execution_id and query it back."""
+        """Persist a job ExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
         record = make_job_record(job_id, session_id, execution_id="def-789")

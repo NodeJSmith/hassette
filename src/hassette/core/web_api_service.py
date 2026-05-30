@@ -7,7 +7,7 @@ from typing import ClassVar
 import uvicorn
 
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service

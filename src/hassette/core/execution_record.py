@@ -5,6 +5,9 @@ from typing import Literal
 
 from hassette.types.types import SourceTier
 
+SYNTHETIC_ORIGIN = "HASSETTE_SYNTHETIC"
+"""trigger_origin value for immediate-fire synthetic events with no HA counterpart."""
+
 
 @dataclass(frozen=True)
 class ExecutionRecord:

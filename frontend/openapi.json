@@ -1520,7 +1520,7 @@
             "title": "Row Id"
           },
           "status": {
-            "$ref": "#/components/schemas/InvocationStatus"
+            "$ref": "#/components/schemas/ExecutionStatus"
           },
           "timestamp": {
             "type": "number",
@@ -2349,7 +2349,7 @@
             "title": "Duration Ms"
           },
           "status": {
-            "$ref": "#/components/schemas/InvocationStatus"
+            "$ref": "#/components/schemas/ExecutionStatus"
           },
           "source_tier": {
             "type": "string",
@@ -2470,6 +2470,17 @@
         "title": "Execution",
         "description": "Unified execution record returned by queries against the ``executions`` table.\n\nReplaces the split ``HandlerInvocation`` / ``JobExecution`` models.\n``kind`` discriminates between handler invocations and job executions.\nHandler-only fields (``trigger_context_id``, ``trigger_origin``) default to\n``None`` for job executions."
       },
+      "ExecutionStatus": {
+        "type": "string",
+        "enum": [
+          "success",
+          "error",
+          "cancelled",
+          "timed_out"
+        ],
+        "title": "ExecutionStatus",
+        "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
+      },
       "FileWatcherConfigResponse": {
         "properties": {
           "watch_files": {
@@ -2501,17 +2512,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "InvocationStatus": {
-        "type": "string",
-        "enum": [
-          "success",
-          "error",
-          "cancelled",
-          "timed_out"
-        ],
-        "title": "InvocationStatus",
-        "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
       },
       "JobSummary": {
         "properties": {

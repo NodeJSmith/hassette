@@ -5,7 +5,7 @@ and treated as a failure subtype in error-rate calculations.
 """
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 
 from .helpers import (
     insert_execution,
