@@ -1,7 +1,7 @@
 ---
 task_id: "T16"
 title: "Final cleanup and verification"
-status: "planned"
+status: "done"
 depends_on: ["T09", "T10", "T14", "T15a", "T15b", "T15c", "T15d", "T15e", "T15f", "T15g", "T15h", "T15i", "T15j", "T15k", "T17"]
 implements: ["FR#2", "FR#19", "AC#1", "AC#4", "AC#5"]
 ---

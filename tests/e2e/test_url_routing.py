@@ -2,7 +2,7 @@
 
 Covers:
 - Tab deep-links via path segments
-- Handler deep-links via /apps/:key/handlers/h-{id}
+- Handler deep-links via /apps/:key/handlers/listener/{id} and /job/{id}
 - Filter persistence across page refresh
 - Sort persistence across page refresh
 - Browser back/forward for tab navigation
@@ -65,9 +65,9 @@ def test_handlers_tab_deep_link(page: Page, base_url: str) -> None:
 
 
 def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/handlers/h-{id} selects the handler (AC#2)."""
+    """Navigating to /apps/:key/handlers/listener/{id} selects the handler (AC#2)."""
     # listener_id=1 in seed data (on_light_change)
-    page.goto(base_url + "/apps/my_app/handlers/h-1")
+    page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
     # Detail pane for listener 1 should be visible
     detail = page.locator("[data-testid='listener-detail-1']")
@@ -75,9 +75,9 @@ def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
 
 
 def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/handlers/j-{id} selects the job (AC#2)."""
+    """Navigating to /apps/:key/handlers/job/{id} selects the job (AC#2)."""
     # job_id=1 in seed data (check_lights)
-    page.goto(base_url + "/apps/my_app/handlers/j-1")
+    page.goto(base_url + "/apps/my_app/handlers/job/1")
     page.wait_for_load_state("networkidle")
     detail = page.locator("[data-testid='job-detail-1']")
     expect(detail).to_be_visible(timeout=5000)
@@ -85,7 +85,7 @@ def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
 
 def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) -> None:
     """After navigating to a handler deep-link, refreshing keeps handler selected (AC#1)."""
-    page.goto(base_url + "/apps/my_app/handlers/h-1")
+    page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
     # Verify handler is selected
     expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=5000)
@@ -354,7 +354,7 @@ def test_time_preset_button_updates_url_and_preference(page: Page, base_url: str
 
 def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> None:
     """Navigating to an invalid handler ID shows handlers tab with no selection (AC#10)."""
-    page.goto(base_url + "/apps/my_app/handlers/h-99999")
+    page.goto(base_url + "/apps/my_app/handlers/listener/99999")
     page.wait_for_load_state("networkidle")
     # Handler list should be visible (on handlers tab)
     handler_list = page.locator("[data-testid='handler-list']")
@@ -366,13 +366,13 @@ def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> Non
 
 def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
     """After loading with an invalid handler ID, URL is corrected (AC#10)."""
-    page.goto(base_url + "/apps/my_app/handlers/h-99999")
+    page.goto(base_url + "/apps/my_app/handlers/listener/99999")
     page.wait_for_load_state("networkidle")
     # Wait for URL correction to happen (after data fetch confirms handler doesn't exist)
     page.wait_for_timeout(1000)
     current_url = page.url
     # The invalid handler ID should be removed from the URL
-    assert "h-99999" not in current_url, (
+    assert "listener/99999" not in current_url, (
         f"Expected invalid handler ID to be corrected from URL, but URL is: {current_url}"
     )
 
@@ -467,7 +467,7 @@ def test_code_tab_line_param_persists_on_refresh(page: Page, base_url: str) -> N
 def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) -> None:
     """Clicking 'view in code' from a handler navigates to code tab with ?line= (AC#4)."""
     # Select a handler that has source_location defined
-    page.goto(base_url + "/apps/my_app/handlers/h-1")
+    page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
     # Wait for handler detail to load
     detail = page.locator("[data-testid='listener-detail-1']")
@@ -489,7 +489,7 @@ def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) ->
 
 
 def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str) -> None:
-    """Clicking a handler row produces /apps/:key/handlers/h-{id} URL (AC#11)."""
+    """Clicking a handler row produces /apps/:key/handlers/listener/{id} URL (AC#11)."""
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     # Click listener row 1
@@ -497,8 +497,8 @@ def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str)
     expect(row).to_be_visible()
     row.click()
     page.wait_for_timeout(300)
-    # URL should use the h- prefix format
-    expect(page).to_have_url(re.compile(r"/apps/my_app/handlers/h-1"))
+    # URL should use the new path-based format: listener/<id>
+    expect(page).to_have_url(re.compile(r"/apps/my_app/handlers/listener/1"))
 
 
 def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str) -> None:

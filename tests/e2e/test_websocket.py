@@ -163,6 +163,15 @@ def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, li
     base = live_server_ws_inject.url
     broadcast_sync = live_server_ws_inject.broadcast_sync
 
+    # Capture all /activity requests from page load onward.
+    all_activity_requests: list[str] = []
+
+    def _capture_all(request) -> None:
+        if "/api/telemetry/app/my_app/activity" in request.url:
+            all_activity_requests.append(request.url)
+
+    page.on("request", _capture_all)
+
     page.goto(base + "/apps/my_app")
 
     # Wait for WS to connect — uptime_seconds gate unblocks useScopedApi.
@@ -172,13 +181,17 @@ def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, li
     # The overview tab (with RecentActivitySection) must be visible before injection.
     expect(page.locator("[data-testid='overview-tab']")).to_be_visible(timeout=10000)
 
-    activity_refetch_requests: list[str] = []
+    # Wait for the initial activity fetch to complete before broadcasting.
+    # Poll until the activity endpoint has been called at least once.
+    deadline_initial = time.monotonic() + 10
+    while time.monotonic() < deadline_initial:
+        if all_activity_requests:
+            break
+        time.sleep(0.1)
 
-    def _capture(request) -> None:
-        if "/api/telemetry/app/my_app/activity" in request.url:
-            activity_refetch_requests.append(request.url)
+    assert all_activity_requests, "Initial activity fetch never fired — useScopedQuery may be gated"
 
-    page.on("request", _capture)
+    initial_count = len(all_activity_requests)
 
     # Inject a unified execution_completed WS message with kind='handler'.
     broadcast_sync(
@@ -200,16 +213,20 @@ def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, li
         }
     )
 
+    # Allow debounce (500ms) + network round-trip to complete.
+    page.wait_for_timeout(1500)
+
     # The useQueryInvalidator hook refetches the activity endpoint when
     # execution_completed arrives with a matching app_key.
-    # Poll for the refetch request with a short deadline.
+    # Poll for 5s total to accommodate slower CI environments.
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
-        if activity_refetch_requests:
+        if len(all_activity_requests) > initial_count:
             break
         time.sleep(0.1)
 
-    assert activity_refetch_requests, (
+    assert len(all_activity_requests) > initial_count, (
         "Expected a GET /api/telemetry/app/my_app/activity refetch after "
-        "execution_completed WS message, but none arrived within 5s"
+        "execution_completed WS message, but none arrived within 6.5s "
+        f"(initial fetches: {initial_count}, total after wait: {len(all_activity_requests)})"
     )

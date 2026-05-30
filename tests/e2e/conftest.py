@@ -395,7 +395,8 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
 
     Extends the live_server_ws pattern with a ``broadcast_sync(msg)`` callable
     that pushes an arbitrary dict to all connected WS clients from the test thread.
-    The server loop is obtained from ``uvicorn.Server.main_loop`` after startup.
+    The server's asyncio event loop is captured from inside the thread via a
+    threading.Event + captured reference, set just before uvicorn starts serving.
 
     Yields a ``SimpleNamespace`` with:
     - ``url``  — base URL string (e.g. ``http://127.0.0.1:<port>``)
@@ -415,9 +416,25 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
     )
     server = uvicorn.Server(config)
 
+    # Capture the server's event loop from inside the thread before uvicorn begins
+    # serving. We patch server.startup to grab asyncio.get_running_loop() once the
+    # server is up and signal the main thread via an Event.
+    loop_ready = threading.Event()
+    _captured: list[asyncio.AbstractEventLoop] = []
+
+    _original_startup = server.startup
+
+    async def _startup_and_capture(sockets=None):
+        await _original_startup(sockets=sockets)
+        _captured.append(asyncio.get_running_loop())
+        loop_ready.set()
+
+    server.startup = _startup_and_capture
+
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
+    # Wait for the server to accept connections.
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         try:
@@ -428,15 +445,10 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
     else:
         raise RuntimeError(f"WS-inject server did not start within 10s on port {port}")
 
-    # Wait for main_loop to be set by uvicorn (it is assigned just before serving).
-    loop_deadline = time.monotonic() + 5
-    while time.monotonic() < loop_deadline:
-        loop = getattr(server, "main_loop", None)
-        if loop is not None:
-            break
-        time.sleep(0.05)
-    else:
+    # Wait for the loop capture to be signalled.
+    if not loop_ready.wait(timeout=5):
         raise RuntimeError("uvicorn server loop did not become available within 5s")
+    loop = _captured[0]
 
     def broadcast_sync(msg: dict) -> None:
         """Push msg to all connected WS clients synchronously from the test thread."""
