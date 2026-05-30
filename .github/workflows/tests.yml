@@ -138,6 +138,11 @@ jobs:
         env:
             TZ: America/Chicago
 
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.13", "3.14"]
+
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -147,18 +152,18 @@ jobs:
             - name: Install uv
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
-                  python-version: "3.13"
+                  python-version: ${{ matrix.python-version }}
 
             - run: uv sync
 
             - name: Run system tests with coverage
-              run: uv run nox -s system_with_coverage
+              run: uv run nox -s system_with_coverage -p ${{ matrix.python-version }}
 
             - name: Upload coverage data
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
-                  name: .coverage.system
-                  path: .coverage.system
+                  name: .coverage.system.${{ matrix.python-version }}
+                  path: .coverage.system.${{ matrix.python-version }}
                   include-hidden-files: true
 
     combine-and-report:

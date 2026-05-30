@@ -108,10 +108,10 @@ def screenshots(session: "Session"):
     session.run("uv", "run", "python", "scripts/capture_screenshots.py", external=True)
 
 
-@nox.session
+@nox.session(python=["3.13", "3.14"])
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
-    session.env["COVERAGE_FILE"] = ".coverage.system"
+    session.env["COVERAGE_FILE"] = f".coverage.system.{session.python}"
     _run_system_tests(
         session,
         marker="system and not system_destructive",
