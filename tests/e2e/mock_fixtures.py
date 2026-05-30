@@ -13,11 +13,10 @@ from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
     AppHealthSummary,
+    Execution,
     GlobalSummary,
     HandlerErrorRecord,
-    HandlerInvocation,
     JobErrorRecord,
-    JobExecution,
     JobGlobalStats,
     JobSummary,
     ListenerGlobalStats,
@@ -421,10 +420,17 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     }
 
 
-def build_handler_invocations() -> list[HandlerInvocation]:
-    """Build handler invocation records for e2e drill-down tests."""
+def build_executions() -> list[Execution]:
+    """Build unified execution records for e2e drill-down tests.
+
+    Returns a mix of handler (kind='handler') and job (kind='job') records to seed
+    the ``/telemetry/listener/{id}/executions`` and ``/telemetry/job/{id}/executions``
+    endpoints served by ``wire_invocation_telemetry``.
+    """
     return [
-        HandlerInvocation(
+        Execution(
+            kind="handler",
+            listener_id=1,
             execution_start_ts=1704067200.0,
             duration_ms=2.5,
             status="success",
@@ -432,7 +438,9 @@ def build_handler_invocations() -> list[HandlerInvocation]:
             error_message=None,
             error_traceback=None,
         ),
-        HandlerInvocation(
+        Execution(
+            kind="handler",
+            listener_id=1,
             execution_start_ts=1704067100.0,
             duration_ms=3.1,
             status="error",
@@ -443,20 +451,18 @@ def build_handler_invocations() -> list[HandlerInvocation]:
                 'on_light_change\n    raise ValueError("Bad state value")\nValueError: Bad state value\n'
             ),
         ),
-    ]
-
-
-def build_job_executions() -> list[JobExecution]:
-    """Build job execution records for e2e drill-down tests."""
-    return [
-        JobExecution(
+        Execution(
+            kind="job",
+            job_id=7,
             execution_start_ts=1704067200.0,
             duration_ms=3.0,
             status="success",
             error_type=None,
             error_message=None,
         ),
-        JobExecution(
+        Execution(
+            kind="job",
+            job_id=7,
             execution_start_ts=1704067100.0,
             duration_ms=4.2,
             status="error",
@@ -630,17 +636,37 @@ def wire_job_telemetry(hassette, jobs_by_app: dict[str, list[JobSummary]]) -> No
     )
 
 
-def wire_invocation_telemetry(
-    hassette,
-    handler_invocations: list[HandlerInvocation],
-    job_executions: list[JobExecution],
-) -> None:
-    """Wire handler invocation and job execution records onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_handler_invocations = AsyncMock(
-        return_value=handler_invocations,
-    )
-    hassette._telemetry_query_service.get_job_executions = AsyncMock(
-        return_value=job_executions,
+def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
+    """Wire unified execution records onto the mock telemetry query service.
+
+    Wires ``get_executions`` to serve all records, filtered by ``listener_id``,
+    ``job_id``, or ``kind`` when those keyword arguments are provided.  This
+    matches the signature called by all three web-route handlers
+    (``/telemetry/executions``, ``/telemetry/listener/{id}/executions``,
+    ``/telemetry/job/{id}/executions``).
+    """
+
+    def _executions_side_effect(
+        *,
+        listener_id: int | None = None,
+        job_id: int | None = None,
+        kind: str | None = None,
+        limit: int = 50,
+        since: float | None = None,
+    ) -> list[Execution]:
+        rows = executions
+        if listener_id is not None:
+            rows = [e for e in rows if e.listener_id == listener_id]
+        if job_id is not None:
+            rows = [e for e in rows if e.job_id == job_id]
+        if kind is not None:
+            rows = [e for e in rows if e.kind == kind]
+        if since is not None:
+            rows = [e for e in rows if e.execution_start_ts >= since]
+        return rows[:limit]
+
+    hassette._telemetry_query_service.get_executions = AsyncMock(
+        side_effect=lambda **kw: _executions_side_effect(**kw),
     )
 
 

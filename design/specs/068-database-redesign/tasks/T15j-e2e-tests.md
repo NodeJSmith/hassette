@@ -1,7 +1,7 @@
 ---
 task_id: "T15j"
 title: "Update e2e tests and add unified WS execution_completed test"
-status: "planned"
+status: "done"
 depends_on: ["T11", "T12", "T13"]
 implements: ["FR#10", "FR#11", "AC#2", "AC#3"]
 ---

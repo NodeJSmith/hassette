@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import uvicorn
@@ -18,9 +19,8 @@ from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
     build_app_health_summaries,
     build_error_records,
+    build_executions,
     build_global_summaries,
-    build_handler_invocations,
-    build_job_executions,
     build_job_telemetry,
     build_listener_telemetry,
     build_manifests,
@@ -101,7 +101,7 @@ def mock_hassette():
     # Wire telemetry seed data.
     wire_listener_telemetry(hassette, build_listener_telemetry())
     wire_job_telemetry(hassette, build_job_telemetry())
-    wire_invocation_telemetry(hassette, build_handler_invocations(), build_job_executions())
+    wire_invocation_telemetry(hassette, build_executions())
     wire_app_health_summaries(hassette, build_app_health_summaries())
     wire_session_telemetry(hassette, build_session_list())
 
@@ -307,7 +307,7 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     The SPA reads timePreset from localStorage on each mount, so any subsequent
     page.goto() will see the pre-set value.
     """
-    if "live_server_ws" in request.fixturenames:
+    if "live_server_ws" in request.fixturenames or "live_server_ws_inject" in request.fixturenames:
         return
     # Navigate to the origin to establish correct localStorage scope, then seed
     # the timePreset key so useScopedApi is unblocked from the first render.
@@ -385,5 +385,70 @@ def live_server_ws(fastapi_app, runtime_query_service):
         thread.join(timeout=5)
         if thread.is_alive():
             raise RuntimeError("WS-enabled live server did not stop within 5s")
+    finally:
+        runtime_query_service._lock = original_lock
+
+
+@pytest.fixture
+def live_server_ws_inject(fastapi_app, runtime_query_service):
+    """WebSocket-enabled server that exposes a sync broadcast helper for injection tests.
+
+    Extends the live_server_ws pattern with a ``broadcast_sync(msg)`` callable
+    that pushes an arbitrary dict to all connected WS clients from the test thread.
+    The server loop is obtained from ``uvicorn.Server.main_loop`` after startup.
+
+    Yields a ``SimpleNamespace`` with:
+    - ``url``  — base URL string (e.g. ``http://127.0.0.1:<port>``)
+    - ``broadcast_sync(msg)``  — synchronously pushes ``msg`` to WS clients
+    """
+    original_lock = runtime_query_service._lock
+    runtime_query_service._lock = asyncio.Lock()
+
+    port = get_free_port()
+    config = uvicorn.Config(
+        app=fastapi_app,
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
+        ws="websockets-sansio",
+        timeout_graceful_shutdown=1,
+    )
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        raise RuntimeError(f"WS-inject server did not start within 10s on port {port}")
+
+    # Wait for main_loop to be set by uvicorn (it is assigned just before serving).
+    loop_deadline = time.monotonic() + 5
+    while time.monotonic() < loop_deadline:
+        loop = getattr(server, "main_loop", None)
+        if loop is not None:
+            break
+        time.sleep(0.05)
+    else:
+        raise RuntimeError("uvicorn server loop did not become available within 5s")
+
+    def broadcast_sync(msg: dict) -> None:
+        """Push msg to all connected WS clients synchronously from the test thread."""
+        future = asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(msg), loop)
+        future.result(timeout=5)
+
+    yield SimpleNamespace(url=f"http://127.0.0.1:{port}", broadcast_sync=broadcast_sync)
+
+    try:
+        server.should_exit = True
+        thread.join(timeout=5)
+        if thread.is_alive():
+            raise RuntimeError("WS-inject server did not stop within 5s")
     finally:
         runtime_query_service._lock = original_lock
