@@ -1,7 +1,7 @@
 ---
 task_id: "T15g"
 title: "Update telemetry framework, globals, and web_api tests"
-status: "planned"
+status: "done"
 depends_on: ["T08", "T10", "T11"]
 implements: ["FR#10", "AC#1"]
 ---
