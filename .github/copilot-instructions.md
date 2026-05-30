@@ -36,13 +36,10 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - **Design tokens** in `frontend/src/tokens.css`. No raw hex or pixel values elsewhere.
 - Functional components only. No class components. Every `useEffect` with subscriptions must return a cleanup function.
 
-## Code Style
+## Commits and PR Titles
 
-- Line length: 120 characters.
-- Ruff for linting/formatting, Pyright for type checking.
-- No blanket `# type: ignore` — use `# pyright: ignore[reportXxx]` with specific rules.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`. Lowercase imperative mood, no period.
-- This repo uses release-please — PR titles become changelog entries. They should describe user-visible outcomes.
+- This repo uses release-please — PR titles become changelog entries. They should describe user-visible outcomes, not implementation details.
 
 ## Testing
 
