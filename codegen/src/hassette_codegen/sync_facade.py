@@ -1267,7 +1267,7 @@ def _check_drift(target_path: Path, generated_content: str, label: str) -> bool:
         target = _LABEL_TO_TARGET.get(label, "all")
         print(
             f"{label} is out of date (target file does not exist).\n"
-            f"Re-run: uv run codegen/src/hassette_codegen/sync_facade.py --target {target}",
+            f"Re-run: uv run python codegen/src/hassette_codegen/sync_facade.py --target {target}",
             file=sys.stderr,
         )
         return False
@@ -1280,7 +1280,7 @@ def _check_drift(target_path: Path, generated_content: str, label: str) -> bool:
         return True
 
     target = _LABEL_TO_TARGET.get(label, "all")
-    rerun_cmd = f"uv run codegen/src/hassette_codegen/sync_facade.py --target {target}"
+    rerun_cmd = f"uv run python codegen/src/hassette_codegen/sync_facade.py --target {target}"
 
     print(
         f"{label} is out of date.\nRe-run: {rerun_cmd}",
