@@ -26,7 +26,7 @@ class SimTestApp(App[SimConfig]):
     async def on_initialize(self) -> None:
         self.handler_call_count = 0
         self.service_calls = []
-        self.bus.on_state_change("sensor.temp", handler=self.on_temp)
+        await self.bus.on_state_change("sensor.temp", handler=self.on_temp, name="sim_temp")
         await self.scheduler.run_daily(self.daily_task, at="07:00", name="daily")
 
     async def on_temp(self, event: RawStateChangeEvent) -> None:

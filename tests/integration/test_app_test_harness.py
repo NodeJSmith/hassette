@@ -40,7 +40,7 @@ class SensorApp(App[SensorConfig]):
 
     async def on_initialize(self) -> None:
         self.handler_calls = []
-        self.bus.on_state_change("sensor.test", handler=self.on_change)
+        await self.bus.on_state_change("sensor.test", handler=self.on_change, name="sensor_change")
 
     async def on_change(self, event: RawStateChangeEvent) -> None:
         self.handler_calls.append(event)
@@ -186,7 +186,7 @@ async def test_api_recorder_records_calls():
 
     class CallsApiApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change("sensor.test", handler=self.on_change)
+            await self.bus.on_state_change("sensor.test", handler=self.on_change, name="api_change")
 
         async def on_change(self, event: RawStateChangeEvent) -> None:
             await self.api.turn_on("light.kitchen")
@@ -242,7 +242,7 @@ async def test_simulate_state_change_drains_handlers():
 
         async def on_initialize(self) -> None:
             self.handler_finished = False
-            self.bus.on_state_change("sensor.test", handler=self.slow_handler)
+            await self.bus.on_state_change("sensor.test", handler=self.slow_handler, name="slow_handler")
 
         async def slow_handler(self, event: RawStateChangeEvent) -> None:
             await asyncio.sleep(0.05)  # Simulate async work
@@ -292,7 +292,7 @@ async def test_simulate_state_change_typed_di_state_new():
 
     class BinarySensorApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change("binary_sensor.test", handler=self.on_change)
+            await self.bus.on_state_change("binary_sensor.test", handler=self.on_change, name="binary_change")
 
         async def on_change(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
             received.append(new_state)
@@ -312,7 +312,7 @@ async def test_simulate_state_change_typed_di_state_old():
 
     class BinarySensorOldApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change("binary_sensor.test", handler=self.on_change)
+            await self.bus.on_state_change("binary_sensor.test", handler=self.on_change, name="binary_old_change")
 
         async def on_change(self, old_state: D.StateOld[states.BinarySensorState]) -> None:
             received.append(old_state)
@@ -332,7 +332,7 @@ async def test_simulate_state_change_none_old_value():
 
     class NewEntityApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change("binary_sensor.test", handler=self.on_change)
+            await self.bus.on_state_change("binary_sensor.test", handler=self.on_change, name="new_entity_change")
 
         async def on_change(self, old_state: D.MaybeStateOld[states.BinarySensorState]) -> None:
             received_old.append(old_state)
@@ -350,7 +350,7 @@ async def test_simulate_state_change_none_new_value():
 
     class RemovedEntityApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change("binary_sensor.test", handler=self.on_change)
+            await self.bus.on_state_change("binary_sensor.test", handler=self.on_change, name="removed_entity_change")
 
         async def on_change(self, event: RawStateChangeEvent) -> None:
             received.append(event)
@@ -368,7 +368,7 @@ async def test_simulate_call_service_typed_di_domain():
 
     class CallServiceApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_call_service(handler=self.on_call)
+            await self.bus.on_call_service(handler=self.on_call, name="call_service_domain")
 
         async def on_call(self, domain: D.Domain) -> None:
             received_domains.append(domain)
@@ -386,7 +386,7 @@ async def test_simulate_call_service_is_real_call_service_event():
 
     class EventCapturingApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_call_service(handler=self.on_call)
+            await self.bus.on_call_service(handler=self.on_call, name="call_service_event")
 
         async def on_call(self, event: CallServiceEvent) -> None:
             received_events.append(event)
@@ -408,7 +408,9 @@ async def test_simulate_attribute_change_typed_di():
 
     class TempSensorApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_attribute_change("sensor.test", "unit_of_measurement", handler=self.on_attr)
+            await self.bus.on_attribute_change(
+                "sensor.test", "unit_of_measurement", handler=self.on_attr, name="attr_change"
+            )
 
         async def on_attr(self, new_state: D.StateNew[states.SensorState]) -> None:
             received.append(new_state)
@@ -434,10 +436,11 @@ async def test_simulate_attribute_change_without_set_state():
 
     class UnseededAttrApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_state_change(
+            await self.bus.on_state_change(
                 "sensor.unseeded",
                 changed=False,
                 handler=self.on_change,
+                name="unseeded_attr_change",
             )
 
         async def on_change(
@@ -464,7 +467,7 @@ async def test_simulate_component_loaded():
 
     class ComponentApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_component_loaded(handler=self.on_loaded)
+            await self.bus.on_component_loaded(handler=self.on_loaded, name="component_loaded")
 
         async def on_loaded(self) -> None:
             calls.append(True)
@@ -481,7 +484,7 @@ async def test_simulate_service_registered():
 
     class ServiceRegApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_service_registered(handler=self.on_registered)
+            await self.bus.on_service_registered(handler=self.on_registered, name="service_registered")
 
         async def on_registered(self) -> None:
             calls.append(True)
@@ -498,7 +501,7 @@ async def test_simulate_hassette_service_status():
 
     class ServiceStatusApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_status(handler=self.on_status)
+            await self.bus.on_hassette_service_status(handler=self.on_status, name="service_status")
 
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
@@ -516,7 +519,7 @@ async def test_simulate_hassette_service_failed():
 
     class ServiceFailedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_failed(handler=self.on_failed)
+            await self.bus.on_hassette_service_failed(handler=self.on_failed, name="service_failed")
 
         async def on_failed(self) -> None:
             calls.append(True)
@@ -533,7 +536,7 @@ async def test_simulate_hassette_service_crashed():
 
     class ServiceCrashedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_crashed(handler=self.on_crashed)
+            await self.bus.on_hassette_service_crashed(handler=self.on_crashed, name="service_crashed")
 
         async def on_crashed(self) -> None:
             calls.append(True)
@@ -550,7 +553,7 @@ async def test_simulate_hassette_service_started():
 
     class ServiceStartedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_started(handler=self.on_started)
+            await self.bus.on_hassette_service_started(handler=self.on_started, name="service_started")
 
         async def on_started(self, event: HassetteServiceEvent) -> None:
             received.append(event)
@@ -568,7 +571,7 @@ async def test_simulate_hassette_service_ready():
 
     class ServiceReadyApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_status(handler=self.on_status)
+            await self.bus.on_hassette_service_status(handler=self.on_status, name="service_ready_status")
 
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
@@ -587,7 +590,7 @@ async def test_simulate_websocket_connected():
 
     class WsConnectedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_websocket_connected(handler=self.on_connected)
+            await self.bus.on_websocket_connected(handler=self.on_connected, name="ws_connected")
 
         async def on_connected(self) -> None:
             calls.append(True)
@@ -604,7 +607,7 @@ async def test_simulate_websocket_disconnected():
 
     class WsDisconnectedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_websocket_disconnected(handler=self.on_disconnected)
+            await self.bus.on_websocket_disconnected(handler=self.on_disconnected, name="ws_disconnected")
 
         async def on_disconnected(self) -> None:
             calls.append(True)
@@ -621,7 +624,7 @@ async def test_simulate_app_state_changed():
 
     class AppStateApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_state_changed(handler=self.on_state)
+            await self.bus.on_app_state_changed(handler=self.on_state, name="app_state_changed")
 
         async def on_state(self, event: HassetteAppStateEvent) -> None:
             received.append(event)
@@ -639,7 +642,7 @@ async def test_simulate_app_running():
 
     class AppRunningApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_running(handler=self.on_running)
+            await self.bus.on_app_running(handler=self.on_running, name="app_running")
 
         async def on_running(self, event: HassetteAppStateEvent) -> None:
             received.append(event)
@@ -659,7 +662,7 @@ async def test_simulate_app_stopping():
 
     class AppStoppingApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_stopping(handler=self.on_stopping)
+            await self.bus.on_app_stopping(handler=self.on_stopping, name="app_stopping")
 
         async def on_stopping(self) -> None:
             calls.append(True)
@@ -676,7 +679,7 @@ async def test_simulate_homeassistant_restart():
 
     class HaRestartApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_homeassistant_restart(handler=self.on_restart)
+            await self.bus.on_homeassistant_restart(handler=self.on_restart, name="ha_restart")
 
         async def on_restart(self) -> None:
             calls.append(True)
@@ -693,7 +696,7 @@ async def test_simulate_homeassistant_start():
 
     class HaStartApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_homeassistant_start(handler=self.on_start)
+            await self.bus.on_homeassistant_start(handler=self.on_start, name="ha_start")
 
         async def on_start(self) -> None:
             calls.append(True)
@@ -710,7 +713,7 @@ async def test_simulate_homeassistant_stop():
 
     class HaStopApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_homeassistant_stop(handler=self.on_stop)
+            await self.bus.on_homeassistant_stop(handler=self.on_stop, name="ha_stop")
 
         async def on_stop(self) -> None:
             calls.append(True)
@@ -727,7 +730,7 @@ async def test_simulate_hassette_service_status_typed_di():
 
     class ServiceStatusDiApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_hassette_service_status(handler=self.on_status)
+            await self.bus.on_hassette_service_status(handler=self.on_status, name="service_status_di")
 
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
@@ -747,7 +750,7 @@ async def test_simulate_app_state_changed_typed_di():
 
     class AppStateDiApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_state_changed(handler=self.on_state)
+            await self.bus.on_app_state_changed(handler=self.on_state, name="app_state_di")
 
         async def on_state(self, event: HassetteAppStateEvent) -> None:
             received.append(event)

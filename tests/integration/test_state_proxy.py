@@ -121,6 +121,8 @@ def state_proxy():
     # Bus.remove_all_listeners() delegates to bus_service.remove_listeners_by_owner()
     # which is now synchronous and returns None.
     mock_hassette._bus_service.remove_listeners_by_owner.return_value = None
+    # Bus registration awaits bus_service.add_listener() — must be AsyncMock.
+    mock_hassette._bus_service.add_listener = AsyncMock()
 
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
@@ -205,7 +207,9 @@ class TestStateProxyStateChanged:
 
         event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False)
+        await proxy.bus.on_state_change(
+            entity_id="light.*", handler=lambda: event_gate.set(), changed=False, name="test_updates_existing"
+        )
 
         # Add initial state
         old_dict = make_light_state_dict("light.test", "on", brightness=100)
@@ -232,7 +236,9 @@ class TestStateProxyStateChanged:
 
         event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False)
+        await proxy.bus.on_state_change(
+            entity_id="light.*", handler=lambda: event_gate.set(), changed=False, name="test_removes_entity"
+        )
 
         # Add initial state
         old_dict = make_light_state_dict("light.test", "on")
@@ -255,7 +261,9 @@ class TestStateProxyStateChanged:
 
         event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="*", handler=lambda: event_gate.set(), changed=False, debounce=0.1)
+        await proxy.bus.on_state_change(
+            entity_id="*", handler=lambda: event_gate.set(), changed=False, debounce=0.1, name="test_multi_domain"
+        )
 
         # Add entities of different types
         light_dict = make_light_state_dict("light.test", "on")
@@ -285,7 +293,13 @@ class TestStateProxyStateChanged:
         event_gate = asyncio.Event()
 
         # debounce to avoid firing until all events sent
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False, debounce=0.1)
+        await proxy.bus.on_state_change(
+            entity_id="light.*",
+            handler=lambda: event_gate.set(),
+            changed=False,
+            debounce=0.1,
+            name="test_concurrent_serialized",
+        )
 
         # Send multiple events rapidly
         events = []
@@ -637,7 +651,9 @@ class TestStateProxyConcurrency:
                 event_gate.set()
 
         event_gate = asyncio.Event()
-        proxy.bus.on_state_change(entity_id="light.*", handler=handler, changed=False)
+        await proxy.bus.on_state_change(
+            entity_id="light.*", handler=handler, changed=False, name="test_writes_serialized"
+        )
         # Send many concurrent state change events
         events = []
         for i in range(20):

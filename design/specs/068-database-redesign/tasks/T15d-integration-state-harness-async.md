@@ -1,7 +1,7 @@
 ---
 task_id: "T15d"
 title: "Async-adapt integration state-proxy and harness tests"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["AC#1"]
 ---
