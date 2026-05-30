@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-# Add the codegen package to sys.path so we can import the generator
+# codegen is a separate package not installed in the test venv; add it to sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 

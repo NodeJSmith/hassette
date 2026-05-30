@@ -1,4 +1,4 @@
-"""Sync facade generator — moved from codegen/src/hassette_codegen/sync_facade.py."""
+"""Sync facade generator for Api, Bus, and Scheduler."""
 
 import argparse
 import ast
@@ -13,17 +13,16 @@ from typing import TypeGuard
 
 # When run as a script (not as part of the installed package), ensure the
 # codegen/src directory is on sys.path so sibling module imports work.
-_CODEGEN_SRC = str(Path(__file__).resolve().parent.parent)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_CODEGEN_SRC = str(_REPO_ROOT / "codegen" / "src")
 if _CODEGEN_SRC not in sys.path:
     sys.path.insert(0, _CODEGEN_SRC)
 
-from hassette_codegen.output import atomic_write, format_via_ruff, run_ruff_step  # noqa: E402
+from hassette_codegen.output import atomic_write, format_via_ruff  # noqa: E402
 
-# ---------------------------------------------------------------------------
 # Stub message templates — defined as module-level constants so generated code
 # and generator share the same strings. The generated file re-emits these
 # verbatim so downstream imports work without sys.path tricks.
-# ---------------------------------------------------------------------------
 STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{name} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
@@ -38,9 +37,9 @@ STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_state_value_typed"
 # Module-level sets for filtering body-referenced Name nodes during import derivation.
 # Use the `builtins` module directly rather than `__builtins__`, which is a dict when
 # this file is imported as a module (e.g., under pytest) and returns dict methods instead
-# of the 159 actual Python builtins.
-_BUILTIN_NAMES: frozenset[str] = frozenset(dir(builtins))
-_WELL_KNOWN_NAMES: frozenset[str] = frozenset(
+# of the actual Python builtins.
+BUILTIN_NAMES: frozenset[str] = frozenset(dir(builtins))
+WELL_KNOWN_NAMES: frozenset[str] = frozenset(
     {"self", "None", "True", "False", "NotImplementedError", "RuntimeError", "TypeError"}
 )
 
@@ -108,9 +107,8 @@ class ApiSyncFacade(Resource):
     This class provides synchronous methods that wrap the asynchronous methods of the Api class,
     allowing for blocking calls in a synchronous context.
 
-    It is important to note that these methods should not be called from within an existing event loop,
-    as they will raise a RuntimeError in such cases. Use the asynchronous methods directly when operating
-    within an event loop.
+    These methods must not be called from within the event loop; doing so raises a RuntimeError.
+    Use the asynchronous methods on ``Api`` directly when operating within an event loop.
     """
 
     _api: "Api"
@@ -124,7 +122,6 @@ class ApiSyncFacade(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
 '''
@@ -183,7 +180,6 @@ class BusSyncFacade(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 
 '''
@@ -237,16 +233,13 @@ class SchedulerSyncFacade(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
 '''
 
 
-# ---------------------------------------------------------------------------
 # Recording facade class header template — pinned verbatim from design.md
 # "Class header template (pinned)" subsection.
-# ---------------------------------------------------------------------------
 _RECORDING_CLASS_HEADER = '''\
 class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     """Synchronous recording facade for RecordingApi.
@@ -302,10 +295,8 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from hassette.test_utils.recording_api import RecordingApi
 {type_checking_imports}
-# ---------------------------------------------------------------------------
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade.py.
-# ---------------------------------------------------------------------------
 STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{{name}} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
@@ -598,7 +589,6 @@ def generate_sync_scheduler(scheduler_path: Path) -> str:
     )
 
 
-_run_ruff_step = run_ruff_step
 _format_via_ruff = format_via_ruff
 
 
@@ -609,11 +599,6 @@ def _atomic_write_generated(out_path: Path, content: str) -> None:
     """
     if not atomic_write(out_path, content):
         raise SystemExit(f"Generated file failed validation (target: {out_path})")
-
-
-# ---------------------------------------------------------------------------
-# AST body rewriter for RecordingApi → RecordingSyncFacade
-# ---------------------------------------------------------------------------
 
 
 class _RecordingBodyRewriter(ast.NodeTransformer):
@@ -653,11 +638,6 @@ class _RecordingBodyRewriter(ast.NodeTransformer):
         """Strip the await, returning the inner expression."""
         # Recurse into the inner value first so self refs inside are rewritten.
         return self.visit(node.value)
-
-
-# ---------------------------------------------------------------------------
-# Generator-time async-peer-call static check
-# ---------------------------------------------------------------------------
 
 
 def _check_no_async_peer_calls(
@@ -703,11 +683,6 @@ def _check_no_async_peer_calls(
                     f"(e.g. `_get_raw_state`, `_convert_state`) directly, or document "
                     f"why this method should be in the NotImplementedError stub tier."
                 )
-
-
-# ---------------------------------------------------------------------------
-# Dynamic import derivation
-# ---------------------------------------------------------------------------
 
 
 def _collect_type_checking_import_map(source: str) -> dict[str, str]:
@@ -858,8 +833,8 @@ def _collect_referenced_symbols(body_nodes: list[ast.stmt]) -> set[str]:
         for node in ast.walk(stmt):
             if isinstance(node, ast.Name):
                 referenced.add(node.id)
-    referenced -= _BUILTIN_NAMES
-    referenced -= _WELL_KNOWN_NAMES
+    referenced -= BUILTIN_NAMES
+    referenced -= WELL_KNOWN_NAMES
     return referenced
 
 
@@ -896,11 +871,6 @@ def _derive_recording_imports_strict(  # pyright: ignore[reportUnusedFunction] �
             )
 
     return "\n".join(sorted(import_lines))
-
-
-# ---------------------------------------------------------------------------
-# gen_recording_method: body-copy a single RecordingApi async method to sync
-# ---------------------------------------------------------------------------
 
 
 def gen_recording_method(func: ast.AsyncFunctionDef, async_method_names: set[str]) -> tuple[str, list[ast.stmt]]:
@@ -977,11 +947,6 @@ def gen_recording_method(func: ast.AsyncFunctionDef, async_method_names: set[str
     return method_src, rewritten_body
 
 
-# ---------------------------------------------------------------------------
-# gen_recording_stub: emit a NotImplementedError stub for unimplemented methods
-# ---------------------------------------------------------------------------
-
-
 def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
     """Emit a sync stub method raising NotImplementedError with tiered message.
 
@@ -1003,11 +968,6 @@ def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
     msg_const = "STUB_MSG_STATE_CONVERSION" if name in STATE_CONVERSION_METHODS else "STUB_MSG_GENERIC"
 
     return f'    def {name}({sig}){returns}:\n        raise NotImplementedError({msg_const}.format(name="{name}"))\n'
-
-
-# ---------------------------------------------------------------------------
-# generate_sync_recording: full generation pass for RecordingSyncFacade
-# ---------------------------------------------------------------------------
 
 
 def is_not_implemented_only(func: ast.AsyncFunctionDef) -> bool:
@@ -1151,7 +1111,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     combined_tc_map = {**api_tc_map, **recording_tc_map}
 
     # Symbols that are always provided by the fixed header (no need to derive dynamically)
-    fixed_header_symbols: frozenset[str] = frozenset({"Any", "typing", "TYPE_CHECKING", "RecordingApi"})
+    fixed_header_symbols: set[str] = {"Any", "typing", "TYPE_CHECKING", "RecordingApi"}
 
     # Generate each method; track body nodes for import derivation.
     generated_methods: list[str] = []
@@ -1295,7 +1255,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--api-path",
         type=Path,
-        default=Path(__file__).resolve().parent.parent.parent.parent / "src" / "hassette" / "api" / "api.py",
+        default=_REPO_ROOT / "src" / "hassette" / "api" / "api.py",
         help="Path to api.py (default: hassette/api.py relative to repo root)",
     )
     parser.add_argument(
@@ -1307,34 +1267,25 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--recording-api-path",
         type=Path,
-        default=Path(__file__).resolve().parent.parent.parent.parent
-        / "src"
-        / "hassette"
-        / "test_utils"
-        / "recording_api.py",
+        default=_REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py",
         help="Path to recording_api.py (default: hassette/test_utils/recording_api.py)",
     )
     parser.add_argument(
         "--recording-out",
         type=Path,
-        default=Path(__file__).resolve().parent.parent.parent.parent
-        / "src"
-        / "hassette"
-        / "test_utils"
-        / "sync_facade.py",
+        default=_REPO_ROOT / "src" / "hassette" / "test_utils" / "sync_facade.py",
         help="Output path for the generated recording sync facade",
     )
-    _src_root = Path(__file__).resolve().parent.parent.parent.parent / "src" / "hassette"
     parser.add_argument(
         "--bus-path",
         type=Path,
-        default=_src_root / "bus" / "bus.py",
+        default=_REPO_ROOT / "src" / "hassette" / "bus" / "bus.py",
         help="Path to bus.py (default: hassette/bus/bus.py)",
     )
     parser.add_argument(
         "--scheduler-path",
         type=Path,
-        default=_src_root / "scheduler" / "scheduler.py",
+        default=_REPO_ROOT / "src" / "hassette" / "scheduler" / "scheduler.py",
         help="Path to scheduler.py (default: hassette/scheduler/scheduler.py)",
     )
     parser.add_argument(

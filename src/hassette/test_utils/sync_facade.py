@@ -51,10 +51,8 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.test_utils.recording_api import RecordingApi
 
-# ---------------------------------------------------------------------------
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade.py.
-# ---------------------------------------------------------------------------
 STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{name} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."

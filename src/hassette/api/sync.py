@@ -57,9 +57,8 @@ class ApiSyncFacade(Resource):
     This class provides synchronous methods that wrap the asynchronous methods of the Api class,
     allowing for blocking calls in a synchronous context.
 
-    It is important to note that these methods should not be called from within an existing event loop,
-    as they will raise a RuntimeError in such cases. Use the asynchronous methods directly when operating
-    within an event loop.
+    These methods must not be called from within the event loop; doing so raises a RuntimeError.
+    Use the asynchronous methods on ``Api`` directly when operating within an event loop.
     """
 
     _api: "Api"
@@ -73,7 +72,6 @@ class ApiSyncFacade(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
     def ws_send_and_wait(self, **data: Any) -> Any:
