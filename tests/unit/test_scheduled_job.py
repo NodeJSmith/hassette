@@ -122,12 +122,12 @@ class TestMarkRegistered:
         job.mark_registered(42)
         assert job.db_id == 42
 
-    def test_mark_registered_can_be_called_again(self) -> None:
-        """mark_registered() does not raise on a second call (no idempotency guard needed with sync registration)."""
+    def test_mark_registered_keeps_original_on_double_call(self) -> None:
+        """mark_registered() is first-call-wins: a second call does not overwrite the id."""
         job = make_job()
         job.mark_registered(42)
         assert job.db_id == 42
 
-        # Second call does not raise
+        # Second call is a no-op — the original id is kept (mirrors Listener.mark_registered)
         job.mark_registered(99)
-        # No assertion on value — caller is responsible for not double-calling
+        assert job.db_id == 42

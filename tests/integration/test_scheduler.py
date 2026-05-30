@@ -445,16 +445,15 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     # Reset call history so we only see calls from this test
     executor.mark_job_cancelled.reset_mock()
 
-    db_id = 42
-
     job_done = asyncio.Event()
 
     async def target() -> None:
         hassette_with_scheduler.task_bucket.post_to_loop(job_done.set)
 
-    # Schedule a job; with async registration db_id is already set, but we override to test cancel path
+    # Schedule a job; async registration sets db_id inline before run_in returns.
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=10)
-    scheduled_job.mark_registered(db_id)
+    assert scheduled_job.db_id is not None, "db_id should be set by async registration"
+    registered_db_id = scheduled_job.db_id
 
     # Cancel via the back-reference (job.cancel() → scheduler.cancel_job())
     scheduled_job.cancel()
@@ -462,8 +461,8 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     # Give the spawned mark_job_cancelled task a chance to execute
     await asyncio.sleep(0)
 
-    # Verify mark_job_cancelled was called with the correct db_id
-    executor.mark_job_cancelled.assert_called_once_with(db_id)
+    # Verify mark_job_cancelled was called with the db_id set at registration
+    executor.mark_job_cancelled.assert_called_once_with(registered_db_id)
 
     # Verify the job is dequeued (no longer in the scheduler)
     remaining = hassette_with_scheduler.scheduler.list_jobs()

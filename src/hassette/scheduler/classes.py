@@ -257,8 +257,13 @@ class ScheduledJob:
         self.kwargs = dict(self.kwargs)
 
     def mark_registered(self, db_id: int) -> None:
-        """Set the database ID. Called by SchedulerService.add_job() after persistence."""
-        self.db_id = db_id
+        """Set the database ID. Called by SchedulerService.add_job() after persistence.
+
+        First call wins — a second call is a no-op, so a retry or double-registration
+        cannot overwrite the original id. Mirrors ``Listener.mark_registered``.
+        """
+        if self.db_id is None:
+            self.db_id = db_id
 
     def matches(self, other: "ScheduledJob") -> bool:
         """Check whether two jobs represent the same logical configuration.

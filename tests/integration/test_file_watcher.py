@@ -23,7 +23,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
         hassette_with_file_watcher.task_bucket.post_to_loop(file_event_received.set)
         assert event.topic == Topic.HASSETTE_EVENT_FILE_WATCHER, f"Unexpected topic: {event.topic}"
 
-    hassette_instance.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=handler)
+    await hassette_instance.bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=handler, name="file_watcher_test")
 
     # timing: watcher bootstrap needs real time to settle inotify state
     await asyncio.sleep(0.2)

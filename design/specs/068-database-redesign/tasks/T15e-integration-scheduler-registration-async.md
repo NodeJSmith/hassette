@@ -1,7 +1,7 @@
 ---
 task_id: "T15e"
 title: "Async-adapt remaining integration registration tests"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["AC#1"]
 ---
