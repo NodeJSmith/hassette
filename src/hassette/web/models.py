@@ -382,7 +382,6 @@ class TelemetryStatusResponse(BaseModel):
     degraded: bool
     dropped_overflow: int = 0
     dropped_exhausted: int = 0
-    dropped_no_session: int = 0
     dropped_shutdown: int = 0
     error_handler_failures: int = 0
 

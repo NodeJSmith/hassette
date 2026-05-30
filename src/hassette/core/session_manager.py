@@ -121,7 +121,7 @@ class SessionManager(Resource):
     async def finalize_session(
         self,
         *,
-        drop_counters: tuple[int, int, int, int] = (0, 0, 0, 0),
+        drop_counters: tuple[int, int, int] = (0, 0, 0),
     ) -> None:
         """Write final session status and drop counters before shutdown.
 
@@ -130,7 +130,7 @@ class SessionManager(Resource):
         Acquires ``_session_lock`` to coordinate with ``on_service_crashed()``.
 
         Args:
-            drop_counters: (overflow, exhausted, no_session, shutdown) from CommandExecutor.
+            drop_counters: (overflow, exhausted, shutdown) from CommandExecutor.
         """
         async with self._session_lock:
             if self._session_id is None:
@@ -227,27 +227,25 @@ class SessionManager(Resource):
             await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")
 
-    async def _do_finalize_session(self, drop_counters: tuple[int, int, int, int]) -> None:
+    async def _do_finalize_session(self, drop_counters: tuple[int, int, int]) -> None:
         """Execute the finalize UPDATE; called by the write-queue worker."""
-        overflow, exhausted, no_session, shutdown = drop_counters
+        overflow, exhausted, shutdown = drop_counters
         try:
             now = time.time()
             if self._session_error:
                 # CRASHED event already wrote failure details — just set timestamps + counters
                 await self._database_service.db.execute(
                     "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?,"
-                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
                     " WHERE id = ?",
-                    (now, now, overflow, exhausted, no_session, shutdown, self._session_id),
+                    (now, now, overflow, exhausted, shutdown, self._session_id),
                 )
             else:
                 await self._database_service.db.execute(
                     "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?,"
-                    " dropped_no_session = ?, dropped_shutdown = ?"
+                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
                     " WHERE id = ?",
-                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, no_session, shutdown, self._session_id),
+                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, shutdown, self._session_id),
                 )
             await self._database_service.db.commit()
         except Exception:

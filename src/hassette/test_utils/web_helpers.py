@@ -309,7 +309,6 @@ def make_telemetry_status_response(
     degraded: bool = False,
     dropped_overflow: int = 0,
     dropped_exhausted: int = 0,
-    dropped_no_session: int = 0,
     dropped_shutdown: int = 0,
     error_handler_failures: int = 0,
 ) -> TelemetryStatusResponse:
@@ -318,7 +317,6 @@ def make_telemetry_status_response(
         degraded=degraded,
         dropped_overflow=dropped_overflow,
         dropped_exhausted=dropped_exhausted,
-        dropped_no_session=dropped_no_session,
         dropped_shutdown=dropped_shutdown,
         error_handler_failures=error_handler_failures,
     )

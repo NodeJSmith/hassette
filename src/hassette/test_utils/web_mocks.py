@@ -159,7 +159,7 @@ def create_hassette_stub(
 
     wire_telemetry_stubs(hassette)
 
-    hassette.get_drop_counters.return_value = (0, 0, 0, 0)
+    hassette.get_drop_counters.return_value = (0, 0, 0)
 
     hassette.children = []
 

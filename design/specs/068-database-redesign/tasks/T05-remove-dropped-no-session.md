@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Remove dropped_no_session counter from all layers"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#15", "FR#16", "AC#10"]
 ---

@@ -94,9 +94,6 @@ class CommandExecutor(Service):
     _dropped_exhausted: int
     """Count of records dropped because retry_count exceeded the maximum."""
 
-    _dropped_no_session: int
-    """Count of records dropped because session_id was not yet available at drain time."""
-
     _dropped_shutdown: int
     """Count of records dropped during shutdown flush (DB unavailable)."""
 
@@ -120,7 +117,6 @@ class CommandExecutor(Service):
         self.repository = TelemetryRepository(hassette.database_service)
         self._dropped_overflow = 0
         self._dropped_exhausted = 0
-        self._dropped_no_session = 0
         self._dropped_shutdown = 0
         self._error_handler_failures = 0
         self._last_capacity_warn_ts = 0.0
@@ -190,17 +186,16 @@ class CommandExecutor(Service):
                             "_drain_and_persist failed (timer flush) — records from this batch may be dropped"
                         )
 
-    def get_drop_counters(self) -> tuple[int, int, int, int]:
-        """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) counters.
+    def get_drop_counters(self) -> tuple[int, int, int]:
+        """Return (dropped_overflow, dropped_exhausted, dropped_shutdown) counters.
 
         Returns:
             A tuple of counters where:
             - overflow_count: records dropped because the write queue was full.
             - exhausted_count: records dropped because max retries were exceeded.
-            - no_session_count: records dropped because session_id was unavailable at drain time.
             - shutdown_count: records dropped during shutdown flush.
         """
-        return (self._dropped_overflow, self._dropped_exhausted, self._dropped_no_session, self._dropped_shutdown)
+        return (self._dropped_overflow, self._dropped_exhausted, self._dropped_shutdown)
 
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out.
@@ -777,12 +772,9 @@ class CommandExecutor(Service):
             no_session_jobs = [r for r in job_executions if r.session_id is None]
             if no_session_invocations or no_session_jobs:
                 drop_count = len(no_session_invocations) + len(no_session_jobs)
-                self._dropped_no_session += drop_count
                 self.logger.warning(
-                    "Session not yet created at drain time — dropping %d record(s) with no session_id "
-                    "(total no_session: %d)",
+                    "Session not yet created at drain time — dropping %d record(s) with no session_id",
                     drop_count,
-                    self._dropped_no_session,
                 )
             invocations = [r for r in invocations if r.session_id is not None]
             job_executions = [r for r in job_executions if r.session_id is not None]

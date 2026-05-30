@@ -189,7 +189,6 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor._write_queue = asyncio.Queue(maxsize=1000)
     executor._dropped_overflow = 0
     executor._dropped_exhausted = 0
-    executor._dropped_no_session = 0
     executor._dropped_shutdown = 0
     executor._error_handler_failures = 0
     executor._last_capacity_warn_ts = 0.0

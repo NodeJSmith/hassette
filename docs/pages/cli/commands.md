@@ -351,7 +351,6 @@ $ hassette telemetry
 │  degraded                False  │
 │  dropped_overflow        0      │
 │  dropped_exhausted       0      │
-│  dropped_no_session      0      │
 │  dropped_shutdown        0      │
 │  error_handler_failures  0      │
 ╰─────────────────────────────────╯

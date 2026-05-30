@@ -227,7 +227,6 @@ class SessionRecord(BaseModel):
     duration_seconds: float | None
     dropped_overflow: int = 0
     dropped_exhausted: int = 0
-    dropped_no_session: int = 0
     dropped_shutdown: int = 0
 
 

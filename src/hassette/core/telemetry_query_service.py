@@ -826,7 +826,6 @@ class TelemetryQueryService(Resource):
                 (COALESCE(s.stopped_at, s.last_heartbeat_at) - s.started_at) AS duration_seconds,
                 s.dropped_overflow,
                 s.dropped_exhausted,
-                s.dropped_no_session,
                 s.dropped_shutdown
             FROM sessions s
             ORDER BY s.started_at DESC

@@ -3389,11 +3389,6 @@
             "title": "Dropped Exhausted",
             "default": 0
           },
-          "dropped_no_session": {
-            "type": "integer",
-            "title": "Dropped No Session",
-            "default": 0
-          },
           "dropped_shutdown": {
             "type": "integer",
             "title": "Dropped Shutdown",
