@@ -1,6 +1,6 @@
 """Integration tests for execution_id, trigger_context_id, trigger_origin persist/query roundtrip.
 
-Covers the new columns added to handler_invocations and job_executions in migration 007.
+Covers the new columns added to the unified executions table (001.sql).
 """
 
 import time
@@ -9,8 +9,9 @@ import pytest
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry_query_service import TelemetryQueryService
-from hassette.core.telemetry_repository import TelemetryRepository, _inv_insert_params, _job_insert_params
+from hassette.core.telemetry_repository import TelemetryRepository, _execution_insert_params
 from hassette.scheduler.classes import JobExecutionRecord
 
 from .helpers import (
@@ -99,45 +100,54 @@ class TestHandlerInvocationExecutionId:
         assert len(results) == 1
         assert results[0].execution_id is None
 
-    async def test_fk_fallback_preserves_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
+    async def test_fk_fallback_drops_handler_row_on_stale_listener_fk(
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository
     ) -> None:
-        """On FK violation, only listener_id is nulled; execution_id/context/origin are preserved."""
-        db_svc, session_id = db
-        # Use a non-existent listener_id to trigger FK violation
+        """A stale listener_id FK drops the execution row — orphan null-FK rows are impossible.
+
+        The unified ``executions`` CHECK constraint ``(listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1``
+        forbids a handler row with a null listener_id. The FK fallback nulls listener_id on the FK
+        violation, which then fails the CHECK, so the row is dropped rather than orphaned. Under
+        synchronous registration a listener is always persisted before it is routable, so this path
+        does not occur in practice — but the repository must drop rather than corrupt on a stale FK.
+        """
+        db_svc, _session_id = db
         nonexistent_listener_id = 99999
         record = make_inv_record(
             nonexistent_listener_id,
-            session_id,
+            _session_id,
             execution_id="abc-123",
             trigger_context_id="ctx-456",
             trigger_origin="REMOTE",
         )
 
         dropped = await repo.persist_batch_with_fk_fallback([record], [])
-        assert dropped == 0  # Row persisted with null FK, not dropped
+        assert dropped == 1  # CHECK prevents a null-FK orphan; the row is dropped
 
-        # Query all invocations where listener_id IS NULL (orphaned rows)
-        async with db_svc.db.execute(
-            "SELECT execution_id, trigger_context_id, trigger_origin, listener_id FROM handler_invocations"
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-        assert len(rows) == 1
-        row = rows[0]
-        assert row[0] == "abc-123"  # execution_id preserved
-        assert row[1] == "ctx-456"  # trigger_context_id preserved
-        assert row[2] == "REMOTE"  # trigger_origin preserved
-        assert row[3] is None  # listener_id nulled
+        async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
+            count_row = await cursor.fetchone()
+        assert count_row is not None
+        assert count_row[0] == 0  # no orphan row written
 
     async def test_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
-        """_inv_insert_params() keys must match the column list used in persist_batch() INSERT."""
+        """_execution_insert_params() keys must match the executions table columns used in persist_batch()."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
-        record = make_inv_record(listener_id, session_id)
-        params = _inv_insert_params(record)
+        record = ExecutionRecord(
+            kind="handler",
+            listener_id=listener_id,
+            session_id=session_id,
+            execution_start_ts=time.time(),
+            duration_ms=10.0,
+            status="success",
+            execution_id="abc-test",
+            trigger_context_id="ctx-test",
+            trigger_origin="LOCAL",
+        )
+        params = _execution_insert_params(record)
 
-        # Verify params has all expected keys including the new execution_id columns
+        # Verify params has all expected keys
+        assert "kind" in params
         assert "execution_id" in params
         assert "trigger_context_id" in params
         assert "trigger_origin" in params
@@ -148,19 +158,19 @@ class TestHandlerInvocationExecutionId:
         # is_di_failure must be int-converted (not bool)
         assert isinstance(params["is_di_failure"], int)
 
-        # Build actual column list from keys — same as persist_batch() does
+        # Build actual column list from keys — same as persist_execution_batch() does
         cols = ", ".join(params.keys())
         vals = ", ".join(f":{k}" for k in params)
 
         # Verify the constructed INSERT works against a real DB
         await db_svc.db.execute(
-            f"INSERT INTO handler_invocations ({cols}) VALUES ({vals})",
+            f"INSERT INTO executions ({cols}) VALUES ({vals})",
             params,
         )
         await db_svc.db.commit()
 
         # Count rows — should have exactly 1
-        async with db_svc.db.execute("SELECT COUNT(*) FROM handler_invocations") as cursor:
+        async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
             count_row = await cursor.fetchone()
         assert count_row is not None
         assert count_row[0] == 1
@@ -184,13 +194,22 @@ class TestJobExecutionExecutionId:
         assert not hasattr(je, "trigger_context_id"), "JobExecution must not have trigger_context_id"
 
     async def test_job_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
-        """_job_insert_params() keys must match the column list used in persist_batch() INSERT."""
+        """_execution_insert_params() keys for kind=job must match the executions table columns."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
-        record = make_job_record(job_id, session_id)
-        params = _job_insert_params(record)
+        record = ExecutionRecord(
+            kind="job",
+            job_id=job_id,
+            session_id=session_id,
+            execution_start_ts=time.time(),
+            duration_ms=20.0,
+            status="success",
+            execution_id="def-test",
+        )
+        params = _execution_insert_params(record)
 
-        # Verify params has all expected keys including execution_id
+        # Verify params has all expected keys
+        assert "kind" in params
         assert "execution_id" in params
         assert "job_id" in params
         assert "session_id" in params
@@ -199,19 +218,19 @@ class TestJobExecutionExecutionId:
         # is_di_failure must be int-converted (not bool)
         assert isinstance(params["is_di_failure"], int)
 
-        # Build actual column list from keys — same as persist_batch() does
+        # Build actual column list from keys — same as persist_execution_batch() does
         cols = ", ".join(params.keys())
         vals = ", ".join(f":{k}" for k in params)
 
         # Verify the constructed INSERT works against a real DB
         await db_svc.db.execute(
-            f"INSERT INTO job_executions ({cols}) VALUES ({vals})",
+            f"INSERT INTO executions ({cols}) VALUES ({vals})",
             params,
         )
         await db_svc.db.commit()
 
         # Count rows — should have exactly 1
-        async with db_svc.db.execute("SELECT COUNT(*) FROM job_executions") as cursor:
+        async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
             count_row = await cursor.fetchone()
         assert count_row is not None
         assert count_row[0] == 1

@@ -13,17 +13,18 @@ async def insert_listener(
     *,
     app_key: str = "test_app",
     instance_index: int = 0,
+    name: str = "test_listener",
     handler_method: str = "on_event",
     topic: str = "hass.event.state_changed",
     source_tier: str = "app",
 ) -> int:
     cursor = await db_svc.db.execute(
         """INSERT INTO listeners
-               (app_key, instance_index, handler_method, topic,
+               (app_key, instance_index, name, handler_method, topic,
                 debounce, throttle, once, priority,
                 source_location, source_tier)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, ?, ?)""",
-        (app_key, instance_index, handler_method, topic, TEST_SOURCE_LOCATION, source_tier),
+           VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, 0, ?, ?)""",
+        (app_key, instance_index, name, handler_method, topic, TEST_SOURCE_LOCATION, source_tier),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -68,10 +69,10 @@ async def insert_invocation(
 ) -> int:
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
-        """INSERT INTO handler_invocations
-               (listener_id, session_id, execution_start_ts, duration_ms,
+        """INSERT INTO executions
+               (kind, listener_id, session_id, execution_start_ts, duration_ms,
                 status, error_type, error_message, error_traceback, source_tier, is_di_failure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES ('handler', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             listener_id,
             session_id,
@@ -106,10 +107,10 @@ async def insert_execution(
 ) -> int:
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
-        """INSERT INTO job_executions
-               (job_id, session_id, execution_start_ts, duration_ms,
+        """INSERT INTO executions
+               (kind, job_id, session_id, execution_start_ts, duration_ms,
                 status, error_type, error_message, error_traceback, source_tier, is_di_failure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES ('job', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             job_id,
             session_id,

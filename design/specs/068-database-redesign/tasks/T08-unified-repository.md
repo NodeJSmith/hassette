@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Unify repository write path for executions table"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T07"]
 implements: ["FR#1", "FR#4", "AC#1"]
 ---
