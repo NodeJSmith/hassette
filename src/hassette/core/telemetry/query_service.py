@@ -167,7 +167,8 @@ class TelemetryQueryService(Resource):
     ) -> list[Execution]:
         """Return recent execution records from the unified executions table.
 
-        Replaces the split ``get_handler_invocations`` / ``get_job_executions`` pair.
+        Filter by ``listener_id`` or ``job_id`` for a specific registration, and by
+        ``kind`` (``"handler"`` or ``"job"``) to restrict the result to one execution type.
         """
         return await get_executions(self, listener_id=listener_id, job_id=job_id, kind=kind, limit=limit, since=since)
 

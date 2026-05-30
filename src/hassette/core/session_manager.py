@@ -199,20 +199,33 @@ class SessionManager(Resource):
 
         This prevents unbounded row growth from once=True listeners registered by
         long-running apps or framework components that restart across sessions.
+
+        Implementation note: executions.listener_id has ON DELETE SET NULL, but the
+        table CHECK requires exactly one of (listener_id, job_id) to be non-NULL.
+        Deleting a listener would cascade to NULL out listener_id and break that
+        constraint.  We therefore delete the executions rows for the stale listeners
+        first (within the same transaction), then delete the listener rows.
         """
         try:
-            await self._database_service.db.execute(
+            db = self._database_service.db
+
+            # Identify the stale once=True listener IDs up front.
+            # A listener is stale when:
+            #   - it fired at least once (executions row exists for it)
+            #   - the session that owns that execution has stopped
+            #   - it has NOT fired in the current session
+            stale_cursor = await db.execute(
                 """
-                DELETE FROM listeners
+                SELECT id FROM listeners
                 WHERE once = 1
                   AND NOT EXISTS (
-                      SELECT 1 FROM handler_invocations
+                      SELECT 1 FROM executions
                       WHERE listener_id = listeners.id AND session_id = ?
                   )
                   AND EXISTS (
                       SELECT 1 FROM sessions
                       WHERE id = (
-                          SELECT session_id FROM handler_invocations
+                          SELECT session_id FROM executions
                           WHERE listener_id = listeners.id
                           LIMIT 1
                       )
@@ -221,8 +234,31 @@ class SessionManager(Resource):
                 """,
                 (current_session_id,),
             )
-            await self._database_service.db.commit()
-            self.logger.debug("Cleaned up stale once=True listeners from previous sessions")
+            stale_ids = [row[0] for row in await stale_cursor.fetchall()]
+
+            if not stale_ids:
+                return
+
+            placeholders = ",".join("?" * len(stale_ids))
+
+            # Step 1: delete executions referencing these listeners first.
+            # executions.listener_id has ON DELETE SET NULL, but the table CHECK requires
+            # exactly one of (listener_id, job_id) to be non-NULL.  Deleting the listener
+            # would cascade-NULL listener_id and violate that constraint.  Removing the
+            # executions rows first sidesteps the cascade entirely.
+            await db.execute(
+                f"DELETE FROM executions WHERE listener_id IN ({placeholders})",
+                stale_ids,
+            )
+
+            # Step 2: delete the listener rows (no FK cascade to worry about now).
+            await db.execute(
+                f"DELETE FROM listeners WHERE id IN ({placeholders})",
+                stale_ids,
+            )
+
+            await db.commit()
+            self.logger.debug("Cleaned up %d stale once=True listener(s) from previous sessions", len(stale_ids))
         except Exception:
             await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")

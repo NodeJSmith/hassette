@@ -86,17 +86,17 @@ async def handler(event: object) -> None:
 class TestBusSourceTierPropagation:
     async def test_framework_bus_creates_framework_listener(self, framework_bus: "Bus") -> None:
         """Bus.on() with a framework parent passes source_tier='framework' to Listener."""
-        sub = framework_bus.on(topic="test.topic", handler=handler)
+        sub = await framework_bus.on(topic="test.topic", handler=handler, name="framework_tier")
         assert sub.listener.identity.source_tier == "framework"
 
     async def test_app_bus_creates_app_listener(self, app_bus: "Bus") -> None:
         """Bus.on() with an app parent passes source_tier='app' to Listener."""
-        sub = app_bus.on(topic="test.topic", handler=handler)
+        sub = await app_bus.on(topic="test.topic", handler=handler, name="app_tier")
         assert sub.listener.identity.source_tier == "app"
 
     async def test_convenience_methods_propagate_tier(self, framework_bus: "Bus") -> None:
         """on_state_change and other convenience methods also propagate source_tier."""
-        sub = framework_bus.on_state_change("sensor.test", handler=handler)
+        sub = await framework_bus.on_state_change("sensor.test", handler=handler, name="framework_tier_state")
         assert sub.listener.identity.source_tier == "framework"
 
 

@@ -487,15 +487,23 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     # Override register_job to return None so db_id stays None — tests the defensive cancel guard.
     # With async registration db_id is normally always set; this covers the edge case where
     # a DB failure or mock returns None.
+    # The harness sets a side_effect on register_job (auto-incrementing counter) which takes
+    # precedence over return_value. Clear it so the mock returns None, then RESTORE it after —
+    # executor is shared across tests in this module, so leaving it None would break later tests.
+    original_side_effect = executor.register_job.side_effect
+    executor.register_job.side_effect = None
     executor.register_job.return_value = None
-    scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=10)
-    assert scheduled_job.db_id is None, "db_id should be None when register_job returns None"
+    try:
+        scheduled_job = await hassette_with_scheduler.scheduler.run_in(target, delay=10)
+        assert scheduled_job.db_id is None, "db_id should be None when register_job returns None"
 
-    # Cancel via back-reference — must not raise
-    scheduled_job.cancel()
+        # Cancel via back-reference — must not raise
+        scheduled_job.cancel()
 
-    # No DB write should be spawned (db_id is None)
-    executor.mark_job_cancelled.assert_not_called()
+        # No DB write should be spawned (db_id is None)
+        executor.mark_job_cancelled.assert_not_called()
+    finally:
+        executor.register_job.side_effect = original_side_effect
 
     # Job should be dequeued
     remaining = hassette_with_scheduler.scheduler.list_jobs()
