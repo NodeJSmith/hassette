@@ -51,7 +51,7 @@ async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
             captured.append(event)
 
         # Custom HA events are dispatched on topic "hass.event.<event_type>"
-        bus.on(topic="hass.event.custom_test_event", handler=_capture)
+        await bus.on(topic="hass.event.custom_test_event", handler=_capture, name="custom_test_event")
 
         await hassette.api.fire_event("custom_test_event", {"key": "value"})
 

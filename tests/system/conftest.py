@@ -257,12 +257,8 @@ async def toggle_and_capture(
     async def _handler(event: RawStateChangeEvent) -> None:
         captured.append(event)
 
-    sub = bus.on_state_change(entity_id, handler=_handler)
-    await wait_for(
-        lambda: sub.listener.db_id is not None,
-        timeout=10.0,
-        desc=f"listener registration for {entity_id}",
-    )
+    sub = await bus.on_state_change(entity_id, handler=_handler, name="toggle_and_capture")
+    assert sub.listener.db_id is not None
     await api.call_service(service_domain, service_action, {"entity_id": entity_id})
     await wait_for(lambda: len(captured) >= 1, timeout=timeout, desc=f"state_changed event for {entity_id}")
     return captured

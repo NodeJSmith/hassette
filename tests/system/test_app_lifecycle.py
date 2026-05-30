@@ -192,7 +192,7 @@ from hassette.events import RawStateChangeEvent
 class IsolationAppA(App):
     async def on_initialize(self) -> None:
         self.captured: list[RawStateChangeEvent] = []
-        self.bus.on_state_change("light.kitchen_lights", handler=self._on_change)
+        await self.bus.on_state_change("light.kitchen_lights", handler=self._on_change, name="kitchen_lights")
 
     async def _on_change(self, event: RawStateChangeEvent) -> None:
         self.captured.append(event)

@@ -12,7 +12,7 @@ class BusHandlerApp(App):
 
     async def on_initialize(self) -> None:
         self.captured_events: list[RawStateChangeEvent] = []
-        self.bus.on_state_change("light.kitchen_lights", handler=self._on_light_change)
+        await self.bus.on_state_change("light.kitchen_lights", handler=self._on_light_change, name="kitchen_lights")
 
     async def _on_light_change(self, event: RawStateChangeEvent) -> None:
         self.captured_events.append(event)

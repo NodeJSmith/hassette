@@ -1,7 +1,7 @@
 ---
 task_id: "T15i"
 title: "Update system tests for unified schema and async registration"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T11"]
 implements: ["AC#1"]
 ---
