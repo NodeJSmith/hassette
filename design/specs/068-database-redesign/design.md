@@ -1,7 +1,7 @@
 # Design: Database Schema Redesign
 
 **Date:** 2026-05-29
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/068-database-redesign/brief.md, design/research/2026-05-28-handler-listener-identity/research.md
 
