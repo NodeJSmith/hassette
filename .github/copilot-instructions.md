@@ -10,7 +10,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 
 - **No `from __future__ import annotations`.** Breaks Pydantic, FastAPI, dataclasses, and runtime type inspection. Always flag this.
 - **No `Optional[X]`.** Use `X | None`.
-- **No lazy imports.** All imports at the top of the file. Only exception: `TYPE_CHECKING` guards for circular import avoidance.
+- **No lazy imports.** All imports at the top of the file. Exceptions: `TYPE_CHECKING` guards and deferred imports in `__main__.py` to break circular dependencies at startup.
 - **Immutability.** Create new objects, never mutate existing ones.
 - **Use `whenever` instead of stdlib `datetime`.** Convert at boundaries when libraries require stdlib types.
 - **No `_` prefix on methods.** All methods are public. This is a framework, not a library with external consumers.
@@ -26,7 +26,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 ## TypeScript Rules
 
 - **No `any`.** Use `unknown` and narrow.
-- **No `as` casts.** Use schema validation or `satisfies`.
+- **No `as` casts** except after full validation, for `as const`, or unavoidable patterns like `.json() as Promise<T>`. Use schema validation or `satisfies` where possible.
 - **No `enum`.** Use `as const` objects or union types.
 - **Discriminated unions over optional fields** for variant types.
 - **Strict mode required** (`"strict": true`).
@@ -37,7 +37,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - **CSS Modules** for component-specific styles. Shared design system classes use the `ht-` prefix and live in `frontend/src/styles/`.
 - **Shared components** (`Button`, `Badge`, `Chip`, `Card`) in `components/shared/` — use these instead of raw `ht-btn`/`ht-badge` class strings.
 - **`:global()` required** when referencing global classes from module CSS. Bare `.ht-table` in a module file will break at runtime.
-- **Design tokens** in `frontend/src/tokens.css`. No raw hex or pixel values elsewhere.
+- **Design tokens** in `frontend/src/tokens.css`. No raw hex colors in shared CSS — reference token variables. Module CSS may use `px` values for component-specific layouts.
 - Functional components only. No class components. Every `useEffect` with subscriptions must return a cleanup function.
 
 ## Commits and PR Titles
