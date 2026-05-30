@@ -146,6 +146,19 @@ class DatabaseService(Service):
         return self.hassette.config.logging.database_service
 
     @property
+    def is_db_ready(self) -> bool:
+        """Whether the write database connection is open and usable."""
+        return self._db is not None
+
+    @property
+    def is_accepting_writes(self) -> bool:
+        """Whether the write queue is live and accepting submissions.
+
+        False before ``on_initialize()`` creates the queue and after shutdown drains it.
+        """
+        return self._db_write_queue is not None
+
+    @property
     def db(self) -> aiosqlite.Connection:
         """Return the active write database connection.
 
@@ -222,13 +235,13 @@ class DatabaseService(Service):
             if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            elapsed = time.monotonic() - last_retention_run
-            if elapsed >= _RETENTION_INTERVAL_SECONDS:
+            time_since_retention = time.monotonic() - last_retention_run
+            if time_since_retention >= _RETENTION_INTERVAL_SECONDS:
                 await self._run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
-            elapsed_size = time.monotonic() - last_size_failsafe_run
-            if elapsed_size >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
+            time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
+            if time_since_size_failsafe >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
                 await self._run_size_failsafe()
                 last_size_failsafe_run = time.monotonic()
 
@@ -650,7 +663,7 @@ class DatabaseService(Service):
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         for priority in priorities:
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            group_label = group[0].failsafe_label
+            group_label = ", ".join(t.failsafe_label for t in group)
 
             for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
                 group_deleted = 0
@@ -663,6 +676,9 @@ class DatabaseService(Service):
                     n = cursor.rowcount or 0
                     total_deleted_by_table[target.table] += n
                     group_deleted += n
+                # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
+                # cannot run while the delete statements hold a write lock — without this
+                # commit it fails with "database table is locked".
                 await db.commit()
 
                 if group_deleted == 0:

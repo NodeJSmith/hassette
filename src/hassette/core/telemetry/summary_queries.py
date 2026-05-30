@@ -4,8 +4,6 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any, assert_never
 
-import aiosqlite
-
 from hassette.core.telemetry.helpers import (
     DEFAULT_EXECUTION_LOG_LIMIT,
     DEFAULT_LOG_RECORDS_LIMIT,
@@ -22,6 +20,8 @@ from hassette.types.types import QuerySourceTier
 if TYPE_CHECKING:
     from collections.abc import Callable
     from contextlib import AbstractAsyncContextManager
+
+    import aiosqlite
 
     from hassette import Hassette
 
@@ -163,7 +163,9 @@ class SummaryQueriesMixin:
         # Count distinct handler/job identities across all instances, not listener rows.
         # Each instance of a multi-instance app registers its own rows under the same
         # (name, topic)/job_name identity, so COUNT(DISTINCT id) would multiply the count
-        # by instance_count. char(31) (unit separator) joins the natural-key parts safely.
+        # by instance_count. The two natural-key parts are concatenated into one distinct
+        # key joined by char(31) — the ASCII unit separator, chosen because it cannot occur
+        # in an entity name or topic, so it can never collide with the parts it separates.
         listener_reg_query = f"""
             SELECT l.app_key, COUNT(DISTINCT l.name || char(31) || l.topic) AS handler_count
             FROM {listener_view} l
@@ -219,10 +221,18 @@ class SummaryQueriesMixin:
                 async with self._db.execute(job_act_query, job_act_params) as cursor:
                     job_act_rows = await cursor.fetchall()
             finally:
-                with contextlib.suppress(aiosqlite.OperationalError):
+                # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
+                # (e.g. no transaction is open) can never mask an exception from the queries.
+                with contextlib.suppress(Exception):
                     await self._db.execute("ROLLBACK")
 
-        return _build_app_summaries(listener_reg_rows, listener_act_rows, job_reg_rows, job_act_rows, source_tier)
+        return _build_app_summaries(
+            listener_reg_rows=listener_reg_rows,
+            listener_act_rows=listener_act_rows,
+            job_reg_rows=job_reg_rows,
+            job_act_rows=job_act_rows,
+            source_tier=source_tier,
+        )
 
     async def get_session_list(self, limit: int = DEFAULT_SESSION_LIST_LIMIT) -> list[SessionRecord]:
         """Return recent session records.

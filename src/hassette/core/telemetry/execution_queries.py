@@ -117,8 +117,12 @@ class ExecutionQueriesMixin:
         Returns:
             List of :class:`ActivityFeedEntry` sorted by ``timestamp`` descending.
         """
+        # The query is a UNION ALL of two arms: the handler arm (executions aliased `e_h`,
+        # suffix `_hi`) and the job arm (executions aliased `e_j`, suffix `_je`). Each clause
+        # builder embeds the alias in its fragment but always binds the same parameter name
+        # (`:source_tier`, `:since`), so both arms share one bind value — the second call's
+        # params dict is a duplicate and is intentionally discarded.
         tier_hi_clause, tier_params = _source_tier_clause(source_tier, "e_h")
-        # _source_tier_clause always binds :source_tier - same key for both branches
         tier_je_clause, _ = _source_tier_clause(source_tier, "e_j")
         since_hi_clause, since_params = _since_clause(since, "e_h.execution_start_ts")
         since_je_clause, _ = _since_clause(since, "e_j.execution_start_ts")

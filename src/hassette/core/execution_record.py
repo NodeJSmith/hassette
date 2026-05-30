@@ -84,7 +84,10 @@ class ExecutionRecord:
     None for job executions and when origin is not available.
     """
 
-    # --- New unified-table columns (001.sql) ---
+    # --- Reserved unified-table columns (001.sql) ---
+    # These columns exist in the schema and round-trip through persistence/queries, but the
+    # write path (CommandExecutor) does not populate them yet — they always hold the defaults
+    # below. Baked in now so future retry/trigger-mode tracking needs no migration.
     trigger_mode: str | None = None
     """Trigger mode string (e.g., 'immediate', 'debounced'). None when not set."""
 

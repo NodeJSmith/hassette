@@ -51,7 +51,9 @@ class RetryableBatch:
 
     Attributes:
         records: Unified execution records to retry.
-        retry_count: Number of times this batch has been retried.
+        retry_count: Number of times this whole batch has been retried by the executor.
+            Unrelated to ``ExecutionRecord.retry_count`` (a per-row schema column that is
+            currently always 0); this one drives the in-memory retry/backoff loop.
         not_before: Monotonic timestamp (time.monotonic()) before which this batch
             must not be retried. Zero means eligible immediately.
     """

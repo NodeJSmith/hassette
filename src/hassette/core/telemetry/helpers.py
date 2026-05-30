@@ -108,6 +108,7 @@ def _since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[st
 
 
 def _build_app_summaries(
+    *,
     listener_reg_rows: Iterable[aiosqlite.Row],
     listener_act_rows: Iterable[aiosqlite.Row],
     job_reg_rows: Iterable[aiosqlite.Row],

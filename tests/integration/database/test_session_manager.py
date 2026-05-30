@@ -3,7 +3,7 @@
 import sqlite3
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -197,7 +197,7 @@ async def test_on_service_crashed_no_session(session_manager: SessionManager, db
 async def test_on_service_crashed_db_not_initialized(db_hassette: MagicMock) -> None:
     """on_service_crashed returns early when database is not initialized."""
     db_service_mock = MagicMock()
-    type(db_service_mock).db = PropertyMock(side_effect=RuntimeError("not initialized"))
+    db_service_mock.is_db_ready = False
 
     sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
@@ -216,7 +216,7 @@ async def test_finalize_session_no_session(session_manager: SessionManager) -> N
 async def test_finalize_session_db_not_initialized(db_hassette: MagicMock) -> None:
     """finalize_session returns early when database is not initialized."""
     db_service_mock = MagicMock()
-    type(db_service_mock).db = PropertyMock(side_effect=RuntimeError("not initialized"))
+    db_service_mock.is_db_ready = False
 
     sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created

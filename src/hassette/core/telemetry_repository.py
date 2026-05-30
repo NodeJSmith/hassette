@@ -52,6 +52,20 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     }
 
 
+# Every execution row inserts the same columns, so derive the INSERT statement once from a
+# representative record's parameter keys. The batch and FK-fallback paths share this constant,
+# which makes it impossible for them to build mismatched column lists.
+_EXECUTION_INSERT_COLUMNS = tuple(
+    _execution_insert_params(
+        ExecutionRecord(kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status="success")
+    )
+)
+_EXECUTION_INSERT_SQL = (
+    f"INSERT INTO executions ({', '.join(_EXECUTION_INSERT_COLUMNS)}) "
+    f"VALUES ({', '.join(f':{c}' for c in _EXECUTION_INSERT_COLUMNS)})"
+)
+
+
 def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     """Return True if the IntegrityError is a foreign key constraint violation.
 
@@ -93,29 +107,24 @@ def _listener_insert_params(registration: ListenerRegistration) -> dict[str, Any
 
 async def _insert_row_with_fk_fallback(
     db: "aiosqlite.Connection",
-    columns: str,
-    values_clause: str,
     record_params: dict,
     fk_field: str,
     logger: logging.Logger,
-) -> int:
+) -> bool:
     """Try to INSERT one row into executions; on FK violation, null the FK field and retry.
 
     Args:
         db: An open aiosqlite connection.
-        columns: Column list string for the INSERT.
-        values_clause: Values clause string matching ``columns``.
         record_params: Named-parameter dict for the initial INSERT attempt.
         fk_field: The FK column name to null on violation (``"listener_id"`` or ``"job_id"``).
         logger: Logger instance for warning/error messages.
 
     Returns:
-        1 if the row was dropped (failed even after nulling FK), 0 on success.
+        True if the row was dropped (failed even after nulling FK), False on success.
     """
-    sql = f"INSERT INTO executions ({columns}) VALUES ({values_clause})"
     try:
-        await db.execute(sql, record_params)
-        return 0
+        await db.execute(_EXECUTION_INSERT_SQL, record_params)
+        return False
     except sqlite3.IntegrityError as exc:
         if not _is_fk_violation(exc):
             logger.error(
@@ -124,7 +133,7 @@ async def _insert_row_with_fk_fallback(
                 record_params.get(fk_field),
                 exc,
             )
-            return 1
+            return True
         logger.warning(
             "FK violation on executions row (%s=%s) — nulling FK and retrying",
             fk_field,
@@ -132,14 +141,26 @@ async def _insert_row_with_fk_fallback(
         )
         nulled_params = {**record_params, fk_field: None}
         try:
-            await db.execute(sql, nulled_params)
-            return 0
+            await db.execute(_EXECUTION_INSERT_SQL, nulled_params)
+            return False
         except sqlite3.IntegrityError as retry_exc:
             logger.error(
                 "Failed to persist executions row even with null FK — dropping: %s",
                 retry_exc,
             )
-            return 1
+            return True
+
+
+# The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
+# f-string SQL. Today every caller passes string literals, but an allowlist keeps that
+# interpolation injection-safe if a non-literal value is ever passed in.
+_RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
+_RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
+
+
+def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
+    if table not in _RECONCILE_TABLES or history_fk not in _RECONCILE_FK_COLUMNS:
+        raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
 
 
 def _build_delete_query(
@@ -161,6 +182,7 @@ def _build_delete_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
+    _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
@@ -201,6 +223,7 @@ def _build_retire_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
+    _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key, "now": now}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
@@ -519,12 +542,7 @@ class TelemetryRepository:
         try:
             await db.execute("BEGIN")
             params_list = [_execution_insert_params(r) for r in records]
-            cols = ", ".join(params_list[0].keys())
-            vals = ", ".join(f":{k}" for k in params_list[0])
-            await db.executemany(
-                f"INSERT INTO executions ({cols}) VALUES ({vals})",
-                params_list,
-            )
+            await db.executemany(_EXECUTION_INSERT_SQL, params_list)
             await db.commit()
         except Exception:
             await db.rollback()
@@ -550,17 +568,14 @@ class TelemetryRepository:
         if not records:
             return 0
 
-        sentinel_params = _execution_insert_params(records[0])
-        cols = ", ".join(sentinel_params.keys())
-        vals = ", ".join(f":{k}" for k in sentinel_params)
-
         try:
             await db.execute("BEGIN")
 
             for record in records:
                 params = _execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
-                dropped += await _insert_row_with_fk_fallback(db, cols, vals, params, fk_field, logger)
+                if await _insert_row_with_fk_fallback(db, params, fk_field, logger):
+                    dropped += 1
 
             await db.commit()
         except Exception:

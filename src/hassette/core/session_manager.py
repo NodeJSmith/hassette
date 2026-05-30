@@ -87,9 +87,8 @@ class SessionManager(Resource):
         Must be called after CommandExecutor is ready, not during session creation,
         to avoid racing with unflushed invocation records from the previous session.
         """
-        session_id = self._session_id
-        if session_id is not None:
-            await self._database_service.submit(self._do_cleanup_once_listeners(session_id))
+        if self._session_id is not None:
+            await self._database_service.submit(self._do_cleanup_once_listeners())
 
     async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record service crash details in the session row.
@@ -104,13 +103,11 @@ class SessionManager(Resource):
                 self.logger.warning("Cannot record crash — no active session")
                 return
 
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
+            if not self._database_service.is_db_ready:
                 self.logger.warning("Cannot record crash — database not initialized")
                 return
 
-            if self._database_service._db_write_queue is None:
+            if not self._database_service.is_accepting_writes:
                 self.logger.warning("Cannot record crash — database write queue shut down")
                 return
 
@@ -136,9 +133,7 @@ class SessionManager(Resource):
             if self._session_id is None:
                 return
 
-            try:
-                _ = self._database_service.db
-            except RuntimeError:
+            if not self._database_service.is_db_ready:
                 self.logger.warning("Cannot finalize session — database not initialized")
                 return
 
@@ -190,7 +185,7 @@ class SessionManager(Resource):
             await self._database_service.db.rollback()
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
-    async def _do_cleanup_once_listeners(self, current_session_id: int) -> None:
+    async def _do_cleanup_once_listeners(self) -> None:
         """Delete stale once=True listeners from previous sessions.
 
         Runs after session creation.  Removes ``once=True`` listener rows where:
@@ -211,28 +206,25 @@ class SessionManager(Resource):
 
             # Identify the stale once=True listener IDs up front.
             # A listener is stale when:
-            #   - it fired at least once (executions row exists for it)
-            #   - the session that owns that execution has stopped
-            #   - it has NOT fired in the current session
+            #   - it fired at least once (an executions row exists for it), and
+            #   - none of its executions belong to a still-running session.
+            # The current session is running (stopped_at IS NULL), so a listener that
+            # fired in it is excluded automatically. Checking every owning session avoids
+            # the false positive an arbitrary single-row pick could produce.
             stale_cursor = await db.execute(
                 """
                 SELECT id FROM listeners
                 WHERE once = 1
+                  AND EXISTS (
+                      SELECT 1 FROM executions WHERE listener_id = listeners.id
+                  )
                   AND NOT EXISTS (
                       SELECT 1 FROM executions
-                      WHERE listener_id = listeners.id AND session_id = ?
-                  )
-                  AND EXISTS (
-                      SELECT 1 FROM sessions
-                      WHERE id = (
-                          SELECT session_id FROM executions
-                          WHERE listener_id = listeners.id
-                          LIMIT 1
-                      )
-                      AND stopped_at IS NOT NULL
+                      JOIN sessions ON sessions.id = executions.session_id
+                      WHERE executions.listener_id = listeners.id
+                        AND sessions.stopped_at IS NULL
                   )
                 """,
-                (current_session_id,),
             )
             stale_ids = [row[0] for row in await stale_cursor.fetchall()]
 
@@ -240,6 +232,12 @@ class SessionManager(Resource):
                 return
 
             placeholders = ",".join("?" * len(stale_ids))
+
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None
+            # (autocommit), so without this each DELETE commits on its own and a crash
+            # between the two leaves listener rows whose executions are already gone.
+            # The BEGIN makes both deletes one atomic transaction and lets rollback() work.
+            await db.execute("BEGIN")
 
             # Step 1: delete executions referencing these listeners first.
             # executions.listener_id has ON DELETE SET NULL, but the table CHECK requires

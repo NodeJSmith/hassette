@@ -1,3 +1,4 @@
+import itertools
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -20,13 +21,15 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
-_listener_id_counter = 0
+# In-memory routing ID, assigned at listener creation. This is the dispatch/dedup key
+# used by router.py and bus_service.py — distinct from the database row id (``db_id``),
+# which is assigned later at registration. itertools.count.__next__ is atomic at the C
+# level, so no lock is needed even though listeners are only ever created on the event loop.
+_listener_id_seq = itertools.count(1)
 
 
 def next_id() -> int:
-    global _listener_id_counter
-    _listener_id_counter += 1
-    return _listener_id_counter
+    return next(_listener_id_seq)
 
 
 @dataclass(slots=True)
