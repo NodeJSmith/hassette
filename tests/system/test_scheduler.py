@@ -97,7 +97,7 @@ async def test_group_cancellation(ha_container: str, tmp_path) -> None:
 
 
 async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
-    """A completed job execution is persisted to the job_executions table."""
+    """A completed job execution is persisted to the unified executions table (kind='job')."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
@@ -114,13 +114,15 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
 
         async def _row_exists() -> bool:
             async with hassette.database_service.read_db.execute(
-                "SELECT COUNT(*) FROM job_executions WHERE session_id = ?",
+                "SELECT COUNT(*) FROM executions WHERE session_id = ? AND kind = 'job'",
                 (session_id,),
             ) as cursor:
                 row = await cursor.fetchone()
                 return row is not None and row[0] > 0
 
-        await wait_for(_row_exists, timeout=10.0, interval=0.1, desc=f"job_executions row for session_id={session_id}")
+        await wait_for(
+            _row_exists, timeout=10.0, interval=0.1, desc=f"executions(kind=job) row for session_id={session_id}"
+        )
 
 
 async def test_run_cron_fires(ha_container: str, tmp_path) -> None:
