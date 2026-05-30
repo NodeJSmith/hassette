@@ -64,14 +64,17 @@ If you use `AppSync` instead of `App`, use the `_sync` variants of each lifecycl
 `AppSync` runs each lifecycle hook in a thread pool via `run_in_thread`, so the hooks must be synchronous — they cannot use `await`. The async hooks (`on_initialize`, `on_shutdown`, etc.) are marked `@final` on `AppSync` and will raise `NotImplementedError` if you try to override them directly.
 
 !!! warning "Use `on_initialize_sync`, not `on_initialize`, in AppSync"
-    In `AppSync`, overriding `on_initialize` will raise `NotImplementedError` at startup. Override `on_initialize_sync` instead:
+    In `AppSync`, overriding `on_initialize` will raise `NotImplementedError` at startup. Override `on_initialize_sync` instead. The bus, scheduler, and API are async — reach them through their `.sync` facades:
 
     ```python
     class MyApp(AppSync):
         def on_initialize_sync(self) -> None:
-            self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+            self.bus.sync.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen")
+            self.scheduler.sync.run_in(self.cleanup, 60, name="cleanup")
 
         def on_light_change(self):
-            # synchronous handler — safe for blocking IO
+            pass
+
+        def cleanup(self):
             pass
     ```
