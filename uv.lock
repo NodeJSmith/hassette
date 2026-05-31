@@ -1003,6 +1003,7 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "bcrypt" },
+    { name = "hassette-codegen" },
     { name = "pyright" },
     { name = "shot-scraper" },
     { name = "slotscheck" },
@@ -1074,6 +1075,7 @@ provides-extras = ["test"]
 [package.metadata.requires-dev]
 dev = [
     { name = "bcrypt", specifier = ">=4.0" },
+    { name = "hassette-codegen", editable = "codegen" },
     { name = "pyright", specifier = ">=1.1.408" },
     { name = "shot-scraper", specifier = ">=1.5" },
     { name = "slotscheck", specifier = ">=0.19.1" },
@@ -1105,6 +1107,27 @@ test = [
     { name = "pytest-rerunfailures", specifier = ">=15.0" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
+]
+
+[[package]]
+name = "hassette-codegen"
+version = "0.1.0"
+source = { editable = "codegen" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jinja2" },
+    { name = "pyyaml" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
 ]
 
 [[package]]

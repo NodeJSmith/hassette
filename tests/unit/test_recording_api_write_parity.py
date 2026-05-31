@@ -6,20 +6,11 @@ parity check as collateral damage.
 """
 
 import inspect
-import sys
-from pathlib import Path
+
+from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
 from hassette.test_utils.recording_api import RecordingApi
-
-# Import LIFECYCLE_METHODS from the generator so this test shares the exact same
-# set of lifecycle hook names with the generator's filtering logic. Without this,
-# an override of a lifecycle hook (e.g. on_initialize) on either Api or RecordingApi
-# would be miscategorized by the parity test as a "write method" and pass or fail
-# based on whether the other side happens to also override it — a brittle coincidence.
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
-from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 
 # Read-method names — these are excluded from the write-method derivation below.
 # Lifecycle hooks are handled separately via LIFECYCLE_METHODS (imported above) so

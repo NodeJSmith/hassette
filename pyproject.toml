@@ -78,6 +78,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "bcrypt>=4.0",
+    "hassette-codegen",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
     "slotscheck>=0.19.1",
@@ -113,6 +114,9 @@ docs = [
 
 [tool.uv]
 default-groups = ["dev", "test", "docs"]
+
+[tool.uv.sources]
+hassette-codegen = { path = "codegen", editable = true }
 
 [project.scripts]
 hassette = "hassette.__main__:entrypoint"

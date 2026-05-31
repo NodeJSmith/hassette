@@ -2,7 +2,7 @@
 name = "hassette-codegen"
 version = "0.1.0"
 description = "Code generator for hassette entity wrappers, state models, and constants from Home Assistant core"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "jinja2",
     "pyyaml",

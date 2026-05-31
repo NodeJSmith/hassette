@@ -3,32 +3,27 @@
 import ast
 import copy
 import py_compile
-import sys
 import tempfile
 import textwrap
 from pathlib import Path
 
 import pytest
-
-# codegen is a separate package not installed in the test venv; add it to sys.path
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
-
-from hassette_codegen.output import format_via_ruff  # noqa: E402
-from hassette_codegen.sync_facade.ast_utils import desync_docstring  # noqa: E402
-from hassette_codegen.sync_facade.recording import generate_sync_recording  # noqa: E402
-from hassette_codegen.sync_facade.recording_imports import (  # noqa: E402
+from hassette_codegen.output import format_via_ruff
+from hassette_codegen.sync_facade.ast_utils import desync_docstring
+from hassette_codegen.sync_facade.recording import generate_sync_recording
+from hassette_codegen.sync_facade.recording_imports import (
     _collect_referenced_symbols,
     _derive_recording_imports_strict,
     build_precise_import_block,
     collect_module_level_import_map,
 )
-from hassette_codegen.sync_facade.recording_transform import (  # noqa: E402
+from hassette_codegen.sync_facade.recording_transform import (
     _RecordingBodyRewriter,
     gen_recording_method,
     is_not_implemented_only,
 )
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 RECORDING_API_PATH = _REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py"
 API_PATH = _REPO_ROOT / "src" / "hassette" / "api" / "api.py"
 
