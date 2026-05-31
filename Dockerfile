@@ -26,6 +26,10 @@ ADD ./src /app/src
 COPY --from=frontend /app/src/hassette/web/static/spa/ /app/src/hassette/web/static/spa/
 ADD ./scripts /app/scripts
 ADD ./tools /app/tools
+# codegen is an editable dev dep — uv lock --check and uv sync --locked
+# need its metadata even when dev groups are excluded
+ADD ./codegen/pyproject.toml /app/codegen/pyproject.toml
+ADD ./codegen/src/hassette_codegen/__init__.py /app/codegen/src/hassette_codegen/__init__.py
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock
 ADD ./README.md /app/README.md
