@@ -15,18 +15,11 @@ inspection would always pass vacuously.
 """
 
 import inspect
-import sys
-from pathlib import Path
+
+from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
 from hassette.test_utils.recording_api import ApiProtocol
-
-# Import LIFECYCLE_METHODS from the generator so this test shares the exact same
-# set of lifecycle hook names with the generator's filtering logic. This matches
-# the pattern used by test_recording_api_write_parity.py.
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
-from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 
 
 def public_async_methods(cls: type) -> set[str]:

@@ -319,7 +319,7 @@ def make_failing_recv_task(error: Exception) -> asyncio.Task:
     async def _fail():
         raise error
 
-    return asyncio.ensure_future(_fail())
+    return asyncio.create_task(_fail())
 
 
 async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
@@ -411,7 +411,7 @@ async def test_connect_ws_wraps_connection_refused(websocket_service: WebsocketS
 
 async def test_start_recv_and_subscribe_marks_ready(websocket_service: WebsocketService) -> None:
     """_start_recv_and_subscribe spawns recv, calls mark_ready, sets _connected_at, returns recv task."""
-    fake_task = asyncio.ensure_future(asyncio.sleep(0))
+    fake_task = asyncio.create_task(asyncio.sleep(0))
     websocket_service.task_bucket = MagicMock()
 
     # Capture and discard the coroutine argument to avoid "coroutine never awaited" warning
@@ -451,7 +451,7 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
 async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
     """_partial_cleanup cancels recv task, closes ws, clears futures and subscription ids."""
     fake_ws = build_fake_ws()
-    fake_recv_task = asyncio.ensure_future(asyncio.sleep(100))
+    fake_recv_task = asyncio.create_task(asyncio.sleep(100))
     websocket_service._ws = fake_ws
     websocket_service._recv_task = fake_recv_task
     websocket_service._subscription_ids = {1, 2}
@@ -475,7 +475,7 @@ async def test_partial_cleanup_preserves_session(websocket_service: WebsocketSer
     fake_session = MagicMock()
     websocket_service._session = fake_session
     websocket_service._ws = build_fake_ws()
-    websocket_service._recv_task = asyncio.ensure_future(asyncio.sleep(0))
+    websocket_service._recv_task = asyncio.create_task(asyncio.sleep(0))
 
     await websocket_service._partial_cleanup()
 
@@ -502,7 +502,7 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
         except asyncio.CancelledError:  # noqa: ASYNC103 — intentionally simulates a task that ignores cancellation
             await asyncio.sleep(1000)
 
-    stuck_task = asyncio.ensure_future(_never_ends())
+    stuck_task = asyncio.create_task(_never_ends())
     websocket_service._recv_task = stuck_task
     websocket_service._ws = build_fake_ws()
 
@@ -547,12 +547,12 @@ async def test_early_drop_retries_and_succeeds(
             async def _fail():
                 raise RetryableConnectionClosedError("peer gone")
 
-            return asyncio.ensure_future(_fail())
+            return asyncio.create_task(_fail())
 
         async def _clean():
             pass
 
-        return asyncio.ensure_future(_clean())
+        return asyncio.create_task(_clean())
 
     async def fake_partial_cleanup():
         nonlocal partial_cleanup_count
@@ -595,7 +595,7 @@ async def test_early_drop_exhausts_retry_budget(
         async def _fail():
             raise RetryableConnectionClosedError("dropped")
 
-        return asyncio.ensure_future(_fail())
+        return asyncio.create_task(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -630,7 +630,7 @@ async def test_early_drop_exhausts_recovery_timeout(
         async def _fail():
             raise RetryableConnectionClosedError("dropped")
 
-        return asyncio.ensure_future(_fail())
+        return asyncio.create_task(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -668,7 +668,7 @@ async def test_stable_connection_failure_propagates_immediately(
         async def _fail():
             raise RetryableConnectionClosedError("stable drop")
 
-        return asyncio.ensure_future(_fail())
+        return asyncio.create_task(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
@@ -698,7 +698,7 @@ async def test_non_retryable_exception_in_stable_window(
         async def _fail():
             raise RuntimeError("unexpected internal error")
 
-        return asyncio.ensure_future(_fail())
+        return asyncio.create_task(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
@@ -729,7 +729,7 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
             async def _fail():
                 raise RetryableConnectionClosedError("dropped")
 
-            return asyncio.ensure_future(_fail())
+            return asyncio.create_task(_fail())
         raise InvalidAuthError("token revoked")
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
@@ -804,12 +804,12 @@ async def test_service_status_stays_running_during_early_drop(
             async def _fail():
                 raise RetryableConnectionClosedError("dropped")
 
-            return asyncio.ensure_future(_fail())
+            return asyncio.create_task(_fail())
 
         async def _clean():
             pass
 
-        return asyncio.ensure_future(_clean())
+        return asyncio.create_task(_clean())
 
     original_mark_not_ready = websocket_service.mark_not_ready
 

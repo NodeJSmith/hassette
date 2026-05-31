@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import inspect
 import typing
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -78,7 +79,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 
         assert listener.topic == "demo.topic"
         assert listener.invoker.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener.invoker.async_handler)
+        assert inspect.iscoroutinefunction(listener.invoker.async_handler)
         assert listener.invoker.kwargs == {"suffix": "!"}
         assert listener.options.once is once
         assert isinstance(listener.predicate, AllOf)

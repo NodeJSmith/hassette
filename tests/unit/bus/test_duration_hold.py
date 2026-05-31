@@ -52,7 +52,7 @@ def make_task_bucket_with_spawn() -> MagicMock:
     tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
 
     def spawn_side_effect(coro: Any, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.ensure_future(coro)
+        return asyncio.create_task(coro)
 
     tb.spawn = MagicMock(side_effect=spawn_side_effect)
     return tb

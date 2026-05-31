@@ -14,7 +14,6 @@ from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
-    from contextvars import Context
     from types import CoroutineType
 
     from hassette import Hassette
@@ -324,18 +323,23 @@ class TaskBucket(Resource):
 def make_task_factory(
     global_bucket: TaskBucket,
 ) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
-    def factory(
-        loop: asyncio.AbstractEventLoop, coro: CoroLikeT, context: "Context | None" = None
-    ) -> asyncio.Task[Any]:
-        """A task factory that assigns tasks to the current context's bucket, or a global bucket."""
+    def factory(loop: asyncio.AbstractEventLoop, coro: CoroLikeT, **kwargs: Any) -> asyncio.Task[Any]:
+        """A task factory that assigns tasks to the current context's bucket, or a global bucket.
+
+        Python 3.14 changed create_task() to forward **kwargs (including ``name``)
+        to the task factory. We pop ``name`` and apply it after construction so the
+        auto-naming fallback still works for callers that don't pass one.
+        """
 
         # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not
         # i'm honestly not sure where they get that idea from
-        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop, context=context)
-        # Optional: give unnamed tasks a readable default
-        if not t.get_name() or t.get_name().startswith("Task-"):
+        explicit_name = kwargs.pop("name", None)
+        t: asyncio.Task[Any] = asyncio.Task(coro, loop=loop, **kwargs)
+        if explicit_name is not None:
+            t.set_name(explicit_name)
+        elif not t.get_name() or t.get_name().startswith("Task-"):
             # getattr fallback avoids AttributeError on some coroutines/generators
             name = getattr(coro, "__name__", type(coro).__name__)
             t.set_name(name)

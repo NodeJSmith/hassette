@@ -38,7 +38,7 @@ jobs:
             fail-fast: false
             matrix:
                 # PRs and main-branch pushes build only 3.13 for speed; releases build all supported versions
-                python-version: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && fromJSON('["3.13"]') || fromJSON('["3.11", "3.13"]') }}
+                python-version: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && fromJSON('["3.13"]') || fromJSON('["3.11", "3.12", "3.13", "3.14"]') }}
         env:
             IMAGE_NAME: hassette
             REGISTRY: ghcr.io

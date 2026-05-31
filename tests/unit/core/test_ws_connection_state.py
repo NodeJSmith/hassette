@@ -153,7 +153,7 @@ class TestValidConnectSequence:
             async def _clean():
                 pass
 
-            return asyncio.ensure_future(_clean())
+            return asyncio.create_task(_clean())
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -197,7 +197,7 @@ class TestReconnectSequence:
                 async def _fail():
                     raise RetryableConnectionClosedError("peer gone")
 
-                return asyncio.ensure_future(_fail())
+                return asyncio.create_task(_fail())
 
             # Second: clean exit (reconnect succeeded)
             websocket_service._set_connection_state(ConnectionState.CONNECTED)
@@ -206,7 +206,7 @@ class TestReconnectSequence:
             async def _clean():
                 pass
 
-            return asyncio.ensure_future(_clean())
+            return asyncio.create_task(_clean())
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -254,7 +254,7 @@ class TestMaxRetriesDisconnects:
             async def _fail():
                 raise RetryableConnectionClosedError("dropped")
 
-            return asyncio.ensure_future(_fail())
+            return asyncio.create_task(_fail())
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]

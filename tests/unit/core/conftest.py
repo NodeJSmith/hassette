@@ -237,7 +237,7 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     )
     svc.router = Router()
     task_bucket = MagicMock()
-    task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: asyncio.ensure_future(coro))
+    task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: asyncio.create_task(coro))
     svc.task_bucket = task_bucket
     svc._duration_hold = DurationHoldManager(
         executor=svc._executor,

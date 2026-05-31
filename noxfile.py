@@ -41,7 +41,7 @@ def dev(session: "Session"):
     )
 
 
-@nox.session(python=["3.11", "3.13"])
+@nox.session(python=["3.11", "3.13", "3.14"])
 def tests(session: "Session"):
     session.run(
         "uv",
@@ -64,7 +64,7 @@ def tests(session: "Session"):
     )
 
 
-@nox.session(python=["3.13"])
+@nox.session(python=["3.13", "3.14"])
 def e2e(session: "Session"):
     # Build frontend if not already built
     if not _SPA_INDEX.exists():
@@ -90,7 +90,7 @@ def e2e(session: "Session"):
     )
 
 
-@nox.session(python=["3.13"])
+@nox.session(python=["3.13", "3.14"])
 def system(session: "Session"):
     """System tests against a real HA Docker container.
 
@@ -108,10 +108,10 @@ def screenshots(session: "Session"):
     session.run("uv", "run", "python", "scripts/capture_screenshots.py", external=True)
 
 
-@nox.session
+@nox.session(python=["3.13", "3.14"])
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
-    session.env["COVERAGE_FILE"] = ".coverage.system"
+    session.env["COVERAGE_FILE"] = f".coverage.system.{session.python}"
     _run_system_tests(
         session,
         marker="system and not system_destructive",
@@ -150,7 +150,7 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
     )
 
 
-@nox.session(python=["3.11", "3.13"], tags=["coverage"])
+@nox.session(python=["3.11", "3.13", "3.14"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
     session.run(
