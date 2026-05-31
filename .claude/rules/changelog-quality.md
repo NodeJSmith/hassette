@@ -126,5 +126,5 @@ If a release-please PR is merged but no tag/release appears:
 1. Check the post-merge workflow run — look for `✖ Pull request body did not match`
 2. Create the tag: `git tag v<version> <merge-commit-sha> && git push origin v<version>`
 3. Create the GitHub Release: `gh release create v<version> --target <sha> --notes-file <changelog-excerpt>`
-4. Trigger publish workflows manually: `gh workflow run "Publish Python package" -f tag_name=v<version>` and `gh workflow run "Build & Publish Image" -f tag_name=v<version>`
+4. Trigger publish manually: `gh workflow run "Release Please" -f tag_name=v<version>` (builds and publishes both PyPI and Docker)
 5. Close any spurious release-please PR that was opened for the next version

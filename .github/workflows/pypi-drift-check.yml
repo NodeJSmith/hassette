@@ -1,0 +1,81 @@
+name: PyPI Drift Check
+
+on:
+    schedule:
+        - cron: "0 12 * * *" # daily at noon UTC
+    workflow_dispatch: {}
+
+jobs:
+    check-drift:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            issues: write
+        steps:
+            - name: Compare GitHub release to PyPI
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  # Get latest GitHub release tag
+                  GITHUB_TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || echo "")
+                  if [ -z "$GITHUB_TAG" ]; then
+                      echo "No GitHub releases found, skipping"
+                      exit 0
+                  fi
+                  GITHUB_VERSION="${GITHUB_TAG#v}"
+
+                  # Get latest PyPI version
+                  PYPI_VERSION=$(python3 -c "
+                  import urllib.request, json, sys
+                  try:
+                      data = json.loads(urllib.request.urlopen('https://pypi.org/pypi/hassette/json', timeout=15).read())
+                      print(data['info']['version'])
+                  except Exception as exc:
+                      print(f'::warning::Failed to query PyPI: {exc}', file=sys.stderr)
+                      sys.exit(1)
+                  ")
+
+                  echo "GitHub release: v${GITHUB_VERSION}"
+                  echo "PyPI latest:    v${PYPI_VERSION}"
+
+                  if [ "$GITHUB_VERSION" = "$PYPI_VERSION" ]; then
+                      echo "Versions match — no drift detected"
+                      exit 0
+                  fi
+
+                  # Check if the GitHub release is newer (drift) or older (PyPI ahead somehow)
+                  echo "::error::Version drift detected! GitHub has v${GITHUB_VERSION} but PyPI has v${PYPI_VERSION}"
+
+                  # Check if an issue already exists (label-based dedup, not search-text)
+                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "pypi-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
+                  if [ -n "$EXISTING" ]; then
+                      echo "Issue #${EXISTING} already open for this drift"
+                      exit 1
+                  fi
+
+                  gh issue create --repo "$GITHUB_REPOSITORY" \
+                      --title "PyPI publish drift: GitHub v${GITHUB_VERSION} vs PyPI v${PYPI_VERSION}" \
+                      --label "type:bug" \
+                      --label "area:core" \
+                      --label "priority:high" \
+                      --label "pypi-drift" \
+                      --body "## Version Drift Detected
+
+                  The latest GitHub release (\`v${GITHUB_VERSION}\`) does not match the latest version on PyPI (\`v${PYPI_VERSION}\`).
+
+                  This likely means the publish step failed or was not triggered for the latest release.
+
+                  ### Recovery
+
+                  1. Check the [Release Please workflow runs](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/release-please.yml) for failures
+                  2. Re-trigger: \`gh workflow run 'Release Please' -f tag_name=v${GITHUB_VERSION}\`
+
+                  ### Details
+
+                  - GitHub release: [v${GITHUB_VERSION}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${GITHUB_VERSION})
+                  - PyPI: https://pypi.org/project/hassette/${PYPI_VERSION}/
+                  - Detected by: [pypi-drift-check workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/pypi-drift-check.yml)"
+
+                  exit 1
