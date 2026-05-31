@@ -85,9 +85,9 @@ repos:
       - id: generate_sync_facade
         name: Generate sync.py facade
         language: system
-        entry: uv run python codegen/src/hassette_codegen/sync_facade.py --target api
+        entry: uv run python codegen/src/hassette_codegen/sync_facade/ --target api
         pass_filenames: false
-        files: src/hassette/api/api.py
+        files: (src/hassette/api/api\.py|codegen/src/hassette_codegen/sync_facade/)
         stages:
           - pre-push
 
@@ -95,9 +95,29 @@ repos:
       - id: generate_recording_sync_facade
         name: Generate RecordingSyncFacade
         language: system
-        entry: uv run python codegen/src/hassette_codegen/sync_facade.py --target recording
+        entry: uv run python codegen/src/hassette_codegen/sync_facade/ --target recording
         pass_filenames: false
-        files: (src/hassette/test_utils/recording_api\.py|src/hassette/api/api\.py|codegen/src/hassette_codegen/sync_facade\.py)
+        files: (src/hassette/test_utils/recording_api\.py|src/hassette/api/api\.py|codegen/src/hassette_codegen/sync_facade/)
+        stages:
+          - pre-push
+
+      # regenerate BusSyncFacade in bus/sync.py
+      - id: generate_bus_sync_facade
+        name: Generate BusSyncFacade
+        language: system
+        entry: uv run python codegen/src/hassette_codegen/sync_facade/ --target bus
+        pass_filenames: false
+        files: (src/hassette/bus/bus\.py|src/hassette/bus/options\.py|codegen/src/hassette_codegen/sync_facade/)
+        stages:
+          - pre-push
+
+      # regenerate SchedulerSyncFacade in scheduler/sync.py
+      - id: generate_scheduler_sync_facade
+        name: Generate SchedulerSyncFacade
+        language: system
+        entry: uv run python codegen/src/hassette_codegen/sync_facade/ --target scheduler
+        pass_filenames: false
+        files: (src/hassette/scheduler/scheduler\.py|codegen/src/hassette_codegen/sync_facade/)
         stages:
           - pre-push
 

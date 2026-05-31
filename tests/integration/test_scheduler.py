@@ -1,6 +1,5 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
@@ -146,17 +145,27 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarn
     scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
-    executor.register_job = AsyncMock(return_value=db_id)
+    # The executor is shared across the module — restore mock fields so pytest-randomly
+    # ordering doesn't leave register_job returning a fixed value for later tests.
+    original_side_effect = executor.register_job.side_effect
+    original_return_value = executor.register_job.return_value
+    executor.register_job.side_effect = None
+    executor.register_job.return_value = db_id
 
-    async def target() -> None:
-        pass
+    try:
 
-    scheduled_job = await scheduler.run_in(target, delay=0.5)
+        async def target() -> None:
+            pass
 
-    assert scheduled_job.db_id is not None, "job.db_id should be set immediately after await run_in() returns"
-    assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
+        scheduled_job = await scheduler.run_in(target, delay=0.5)
 
-    scheduled_job.cancel()
+        assert scheduled_job.db_id is not None, "job.db_id should be set immediately after await run_in() returns"
+        assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
+
+        scheduled_job.cancel()
+    finally:
+        executor.register_job.side_effect = original_side_effect
+        executor.register_job.return_value = original_return_value
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: HassetteHarness) -> None:
@@ -491,6 +500,7 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     # precedence over return_value. Clear it so the mock returns None, then RESTORE it after —
     # executor is shared across tests in this module, so leaving it None would break later tests.
     original_side_effect = executor.register_job.side_effect
+    original_return_value = executor.register_job.return_value
     executor.register_job.side_effect = None
     executor.register_job.return_value = None
     try:
@@ -504,6 +514,7 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
         executor.mark_job_cancelled.assert_not_called()
     finally:
         executor.register_job.side_effect = original_side_effect
+        executor.register_job.return_value = original_return_value
 
     # Job should be dequeued
     remaining = hassette_with_scheduler.scheduler.list_jobs()

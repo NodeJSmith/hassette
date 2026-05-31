@@ -74,6 +74,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.source_capture import capture_registration_source
 
 from .classes import ScheduledJob
+from .sync import SchedulerSyncFacade
 from .triggers import After, Cron, Daily, Every, Once
 
 if typing.TYPE_CHECKING:
@@ -87,6 +88,9 @@ class Scheduler(Resource):
 
     scheduler_service: SchedulerService
     """The scheduler service instance."""
+
+    sync: SchedulerSyncFacade
+    """Synchronous facade for scheduling jobs from sync code (e.g. ``AppSync`` hooks)."""
 
     _jobs_by_name: dict[str, "ScheduledJob"]
     """Tracks jobs by name for uniqueness validation within this scheduler instance."""
@@ -108,6 +112,7 @@ class Scheduler(Resource):
         self._jobs_by_name = {}
         self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
         self._error_handler: SchedulerErrorHandlerType | None = None
+        self.sync = self.add_child(SchedulerSyncFacade, scheduler=self)
 
         # Register removal callback so exhausted one-shot jobs are removed from _jobs_by_group
         # automatically when SchedulerService removes them after firing.

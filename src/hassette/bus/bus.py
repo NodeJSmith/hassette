@@ -94,7 +94,7 @@ from collections.abc import Mapping
 from functools import partial
 from typing import Any, Unpack
 
-from typing_extensions import Sentinel, TypedDict
+from typing_extensions import Sentinel
 
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
@@ -109,6 +109,8 @@ from hassette.utils.glob_utils import is_glob
 from hassette.utils.source_capture import capture_registration_source
 
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
+from .options import Options
+from .sync import BusSyncFacade
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -119,28 +121,13 @@ if typing.TYPE_CHECKING:
     from hassette.types.types import BusErrorHandlerType
 
 
-class Options(TypedDict, total=False):
-    once: bool
-    """Whether the listener should be removed after one invocation."""
-
-    debounce: float | None
-    """Length of time in seconds to wait before invoking the handler, resetting if another event is received."""
-
-    throttle: float | None
-    """Length of time in seconds to wait before allowing the handler to be invoked again."""
-
-    timeout: float | None
-    """Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
-    None means fall through to the config default."""
-
-    timeout_disabled: bool
-    """When True, disables timeout enforcement for this listener regardless of config."""
-
-
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
 
     bus_service: "BusService"
+
+    sync: BusSyncFacade
+    """Synchronous facade for registering listeners from sync code (e.g. ``AppSync`` hooks)."""
 
     priority: int = 0
     """Priority level for event handlers created by this bus."""
@@ -153,6 +140,7 @@ class Bus(Resource):
         self.priority = priority
         self._registered_handler_names: dict[tuple[str, int, str, str], str] = {}
         self._error_handler: BusErrorHandlerType | None = None
+        self.sync = self.add_child(BusSyncFacade, bus=self)
 
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.

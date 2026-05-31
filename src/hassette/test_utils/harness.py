@@ -543,7 +543,7 @@ class HassetteHarness:
 
         # Set up API and websocket mocks if not provided by a real component
         if not self.hassette._api_service:
-            self.hassette._api_service = Mock()
+            self.hassette._api_service = AsyncMock()
             self.hassette._api_service.ready_event = asyncio.Event()
             self.hassette._api_service.ready_event.set()
 

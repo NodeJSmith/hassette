@@ -87,7 +87,8 @@ See [Testing](testing.md) for the test harness guide.
 
 !!! warning "Async gotchas"
     - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and silently does nothing.
-    - Do not use `self.api.sync` inside `App` lifecycle methods — use the async API instead, or switch to `AppSync`.
+    - In `AppSync`, use `.sync` facades for bus, scheduler, and API — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods directly from sync hooks returns un-awaited coroutines that silently do nothing.
+    - Do not use `.sync` facades inside `App` lifecycle methods — use the async API instead, or switch to `AppSync`.
 
 !!! tip "Configuration access"
     - AppDaemon: `self.args["args"]["key"]`

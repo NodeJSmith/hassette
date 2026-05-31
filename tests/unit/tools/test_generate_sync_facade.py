@@ -10,19 +10,22 @@ from pathlib import Path
 
 import pytest
 
-# Add the codegen package to sys.path so we can import the generator
+# codegen is a separate package not installed in the test venv; add it to sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 
-from hassette_codegen.sync_facade import (  # noqa: E402
-    _build_precise_import_block,
-    _collect_module_level_import_map,
+from hassette_codegen.output import format_via_ruff  # noqa: E402
+from hassette_codegen.sync_facade.ast_utils import desync_docstring  # noqa: E402
+from hassette_codegen.sync_facade.recording import generate_sync_recording  # noqa: E402
+from hassette_codegen.sync_facade.recording_imports import (  # noqa: E402
     _collect_referenced_symbols,
     _derive_recording_imports_strict,
-    _format_via_ruff,
+    build_precise_import_block,
+    collect_module_level_import_map,
+)
+from hassette_codegen.sync_facade.recording_transform import (  # noqa: E402
     _RecordingBodyRewriter,
     gen_recording_method,
-    generate_sync_recording,
     is_not_implemented_only,
 )
 
@@ -184,12 +187,12 @@ async def get_state(self, entity_id: str):
 
 def test_derive_imports_from_body_references() -> None:
     """The production import-derivation pair (_collect_referenced_symbols +
-    _build_precise_import_block) returns correct imports for type-like symbols
+    build_precise_import_block) returns correct imports for type-like symbols
     (EntityNotFoundError, BaseState) referenced in a body, sourced from
     recording_api.py's import statements.
     """
     recording_source = RECORDING_API_PATH.read_text(encoding="utf-8")
-    symbol_map = _collect_module_level_import_map(recording_source)
+    symbol_map = collect_module_level_import_map(recording_source)
 
     # Construct a synthetic body that references EntityNotFoundError and BaseState as Name nodes.
     # We use `model is BaseState` so BaseState appears as a plain ast.Name in the body.
@@ -209,7 +212,7 @@ async def foo(self, entity_id: str, model):
     body_nodes = [rewriter.visit(copy.deepcopy(stmt)) for stmt in func.body]
 
     referenced = _collect_referenced_symbols(body_nodes)
-    import_block = _build_precise_import_block(referenced, symbol_map)
+    import_block = build_precise_import_block(referenced, symbol_map)
 
     assert "EntityNotFoundError" in import_block
     assert "BaseState" in import_block
@@ -222,7 +225,7 @@ def test_derive_imports_raises_on_unknown_symbol() -> None:
     Lowercase variable names are assumed to be local variables and skipped.
     """
     recording_source = RECORDING_API_PATH.read_text(encoding="utf-8")
-    symbol_map = _collect_module_level_import_map(recording_source)
+    symbol_map = collect_module_level_import_map(recording_source)
 
     # Body references XUnknownTypeSymbol — an uppercase symbol not in recording_api.py imports.
     source = """\
@@ -243,7 +246,7 @@ async def foo(self):
 
 
 def test_check_mode_normalizes_through_ruff() -> None:
-    """_format_via_ruff produces byte-identical output for code differing only in whitespace."""
+    """format_via_ruff produces byte-identical output for code differing only in whitespace."""
     # One version with extra blank lines and trailing whitespace
     content_messy = (
         "x = 1\n"
@@ -256,11 +259,11 @@ def test_check_mode_normalizes_through_ruff() -> None:
     # The canonical form
     content_clean = "x = 1\n\n\ny = 2\n"
 
-    normalized_messy = _format_via_ruff(content_messy)
-    normalized_clean = _format_via_ruff(content_clean)
+    normalized_messy = format_via_ruff(content_messy)
+    normalized_clean = format_via_ruff(content_clean)
 
     assert normalized_messy == normalized_clean, (
-        f"_format_via_ruff did not normalize to identical output.\n"
+        f"format_via_ruff did not normalize to identical output.\n"
         f"Messy → {normalized_messy!r}\n"
         f"Clean → {normalized_clean!r}"
     )
@@ -338,6 +341,54 @@ async def foo(self):
 """
     )
     assert is_not_implemented_only(func) is True
+
+
+def test_desync_docstring_removes_inline_async_sentence() -> None:
+    """An async/awaited sentence wrapped mid-paragraph is removed without joining long lines."""
+    # Mirrors Bus.on(): the async sentence breaks across a line, so a naive collapse would
+    # join "subscriptions." and "Registration" into a >120-char line.
+    doc = (
+        "This is the public registration method for raw topic subscriptions. This method is\n"
+        "``async`` and must be awaited. Registration completes before the call returns —\n"
+        "``sub.listener.db_id`` is a valid integer immediately on return."
+    )
+    result = desync_docstring(doc)
+
+    assert "must be awaited" not in result
+    assert "``async``" not in result
+    assert "Registration completes before the call returns" in result
+    max_body_width = 120 - 8  # line limit minus method-body indent
+    assert all(len(line) <= max_body_width for line in result.splitlines()), result
+
+
+def test_desync_docstring_preserves_summary_blank_line() -> None:
+    """When the async sentence starts the body paragraph, the summary's blank line survives."""
+    doc = (
+        "Subscribe to state changes for a specific entity.\n"
+        "\n"
+        "This method is ``async`` and must be awaited. Registration completes before the call\n"
+        "returns. ``sub.listener.db_id`` is a valid integer immediately on return."
+    )
+    result = desync_docstring(doc)
+
+    assert "must be awaited" not in result
+    # Summary line stays on its own, separated by a blank line from the body.
+    assert result.startswith("Subscribe to state changes for a specific entity.\n\n")
+
+
+def test_desync_docstring_rewrites_awaited_inline_phrase() -> None:
+    """The scheduler's 'awaited inline' phrasing becomes 'completes inline'."""
+    doc = "DB registration is awaited inline — ``job.db_id`` is set before this method returns."
+    result = desync_docstring(doc)
+
+    assert "awaited inline" not in result
+    assert "DB registration completes inline" in result
+
+
+def test_desync_docstring_leaves_async_free_docstrings_untouched() -> None:
+    """A docstring with no async phrasing is returned unchanged (e.g. Api method docs)."""
+    doc = "Get all entities in Home Assistant.\n\nReturns:\n    A list of states."
+    assert desync_docstring(doc) == doc
 
 
 def test_is_not_implemented_only_rejects_real_body() -> None:

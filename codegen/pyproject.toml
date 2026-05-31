@@ -33,3 +33,4 @@ select = ["E", "F", "I", "UP"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
+reportUnusedFunction = "none"

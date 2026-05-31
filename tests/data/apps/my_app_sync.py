@@ -1,5 +1,3 @@
-import os
-
 from hassette import AppConfig, AppSync
 from hassette.events import RawStateChangeEvent
 from hassette.models.entities import LightEntity
@@ -11,12 +9,8 @@ class MyAppUserConfig(AppConfig):
 
 class MyAppSync(AppSync):
     def on_initialize_sync(self) -> None:
-        if "PYTEST_VERSION" in os.environ:
-            # Skip initialization during tests
-            return
-
-        self.bus.on_state_change("input_button.*", handler=self.handle_event)
-        self.scheduler.run_in(self.test_stuff, 1)
+        self.bus.sync.on_state_change("input_button.*", handler=self.handle_event, name="sync_buttons")
+        self.scheduler.sync.run_in(self.test_stuff, 1)
 
         self.office_light_exists = self.api.sync.entity_exists("light.office")
         self.test_button_exists = self.api.sync.entity_exists("input_button.test")

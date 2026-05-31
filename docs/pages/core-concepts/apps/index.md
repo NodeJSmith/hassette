@@ -143,12 +143,22 @@ If more than one class in your project is decorated with `@only_app`, Hassette r
 ??? note "AppSync — for blocking code"
     [`AppSync`][hassette.app.app.AppSync] is a subclass of `App` for automations that must call blocking (non-async) libraries. Instead of overriding `on_initialize` and `on_shutdown`, you override their `_sync`-suffixed counterparts (`on_initialize_sync`, `on_shutdown_sync`, etc.). Hassette runs these methods in a thread pool so they do not block the event loop.
 
+    The bus, scheduler, and API are async. From a `_sync` hook, reach their synchronous facades through `.sync` — `self.bus.sync`, `self.scheduler.sync`, and `self.api.sync`. Each facade method blocks until the underlying async call completes. Calling one from inside the event loop raises `RuntimeError` instead of deadlocking.
+
     ```python
     from hassette import AppSync
 
     class MyApp(AppSync[MyConfig]):
         def on_initialize_sync(self) -> None:
-            # safe to call blocking libraries here
+            # registration runs through the .sync facades from sync code
+            self.bus.sync.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
+            self.scheduler.sync.run_in(self.cleanup, 60, name="cleanup")
+            self.api.sync.call_service("light", "turn_on", target={"entity_id": "light.kitchen"})
+
+        def on_change(self, event) -> None:
+            ...
+
+        def cleanup(self) -> None:
             ...
 
         def on_shutdown_sync(self) -> None:

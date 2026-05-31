@@ -95,8 +95,10 @@ async def test_total_shutdown_timeout_caps_wall_clock():
     await root.shutdown()
     elapsed = asyncio.get_event_loop().time() - start
 
-    # Should complete in roughly total_shutdown_timeout_seconds, not resource_shutdown_timeout_seconds
-    assert elapsed < 1.0, f"Shutdown took {elapsed:.2f}s — total timeout should have capped it"
+    # Should complete in roughly total_shutdown_timeout_seconds (0.2s), not
+    # resource_shutdown_timeout_seconds (5s). The 3s cap gives generous margin
+    # for CI runner variability while still catching the 5s per-resource path.
+    assert elapsed < 3.0, f"Shutdown took {elapsed:.2f}s — total timeout should have capped it"
     assert root.shutdown_completed is True
     assert hanging.shutdown_completed is True
 

@@ -440,7 +440,13 @@ class TestCallbackRegistration:
 
         # Stub Resource.__init__ so super().__init__() is a no-op; the rest of
         # Scheduler.__init__ still runs and must call register_removal_callback directly.
-        with patch.object(Resource, "__init__", return_value=None):
+        # add_child is also stubbed — with Resource.__init__ skipped there is no
+        # `children` list for the sync-facade wiring to append to, and this test only
+        # cares about the removal-callback registration.
+        with (
+            patch.object(Resource, "__init__", return_value=None),
+            patch.object(Resource, "add_child", return_value=Mock()),
+        ):
 
             def _hassette(_self: object) -> object:
                 return mock_hassette
