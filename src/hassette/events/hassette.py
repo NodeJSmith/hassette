@@ -45,20 +45,6 @@ class ServiceStatusPayload:
 
 
 @dataclass(slots=True, frozen=True)
-class WebsocketConnectedEventPayload:
-    """Payload for websocket connected events."""
-
-    url: str
-
-
-@dataclass(slots=True, frozen=True)
-class WebsocketDisconnectedEventPayload:
-    """Payload for websocket disconnected events."""
-
-    error: str
-
-
-@dataclass(slots=True, frozen=True)
 class FileWatcherEventPayload:
     """Payload for file watcher events."""
 
@@ -93,7 +79,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-            payload=HassettePayload(event_type=str(payload.status), data=payload),
+            payload=HassettePayload(data=payload),
         )
 
 
@@ -105,7 +91,7 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
         payload = HassetteEmptyPayload()
         return cls(
             topic=topic,
-            payload=HassettePayload(event_type="empty", data=payload),
+            payload=HassettePayload(data=payload),
         )
 
 
@@ -117,7 +103,7 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
         payload = FileWatcherEventPayload(changed_file_paths=frozenset(changed_file_paths))
         return cls(
             topic=Topic.HASSETTE_EVENT_FILE_WATCHER,
-            payload=HassettePayload(event_type="file_changed", data=payload),
+            payload=HassettePayload(data=payload),
         )
 
 
@@ -161,7 +147,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
-            payload=HassettePayload(event_type=str(payload.status), data=payload),
+            payload=HassettePayload(data=payload),
         )
 
 
@@ -210,5 +196,5 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
-            payload=HassettePayload(event_type="execution_completed", data=payload),
+            payload=HassettePayload(data=payload),
         )

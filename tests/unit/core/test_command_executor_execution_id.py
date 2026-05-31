@@ -32,10 +32,7 @@ def make_hass_event(origin: str = "LOCAL") -> Event:
 
 def make_hassette_event() -> Event:
     """Build a minimal HassettePayload-based Event."""
-    payload = HassettePayload(
-        event_type="hassette.ready",
-        data=None,
-    )
+    payload = HassettePayload(data=None)
     return Event(topic="hassette.ready", payload=payload)
 
 

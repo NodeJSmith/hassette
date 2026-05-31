@@ -56,7 +56,7 @@ def make_hass_event(event_type: str = "state_changed", data=None) -> Event:
 
 
 def make_hassette_event() -> Event:
-    payload = HassettePayload(event_type="hassette.ready", data=None)
+    payload = HassettePayload(data=None)
     return Event(topic="hassette.ready", payload=payload)
 
 

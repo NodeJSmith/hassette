@@ -15,7 +15,7 @@ def make_bus_error_context(exc: BaseException | None = None) -> BusErrorContext:
         exc = ValueError("test error")
 
     tb = traceback.format_exc()
-    payload = EventPayload(event_type="state_changed", data=None)
+    payload = EventPayload(data=None)
     event: Event[EventPayload[None]] = Event(topic="state_changed", payload=payload)
 
     return BusErrorContext(
@@ -50,7 +50,7 @@ class TestBusErrorContextConstruction:
         for exc_type in [ValueError, RuntimeError, KeyError, SystemExit]:
             exc = exc_type("test")
             tb = "Traceback (most recent call last):\n  ...\nValueError: test\n"
-            payload = EventPayload(event_type="test", data=None)
+            payload = EventPayload(data=None)
             event: Event[EventPayload[None]] = Event(topic="test", payload=payload)
 
             ctx = BusErrorContext(

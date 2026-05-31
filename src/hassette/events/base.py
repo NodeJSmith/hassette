@@ -18,9 +18,6 @@ DataT = TypeVar("DataT", covariant=True)
 class EventPayload(Generic[DataT]):
     """Base payload with typed data."""
 
-    event_type: str
-    """Type of the event."""
-
     data: DataT
     """The actual event data."""
 
@@ -95,11 +92,8 @@ class HassPayload(EventPayload[DataT]):
 class HassettePayload(EventPayload[DataT]):
     """Hassette event payload with additional metadata."""
 
-    event_type: str
-    """Type of the event, e.g., 'state_changed', 'call_service', etc."""
-
     data: DataT
-    """The actual event data from Home Assistant."""
+    """The actual event data."""
 
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     """Unique identifier for this payload instance (UUID4), generated at construction time.
@@ -115,7 +109,7 @@ class HassettePayload(EventPayload[DataT]):
     """Origin of the event, always 'HASSETTE' for framework-generated events."""
 
     def __repr__(self) -> str:
-        return f"HassettePayload(event_type={self.event_type}, event_id={self.event_id}, time_fired={self.time_fired})"
+        return f"HassettePayload(event_id={self.event_id}, time_fired={self.time_fired})"
 
 
 @dataclass(frozen=True, slots=True, repr=False)

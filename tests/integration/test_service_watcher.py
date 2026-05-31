@@ -375,7 +375,6 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
     fatal_event = HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
-            event_type=str(ResourceStatus.FAILED),
             data=ServiceStatusPayload(
                 resource_name=dummy_service.class_name,
                 role=dummy_service.role,
@@ -431,7 +430,6 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
     nr_event = HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
-            event_type=str(ResourceStatus.FAILED),
             data=ServiceStatusPayload(
                 resource_name=dummy_service.class_name,
                 role=dummy_service.role,
