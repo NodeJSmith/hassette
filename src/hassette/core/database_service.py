@@ -104,6 +104,8 @@ async def _connect_daemon(database: str | Path, **kwargs: Any) -> aiosqlite.Conn
     exit even if the thread is still alive.
     """
     conn = aiosqlite.connect(database, **kwargs)
+    # No public API exists for this — see aiosqlite#299.
+    # Verified against aiosqlite 0.20-0.22.x; re-check on version bumps.
     conn._thread.daemon = True
     return await conn
 
