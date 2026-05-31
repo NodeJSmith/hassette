@@ -161,8 +161,8 @@ async def test_crashed_event_emitted_before_shutdown(get_service_watcher_mock: S
     # First send_event call should be the CRASHED event (shutdown may emit STOPPED after)
     assert mock_send.call_count >= 1
     first_call = mock_send.call_args_list[0]
-    assert first_call[0][0] == Topic.HASSETTE_EVENT_SERVICE_STATUS
-    crashed_event = first_call[0][1]
+    crashed_event = first_call[0][0]
+    assert crashed_event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
     assert crashed_event.payload.data.status == ResourceStatus.CRASHED
     assert crashed_event.payload.data.previous_status == ResourceStatus.FAILED
     assert crashed_event.payload.data.resource_name == dummy_service.class_name
@@ -290,7 +290,7 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     # Capture events emitted on exhaustion
     emitted_events: list = []
 
-    async def capture_event(_topic, ev):
+    async def capture_event(ev):
         emitted_events.append(ev)
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -338,7 +338,7 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
 
     emitted_events: list = []
 
-    async def capture_event(_topic, ev):
+    async def capture_event(ev):
         emitted_events.append(ev)
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -392,7 +392,7 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
 
     emitted_events: list = []
 
-    async def capture_event(_topic, ev):
+    async def capture_event(ev):
         emitted_events.append(ev)
         await hassette.shutdown()
 
@@ -447,7 +447,7 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
 
     emitted_events: list = []
 
-    async def capture_event(_topic, ev):
+    async def capture_event(ev):
         emitted_events.append(ev)
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -661,7 +661,7 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
 
     emitted_events: list = []
 
-    async def capture_event(_topic, ev):
+    async def capture_event(ev):
         emitted_events.append(ev)
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]

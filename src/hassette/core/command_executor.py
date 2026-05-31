@@ -29,7 +29,7 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
-from hassette.types.enums import RestartType, Topic
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution
 
@@ -861,7 +861,7 @@ class CommandExecutor(Service):
                     instance_index=record.instance_index,
                     error_type=record.error_type,
                 )
-                await self.hassette.send_event(Topic.HASSETTE_EVENT_EXECUTION_COMPLETED, exec_event)
+                await self.hassette.send_event(exec_event)
         except Exception:
             self.logger.debug("Failed to emit completion events — ignoring", exc_info=True)
 

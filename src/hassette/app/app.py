@@ -132,9 +132,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Return the current date and time."""
         return date_utils.now()
 
-    async def send_event(self, event_name: str, event: Event[Any]) -> None:
+    async def send_event(self, event: Event[Any]) -> None:
         """Send an event to the event bus."""
-        await self.hassette.send_event(event_name, event)
+        await self.hassette.send_event(event)
 
     @final
     async def cleanup(self, timeout: int | None = None) -> None:
@@ -151,9 +151,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 class AppSync(App[AppConfigT]):
     """Synchronous adapter for App."""
 
-    def send_event_sync(self, event_name: str, event: Event[Any]) -> None:
+    def send_event_sync(self, event: Event[Any]) -> None:
         """Synchronous version of send_event."""
-        self.task_bucket.run_sync(self.send_event(event_name, event))
+        self.task_bucket.run_sync(self.send_event(event))
 
     @final
     async def before_shutdown(self) -> None:

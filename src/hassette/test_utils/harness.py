@@ -411,9 +411,9 @@ class HassetteHarness:
             raise RuntimeError("StateManager is not available — harness has not been started")
         return s
 
-    async def send_event(self, topic: str, event: "Event[Any]") -> None:
+    async def send_event(self, event: "Event[Any]") -> None:
         """Delegate send_event to the underlying Hassette instance."""
-        await self.hassette.send_event(topic, event)
+        await self.hassette.send_event(event)
 
     async def reset(self) -> None:
         """Reset all active components to a clean state for the next test.

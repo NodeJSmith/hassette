@@ -1,6 +1,7 @@
 """Tests for send_event guard when event streams are closed."""
 
 from contextlib import suppress
+from types import SimpleNamespace
 
 from hassette.core.core import Hassette
 
@@ -27,7 +28,7 @@ class TestSendEventAfterStreamsClosed:
             await h._event_stream_service.close_streams()
             assert h.event_streams_closed is True
 
-            await h.send_event("test.topic", object())  # pyright: ignore[reportArgumentType]
+            await h.send_event(SimpleNamespace(topic="test.guard"))  # pyright: ignore[reportArgumentType]
         finally:
             with suppress(Exception):
                 await cleanup_hassette(h)
@@ -39,6 +40,6 @@ class TestSendEventAfterStreamsClosed:
         h.wire_services()
         try:
             assert h.event_streams_closed is False
-            await h.send_event("test.topic", object())  # pyright: ignore[reportArgumentType]
+            await h.send_event(SimpleNamespace(topic="test.guard"))  # pyright: ignore[reportArgumentType]
         finally:
             await cleanup_hassette(h)

@@ -614,7 +614,7 @@ class WebsocketService(Service):
     async def _dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
         event = create_event_from_hass(data)
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     async def _send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus.
@@ -628,9 +628,9 @@ class WebsocketService(Service):
             return
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         with suppress(Exception):
-            await self.hassette.send_event(event.topic, event)
+            await self.hassette.send_event(event)
 
     async def _send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)

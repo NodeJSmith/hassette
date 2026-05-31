@@ -86,7 +86,7 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
             # Fire a FAILED event — ServiceWatcher will restart once (budget_intensity=1),
             # then exhaust the budget and call hassette.shutdown() (which is now the stub)
             failed_event = make_service_failed_event(failing_service)
-            await hassette.send_event(failed_event.topic, failed_event)
+            await hassette.send_event(failed_event)
 
             await wait_for(
                 shutdown_event.is_set,

@@ -381,13 +381,13 @@ class {class_name}Config(AppConfig):
 
 async def emit_service_event(hassette: "Hassette", event: "HassetteServiceEvent") -> None:
     """Inject a HassetteServiceEvent into the bus."""
-    await hassette.send_event(event.topic, event)
+    await hassette.send_event(event)
 
 
 async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path]) -> None:
     """Emit a synthetic file-watcher event for the given paths."""
     event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
-    await hassette.send_event(event.topic, event)
+    await hassette.send_event(event)
 
 
 def make_service_failed_event(

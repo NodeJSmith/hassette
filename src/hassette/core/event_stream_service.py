@@ -23,13 +23,13 @@ class EventStreamService(Resource):
     at construction time and tears them down on shutdown.
     """
 
-    _send_stream: "MemoryObjectSendStream[tuple[str, Event[Any]]]"
-    _receive_stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"
+    _send_stream: "MemoryObjectSendStream[Event[Any]]"
+    _receive_stream: "MemoryObjectReceiveStream[Event[Any]]"
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         buffer_size = hassette.config.hassette_event_buffer_size
-        self._send_stream, self._receive_stream = create_memory_object_stream[tuple[str, "Event[Any]"]](buffer_size)
+        self._send_stream, self._receive_stream = create_memory_object_stream["Event[Any]"](buffer_size)
 
     async def on_initialize(self) -> None:
         """Signal readiness — streams are created synchronously in __init__."""
@@ -40,13 +40,13 @@ class EventStreamService(Resource):
         return self.hassette.config.logging.bus_service
 
     @property
-    def receive_stream(self) -> "MemoryObjectReceiveStream[tuple[str, Event[Any]]]":
+    def receive_stream(self) -> "MemoryObjectReceiveStream[Event[Any]]":
         """The receive end of the event stream, for BusService to clone."""
         return self._receive_stream
 
-    async def send_event(self, event_name: str, event: "Event[Any]") -> None:
+    async def send_event(self, event: "Event[Any]") -> None:
         """Send an event to the bus via the memory channel."""
-        await self._send_stream.send((event_name, event))
+        await self._send_stream.send(event)
 
     @property
     def event_streams_closed(self) -> bool:

@@ -396,14 +396,14 @@ class Hassette(Resource):
 
         return context.get_hassette()
 
-    async def send_event(self, event_name: str, event: "Event[Any]") -> None:
+    async def send_event(self, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
         if self._event_stream_service is None:
             raise RuntimeError("wire_services() has not been called")
         if self.event_streams_closed:
-            self.logger.debug("send_event dropped: streams closed (topic=%s)", event_name)
+            self.logger.debug("send_event dropped: streams closed (topic=%s)", event.topic)
             return
-        await self._event_stream_service.send_event(event_name, event)
+        await self._event_stream_service.send_event(event)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
