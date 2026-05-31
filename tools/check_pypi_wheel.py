@@ -6,7 +6,6 @@ same assets as check_wheel_spa.py. Intended for post-publish verification.
 
 Usage:
     python tools/check_pypi_wheel.py --version 0.38.0
-    python tools/check_pypi_wheel.py --version 0.38.0 --timeout 120 --poll-interval 30
 """
 
 import argparse
