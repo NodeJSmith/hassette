@@ -3,6 +3,12 @@ name: Release Please
 on:
     push:
         branches: [main]
+    workflow_dispatch:
+        inputs:
+            tag_name:
+                description: "Release tag to publish (e.g. v0.38.0). Skips release-please and publishes directly."
+                required: true
+                type: string
 
 permissions:
     contents: write
@@ -14,6 +20,7 @@ concurrency:
 
 jobs:
     release-please:
+        if: github.event_name == 'push'
         runs-on: ubuntu-latest
         timeout-minutes: 15
         outputs:
@@ -34,6 +41,7 @@ jobs:
                   config-file: release-please-config.json
                   manifest-file: .release-please-manifest.json
 
+    # Runs only on push when release-please opens/updates a PR (not on release or workflow_dispatch)
     sync-lockfile:
         needs: release-please
         if: needs.release-please.outputs.pr && needs.release-please.outputs.release_created != 'true'
@@ -50,6 +58,7 @@ jobs:
               with:
                   ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
                   token: ${{ steps.app-token.outputs.token }}
+                  persist-credentials: false
 
             - name: Install uv
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
@@ -57,6 +66,8 @@ jobs:
                   enable-cache: true
 
             - name: Sync uv.lock
+              env:
+                  APP_TOKEN: ${{ steps.app-token.outputs.token }}
               run: |
                   set -euo pipefail
                   uv lock
@@ -65,6 +76,7 @@ jobs:
                   else
                       git config user.name "github-actions[bot]"
                       git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                      git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
                       git add uv.lock
                       git commit -m "chore: sync uv.lock with version bump"
                       git push origin HEAD
@@ -72,7 +84,12 @@ jobs:
 
     build-pypi:
         needs: release-please
-        if: needs.release-please.outputs.release_created == 'true'
+        if: >-
+            always()
+            && (
+              (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+              || github.event_name == 'workflow_dispatch'
+            )
         runs-on: ubuntu-latest
         timeout-minutes: 10
         permissions:
@@ -80,7 +97,7 @@ jobs:
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
-                  ref: ${{ needs.release-please.outputs.tag_name }}
+                  ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
                   persist-credentials: false
 
             - name: Install uv
@@ -89,21 +106,34 @@ jobs:
                   activate-environment: true
                   enable-cache: true
 
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              with:
+                  node-version: "22"
+                  cache: "npm"
+                  cache-dependency-path: frontend/package-lock.json
+
             - name: Set up Python
               run: uv python install
 
-            - name: Install python packages
+            - name: Install Python packages
               run: uv sync
+
+            - name: Build frontend SPA
+              run: uv run nox -s frontend
 
             - name: Verify tag matches project version
               env:
-                  TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
                   PROJECT_VERSION=$(uv version --short)
                   uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
             - name: Build a binary wheel and a source tarball
               run: uv build
+
+            - name: Verify SPA assets in wheel
+              run: uv run ./tools/check_wheel_spa.py
 
             - name: Publish build artifacts
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -113,9 +143,11 @@ jobs:
 
     publish-pypi:
         needs: [release-please, build-pypi]
-        if: needs.release-please.outputs.release_created == 'true'
+        if: >-
+            always()
+            && needs.build-pypi.result == 'success'
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 10
         environment:
             name: release
             url: https://pypi.org/p/hassette
@@ -128,17 +160,45 @@ jobs:
                   name: pypi-dists
                   path: "./dist"
 
-            - name: Publish distribution to PyPI
+            - name: Publish to PyPI (attempt 1)
+              id: attempt1
+              continue-on-error: true
+              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+              with:
+                  skip-existing: true
+
+            - name: Wait 30s before retry
+              if: steps.attempt1.outcome == 'failure'
+              run: echo "::warning::Publish attempt 1 failed (likely transient Sigstore/network error), retrying..." && sleep 30
+
+            - name: Publish to PyPI (attempt 2)
+              id: attempt2
+              if: steps.attempt1.outcome == 'failure'
+              continue-on-error: true
+              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+              with:
+                  skip-existing: true
+
+            - name: Wait 60s before retry
+              if: steps.attempt2.outcome == 'failure'
+              run: echo "::warning::Publish attempt 2 failed, final retry..." && sleep 60
+
+            # No continue-on-error: job fails hard if all three attempts fail
+            - name: Publish to PyPI (attempt 3)
+              id: attempt3
+              if: steps.attempt2.outcome == 'failure'
               uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
               with:
                   skip-existing: true
 
     publish-docker:
-        needs: release-please
-        if: needs.release-please.outputs.release_created == 'true'
+        needs: [release-please, build-pypi]
+        if: >-
+            always()
+            && needs.build-pypi.result == 'success'
         uses: ./.github/workflows/build_and_publish_image.yml
         with:
-            tag_name: ${{ needs.release-please.outputs.tag_name }}
+            tag_name: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
         permissions:
             contents: read
             packages: write
@@ -146,15 +206,16 @@ jobs:
 
     release-verify:
         needs: [release-please, build-pypi, publish-pypi, publish-docker]
-        if: always() && needs.release-please.outputs.release_created == 'true'
+        if: always() && needs.build-pypi.result != 'skipped'
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         steps:
             - name: Check publish results
               env:
                   BUILD_RESULT: ${{ needs.build-pypi.result }}
                   PYPI_RESULT: ${{ needs.publish-pypi.result }}
                   DOCKER_RESULT: ${{ needs.publish-docker.result }}
-                  TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
                   # Detect unexpected state where release was created but both publish jobs were skipped
                   if [ "$PYPI_RESULT" = "skipped" ] && [ "$DOCKER_RESULT" = "skipped" ]; then
@@ -178,3 +239,17 @@ jobs:
                       exit 1
                   fi
                   echo "All publish jobs succeeded for $TAG_NAME"
+
+            - name: Verify package on PyPI
+              if: needs.publish-pypi.result == 'success'
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+                  sparse-checkout: tools/check_pypi_wheel.py
+                  persist-credentials: false
+
+            - name: Run PyPI smoke test
+              if: needs.publish-pypi.result == 'success'
+              env:
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+              run: python3 ./tools/check_pypi_wheel.py --version "${TAG_NAME#v}"
