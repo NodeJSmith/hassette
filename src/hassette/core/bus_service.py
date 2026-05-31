@@ -47,7 +47,7 @@ class BusService(Service):
         budget_period_seconds=30,
     )
 
-    stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"
+    stream: "MemoryObjectReceiveStream[Event[Any]]"
     """Stream to receive events from."""
 
     router: "Router"
@@ -57,7 +57,7 @@ class BusService(Service):
         self,
         hassette: "Hassette",
         *,
-        stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]",
+        stream: "MemoryObjectReceiveStream[Event[Any]]",
         executor: "CommandExecutor",
         parent: "Resource | None" = None,
     ) -> None:
@@ -399,7 +399,7 @@ class BusService(Service):
 
         async with self.stream:
             self.mark_ready(reason="Stream opened")
-            async for event_name, event_data in self.stream:
+            async for event in self.stream:
                 if self.shutdown_event.is_set():
                     active_timers = self._duration_hold.duration_timers_active
                     if active_timers > 0:
@@ -411,6 +411,6 @@ class BusService(Service):
                     self.mark_not_ready(reason="Hassette is shutting down")
                     break
                 try:
-                    await self.dispatch(event_name, event_data)
+                    await self.dispatch(str(event.topic), event)
                 except Exception as e:
                     self.logger.exception("Error processing event: %s", e)

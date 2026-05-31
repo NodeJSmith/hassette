@@ -112,7 +112,7 @@ class SimulationMixin:
             old_attrs=old_attrs,
             new_attrs=new_attrs,
         )
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_attribute_change(
@@ -195,7 +195,7 @@ class SimulationMixin:
         harness = self.require_harness()
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_component_loaded(
@@ -216,7 +216,7 @@ class SimulationMixin:
         harness = self.require_harness()
 
         event = create_component_loaded_event(component)
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_service_registered(
@@ -239,7 +239,7 @@ class SimulationMixin:
         harness = self.require_harness()
 
         event = create_service_registered_event(domain, service)
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_hassette_service_status(
@@ -286,7 +286,7 @@ class SimulationMixin:
             ready=ready,
             ready_phase=ready_phase,
         )
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_hassette_service_ready(
@@ -380,7 +380,7 @@ class SimulationMixin:
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_websocket_disconnected(
@@ -404,7 +404,7 @@ class SimulationMixin:
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_app_state_changed(
@@ -447,7 +447,7 @@ class SimulationMixin:
             previous_status=previous_status,
             exception=exception,
         )
-        await harness.hassette.send_event(event.topic, event)
+        await harness.hassette.send_event(event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def simulate_app_running(

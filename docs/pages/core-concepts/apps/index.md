@@ -132,7 +132,7 @@ If more than one class in your project is decorated with `@only_app`, Hassette r
 
 ## Sending Internal Events Between Apps
 
-`self.send_event(event_name, event)` fires a Hassette-internal event onto the framework's event bus, allowing one app to signal others without going through Home Assistant's event system. Any app that has subscribed to `event_name` via `self.bus` will receive it.
+`self.send_event(event)` fires a Hassette-internal event onto the framework's event bus, allowing one app to signal others without going through Home Assistant's event system. Any app that has subscribed to the event's `topic` via `self.bus` will receive it.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:send_event"

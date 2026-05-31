@@ -64,8 +64,8 @@ class TestStartApp:
         not_started_calls = [
             call
             for call in calls
-            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][1].payload.data.status == ResourceStatus.NOT_STARTED
+            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][0].payload.data.status == ResourceStatus.NOT_STARTED
         ]
         assert len(not_started_calls) == 1
 

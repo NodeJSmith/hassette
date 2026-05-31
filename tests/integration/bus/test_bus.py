@@ -24,7 +24,6 @@ from hassette.event_handling.predicates import (
 )
 from hassette.events.base import Event
 from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
-from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
@@ -215,12 +214,12 @@ async def test_once_listener_removed(hassette_with_bus: "HassetteHarness") -> No
 
     await hassette.bus.on(topic="custom.once", handler=handler, once=True, name="custom_once")
 
-    await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=1)))
+    await hassette.send_event(Event(topic="custom.once", payload=SimpleNamespace(value=1)))
 
     await asyncio.wait_for(first_invocation.wait(), timeout=1)
     await wait_for(lambda: len(received_payloads) == 1, desc="once handler fired")
 
-    await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=2)))
+    await hassette.send_event(Event(topic="custom.once", payload=SimpleNamespace(value=2)))
 
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
@@ -248,8 +247,8 @@ async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_wi
     # Send two events back-to-back — both enter dispatch before removal task executes
     ev1 = Event(topic="custom.rapid", payload=SimpleNamespace(value=1))
     ev2 = Event(topic="custom.rapid", payload=SimpleNamespace(value=2))
-    await hassette.send_event("custom.rapid", ev1)
-    await hassette.send_event("custom.rapid", ev2)
+    await hassette.send_event(ev1)
+    await hassette.send_event(ev2)
 
     # Wait for at least one handler invocation, then let tasks drain
     await wait_for(lambda: call_count >= 1, desc="once handler fired at least once")
@@ -269,7 +268,7 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus: "HassetteHarness"
 
     await hassette.bus.on(topic="custom.cleanup", handler=handler, once=True, name="custom_cleanup")
 
-    await hassette.send_event("custom.cleanup", Event(topic="custom.cleanup", payload=SimpleNamespace(value=9)))
+    await hassette.send_event(Event(topic="custom.cleanup", payload=SimpleNamespace(value=9)))
 
     await asyncio.wait_for(event_received.wait(), timeout=1)
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
@@ -290,7 +289,7 @@ async def test_bus_uses_kwargs(hassette_with_bus: "HassetteHarness") -> None:
 
     await hassette.bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"}, name="custom_args")
 
-    await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
+    await hassette.send_event(Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
 
     await asyncio.wait_for(event_processed.wait(), timeout=1)
 
@@ -339,7 +338,6 @@ async def assert_glob_matching(
     for eid in GLOB_ENTITIES:
         attrs = {"friendly_name": f"{eid} Name"} if use_attribute else {}
         await harness.send_event(
-            Topic.HASS_EVENT_STATE_CHANGED,
             create_state_change_event(entity_id=eid, old_value="off", new_value="on", new_attrs=attrs),
         )
 
@@ -400,18 +398,9 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
 
     await hassette.bus.on_state_change(entity_id="*", handler=handler, name="all_state_changes")
 
-    await hassette.send_event(
-        Topic.HASS_EVENT_STATE_CHANGED,
-        create_state_change_event(entity_id="sensor.kitchen", old_value="off", new_value="on"),
-    )
-    await hassette.send_event(
-        Topic.HASS_EVENT_STATE_CHANGED,
-        create_state_change_event(entity_id="light.living_room", old_value="off", new_value="on"),
-    )
-    await hassette.send_event(
-        Topic.HASS_EVENT_STATE_CHANGED,
-        create_state_change_event(entity_id="switch.garage", old_value="off", new_value="on"),
-    )
+    await hassette.send_event(create_state_change_event(entity_id="sensor.kitchen", old_value="off", new_value="on"))
+    await hassette.send_event(create_state_change_event(entity_id="light.living_room", old_value="off", new_value="on"))
+    await hassette.send_event(create_state_change_event(entity_id="switch.garage", old_value="off", new_value="on"))
 
     with contextlib.suppress(asyncio.TimeoutError):
         await asyncio.wait_for(events_processed.wait(), timeout=0.2)
@@ -442,7 +431,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.exec_test", payload="test-payload")
-    await hassette.send_event("custom.exec_test", payload_event)
+    await hassette.send_event(payload_event)
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
 
@@ -471,7 +460,7 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.internal_test", payload="test-payload")
-    await hassette.send_event("custom.internal_test", payload_event)
+    await hassette.send_event(payload_event)
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
 
@@ -500,7 +489,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.error_test", payload="test-payload")
-    await hassette.send_event("custom.error_test", payload_event)
+    await hassette.send_event(payload_event)
 
     await asyncio.wait_for(error_raised.wait(), timeout=1.0)
     await wait_for(lambda: executor.execute.called, desc="executor called")
@@ -530,7 +519,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     # Send 3 rapid events — debounce should coalesce into 1 executor call
     for i in range(3):
-        await hassette.send_event("custom.debounce_test", Event(topic="custom.debounce_test", payload=f"event-{i}"))
+        await hassette.send_event(Event(topic="custom.debounce_test", payload=f"event-{i}"))
 
     # Wait for debounce to fire
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
@@ -564,7 +553,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 
     # Send 3 rapid events — throttle should allow only the first
     for i in range(3):
-        await hassette.send_event("custom.throttle_test", Event(topic="custom.throttle_test", payload=f"event-{i}"))
+        await hassette.send_event(Event(topic="custom.throttle_test", payload=f"event-{i}"))
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
@@ -602,9 +591,7 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
 
     # Send 3 rapid events — debounce should coalesce into 1 handler call
     for i in range(3):
-        await hassette.send_event(
-            "custom.internal_debounce", Event(topic="custom.internal_debounce", payload=f"event-{i}")
-        )
+        await hassette.send_event(Event(topic="custom.internal_debounce", payload=f"event-{i}"))
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
@@ -637,9 +624,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
 
     # Send 3 rapid events — throttle should allow only the first
     for i in range(3):
-        await hassette.send_event(
-            "custom.internal_throttle", Event(topic="custom.internal_throttle", payload=f"event-{i}")
-        )
+        await hassette.send_event(Event(topic="custom.internal_throttle", payload=f"event-{i}"))
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
@@ -673,7 +658,6 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
     executor.execute.reset_mock()
 
     await hassette.send_event(
-        "custom.internal_debounce_error",
         Event(topic="custom.internal_debounce_error", payload="test"),
     )
 
@@ -711,7 +695,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     assert isinstance(rate_limiter, RateLimiter)
 
     # Send an event to start the debounce timer
-    await hassette.send_event("custom.cancel_debounce", Event(topic="custom.cancel_debounce", payload="test"))
+    await hassette.send_event(Event(topic="custom.cancel_debounce", payload="test"))
     # Wait until the debounce task is actually sleeping
     await wait_for(lambda: rate_limiter._debounce_task is not None, desc="debounce task spawned")
 

@@ -250,7 +250,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
     await websocket_service._dispatch(data)
 
     mock_create.assert_called_once_with(data)
-    send_event_mock.assert_awaited_once_with(dummy_event.topic, dummy_event)
+    send_event_mock.assert_awaited_once_with(dummy_event)
 
 
 async def test_dispatch_routes_result_messages(
@@ -341,7 +341,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     ):
         await websocket_service.serve()
 
-    topics_sent = [call.args[0] for call in send_event_mock.await_args_list]
+    topics_sent = [call.args[0].topic for call in send_event_mock.await_args_list]
     assert Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED in topics_sent
 
 
@@ -572,7 +572,9 @@ async def test_early_drop_retries_and_succeeds(
 
     # DISCONNECTED should have been sent 2 times (once per early drop)
     disconnected_count = sum(
-        1 for call in send_event_mock.await_args_list if call.args[0] == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
+        1
+        for call in send_event_mock.await_args_list
+        if call.args[0].topic == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
     )
     assert disconnected_count == 2, f"Expected 2 DISCONNECTED events, got {disconnected_count}"
 
@@ -756,7 +758,9 @@ async def test_send_connection_lost_event_idempotent(websocket_service: Websocke
     await websocket_service._send_connection_lost_event()
 
     disconnected_count = sum(
-        1 for call in send_event_mock.await_args_list if call.args[0] == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
+        1
+        for call in send_event_mock.await_args_list
+        if call.args[0].topic == Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED
     )
     assert disconnected_count == 0, "Expected no DISCONNECTED events when already not-ready"
 

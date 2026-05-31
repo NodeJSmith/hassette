@@ -1,11 +1,12 @@
 """Integration tests for bus error handler precedence and routing via HassetteHarness."""
 
 import asyncio
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
-from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
+from hassette.test_utils import create_call_service_event, wait_for
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -29,8 +30,8 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
     bus.on_error(on_error)
     await bus.on(topic="test.app_level", handler=bad_handler, name="app_level_bad_handler")
 
-    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.app_level", event)
+    event = Event(topic="test.app_level", payload=SimpleNamespace())
+    await hassette.send_event(event)
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
 
@@ -64,8 +65,8 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
         topic="test.per_listener", handler=bad_handler, on_error=per_listener_handler, name="per_listener_bad_handler"
     )
 
-    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.per_listener", event)
+    event = Event(topic="test.per_listener", payload=SimpleNamespace())
+    await hassette.send_event(event)
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
 
@@ -90,8 +91,8 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
 
     await bus.on(topic="test.no_handler", handler=bad_handler, name="no_handler_bad_handler")
 
-    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.no_handler", event)
+    event = Event(topic="test.no_handler", payload=SimpleNamespace())
+    await hassette.send_event(event)
 
     # Handler ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(completed.wait(), timeout=2.0)
@@ -132,9 +133,8 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     await bus.on(topic="test.multi_a", handler=fail_a, on_error=handler_a, name="multi_fail_a")
     await bus.on(topic="test.multi_b", handler=fail_b, on_error=handler_b, name="multi_fail_b")
 
-    ev = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.multi_a", ev)
-    await hassette.send_event("test.multi_b", ev)
+    await hassette.send_event(Event(topic="test.multi_a", payload=SimpleNamespace()))
+    await hassette.send_event(Event(topic="test.multi_b", payload=SimpleNamespace()))
 
     await asyncio.wait_for(both_ran.wait(), timeout=2.0)
 
@@ -165,8 +165,8 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
 
     bus.on_error(on_error)
 
-    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.late_registration", event)
+    event = Event(topic="test.late_registration", payload=SimpleNamespace())
+    await hassette.send_event(event)
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
 
@@ -199,9 +199,8 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
 
     bus.on_error(on_error)
 
-    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
-    await hassette.send_event("test.multi_late.a", event)
-    await hassette.send_event("test.multi_late.b", event)
+    await hassette.send_event(Event(topic="test.multi_late.a", payload=SimpleNamespace()))
+    await hassette.send_event(Event(topic="test.multi_late.b", payload=SimpleNamespace()))
 
     await asyncio.wait_for(both_ran.wait(), timeout=2.0)
 
@@ -230,7 +229,7 @@ async def test_on_call_service_error_handler(hassette_with_bus: "HassetteHarness
     )
 
     event = create_call_service_event(domain="light", service="turn_on")
-    await hassette.send_event(event.topic, event)
+    await hassette.send_event(event)
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
 

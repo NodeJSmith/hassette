@@ -154,7 +154,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
 
     # Send a live state change event for the same entity
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
-    await hassette.send_event(live_event.topic, live_event)
+    await hassette.send_event(live_event)
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
@@ -463,7 +463,7 @@ async def test_immediate_duration_once_fires_exactly_once(
 
     # Send a live state change — listener should be consumed (once=True)
     live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
-    await hassette.send_event(live_event.topic, live_event)
+    await hassette.send_event(live_event)
 
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 

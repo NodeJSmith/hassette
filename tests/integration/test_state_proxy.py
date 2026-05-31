@@ -54,7 +54,7 @@ class TestStateProxyInit:
             new_state_dict: New state dictionary (or None)
         """
         event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)
-        await self.hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await self.hassette.send_event(event)
         await wait_for(
             lambda: self.hassette.state_proxy.get_state(entity_id) is not None,
             desc=f"{entity_id} state arrived",
@@ -189,7 +189,7 @@ class TestStateProxyStateChanged:
         light_dict = make_light_state_dict("light.new_light", "on", brightness=100)
         event = make_full_state_change_event("light.new_light", None, light_dict)
 
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(event)
         await wait_for(
             lambda: "light.new_light" in proxy.states,
             desc="light.new_light state arrived",
@@ -222,7 +222,7 @@ class TestStateProxyStateChanged:
             make_light_state_dict("light.test", "on", brightness=200),
         )
 
-        await hassette_with_state_proxy.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await hassette_with_state_proxy.send_event(event)
         await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Verify entity was updated
@@ -248,7 +248,7 @@ class TestStateProxyStateChanged:
         # Send removal event (new_state=None)
         event = make_full_state_change_event("light.test", old_dict, None)
 
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(event)
         await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Verify entity was removed
@@ -276,7 +276,7 @@ class TestStateProxyStateChanged:
             ("switch.test", switch_dict),
         ]:
             event = make_full_state_change_event(entity_id, None, state_dict)
-            await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+            await hassette.send_event(event)
 
         await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
@@ -306,10 +306,10 @@ class TestStateProxyStateChanged:
         for i in range(10):
             light_dict = make_light_state_dict(f"light.test_{i}", "on", brightness=i * 10)
             event = make_full_state_change_event(f"light.test_{i}", None, light_dict)
-            events.append((Topic.HASS_EVENT_STATE_CHANGED, event))
+            events.append(event)
 
         # Send all events
-        await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
+        await asyncio.gather(*[hassette.send_event(event) for event in events])
         await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # All should be processed correctly
@@ -608,7 +608,7 @@ class TestStateProxyRestartRoundTrip:
         light_dict = make_light_state_dict("light.restart_test", "on", brightness=150)
         event = make_full_state_change_event("light.restart_test", None, light_dict)
 
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(event)
         await wait_for(
             lambda: "light.restart_test" in proxy.states,
             desc="light.restart_test state arrived after restart",
@@ -661,9 +661,9 @@ class TestStateProxyConcurrency:
                 max_brightness = i
             light_dict = make_light_state_dict("light.test", "on", brightness=i)
             event = make_full_state_change_event("light.test", light_dict, light_dict)
-            events.append((Topic.HASS_EVENT_STATE_CHANGED, event))
+            events.append(event)
 
-        await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
+        await asyncio.gather(*[hassette.send_event(event) for event in events])
         await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Final state should be consistent (last update wins)
@@ -695,7 +695,7 @@ class TestStateProxyConcurrency:
             for i in range(10):
                 light_dict = make_light_state_dict("light.test", "on", brightness=100 + i * 10)
                 event = make_full_state_change_event("light.test", None, light_dict)
-                await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+                await hassette.send_event(event)
                 await asyncio.sleep(0.01)
 
         # Run reads and writes concurrently

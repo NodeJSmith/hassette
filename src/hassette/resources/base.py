@@ -567,7 +567,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             event = self._create_service_status_event(
                 self._status, ready=self.is_ready(), ready_phase=self._ready_reason
             )
-            await self.hassette.send_event(event.topic, event)
+            await self.hassette.send_event(event)
         except Exception:
             self.logger.warning(
                 "%s failed to emit readiness event (ready=%s, phase=%s)",

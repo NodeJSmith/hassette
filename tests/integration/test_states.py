@@ -19,7 +19,6 @@ from hassette.test_utils import (
     make_switch_state_dict,
     wait_for,
 )
-from hassette.types import Topic
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -30,7 +29,7 @@ async def send_and_wait(
 ) -> None:
     """Send a state change event and wait for the proxy to process it."""
     event = make_full_state_change_event(entity_id, old_state, new_state)
-    await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+    await hassette.send_event(event)
     await wait_for(
         lambda: hassette.state_proxy.get_state(entity_id) is not None,
         desc=f"{entity_id} state arrived",
@@ -200,7 +199,7 @@ class TestDomainStates:
         old_state_dict = deepcopy(new_state_dict)
         new_state_dict = make_state_dict("input_number.test_value", "23.0")
         event = make_full_state_change_event("input_number.test_value", old_state_dict, new_state_dict)
-        await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
+        await hassette.send_event(event)
         await wait_for(
             lambda: input_number_manager.get("input_number.test_value") is not orig_obj,
             desc="updated state arrived",

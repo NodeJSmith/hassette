@@ -123,13 +123,13 @@ def test_get_app_forwards_to_handler(hassette_instance: Hassette) -> None:
 
 
 async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
-    """send_event pushes topic and payload onto the internal stream."""
-    payload = SimpleNamespace(value=123)
-    await hassette_instance.send_event("topic.demo", cast("Event", payload))
+    """send_event pushes the event onto the internal stream."""
+    payload = SimpleNamespace(topic="topic.demo", value=123)
+    await hassette_instance.send_event(cast("Event", payload))
 
-    received_topic, received_event = await hassette_instance._event_stream_service.receive_stream.receive()
-    assert received_topic == "topic.demo", "send_event should push correct topic"
-    assert received_event is payload, "send_event should push correct payload"
+    received_event = await hassette_instance._event_stream_service.receive_stream.receive()
+    assert received_event is payload, "send_event should push the event object"
+    assert received_event.topic == "topic.demo", "event should carry its topic"
 
 
 async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatch, hassette_instance: Hassette) -> None:

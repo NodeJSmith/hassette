@@ -59,7 +59,7 @@ class FileWatcherService(Service):
             if all_changed_paths:
                 self.logger.debug("Detected changes in %s", all_changed_paths)
                 event = HassetteFileWatcherEvent.create_event(changed_file_paths=all_changed_paths)
-                await self.hassette.send_event(event.topic, event)
+                await self.hassette.send_event(event)
 
             # update paths in case new apps were added
             paths = self.hassette.config.get_watchable_files()

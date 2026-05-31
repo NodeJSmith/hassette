@@ -87,7 +87,7 @@ class _HassetteConfigP(Protocol):
 class _HassetteP(Protocol):
     config: _HassetteConfigP
 
-    async def send_event(self, topic: str, payload: Any) -> None: ...
+    async def send_event(self, event: Any) -> None: ...
 
 
 # shim for typing only - LifecycleMixin needs these attributes to be present
@@ -273,7 +273,7 @@ class LifecycleMixin(_LifecycleHostP):
         event = self._create_service_status_event(
             ResourceStatus.STOPPED, ready=self.is_ready(), ready_phase=self._ready_reason
         )
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     async def handle_failed(self, exception: Exception | BaseException) -> None:
         if self.status == ResourceStatus.FAILED:
@@ -286,7 +286,7 @@ class LifecycleMixin(_LifecycleHostP):
         event = self._create_service_status_event(
             ResourceStatus.FAILED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
         )
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     async def handle_running(self) -> None:
         if self.status == ResourceStatus.RUNNING:
@@ -298,7 +298,7 @@ class LifecycleMixin(_LifecycleHostP):
         event = self._create_service_status_event(
             ResourceStatus.RUNNING, ready=self.is_ready(), ready_phase=self._ready_reason
         )
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     async def handle_starting(self) -> None:
         if self.status == ResourceStatus.STARTING:
@@ -309,7 +309,7 @@ class LifecycleMixin(_LifecycleHostP):
         event = self._create_service_status_event(
             ResourceStatus.STARTING, ready=self.is_ready(), ready_phase=self._ready_reason
         )
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     async def handle_crash(self, exception: Exception) -> None:
         if self.status == ResourceStatus.CRASHED:
@@ -322,7 +322,7 @@ class LifecycleMixin(_LifecycleHostP):
         event = self._create_service_status_event(
             ResourceStatus.CRASHED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
         )
-        await self.hassette.send_event(event.topic, event)
+        await self.hassette.send_event(event)
 
     def _create_service_status_event(
         self,

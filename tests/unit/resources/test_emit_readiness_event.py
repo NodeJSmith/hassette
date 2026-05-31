@@ -37,7 +37,7 @@ class TestEmitReadinessEvent:
 
         # Extract the event payload from the call
         call_args = hassette.send_event.call_args
-        event = call_args[0][1]
+        event = call_args[0][0]
         payload: ServiceStatusPayload = event.payload.data
 
         assert payload.ready is True
@@ -59,7 +59,7 @@ class TestEmitReadinessEvent:
         # Event should have been sent
         assert hassette.send_event.called
         call_args = hassette.send_event.call_args
-        event = call_args[0][1]
+        event = call_args[0][0]
         payload: ServiceStatusPayload = event.payload.data
 
         assert payload.ready is False

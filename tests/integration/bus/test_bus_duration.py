@@ -281,7 +281,7 @@ async def test_duration_not_cancelled_by_attribute_refresh(
         new_value="on",
         new_attrs={"brightness": 200},
     )
-    await hassette.send_event(event.topic, event)
+    await hassette.send_event(event)
     await harness.bus_service.await_dispatch_idle()
 
     # Timer should NOT have been cancelled — handler fires after full duration
@@ -423,7 +423,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
         old_attrs={"brightness": 100},
         new_attrs={"brightness": 200},
     )
-    await hassette.send_event(event.topic, event)
+    await hassette.send_event(event)
     await harness.bus_service.await_dispatch_idle()
     await seed(harness, "light.kitchen", "on")
 
@@ -436,7 +436,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
         old_attrs={"brightness": 200, "color_temp": 300},
         new_attrs={"brightness": 200, "color_temp": 400},
     )
-    await hassette.send_event(unrelated.topic, unrelated)
+    await hassette.send_event(unrelated)
     await harness.bus_service.await_dispatch_idle()
 
     # Timer should still fire

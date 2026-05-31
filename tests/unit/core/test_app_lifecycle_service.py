@@ -199,8 +199,8 @@ class TestInitializeInstances:
         running_calls = [
             call
             for call in calls
-            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][1].payload.data.status == ResourceStatus.RUNNING
+            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][0].payload.data.status == ResourceStatus.RUNNING
         ]
         assert len(running_calls) == 1
 
@@ -221,8 +221,8 @@ class TestInitializeInstances:
         failed_calls = [
             call
             for call in calls
-            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][1].payload.data.status == ResourceStatus.FAILED
+            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][0].payload.data.status == ResourceStatus.FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -246,8 +246,8 @@ class TestShutdownInstance:
         failed_calls = [
             call
             for call in calls
-            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][1].payload.data.status == ResourceStatus.FAILED
+            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][0].payload.data.status == ResourceStatus.FAILED
         ]
         assert len(failed_calls) == 1
 
@@ -261,8 +261,8 @@ class TestShutdownInstance:
         stopped_calls = [
             call
             for call in calls
-            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-            and call[0][1].payload.data.status == ResourceStatus.STOPPED
+            if call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][0].payload.data.status == ResourceStatus.STOPPED
         ]
         assert len(stopped_calls) == 1
 
@@ -296,8 +296,8 @@ class TestShutdownInstances:
         await lifecycle_service.shutdown_instances(instances)
 
         first_call = mock_hassette.send_event.call_args_list[0]
-        assert first_call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
-        assert first_call[0][1].payload.data.status == ResourceStatus.STOPPING
+        assert first_call[0][0].topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+        assert first_call[0][0].payload.data.status == ResourceStatus.STOPPING
 
 
 class TestShutdownAll:
@@ -348,7 +348,7 @@ class TestBootstrapApps:
         await lifecycle_service.bootstrap_apps()
 
         calls = mock_hassette.send_event.call_args_list
-        completed_calls = [call for call in calls if call[0][0] == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED]
+        completed_calls = [call for call in calls if call[0][0].topic == Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED]
         assert len(completed_calls) == 1
 
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:

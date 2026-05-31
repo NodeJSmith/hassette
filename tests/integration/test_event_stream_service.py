@@ -29,12 +29,12 @@ async def event_stream_service(mock_hassette) -> AsyncIterator[EventStreamServic
 
 async def test_send_and_receive(event_stream_service: EventStreamService) -> None:
     """send_event pushes events that are receivable from receive_stream."""
-    payload = SimpleNamespace(value=42)
-    await event_stream_service.send_event("test.topic", payload)  # pyright: ignore[reportArgumentType]
+    payload = SimpleNamespace(topic="test.topic", value=42)
+    await event_stream_service.send_event(payload)  # pyright: ignore[reportArgumentType]
 
-    topic, event = await event_stream_service.receive_stream.receive()
-    assert topic == "test.topic"
+    event = await event_stream_service.receive_stream.receive()
     assert event is payload
+    assert event.topic == "test.topic"
 
 
 async def test_event_streams_closed_is_false_initially(event_stream_service: EventStreamService) -> None:
@@ -56,14 +56,14 @@ async def test_custom_buffer_size() -> None:
     try:
         # Fill the buffer (3 events)
         for i in range(3):
-            await service.send_event(f"topic.{i}", SimpleNamespace(n=i))  # pyright: ignore[reportArgumentType]
+            await service.send_event(SimpleNamespace(topic=f"topic.{i}", n=i))  # pyright: ignore[reportArgumentType]
 
         # The 4th send should block (buffer full) — verify by racing with a short timeout
         send_completed = False
 
         async def try_send() -> None:
             nonlocal send_completed
-            await service.send_event("topic.overflow", SimpleNamespace(n=3))  # pyright: ignore[reportArgumentType]
+            await service.send_event(SimpleNamespace(topic="topic.overflow", n=3))  # pyright: ignore[reportArgumentType]
             send_completed = True
 
         task = asyncio.create_task(try_send())
@@ -85,7 +85,7 @@ async def test_default_buffer_size() -> None:
     try:
         # Should be able to send 1000 events without blocking
         for i in range(1000):
-            await service.send_event(f"topic.{i}", SimpleNamespace(n=i))  # pyright: ignore[reportArgumentType]
+            await service.send_event(SimpleNamespace(topic=f"topic.{i}", n=i))  # pyright: ignore[reportArgumentType]
     finally:
         await service.close_streams()
 
@@ -94,6 +94,6 @@ async def test_receive_stream_returns_correct_end(event_stream_service: EventStr
     """receive_stream property returns the receive end of the channel."""
     stream = event_stream_service.receive_stream
     # Verify it's a receive stream by sending and then receiving
-    await event_stream_service.send_event("check", SimpleNamespace())  # pyright: ignore[reportArgumentType]
-    topic, _ = await stream.receive()
-    assert topic == "check"
+    await event_stream_service.send_event(SimpleNamespace(topic="check"))  # pyright: ignore[reportArgumentType]
+    event = await stream.receive()
+    assert event.topic == "check"

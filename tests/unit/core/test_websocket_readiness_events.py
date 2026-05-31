@@ -33,8 +33,8 @@ class TestWebsocketReadinessEvents:
         """Early-drop path emits a service_status event with ready=False after mark_not_ready()."""
         send_event_calls: list = []
 
-        async def capture_send_event(topic, event):
-            send_event_calls.append((topic, event))
+        async def capture_send_event(event):
+            send_event_calls.append(event)
 
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -72,14 +72,14 @@ class TestWebsocketReadinessEvents:
 
         # Assert: a service_status event with ready=False was emitted during the early-drop path
         service_status_calls = [
-            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
         ]
         assert len(service_status_calls) >= 1, (
-            f"Expected at least one service_status event, got: {[t for t, _ in send_event_calls]}"
+            f"Expected at least one service_status event, got: {[e.topic for e in send_event_calls]}"
         )
 
         # Find the not-ready emission (early-drop path)
-        not_ready_events = [event for _, event in service_status_calls if not event.payload.data.ready]
+        not_ready_events = [event for event in service_status_calls if not event.payload.data.ready]
         assert len(not_ready_events) >= 1, "Expected at least one service_status event with ready=False"
 
         first_not_ready = not_ready_events[0]
@@ -95,8 +95,8 @@ class TestWebsocketReadinessEvents:
         """Recv-loop-failure path emits a service_status event with ready=False."""
         send_event_calls: list = []
 
-        async def capture_send_event(topic, event):
-            send_event_calls.append((topic, event))
+        async def capture_send_event(event):
+            send_event_calls.append(event)
 
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -119,11 +119,11 @@ class TestWebsocketReadinessEvents:
             await websocket_service.serve()
 
         service_status_calls = [
-            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
         ]
         assert len(service_status_calls) >= 1, "Expected at least one service_status event"
 
-        not_ready_events = [event for _, event in service_status_calls if not event.payload.data.ready]
+        not_ready_events = [event for event in service_status_calls if not event.payload.data.ready]
         assert len(not_ready_events) >= 1, "Expected at least one service_status event with ready=False"
         assert not_ready_events[0].payload.data.ready is False
 
@@ -138,8 +138,8 @@ class TestWebsocketReadinessEvents:
         """
         send_event_calls: list = []
 
-        async def capture_send_event(topic, event):
-            send_event_calls.append((topic, event))
+        async def capture_send_event(event):
+            send_event_calls.append(event)
 
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -169,13 +169,13 @@ class TestWebsocketReadinessEvents:
 
         # Assert: _emit_readiness_event() was called → a service_status event with ready=True was sent
         service_status_calls = [
-            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+            event for event in send_event_calls if event.topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
         ]
         assert len(service_status_calls) >= 1, (
-            f"Expected at least one service_status event, got topics: {[t for t, _ in send_event_calls]}"
+            f"Expected at least one service_status event, got topics: {[e.topic for e in send_event_calls]}"
         )
 
-        ready_events = [event for _, event in service_status_calls if event.payload.data.ready]
+        ready_events = [event for event in service_status_calls if event.payload.data.ready]
         assert len(ready_events) >= 1, "Expected at least one service_status event with ready=True"
 
         first_ready = ready_events[0]

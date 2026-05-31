@@ -193,7 +193,7 @@ class ServiceWatcher(Resource):
                 exception_type=original_data.exception_type,
                 exception_traceback=original_data.exception_traceback,
             )
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, crashed_event)
+            await self.hassette.send_event(crashed_event)
             await self.hassette.shutdown()
 
         elif spec.restart_type == RestartType.TRANSIENT:
@@ -215,7 +215,7 @@ class ServiceWatcher(Resource):
                 exception_traceback=original_data.exception_traceback,
                 retry_at=retry_at,
             )
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, cooling_event)
+            await self.hassette.send_event(cooling_event)
             services = self._get_service(name, role)
             if not services:
                 self.logger.warning("No %s found for '%s' after EXHAUSTED_COOLING, skipping status set", role, name)
@@ -246,7 +246,7 @@ class ServiceWatcher(Resource):
                 exception_type=original_data.exception_type,
                 exception_traceback=original_data.exception_traceback,
             )
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, dead_event)
+            await self.hassette.send_event(dead_event)
             services = self._get_service(name, role)
             if not services:
                 self.logger.warning("No %s found for '%s' after EXHAUSTED_DEAD, skipping status set", role, name)
@@ -275,7 +275,7 @@ class ServiceWatcher(Resource):
                 status=ResourceStatus.EXHAUSTED_DEAD,
                 previous_status=ResourceStatus.EXHAUSTED_COOLING,
             )
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, dead_event)
+            await self.hassette.send_event(dead_event)
             services = self._get_service(name, role)
             if not services:
                 self.logger.warning(
@@ -349,7 +349,7 @@ class ServiceWatcher(Resource):
                 exception_type=data.exception_type,
                 exception_traceback=data.exception_traceback,
             )
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, crashed_event)
+            await self.hassette.send_event(crashed_event)
             await self.hassette.shutdown()
             return
 

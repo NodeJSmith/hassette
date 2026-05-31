@@ -20,5 +20,5 @@ async def send_state_change(
 ) -> None:
     """Send a state change event into the bus."""
     event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
-    await harness.hassette.send_event(event.topic, event)
+    await harness.hassette.send_event(event)
     await harness.bus_service.await_dispatch_idle()

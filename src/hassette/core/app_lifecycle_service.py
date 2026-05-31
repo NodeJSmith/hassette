@@ -222,7 +222,7 @@ class AppLifecycleService(Resource):
 
         for idx, inst in instances.items():
             event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=inst.status)
-            await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
+            await self.hassette.send_event(event)
             await self.shutdown_instance(inst, instance_index=idx)
 
     async def shutdown_all(self) -> None:
@@ -245,7 +245,7 @@ class AppLifecycleService(Resource):
         event = HassetteAppStateEvent.from_data(
             app=app, status=status, previous_status=prev_status, exception=exception
         )
-        await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
+        await self.hassette.send_event(event)
 
     async def bootstrap_apps(self) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup.
@@ -272,7 +272,6 @@ class AppLifecycleService(Resource):
                 )
 
             await self.hassette.send_event(
-                Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
             )
         except Exception as e:
@@ -308,7 +307,7 @@ class AppLifecycleService(Resource):
         if instances:
             for inst in instances.values():
                 event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
-                await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
+                await self.hassette.send_event(event)
             await self.initialize_instances(app_key, instances, app_manifest)
 
     async def stop_app(self, app_key: str) -> None:
@@ -416,7 +415,6 @@ class AppLifecycleService(Resource):
         await self.apply_changes(changes)
 
         await self.hassette.send_event(
-            Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
             HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
         )
 
