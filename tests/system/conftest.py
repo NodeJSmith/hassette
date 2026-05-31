@@ -46,25 +46,28 @@ EXIT_WATCHDOG_TIMEOUT = 60  # seconds
 
 
 def pytest_sessionfinish(exitstatus: int) -> None:
-    """Force a fast, diagnostic exit if a leaked non-daemon thread blocks shutdown.
+    """Diagnostic watchdog: dump thread state and force-exit if the interpreter hangs.
 
-    aiosqlite's connection worker thread is not a daemon, so a `Hassette` instance that
-    leaks an unclosed DB connection wedges interpreter exit indefinitely (see issue #923).
-    Arm a daemon watchdog that dumps every thread's traceback and force-exits non-zero if
-    shutdown stalls, so CI fails fast with the stuck thread's stack instead of hanging to
-    the job timeout. On a clean exit the process is gone long before the watchdog wakes.
+    aiosqlite worker threads are set to daemon in DatabaseService.on_initialize(), so they
+    no longer block interpreter exit. This watchdog is retained as a diagnostic safety net
+    — if something else introduces a non-daemon thread leak, the watchdog catches it
+    instead of letting CI hang to the job timeout.
     """
 
     def force_exit_if_stalled() -> None:
         time.sleep(EXIT_WATCHDOG_TIMEOUT)
+        non_daemon = [
+            t for t in threading.enumerate() if t.is_alive() and not t.daemon and t is not threading.main_thread()
+        ]
+        if not non_daemon:
+            return
         sys.stderr.write(
             f"\n[system-conftest] interpreter still alive {EXIT_WATCHDOG_TIMEOUT}s after session "
-            "finish — a non-daemon thread is blocking shutdown (see #923). Thread tracebacks:\n"
+            f"finish — {len(non_daemon)} non-daemon thread(s) blocking shutdown. "
+            "Thread tracebacks:\n"
         )
-        sys.stderr.flush()  # flush our message before faulthandler writes to the raw fd
+        sys.stderr.flush()
         faulthandler.dump_traceback()
-        # exitstatus is 0 when every test passed — but reaching this watchdog means the
-        # process hung at shutdown, which is itself a failure, so never exit 0 here.
         os._exit(exitstatus or 1)
 
     threading.Thread(target=force_exit_if_stalled, name="exit-hang-watchdog", daemon=True).start()
