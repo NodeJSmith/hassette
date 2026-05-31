@@ -134,6 +134,9 @@ filterwarnings = [
     "error",
     "default:.*does not declare restart_spec.*:UserWarning",
     "default::ResourceWarning:anyio\\.streams\\.memory",
+    "default::ResourceWarning:aiohttp\\.client",
+    "default::ResourceWarning:aiosqlite\\.core",
+    "default::ResourceWarning:aiohttp\\.connector",
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
 ]
 # Skip slow Docker tests by default (run with: pytest -m docker)
