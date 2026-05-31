@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0](https://github.com/NodeJSmith/hassette/compare/v0.37.0...v0.38.0) (2026-05-31)
+
+
+### Features
+
+* add Python 3.14 support ([#939](https://github.com/NodeJSmith/hassette/issues/939)) ([86049f2](https://github.com/NodeJSmith/hassette/commit/86049f299dded23b25d9c41eec4d61f2c1cc1437))
+* add missing synchronous Bus and Scheduler methods for AppSync ([#931](https://github.com/NodeJSmith/hassette/issues/931)) ([962631f](https://github.com/NodeJSmith/hassette/commit/962631f7db4dd69ff3e05d557b8df17dce14abde))
+
 ## [0.37.0](https://github.com/NodeJSmith/hassette/compare/v0.36.0...v0.37.0) (2026-05-30)
 
 ### ⚠ BREAKING CHANGES
