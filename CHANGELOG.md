@@ -11,18 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 * add Python 3.14 support ([#939](https://github.com/NodeJSmith/hassette/issues/939)) ([86049f2](https://github.com/NodeJSmith/hassette/commit/86049f299dded23b25d9c41eec4d61f2c1cc1437))
-* add sync facades for Bus and Scheduler for AppSync compatibility ([#931](https://github.com/NodeJSmith/hassette/issues/931)) ([962631f](https://github.com/NodeJSmith/hassette/commit/962631f7db4dd69ff3e05d557b8df17dce14abde))
-
-
-### Documentation
-
-* prior-art survey of HA framework test tooling ([#937](https://github.com/NodeJSmith/hassette/issues/937)) ([c0c0a78](https://github.com/NodeJSmith/hassette/commit/c0c0a78aee4793b9d2d19d2fdf183181f42d2702))
-
-
-### Miscellaneous
-
-* add GitHub Copilot instructions for PR review ([#932](https://github.com/NodeJSmith/hassette/issues/932)) ([780ddea](https://github.com/NodeJSmith/hassette/commit/780ddea7413fbc21c96f65d8fc641caba70e27ed))
-* fix link-check exclusions, stale project board link, and redirecting URLs ([#926](https://github.com/NodeJSmith/hassette/issues/926)) ([43a0b1d](https://github.com/NodeJSmith/hassette/commit/43a0b1da7476a35753f9e6a9f7b059f76ae0b30f))
+* add missing synchronous Bus and Scheduler methods for AppSync ([#931](https://github.com/NodeJSmith/hassette/issues/931)) ([962631f](https://github.com/NodeJSmith/hassette/commit/962631f7db4dd69ff3e05d557b8df17dce14abde))
 
 ## [0.37.0](https://github.com/NodeJSmith/hassette/compare/v0.36.0...v0.37.0) (2026-05-30)
 
