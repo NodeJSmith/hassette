@@ -194,10 +194,11 @@ When fixing or modifying any test, run that test locally and confirm it passes b
 Every issue should have:
 
 1. **Type label** (exactly one): `type:bug`, `type:enhancement`, `type:documentation`, `type:CICD`
-2. **Area label** (at least one, unless cross-cutting):
+2. **Area label** (at least one, unless cross-cutting) — which codebase module does this touch? Answers "where in the code do I look?":
    - `area:api` — HA REST/WebSocket API
    - `area:apps` — App lifecycle / AppHandler
    - `area:bus` — Event bus
+   - `area:cli` — CLI commands and output (`src/hassette/cli/`)
    - `area:config` — Configuration / settings
    - `area:core` — Internal framework plumbing, not necessarily user-facing
    - `area:database` — Telemetry DB schema, migrations, retention
@@ -213,12 +214,18 @@ Apply when clearly warranted:
 
 - **Priority**: `priority:high` (blockers, data loss), `priority:low` (nice-to-haves)
 - **Descriptors**: `good first issue`
-- **Topic labels** — cross-cutting domain concerns (an issue can have multiple):
+- **Topic labels** — what conceptual concern is involved? Cross-cuts areas. Answers "what kind of problem is this?" (an issue can have multiple):
+   - `topic:a11y` — Accessibility: focus, keyboard navigation, screen readers
+   - `topic:architecture` — Module decomposition, coupling reduction, internal structure
    - `topic:cli` — hassette CLI commands (init, build, migrate)
+   - `topic:codegen` — Code/type generation pipelines, typed models from HA, schema export
    - `topic:concurrency` — Semaphores, rate limiting, timeouts, task management
+   - `topic:design-system` — Visual tokens, theming, color scales, typography, spacing
+   - `topic:dx` — App-author developer experience: API ergonomics, convenience methods, testing helpers
    - `topic:errors` — Error handling, retries, error display, exception design
    - `topic:events` — Event system design, signals, dispatch, filtering, backpressure
    - `topic:lifecycle` — Startup/shutdown sequences, state machines, readiness, cleanup
+   - `topic:responsive` — Mobile and responsive layout
    - `topic:telemetry` — Observability, invocation/execution tracking, retention, statistics
 - **Epic labels** — initiative-level grouping:
    - `epic:ha-addon` — Home Assistant add-on and monitoring UI initiative
@@ -257,7 +264,7 @@ See `design/README.md` for the full guide on what goes where.
 
 **Do NOT manually edit `CHANGELOG.md`.** This repo uses [release-please](https://github.com/googleapis/release-please) to generate the changelog automatically from conventional commit messages. Manual edits will conflict with release-please's PR and get overwritten.
 
-The changelog is derived entirely from commit types (`feat`, `fix`, `perf`, etc.) — write good commit messages and the changelog takes care of itself.
+The changelog includes `feat`, `fix`, `perf`, `refactor`, and `docs` types only. Use `chore:` for internal work (`design/`, `.claude/`, research, tooling) — it won't appear in the changelog. See `.claude/rules/changelog-quality.md` for the full guide.
 
 ## Mermaid Diagram Color Scheme
 

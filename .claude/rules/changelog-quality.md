@@ -1,6 +1,28 @@
 # Changelog Quality (release-please)
 
-This project uses [release-please](https://github.com/googleapis/release-please) to generate changelog entries from conventional commit messages. Every PR that lands on `main` becomes a changelog line item. Write commit messages (and therefore PR titles) with this in mind.
+This project uses [release-please](https://github.com/googleapis/release-please) to generate changelog entries from conventional commit messages. Every PR that lands on `main` becomes a changelog line item — unless its type is excluded. Write commit messages (and therefore PR titles) with this in mind.
+
+## Which types appear in the changelog
+
+Only these types generate changelog entries (configured in `release-please-config.json`):
+
+| Type | Changelog section | Use for |
+|---|---|---|
+| `feat` | Features | New user-facing functionality |
+| `fix` | Bug Fixes | Something was broken, now it works |
+| `perf` | Performance Improvements | Measurable performance gains |
+| `refactor` | Refactoring | Structural changes notable enough for users to know about |
+| `docs` | Documentation | User-facing documentation (docs site, README, public docstrings) |
+
+These types are **excluded from the changelog** — use them for internal work:
+
+| Type | Use for |
+|---|---|
+| `chore` | Internal work: `design/`, `research/`, CLAUDE.md, deps, tooling, internal scripts |
+| `ci` | CI/CD pipeline changes |
+| `test` | Test infrastructure, coverage improvements |
+
+**Key distinction:** `docs:` is for documentation that users read (docs site pages, README, public API docstrings). Work in `design/`, `.claude/`, research briefs, or internal tooling docs should use `chore:` so it stays out of the changelog.
 
 ## How release-please reads commits
 
@@ -32,7 +54,7 @@ The PR title becomes the one-line changelog entry that users read. Write it as a
 1. **Imperative mood, lowercase** — `add X`, `fix Y`, not `Added X` or `Adds Y`
 2. **Describe the user-visible outcome** — what can the user now do, or what broke that's now fixed?
 3. **No bundle PRs in the title** — if a PR bundles N fixes, the title should describe the theme, and individual items belong in the PR body / commit body where release-please won't pick them up
-4. **No internal-only entries** — if the PR is purely internal (CI, test infra, prior art research, refactoring with no behavior change), use `chore:`, `ci:`, `test:`, or `docs:` type. These still appear in the changelog by default, but will be removed during the pre-release changelog review pass
+4. **No internal-only entries** — if the PR is purely internal (CI, test infra, prior art research, design docs), use `chore:`, `ci:`, or `test:` type — these are excluded from the changelog entirely. Do not use `docs:` for internal documents (`design/`, `.claude/`, research briefs); `docs:` appears in the changelog and is reserved for user-facing documentation
 
 ## Breaking changes MUST have a footer
 
