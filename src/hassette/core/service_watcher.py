@@ -151,7 +151,6 @@ class ServiceWatcher(Resource):
         return HassetteServiceEvent(
             topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
             payload=HassettePayload(
-                event_type=str(status),
                 # ready=False is always correct for ServiceWatcher-synthesized events: this method
                 # only fires for CRASHED/EXHAUSTED states where the service loop has already exited.
                 data=ServiceStatusPayload(
@@ -407,7 +406,7 @@ class ServiceWatcher(Resource):
                 self._restarting.discard(key)
                 return
 
-        self.logger.debug("%s '%s' is being restarted after '%s'", role, name, event.payload.event_type)
+        self.logger.debug("%s '%s' is being restarted after '%s'", role, name, event.payload.data.status)
 
         if len(services) > 1:
             self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
@@ -542,7 +541,6 @@ class ServiceWatcher(Resource):
             synthetic_event = HassetteServiceEvent(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 payload=HassettePayload(
-                    event_type=str(ResourceStatus.FAILED),
                     data=ServiceStatusPayload(
                         resource_name=name,
                         role=role,

@@ -24,8 +24,6 @@ from .hassette import (
     HassetteServiceEvent,
     HassetteSimpleEvent,
     ServiceStatusPayload,
-    WebsocketConnectedEventPayload,
-    WebsocketDisconnectedEventPayload,
 )
 
 __all__ = [
@@ -58,7 +56,5 @@ __all__ = [
     "ServiceStatusPayload",
     "UserAddedEvent",
     "UserRemovedEvent",
-    "WebsocketConnectedEventPayload",
-    "WebsocketDisconnectedEventPayload",
     "create_event_from_hass",
 ]

@@ -25,7 +25,6 @@ def make_crashed_event(
     return HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
-            event_type=str(ResourceStatus.CRASHED),
             data=ServiceStatusPayload(
                 resource_name=resource_name,
                 role=ResourceRole.SERVICE,
