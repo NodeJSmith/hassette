@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Remove App.send_event and AppSync.send_event_sync"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "FR#7", "AC#3", "AC#8"]
 ---

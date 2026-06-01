@@ -67,7 +67,9 @@ class BusSyncFacade(Resource):
         return self.task_bucket.run_sync(self._bus.add_listener(listener))
 
     def emit(self, topic: str, data: EmitDataT) -> None:
-        """Broadcast an event to all subscribers of the given topic."""
+        """Broadcast data to all subscribers of the given topic.
+
+        Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted."""
 
         return self.task_bucket.run_sync(self._bus.emit(topic, data))
 

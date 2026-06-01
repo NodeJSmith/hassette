@@ -108,3 +108,11 @@ async def test_bus_emit_no_subscribers(hassette_with_bus: "HassetteHarness") -> 
     """emit with no subscribers completes without error."""
     bus = hassette_with_bus.bus
     await bus.emit("test.no_subscribers", SomeData(value="dropped", count=0))
+
+
+def test_app_has_no_send_event() -> None:
+    """App.send_event and AppSync.send_event_sync no longer exist (FR#5/AC#3)."""
+    from hassette.app.app import App, AppSync
+
+    assert not hasattr(App, "send_event"), "App.send_event should not exist after clean break removal"
+    assert not hasattr(AppSync, "send_event_sync"), "AppSync.send_event_sync should not exist after clean break removal"
