@@ -68,8 +68,8 @@ class BusSyncFacade(Resource):
         """Broadcast data to all subscribers of the given topic.
 
         Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
-        If the internal event stream is closed (during shutdown), the event is silently dropped.
-        """
+        If the internal event stream is closed (during shutdown), the event is silently dropped."""
+
         return self.task_bucket.run_sync(self._bus.emit(topic, data))
 
     def on(
