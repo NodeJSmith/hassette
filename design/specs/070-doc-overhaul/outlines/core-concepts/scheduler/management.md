@@ -1,0 +1,41 @@
+# Scheduler — Job Management
+
+**Status:** Exists (155 lines), solid content, voice polish needed
+**Voice mode:** Concept — system-as-subject, no "you"
+
+## Outline
+
+### H2: The ScheduledJob Object
+What `schedule()` returns. Fields: job_id, name, group, next_run, cancelled.
+
+### H2: Cancelling Jobs
+`job.cancel()`, `cancel_group()`, `list_jobs()`, checking cancellation state.
+
+### H2: Automatic Cleanup
+Jobs cancelled automatically on app shutdown.
+
+### H2: Best Practices
+Named jobs, groups for related jobs, cancellation patterns.
+
+### H2: Self-Cancelling Job Pattern
+Job that cancels itself based on a condition.
+
+### H2: Troubleshooting
+#### H3: Job Not Running?
+#### H3: Runs Too Often?
+
+### H2: Error Handling
+#### H3: App-Level Error Handler — `on_scheduler_error`
+#### H3: Per-Registration Error Handler — `error_handler=`
+#### H3: What `SchedulerErrorContext` Contains
+
+## Snippet Inventory
+
+| Snippet | Status | Notes |
+|---|---|---|
+| ~7 files from `scheduler/snippets/` | Review | Management-specific examples |
+
+## Cross-Links
+
+- **Links to:** Scheduling Methods, Apps lifecycle (shutdown cleanup)
+- **Linked from:** Scheduler overview, Recipes (motion lights — job cancellation)

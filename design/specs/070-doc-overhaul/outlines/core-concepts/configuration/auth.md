@@ -1,0 +1,24 @@
+# Configuration — Authentication
+
+**Status:** Exists (43 lines), concise, voice polish needed
+**Voice mode:** Concept — system-as-subject, no "you"
+
+## Outline
+
+### H2: Home Assistant Token
+Where to set the token (env var, .env file). Link to HA Token getting-started page.
+
+### H2: SSL Verification
+`ssl_verify` setting for self-signed certs.
+
+### H2: File Locations
+Where .env is loaded from.
+
+## Snippet Inventory
+
+No dedicated snippets — .env examples are in Getting Started.
+
+## Cross-Links
+
+- **Links to:** Configuration overview, HA Token (getting-started)
+- **Linked from:** Configuration overview
