@@ -26,6 +26,8 @@ Dictionary filtering and predicate filtering for `on_call_service`.
 Full reference table: logic combinators, value/field matching, entity/domain/service matching, state change predicates.
 #### H3: Conditions (`C`)
 Full reference table: string matching, collection membership, none/missing checks, numeric comparison.
+#### H3: Accessors (`A`)
+Full reference table: built-in accessors (`get_state_value_new`, `get_state_value_old`, `get_service_data_key`, `get_path`, etc.). How accessors plug into predicates via the `source=` parameter.
 
 ## Snippet Inventory
 
