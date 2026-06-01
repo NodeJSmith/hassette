@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: What Is Collected
-Five data categories: listener invocations, scheduler executions, registration events (listeners + jobs), log records, and sessions. Also tracks dropped event counters (overflow, exhausted, shutdown). Brief — the reader needs to know *what* is tracked, not the column schema.
+Four data categories: listener invocations, scheduler executions, registration events (listeners + jobs), and log records. Also tracks dropped event counters (overflow, exhausted, shutdown). Brief — the reader needs to know *what* is tracked, not the column schema.
 
 ### H2: Configuration
 Telemetry settings in hassette.toml (`database.*`). Retention policy.
