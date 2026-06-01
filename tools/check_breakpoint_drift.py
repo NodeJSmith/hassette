@@ -38,6 +38,9 @@ JS_CONST_PATTERN = re.compile(r"export\s+const\s+(BREAKPOINT_[A-Z_]+)\s*=\s*(\d+
 # NOTE: this regex assumes single-line @media queries (the current CSS satisfies this).
 MEDIA_BREAKPOINT_PATTERN = re.compile(r"@media[^{]*?max-width:\s*(\d+)px", re.DOTALL)
 
+# Stripped before matching so commented-out @media rules don't produce false positives.
+CSS_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+
 
 def extract_js_breakpoints() -> dict[int, str]:
     """Return {pixel_value: constant_name} for every BREAKPOINT_* export in the TS file."""
@@ -51,7 +54,8 @@ def extract_css_breakpoints() -> dict[int, list[Path]]:
     """Return {pixel_value: [css files using it]} for every @media max-width across the frontend."""
     found: dict[int, list[Path]] = {}
     for css_file in sorted(FRONTEND_SRC.rglob("*.css")):
-        for match in MEDIA_BREAKPOINT_PATTERN.finditer(css_file.read_text()):
+        text = CSS_BLOCK_COMMENT.sub("", css_file.read_text())
+        for match in MEDIA_BREAKPOINT_PATTERN.finditer(text):
             value = int(match.group(1))
             files = found.setdefault(value, [])
             if css_file not in files:
