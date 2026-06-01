@@ -137,13 +137,13 @@ If more than one class in your project is decorated with `@only_app`, Hassette r
 This is the on/emit symmetry: subscribe with `self.bus.on`, broadcast with `self.bus.emit`. Both live on the same `Bus` instance.
 
 ```python
---8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:sender"
+--8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:sender"
 ```
 
 The receiving app subscribes to the same topic and extracts the typed data via `D.EventData[T]` — a [dependency injection](../bus/dependency-injection.md) annotation that Hassette resolves from the event envelope automatically.
 
 ```python
---8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:receiver"
+--8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:receiver"
 ```
 
 Broadcast is local and ephemeral — events are not persisted across restarts and do not leave the framework process.

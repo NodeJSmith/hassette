@@ -7,7 +7,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, TypeVar, Unpack
+from typing import Any, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -16,8 +16,6 @@ from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
-
-EmitDataT = TypeVar("EmitDataT")
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -66,11 +64,12 @@ class BusSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._bus.add_listener(listener))
 
-    def emit(self, topic: str, data: EmitDataT) -> None:
+    def emit(self, topic: str, data: object) -> None:
         """Broadcast data to all subscribers of the given topic.
 
-        Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted."""
-
+        Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
+        If the internal event stream is closed (during shutdown), the event is silently dropped.
+        """
         return self.task_bucket.run_sync(self._bus.emit(topic, data))
 
     def on(

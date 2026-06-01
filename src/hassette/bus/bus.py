@@ -92,7 +92,7 @@ import logging
 import typing
 from collections.abc import Mapping
 from functools import partial
-from typing import Any, TypeVar, Unpack
+from typing import Any, Unpack
 
 from typing_extensions import Sentinel
 
@@ -112,8 +112,6 @@ from hassette.utils.source_capture import capture_registration_source
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
-
-EmitDataT = TypeVar("EmitDataT")
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -244,10 +242,11 @@ class Bus(Resource):
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
 
-    async def emit(self, topic: str, data: EmitDataT) -> None:
+    async def emit(self, topic: str, data: object) -> None:
         """Broadcast data to all subscribers of the given topic.
 
         Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
+        If the internal event stream is closed (during shutdown), the event is silently dropped.
         """
         payload = HassettePayload(data=data)
         event = Event(topic=topic, payload=payload)

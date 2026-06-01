@@ -29,7 +29,6 @@ class LoggerApp(App[AppConfig]):
         await self.bus.on(topic="lights_synced", handler=self.on_lights_synced, name="lights_synced_log")
 
     async def on_lights_synced(self, data: D.EventData[LightsSyncedData]) -> None:
-        # Guard against self-delivery if this app also emits on the same topic
         if data.source == self.instance_name:
             return
         self.logger.info("Lights synced by %s", data.source)

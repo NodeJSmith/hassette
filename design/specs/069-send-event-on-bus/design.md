@@ -1,7 +1,7 @@
 # Design: Bus.emit — ergonomic inter-app broadcast
 
 **Date:** 2026-05-31
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/069-send-event-on-bus/brief.md
 

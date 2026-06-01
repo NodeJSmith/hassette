@@ -247,16 +247,13 @@ EventData: TypeAlias = Annotated[
     EventDataT,
     AnnotationDetails(ensure_present(A.get_path("payload.data"))),
 ]
-"""Extract the typed data from a broadcast event's envelope (``event.payload.data``).
+"""Extract the typed data from a broadcast event's payload.
 
-Use with ``Bus.emit`` to receive the data a sender emitted, pre-extracted
-and typed. The extractor uses ``get_path("payload.data")`` to retrieve the
-raw value; the type parameter is for static tooling.
+Use with ``Bus.emit`` to receive the emitted data pre-extracted and typed.
 
 Example:
 ```python
 async def handler(data: D.EventData[MyData]):
-    # data is automatically extracted from event.payload.data as MyData
     print(data.some_field)
 ```
 """
