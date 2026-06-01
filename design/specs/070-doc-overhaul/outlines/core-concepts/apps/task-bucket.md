@@ -11,8 +11,8 @@
 ### H2: Offloading Blocking Code
 `self.run_in_executor()` for sync/blocking calls (file I/O, HTTP libraries without async).
 
-### H2: Normalizing Sync/Async Callables
-`self.normalize_callable()` for handling both sync and async handlers uniformly.
+### H2: Adapting Sync Callables to Async
+`self.task_bucket.make_async_adapter()` for wrapping sync handlers so they run in the executor automatically.
 
 ### H2: Cross-Thread Communication
 #### H3: Posting to the Event Loop
