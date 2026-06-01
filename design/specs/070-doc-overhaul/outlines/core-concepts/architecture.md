@@ -14,15 +14,17 @@ Three Mermaid diagrams (existing, keep):
 2. Core services inside Hassette
 3. What each app gets (the five handles: Bus, Scheduler, Api, StateManager, Cache)
 
-### H2: Service Dependency Graph
-How `depends_on` works, initialization/shutdown order, cycle detection. Framework dependency graph diagram.
+### H2: Startup
+One sentence: "Hassette starts services in dependency order — your handles are ready by the time `on_initialize` runs." Links to System Internals for the full dependency graph, wave ordering, and cycle detection.
+
+**Removed from this page (moved to Internals):** `depends_on` code example, wave-based ordering explanation, cycle detection, framework dependency graph Mermaid diagram, EventStreamService note. These are framework plumbing, not app-author concerns.
 
 ### H2: Deep Dive
 Links to each core concept page.
 
 ## Snippet Inventory
 
-No code snippets — diagrams are inline Mermaid.
+No code snippets — diagrams are inline Mermaid. The `index_depends_on.py` snippet moves to System Internals.
 
 ## Cross-Links
 

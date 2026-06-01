@@ -8,10 +8,14 @@
 The current single page covers 10 numbered sections. Split into:
 
 ### Page 1: `internals/index.md` — Architecture & Data Flow
-Sections 1-3 from current page:
+Sections 1-3 from current page, plus content moving from Architecture:
 - Component Ownership (which service owns which state)
-- Service Dependencies (depends_on, initialization order)
+- Service Dependencies (depends_on, initialization order, cycle detection, framework dependency graph Mermaid diagram)
 - Event and Data Flow (how events travel through the system)
+- Wave-based startup/shutdown ordering
+- EventStreamService constructor-time dependency note
+
+The `depends_on` code snippet (`index_depends_on.py`) moves here from Architecture.
 
 ### Page 2: `internals/service-details.md` — Per-Service Internals
 Sections 4-9 from current page:
