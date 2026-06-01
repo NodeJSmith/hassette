@@ -24,7 +24,7 @@ Bridge page between Bus and States. Covers state-change-specific subscription pa
 `C.Increased`, `C.Decreased`, `C.InRange` — monitoring numeric changes.
 
 ### H2: Combining Predicates
-`&` (and) and `|` (or) composition. Examples specific to state-change scenarios.
+`AllOf` and `AnyOf` composition. Examples specific to state-change scenarios.
 
 ### H2: Attribute Changes
 `on_attribute_change` — monitoring specific attributes rather than the state string.
@@ -43,7 +43,7 @@ Snippets moving from Bus/Filtering and new:
 | `filtering_increased_decreased.py` | Move from filtering/ | Numeric conditions |
 | `changed_false.py` | Move from filtering/ | `changed=False` example |
 | New: attribute change example | New | `on_attribute_change` with predicate |
-| New: combined predicates for state | New | `&`/`|` composition in state context |
+| New: combined predicates for state | New | `AllOf`/`AnyOf` composition in state context |
 
 ## Cross-Links
 

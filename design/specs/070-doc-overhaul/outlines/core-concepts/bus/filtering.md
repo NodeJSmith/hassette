@@ -6,13 +6,13 @@
 ## Outline
 
 ### H2: How Filtering Works
-Overview: predicates test events, conditions test values. Predicates compose with `&` and `|`.
+Overview: predicates test events, conditions test values. Predicates compose with `AllOf` and `AnyOf`.
 
 ### H2: Filtering State Changes
 **Note:** Heavy overlap with States/Subscribing page. Decision: States/Subscribing covers the common state-change patterns (entity patterns, `changed` param, `changed_to`, `changed_from`, state-specific predicates). This page covers the general filtering mechanism and non-state-change filtering.
 
 Content that stays here:
-- How predicates compose (`&`, `|`)
+- How predicates compose (`AllOf`, `AnyOf`)
 - General event filtering concept
 
 ### H2: Filtering Service Calls
