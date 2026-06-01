@@ -166,7 +166,7 @@ Hassette ships typed state classes for every standard Home Assistant domain. Imp
 ## Good to Know
 
 !!! note "Startup and staleness"
-    The cache is populated once at startup via a full API fetch, then kept current by WebSocket `state_changed` events — so states are available as soon as your app's `on_ready` hook runs. A periodic background poll (default every 30 seconds) guards against any events that were missed. During a HA reconnect the cache is temporarily cleared; the StateProxy marks itself not-ready and retries reads automatically, so your code does not need to handle this case.
+    The cache is populated once at startup via a full API fetch, then kept current by WebSocket `state_changed` events — so states are available as soon as your app's `on_initialize` hook runs. A periodic background poll (default every 30 seconds) guards against any events that were missed. During a HA reconnect the cache is temporarily cleared; the StateProxy marks itself not-ready and retries reads automatically, so your code does not need to handle this case.
 
 !!! note "Missing entities"
     `self.states.light.get("bedroom")` returns `None` when the entity is absent. `self.states.light["bedroom"]` raises `KeyError`. If you are not certain an entity exists, prefer `.get()` and check the result before use.

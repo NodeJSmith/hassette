@@ -26,7 +26,7 @@ Work on the `docs/overhaul` branch. Before writing, read:
 
 **Apps (4 pages):**
 - `core-concepts/apps/index.md` — What an App is, the five handles available via `self.*`, how to create one
-- `core-concepts/apps/lifecycle.md` — `on_initialize`, `on_ready`, `on_shutdown` hooks
+- `core-concepts/apps/lifecycle.md` — `on_initialize`, `on_shutdown` hooks
 - `core-concepts/apps/configuration.md` — `AppConfig`, `SettingsConfigDict`, env prefix
 - `core-concepts/apps/task-bucket.md` — Background task management
 
