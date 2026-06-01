@@ -30,7 +30,15 @@ Links to Quickstart, Evaluator, Core Concepts, Recipes.
 
 ## Snippet Inventory
 
-No dedicated snippet files — inline code examples and screenshots.
+The home page is the most-visited page — stale code here is the worst place for it. Every code example must come from a tested snippet file, not inline blocks.
+
+| Snippet | Status | Notes |
+|---|---|---|
+| `getting-started/snippets/install.sh` | Keep (already `--8<--` included) | Quick start install command |
+| New: `home_event_handling.py` | New | If the video section is supplemented or replaced with a code example, it must be a snippet |
+| New: `home_quick_app.py` | New | If a "see it in action" code block is added alongside/instead of videos |
+
+**Rule:** Any code block on this page uses `--8<--` includes. No inline code fences for app examples. Pyright CI catches drift automatically when snippets are external files.
 
 ## Cross-Links
 
