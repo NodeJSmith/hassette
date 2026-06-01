@@ -24,7 +24,7 @@ Brief overview linking to each capability's page:
 #### H3: Run Background Tasks and Blocking Code
 
 ### H2: Restricting to a Single App During Development
-`--app` flag for development.
+`@only_app` decorator to isolate one app without editing config.
 
 ### H2: Broadcasting Events Between Apps
 `Bus.emit()` for inter-app communication.
