@@ -39,7 +39,7 @@ Work on the `docs/overhaul` branch. Before writing, read:
 
 ### For each page:
 
-1. Read the Phase 2 outline for section headings and snippet inventory
+1. Read the Phase 2 outline for this page (H2/H3 section headings with 1–2 sentence descriptions, named snippet inventory with keep/rewrite/new status, and cross-link list)
 2. Read the current page content for technical facts to preserve (do not copy prose)
 3. Write from blank following the getting-started template (what you'll build → prerequisites → steps → next steps)
 4. Create snippet files (stubs first, then fill) — all code examples from snippets

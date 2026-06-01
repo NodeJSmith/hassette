@@ -14,7 +14,7 @@ Writes all 7 recipe pages from blank. Each recipe is a self-contained example: p
 
 Work on the `docs/overhaul` branch. Before writing, read:
 - `design/specs/070-doc-overhaul/docs-context.md` (calibration artifact)
-- `design/specs/070-doc-overhaul/outlines/recipes/` (Phase 2 outlines)
+- `design/specs/070-doc-overhaul/outlines/recipes/` (Phase 2 outlines — each contains H2/H3 headings with descriptions, named snippet inventory with keep/rewrite/new status, and cross-links)
 - The recipe exemplar page from T03 (voice reference for "How It Works" prose)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 

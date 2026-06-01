@@ -14,7 +14,7 @@ Writes the second half of Core Concepts from blank: Scheduler (overview, methods
 
 Work on the `docs/overhaul` branch. Before writing, read:
 - `design/specs/070-doc-overhaul/docs-context.md` (calibration artifact)
-- `design/specs/070-doc-overhaul/outlines/core-concepts/` (Phase 2 outlines)
+- `design/specs/070-doc-overhaul/outlines/core-concepts/` (Phase 2 outlines — each contains H2/H3 headings with descriptions, named snippet inventory with keep/rewrite/new status, and cross-links)
 - The concept exemplar page from T03 (voice reference)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 

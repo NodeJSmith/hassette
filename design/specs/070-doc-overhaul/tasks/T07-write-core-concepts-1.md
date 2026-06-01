@@ -14,7 +14,7 @@ Writes the first half of Core Concepts from blank: Architecture overview (the "f
 
 Work on the `docs/overhaul` branch. Before writing, read:
 - `design/specs/070-doc-overhaul/docs-context.md` (calibration artifact)
-- `design/specs/070-doc-overhaul/outlines/core-concepts/` (Phase 2 outlines for each page)
+- `design/specs/070-doc-overhaul/outlines/core-concepts/` (Phase 2 outlines — each contains H2/H3 headings with descriptions, named snippet inventory with keep/rewrite/new status, and cross-links)
 - The concept exemplar page from T03 (voice reference for system-as-subject)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
@@ -58,7 +58,7 @@ This page is the single source of truth for DI in Hassette docs. It must cover:
 - Typed state injection (`D.StateNew[states.SunState]`)
 - Common patterns and gotchas
 
-After writing this page, grep all other pages for DI references. Each should be compressed to one sentence + link. Example: "Hassette injects typed state objects into handler parameters — see [Dependency Injection](../bus/dependency-injection.md)."
+After writing this page, grep all already-written pages for DI references and compress each to one sentence + link. This is a best-effort pass — the full canonicalization check runs in T13 after all sections are written. Example: "Hassette injects typed state objects into handler parameters — see [Dependency Injection](../bus/dependency-injection.md)."
 
 ## Focus
 

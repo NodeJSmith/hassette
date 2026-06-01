@@ -14,7 +14,7 @@ Writes three sections from blank: Migration (≤8 pages for AppDaemon users), Tr
 
 Work on the `docs/overhaul` branch. Before writing, read:
 - `design/specs/070-doc-overhaul/docs-context.md` (calibration artifact)
-- `design/specs/070-doc-overhaul/outlines/migration/`, `outlines/troubleshooting/`, `outlines/operating/` (Phase 2 outlines)
+- `design/specs/070-doc-overhaul/outlines/migration/`, `outlines/troubleshooting/`, `outlines/operating/` (Phase 2 outlines — each contains H2/H3 headings with descriptions, named snippet inventory with keep/rewrite/new status, and cross-links)
 - `design/specs/070-doc-overhaul/outlines/knowledge-inventory.md` (CRITICAL — extracted operational knowledge from T04)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 

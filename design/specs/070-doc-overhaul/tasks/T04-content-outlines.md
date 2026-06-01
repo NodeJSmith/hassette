@@ -12,7 +12,9 @@ Phase 2 of the rewrite. Creates detailed content outlines for every page in the 
 
 ## Prompt
 
-Work on the `docs/overhaul` branch. Read the finalized `mkdocs.yml` nav from T01 to know the full page tree.
+Work on the `docs/overhaul` branch. Before starting, read:
+- The finalized `mkdocs.yml` nav from T01 to know the full page tree
+- `design/specs/070-doc-overhaul/docs-context.md` (calibration artifact — exemplar paths and voice checklist, for reference when noting voice-mode switches in outlines)
 
 ### For each page in the tree:
 
