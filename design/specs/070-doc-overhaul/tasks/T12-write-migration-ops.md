@@ -3,7 +3,7 @@ task_id: "T12"
 title: "Write Migration, Troubleshooting, and Operating Hassette"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#10", "FR#15", "AC#13", "AC#17"]
+implements: ["FR#1", "FR#10", "FR#15", "AC#1", "AC#13", "AC#17"]
 ---
 
 ## Summary
@@ -69,7 +69,9 @@ None of these exist anywhere else in the codebase. The knowledge inventory from 
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#10: "Operating Hassette" section exists with Log Level Tuning and Upgrading content; Troubleshooting contains only symptom-lookup entries
 - [ ] FR#15: Every named failure mode, log signature, timing value, and runbook command from the knowledge inventory appears in the rewritten troubleshooting and operational pages
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#13: "Operating Hassette" section exists in `mkdocs.yml` with the required content
 - [ ] AC#17: Diff the knowledge inventory against the final troubleshooting page — every item is preserved

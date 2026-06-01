@@ -3,7 +3,7 @@ task_id: "T11"
 title: "Write Recipes section"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#4", "AC#7"]
+implements: ["FR#1", "FR#4", "AC#1", "AC#7"]
 ---
 
 ## Summary
@@ -62,5 +62,7 @@ The verification must be something the reader can actually do, not a theoretical
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#4: Every recipe includes a "Verify it's working" section with a concrete command or UI action that produces observable output
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#7: Each recipe's verification step names a specific command (`hassette log`, `hassette listener`) or UI action (Handlers tab) with expected output

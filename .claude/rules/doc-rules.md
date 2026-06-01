@@ -73,8 +73,9 @@ The voice and approachability rules above are hard requirements. The structures 
 1. **Problem statement** — one paragraph describing the real-world situation. Use a concrete example ("Your motion sensor fires every time a cat walks by").
 2. **The Code** — a full, runnable app with config. This is the main attraction.
 3. **How it works** — walk through the code, explaining each decision. Call out the Hassette features being used and link to their concept pages.
-4. **Variations** — alternative approaches or tweaks for different scenarios.
-5. **See also** — links to concept pages for the features used, and related recipes.
+4. **Verify it's working** — a concrete verification step: a CLI command (`hassette log --app <key>`) or web UI action (Handlers tab) the reader runs to confirm the automation fires. Show expected output.
+5. **Variations** — alternative approaches or tweaks for different scenarios.
+6. **See also** — links to concept pages for the features used, and related recipes.
 
 ### Getting-started pages
 

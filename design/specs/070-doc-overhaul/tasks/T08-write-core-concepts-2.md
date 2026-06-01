@@ -3,7 +3,7 @@ task_id: "T08"
 title: "Write Core Concepts — Scheduler, States, API, Cache, Config"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#9", "AC#11"]
+implements: ["FR#1", "FR#2", "FR#9", "AC#1", "AC#11"]
 ---
 
 ## Summary
@@ -18,14 +18,14 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - The concept exemplar page from T03 (voice reference)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
-### Pages to write (~14):
+### Pages to write (~20):
 
 **Scheduler (3 pages):**
 - `core-concepts/scheduler/index.md` — Task scheduling overview, trigger types, the `schedule()` entry point
 - `core-concepts/scheduler/methods.md` — `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`, custom triggers
 - `core-concepts/scheduler/management.md` — Job groups, `cancel_group()`, `list_jobs()`, jitter
 
-**States (4–5 pages):**
+**States (6 pages):**
 - `core-concepts/states/index.md` — State access overview, domain access, type conversion
 - `core-concepts/states/subscribing.md` (new) — "Subscribing to State Changes" depth page
 - `core-concepts/states/domain-states.md` (new) — "DomainStates Reference" depth page
@@ -79,5 +79,8 @@ The 60 advanced snippets include files for custom-states, state-registry, and ty
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
+- [ ] FR#2: All concept pages use system-as-subject voice — no "you" outside getting-started/recipe content
 - [ ] FR#9: States subsection has overview page, "Subscribing to State Changes" depth page, "DomainStates Reference" depth page, plus Custom States, State Registry, and Type Registry
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#11: States subsection in `mkdocs.yml` matches the required structure with overview + depth pages + extension pages

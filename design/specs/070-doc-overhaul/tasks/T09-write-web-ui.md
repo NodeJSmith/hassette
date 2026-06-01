@@ -3,7 +3,7 @@ task_id: "T09"
 title: "Write Web UI section"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#7", "AC#10"]
+implements: ["FR#1", "FR#7", "AC#1", "AC#10"]
 ---
 
 ## Summary
@@ -54,5 +54,7 @@ The current web-ui pages reference specific UI elements. When rewriting, describ
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#7: Web UI section contains ≤6 pages, each organized by user task (not UI element). Each page is justified as a discrete user task.
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#10: Web UI section in `mkdocs.yml` has ≤6 entries with task-oriented titles (not tab names like "Apps," "Handlers," "Logs")

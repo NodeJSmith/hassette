@@ -3,7 +3,7 @@ task_id: "T06"
 title: "Write Getting Started section"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#3", "FR#18", "AC#6", "AC#20"]
+implements: ["FR#1", "FR#3", "FR#18", "AC#1", "AC#6", "AC#20"]
 ---
 
 ## Summary
@@ -58,7 +58,9 @@ Work on the `docs/overhaul` branch. Before writing, read:
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#3: All getting-started pages use direct "you" address with code-first ordering
 - [ ] FR#18: A dedicated evaluator page exists covering what Hassette is, who it's for, and how it compares to alternatives
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#6: First automation page includes `hassette status` showing `websocket_connected: True` and `hassette app` showing the app listed
 - [ ] AC#20: Evaluator page exists in Getting Started nav

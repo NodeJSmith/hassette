@@ -3,7 +3,7 @@ task_id: "T07"
 title: "Write Core Concepts — Apps, Bus, Architecture, Internals"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#2", "FR#5", "FR#11", "FR#12", "AC#9", "AC#14", "AC#15"]
+implements: ["FR#1", "FR#2", "FR#5", "FR#11", "FR#12", "AC#1", "AC#9", "AC#14", "AC#15"]
 ---
 
 ## Summary
@@ -72,10 +72,12 @@ After writing this page, grep all already-written pages for DI references and co
 
 ## Verify
 
+- [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#2: All concept pages use system-as-subject voice — no "you" outside getting-started/recipe content
 - [ ] FR#5: `core-concepts/bus/dependency-injection.md` contains the full DI explanation; grep other pages for DI references and confirm each is one sentence + link
 - [ ] FR#11: Architecture page covers the five handles model for app-authors only
 - [ ] FR#12: Internals page contains dependency graphs, wave ordering, cycle detection, and internal service names
+- [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#9: `core-concepts/bus/dependency-injection.md` is the only page with a full DI explanation
 - [ ] AC#14: Architecture page does not mention dependency graphs, wave ordering, cycle detection, or internal service names
 - [ ] AC#15: `internals.md` contains dependency graphs, wave ordering, cycle detection, and internal service names
