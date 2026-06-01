@@ -9,16 +9,16 @@
 Persistent key-value storage for data that survives restarts. Not for entity state (use StateManager) or temporary data.
 
 ### H2: Basic Usage
-`self.cache.get()`, `self.cache.set()`, `self.cache.delete()`.
+`self.cache` is a raw `diskcache.Cache` instance — the full diskcache API is available directly (`.get()`, `.set()`, `.delete()`, `.pop()`, `.expire()`, etc.).
 
 ### H2: How It Works
-#### H3: Storage Location — DiskCache on filesystem
-#### H3: Shared Cache — all app instances share one cache, keyed by app
-#### H3: Lazy Initialization — cache dir created on first access
-#### H3: Automatic Cleanup — TTL expiry
+#### H3: Storage Location — `diskcache.Cache` backed by filesystem
+#### H3: Shared Cache — instances of the same class share one cache (keyed by class name, path: `data_dir/<ClassName>/cache`)
+#### H3: Lazy Initialization — cache dir created on first access via `cached_property`
+#### H3: Automatic Cleanup — TTL expiry, silent eviction when `size_limit` reached
 
 ### H2: Configuration
-Cache-related settings in hassette.toml.
+Only setting: `default_cache_size` (default 100 MiB) in root `HassetteConfig`. No `[hassette.cache]` section. Cache path is derived automatically.
 
 ### H2: Lifecycle
 When cache is available during app lifecycle.

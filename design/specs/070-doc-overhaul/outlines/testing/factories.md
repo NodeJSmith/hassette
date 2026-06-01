@@ -7,7 +7,9 @@
 
 ### H2: Event Factories
 #### H3: `create_state_change_event` — build a state change event dict
+#### H3: `make_full_state_change_event` — build from pre-made state dicts
 #### H3: `create_call_service_event` — build a service call event dict
+#### H3: `create_component_loaded_event`, `create_service_registered_event`
 
 ### H2: State Factories
 #### H3: `make_state_dict` — raw state dict

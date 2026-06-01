@@ -14,10 +14,12 @@ Handlers that receive the raw event dict. When to use: rare cases where DI doesn
 ### H2: Non-State Event Types
 Cover event types beyond state changes:
 - `on_call_service` — reacting to service calls
+- `on_service_registered` — reacting to new HA service registrations
 - `on` — subscribing to raw HA event types (e.g., `event_triggered`, `automation_triggered`)
 - `on_component_loaded` — HA component load events
-- Hassette internal events
-- HA startup/shutdown events
+- HA startup/shutdown events (`on_homeassistant_start`, `on_homeassistant_stop` — wrappers around `on_call_service` for `homeassistant` domain)
+- Hassette internal events — typed helpers: `on_hassette_service_status`, `on_hassette_service_failed`, `on_hassette_service_crashed`, `on_hassette_service_started`, `on_websocket_connected`, `on_websocket_disconnected`, `on_app_state_changed`, `on_app_running`, `on_app_stopping`
+- `Bus.emit()` for broadcasting Hassette-internal events between apps
 
 ### H2: Error Handling
 #### H3: App-Level Error Handler
@@ -25,7 +27,10 @@ Cover event types beyond state changes:
 #### H3: Per-Registration Error Handler
 `on_error=` parameter on subscription methods.
 #### H3: What `BusErrorContext` Contains
-Fields and how to use them for debugging.
+Fields: `topic`, `listener_name`, `event`, plus inherited fields from `ErrorContext` (`exception`, `traceback`).
+
+### H2: Timeout Configuration
+`timeout=` and `timeout_disabled=` options on subscription methods.
 
 ### H2: Subscription Mechanics
 #### H3: The `name=` Parameter (Required)

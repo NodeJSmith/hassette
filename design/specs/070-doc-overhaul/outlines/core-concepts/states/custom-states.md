@@ -22,7 +22,8 @@ Defining a state class for a domain Hassette doesn't cover (custom integrations,
 Typed attributes beyond the base `value` field.
 
 ### H2: Using Custom States in Apps
-#### H3: Via `get_states()`
+#### H3: Via `self.states[CustomStateClass]`
+Generic access returns a `DomainStates` collection of the custom type.
 #### H3: With Dependency Injection
 #### H3: Direct API Access
 

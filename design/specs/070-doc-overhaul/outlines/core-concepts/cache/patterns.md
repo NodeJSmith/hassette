@@ -30,7 +30,8 @@ Batch cache operations for performance.
 
 ### H2: Troubleshooting
 #### H3: Cache Not Persisting
-#### H3: Cache Size Exceeded
+#### H3: Cache Size — Silent Eviction
+DiskCache evicts old entries when `size_limit` is reached; no error is raised.
 #### H3: Debugging Cache Operations
 
 ## Snippet Inventory

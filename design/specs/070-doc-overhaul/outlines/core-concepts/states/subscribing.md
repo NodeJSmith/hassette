@@ -11,10 +11,10 @@ Bridge page between Bus and States. Covers state-change-specific subscription pa
 `on_state_change` and `on_attribute_change` — the two primary state subscription methods. Entity ID patterns (exact, glob, domain wildcard).
 
 ### H2: State-Specific DI Annotations
-`D.StateNew[T]`, `D.StateOld[T]`, `D.MaybeStateNew[T]`, `D.MaybeStateOld[T]` — shown in state-change context (links to DI page for full reference).
+`D.StateNew[T]`, `D.StateOld[T]`, `D.MaybeStateNew[T]`, `D.MaybeStateOld[T]`, `D.TypedStateChangeEvent[T]` — shown in state-change context (links to DI page for full reference).
 
 ### H2: The `changed` Parameter
-`changed=True` (default) vs `changed=False`. When to use each.
+Type is `bool | ComparisonCondition`, not just bool. `True` (default), `False`, or a `ComparisonCondition` (e.g., `C.Increased()`) that compares old vs new values.
 
 ### H2: Matching State Values
 #### H3: `changed_to` and `changed_from` — simple value matching
@@ -28,6 +28,9 @@ Bridge page between Bus and States. Covers state-change-specific subscription pa
 
 ### H2: Attribute Changes
 `on_attribute_change` — monitoring specific attributes rather than the state string.
+
+### H2: Common Parameters
+`name=` (required), `duration=`, `immediate=`, `on_error=`, `where=` (additional predicates), `timeout=`, `timeout_disabled=`.
 
 ### H2: See Also
 → Bus overview (general subscription), → Bus Filtering (service call filtering, complete predicate/condition reference), → DI page (full annotation reference)

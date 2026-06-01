@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: Home Assistant Token
-Where to set the token (env var, .env file). Link to HA Token getting-started page.
+Token field accepts four aliases: `token`, `hassette__token`, `ha_token`, `home_assistant_token`. Set via env var or .env file. Link to HA Token getting-started page.
 
 ### H2: SSL Verification
 `verify_ssl` setting for self-signed certs.

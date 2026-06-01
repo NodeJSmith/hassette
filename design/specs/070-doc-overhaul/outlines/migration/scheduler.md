@@ -21,7 +21,7 @@ Full example: daily task in AppDaemon vs Hassette.
 Complete before/after.
 
 ### H2: Blocking Work in Scheduler Callbacks
-`run_in_executor` for blocking code.
+`task_bucket.run_in_thread()` for blocking code. (There is no `run_in_executor`.) Alternatively, use `AppSync` with sync hooks for apps built around blocking libraries.
 
 ## Snippet Inventory
 

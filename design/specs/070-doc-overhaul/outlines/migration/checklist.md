@@ -30,7 +30,10 @@ Write tests for the migrated app.
 Run against real HA and verify behavior.
 
 ### H2: Common Pitfalls
-Known gotchas from the migration.
+Known gotchas from the migration:
+- `name=` required on all bus subscriptions (`ListenerNameRequiredError`)
+- `run_daily` signature differs from AppDaemon (takes `at="HH:MM"`, DST-safe)
+- Blocking code must use `task_bucket.run_in_thread()`, not `run_in_executor`
 
 ## Snippet Inventory
 

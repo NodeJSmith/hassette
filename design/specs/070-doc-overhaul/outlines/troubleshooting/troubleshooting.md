@@ -13,10 +13,16 @@ Token issues, connection refused/timeout. Links to Auth, Docker Troubleshooting.
 ### H2: Apps Not Loading
 App not discovered, import errors, precheck failures. **KI-04**: Include all three log signatures and the `allow_startup_if_app_precheck_fails` workaround.
 
+### H2: Handler Registration Fails — `ListenerNameRequiredError`
+`name=` is required on every bus subscription. Most common error for new users and migrators.
+
+### H2: Duplicate Handler — `DuplicateListenerError`
+Same `(app_key, instance_index, name, topic)` registered twice in a session.
+
 ### H2: Event Handler Never Runs
 **KI-05**: `changed_to` type mismatch (string vs bool).
 **KI-06**: `bus_excluded_domains`/`bus_excluded_entities` silently drop events.
-**KI-07**: Attribute-only changes require `changed=False`.
+**KI-07**: Attribute-only changes — use `on_attribute_change` for dedicated attribute monitoring; `on_state_change(changed=False)` fires on every state event regardless.
 Also: entity ID typos, app not enabled.
 
 ### H2: Scheduler Not Firing

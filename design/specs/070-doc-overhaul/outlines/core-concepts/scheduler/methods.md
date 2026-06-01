@@ -28,10 +28,15 @@ Cron expression syntax, examples.
 `jitter=` parameter for randomizing execution times.
 
 ### H2: Idempotent Registration
-`name=` parameter for preventing duplicate jobs.
+`name=` identifies the job; `if_exists=` (`"error"`, `"skip"`, `"replace"`) controls behavior on duplicate name.
 
-### H2: Passing Arguments to Handlers
-`args=` and `kwargs=` parameters.
+### H2: Per-Job Options
+#### H3: `on_error=` — per-registration error handler
+#### H3: `timeout=` / `timeout_disabled=` — per-job timeout control
+#### H3: `args=` and `kwargs=` — passing arguments to handlers
+
+### H2: Synchronous Scheduling
+`self.scheduler.sync` (`SchedulerSyncFacade`) — mirrors all methods as blocking calls for `AppSync` hooks.
 
 ### H2: Custom Triggers
 Implementing `TriggerProtocol` for custom scheduling logic.

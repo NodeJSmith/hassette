@@ -19,6 +19,12 @@ What changes: `listen_state` → `on_state_change`, `listen_event` → `on`.
 #### H3: Hassette: with DI (recommended)
 #### H3: Hassette: with full event object
 
+### H2: Attribute Change Listeners
+AppDaemon `listen_state(..., attribute=...)` → Hassette `on_attribute_change(entity_id, attribute, ...)`.
+
+### H2: The `name=` Requirement
+All bus subscription methods require `name=`. Omitting it raises `ListenerNameRequiredError`. Most common migration breakage point.
+
 ### H2: Canceling Subscriptions
 Handle patterns comparison.
 

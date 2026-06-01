@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: The ScheduledJob Object
-What `schedule()` returns. Fields: `db_id`, `name`, `group`, `next_run`. Note: no public `cancelled` field — cancellation state is checked via methods.
+What `schedule()` returns. Fields: `db_id`, `name`, `group`, `next_run`, `fire_at` (actual dispatch time after jitter, distinct from `next_run`). Note: no public `cancelled` field — cancellation state is checked via methods.
 
 ### H2: Cancelling Jobs
 `job.cancel()`, `cancel_group()`, `list_jobs()`, checking cancellation state.
@@ -28,6 +28,7 @@ Job that cancels itself based on a condition.
 #### H3: App-Level Error Handler — `Scheduler.on_error()`
 #### H3: Per-Registration Error Handler — `error_handler=`
 #### H3: What `SchedulerErrorContext` Contains
+Fields: `exception`, `traceback` (from `ErrorContext` base), `job_name`, `job_group`, `args`, `kwargs`.
 
 ## Snippet Inventory
 

@@ -15,7 +15,7 @@ Mermaid diagram showing StateManager → StateProxy → DomainStates flow.
 #### H3: Iteration
 
 ### H2: DomainStates Collection Interface
-Methods available on domain collections (filter, all, etc.).
+Methods: `get()`, `items()`, `keys()`, `values()`, `to_dict()`, `__iter__`, `__len__`, `__contains__`, `__getitem__`, `__bool__`.
 
 ### H2: Built-in State Types
 Table of all auto-generated domain state classes (SensorState, LightState, etc.) with key attributes.

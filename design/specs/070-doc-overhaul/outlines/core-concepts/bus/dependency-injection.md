@@ -7,6 +7,8 @@
 
 Already complete. Covers: annotation reference (state/identity/other extractors), combining annotations, union types, custom kwargs, handler signature restrictions.
 
+**Ensure reference table includes:** `D.MaybeStateNew`, `D.MaybeStateOld`, `D.MaybeEntityId`, `D.MaybeDomain`, `D.EventContext`, `D.TypedStateChangeEvent[T]`.
+
 ## Snippet Inventory
 
 All snippets written and tested in T03:

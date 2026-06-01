@@ -6,10 +6,10 @@
 ## Outline
 
 ### H2: Configuration Sources
-hassette.toml (primary), environment variables (overrides), .env files.
+Priority order (highest wins): init kwargs → env vars (`HASSETTE__` prefix, `__` nested delimiter) → dotenv (.env) → file secrets → hassette.toml. TOML is the base; env vars override it.
 
-### H2: File Locations
-Where Hassette looks for config files. Search order.
+### H2: Search Paths
+TOML: `/config/hassette.toml`, `hassette.toml`, `./config/hassette.toml`. `.env`: `/config/.env`, `.env`, `./config/.env`. Docker `/config/` path is first.
 
 ### H2: Configuration Sections
 Brief list of what's configurable, linking to sub-pages.

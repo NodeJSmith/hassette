@@ -18,7 +18,7 @@ Customizing visible columns.
 Expanding a log entry to see full context.
 
 ### H2: Live Streaming
-SSE-based live log tail. Auto-pause on sort behavior.
+WebSocket-based live log tail (not SSE). Auto-pause on sort behavior. Runtime log-level control via the WebSocket connection.
 
 ### H2: Execution ID Filtering
 Tracing a single handler/job execution across log entries.

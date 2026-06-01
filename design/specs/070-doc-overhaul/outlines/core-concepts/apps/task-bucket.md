@@ -18,7 +18,15 @@
 #### H3: Posting to the Event Loop
 `self.task_bucket.post_to_loop()` for thread-safe event loop posting.
 #### H3: Running Async from Sync Code
-`self.task_bucket.run_sync()` for calling async from sync contexts.
+`self.task_bucket.run_sync()` — takes a coroutine object, not a callable. Raises `RuntimeError` if called from within a running event loop.
+#### H3: Running on the Loop Thread
+`self.task_bucket.run_on_loop_thread()` — runs a sync function on the main event loop thread (for loop-affine code).
+#### H3: Creating Tasks from Any Context
+`self.task_bucket.create_task_on_loop()` — creates a task on the loop from any context.
+
+### H2: Task Lifecycle
+#### H3: `add(task)` — register an externally-created `asyncio.Task`
+#### H3: `pending_tasks()` — snapshot of non-completed tasks (for drain/test helpers)
 
 ### H2: Shutdown Behavior
 How pending tasks are handled during app shutdown.

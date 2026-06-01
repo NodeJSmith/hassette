@@ -13,10 +13,10 @@ Minimal test example with the harness.
 
 ### H2: The Test Harness
 #### H3: Constructor — `AppTestHarness(AppClass, config)` parameters
-#### H3: Properties — harness.bus, harness.scheduler, harness.api, etc.
+#### H3: Properties — `harness.bus`, `harness.scheduler`, `harness.api_recorder` (not `harness.api`), etc.
 
 ### H2: State Seeding
-Pre-populating entity states before running the app.
+`harness.set_state()`, `harness.set_states()` (bulk), `harness.seed_helper()` (helper config for CRUD tests).
 
 ### H2: Simulating Events
 #### H3: State Changes
@@ -25,9 +25,12 @@ Pre-populating entity states before running the app.
 #### H3: Timeouts and Slow Handlers
 #### H3: Typed Dependency Injection in Handlers
 #### H3: Hassette Service Events
+Also note the full `simulate_*` surface: `simulate_component_loaded`, `simulate_service_registered`, `simulate_websocket_connected/disconnected`, `simulate_homeassistant_restart/start/stop`, `simulate_app_state_changed/running/stopping`.
 
 ### H2: Asserting API Calls
 #### H3: `assert_called` — verify service calls were made
+#### H3: `assert_called_partial` — subset match on kwargs
+#### H3: `assert_called_exact` — exact kwargs match
 #### H3: `assert_not_called`
 #### H3: `assert_call_count`
 #### H3: `get_calls`

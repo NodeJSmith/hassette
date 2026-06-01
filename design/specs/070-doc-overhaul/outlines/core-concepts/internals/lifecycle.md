@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: Resource State Machine
-State transitions diagram: CREATED → INITIALIZING → RUNNING → STOPPING → STOPPED (and error states FAILED, CRASHED).
+State transitions diagram: `NOT_STARTED` → `STARTING` → `RUNNING` → `STOPPING` → `STOPPED`. Error/terminal states: `FAILED`, `CRASHED`, `EXHAUSTED_COOLING`, `EXHAUSTED_DEAD`.
 
 ### H2: Readiness vs Running
 `mark_ready()` signals readiness; RUNNING is the status. Why these are separate — a service can be running but not yet ready to serve dependents.
@@ -23,8 +23,10 @@ Class attribute on services: restart type, sliding-window budget, backoff parame
 Intensity (max restarts) and period (window size). Budget resets on recovery.
 #### H3: Error Routing
 Fatal vs non-retryable error names. Three-layer routing: handler-level, service-level, framework-level.
-#### H3: EXHAUSTED_COOLING
-What happens when the restart budget runs out. Cooldown period, then budget resets.
+#### H3: Exhaustion States
+`EXHAUSTED_COOLING` (cooldown period after budget runs out) → either budget resets or transitions to `EXHAUSTED_DEAD` after `max_cooldown_cycles` (0 = infinite).
+#### H3: Backoff Parameters
+`backoff_base_seconds`, `backoff_multiplier`, `backoff_max_seconds`, `startup_timeout_seconds`.
 
 ## Snippet Inventory
 

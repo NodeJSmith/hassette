@@ -12,13 +12,13 @@ How Hassette's Docker entrypoint handles dependency installation at startup. Bri
 Hassette pins its own deps via constraints file to prevent conflicts.
 
 ### H2: How the Startup Script Works
-What happens at container start: detect project type, install deps, launch.
+What happens at container start: detect project type, install deps, launch. **`HASSETTE__INSTALL_DEPS=1`** must be set to activate dependency installation — without it, no requirements/pyproject install runs.
 
 #### H3: Key Behaviors
 Bulleted list of the script's decisions.
 
 ### H2: Understanding APP_DIR vs PROJECT_DIR
-When to use which env var. Table or short comparison.
+When to use which env var. Canonical env var: `HASSETTE__APPS__DIRECTORY` (legacy fallback: `HASSETTE__APP_DIR`). Table or short comparison.
 
 ### H2: Project Structures
 #### H3: Simple Flat Structure

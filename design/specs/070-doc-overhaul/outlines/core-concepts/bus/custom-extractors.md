@@ -12,7 +12,7 @@ How to implement the extractor protocol. When to write one (data not covered by 
 How accessors work, creating custom field accessors for event data.
 
 ### H2: AnnotationDetails
-The AnnotationDetails object that extractors receive. Fields and usage.
+`AnnotationDetails` wraps an extractor (not "received by" it). Fields: `extractor` (required callable), `converter` (optional type converter). Placed inside `Annotated[T, AnnotationDetails(...)]` — the DI system (`extraction.py`) discovers it from the handler's signature.
 
 General type conversion lives on the Type Registry page. This page covers only how extractors *interact* with the registry (e.g., calling converters from a custom extractor).
 

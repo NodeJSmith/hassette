@@ -23,11 +23,11 @@ Dictionary filtering and predicate filtering for `on_call_service`.
 
 ### H2: Complete Reference
 #### H3: Predicates (`P`)
-Full reference table: logic combinators, value/field matching, entity/domain/service matching, state change predicates.
+Full reference table. Include: `AllOf`, `AnyOf`, `Not`, `Guard`, `StateFrom`, `StateTo`, `StateFromTo`, `DidChange`, `IsPresent`, `IsMissing`, `ValueIs`, `EntityMatches`, `DomainMatches`, `ServiceMatches`, and any others in `predicates.py`.
 #### H3: Conditions (`C`)
-Full reference table: string matching, collection membership, none/missing checks, numeric comparison.
+Full reference table. Include: `Increased`, `Decreased`, `InRange`, `Comparison` (raw operator), `IsNone`, `IsNotNone`, `Present`, `Missing` (sentinel-based, distinct from `IsNone`), `IsIn`, `IsOrContains`, `NotIntersects`, `StartsWith`, `EndsWith`, `Contains`, `Regex`, `Glob`.
 #### H3: Accessors (`A`)
-Full reference table: built-in accessors (`get_state_value_new`, `get_state_value_old`, `get_service_data_key`, `get_path`, etc.). How accessors plug into predicates via the `source=` parameter.
+Full reference table grouped by category: state value (`get_state_value_new`, `get_state_value_old`, `get_state_value_old_new`), state object (`get_state_object_old`, `get_state_object_new`), attribute (`get_attr_old`, `get_attr_new`, `get_attr_old_new`, `get_attrs_old`, `get_attrs_new`, `get_all_attrs_old`, `get_all_attrs_new`), identity (`get_domain`, `get_entity_id`, `get_context`), service (`get_service`, `get_service_data`, `get_service_data_key`), path (`get_path`), diff (`get_all_changes`). How accessors plug into predicates via the `source=` parameter.
 
 ## Snippet Inventory
 

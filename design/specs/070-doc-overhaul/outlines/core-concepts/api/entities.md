@@ -9,14 +9,14 @@
 Entity, state, attributes — HA concepts mapped to Hassette types.
 
 ### H2: Retrieving States
-`get_state(entity_id)` — single entity.
+`get_state(entity_id)` — single entity. Also: `get_state_or_none()`, `get_state_value()`, `get_state_value_typed()`, `get_attribute(entity_id, attribute)`.
 #### H3: Raw vs Typed
-Raw string state vs typed state model conversion.
+`get_state_raw()` returns raw `HassStateDict`; `get_state()` returns typed model.
 #### H3: Checking Existence
-What happens when an entity doesn't exist.
+`entity_exists(entity_id)` for boolean check; `get_state_or_none()` for optional return.
 
 ### H2: Retrieving Multiple States
-`get_states()` — all entities or filtered.
+`get_states()` — returns all entities (no filtering parameter). `get_states_raw()` for raw dicts.
 
 ### H2: Entities
 Entity registry access.
