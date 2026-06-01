@@ -30,7 +30,7 @@ Brief overview linking to each capability's page:
 `Bus.emit()` for inter-app communication.
 
 ### H2: Synchronous Apps
-`SyncApp` variant for simple scripts.
+`AppSync` variant for apps where async adds unnecessary complexity or doesn't fit the libraries in use (e.g., `requests`, blocking database clients).
 
 ### H2: Next Steps
 Links to all sibling and handle pages: Lifecycle, Configuration, Task Bucket, Bus overview, Scheduler overview, States overview, API overview, Cache overview.
