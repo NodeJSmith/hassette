@@ -9,6 +9,10 @@ class LightMonitor(App):
             name="bedroom_light",
         )
 
-    async def on_light_change(self, new_state: D.StateNew[states.LightState], entity_id: D.EntityId):
+    async def on_light_change(
+        self,
+        new_state: D.StateNew[states.LightState],
+        entity_id: D.EntityId,
+    ):
         brightness = new_state.attributes.brightness
         self.logger.info("%s brightness: %s", entity_id, brightness)

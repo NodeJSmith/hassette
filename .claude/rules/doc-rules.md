@@ -144,6 +144,7 @@ This way minimal fragments are slices of tested files, not standalone untested c
 - **Show the outcome.** After a code block, briefly say what happens when it runs. "When the sensor crosses 75°F, the handler fires and turns on the fan." The reader should be able to predict behavior before running it.
 - **One concept per example.** An example that demonstrates debouncing should not also introduce conditions, predicates, and dependency injection. Layer concepts across examples, not within them.
 - **Real entity names.** Use `light.kitchen`, `sensor.outdoor_temperature`, `binary_sensor.front_door` — not `entity.my_entity` or `sensor.test_sensor`. Real names help readers map to their own setup.
+- **Keep lines under 80 characters.** The docs content area is narrow — long lines force horizontal scrolling, which makes code hard to read. Break function signatures across multiple lines, use short variable names, and extract intermediate values. If a line is too long for the rendered page, it's too long for the snippet.
 
 ## Layering for Skill Levels
 

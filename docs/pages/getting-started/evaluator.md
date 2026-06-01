@@ -1,0 +1,3 @@
+# Is Hassette Right for You?
+
+*This page is being rewritten as part of the documentation overhaul.*

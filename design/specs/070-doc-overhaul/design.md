@@ -384,6 +384,12 @@ This change IS the documentation. No other documentation artifacts need updating
 
 ## Open Questions
 
-- Which specific pages become the three exemplars? Phase 1 decides. Bus overview is a strong candidate for the concept exemplar; First Automation or Motion Lights for the recipe/getting-started exemplar.
-- Whether to keep the Migration section at 8 pages or condense to fewer (e.g., 3-4). The section stays — Hassette has no existing users who've completed the migration, so AD migration content is still a primary inflow path. Phase 1 decides the page count and structure.
 - Pyright config scoping: whether `reportOperatorIssue` and `reportAssignmentType` can move from global suppressions to per-file exclusions. Pre-Phase 3 cleanup item.
+
+## Resolved Decisions (Phase 1)
+
+- **Exemplars:** Bus overview (concept), Motion Lights (recipe), DI annotations page (reference)
+- **Migration:** Keep all 8 pages — each covers a distinct mapping and the section is a primary inflow path
+- **Web UI consolidation:** 5 pages — Overview, Debug a Failing Handler, Read and Filter Logs, Manage Apps, Inspect App Configuration and Code
+- **PUBLIC_MODULES:** Review included in Phase 1 (T01)
+- **Link checker:** Muffet for post-build HTML link checking

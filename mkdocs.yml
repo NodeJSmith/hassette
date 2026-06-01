@@ -32,10 +32,11 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
+      - Is Hassette Right for You?: pages/getting-started/evaluator.md
       - Quickstart: pages/getting-started/index.md
       - Home Assistant Token: pages/getting-started/ha_token.md
       - Your First Automation: pages/getting-started/first-automation.md
+      - Hassette vs HA YAML: pages/getting-started/hassette-vs-ha-yaml.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
@@ -52,17 +53,24 @@ nav:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
           - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
+          - Custom Extractors: pages/core-concepts/bus/custom-extractors.md
           - Filtering & Predicates: pages/core-concepts/bus/filtering.md
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
           - Scheduling Methods: pages/core-concepts/scheduler/methods.md
           - Job Management: pages/core-concepts/scheduler/management.md
-      - States: pages/core-concepts/states/index.md
+      - States:
+          - Overview: pages/core-concepts/states/index.md
+          - Subscribing to State Changes: pages/core-concepts/states/subscribing.md
+          - DomainStates Reference: pages/core-concepts/states/domain-states.md
+          - Custom States: pages/core-concepts/states/custom-states.md
+          - State Registry: pages/core-concepts/states/state-registry.md
+          - Type Registry: pages/core-concepts/states/type-registry.md
       - API:
           - Overview: pages/core-concepts/api/index.md
           - Entities & States: pages/core-concepts/api/entities.md
           - Services: pages/core-concepts/api/services.md
-          - Managing Helpers: pages/advanced/managing-helpers.md
+          - Managing Helpers: pages/core-concepts/api/managing-helpers.md
           - Utilities: pages/core-concepts/api/utilities.md
       - App Cache:
           - Overview: pages/core-concepts/cache/index.md
@@ -76,18 +84,10 @@ nav:
       - System Internals: pages/core-concepts/internals.md
   - Web UI:
       - Overview: pages/web-ui/index.md
-      - Layout & Navigation: pages/web-ui/layout.md
-      - Apps: pages/web-ui/apps.md
-      - App Detail:
-          - Overview: pages/web-ui/app-detail/index.md
-          - Overview Tab: pages/web-ui/app-detail/overview.md
-          - Handlers Tab: pages/web-ui/app-detail/handlers.md
-          - Code Tab: pages/web-ui/app-detail/code.md
-          - Logs Tab: pages/web-ui/app-detail/logs.md
-          - Config Tab: pages/web-ui/app-detail/config.md
-      - Handlers: pages/web-ui/handlers.md
-      - Logs: pages/web-ui/logs.md
-      - Config: pages/web-ui/config.md
+      - Debug a Failing Handler: pages/web-ui/debug-handler.md
+      - Read and Filter Logs: pages/web-ui/logs.md
+      - Manage Apps: pages/web-ui/manage-apps.md
+      - Inspect Configuration and Code: pages/web-ui/inspect-config-code.md
       - Health Endpoints: pages/web-ui/health-endpoints.md
   - CLI:
       - Overview: pages/cli/index.md
@@ -107,12 +107,10 @@ nav:
       - React to a Service Call: pages/recipes/service-call-reaction.md
       - Monitor Sensor Thresholds: pages/recipes/sensor-threshold.md
       - Vacation Mode Toggle: pages/recipes/vacation-mode-toggle.md
-  - Advanced:
-      - Overview: pages/advanced/index.md
-      - Custom States: pages/advanced/custom-states.md
-      - State Registry: pages/advanced/state-registry.md
-      - Type Registry: pages/advanced/type-registry.md
-      - Log Level Tuning: pages/advanced/log-level-tuning.md
+  - Operating Hassette:
+      - Overview: pages/operating/index.md
+      - Log Level Tuning: pages/operating/log-levels.md
+      - Upgrading: pages/operating/upgrading.md
   - AppDaemon Migration:
       - Overview: pages/migration/index.md
       - Mental Model: pages/migration/concepts.md

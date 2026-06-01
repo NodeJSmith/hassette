@@ -1,8 +1,8 @@
-# Bus Overview
+# Bus
 
-The event bus connects your apps to Home Assistant and to Hassette itself. It delivers events such as state changes, service calls, or framework updates to any app that subscribes.
+The event bus delivers Home Assistant events — state changes, service calls, component loads — to any app handler that subscribes. It also delivers Hassette-internal events.
 
-Apps register event handlers through `self.bus`, which is created automatically at app instantiation.
+`self.bus` is available on every [App](../apps/index.md) instance. Hassette creates it at startup.
 
 ```mermaid
 flowchart TD
@@ -10,10 +10,8 @@ flowchart TD
         HA["Events"]
     end
 
-    subgraph framework["Framework"]
-        WS["WebsocketService"]
-        BUS["BusService"]
-        WS --> BUS
+    subgraph bus["Event Bus"]
+        BUS["Bus"]
     end
 
     subgraph handlers["App Handlers"]
@@ -22,113 +20,75 @@ flowchart TD
         APP3["Handler 3<br/><i>custom_event</i>"]
     end
 
-    HA --> WS
+    HA --> BUS
     BUS --> APP1 & APP2 & APP3
 
     style ha fill:#f0f0f0,stroke:#999
-    style framework fill:#fff0e8,stroke:#cc8844
+    style bus fill:#fff0e8,stroke:#cc8844
     style handlers fill:#e8f0ff,stroke:#6688cc
 ```
 
 ## Subscribing to Events
 
-The `Bus` provides helper methods for common subscriptions. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
-
-### Common Methods
-
-- `on_state_change` - Listen for entity state changes.
-- `on_attribute_change` - Listen for changes to a specific attribute.
-- `on_call_service` - Listen for service calls.
-- `on` - Generic subscription to any topic.
-- `on_component_loaded` - Listen for Home Assistant component load events.
-
-### Example
+[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a `Subscription` handle.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/bus_subscribe_state_change.py:subscribe"
+--8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
 ```
+
+[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed `BinarySensorState`. The handler receives clean, typed data instead of a raw event dictionary. See [Dependency Injection](dependency-injection.md) for the full annotation reference.
+
+Four subscription methods cover the common event types:
+
+| Method | Fires when |
+|---|---|
+| `on_state_change` | An entity's state value changes |
+| `on_attribute_change` | A named attribute on an entity changes |
+| `on_call_service` | A Home Assistant service is called |
+| `on` | Any event on a given topic string |
+
+All registration methods are async. Each requires a `name=` parameter — a stable string identifier for the listener. Additional specialized methods like `on_component_loaded` are covered in [Writing Handlers](handlers.md).
 
 ## Matching Multiple Entities
 
-Most methods accept glob patterns for `entity_id`, `domain`, and `service`.
+Subscription methods accept glob patterns for entity matching.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_glob_patterns.py:glob_patterns"
 ```
 
-!!! warning "Limitation"
-    Glob patterns work for identifiers but **not** for attribute names or complex data values. For that, use [Predicates](filtering.md).
+`"light.*"` matches any entity in the `light` domain. `"sensor.bedroom_*"` matches sensors with a `bedroom_` prefix. The same patterns work for `domain` and `service` parameters on `on_call_service`.
+
+!!! warning "Glob patterns match identifiers only"
+    Glob patterns do not match attribute names or data values. [Predicates](filtering.md) handle those cases.
 
 ## Rate Control
 
-You can rate-limit your handlers directly in the subscription call to handle noisy events.
+Three subscription parameters manage handler invocation frequency.
+
+`debounce` delays the handler until the event source has been quiet for N seconds. Each new event resets the timer.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:rate_control"
+--8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:debounce"
 ```
 
-Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
-
-## Immediate Fire
-
-Pass `immediate=True` to fire your handler right at registration time if the entity already matches your predicates. The handler receives a synthetic event with `old_state=None` and `new_state=<current state>`. Without `immediate=True`, the handler only fires on the next change.
+`throttle` limits the handler to one invocation per N seconds. Events during the cooldown are dropped.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/bus_immediate_fire.py:immediate_fire"
+--8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:throttle"
 ```
 
-`immediate=True` composes with `once=True`: the immediate fire counts as the single invocation, so the subscription is automatically cancelled afterward if the entity already matches. It also composes with `debounce` and `throttle` — the immediate fire passes through rate limiting the same way a live event does.
-
-!!! warning "Glob patterns not supported"
-    `immediate=True` cannot be combined with glob entity patterns (for example, `"light.*"`). Hassette cannot determine which entity to read state from when the pattern matches multiple entities. A `ValueError` is raised at registration.
-
-## Duration Hold
-
-Pass `duration=N` (seconds) to delay your handler until the entity has remained in the matching state for N continuous seconds. If the entity leaves the matching state before the duration elapses, the timer is cancelled and the handler does not fire.
+`once=True` fires the handler exactly once, then cancels the subscription.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/bus_duration_hold.py:duration_hold"
+--8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:once"
 ```
 
-`duration` composes with `once=True`: the handler fires at most once after the duration gate passes. It also composes with `immediate=True` for restart resilience: when the app starts and the entity is already in the target state, Hassette consults `last_changed` to compute how long it has already been there. If that elapsed time exceeds `duration`, the handler fires immediately. If not, a timer starts for the remaining time.
-
-**Validation rules:**
-
-- `duration` must be a positive number; zero or negative raises `ValueError`.
-- `duration` cannot be combined with `debounce` or `throttle` — raises `ValueError`. Use duration for the "held for N seconds" pattern; use debounce for the "settled after N seconds of silence" pattern. They are different behaviors that cannot be composed.
-- Glob entity patterns are not supported with `duration` — raises `ValueError`.
-
-## Timeouts
-
-All subscription methods (`on`, `on_state_change`, `on_attribute_change`, `on_call_service`, `on_component_loaded`) accept `timeout` and `timeout_disabled` parameters to control per-listener execution timeouts.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. `None` uses the global `event_handler_timeout_seconds` default. A positive `float` overrides it. |
-| `timeout_disabled` | `bool` | `False` | When `True`, disables timeout enforcement for this listener regardless of the global default. |
-
-```python
---8<-- "pages/core-concepts/bus/snippets/bus_timeouts.py"
-```
-
-See [Timeouts](../configuration/global.md#timeouts) for global configuration and override semantics.
-
-## Handler Exceptions
-
-If a handler raises an exception, Hassette catches it, logs it at `ERROR` level with the full traceback, and records the failure in the telemetry database. The exception does not propagate — the app keeps running, and the next event dispatches as normal. Other handlers for the same event are not affected.
-
-This is the same behavior as scheduled jobs: unhandled exceptions are logged to error but do not crash anything.
-
-??? info "Registration Identity"
-    All `bus.on_*()` subscription methods require a `name=` parameter — a stable string identifier that forms the listener's natural key `(app_key, instance_index, name, topic)`. Omitting `name=` raises `ListenerNameRequiredError` at call time. Registering a second listener with the same `(name, topic)` in the same app session raises `DuplicateListenerError`.
-
-    ```python
-    --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
-    ```
-
-    See [Subscription and Registration](handlers.md#subscription-and-registration) in the Handlers guide for the full error details and upsert semantics across restarts.
+!!! warning "One strategy per subscription"
+    `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError` at registration.
 
 ## Next Steps
 
-- **[Writing Handlers](handlers.md)**: Learn how to write handlers using Dependency Injection to extract clean data.
-- **[Filtering & Predicates](filtering.md)**: Learn how to filter events efficiently using predicates.
+- [Writing Handlers](handlers.md) — handler signatures, immediate fire, duration hold, timeouts, and error behavior
+- [Filtering & Predicates](filtering.md) — predicates, conditions, and accessors for complex event matching
+- [Dependency Injection](dependency-injection.md) — the full `D.*` annotation reference and how Hassette resolves handler parameters
