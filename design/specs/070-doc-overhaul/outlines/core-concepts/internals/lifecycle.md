@@ -18,7 +18,7 @@ How the dependency graph drives startup waves (level 0 first, then level 1, etc.
 #### H3: RestartSpec
 Class attribute on services: restart type, sliding-window budget, backoff parameters, error routing.
 #### H3: RestartType
-`PERMANENT` (always restart), `TRANSIENT` (restart on unexpected failure), `TEMPORARY` (never restart).
+`PERMANENT` (always restart within budget), `TRANSIENT` (restarts within budget; on exhaustion enters `EXHAUSTED_COOLING` with cooldown/recovery cycle), `TEMPORARY` (restarts within budget; on exhaustion goes straight to `EXHAUSTED_DEAD` with no cooldown). All three types restart — they differ in exhaustion behavior.
 #### H3: Sliding-Window Budget
 Intensity (max restarts) and period (window size). Budget resets on recovery.
 #### H3: Error Routing
@@ -26,7 +26,7 @@ Fatal vs non-retryable error names. Three-layer routing: handler-level, service-
 #### H3: Exhaustion States
 `EXHAUSTED_COOLING` (cooldown period after budget runs out) → either budget resets or transitions to `EXHAUSTED_DEAD` after `max_cooldown_cycles` (0 = infinite).
 #### H3: Backoff Parameters
-`backoff_base_seconds`, `backoff_multiplier`, `backoff_max_seconds`, `startup_timeout_seconds`.
+`backoff_base_seconds`, `backoff_multiplier`, `backoff_max_seconds`, `startup_timeout_seconds`, `cooldown_seconds` (duration of EXHAUSTED_COOLING phase for TRANSIENT services).
 
 ## Snippet Inventory
 

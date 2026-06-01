@@ -23,13 +23,13 @@ Long reference page documenting every global setting in hassette.toml. Keep curr
 `database.path`, `database.retention_days`.
 
 ### H2: Lifecycle Settings
-`LifecycleConfig`: `startup_timeout_seconds`, `app_startup_timeout_seconds`, `app_shutdown_timeout_seconds`, `event_handler_timeout_seconds`, `error_handler_timeout_seconds`, `run_sync_timeout_seconds`.
+`LifecycleConfig`: `startup_timeout_seconds`, `app_startup_timeout_seconds`, `app_shutdown_timeout_seconds`, `event_handler_timeout_seconds`, `error_handler_timeout_seconds`, `run_sync_timeout_seconds`, `resource_shutdown_timeout_seconds`, `total_shutdown_timeout_seconds`, `registration_await_timeout`, `task_cancellation_timeout_seconds`.
 
 ### H2: File Watcher Settings
 `FileWatcherConfig`: `watch_files`, `debounce_milliseconds`, `step_milliseconds`.
 
 ### H2: WebSocket Settings
-`connect_retry_*` fields (initial connect retries within the service) and `early_drop_*` fields. Note: these are separate from the ServiceWatcher restart budget.
+`connect_retry_*` fields (initial connect retries within the service), `early_drop_*` fields (fast reconnect on brief disconnects), and `max_recovery_seconds` (caps total wall-clock recovery time). Note: these are separate from the ServiceWatcher restart budget.
 
 ### H2: Timeout Settings
 Per-item overrides, disabling, limitations.
@@ -38,7 +38,7 @@ Per-item overrides, disabling, limitations.
 Default scheduler configuration.
 
 ### H2: Logging Settings
-Log level, format.
+`LoggingConfig`: `log_format` (`"auto"`, `"console"`, `"json"`), `log_persistence_level`, `log_retention_days`, `log_queue_max`, 13 per-service log levels (`database_service`, `bus_service`, `scheduler_service`, `app_handler`, `web_api`, `websocket`, `service_watcher`, `file_watcher`, `task_bucket`, `command_executor`, `apps`, `state_proxy`, `api`), and debug flags (`all_events`, `all_hass_events`, `all_hassette_events`).
 
 ### H2: Bus Filtering Settings
 `bus_excluded_domains`, `bus_excluded_entities`, `hassette_event_buffer_size`.
@@ -50,7 +50,7 @@ Log level, format.
 `default_cache_size` (default 100 MiB). No other cache config — paths are derived from `data_dir`.
 
 ### H2: Service Restart Policy
-Default RestartSpec configuration.
+Note: `RestartSpec` is a code-level class attribute on `Service` subclasses, NOT a `hassette.toml` setting. Document the defaults here for reference but clarify it is configured in code.
 
 ### H2: Basic Example
 Complete hassette.toml example.

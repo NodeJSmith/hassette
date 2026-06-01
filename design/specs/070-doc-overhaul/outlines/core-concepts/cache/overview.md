@@ -24,7 +24,7 @@ Only setting: `default_cache_size` (default 100 MiB) in root `HassetteConfig`. N
 When cache is available during app lifecycle.
 
 ### H2: Data Types
-What can be cached (JSON-serializable types).
+What can be cached (anything picklable — diskcache uses `pickle` as its default serializer). Includes dataclasses, Pydantic models, sets, custom objects. Not limited to JSON-serializable types.
 
 ## Snippet Inventory
 

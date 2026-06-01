@@ -6,13 +6,13 @@
 ## Outline
 
 ### H2: Overview
-What changes: `run_in` stays, `run_daily` stays, `run_every` stays. Callback signature changes.
+What changes: `run_in` stays, `run_daily` stays, `run_every` stays. Callback signature changes. `run_daily` default is `at="00:00"` (midnight) — make this explicit.
 
 ### H2: Callback Signatures
 AppDaemon kwargs dict → Hassette typed params.
 
 ### H2: Method Equivalents
-Table: AppDaemon method → Hassette method.
+Table: AppDaemon method → Hassette method. Also note Hassette-only additions with no AppDaemon equivalent: `run_once`, `run_minutely`, `run_hourly`, `run_cron`, `schedule()` (with trigger objects).
 
 ### H2: Side-by-Side Comparison
 Full example: daily task in AppDaemon vs Hassette.

@@ -18,7 +18,7 @@ What debounce does: resets timer on each new event, fires only after quiet perio
 **New section needed.**
 
 ### H2: Variations
-Different debounce values, combining with throttle, sensor-specific patterns.
+Different debounce values, switching to throttle instead (debounce and throttle are mutually exclusive — `ValueError` if both set), sensor-specific patterns.
 
 ## Snippet Inventory
 

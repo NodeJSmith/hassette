@@ -19,18 +19,18 @@ Type is `bool | ComparisonCondition`, not just bool. `True` (default), `False`, 
 ### H2: Matching State Values
 #### H3: `changed_to` and `changed_from` — simple value matching
 #### H3: Predicates for State Changes
-`P.StateFrom`, `P.StateTo`, `P.StateFromTo` — tracking transitions.
+`P.StateFrom`, `P.StateTo` — tracking transitions. (No `P.StateFromTo` — combine with `AllOf`.)
 #### H3: Numeric Conditions
-`C.Increased`, `C.Decreased`, `C.InRange` — monitoring numeric changes.
+`C.Increased`, `C.Decreased` — monitoring numeric changes. (No `C.InRange` — use `C.Comparison` for range checks.)
 
 ### H2: Combining Predicates
 `AllOf` and `AnyOf` composition. Examples specific to state-change scenarios.
 
 ### H2: Attribute Changes
-`on_attribute_change` — monitoring specific attributes rather than the state string.
+`on_attribute_change(entity_id, attr, ...)` — `attr: str` is a required second positional argument. Monitors a specific attribute rather than the state string. Also has attribute-specific predicates: `P.AttrFrom`, `P.AttrTo`, `P.AttrDidChange`, `P.AttrComparison`.
 
 ### H2: Common Parameters
-`name=` (required), `duration=`, `immediate=`, `on_error=`, `where=` (additional predicates), `timeout=`, `timeout_disabled=`.
+`name=` (**required** — omitting raises `ListenerNameRequiredError`), `duration=`, `immediate=` (raises `ValueError` with glob patterns), `on_error=`, `where=` (additional predicates), `once=`, `debounce=`, `throttle=` (mutually exclusive with debounce), `timeout=`, `timeout_disabled=`. Note: `timeout`/`timeout_disabled`/`once`/`debounce`/`throttle` are passed via `**opts: Unpack[Options]`.
 
 ### H2: See Also
 → Bus overview (general subscription), → Bus Filtering (service call filtering, complete predicate/condition reference), → DI page (full annotation reference)

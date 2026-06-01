@@ -12,7 +12,7 @@ How apps are registered in hassette.toml `[apps]` section.
 Default single-instance configuration.
 
 ### H2: App Configuration Parameters
-Table of per-app settings (enabled, log_level, etc.).
+Two distinct layers: `AppManifest` fields (under `[hassette.apps.<key>]`: `enabled`, `filename`/`file_name`, `class_name`/`class`/`module`/`module_name`) vs `AppConfig` fields (under `[hassette.apps.<key>.config]`: `instance_name`, `log_level`, `app_key`, plus user-defined fields). These live at different TOML paths — don't conflate them in a single table.
 
 ### H2: Multiple Instances
 Running the same app class multiple times with different configs.

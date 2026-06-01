@@ -6,11 +6,12 @@
 ## Outline
 
 ### H2: Overview
-What changes: `self.get_state()` → `self.states.get()` or `self.api.get_state()`.
+What changes: `self.get_state()` → domain-typed access `self.states.light.get("light.kitchen")` (preferred, returns typed `LightState | None`) or `self.states.get("entity_id")` (generic, returns `BaseState | None`) or `self.api.get_state()` (fresh from HA).
 
 ### H2: Getting Entity State
 #### H3: AppDaemon
-#### H3: Hassette: State Cache (recommended)
+#### H3: Hassette: Domain-Typed State Cache (recommended)
+`self.states.light.get("light.kitchen")` → `LightState | None`. Prefer over generic `self.states.get()` for typed results.
 #### H3: Hassette: Direct API Call
 
 ### H2: Calling Services

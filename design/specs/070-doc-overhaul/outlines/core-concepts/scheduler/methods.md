@@ -10,7 +10,7 @@ The generic `schedule(func, trigger)` method. All convenience methods are shortc
 
 ### H2: Convenience Methods
 #### H3: `run_in` — run after a delay
-#### H3: `run_once` — run at a specific time
+#### H3: `run_once` — run at a specific time. Has `if_past=` parameter (`"tomorrow"` or `"error"`, default `"tomorrow"`). For `ZonedDateTime` inputs, `if_past` has no effect (fires immediately).
 #### H3: `run_every` — run at a fixed interval
 
 ### H2: Convenience Interval Helpers
