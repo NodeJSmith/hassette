@@ -14,8 +14,17 @@ Table of built-in triggers (After, Once, Every, Daily, Cron) with one-line descr
 ### H2: Examples
 Minimal examples for the most common patterns (run_in, run_every, run_daily).
 
+### H2: Job Groups
+`group=` parameter for organizing related jobs. `cancel_group()` cancels all jobs in a group. `list_jobs(group=)` inspects active jobs. (Moved from Methods — this is a behavioral concept, not a method signature.)
+
+### H2: Jitter
+`jitter=` parameter for randomizing execution times to avoid thundering herd.
+
+### H2: Idempotent Registration
+`name=` identifies the job; `if_exists=` (`"error"`, `"skip"`, `"replace"`) controls behavior on duplicate name.
+
 ### H2: Next Steps
-→ Scheduling Methods (full reference), → Job Management (cancellation, groups, errors)
+→ Scheduling Methods (full reference), → Job Management (cancellation, errors)
 
 ## Snippet Inventory
 

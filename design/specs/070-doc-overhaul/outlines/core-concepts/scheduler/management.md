@@ -14,15 +14,8 @@ What `schedule()` returns. Fields: `db_id`, `name`, `group`, `next_run`, `fire_a
 ### H2: Automatic Cleanup
 Jobs cancelled automatically on app shutdown.
 
-### H2: Best Practices
-Named jobs, groups for related jobs, cancellation patterns.
-
 ### H2: Self-Cancelling Job Pattern
 Job that cancels itself based on a condition.
-
-### H2: Troubleshooting
-#### H3: Job Not Running?
-#### H3: Runs Too Often?
 
 ### H2: Error Handling
 #### H3: App-Level Error Handler — `Scheduler.on_error()`

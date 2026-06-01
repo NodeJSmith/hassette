@@ -21,19 +21,12 @@ The generic `schedule(func, trigger)` method. All convenience methods are shortc
 ### H2: Cron Scheduling — `run_cron`
 Cron expression syntax, examples.
 
-### H2: Job Groups
-`group=` parameter, `cancel_group()`, `list_jobs(group=)`.
-
-### H2: Jitter
-`jitter=` parameter for randomizing execution times.
-
-### H2: Idempotent Registration
-`name=` identifies the job; `if_exists=` (`"error"`, `"skip"`, `"replace"`) controls behavior on duplicate name.
-
 ### H2: Per-Job Options
 #### H3: `on_error=` — per-registration error handler
 #### H3: `timeout=` / `timeout_disabled=` — per-job timeout control
 #### H3: `args=` and `kwargs=` — passing arguments to handlers
+
+Groups, jitter, and idempotent registration are covered on the Scheduler Overview page.
 
 ### H2: Synchronous Scheduling
 `self.scheduler.sync` (`SchedulerSyncFacade`) — mirrors all methods as blocking calls for `AppSync` hooks.
