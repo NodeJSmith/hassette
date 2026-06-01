@@ -13,13 +13,16 @@ Debug a specific area without flooding logs. Brief.
 `[hassette.logging]` section in hassette.toml. Per-service granularity.
 
 ### H2: Available Fields
-Table of all service field names and what they control.
+Link to auto-generated `LoggingConfig` reference for the full field list (avoids hardcoding names that may change). Provide 2-3 inline examples of the most common ones (`websocket`, `bus_service`, `scheduler_service`) to orient the reader, but don't enumerate all 13+.
 
 ### H2: Fallback Behavior
 Unset fields use global log level.
 
+### H2: Debug Flags
+`all_events`, `all_hass_events`, `all_hassette_events` — boolean flags for bus debug verbosity. `log_format` (`"auto"`, `"console"`, `"json"`) for output format.
+
 ### H2: Per-App Log Levels
-Set in the app config block, not in `[hassette.log_levels]`.
+Set in the app config block under `[hassette.apps.<key>.config]`, not in `[hassette.logging]`.
 
 ### H2: Examples
 #### H3: Debugging the Scheduler

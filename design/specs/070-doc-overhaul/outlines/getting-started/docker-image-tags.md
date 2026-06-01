@@ -1,49 +1,40 @@
 # Docker — Image Tags
 
-**Status:** Exists (151 lines), reference-style, voice polish needed
-**Voice mode:** Getting-started with reference feel — tables for scanning, "you" for recommendations
+**Status:** Exists (151 lines), needs trimming for getting-started audience
+**Voice mode:** Getting-started — "you" allowed, brief, decision-oriented
 
 ## Outline
 
 ### H2: Tag Format
-#### H3: Recommended — Pin Both Version and Python
-Primary recommendation with example.
-#### H3: Track Latest Stable Release
-When acceptable, risks.
-#### H3: Testing Open Pull Requests
-PR preview tags, when useful.
-#### H3: Bleeding-Edge Main Branch
-`main-py3.XX` tags, stability caveats.
+Brief explanation of the naming convention. One recommended tag example.
 
-### H2: Tags NOT Published
-What doesn't exist and why (no `latest` without Python version, no alpine, no slim).
+### H2: Recommended Tags
+#### H3: Production — pin version + Python (e.g., `v0.35.0-py3.13`)
+#### H3: Development — track latest stable (e.g., `latest-py3.13`)
 
 ### H2: Supported Python Versions
-Table of currently supported versions.
-
-### H2: Choosing a Tag
-#### H3: For Production
-#### H3: For Development
-#### H3: For Testing Pre-release Features
+Short table: 3.11, 3.12, 3.13, 3.14. Note upper bound (<3.15).
 
 ### H2: Updating Images
-#### H3: Pull Latest
-#### H3: Check Current Version
+`docker compose pull` + restart.
+
+Removed from this page (too detailed for getting-started):
+- PR preview tags and bleeding-edge main branch tags
+- "Tags NOT Published" section
+- "Choosing a Tag" decision matrix (production/development/pre-release)
+- Separate "Check Current Version" section
+
+If needed later, these could live in an Operating or Reference page.
 
 ## Snippet Inventory
 
 | Snippet | Status | Notes |
 |---|---|---|
-| `tag-format-latest.txt` | Keep | Tag examples |
-| `tag-format-main.txt` | Keep | |
-| `tag-format-pr.txt` | Keep | |
-| `tag-format-versioned.txt` | Keep | |
-| `tag-latest-compose.yml` | Keep | Compose examples |
-| `tag-pinned-compose.yml` | Keep | |
-| `tag-prerelease-compose.yml` | Keep | |
-| `tag-prerelease-explicit.txt` | Keep | |
+| `tag-pinned-compose.yml` | Keep | Primary recommendation |
+| `tag-latest-compose.yml` | Keep | Development alternative |
 | `docker-pull-update.sh` | Keep | Update command |
-| `docker-version-check.sh` | Keep | Version check |
+| `tag-format-versioned.txt` | Review | May fold into prose |
+| Others | Drop or defer | PR/main/prerelease tags not needed here |
 
 ## Cross-Links
 

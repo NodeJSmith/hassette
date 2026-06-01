@@ -35,9 +35,9 @@ Simpler alternative, when to use it.
 
 ### H2: Startup Performance
 #### H3: Using uv.lock for Faster Starts
-#### H3: Pre-building a Custom Image
-Dockerfile example for baking deps into the image.
 #### H3: Known Limitations — Local Path Dependencies
+
+Pre-building a custom image is omitted — CLI tooling for this is planned.
 
 ### H2: Complete Examples
 Two full examples with compose + project structure.

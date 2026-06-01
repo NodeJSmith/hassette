@@ -14,9 +14,6 @@
 #### H3: JSON (`--json`) — machine-readable output
 #### H3: `NO_COLOR` — disabling color output
 
-### H2: Scripting with `jq`
-Recipes for piping JSON output to jq. Health check script, alerting on error rate.
-
 ### H2: Shell Completion
 #### H3: Generate to stdout
 #### H3: Install to default location

@@ -120,7 +120,6 @@ nav:
       - API Calls: pages/migration/api.md
       - Configuration: pages/migration/configuration.md
       - Testing: pages/migration/testing.md
-      - Migration Checklist: pages/migration/checklist.md
   - Troubleshooting: pages/troubleshooting.md
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/

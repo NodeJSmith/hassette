@@ -21,7 +21,7 @@
 Full mock Hassette instance for unit tests.
 
 ### H2: `create_hassette_stub`
-Separate Tier 2 web-specific stub for HTTP/WebSocket tests. Not an alias for `make_mock_hassette`.
+Web-layer stub that wires a full FastAPI app stack — for testing web routes and WebSocket endpoints. Not an alias for `make_mock_hassette`. Internal helper (not in `__all__`), imported from `hassette.test_utils._internal`.
 
 ### H2: `make_test_config`
 Test configuration builder.
@@ -29,8 +29,8 @@ Test configuration builder.
 ### H2: RecordingApi Coverage Boundary
 What RecordingApi supports vs what needs mocking.
 
-### H2: Tier 2 Re-exports
-Helper re-exports from `hassette.test_utils`.
+### H2: Internal Helpers
+Functions available from `hassette.test_utils._internal` (not in `__all__` — stable but not part of the public API contract). Includes `create_hassette_stub`, `create_component_loaded_event`, `create_service_registered_event`, `make_full_state_change_event`. Document what they do so users of the web layer can find them, but note the internal status.
 
 ## Snippet Inventory
 

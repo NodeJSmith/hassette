@@ -1,4 +1,4 @@
-# Evaluator — Is Hassette Right for You?
+# Is Hassette Right for You?
 
 **Status:** New page (stub exists)
 **Voice mode:** Getting-started — "you" allowed, friendly, direct
@@ -13,6 +13,9 @@ Honest acknowledgment: simple trigger→action automations, no coding preference
 
 ### H2: What Hassette Requires
 Practical prerequisites: Python 3.11+, a machine to run the process (same box or Docker), a long-lived access token, comfort with async/await basics. Brief — not a setup guide.
+
+### H2: Coming from AppDaemon?
+Brief pointer to the AppDaemon Migration section for users migrating existing apps.
 
 ### H2: Next Steps
 Two paths: "Ready to try it?" → Quickstart. "Want more detail on the tradeoffs?" → Hassette vs HA YAML.

@@ -15,7 +15,6 @@ Subcommands: health, activity, config, source.
 ### H2: `hassette job` — scheduler job inspection, execution history
 ### H2: `hassette log` — log querying
 ### H2: `hassette execution` — execution detail
-### H2: `hassette event` — event inspection
 ### H2: `hassette dashboard` — dashboard overview
 ### H2: `hassette config` — config inspection
 ### H2: `hassette telemetry` — telemetry management

@@ -26,7 +26,7 @@ Three-step teaser linking to Quickstart.
 Link to Migration section.
 
 ### H2: Next Steps
-Links to Quickstart, Evaluator, Core Concepts, Recipes.
+Links to Quickstart, Is Hassette Right for You?, Core Concepts, Recipes.
 
 ## Snippet Inventory
 
@@ -42,5 +42,5 @@ The home page is the most-visited page — stale code here is the worst place fo
 
 ## Cross-Links
 
-- **Links to:** Evaluator, Quickstart, Migration overview, Core Concepts/Architecture, Recipes
+- **Links to:** Is Hassette Right for You?, Quickstart, Migration overview, Core Concepts/Architecture, Recipes
 - **Linked from:** (entry point — linked from everywhere implicitly)

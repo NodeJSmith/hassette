@@ -17,6 +17,9 @@ One-liner commands for common checks: running? all healthy? errors? recent activ
 ### H2: Comparing Time Windows
 Before/after comparison patterns.
 
+### H2: Scripting with `jq`
+Recipes for piping `--json` output to jq. Health check script, alerting on error rate. (Moved from cli/configuration.md — this is workflow content, not configuration.)
+
 ## Snippet Inventory
 
 No code snippets — CLI command sequences.
