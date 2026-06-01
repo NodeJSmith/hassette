@@ -1,6 +1,6 @@
 import logging
 import typing
-from typing import Any, ClassVar, Generic, TypeVar, cast, final
+from typing import ClassVar, Generic, TypeVar, cast, final
 
 from whenever import ZonedDateTime
 
@@ -8,7 +8,6 @@ import hassette.utils.date_utils as date_utils
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
-from hassette.events.base import Event
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -132,10 +131,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Return the current date and time."""
         return date_utils.now()
 
-    async def send_event(self, event: Event[Any]) -> None:
-        """Send an event to the event bus."""
-        await self.hassette.send_event(event)
-
     @final
     async def cleanup(self, timeout: int | None = None) -> None:
         """Cleanup resources owned by the instance.
@@ -150,10 +145,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
 class AppSync(App[AppConfigT]):
     """Synchronous adapter for App."""
-
-    def send_event_sync(self, event: Event[Any]) -> None:
-        """Synchronous version of send_event."""
-        self.task_bucket.run_sync(self.send_event(event))
 
     @final
     async def before_shutdown(self) -> None:

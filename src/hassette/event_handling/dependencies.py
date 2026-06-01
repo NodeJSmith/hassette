@@ -240,3 +240,20 @@ async def handler(context: D.EventContext):
         self.logger.info("Triggered by user: %s", context.user_id)
 ```
 """
+
+EventDataT = TypeVar("EventDataT")
+
+EventData: TypeAlias = Annotated[
+    EventDataT,
+    AnnotationDetails(ensure_present(A.get_path("payload.data"))),
+]
+"""Extract the typed data from a broadcast event's payload.
+
+Use with ``Bus.emit`` to receive the emitted data pre-extracted and typed.
+
+Example:
+```python
+async def handler(data: D.EventData[MyData]):
+    print(data.some_field)
+```
+"""

@@ -107,13 +107,20 @@ Extract entity IDs and domains from events:
 
 ### Other Extractors
 
-| Annotation                 | Type                       | Description                          |
-| -------------------------- | -------------------------- | ------------------------------------ |
-| `EventContext`             | `HassContext`              | Extract Home Assistant event context |
-| `TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Convert raw event to typed event     |
+| Annotation                 | Type                       | Description                                          |
+| -------------------------- | -------------------------- | ---------------------------------------------------- |
+| `EventData[T]`             | `T`                        | Extract typed data from a `Bus.emit` broadcast event |
+| `EventContext`             | `HassContext`              | Extract Home Assistant event context                 |
+| `TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Convert raw event to typed event                     |
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/other_extractors.py"
+```
+
+`EventData[T]` extracts the typed payload from events sent via [`Bus.emit`](../apps/index.md#broadcasting-events-between-apps). The sender emits a plain dataclass; the receiver declares it as a parameter type:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"
 ```
 
 ## Union Type Support

@@ -99,6 +99,7 @@ from typing_extensions import Sentinel
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
+from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
@@ -240,6 +241,16 @@ class Bus(Resource):
     def get_listeners(self) -> list["Listener"]:
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
+
+    async def emit(self, topic: str, data: object) -> None:
+        """Broadcast data to all subscribers of the given topic.
+
+        Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
+        If the internal event stream is closed (during shutdown), the event is silently dropped.
+        """
+        payload = HassettePayload(data=data)
+        event = Event(topic=topic, payload=payload)
+        await self.hassette.send_event(event)
 
     async def on(
         self,

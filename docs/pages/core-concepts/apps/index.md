@@ -130,13 +130,26 @@ The `@only_app` decorator prevents multiple instances of the same app class from
 
 If more than one class in your project is decorated with `@only_app`, Hassette raises an error at startup. Remove the decorator before deploying.
 
-## Sending Internal Events Between Apps
+## Broadcasting Events Between Apps
 
-`self.send_event(event)` fires a Hassette-internal event onto the framework's event bus, allowing one app to signal others without going through Home Assistant's event system. Any app that has subscribed to the event's `topic` via `self.bus` will receive it.
+`Bus.emit` broadcasts an event to all apps subscribed to a given topic. The event stays in-process — it never reaches Home Assistant. All apps that called `self.bus.on(topic=...)` for that topic receive it.
+
+This is the on/emit symmetry: subscribe with `self.bus.on`, broadcast with `self.bus.emit`. Both live on the same `Bus` instance.
 
 ```python
---8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:send_event"
+--8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:sender"
 ```
+
+The receiving app subscribes to the same topic and extracts the typed data via `D.EventData[T]` — a [dependency injection](../bus/dependency-injection.md) annotation that Hassette resolves from the event envelope automatically.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:receiver"
+```
+
+Broadcast is local and ephemeral — events are not persisted across restarts and do not leave the framework process.
+
+!!! note "Self-delivery"
+    An app that both subscribes to and emits on the same topic receives its own event. To filter self-emitted events, include a `source` field on the emitted dataclass (as `LightsSyncedData` does above) and guard in the handler: `if data.source == self.instance_name: return`.
 
 ## Synchronous Apps
 
