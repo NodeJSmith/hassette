@@ -22,7 +22,7 @@ Table of HASSETTE__* env vars.
 
 ### H2: Production Deployment
 #### H3: Hot Reloading in Production
-hassette.toml `allow_reload_in_prod` setting, volume mount requirements.
+hassette.toml `file_watcher.watch_files` setting (and `allow_reload_in_prod` guard), volume mount requirements.
 #### H3: Graceful Shutdown
 Docker stop signal handling.
 
