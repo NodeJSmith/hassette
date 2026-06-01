@@ -6,15 +6,21 @@
 ## Outline
 
 ### H2: What Is Collected
-Listener invocations, scheduler executions, registration events. Source tier explanation. Brief — the reader needs to know *what* is tracked, not the column schema.
+Five data categories: listener invocations, scheduler executions, registration events (listeners + jobs), log records, and sessions. Also tracks dropped event counters (overflow, exhausted, shutdown). Brief — the reader needs to know *what* is tracked, not the column schema.
 
 ### H2: Configuration
-Telemetry settings in hassette.toml. Retention policy.
+Telemetry settings in hassette.toml (`database.*`). Retention policy.
 #### H3: How Retention Works
 
 ### H2: Monitoring Telemetry Health
-#### H3: `/api/telemetry/status` — endpoint for checking telemetry pipeline
-#### H3: `/api/health` — general health endpoint
+Pair each API endpoint with its CLI equivalent so the reader knows both paths.
+
+#### H3: `/api/telemetry/status` and `hassette telemetry`
+Checking the telemetry pipeline.
+#### H3: `/api/health` and `hassette status`
+General health endpoint.
+#### H3: `hassette log`, `hassette execution`
+Querying logs and execution history from the CLI.
 
 ### H2: Registration Persistence
 How listener and job registrations are stored.
