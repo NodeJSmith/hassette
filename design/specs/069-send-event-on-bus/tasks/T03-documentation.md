@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Update docs for Bus.emit broadcast pattern"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["AC#6", "AC#7"]
 ---

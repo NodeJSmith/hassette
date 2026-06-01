@@ -36,11 +36,14 @@ Unlike `get_history`, both `start_time` and `end_time` are required.
 
 ### `fire_event`
 
-Fire a custom event onto the Home Assistant event bus. Any automation or integration listening for that event type will respond to it. Use this to trigger HA automations from Hassette, or to communicate between apps via HA's native event system.
+`fire_event` sends an event to Home Assistant's event bus. Any HA automation or integration subscribed to that event type receives it. Use it to trigger HA automations from Hassette, or to interoperate with other HA components.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:fire_event"
 ```
+
+!!! note "Broadcasting between Hassette apps"
+    `fire_event` leaves the framework — the event travels through Home Assistant and back. For in-process broadcast between apps within Hassette, use [`self.bus.emit(topic, data)`](../apps/index.md#broadcasting-events-between-apps) instead. It stays local, fires faster, and keeps the data typed end-to-end.
 
 ### `set_state`
 

@@ -107,10 +107,11 @@ Extract entity IDs and domains from events:
 
 ### Other Extractors
 
-| Annotation                 | Type                       | Description                          |
-| -------------------------- | -------------------------- | ------------------------------------ |
-| `EventContext`             | `HassContext`              | Extract Home Assistant event context |
-| `TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Convert raw event to typed event     |
+| Annotation                 | Type                       | Description                                          |
+| -------------------------- | -------------------------- | ---------------------------------------------------- |
+| `EventData[T]`             | `T`                        | Extract typed data from a `Bus.emit` broadcast event |
+| `EventContext`             | `HassContext`              | Extract Home Assistant event context                 |
+| `TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Convert raw event to typed event                     |
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/other_extractors.py"

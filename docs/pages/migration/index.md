@@ -27,7 +27,7 @@ The following AppDaemon features are not currently in Hassette. If your apps rel
 | HADashboard | Out of scope — Hassette has its own web UI for monitoring, not display panels |
 | Notification app helpers (`notify`, `call_action`) | Out of scope — call `self.api.call_service("notify", ...)` directly |
 | MQTT plugin | Roadmap — not yet supported; use `self.api.call_service` workarounds |
-| Global variables / inter-app communication via `AD` | Not supported — use shared state in the HA state store or a persistent cache |
+| Global variables / inter-app communication via `AD` | `self.bus.emit(topic, data)` for in-process broadcast — see [Broadcasting Events Between Apps](../core-concepts/apps/index.md#broadcasting-events-between-apps) |
 
 If a feature you depend on is missing, open an issue or check the [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
 
