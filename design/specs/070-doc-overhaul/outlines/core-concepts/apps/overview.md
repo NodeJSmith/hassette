@@ -33,7 +33,7 @@ Brief overview linking to each capability's page:
 `SyncApp` variant for simple scripts.
 
 ### H2: Next Steps
-Links to Lifecycle, Configuration, Task Bucket.
+Links to all sibling and handle pages: Lifecycle, Configuration, Task Bucket, Bus overview, Scheduler overview, States overview, API overview, Cache overview.
 
 ## Snippet Inventory
 
