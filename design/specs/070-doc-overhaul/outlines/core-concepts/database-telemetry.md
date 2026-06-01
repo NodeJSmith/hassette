@@ -6,10 +6,7 @@
 ## Outline
 
 ### H2: What Is Collected
-Listener invocations, scheduler executions, registration events. Source tier explanation.
-
-### H2: Execution Columns
-Table of fields in the unified executions table.
+Listener invocations, scheduler executions, registration events. Source tier explanation. Brief — the reader needs to know *what* is tracked, not the column schema.
 
 ### H2: Configuration
 Telemetry settings in hassette.toml. Retention policy.
