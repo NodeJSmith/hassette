@@ -89,6 +89,10 @@ jobs:
               run: npm run build
               working-directory: frontend
 
+            - name: Check frontend bundle size
+              run: npx size-limit
+              working-directory: frontend
+
     test:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "initial JS (entry chunk, gzipped)",
+    "path": "../src/hassette/web/static/spa/assets/index-*.js",
+    "limit": "130 kB",
+    "gzip": true
+  },
+  {
+    "name": "initial CSS (gzipped)",
+    "path": "../src/hassette/web/static/spa/assets/index-*.css",
+    "limit": "30 kB",
+    "gzip": true
+  }
+]
