@@ -10,7 +10,7 @@
 Debug a specific area without flooding logs. Brief.
 
 ### H2: How It Works
-`[hassette.log_levels]` in hassette.toml. Per-service granularity.
+`[hassette.logging]` section in hassette.toml. Per-service granularity.
 
 ### H2: Available Fields
 Table of all service field names and what they control.

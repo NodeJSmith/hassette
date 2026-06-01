@@ -11,22 +11,22 @@ Content source: `docs/pages/advanced/managing-helpers.md`
 HA helper types (InputBoolean, InputNumber, etc.) as typed Pydantic models.
 
 ### H2: Creating a Helper
-`create_helper()` with typed model.
+Per-type methods: `create_input_boolean()`, `create_input_number()`, etc.
 
 ### H2: Listing Helpers
-`list_helpers()` with type filtering.
+Per-type methods: `list_input_booleans()`, `list_input_numbers()`, `list_counters()`, `list_timers()`, etc.
 
 ### H2: Updating a Helper
-`update_helper()` with partial updates.
+Per-type methods: `update_input_boolean()`, `update_input_number()`, etc.
 
 ### H2: Deleting a Helper
-`delete_helper()`.
+Per-type methods: `delete_input_boolean()`, `delete_input_number()`, etc.
 
 ### H2: Idempotent Bootstrap (The Simple Pattern)
 Create-if-not-exists pattern for app initialization.
 
 ### H2: Counter Service-Call Shortcuts
-`increment`, `decrement`, `reset` for input_number and counter helpers.
+`increment_counter()`, `decrement_counter()`, `reset_counter()` for counter helpers.
 
 ### H2: Testing with the Harness
 How `RecordingApi` handles helper operations in tests.

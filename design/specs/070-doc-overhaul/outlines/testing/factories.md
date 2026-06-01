@@ -16,7 +16,10 @@
 #### H3: `make_switch_state_dict` — typed switch state
 
 ### H2: `make_mock_hassette`
-Full mock Hassette instance for web/API tests (the `create_hassette_stub()` pattern).
+Full mock Hassette instance for unit tests.
+
+### H2: `create_hassette_stub`
+Separate Tier 2 web-specific stub for HTTP/WebSocket tests. Not an alias for `make_mock_hassette`.
 
 ### H2: `make_test_config`
 Test configuration builder.

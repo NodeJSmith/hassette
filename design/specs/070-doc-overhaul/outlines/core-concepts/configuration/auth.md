@@ -9,7 +9,7 @@
 Where to set the token (env var, .env file). Link to HA Token getting-started page.
 
 ### H2: SSL Verification
-`ssl_verify` setting for self-signed certs.
+`verify_ssl` setting for self-signed certs.
 
 ### H2: File Locations
 Where .env is loaded from.

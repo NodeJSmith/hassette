@@ -8,19 +8,19 @@
 Long reference page documenting every global setting in hassette.toml. Keep current structure — it's a lookup reference.
 
 ### H2: Connection Settings
-`host`, `port`, `ssl_verify`, `token` location.
+`host`, `port`, `verify_ssl`, `token` location.
 
 ### H2: Runtime Settings
-`auto_reload`, `app_dir`, `project_dir`.
+`allow_reload_in_prod`, `apps.directory`.
 
 ### H2: Storage Settings
 `data_dir`, `cache_dir`.
 
 ### H2: Web UI Settings
-`web_enabled`, `web_host`, `web_port`, CORS, static files.
+`web_api.run`, `web_api.run_ui`, `web_api.host`, `web_api.port`, CORS, static files.
 
 ### H2: Database Settings
-`db_path`, `db_retention_days`.
+`database.path`, `database.retention_days`.
 
 ### H2: Timeout Settings
 #### H3: WebSocket Resilience — reconnection, sliding window budget, backoff

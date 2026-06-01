@@ -6,19 +6,19 @@
 ## Outline
 
 ### H2: Spawning Background Tasks
-`self.create_task()` for fire-and-forget async work.
+`self.task_bucket.spawn()` for fire-and-forget async work.
 
 ### H2: Offloading Blocking Code
-`self.run_in_executor()` for sync/blocking calls (file I/O, HTTP libraries without async).
+`self.task_bucket.run_in_thread()` for sync/blocking calls (file I/O, HTTP libraries without async).
 
 ### H2: Adapting Sync Callables to Async
 `self.task_bucket.make_async_adapter()` for wrapping sync handlers so they run in the executor automatically.
 
 ### H2: Cross-Thread Communication
 #### H3: Posting to the Event Loop
-`self.call_soon()` for thread-safe event loop posting.
+`self.task_bucket.post_to_loop()` for thread-safe event loop posting.
 #### H3: Running Async from Sync Code
-`self.run_coroutine()` for calling async from sync contexts.
+`self.task_bucket.run_sync()` for calling async from sync contexts.
 
 ### H2: Shutdown Behavior
 How pending tasks are handled during app shutdown.

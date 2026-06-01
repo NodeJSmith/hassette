@@ -12,7 +12,7 @@ pytest + hassette test extras.
 Minimal test example with the harness.
 
 ### H2: The Test Harness
-#### H3: Constructor — `HassetteHarness(AppClass, config)` parameters
+#### H3: Constructor — `AppTestHarness(AppClass, config)` parameters
 #### H3: Properties — harness.bus, harness.scheduler, harness.api, etc.
 
 ### H2: State Seeding

@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: Event Model
-What events look like: `RawStateChangeEvent`, `RawCallServiceEvent`, `RawEvent`. The event dict structure.
+What events look like: `RawStateChangeEvent`, `CallServiceEvent`, `Event`. The event dict structure.
 
 ### H2: Raw Event Handlers
 Handlers that receive the raw event dict. When to use: rare cases where DI doesn't cover the need, or when processing bulk events. Show the pattern.
@@ -21,9 +21,9 @@ Cover event types beyond state changes:
 
 ### H2: Error Handling
 #### H3: App-Level Error Handler
-`on_bus_error` override.
+`Bus.on_error()` registration method.
 #### H3: Per-Registration Error Handler
-`error_handler=` parameter on subscription methods.
+`on_error=` parameter on subscription methods.
 #### H3: What `BusErrorContext` Contains
 Fields and how to use them for debugging.
 

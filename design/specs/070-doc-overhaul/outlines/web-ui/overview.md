@@ -6,7 +6,7 @@
 ## Outline
 
 ### H2: Enabling and Accessing
-`web_enabled` setting, default port, how to access.
+`web_api.run` and `web_api.run_ui` settings, default port (`web_api.port`), how to access.
 
 ### H2: Layout
 Sidebar navigation, status bar, command palette, alert banners. Consolidates content from old `layout.md`.

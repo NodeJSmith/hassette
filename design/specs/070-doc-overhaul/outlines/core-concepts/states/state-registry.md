@@ -14,7 +14,7 @@ Maps HA entity domains to Python state classes. Automatic registration via `__in
 #### H3: Automatic Registration
 State classes register themselves when defined.
 #### H3: Domain Lookup
-`StateRegistry.get(domain)` → state class.
+`StateRegistry.resolve(domain=...)` → state class.
 
 ### H2: Relationship with Type Registry
 #### H3: The Complete Flow

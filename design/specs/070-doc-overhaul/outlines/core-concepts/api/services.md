@@ -9,7 +9,7 @@
 `call_service(domain, service, data)` pattern.
 
 ### H2: Convenience Helpers
-`turn_on`, `turn_off`, `toggle` shortcuts.
+`turn_on`, `turn_off`, `toggle_service` shortcuts.
 
 ### H2: Service Responses
 What `call_service` returns, response handling.
