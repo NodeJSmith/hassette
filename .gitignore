@@ -244,3 +244,4 @@ frontend/src/**/*.module.css.d.ts
 
 # Demo environment data directory
 .demo-data/
+coverage.system.xml

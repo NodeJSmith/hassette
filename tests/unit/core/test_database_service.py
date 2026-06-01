@@ -46,7 +46,7 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
 
     with (
         patch.object(service, "_run_migrations"),
-        patch("aiosqlite.connect", side_effect=fake_connect),
+        patch("hassette.core.database_service._connect_daemon", side_effect=fake_connect),
     ):
         await service.on_initialize()
     try:

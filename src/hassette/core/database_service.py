@@ -95,6 +95,21 @@ _RETENTION_TABLES: list[RetentionTarget] = [
 ]
 
 
+async def _connect_daemon(database: str | Path, **kwargs: Any) -> aiosqlite.Connection:
+    """Open an aiosqlite connection whose worker thread is a daemon.
+
+    aiosqlite creates a non-daemon background thread per connection. If the connection
+    is not closed cleanly (e.g. CancelledError during shutdown), the thread blocks
+    interpreter exit indefinitely. Setting daemon=True before start() lets the interpreter
+    exit even if the thread is still alive.
+    """
+    conn = aiosqlite.connect(database, **kwargs)
+    # No public API exists for this — see aiosqlite#299.
+    # Verified against aiosqlite 0.20-0.22.x; re-check on version bumps.
+    conn._thread.daemon = True
+    return await conn
+
+
 class DatabaseService(Service):
     """Manages the SQLite database for operational telemetry.
 
@@ -195,12 +210,12 @@ class DatabaseService(Service):
         timeout = self.hassette.config.database.migration_timeout_seconds
         await asyncio.wait_for(asyncio.to_thread(self._run_migrations), timeout=timeout)
 
-        self._db = await aiosqlite.connect(self._db_path, isolation_level=None)
+        self._db = await _connect_daemon(self._db_path, isolation_level=None)
         self._db.row_factory = aiosqlite.Row
 
         # Open a dedicated read connection on a separate WAL snapshot (F1).
         # This ensures read queries never block the write worker.
-        self._read_db = await aiosqlite.connect(self._db_path, isolation_level=None)
+        self._read_db = await _connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
         await self._read_db.execute("PRAGMA busy_timeout = 5000")
@@ -288,15 +303,26 @@ class DatabaseService(Service):
             self.logger.debug("Closed %d remaining coroutine(s) from write queue during shutdown", closed)
 
     async def _close_connections(self) -> None:
-        """Close both database connections. Idempotent — safe to call multiple times."""
+        """Close both database connections. Idempotent — safe to call multiple times.
+
+        Always attempts both connections even if the first close raises CancelledError.
+        aiosqlite's worker threads are set to daemon in on_initialize() as a safety net,
+        but this method still does a best-effort close to avoid resource warnings and
+        ensure clean WAL checkpoints.
+        """
+        first_cancel: BaseException | None = None
         for attr in ("_read_db", "_db"):
             conn: aiosqlite.Connection | None = getattr(self, attr)
             if conn is None:
                 continue
             try:
                 await conn.close()
+            except asyncio.CancelledError as exc:  # noqa: ASYNC103 — re-raised after both connections are handled
+                conn.stop()
+                if first_cancel is None:
+                    first_cancel = exc
             except Exception:
-                self.logger.exception("Failed to close %s async — falling back to sync stop()", attr)
+                self.logger.exception("Failed to close %s — falling back to sync stop()", attr)
                 conn.stop()
             finally:
                 thread = getattr(conn, "_thread", None)
@@ -305,6 +331,8 @@ class DatabaseService(Service):
                     if thread.is_alive():
                         self.logger.warning("aiosqlite background thread for %s did not exit within 5s", attr)
                 setattr(self, attr, None)
+        if first_cancel is not None:
+            raise first_cancel
 
     async def cleanup(self, timeout: int | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
