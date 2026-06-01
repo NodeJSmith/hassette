@@ -144,6 +144,9 @@ jobs:
             - name: Check undefined CSS refs in TSX (blocking)
               run: uv run python tools/check_undefined_css_refs.py
 
+            - name: Check breakpoint drift (JS constants vs CSS media queries)
+              run: uv run python tools/check_breakpoint_drift.py
+
     codegen-freshness:
         needs: changes
         if: needs.changes.outputs.codegen == 'true' || github.event_name == 'workflow_dispatch'

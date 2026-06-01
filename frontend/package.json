@@ -15,7 +15,8 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
-    "format:check": "prettier --check 'src/**/*.{ts,tsx,css}'"
+    "format:check": "prettier --check 'src/**/*.{ts,tsx,css}'",
+    "size": "npm run build && size-limit"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.6",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@preact/preset-vite": "^2.10.5",
+    "@size-limit/file": "^11.2.0",
     "@testing-library/preact": "^3.2.4",
     "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^10.1.0",
@@ -42,6 +44,7 @@
     "msw": "^2.13.6",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.8.3",
+    "size-limit": "^11.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1",
     "vite": "^8.0.1",

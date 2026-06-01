@@ -261,6 +261,46 @@ async def test_assert_call_count_fails_with_wrong_count():
         api.assert_call_count("turn_on", 2)
 
 
+async def test_assert_not_called_with_kwargs_passes_when_no_match():
+    api = make_recording_api()
+    await api.turn_off("light.living_room")
+    # turn_off was called, but not for light.kitchen — passes
+    api.assert_not_called("turn_off", entity_id="light.kitchen")
+
+
+async def test_assert_not_called_with_kwargs_fails_when_match():
+    api = make_recording_api()
+    await api.turn_off("light.kitchen")
+    with pytest.raises(AssertionError):
+        api.assert_not_called("turn_off", entity_id="light.kitchen")
+
+
+async def test_assert_not_called_without_kwargs_unchanged():
+    api = make_recording_api()
+    api.assert_not_called("turn_off")  # never called — passes
+    await api.turn_off("light.kitchen")
+    with pytest.raises(AssertionError):
+        api.assert_not_called("turn_off")  # any call fails
+
+
+async def test_assert_call_count_with_kwargs_counts_matching():
+    api = make_recording_api()
+    await api.turn_on("light.kitchen")
+    await api.turn_on("light.kitchen")
+    await api.turn_on("light.bedroom")
+    api.assert_call_count("turn_on", 2, entity_id="light.kitchen")
+    api.assert_call_count("turn_on", 1, entity_id="light.bedroom")
+    api.assert_call_count("turn_on", 3)  # no kwargs counts all
+
+
+async def test_assert_call_count_with_kwargs_fails_on_mismatch():
+    api = make_recording_api()
+    await api.turn_on("light.kitchen")
+    await api.turn_on("light.bedroom")
+    with pytest.raises(AssertionError):
+        api.assert_call_count("turn_on", 2, entity_id="light.kitchen")
+
+
 async def test_get_calls_all():
     api = make_recording_api()
     await api.turn_on("light.a")

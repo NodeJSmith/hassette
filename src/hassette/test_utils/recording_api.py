@@ -1058,33 +1058,58 @@ class RecordingApi(Resource):
             f"Calls recorded: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
         )
 
-    def assert_not_called(self, method: str) -> None:
+    def assert_not_called(self, method: str, **kwargs: Any) -> None:
         """Assert that method was never called.
 
         Args:
             method: Method name to check.
+            **kwargs: If provided, only calls whose recorded kwargs match all of these
+                key/value pairs count as a violation (partial match, consistent with
+                assert_called). This lets you assert "turn_on was never called for
+                light.bedroom" even when turn_on was called for other entities.
 
         Raises:
-            AssertionError: If the method was called at least once.
+            AssertionError: If a matching call was recorded.
         """
         matching = self.get_calls(method)
+        if kwargs:
+            matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]
+            if matching:
+                raise AssertionError(
+                    f"Expected '{method}' not to have been called with kwargs {kwargs!r}, "
+                    f"but it was called {len(matching)} matching time(s). "
+                    f"Matching calls: {[{'args': c.args, 'kwargs': c.kwargs} for c in matching]}"
+                )
+            return
         if matching:
             raise AssertionError(
                 f"Expected '{method}' not to have been called, but it was called {len(matching)} time(s)."
             )
 
-    def assert_call_count(self, method: str, count: int) -> None:
+    def assert_call_count(self, method: str, count: int, **kwargs: Any) -> None:
         """Assert that method was called exactly count times.
 
         Args:
             method: Method name to check.
-            count: Expected number of calls.
+            count: Expected number of calls (positional). With kwargs, only calls
+                matching all the given keyword arguments are counted.
+            **kwargs: If provided, only calls whose recorded kwargs match all of these
+                key/value pairs are counted toward ``count`` (partial match, consistent
+                with assert_called).
 
         Raises:
             AssertionError: If the call count does not match.
         """
-        actual = len(self.get_calls(method))
+        matching = self.get_calls(method)
+        if kwargs:
+            matching = [c for c in matching if all(k in c.kwargs and c.kwargs[k] == v for k, v in kwargs.items())]
+        actual = len(matching)
         if actual != count:
+            if kwargs:
+                raise AssertionError(
+                    f"Expected '{method}' to have been called {count} time(s) with kwargs {kwargs!r}, "
+                    f"but it was called {actual} matching time(s)."
+                )
             raise AssertionError(
                 f"Expected '{method}' to have been called {count} time(s), but it was called {actual} time(s)."
             )

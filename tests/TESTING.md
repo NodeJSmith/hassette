@@ -194,7 +194,7 @@ Configures the mock registry to return a proper `AppFullSnapshot`.
 
 ## RecordingApi Assertion Methods
 
-`RecordingApi` (used via `harness.api_recorder`) provides three assertion methods for verifying calls. The default match is **partial** — prefer `assert_called_partial` when you want to make that intent explicit in test code.
+`RecordingApi` (used via `harness.api_recorder`) provides assertion methods for verifying calls. The default match is **partial** — prefer `assert_called_partial` when you want to make that intent explicit in test code. The negative and counting assertions (`assert_not_called`, `assert_call_count`) accept optional `kwargs` using the same partial-match semantics.
 
 ### `assert_called(method, **kwargs)` — partial match (default)
 
@@ -228,6 +228,30 @@ api.assert_called_exact("turn_off", entity_id="light.x")                    # FA
 api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")  # passes
 ```
 
+### `assert_not_called(method, **kwargs)` — negative assertion
+
+Without `kwargs`, passes only if `method` was never called at all. With `kwargs`, passes if no recorded call matches all given kwargs — partial matching, consistent with `assert_called`. This lets you assert a method was never called for a specific target even when it was called for others.
+
+```python
+await api.turn_off("light.living_room")
+
+api.assert_not_called("turn_off", entity_id="light.kitchen")  # passes — no call for light.kitchen
+api.assert_not_called("turn_off")                             # FAILS — turn_off was called
+```
+
+### `assert_call_count(method, count, **kwargs)` — counting assertion
+
+Without `kwargs`, counts all calls to `method`. With `kwargs`, counts only calls matching all given kwargs — partial matching, consistent with `assert_called`.
+
+```python
+await api.turn_on("light.kitchen")
+await api.turn_on("light.kitchen")
+await api.turn_on("light.bedroom")
+
+api.assert_call_count("turn_on", 3)                             # passes — all calls
+api.assert_call_count("turn_on", 2, entity_id="light.kitchen")  # passes — matching calls only
+```
+
 ### When to use each
 
 | Use case | Method |
@@ -235,8 +259,10 @@ api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
 | Verify a call happened with key arguments (ignore extras) | `assert_called` or `assert_called_partial` |
 | Make partial-match intent explicit in test code | `assert_called_partial` |
 | Verify no unexpected arguments were passed | `assert_called_exact` |
+| Verify a method (or a specific call) never happened | `assert_not_called` |
+| Verify how many times a method (or a specific call) happened | `assert_call_count` |
 
-**Default is partial.** If you use `assert_called("turn_on", entity_id="light.x")` and the call also recorded `brightness=200`, the assertion still passes. Use `assert_called_exact` if that extra argument should be flagged as unexpected.
+**Default is partial.** If you use `assert_called("turn_on", entity_id="light.x")` and the call also recorded `brightness=200`, the assertion still passes. Use `assert_called_exact` if that extra argument should be flagged as unexpected. The same partial-match semantics apply to the optional `kwargs` on `assert_not_called` and `assert_call_count`.
 
 ---
 
