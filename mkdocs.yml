@@ -81,7 +81,10 @@ nav:
           - Authentication: pages/core-concepts/configuration/auth.md
           - Global Settings: pages/core-concepts/configuration/global.md
           - Applications: pages/core-concepts/configuration/applications.md
-      - System Internals: pages/core-concepts/internals.md
+      - System Internals:
+          - Architecture & Data Flow: pages/core-concepts/internals/index.md
+          - Per-Service Internals: pages/core-concepts/internals/service-details.md
+          - Resource Lifecycle & Supervision: pages/core-concepts/internals/lifecycle.md
   - Web UI:
       - Overview: pages/web-ui/index.md
       - Debug a Failing Handler: pages/web-ui/debug-handler.md
