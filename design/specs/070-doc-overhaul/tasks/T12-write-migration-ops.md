@@ -48,18 +48,15 @@ Migration pages follow a comparison-driven structure: old way (AppDaemon) vs new
 
 Operating pages are how-to content for running Hassette in production. Distinct from Troubleshooting (which is reactive symptom-lookup). Voice: procedural "you" is acceptable for step-by-step instructions.
 
+**Additional content moving from troubleshooting to Operating:** The current troubleshooting page contains operational/behavioral content that isn't symptom-lookup: the WebSocket reconnection sequence (retry counts, backoff timings, sliding window budgets), handler exception behavior, and database degraded mode guidance. These describe how Hassette behaves, not problems to solve. Move them to the Operating overview or a dedicated "Runtime Behavior" subsection. Troubleshooting keeps only symptom → fix entries (can't connect, apps not loading, handler never runs, scheduler not firing, cache not persisting, custom state not registering, web UI not accessible).
+
 ### Snippet handling:
 
 Migration has 27 snippets showing AppDaemon code alongside Hassette equivalents. These are valuable for side-by-side comparison — keep and update. Troubleshooting and Operating may need new snippets for configuration examples and CLI commands.
 
 ## Focus
 
-**Knowledge loss is the primary risk.** The current troubleshooting page contains:
-- Specific log signatures (e.g., exact error messages for WebSocket disconnection)
-- Timing values (e.g., reconnection delay thresholds, timeout periods)
-- Step-by-step runbook commands (e.g., checking service status, clearing state)
-
-None of these exist anywhere else in the codebase. The knowledge inventory from T04 is the authoritative list. Verify every item is preserved.
+**Knowledge loss risk is lower than originally estimated.** The troubleshooting page was written by automated doc rewrites, not from production debugging discoveries. The specific values (retry counts, backoff timings) come from RestartSpec implementation code and are reconstructible. Still extract them in the T04 knowledge inventory, but the risk is misplacement (putting operational content in troubleshooting), not loss.
 
 **Migration snippets** import `appdaemon` which isn't installed in the project — the Pyright config excludes `pages/migration/snippets` for this reason. This exclusion must remain.
 
