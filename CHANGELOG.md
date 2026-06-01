@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0](https://github.com/NodeJSmith/hassette/compare/v0.38.0...v0.39.0) (2026-06-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* `App.send_event(topic, data)` and `AppSync.send_event_sync(topic, data)` are removed. Use `self.bus.emit(topic, data)` instead — same arguments, same behavior, now on the bus where subscriptions live.
+* `HassettePayload` no longer accepts an `event_type` parameter. Remove `event_type=` from any `HassettePayload(...)` or `HassetteServiceEvent(...)` construction. `EventPayload` base class also no longer has `event_type` — use `HassPayload.event_type` for HA events, or `event.topic` for routing.
+* `send_event()` now takes a single `Event` argument instead of `(event_name, event)`. User code calling `App.send_event(name, event)` or `App.send_event_sync(name, event)` must change to `send_event(event)` — the event's `topic` field is used for routing.
+
+### Features
+
+* add Bus.emit for in-process broadcast with EventData[T] DI accessor ([#952](https://github.com/NodeJSmith/hassette/issues/952)) ([082a59e](https://github.com/NodeJSmith/hassette/commit/082a59ec2cc9d1841bec8648116c865813d47721))
+
+
+### Bug Fixes
+
+* **ci:** add frontend build to release-please publish pipeline ([#941](https://github.com/NodeJSmith/hassette/issues/941)) ([8b33713](https://github.com/NodeJSmith/hassette/commit/8b337132c4949c676b6c5a57d116c48a960724ff))
+* prevent aiosqlite worker threads from blocking interpreter exit ([#923](https://github.com/NodeJSmith/hassette/issues/923)) ([#948](https://github.com/NodeJSmith/hassette/issues/948)) ([a17b57b](https://github.com/NodeJSmith/hassette/commit/a17b57b449bb473971f57f3b5fc5cd0e9ccd4d6a))
+
+
+### Refactoring
+
+* remove event_type from EventPayload base and HassettePayload ([#947](https://github.com/NodeJSmith/hassette/issues/947)) ([8037297](https://github.com/NodeJSmith/hassette/commit/8037297ac33e3854740b7ce7dd4629a5f980bfa5))
+* remove redundant event_name parameter from send_event ([#946](https://github.com/NodeJSmith/hassette/issues/946)) ([e282f81](https://github.com/NodeJSmith/hassette/commit/e282f8116e35008dc171d4594131261e8546acc3)), closes [#943](https://github.com/NodeJSmith/hassette/issues/943)
+
 ## [0.38.0](https://github.com/NodeJSmith/hassette/compare/v0.37.0...v0.38.0) (2026-05-31)
 
 
