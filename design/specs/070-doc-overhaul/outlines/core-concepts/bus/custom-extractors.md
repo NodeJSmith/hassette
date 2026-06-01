@@ -14,10 +14,7 @@ How accessors work, creating custom field accessors for event data.
 ### H2: AnnotationDetails
 The AnnotationDetails object that extractors receive. Fields and usage.
 
-### H2: Automatic Type Conversion
-**Note:** This was originally considered for this page but belongs in Type Registry instead (confirmed during T03). Remove if still here; the Type Registry page covers conversion.
-
-**Revision:** Keep only extractor-specific type conversion concerns here (e.g., how extractors interact with the type registry). General type conversion → Type Registry page.
+General type conversion lives on the Type Registry page. This page covers only how extractors *interact* with the registry (e.g., calling converters from a custom extractor).
 
 ## Snippet Inventory
 
