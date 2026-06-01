@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add Bus.emit method and D.EventData accessor"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#6", "AC#1", "AC#2", "AC#4", "AC#5"]
 ---
@@ -64,7 +64,7 @@ Add the core `Bus.emit(topic, data)` method and the `D.EventData[T]` DI accessor
 
 - `EmitDataT` must be declared in `bus.py` locally — do NOT import `DataT` from `events/base.py` (it's covariant, would fail at parameter position).
 - The `BUS_HEADER` update is mandatory before running codegen — without it, the generated sync.py will have a `NameError` at import time.
-- Existing bus integration tests use the `hassette_with_bus` fixture from `tests/integration/bus/conftest.py` — follow that pattern.
+- Existing bus integration tests use the `hassette_with_bus` fixture from `tests/integration/conftest.py` — follow that pattern.
 - `HassettePayload` and `Event` imports in `bus.py`: use `from hassette.events.base import Event, HassettePayload`.
 - The `R` TypeVar already exists in `dependencies.py` (line 82) — reuse it for `EventData`.
 

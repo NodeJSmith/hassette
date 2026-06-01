@@ -36,7 +36,7 @@ Update the documentation to teach the `Bus.emit` broadcast pattern, fix the migr
 
 ## Focus
 
-- The voice guide (`.claude/rules/voice-guide.md`) requires system-as-subject in concept pages, no "you" in non-getting-started content. The apps/index.md page is a concept page — use "the bus delivers" not "you can use."
+- **Voice rules for concept pages** (from `.claude/rules/voice-guide.md`): Use system-as-subject — "the bus delivers events" not "you can use the bus." No "you" in concept or API pages. Present tense to describe behavior. Anglo-Saxon verbs (emit, send, fire, receive). State main behavior first, caveats after. Pair every limitation with a path forward. Keep explanatory sentences to 10-18 words.
 - Snippet section markers must match the `--8<-- "pages/core-concepts/apps/snippets/apps_send_event.py:section_name"` references in `index.md`.
 - The migration table is pipe-delimited markdown — preserve the table format.
 - All code in snippets must be importable and type-checkable (CI runs Pyright on snippet files).

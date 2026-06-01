@@ -7,7 +7,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, Unpack
+from typing import Any, TypeVar, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -16,6 +16,8 @@ from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
+
+EmitDataT = TypeVar("EmitDataT")
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -63,6 +65,11 @@ class BusSyncFacade(Resource):
             DuplicateListenerError: If the listener's natural key is already registered on this bus instance."""
 
         return self.task_bucket.run_sync(self._bus.add_listener(listener))
+
+    def emit(self, topic: str, data: EmitDataT) -> None:
+        """Broadcast an event to all subscribers of the given topic."""
+
+        return self.task_bucket.run_sync(self._bus.emit(topic, data))
 
     def on(
         self,

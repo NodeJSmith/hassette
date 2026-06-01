@@ -92,13 +92,14 @@ import logging
 import typing
 from collections.abc import Mapping
 from functools import partial
-from typing import Any, Unpack
+from typing import Any, TypeVar, Unpack
 
 from typing_extensions import Sentinel
 
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
+from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
@@ -111,6 +112,8 @@ from hassette.utils.source_capture import capture_registration_source
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
+
+EmitDataT = TypeVar("EmitDataT")
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -240,6 +243,15 @@ class Bus(Resource):
     def get_listeners(self) -> list["Listener"]:
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
+
+    async def emit(self, topic: str, data: EmitDataT) -> None:
+        """Broadcast data to all subscribers of the given topic.
+
+        Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
+        """
+        payload = HassettePayload(data=data)
+        event = Event(topic=topic, payload=payload)
+        await self.hassette.send_event(event)
 
     async def on(
         self,
