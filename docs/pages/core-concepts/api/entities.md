@@ -1,72 +1,83 @@
-# Retrieving Entities & States
+# Entities & States
 
-Use the API to retrieve the current state of any entity in Home Assistant.
+`self.api` retrieves entity state directly from Home Assistant over the network. Three methods cover three levels of detail. The right choice depends on what the calling code does with the result.
 
-## Terminology
+The [API overview](index.md) covers when to prefer `self.api` over `self.states`.
 
-Hassette uses precise terminology:
+## Get the Value
 
-- **State Value**: The raw value (e.g., `"on"`, `"23.5"`).
-- **State**: A snapshot including value, attributes, and last changed time.
-- **Entity**: A rich object wrapping the state with helper methods (e.g., `.turn_off()`).
+`get_state_value(entity_id)` returns the raw state value for an entity. A **state value** is the string Home Assistant stores in its state machine: `"on"`, `"23.5"`, `"above_horizon"`. No attributes, no timestamps, no type conversion.
 
-## Retrieving States
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_state_value.py"
+```
 
-Use `get_state` to retrieve a typed state object.
+`get_state_value` is the cheapest call when the value is all the code needs.
+
+## Get the Full State
+
+`get_state(entity_id)` returns a **state**, a snapshot of an entity at a point in time. A state includes `.value`, `.attributes`, `.last_changed`, `.last_updated`, and `.context`. The `.value` field is coerced to the domain's Python type. Lights and switches produce `bool`. Numeric sensors produce `float`. Most others remain `str`.
+
+The return type is a `BaseState` subclass matched to the entity's domain. `light.kitchen` returns a `LightState` with typed attribute access.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state.py"
 ```
 
-### Raw vs Typed
+### Optional Lookup
 
-Most methods return typed Pydantic models. You can use `get_state_raw` if you want a dict.
-
-```python
---8<-- "pages/core-concepts/api/snippets/api_get_state_raw.py"
-```
-
-### Checking Existence
-
-Use `get_state_or_none` to safely check for an entity.
+`get_state_or_none(entity_id)` returns `None` instead of raising when the entity does not exist. `entity_exists(entity_id)` returns a plain `bool`.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_check_existence.py"
 ```
 
-## Retrieving Multiple States
+### Raw Dict
 
-Use `get_states` to fetch all states at once. This is more efficient than calling `get_state` in a loop.
+`get_state_raw(entity_id)` returns the untyped `HassStateDict` from the REST response. This suits code that works outside the type registry or that inspects the raw HA payload for debugging.
 
 ```python
---8<-- "pages/core-concepts/api/snippets/api_get_states.py"
+--8<-- "pages/core-concepts/api/snippets/api_get_state_raw.py"
 ```
 
-## Entities
+## Get an Entity
 
-Entities wrap the state object. Currently `BaseEntity` and `LightEntity` are available.
+`get_entity(entity_id, model)` wraps a state in a `BaseEntity` subclass. An **entity** adds domain-specific action methods to the state snapshot: `turn_on()`, `turn_off()`, `toggle()`, and `refresh()`. The `model` argument specifies which entity class to use.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
 
-## API vs StateManager
+`get_entity_or_none(entity_id, model)` follows the same pattern as `get_state_or_none`, returning `None` when the entity is not found.
 
-The API methods above fetch states directly from Home Assistant over the network. Prefer `self.states` instead — it gives you instant, synchronous access from a local cache:
+### Refreshing State
 
-- `self.states.light["kitchen"]` — Domain-specific typed access
-- `self.states.get("light.kitchen")` — Direct lookup by entity ID, no `await` needed
+`entity.refresh()` re-fetches the entity's state from Home Assistant and updates the entity's `.state` in place. The updated state is also returned.
 
-!!! warning "Prefer domain access for better typing"
+??? note "Generic Type Parameters"
 
-    When you know the domain at write time, use `self.states.light` instead of `self.states.get()`. Domain access returns fully typed state objects (e.g., `LightState`) with autocomplete for domain-specific attributes. `get()` returns `BaseState | None`, so you lose attribute-level type safety.
+    `BaseEntity` is generic over two type variables: `StateT` (the `BaseState` subclass) and `StateValueT` (the Python type of `.value`). For `LightEntity`, `StateT` is `LightState` and `StateValueT` is `bool | None`. These parameters are resolved at class definition time. Call sites supply no type arguments. They matter when creating custom entity types that extend `BaseEntity`.
 
-Use the API when you need guaranteed fresh data from Home Assistant — otherwise, `self.states` is faster and simpler.
+## Fetching Multiple States
 
-See [States](../states/index.md) for full details.
+`get_states()` retrieves all entities from Home Assistant in a single call and returns them as a list of typed `BaseState` objects. The method skips states that fail to convert and logs an error for each. `get_states_raw()` returns the untyped list.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_states.py"
+```
+
+`get_states()` accepts no filtering parameters. Filtering happens in Python after the call.
+
+## Which Method to Use
+
+| Need | Method |
+|---|---|
+| Just the raw state value | `get_state_value` |
+| Typed value, attributes, or timestamps | `get_state` |
+| Domain action methods (`turn_on`, `turn_off`, `toggle`) | `get_entity` |
 
 ## See Also
 
-- [Calling Services](services.md) - Invoke Home Assistant services
-- [Utilities & History](utilities.md) - Templates, history, and advanced features
-- [States](../states/index.md) - State management and caching
+- [States](../states/index.md) — local cache for instant, synchronous state access
+- [API overview](index.md) — when to use the API vs the state cache
+- [Calling Services](services.md) — invoke Home Assistant services directly

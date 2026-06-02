@@ -1,74 +1,80 @@
-# Utilities & History
+# Utilities
 
-Beyond basic states and services, the API exposes advanced Home Assistant features.
+Beyond states and services, the API exposes templates, history, logbook entries, event firing, synthetic state writing, and calendar access. These methods handle the less frequent tasks that don't fit the core state-and-service model.
 
 ## Templates
 
-Render Jinja2 templates on the server. Use this when you need to evaluate expressions that HA already knows how to compute — such as averaging across all sensors of a certain class, or evaluating a complex conditional — without pulling all the raw data into Python first.
+`render_template` evaluates a Jinja2 template string on the Home Assistant server and returns the result as a string. Template evaluation runs server-side, so the full HA template environment is available: `states`, `is_state`, sensor aggregations, and every other built-in helper.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_template.py"
 ```
 
-You can pass a `variables` dict as the second argument to inject values into the template context, keeping the template string reusable across calls.
+The optional `variables` parameter injects a dict of values into the template context. The same template string stays reusable across calls with different inputs.
+
+Template evaluation is most useful when HA already knows how to compute something complex (averaging across a device class, evaluating multi-sensor conditionals) and pulling all the raw data into Python would be wasteful.
 
 ## History
 
-Fetch the recorded state changes for an entity over a time window. This is useful for trend analysis, energy reporting, or building automations that depend on what a sensor was doing hours ago, not just its current value.
+`get_history` retrieves recorded state changes for a single entity over a time window. The `start_time` parameter is required. The `end_time` parameter is optional; omitting it returns changes from `start_time` to the present.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_history.py"
 ```
 
-Use `get_histories` (plural) to fetch multiple entities in one request. Passing a comma-separated string to `get_history` raises a `ValueError`. Both methods accept optional flags: `significant_changes_only` (skip minor attribute-only updates), `minimal_response` (omit attributes from all but the last entry), and `no_attributes` (strip attributes entirely for smaller payloads).
+`get_histories` fetches multiple entities in a single request. It accepts a `list[str]` and returns a `dict` mapping each entity ID to its history entries. Passing a comma-separated string to `get_history` raises a `ValueError`.
+
+Both methods accept three optional flags for reducing payload size:
+
+- `significant_changes_only` — skips minor attribute-only updates, returning only state-string transitions
+- `minimal_response` — omits attributes from all but the last entry in each entity's list
+- `no_attributes` — strips attributes entirely from every entry
 
 ## Logbook
 
-Retrieve logbook entries for an entity — the human-readable log HA shows in the UI. This captures state changes and automation triggers in a format suited for displaying activity summaries to users.
+`get_logbook` retrieves the human-readable log entries that Home Assistant records for an entity. Logbook entries capture state changes and automation triggers in the format HA displays in its UI. They are useful for building activity summaries or audit trails.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_logbook.py"
 ```
 
-Unlike `get_history`, both `start_time` and `end_time` are required.
+Both `start_time` and `end_time` are required. This differs from `get_history`, where `end_time` is optional.
 
-## Other Endpoints
+## Firing Events
 
-### `fire_event`
-
-`fire_event` sends an event to Home Assistant's event bus. Any HA automation or integration subscribed to that event type receives it. Use it to trigger HA automations from Hassette, or to interoperate with other HA components.
+`fire_event` sends an event to Home Assistant's event bus. Any HA automation, integration, or component subscribed to that event type receives it.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:fire_event"
 ```
 
-!!! note "Broadcasting between Hassette apps"
-    `fire_event` leaves the framework — the event travels through Home Assistant and back. For in-process broadcast between apps within Hassette, use [`self.bus.emit(topic, data)`](../apps/index.md#broadcasting-events-between-apps) instead. It stays local, fires faster, and keeps the data typed end-to-end.
+The `event_data` parameter is optional. When omitted, the event fires with no payload.
 
-### `set_state`
+!!! note "In-process broadcast between apps"
+    `fire_event` leaves the framework. The event travels to Home Assistant and back. For broadcasting between Hassette apps in the same process, [`self.bus.emit()`](../bus/index.md) stays local, fires faster, and keeps the data typed end-to-end.
 
-Write a synthetic state to HA's state machine. This creates or updates a state entry in HA's UI and REST API, but it does not control a real device — HA integrations do not react to it the way they react to `call_service`. Use it for virtual sensors, exposing computed values to the HA dashboard, or sharing state between apps via HA's state machine.
+## Writing Synthetic State
+
+`set_state` writes a state entry to Home Assistant's in-memory state machine. The entry appears in the HA dashboard and REST API like any other entity state, but it does not control a real device. HA integrations do not react to it the way they react to `call_service`.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:set_state"
 ```
 
-Existing attributes are merged: any attributes you pass are overlaid on top of the current ones, so you only need to provide the keys you want to change.
+Attributes are merged: `set_state` reads the entity's current attributes and overlays only the keys passed in `attributes`. Existing keys not mentioned in the call are preserved.
 
-!!! note "Synthetic states are not persisted across HA restarts"
-    States written with `set_state` live in HA's in-memory state machine. They are lost when HA restarts unless you restore them in `on_initialize`.
+Typical uses include virtual sensors that expose computed values to the dashboard, and sharing derived state between apps via HA's state machine.
 
-### `get_calendars`
+!!! note "Synthetic states do not survive HA restarts"
+    States written with `set_state` live in HA's in-memory state machine. They are lost when HA restarts. Apps that need persistence across restarts can re-create them in `on_initialize`.
 
-List all calendar entities registered in Home Assistant.
+## Calendars
+
+`get_calendars` returns all calendar entities registered in Home Assistant. `get_calendar_events` fetches events from a specific calendar within a time window. Both `start_time` and `end_time` are required for `get_calendar_events`.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:get_calendars"
 ```
-
-### `get_calendar_events`
-
-Fetch events from a specific calendar within a time window.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:get_calendar_events"
@@ -76,6 +82,8 @@ Fetch events from a specific calendar within a time window.
 
 ## See Also
 
-- [Retrieving Entities & States](entities.md) - Get entity and state data
-- [Calling Services](services.md) - Invoke Home Assistant services
-- [App Cache](../cache/index.md) - Cache data locally across restarts
+- [API Overview](index.md) — the full `self.api` surface
+- [Retrieving Entities & States](entities.md) — reading current state without history
+- [Calling Services](services.md) — controlling real devices
+- [Bus](../bus/index.md) — in-process event broadcast between apps
+- [App Cache](../cache/index.md) — persisting data across HA restarts
