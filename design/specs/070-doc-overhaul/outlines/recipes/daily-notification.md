@@ -15,7 +15,7 @@ Full app with `run_daily` and `call_service` for notify.
 Walk through the code decisions. Voice-guide rule #21: system-as-subject, one decision per paragraph.
 
 ### H2: Verify It's Working
-**New section needed** — add `hassette log` / `hassette job` verification step per recipe template.
+`hassette job --app <key>` to confirm the daily job is scheduled with the correct next-run time. `hassette log --app <key> --since 1d` after the scheduled time to see the notification fire. Expected: one log entry per day at the configured time.
 
 ### H2: Variations
 Alternative triggers (cron), different notification services, conditional notifications.
@@ -28,5 +28,5 @@ Alternative triggers (cron), different notification services, conditional notifi
 
 ## Cross-Links
 
-- **Links to:** Scheduler/Methods (run_daily, run_cron), API/Services (call_service)
+- **Links to:** Scheduler/Methods (run_daily, run_cron), API/Services (call_service), Testing overview (write a test for this pattern)
 - **Linked from:** Recipes overview

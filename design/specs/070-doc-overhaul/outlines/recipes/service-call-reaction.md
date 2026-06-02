@@ -15,7 +15,7 @@ App with `on_call_service` subscription.
 Service call events, filtering by domain/service.
 
 ### H2: Verify It's Working
-**New section needed.**
+`hassette listener --app <key>` to confirm the service-call handler is registered. Trigger the service via HA UI, then `hassette log --app <key> --since 5m` to see the handler fire. Expected: one log entry per service call matching the filter.
 
 ### H2: Variations
 Filtering by entity, combining with state checks.
@@ -28,5 +28,5 @@ Filtering by entity, combining with state checks.
 
 ## Cross-Links
 
-- **Links to:** Bus/Handlers (on_call_service), Bus/Filtering (service call filtering)
+- **Links to:** Bus/Handlers (on_call_service), Bus/Filtering (service call filtering), Testing overview (write a test for this pattern)
 - **Linked from:** Recipes overview

@@ -43,6 +43,18 @@ Port/URL, Docker port mapping, `web_api` settings.
 ### H2: Docker-Specific Issues
 Pointer to Docker Troubleshooting page.
 
+### H2: Exception Reference
+Common exceptions app authors may encounter, organized by category:
+- **Connection:** `InvalidAuthError`, `BaseUrlRequiredError`, `CouldNotFindHomeAssistantError`, `ConnectionClosedError`
+- **Registration:** `ListenerNameRequiredError` (cross-link to H2 above), `DuplicateListenerError` (cross-link to H2 above)
+- **State conversion:** `EntityNotFoundError`, `DomainNotFoundError`, `RegistryNotReadyError`
+- **Dependency injection:** `DependencyInjectionError`, `DependencyResolutionError`
+- **Lifecycle:** `InvalidLifecycleTransitionError` (includes `from_status`, `to_status`, `resource_name` attributes)
+- **Configuration:** `AppPrecheckFailedError`
+- **Framework:** `HassetteError` (base), `FatalError` (non-restartable, triggers shutdown)
+
+Brief per-entry: what triggers it, what to do about it. Not a full API reference — link to auto-generated exception docs for the complete list.
+
 **Removed from this page (moved to Operating):**
 - WebSocket reconnection sequence → Operating/overview.md
 - Event handler exception behavior → Operating/overview.md

@@ -27,6 +27,18 @@ Three levels of abstraction — match the existing docs terminology section:
 ### H2: Retrieving Entities
 `get_entity(entity_id, model)` → typed `BaseEntity` subclass. Wraps the state object and adds domain-specific service methods (e.g., `LightEntity.turn_on(brightness=255)`). `get_entity_or_none(entity_id, model)` → returns `None` instead of raising. Requires passing the entity model class explicitly — the API does not auto-resolve entity types.
 
+#### H3: Entity Properties
+`.state` — the underlying typed state object. `.value` — shortcut to `state.value`. `.entity_id`, `.domain` — identity fields. `.api` — direct access to the `Api` instance. `.hassette` — access to the `Hassette` coordinator instance.
+
+#### H3: Refreshing Entity State
+`entity.refresh()` — re-fetches state from HA and updates the entity's state object in place.
+
+#### H3: Synchronous Entity Access
+`entity.sync` (`BaseEntitySyncFacade`) — mirrors action methods as blocking calls. Available for sync contexts.
+
+#### H3: Generic Type Parameters
+`BaseEntity[StateT, StateValueT]` — entities are generic over their state type and value type. Domain entity subclasses (e.g., `LightEntity`) bind these parameters to the corresponding state class.
+
 ### H2: When to Use Which
 - **`get_state_value`** — just need the value, nothing else
 - **`get_state`** — need attributes, timestamps, or the typed value (most common)

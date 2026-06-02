@@ -1,15 +1,12 @@
-# Testing — Testing Your Apps
+# Testing — Test Harness Reference
 
-**Status:** Exists (243 lines), comprehensive, voice polish needed
-**Voice mode:** Concept/getting-started hybrid — "you" allowed for procedural parts
+**Status:** Exists (243 lines), restructured — Installation and Quick Start moved to `testing/quickstart.md`
+**Voice mode:** Reference — system-as-subject, no "you"
 
 ## Outline
 
-### H2: Installation
-pytest + hassette test extras.
-
-### H2: Quick Start
-Minimal test example with the harness.
+### H2: Prerequisites
+One-line note: `hassette[test]` extras required. Link to Testing Quickstart for setup walkthrough.
 
 ### H2: The Test Harness
 #### H3: Constructor — `AppTestHarness(AppClass, config)` parameters
@@ -53,5 +50,5 @@ Testing apps that fail during initialization.
 
 ## Cross-Links
 
-- **Links to:** Time Control, Concurrency, Factories, Apps overview
-- **Linked from:** Getting Started (next steps), Migration/Testing
+- **Links to:** Testing Quickstart, Time Control, Concurrency, Factories, Apps overview
+- **Linked from:** Testing Quickstart, Recipes (see also), Migration/Testing

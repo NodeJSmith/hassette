@@ -11,6 +11,11 @@
 ### H2: When HA YAML Is Enough
 Honest acknowledgment: simple trigger→action automations, no coding preference, UI-built automations suffice. Not a dismissal — links to HA docs for those users.
 
+### H2: Quick Comparison
+Collapsible table comparing HA UI automations, HA YAML, and Hassette across dimensions (language, debugging, testing, version control, learning curve, complexity ceiling). What Hassette does not replace: integrations, dashboards, add-ons — Hassette is automations only.
+
+*Absorbs content from the former `hassette-vs-ha-yaml.md` page.*
+
 ### H2: What Hassette Requires
 Practical prerequisites: Python 3.11+, a machine to run the process (same box or Docker), a long-lived access token, comfort with async/await basics. Brief — not a setup guide.
 
@@ -18,7 +23,7 @@ Practical prerequisites: Python 3.11+, a machine to run the process (same box or
 Brief pointer to the AppDaemon Migration section for users migrating existing apps.
 
 ### H2: Next Steps
-Two paths: "Ready to try it?" → Quickstart. "Want more detail on the tradeoffs?" → Hassette vs HA YAML.
+"Ready to try it?" → Quickstart. Coming from AppDaemon? → Migration section.
 
 ## Snippet Inventory
 
@@ -26,5 +31,5 @@ None — prose-only decision page.
 
 ## Cross-Links
 
-- **Links to:** Quickstart (`index.md`), Hassette vs HA YAML (`hassette-vs-ha-yaml.md`), Docker Setup (`docker/index.md`)
-- **Linked from:** Home (`index.md`), Hassette vs HA YAML (back-link)
+- **Links to:** Quickstart (`index.md`), Docker Setup (`docker/index.md`), Migration overview
+- **Linked from:** Home (`index.md`)

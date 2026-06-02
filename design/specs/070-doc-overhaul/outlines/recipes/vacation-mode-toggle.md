@@ -15,7 +15,7 @@ App watching an input_boolean, enabling/disabling other behaviors.
 Pattern: input_boolean as a mode switch, conditional logic in handlers.
 
 ### H2: Verify It's Working
-**New section needed.**
+Toggle the input_boolean in HA UI, then `hassette log --app <key> --since 5m` to see the mode-change handler fire. `hassette listener --app <key>` to confirm the subscription is registered. Expected: handler fires on each toggle with the correct boolean state.
 
 ### H2: Variations
 Multiple modes, time-based auto-toggle, notification on mode change.
@@ -28,5 +28,5 @@ Multiple modes, time-based auto-toggle, notification on mode change.
 
 ## Cross-Links
 
-- **Links to:** States/Subscribing (input_boolean state changes), API/Services (call_service for toggling), Cache (persisting mode state)
+- **Links to:** States/Subscribing (input_boolean state changes), API/Services (call_service for toggling), Cache (persisting mode state), Testing overview (write a test for this pattern)
 - **Linked from:** Recipes overview

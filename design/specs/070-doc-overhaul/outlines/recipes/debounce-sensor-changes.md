@@ -15,7 +15,7 @@ App with `on_state_change(debounce=10.0)`.
 What debounce does: resets timer on each new event, fires only after quiet period.
 
 ### H2: Verify It's Working
-**New section needed.**
+`hassette listener --app <key>` to confirm the handler is registered. `hassette log --app <key> --since 5m` to see handler invocations. Expected: handler fires only after the debounce quiet period, not on every sensor reading.
 
 ### H2: Variations
 Different debounce values, switching to throttle instead (debounce and throttle are mutually exclusive — `ValueError` if both set), sensor-specific patterns.
@@ -28,5 +28,5 @@ Different debounce values, switching to throttle instead (debounce and throttle 
 
 ## Cross-Links
 
-- **Links to:** Bus overview (rate control section), States/Subscribing
+- **Links to:** Bus overview (rate control section), States/Subscribing, Testing overview (write a test for this pattern)
 - **Linked from:** Recipes overview

@@ -12,7 +12,7 @@ App[Config] generic, five handles (bus, scheduler, api, states, cache), logger.
 Minimal app example, AppConfig usage.
 
 ### H2: Dates and Times
-`whenever` library usage for date/time in apps.
+`whenever` library usage for date/time in apps. `self.now()` returns the current `ZonedDateTime`.
 
 ### H2: Core Capabilities
 Brief overview linking to each capability's page:

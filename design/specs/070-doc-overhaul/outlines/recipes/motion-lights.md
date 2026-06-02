@@ -15,5 +15,5 @@ Written and tested in T03:
 
 ## Cross-Links
 
-- **Links to:** Bus overview, Scheduler/Methods (run_in), States/Subscribing (on_state_change patterns)
+- **Links to:** Bus overview, Scheduler/Methods (run_in), States/Subscribing (on_state_change patterns), Testing overview (write a test for this pattern)
 - **Linked from:** Recipes overview, First Automation (next steps)

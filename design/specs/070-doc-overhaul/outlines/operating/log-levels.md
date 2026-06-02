@@ -19,7 +19,7 @@ Link to auto-generated `LoggingConfig` reference for the full field list (avoids
 Unset fields use global log level.
 
 ### H2: Debug Flags
-`all_events`, `all_hass_events`, `all_hassette_events` — boolean flags for bus debug verbosity. `log_format` (`"auto"`, `"console"`, `"json"`) for output format.
+`all_events`, `all_hass_events`, `all_hassette_events` — boolean flags for bus debug verbosity. `log_format` (`"auto"`, `"console"`, `"json"`) for output format. `log_persistence_level` — minimum level for log records written to the database (separate from console level).
 
 ### H2: Per-App Log Levels
 Set in the app config block under `[hassette.apps.<key>.config]`, not in `[hassette.logging]`.

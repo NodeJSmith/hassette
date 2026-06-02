@@ -1,6 +1,6 @@
 # Hassette vs HA YAML
 
-**Status:** Exists (77 lines), voice polish needed
+**Status:** ABSORBED into `is-hassette-right-for-you.md` "Quick Comparison" section. This page will be removed from nav.
 **Voice mode:** Getting-started — "you" allowed, comparison-driven
 
 ## Outline

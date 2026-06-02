@@ -1,6 +1,6 @@
 # States — DomainStates Reference
 
-**Status:** Stub (3 lines), new content needed
+**Status:** ABSORBED into `states/overview.md` "Built-in State Types" section. This page will be removed from nav.
 **Voice mode:** Reference — tabular, terse, system-as-subject
 
 ## Outline

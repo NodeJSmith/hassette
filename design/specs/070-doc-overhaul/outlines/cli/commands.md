@@ -18,7 +18,7 @@ Subcommands: health, activity, config, source.
 ### H2: `hassette dashboard` — dashboard overview
 ### H2: `hassette config` — config inspection
 ### H2: `hassette telemetry` — telemetry management
-### H2: Shared Flags — `--since`, `--instance`, `--json`
+### H2: Shared Flags — `--since`, `--instance`, `--json`, `--limit`, `--source-tier`
 
 ## Snippet Inventory
 

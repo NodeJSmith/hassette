@@ -14,6 +14,9 @@ All snippets written and tested in T03:
 - `bus_glob_patterns.py` — glob pattern matching
 - `bus_rate_control.py` — three section markers (debounce, throttle, once)
 
+### H2: Synchronous Usage
+`self.bus.sync` (`BusSyncFacade`) — mirrors all subscription methods as blocking calls for `AppSync` hooks.
+
 ## Cross-Links
 
 - **Links to:** Handlers, DI, Filtering, States/Subscribing, Scheduler overview
