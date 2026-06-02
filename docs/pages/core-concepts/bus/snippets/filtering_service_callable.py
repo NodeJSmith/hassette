@@ -7,7 +7,7 @@ class LightApp(App):
         await self.bus.on_call_service(
             domain="light",
             service="turn_on",
-            where={"brightness": lambda v: v and v > 200},
+            where={"brightness": lambda v: v and v > 200},  # pyright: ignore[reportOperatorIssue]
             handler=self.on_bright_lights,
             name="bright_lights",
         )

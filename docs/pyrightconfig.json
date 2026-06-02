@@ -14,18 +14,26 @@
     "pythonVersion": "3.11",
     "typeCheckingMode": "basic",
 
-    // Snippet-specific suppressions
-    // Fictional modules (my_apps.*, my_app, appdaemon) are imported for reader context
-    "reportMissingImports": "none",
-    // diskcache Cache.__getitem__ returns a complex union type that triggers false
-    // positives on arithmetic and assignment in cache snippet files
-    "reportOperatorIssue": "none",
-    "reportAssignmentType": "none",
-    "reportGeneralTypeIssues": "none",
-
-    // Keep these active — they catch real bugs in snippet code
+    // Active checks — catch real bugs in snippet code
     "reportAttributeAccessIssue": "error",
     "reportUndefinedVariable": "error",
     "reportReturnType": "error",
-    "reportUnnecessaryComparison": "error"
+    "reportUnnecessaryComparison": "error",
+
+    // Per-directory suppressions so new snippet files get strict checking by default
+    "executionEnvironments": [
+        {
+            // Fictional my_apps.* imports for reader context
+            "root": "pages/testing/snippets",
+            "reportMissingImports": "none"
+        },
+        {
+            // diskcache Cache.__getitem__ returns a complex union type that triggers
+            // false positives on arithmetic and assignment in cache snippet files
+            "root": "pages/core-concepts/cache/snippets",
+            "reportOperatorIssue": "none",
+            "reportAssignmentType": "none",
+            "reportGeneralTypeIssues": "none"
+        }
+    ]
 }
