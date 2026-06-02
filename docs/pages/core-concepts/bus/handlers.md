@@ -1,177 +1,194 @@
 # Writing Event Handlers
 
-Once you've subscribed to an event, you need a handler to process it. Hassette supports dependency injection (DI), custom keyword arguments, and various event patterns — so your handlers can be as simple or detailed as you need.
+A handler is an async method that runs when an event matches a subscription. Hassette
+supports four handler patterns, from no parameters to fully typed dependency injection.
+Each subscription also accepts operational controls for errors, timeouts, and registration.
 
-## Event Model
+## Handler Patterns
 
-Every event you receive from the bus is an [`Event`][hassette.events.base.Event] dataclass with two main fields:
+### No data needed
 
-- `topic` - a string identifier describing what happened, such as `hass.event.state_changed`.
-- `payload` - an untyped object containing event-specific data.
-
-!!! question "Why is the payload untyped?"
-
-    You may be wondering why the event payload is untyped if Hassette is focused on strong typing. The reason for this is to avoid the overhead of converting every
-    event payload to a typed object when the majority of payloads will never be used.
-
-    Instead of converting *every* event payload, Hassette converts at the user boundary, such as when using Dependency Injection (DI) or
-    accessing states through [DomainStates][hassette.state_manager.state_manager.DomainStates] (e.g. `self.states.light`).
-
-
-## Dependency Injection
-
-Hassette uses dependency injection (DI) to provide event data to your handlers. The type annotations on your handler parameters tell Hassette what data to extract from the event.
-
-### Basic Patterns
-
-**Option 1: Receive the full event in raw form** (simplest):
-This gives you the raw event object, with the state data in untyped dicts. The raw state dict mirrors Home Assistant's `state_changed` event — the main state value is in `new_state["state"]`; attributes are in `new_state["attributes"]`.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/handlers_raw_event.py"
-```
-
-**Option 2: Receive full event with typed state objects** (better):
-This gives you typed state objects for easier access to attributes.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/handlers_typed_event.py"
-```
-
-**Option 3: Extract specific data** (recommended for production code — if you're new to Hassette, start with Option 1 or 2):
-
-```python
---8<-- "pages/core-concepts/bus/snippets/handlers_extract_data.py"
-```
-
-**Option 4: No event data needed**:
+A handler with no parameters runs as a side effect. No event data is extracted or passed.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_no_data.py"
 ```
 
-### Passing Custom Arguments
+### Raw event
 
-You can pass additional arguments to your handler using `kwargs` when subscribing. These are injected alongside event dependencies.
+A handler annotated with `RawStateChangeEvent` receives the untyped event object directly.
+The state value lives at `event.payload.data.new_state.get("state")`.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/handlers_custom_args.py"
+--8<-- "pages/core-concepts/bus/snippets/handlers_raw_event.py"
 ```
 
-### Available Dependencies
+This pattern suits exploratory work or event types that [dependency injection](dependency-injection.md)
+doesn't cover.
 
-Dependencies are available via `from hassette import D`. The most common are `StateNew[T]`, `StateOld[T]`, `EntityId`, and `Domain`.
+### Typed state event
 
-See the [Dependency Injection guide](dependency-injection.md#available-di-annotations) for the full annotation table, custom extractors, and automatic type conversion.
-
-### Restrictions
-
-!!! warning "Handler Signature Rules"
-    Handlers **cannot** use:
-
-    - Positional-only parameters (parameters before `/`)
-    - Variadic positional arguments (`*args`)
-
-    These restrictions ensure unambiguous parameter injection.
-
-## Combining Multiple Dependencies
-
-You can extract multiple pieces of data in a single handler:
+`D.TypedStateChangeEvent[T]` wraps the same event with typed state objects. The new and
+old state values are accessible as attributes instead of raw dicts.
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/handlers_multiple_dependencies.py"
+--8<-- "pages/core-concepts/bus/snippets/handlers_typed_event.py"
+```
+
+`D` is an alias for `hassette.dependencies`. `states` is `hassette.models.states`,
+which contains typed state classes for each Home Assistant domain. See the
+[Dependency Injection](dependency-injection.md) page for the full import reference.
+
+### Extracted data (recommended)
+
+[`D` annotations](dependency-injection.md) tell Hassette which fields to extract from the
+event and pass as individual parameters. No event object is received; only the requested
+data arrives.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/handlers_extract_data.py"
+```
+
+`D.StateNew[T]` delivers the new state converted to type `T`. `D.EntityId` delivers the
+entity ID string. The [Dependency Injection](dependency-injection.md) page covers the
+full annotation table, union types, and custom extractors.
+
+## Non-State Event Types
+
+The bus subscribes to more than state changes. Each method below returns a `Subscription`,
+a handle that cancels the listener when called. All accept the same `name=`, `on_error=`,
+`timeout=`, `debounce=`, and `throttle=` options as `on_state_change`.
+
+### Home Assistant events
+
+| Method | Fires when |
+|---|---|
+| `on_state_change(entity)` | An entity's state string changes |
+| `on_attribute_change(entity, attr)` | A specific entity attribute changes |
+| `on_call_service(domain, service)` | A HA service is called |
+| `on_component_loaded(component)` | A HA component finishes loading |
+| `on_service_registered(domain, service)` | A new HA service is registered |
+| `on_homeassistant_start()` | HA starts up |
+| `on_homeassistant_stop()` | HA begins shutting down |
+| `on_homeassistant_restart()` | HA restarts |
+| `on(topic=...)` | Any raw HA event topic |
+
+An `on_call_service` handler receives the service call's entity ID via `D.EntityId`:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/handlers/non_state_call_service.py"
+```
+
+`on()` subscribes to any raw topic string. The handler receives the full event.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/handlers/non_state_raw_topic.py"
+```
+
+### Cross-app communication
+
+`emit(topic, data)` broadcasts a payload to all subscribers of a custom topic. Other
+apps subscribe to the same topic with `on()`. Handlers annotated with `D.EventData[T]`
+receive `data` pre-extracted.
+
+### Hassette-internal events
+
+These fire for framework-level changes within the running instance.
+
+| Method | Fires when |
+|---|---|
+| `on_websocket_connected()` | The HA WebSocket connection is established |
+| `on_websocket_disconnected()` | The HA WebSocket connection is lost |
+| `on_hassette_service_status(status)` | A Hassette service changes status |
+| `on_hassette_service_started()` | A Hassette service reaches STARTED |
+| `on_hassette_service_failed()` | A Hassette service reaches FAILED |
+| `on_hassette_service_crashed()` | A Hassette service reaches CRASHED |
+| `on_app_state_changed(app_key, status)` | An app instance changes status |
+| `on_app_running(app_key)` | An app instance reaches RUNNING |
+| `on_app_stopping(app_key)` | An app instance begins stopping |
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/handlers/non_state_internal.py"
 ```
 
 ## Error Handling
 
-When a listener raises an exception, Hassette logs the error and records it for telemetry. You can also register an error handler to receive a typed [`BusErrorContext`][hassette.bus.error_context.BusErrorContext] with full exception details.
-
-There are two levels of error handlers:
-
-- **App-level**: `bus.on_error(handler)` — applies to all listeners on this bus that don't have a per-registration handler.
-- **Per-registration**: `on_error=` option on any `bus.on_state_change()`, `bus.on()`, etc. — takes precedence over the app-level handler.
-
-Both levels can be sync or async.
-
-!!! warning "Register early — the reload gap"
-    The app-level handler is resolved at dispatch time, not at listener registration time. This means calling `bus.on_error()` after listeners are registered is valid and the handler will still fire. However, if a listener fires during app startup (before `on_error()` is called), the handler won't be invoked for that event. To avoid this gap, **register `on_error()` as the first statement in `on_initialize()`**.
-
 ### App-level error handler
+
+`bus.on_error(handler)` registers a fallback for all listeners without a per-registration
+error handler. The handler receives a
+[`BusErrorContext`][hassette.bus.error_context.BusErrorContext] with full exception details.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_app.py"
 ```
 
+The handler is resolved at dispatch time, not at listener registration time. Registering
+`on_error()` after listeners are already in place is valid; the handler fires for those
+listeners too. Any listener that fires before `on_error()` is called has no fallback.
+Registering it as the first statement in `on_initialize()` closes that gap.
+
 ### Per-registration error handler
+
+`on_error=` on any subscription method registers a handler for that listener only.
+It takes precedence over the app-level handler.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_per_reg.py"
 ```
 
+Both sync and async functions are accepted. If the error handler itself raises or times
+out, Hassette logs the failure. The executor's error handler failure counter increments,
+but the original listener's telemetry record stays unaffected.
+
 ### What `BusErrorContext` contains
 
 | Field | Type | Description |
-|-------|------|-------------|
+|---|---|---|
 | `exception` | `BaseException` | The raised exception |
-| `traceback` | `str` | Full formatted traceback — always present |
+| `traceback` | `str` | Full formatted traceback. Always present. |
 | `topic` | `str` | The event topic the listener was registered on |
 | `listener_name` | `str` | Human-readable listener identity |
 | `event` | `Event[Any]` | The event being processed when the exception occurred |
 
-!!! note "Error handler failures"
-    If the error handler itself raises or times out, the failure is logged at ERROR/WARNING and counted in the executor's error handler failure counter. The original listener's telemetry record is unaffected.
+## Timeout Configuration
 
-## Subscription and Registration
-
-Every `bus.on_*()` method — `on_state_change()`, `on_attribute_change()`, `on_call_service()`, `on_component_loaded()`, and `on()` — is `async` and must be awaited. It returns a `Subscription` object once both routing and database registration are complete.
-
-| Attribute | Description |
-|-----------|-------------|
-| `sub.cancel()` | Removes the listener immediately. |
-| `sub.listener` | The underlying `Listener` object. |
-| `sub.listener.db_id` | Integer database row ID — always set when the awaited call returns. |
-
-### The `name=` parameter (required)
-
-All database-registered listeners require a `name=` parameter — a stable string identifier for the listener. The name is part of the natural key `(app_key, instance_index, name, topic)` used for upsert deduplication across restarts.
+`timeout=` overrides the global `event_handler_timeout_seconds` setting for one listener.
+`timeout_disabled=True` removes enforcement entirely for that listener.
 
 ```python
-await self.bus.on_state_change(
-    "light.kitchen",
-    handler=self.on_light_change,
-    name="kitchen_light",  # required
-)
+--8<-- "pages/core-concepts/bus/snippets/bus_timeouts.py"
 ```
 
-The name must be unique within a single app instance for a given topic. Two listeners with the same name on different topics are distinct — topic is part of the key.
+`timeout=` accepts a float in seconds. A handler that exceeds its timeout is cancelled
+and the failure is recorded in telemetry.
 
-**`ListenerNameRequiredError`** is raised at call time when `name=` is omitted. The error includes the handler method and topic:
+## Registration Mechanics
 
-```
-ListenerNameRequiredError: Listener registration requires a name.
+### The `name=` parameter
 
-  handler: MyApp.on_light_change
-  topic:   light.kitchen
+All subscription methods require a `name=` parameter, a stable string identifier for the
+listener. The name forms part of the natural key `(app_key, instance_index, name, topic)`
+used for upsert deduplication across restarts.
 
-Provide a stable name via the `name=` parameter:
-
-  await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
-```
-
-**`DuplicateListenerError`** is raised when a second listener with the same `(name, topic)` is registered within the same app session. Cross-session registrations with the same name and topic update the existing record via upsert — not an error.
-
-```
-DuplicateListenerError: A listener named 'kitchen_light' is already registered for topic 'light.kitchen'.
-
-  existing handler: MyApp.on_light_change
-  duplicate handler: MyApp.on_light_change_v2
-
-Use a different name for the second listener, or remove the first registration before re-registering.
+```python
+--8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
 ```
 
-### Registration is complete when the awaited call returns
+Two listeners on the same topic in the same app instance must carry distinct names. Two
+listeners with the same name on different topics are distinct; topic is part of the key.
 
-Routing and database persistence both complete before `on_state_change()` returns. `sub.listener.db_id` is a valid integer immediately — no further awaiting or checking is needed.
+`ListenerNameRequiredError` is raised at call time when `name=` is omitted. The message
+includes the handler method and topic.
+
+`DuplicateListenerError` is raised when a second listener with the same `(name, topic)`
+is registered within the same app session. Cross-session registrations with the same name
+and topic update the existing record via upsert. This is not an error.
+
+### Registration completes synchronously
+
+Routing and database persistence both complete before the awaited call returns.
+`sub.listener.db_id` is a valid integer immediately. No background task, no polling.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:await_persistence"
@@ -179,7 +196,8 @@ Routing and database persistence both complete before `on_state_change()` return
 
 ### Sequential operations are deterministic
 
-Cancel-then-resubscribe sequences have no race conditions — both routing removal and the new registration complete before the next statement runs:
+Cancel-then-resubscribe sequences have no race conditions. The old handler is guaranteed
+gone before the new registration begins.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:resubscribe"
@@ -187,6 +205,6 @@ Cancel-then-resubscribe sequences have no race conditions — both routing remov
 
 ## See Also
 
-- [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers
-- [Dependency Injection](dependency-injection.md) - Full annotation table, custom extractors, and type conversion
-- [API](../api/index.md) - Call services in response to events
+- [Dependency Injection](dependency-injection.md): full annotation table, custom extractors, and type conversion
+- [Filtering & Predicates](filtering.md): filter which events reach a handler
+- [Subscribing to State Changes](index.md): state-specific subscription patterns and options

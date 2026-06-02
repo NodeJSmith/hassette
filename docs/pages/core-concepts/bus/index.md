@@ -1,6 +1,6 @@
 # Bus
 
-The event bus delivers Home Assistant events — state changes, service calls, component loads — to any app handler that subscribes. It also delivers Hassette-internal events.
+The event bus delivers Home Assistant events (state changes, service calls, component loads) to any app handler that subscribes. It also delivers Hassette-internal events.
 
 `self.bus` is available on every [App](../apps/index.md) instance. Hassette creates it at startup.
 
@@ -30,13 +30,13 @@ flowchart TD
 
 ## Subscribing to Events
 
-[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a `Subscription` handle.
+[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
 ```
 
-[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed `BinarySensorState`. The handler receives clean, typed data instead of a raw event dictionary. See [Dependency Injection](dependency-injection.md) for the full annotation reference.
+[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed `BinarySensorState`. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
 Four subscription methods cover the common event types:
 
@@ -47,7 +47,7 @@ Four subscription methods cover the common event types:
 | `on_call_service` | A Home Assistant service is called |
 | `on` | Any event on a given topic string |
 
-All registration methods are async. Each requires a `name=` parameter — a stable string identifier for the listener. Additional specialized methods like `on_component_loaded` are covered in [Writing Handlers](handlers.md).
+All registration methods are async. Each requires a `name=` parameter, a stable string identifier for the listener. Additional specialized methods like `on_component_loaded` are covered in [Writing Handlers](handlers.md).
 
 ## Matching Multiple Entities
 
@@ -87,8 +87,12 @@ Three subscription parameters manage handler invocation frequency.
 !!! warning "One strategy per subscription"
     `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError` at registration.
 
+## Synchronous Usage
+
+`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for `AppSync` lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+
 ## Next Steps
 
-- [Writing Handlers](handlers.md) — handler signatures, immediate fire, duration hold, timeouts, and error behavior
-- [Filtering & Predicates](filtering.md) — predicates, conditions, and accessors for complex event matching
-- [Dependency Injection](dependency-injection.md) — the full `D.*` annotation reference and how Hassette resolves handler parameters
+- [Writing Handlers](handlers.md): handler signatures, immediate fire, duration hold, timeouts, and error behavior
+- [Filtering & Predicates](filtering.md): predicates, conditions, and accessors for complex event matching
+- [Dependency Injection](dependency-injection.md): the full `D.*` annotation reference and how Hassette resolves handler parameters

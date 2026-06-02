@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Hassette's dependency injection system extracts typed data from events and passes it directly to handler parameters. Handlers declare what they need via type annotations; Hassette resolves the rest.
+Hassette's dependency injection system extracts typed data from events and passes it to handler parameters. Handlers declare what they need via type annotations; Hassette resolves the values before each invocation.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
@@ -8,18 +8,18 @@ Hassette's dependency injection system extracts typed data from events and passe
 
 `D.StateNew[states.LightState]` extracts the new state and converts it to a typed `LightState`. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
 
-All annotations live in `hassette.dependencies`, available as `D` from the top-level import: `from hassette import D`.
+All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
 
 ## Annotation Reference
 
 ### State Extractors
 
-Extract typed state objects from state change events. `T` is any state class from `hassette.models.states`.
+State extractors resolve typed state objects from state change events. `T` is any state class from `hassette.models.states`.
 
 | Annotation | Returns | If missing |
 |---|---|---|
-| `D.StateNew[T]` | `T` | Handler not called |
-| `D.StateOld[T]` | `T` | Handler not called |
+| `D.StateNew[T]` | `T` | Handler skipped |
+| `D.StateOld[T]` | `T` | Handler skipped |
 | `D.MaybeStateNew[T]` | `T \| None` | `None` |
 | `D.MaybeStateOld[T]` | `T \| None` | `None` |
 
@@ -27,34 +27,34 @@ Extract typed state objects from state change events. `T` is any state class fro
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/state_object_extractors.py"
 ```
 
-When a required state is missing, Hassette skips the handler invocation — the exception is caught during resolution, not inside the handler. `MaybeStateOld` is useful for the first event after an entity appears, where there is no previous state.
+When a required extractor finds no value, Hassette skips the handler invocation entirely. `MaybeStateOld` returns `None` on the first event for a new entity with no previous state.
 
 ### Identity Extractors
 
-Extract entity IDs and domains from events.
+Identity extractors resolve entity IDs and domains from events.
 
 | Annotation | Returns | If missing |
 |---|---|---|
-| `D.EntityId` | `str` | Handler not called |
+| `D.EntityId` | `str` | Handler skipped |
 | `D.MaybeEntityId` | `str \| MISSING_VALUE` | Falsy sentinel |
-| `D.Domain` | `str` | Handler not called |
+| `D.Domain` | `str` | Handler skipped |
 | `D.MaybeDomain` | `str \| MISSING_VALUE` | Falsy sentinel |
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/identity_extractors.py"
 ```
 
-`MISSING_VALUE` is a falsy sentinel. Test with `if entity_id:` rather than `isinstance` checks.
+`MISSING_VALUE` is a falsy sentinel. Testing with `if entity_id:` covers both the present and absent cases.
 
 ### Other Extractors
 
-| Annotation | Returns | Use case |
-|---|---|---|
-| `D.EventData[T]` | `T` | Typed payload from [`Bus.emit`](../apps/index.md#broadcasting-events-between-apps) broadcast events |
-| `D.EventContext` | `HassContext` | Home Assistant event context (user ID, parent/origin IDs) |
-| `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Full event object with typed states |
+| Annotation | Returns | If missing | Use case |
+|---|---|---|---|
+| `D.EventData[T]` | `T` | Handler skipped | Typed payload from `Bus.emit` broadcast events |
+| `D.EventContext` | `HassContext` | `None` | Home Assistant event context (user ID, parent/origin IDs) |
+| `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
-`EventData[T]` pairs with `Bus.emit`. The sender emits a dataclass; the receiver declares the type:
+`D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md#broadcasting-events-between-apps). The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"
@@ -62,7 +62,7 @@ Extract entity IDs and domains from events.
 
 ## Combining Annotations
 
-Handlers accept multiple DI parameters. Hassette resolves each independently.
+Handlers accept multiple DI parameters. Hassette resolves each independently from the same event.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/multiple_dependencies.py"
@@ -76,11 +76,11 @@ State extractors accept union types for handlers that cover multiple entity doma
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
-The [State Registry](../states/state-registry.md) determines the correct state class based on the entity's domain.
+The [State Registry](../states/state-registry.md) determines the concrete state class from the entity's domain at dispatch time.
 
 ## Custom Keyword Arguments
 
-DI composes with custom `kwargs` passed at registration time. DI-annotated parameters are resolved from the event; remaining keyword arguments pass through unchanged.
+DI composes with `kwargs=` passed at registration. DI-annotated parameters resolve from the event; remaining keyword arguments pass through unchanged from the registration call.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/mixing_kwargs.py"
@@ -88,11 +88,11 @@ DI composes with custom `kwargs` passed at registration time. DI-annotated param
 
 ## Handler Signature Restrictions
 
-DI handlers cannot use positional-only parameters (before `/`) or `*args`. Regular parameters and `**kwargs` work fine. All DI parameters require type annotations — Hassette uses the annotation to determine what to extract.
+DI handlers do not support positional-only parameters (those before `/`) or `*args`. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
 
 ## See Also
 
-- [Custom Extractors](custom-extractors.md) — writing custom extractors, accessors, `AnnotationDetails`, and automatic type conversion
-- [Writing Handlers](handlers.md) — raw event and typed event patterns, handler error behavior
-- [State Registry](../states/state-registry.md) — domain-to-model mapping
-- [Type Registry](../states/type-registry.md) — automatic type conversion
+- [Custom Extractors](custom-extractors.md). Writing extractors, accessors, `AnnotationDetails`, and automatic type conversion.
+- [Writing Handlers](handlers.md). Raw event and typed event patterns, handler error behavior.
+- [State Registry](../states/state-registry.md). Domain-to-model mapping.
+- [Type Registry](../states/type-registry.md). Automatic type conversion.
