@@ -1,68 +1,64 @@
 # Application Configuration
 
-This page covers the **TOML side** of app configuration: registering apps in `hassette.toml`, supplying config values, and running multiple instances. The [App Configuration](../apps/configuration.md) page covers defining typed `AppConfig` models in Python.
+Apps are registered in `hassette.toml` under `[hassette.apps.<key>]`. Each block tells Hassette which Python file and class to load, and passes configuration values to the app.
 
-Apps are registered and configured in the `hassette.toml` file under `[hassette.apps.<name>]`.
+This page covers the TOML side of app configuration. [App Configuration](../apps/configuration.md) covers defining typed `AppConfig` models in Python.
 
-## App Registration
+## Registering an App
 
-Each app block requires:
-
-- **`filename`** (or `file_name`): Path to the python file relative to `apps.directory`.
-    - Should include the extension (e.g., `.py`), though Hassette will attempt to guess if missing.
-    - Supports subdirectories (e.g., `subdir/my_app.py`).
-
-- **`class_name`** (or `class`, `module`, `module_name`): Name of the `App` subclass to load.
-    - If multiple classes exist in the file, this field disambiguates which one to load.
-
-!!! tip
-    Prefer `class_name` and `filename` in docs and new configs; the alternative keys exist for compatibility.
-
-**Optional fields:**
-
-- **`enabled`**: Set to `false` to disable the app without removing the config block.
-- **`display_name`**: Friendly name for logs; defaults to the class name.
-
-### Single Instance
+An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to `apps.directory`. `class_name` is the name of the `App` subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
 ```
 
-## App Configuration Parameters
+`enabled` disables the app without removing the config block when set to `false`. `display_name` sets a friendly label for logs; it defaults to the class name.
 
-You can pass configuration parameters to your apps using the `config` field.
+!!! note "Alternative field names"
+    `filename` also accepts `file_name`. `class_name` also accepts `class`, `module`, and `module_name`. `filename` and `class_name` are the recommended names; the alternatives exist for compatibility.
 
-- **Single instance**: `config = { key = "value" }` or `[hassette.apps.name.config]`
-- **Multiple instances**: `[[hassette.apps.name.config]]` (recommended)
+## Passing Configuration
 
-!!! note "Paths"
-    `apps.directory` is resolved to an absolute path at startup. Relative paths are resolved relative to the current working directory.
+The `config` field supplies values to the app's `AppConfig` model. Two TOML forms are equivalent for single-instance apps.
 
-!!! note "Filename extension"
-    If `filename` has no extension, Hassette assumes `.py`.
+Inline form:
 
-**Environment Variable Overrides:**
+```toml
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "PresenceApp"
+config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
+```
 
-You can override nested config values using environment variables. This merges with any TOML configuration (env vars take precedence).
+Table form:
 
-- Pattern: `HASSETTE__APPS__<APP_NAME>__CONFIG__<KEY>`
-- Example: `HASSETTE__APPS__MY_APP__CONFIG__SOME_OPTION=true` overrides `some_option` for `my_app`.
+```toml
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "PresenceApp"
 
-### Multiple Instances
+[hassette.apps.presence.config]
+motion_sensor = "binary_sensor.hall"
+lights = ["light.entry"]
+```
 
-To run the same app multiple times with different configurations, use `[[hassette.apps.<name>.config]]` blocks.
+!!! note "Two TOML paths, two purposes"
+    `AppManifest` fields (`filename`, `class_name`, `enabled`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a deprecation warning.
+
+Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
+
+## Multiple Instances
+
+The same app class runs as separate instances by replacing `config = ...` with `[[hassette.apps.<key>.config]]` blocks (TOML's array-of-tables syntax). Each block produces one independent app instance with its own state, handlers, and scheduler.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/multiple_instances.toml"
 ```
 
+The `name` field distinguishes instances in logs and the web UI. Without it, Hassette generates a name from the class name and index (e.g., `PresenceApp.0`).
+
+Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
+
 ## Typed Configuration
 
-The `config` values supplied in TOML are validated against an `AppConfig` subclass that you define in Python. Hassette raises a configuration error at startup if any required field is missing or has the wrong type. For how to define that model, see [App Configuration](../apps/configuration.md).
-
-## See Also
-
-- [App Configuration](../apps/configuration.md) - Defining typed `AppConfig` models in Python
-- [Global Settings](global.md) - Runtime and connection settings
-- [Authentication](auth.md) - Tokens and secrets
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a configuration error before any app starts. [App Configuration](../apps/configuration.md) covers defining the model.

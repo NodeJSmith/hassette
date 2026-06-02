@@ -1,141 +1,89 @@
 # App Cache: Patterns & Examples
 
-This page covers practical patterns for `self.cache`. The [Overview](index.md) covers setup and basic usage.
+Practical patterns for `self.cache`. Each pattern addresses a specific problem with a complete, runnable example. The [Overview](index.md) covers setup and basic usage.
 
-## Pattern: API Response Caching
+## Rate-Limiting Notifications
 
-Avoid hitting external API rate limits by storing responses with a timestamp and checking freshness before making a new request:
-
-```python
---8<-- "pages/core-concepts/cache/snippets/cache_api_response.py"
-```
-
-The pattern: check if the cached entry exists and is within the TTL window, return it if so, otherwise fetch fresh data and update the cache.
-
-## Pattern: Rate-Limiting Notifications
-
-Prevent notification spam by recording when the last notification was sent and skipping the call if the cooldown has not elapsed:
+A leak or alarm sensor can fire repeatedly during a single incident. Storing a timestamp in the cache prevents duplicate notifications from going out during a cooldown window:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_rate_limit.py"
 ```
 
-For per-entity rate-limiting (e.g., one cooldown per sensor rather than a single global cooldown), include the entity ID in the cache key: `f"last_notification:{event.data.entity_id}"`.
+`self.cache.get(cache_key)` returns `None` on the first call, so the notification goes out immediately. The timestamp is written after sending. On subsequent triggers, the handler compares the stored timestamp against the cooldown threshold. If insufficient time has elapsed, the notification is skipped. For per-entity rate limiting, the entity ID belongs in the key: `f"last_notification:{event.data.entity_id}"`.
 
-## Pattern: Persistent Counters
+## Persistent Counters
 
-Track events across restarts by loading the counter from the cache at initialization and writing it back on every increment:
+A counter stored only in an instance variable resets to zero whenever Hassette restarts. Loading from the cache at initialization and writing back on every increment makes the counter survive restarts:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_counter.py"
 ```
 
-The counter is restored from disk the next time the app starts, so `motion_count` accumulates across Hassette restarts.
+`self.cache.get("motion_count", 0)` returns the stored value or `0` when no entry exists. Each call to `on_motion` increments the in-memory counter and immediately writes the new value to disk.
 
-## Pattern: Storing Complex Data
+## API Response Caching
 
-The cache stores any picklable Python object — including dataclasses with typed fields:
+External APIs impose rate limits. Storing the response alongside a timestamp lets the app return a cached copy while the data is still fresh:
 
 ```python
---8<-- "pages/core-concepts/cache/snippets/cache_complex_data.py"
+--8<-- "pages/core-concepts/cache/snippets/cache_api_response.py"
 ```
 
-!!! note "Create new objects instead of mutating"
-    Use `dataclasses.replace()` to produce a new object rather than modifying the existing one. This keeps your app logic predictable and avoids partially-written state if an error occurs before the cache write.
+`get_weather` checks the cache first. The entry holds a tuple of `(timestamp, data)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
 
-## Pattern: Expiring Cache Entries
+## Expiring Entries
 
-For simple expiration, use `self.cache.set(key, value, expire=seconds)` — diskcache removes the entry automatically once the timeout elapses:
+Two approaches exist for expiring cache entries, depending on whether access to the timestamp is needed.
+
+For automatic expiry, `self.cache.set()` accepts an `expire` parameter in seconds. diskcache removes the entry silently once the timeout elapses:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_expire.py:expire"
 ```
 
-When you need access to the timestamp itself — for example, to display "last fetched" information or to implement custom staleness logic — store a timestamp alongside the value instead:
+When the timestamp is needed for display or custom staleness logic, storing it explicitly alongside the value works better:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_expiring.py"
 ```
 
-## Pattern: Load Once, Write on Shutdown
+`get_cached_data` compares the stored timestamp against the configured TTL and returns `None` when the entry is stale. The caller decides whether to re-fetch.
 
-For data that is read frequently during a run but only needs to be persisted at shutdown, load from the cache at initialization into an instance variable and write back at shutdown:
+## Storing Complex Data
+
+The cache stores any picklable Python object. Dataclasses with typed fields work well for structured app state:
+
+```python
+--8<-- "pages/core-concepts/cache/snippets/cache_complex_data.py"
+```
+
+`dataclasses.replace()` produces a new `EnergyStats` object rather than modifying the existing one. The cache write only happens after the new object is fully constructed. A runtime error before the write leaves the previous value intact.
+
+## Load Once, Write on Shutdown
+
+Cache access involves disk I/O. For values read many times per second, loading into an instance variable at initialization avoids repeated disk reads:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_performance.py"
 ```
 
-This avoids disk I/O on every access while still persisting the data across restarts.
-
-## Best Practices
-
-### What to Cache
-
-**Good uses:**
-
-- Notification timestamps for rate-limiting
-- External API responses that have a meaningful TTL
-- Computed values that are expensive to recalculate
-- Rolling counters and statistics
-- User preferences or app settings
-
-**Avoid caching:**
-
-- Real-time Home Assistant entity state — use [`self.states`](../states/index.md) instead
-- Large binary files — consider external storage
-- Session-only temporary flags — use instance variables
-
-### Cache vs. StateManager
-
-| Use Case | Tool | Reason |
-|----------|------|--------|
-| Current sensor values | [`self.states`](../states/index.md) | Real-time HA state |
-| Historical data | `self.cache` | Persists across restarts |
-| Computed aggregates | `self.cache` | Not part of HA state |
-| External API responses | `self.cache` | Reduce external calls |
-| Temporary flags (this run only) | Instance variables | No persistence needed |
-
-### Performance
-
-Cache access involves disk I/O and is not instantaneous. For data that is read many times per second within a single run, load into an instance variable at initialization (see the [Load Once, Write on Shutdown](#pattern-load-once-write-on-shutdown) pattern above). The cache is thread-safe and can be accessed from multiple async tasks concurrently.
+`on_initialize` reads from disk once. All access during the run uses the in-memory copy. `on_shutdown` writes the final state back to disk. The cache is thread-safe, so concurrent async tasks can write to it directly when the load-once pattern is not needed.
 
 ## Troubleshooting
 
 ### Cache Not Persisting
 
-If data is not surviving restarts:
-
-- Confirm you are writing to `self.cache`, not a local variable named `cache`
-- Confirm the app completes initialization without raising an exception (a startup error can prevent the shutdown flush)
-- Confirm the cache directory has write permissions
-- Confirm the value is picklable — unpicklable objects raise a `PicklingError` at write time
+If values do not survive a restart, check four common causes. The write may target a local variable instead of `self.cache`. The app may raise an exception during initialization before the write executes. The cache directory may lack write permissions. The stored value may not be picklable. Unpicklable objects raise `PicklingError` at write time.
 
 ### Cache Size Exceeded
 
-When the cache reaches `default_cache_size`, the least recently used items are evicted automatically. If you are losing important data:
+When the cache reaches `default_cache_size`, diskcache silently evicts the least recently used entries. A larger `default_cache_size` in [Global Settings](../configuration/global.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
 
-- Increase `default_cache_size` in [Global Settings](../configuration/global.md)
-- Implement expiration logic to remove stale entries (see [Expiring Cache Entries](#pattern-expiring-cache-entries))
-- Consider storing large objects externally and caching only references or identifiers
-
-### Debugging Cache Operations
-
-Enable debug logging to see cache operations in the logs:
-
-```toml
-[hassette]
-log_level = "DEBUG"
-```
-
-Verify the cache directory exists and contains data:
-
-```bash
-ls -lah ~/.local/share/hassette/v0/MyApp/cache/
-```
+`log_level = "DEBUG"` in `hassette.toml` enables cache operation logging. The cache directory at `~/.local/share/hassette/v0/MyApp/cache/` should contain data after the first successful write.
 
 ## See Also
 
-- [App Cache Overview](index.md) — how it works, configuration, lifecycle
-- [Global Settings](../configuration/global.md) — `data_dir` and `default_cache_size`
-- [Apps Overview](../apps/index.md) — app lifecycle
-- [diskcache documentation](https://grantjenks.com/docs/diskcache/) — full cache library reference
+- [App Cache Overview](index.md). How it works, configuration, lifecycle.
+- [Global Settings](../configuration/global.md). `data_dir` and `default_cache_size`.
+- [diskcache documentation](https://grantjenks.com/docs/diskcache/). Full cache library reference.
