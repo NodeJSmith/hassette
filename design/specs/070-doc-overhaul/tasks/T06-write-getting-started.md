@@ -8,7 +8,7 @@ implements: ["FR#1", "FR#3", "FR#18", "AC#1", "AC#6", "AC#20"]
 
 ## Summary
 
-Writes all Getting Started pages from blank: the evaluator-facing page, quickstart/installation, first automation, HA token guide, hassette-vs-ha-yaml comparison, and the 4 Docker pages. This is the user's first contact with Hassette docs — it must be approachable, concrete, and lead to a working setup. Uses "you" address and code-first ordering per the getting-started template.
+Writes all Getting Started pages from blank: the evaluator-facing page (absorbing the former hassette-vs-ha-yaml comparison), quickstart/installation, first automation, HA token guide, and the 4 Docker pages. This is the user's first contact with Hassette docs — it must be approachable, concrete, and lead to a working setup. Uses "you" address and code-first ordering per the getting-started template.
 
 ## Prompt
 
@@ -18,17 +18,16 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - The getting-started exemplar page from T03 (voice reference)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
-### Pages to write (9 total):
+### Pages to write (8 total):
 
-1. **Evaluator page** (new) — "Is Hassette Right for You?" or similar. What Hassette is, who it's for, how it compares to AppDaemon, HA YAML automations, and pyscript. Honest about tradeoffs. This is FR#18.
+1. **is-hassette-right-for-you.md** (new) — What Hassette is, who it's for, how it compares to AppDaemon, HA YAML automations, and pyscript. Absorbs the former `hassette-vs-ha-yaml.md` comparison content. This is FR#18.
 2. **index.md** — Quickstart overview. What you'll build, prerequisites, link to first automation.
 3. **first-automation.md** — Complete walkthrough from empty file to working app. Code-first: show the code, then explain each part.
 4. **ha_token.md** — How to get a long-lived access token from Home Assistant.
-5. **hassette-vs-ha-yaml.md** — Side-by-side comparison for users coming from HA YAML automations.
-6. **docker/index.md** — Docker deployment overview.
-7. **docker/dependencies.md** — Managing Python dependencies in Docker.
-8. **docker/image-tags.md** — Available image tags and which to use.
-9. **docker/troubleshooting.md** — Docker-specific issues and fixes.
+5. **docker/index.md** — Docker deployment overview.
+6. **docker/dependencies.md** — Managing Python dependencies in Docker.
+7. **docker/image-tags.md** — Available image tags and which to use.
+8. **docker/troubleshooting.md** — Docker-specific issues and fixes.
 
 ### Voice for this section:
 

@@ -8,7 +8,7 @@ implements: ["FR#1", "FR#2", "FR#9", "AC#1", "AC#11"]
 
 ## Summary
 
-Writes the second half of Core Concepts from blank: Scheduler (overview, methods, management), States (overview plus new depth pages including content rehomed from Advanced), API (overview, entities, services, utilities, managing-helpers), Cache (overview, patterns), and Configuration (overview, global, applications, auth). The States subsection is the most structurally changed — it gains depth pages matching the Bus pattern and absorbs Custom States, State Registry, and Type Registry from the eliminated Advanced section.
+Writes the second half of Core Concepts from blank: Scheduler (overview, methods, management), States (overview plus depth pages rehomed from Advanced — no DomainStates Reference page, killed in audit), API (overview, entities, services, utilities, managing-helpers), Cache (overview, patterns), and Configuration (overview, applications — auth absorbed into overview, global replaced by auto-generated reference). The States subsection is the most structurally changed — it gains depth pages matching the Bus pattern and absorbs Custom States, State Registry, and Type Registry from the eliminated Advanced section.
 
 ## Prompt
 
@@ -18,20 +18,20 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - The concept exemplar page from T03 (voice reference)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
-### Pages to write (~20):
+### Pages to write (~15):
 
 **Scheduler (3 pages):**
 - `core-concepts/scheduler/index.md` — Task scheduling overview, trigger types, the `schedule()` entry point
 - `core-concepts/scheduler/methods.md` — `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`, custom triggers
 - `core-concepts/scheduler/management.md` — Job groups, `cancel_group()`, `list_jobs()`, jitter
 
-**States (6 pages):**
-- `core-concepts/states/index.md` — State access overview, domain access, type conversion
+**States (5 pages):**
+- `core-concepts/states/index.md` — State access overview, domain access, type conversion. Opens with prose then diagram (not diagram-first). Built-in State Types section shows 2-3 examples and links to auto-generated API reference (no hand-written reference table).
 - `core-concepts/states/subscribing.md` (new) — "Subscribing to State Changes" depth page
-- `core-concepts/states/domain-states.md` (new) — "DomainStates Reference" depth page
 - `core-concepts/states/custom-states.md` (from advanced/) — Custom state classes
 - `core-concepts/states/state-registry.md` (from advanced/) — STATE_REGISTRY
 - `core-concepts/states/type-registry.md` (from advanced/) — TYPE_REGISTRY
+- ~~`domain-states.md`~~ — **Killed in outline audit.** Auto-generated API reference (`hassette.models.states` in `PUBLIC_MODULES`) serves as the authoritative domain state reference.
 
 **API (5 pages):**
 - `core-concepts/api/index.md` — REST/WebSocket interface overview
@@ -44,11 +44,11 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - `core-concepts/cache/index.md` — Persistent disk-based storage, basic usage
 - `core-concepts/cache/patterns.md` — Rate limiting, counters, complex data, expiry
 
-**Configuration (4 pages):**
-- `core-concepts/configuration/index.md` — Configuration overview, file discovery
-- `core-concepts/configuration/global.md` — Global settings, hassette.toml structure
-- `core-concepts/configuration/applications.md` — Per-app configuration, AppConfig
-- `core-concepts/configuration/auth.md` — Authentication, HA token configuration
+**Configuration (2 pages):**
+- `core-concepts/configuration/index.md` — Configuration overview: sources, file locations, authentication (absorbed from former `auth.md`), section map, and brief field design notes for 7 topics (data dir, app discovery, event filtering, dev/debug, web API, cache, state proxy polling). Field-level reference deferred to auto-generated `HassetteConfig` docs. WebSocket resilience and timeout tuning moved to Operating/overview.
+- `core-concepts/configuration/applications.md` — App registration in hassette.toml, manifests, multi-instance
+- ~~`global.md`~~ — **Replaced by auto-generated reference.** Teaching content absorbed into overview's field notes.
+- ~~`auth.md`~~ — **Absorbed into overview** Authentication section.
 
 ### Voice: same as T07
 
@@ -81,6 +81,6 @@ The 60 advanced snippets include files for custom-states, state-registry, and ty
 
 - [ ] FR#1: All pages pass every item on the voice audit checklist (in `docs-context.md`)
 - [ ] FR#2: All concept pages use system-as-subject voice — no "you" outside getting-started/recipe content
-- [ ] FR#9: States subsection has overview page, "Subscribing to State Changes" depth page, "DomainStates Reference" depth page, plus Custom States, State Registry, and Type Registry
+- [ ] FR#9: States subsection has overview page, "Subscribing to State Changes" depth page, plus Custom States, State Registry, and Type Registry. No DomainStates Reference page — auto-generated API reference covers this.
 - [ ] AC#1: Voice audit checklist applied and all items pass
 - [ ] AC#11: States subsection in `mkdocs.yml` matches the required structure with overview + depth pages + extension pages

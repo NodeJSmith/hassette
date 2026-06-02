@@ -8,7 +8,7 @@ implements: ["FR#1", "FR#10", "FR#15", "AC#1", "AC#13", "AC#17"]
 
 ## Summary
 
-Writes three sections from blank: Migration (≤8 pages for AppDaemon users), Troubleshooting (1 page, pure symptom-lookup), and the new Operating Hassette section (2–3 pages for log tuning and upgrading). Troubleshooting and Operating are the highest-risk pages for knowledge loss — they contain log signatures, timing values, and runbook commands that exist nowhere else. The knowledge inventory from T04 is the safety net.
+Writes three sections from blank: Migration (7 pages for AppDaemon users — checklist removed), Troubleshooting (1 page, pure symptom-lookup), and the new Operating Hassette section (3 pages — overview now includes WebSocket/timeout tuning content absorbed from Configuration). Troubleshooting and Operating are the highest-risk pages for knowledge loss — they contain log signatures, timing values, and runbook commands that exist nowhere else. The knowledge inventory from T04 is the safety net.
 
 ## Prompt
 
@@ -18,19 +18,16 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - `design/specs/070-doc-overhaul/outlines/knowledge-inventory.md` (CRITICAL — extracted operational knowledge from T04)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
-### Migration pages (≤8):
+### Migration pages (7):
 
-The page count was decided in T01. Current pages:
-- `migration/index.md` — Migration overview
+- `migration/index.md` — Migration overview (absorbs Common Pitfalls from removed checklist)
 - `migration/concepts.md` — AppDaemon vs Hassette concepts
 - `migration/bus.md` — Event handling migration
 - `migration/scheduler.md` — Scheduling migration
 - `migration/api.md` — API migration
 - `migration/configuration.md` — Config migration
 - `migration/testing.md` — Testing migration
-- `migration/checklist.md` — Migration checklist
-
-If T01 condensed to fewer pages, follow that decision. The section stays — Hassette has no existing users who've completed the migration, so this content is still a primary inflow path.
+- ~~`migration/checklist.md`~~ — **Removed.** Thin summary of sub-pages with no unique content. Common Pitfalls section moved to overview.
 
 Migration pages follow a comparison-driven structure: old way (AppDaemon) vs new way (Hassette). Use tabs for side-by-side comparison where it helps. Voice: direct "you" is acceptable since readers are performing migration steps.
 
@@ -40,15 +37,13 @@ Migration pages follow a comparison-driven structure: old way (AppDaemon) vs new
 
 **CRITICAL: Use the knowledge inventory from T04.** Every named failure mode, log signature, timing value, and resolution step from the current troubleshooting page must appear in the rewritten version. The knowledge inventory is the checklist — diff the final page against it to verify nothing was lost.
 
-### Operating Hassette (2–3 pages, new section):
+### Operating Hassette (3 pages, new section):
 
-- `operating/index.md` — Operational overview
+- `operating/index.md` — Operational overview. Contains runtime behavior (WebSocket reconnection from KI-01, handler exceptions from KI-02, DB degraded mode) AND tuning guidance for WebSocket resilience and timeout behavior (absorbed from Configuration — these topics belong with the behavior they tune, not in a separate config page).
 - `operating/log-levels.md` — Log level tuning (from advanced/log-level-tuning.md)
 - `operating/upgrading.md` — Upgrading Hassette (extracted from current troubleshooting)
 
-Operating pages are how-to content for running Hassette in production. Distinct from Troubleshooting (which is reactive symptom-lookup). Voice: procedural "you" is acceptable for step-by-step instructions.
-
-**Additional content moving from troubleshooting to Operating:** The current troubleshooting page contains operational/behavioral content that isn't symptom-lookup: the WebSocket reconnection sequence (retry counts, backoff timings, sliding window budgets), handler exception behavior, and database degraded mode guidance. These describe how Hassette behaves, not problems to solve. Move them to the Operating overview or a dedicated "Runtime Behavior" subsection. Troubleshooting keeps only symptom → fix entries (can't connect, apps not loading, handler never runs, scheduler not firing, cache not persisting, custom state not registering, web UI not accessible).
+Operating pages are how-to content for running Hassette in production. Distinct from Troubleshooting (which is reactive symptom-lookup). Voice: procedural "you" is acceptable for step-by-step instructions. Troubleshooting keeps only symptom → fix entries (can't connect, apps not loading, handler never runs, scheduler not firing, cache not persisting, custom state not registering, web UI not accessible).
 
 ### Snippet handling:
 

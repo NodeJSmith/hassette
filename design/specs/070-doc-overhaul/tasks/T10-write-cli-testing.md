@@ -8,7 +8,7 @@ implements: ["FR#1", "FR#14", "AC#1", "AC#16"]
 
 ## Summary
 
-Writes the CLI section (4 pages) and Testing section (4 pages) from blank. Both sections are reference-heavy — CLI is command/flag/example tables, Testing covers the harness, factories, time control, and concurrency helpers. These sections lean toward the reference exemplar voice: terse, tabular, functional definitions. Code examples come from the existing 34 testing snippets (rewritten as needed).
+Writes the CLI section (4 pages) and Testing section (5 pages) from blank. Both sections are reference-heavy — CLI is command/flag/example tables, Testing covers the quickstart, harness reference, factories, time control, and concurrency helpers. These sections lean toward the reference exemplar voice: terse, tabular, functional definitions. Code examples come from the existing 34 testing snippets (rewritten as needed).
 
 ## Prompt
 
@@ -27,14 +27,15 @@ Work on the `docs/overhaul` branch. Before writing, read:
 
 CLI pages are scanning-oriented: command/flag/example tables, not prose. Follow the "Pages that don't fit a template" exception in doc-rules.md for CLI reference.
 
-### Testing pages (4):
+### Testing pages (5):
 
-- `testing/index.md` — Testing overview, two mock strategies (HassetteHarness vs create_hassette_stub)
+- `testing/index.md` — **"Write Your First Test"** quickstart. Step-by-step: install extras, create test file, set up harness, seed state, simulate, assert. Getting-started voice ("you" allowed). This is the section landing page.
+- `testing/harness.md` — **"Test Harness Reference"**. Full API reference: constructor, properties, state seeding, simulating events, asserting API calls, config errors, startup failures. Two mock strategies decision table (HassetteHarness vs create_hassette_stub). Reference voice (system-as-subject).
 - `testing/factories.md` — Test factory functions for creating events, states, configs
 - `testing/time-control.md` — Time manipulation in tests, freezing time, advancing schedulers
 - `testing/concurrency.md` — Testing async handlers, concurrent operations, race conditions
 
-Testing pages follow the concept template but lean reference. The decision table for HassetteHarness vs stub is a key piece — readers need to quickly determine which strategy fits their test.
+The quickstart is the friendly entry point; the harness reference is the lookup page. The decision table for HassetteHarness vs stub is a key piece — readers need to quickly determine which strategy fits their test.
 
 ### Voice:
 

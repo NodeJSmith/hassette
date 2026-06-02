@@ -8,7 +8,7 @@ implements: ["FR#1", "FR#2", "FR#5", "FR#11", "FR#12", "AC#1", "AC#9", "AC#14", 
 
 ## Summary
 
-Writes the first half of Core Concepts from blank: Architecture overview (the "five handles" model, app-author only), Apps subsection (overview, lifecycle, configuration, task-bucket), Bus subsection (overview, handlers, filtering, dependency-injection), Internals page, and database-telemetry page. The Bus subsection is critical because it contains the DI canonical page — the single authoritative source for dependency injection documentation. Architecture is scoped strictly to app-authors; contributor/maintainer content goes to Internals.
+Writes the first half of Core Concepts from blank: Architecture overview (the "five handles" model, app-author only), Apps subsection (overview with absorbed config content, lifecycle, task-bucket), Bus subsection (overview, handlers, DI, custom extractors, filtering, predicate reference), Internals subsection (3 pages with audience declaration), and database-telemetry page. The Bus subsection is critical because it contains the DI canonical page — the single authoritative source for dependency injection documentation. Architecture is scoped strictly to app-authors; contributor/maintainer content goes to Internals.
 
 ## Prompt
 
@@ -18,26 +18,29 @@ Work on the `docs/overhaul` branch. Before writing, read:
 - The concept exemplar page from T03 (voice reference for system-as-subject)
 - `.claude/rules/voice-guide.md` and `.claude/rules/doc-rules.md`
 
-### Pages to write (~12):
+### Pages to write (~14):
 
 **Architecture (1 page):**
 - `core-concepts/index.md` — The "five handles" model: Bus, Scheduler, Api, StateManager, Cache. How apps work. App-author audience ONLY (FR#11).
 - **Must NOT contain:** dependency graphs, wave ordering, cycle detection, internal service names (AC#14). These go in Internals.
 
-**Apps (4 pages):**
-- `core-concepts/apps/index.md` — What an App is, the five handles available via `self.*`, how to create one
+**Apps (3 pages):**
+- `core-concepts/apps/index.md` — What an App is, the five handles available via `self.*`, how to create one. **Includes AppConfig content** (absorbed from former `apps/configuration.md`): `AppConfig` subclass, `SettingsConfigDict`, env prefix, base fields, secrets.
 - `core-concepts/apps/lifecycle.md` — `on_initialize`, `on_shutdown` hooks
-- `core-concepts/apps/configuration.md` — `AppConfig`, `SettingsConfigDict`, env prefix
 - `core-concepts/apps/task-bucket.md` — Background task management
 
-**Bus (4 pages):**
+**Bus (6 pages):**
 - `core-concepts/bus/index.md` — Event pub/sub overview, subscription methods, what fires when
-- `core-concepts/bus/handlers.md` — Handler signatures, async handlers, error handling
-- `core-concepts/bus/filtering.md` — Predicates (P), Conditions (C), Accessors (A), glob patterns, debounce, throttle
+- `core-concepts/bus/handlers.md` — Handler signatures, non-state event types, error handling, timeout config, subscription mechanics
 - `core-concepts/bus/dependency-injection.md` — THE canonical DI page (FR#5). Full explanation of `D.*` annotations, typed state injection, how Hassette resolves parameters. All other pages that mention DI compress to one sentence + link to this page.
+- `core-concepts/bus/custom-extractors.md` — Writing custom extractors, custom accessors with `A`, `AnnotationDetails`
+- `core-concepts/bus/filtering.md` — Predicates (P), Conditions (C), predicate composition, service call filtering
+- `core-concepts/bus/predicate-reference.md` — Full P/C/A lookup tables (pure reference, no snippets)
 
-**Internals (1 page):**
-- `core-concepts/internals.md` — Dependency graphs, wave ordering, cycle detection, internal service names, Resource hierarchy (FR#12, AC#15). Contributor/maintainer audience.
+**Internals (3 pages):**
+- `core-concepts/internals/index.md` — Architecture & Data Flow. **Opens with audience declaration** (absorbed from former internals/overview.md): "This section is for contributors..." Dependency graphs, wave ordering, cycle detection, event flow (FR#12, AC#15).
+- `core-concepts/internals/service-details.md` — Per-service internals, DB schema, migration system
+- `core-concepts/internals/lifecycle.md` — Resource lifecycle state machine, RestartSpec, supervision
 
 **Database-telemetry (1 page):**
 - `core-concepts/database-telemetry.md` — Telemetry DB schema, retention, what's tracked
