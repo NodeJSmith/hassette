@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add muffet link checker and snippet orphan check to CI"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#13", "AC#3", "AC#5"]
 ---
