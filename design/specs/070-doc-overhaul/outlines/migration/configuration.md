@@ -1,34 +1,51 @@
 # Migration — Configuration
 
-**Status:** Exists (127 lines), comparison-driven, voice polish needed
+**Page type:** Migration (feature comparison)
+**Reader's job:** Convert their AppDaemon YAML configuration files to Hassette's `hassette.toml` and typed `AppConfig` models.
 **Voice mode:** Comparison — "you" allowed
+
+## What was cut (and where it goes)
+
+- **Benefits of Typed Configuration** section removed. The benefits are self-evident from the code examples (IDE autocomplete, validation at startup, defaults with constraints). Listing them as a sales pitch after the reader has already committed to migrating adds nothing.
+- **Migration Steps** section merged into the per-app section. The existing page showed the same YAML-to-TOML conversion twice — once in the Global/Per-App sections and again in Migration Steps. One pass is enough.
 
 ## Outline
 
-### H2: Overview
-YAML-based (AppDaemon) → TOML + Pydantic (Hassette).
-
 ### H2: Global Configuration
-#### H3: AppDaemon (`appdaemon.yaml`)
-#### H3: Hassette (`hassette.toml`)
+Lead with the side-by-side conversion. The reader has `appdaemon.yaml` open and wants the TOML equivalent.
+
+Side-by-side tabs:
+- AppDaemon `appdaemon.yaml` snippet (HA URL, token, plugins)
+- Hassette `hassette.toml` snippet (connection settings)
+
+Note: the HA token comes from the `HASSETTE__TOKEN` environment variable or `.env`, not from `hassette.toml`.
 
 ### H2: Per-App Configuration
-#### H3: AppDaemon (`apps.yaml`)
-#### H3: Hassette (`hassette.toml` + `AppConfig`)
+The bigger conceptual change: raw dicts become typed models.
 
-### H2: Migration Steps
-Step-by-step config conversion.
+Side-by-side tabs:
+- AppDaemon `apps.yaml` snippet (module, class, args dict)
+- Hassette `hassette.toml` + `AppConfig` class snippet
 
-### H2: Benefits of Typed Configuration
-Why the change is worth the effort.
+Show the before/after for config access: `self.args["args"]["entity"]` becomes `self.app_config.entity`. What the reader gains: missing fields raise an error at startup, IDE autocomplete works, Pydantic validators catch invalid values.
+
+Admonition: `[[double brackets]]` — TOML array-of-tables syntax means multiple instances of the same app class with different configs.
+
+### H2: Multi-Instance Apps
+Brief: same app class, multiple rooms. AppDaemon repeats the `apps.yaml` block; Hassette repeats the `[[apps.my_app.config]]` block. One TOML snippet showing two instances. Link to App Configuration for the full reference.
 
 ## Snippet Inventory
 
-| Snippet | Status | Notes |
+| Snippet | Decision | Notes |
 |---|---|---|
-| ~4 migration/config snippets | Keep | YAML vs TOML examples |
+| `config_appdaemon_yaml.yaml` | Keep | AppDaemon global config |
+| `config_migration_toml.toml` | Keep | Hassette global config |
+| `config_apps_yaml.yaml` | Keep | AppDaemon per-app config |
+| `config_appdaemon_access.py` | Keep | AppDaemon config access pattern |
+| `config_hassette_toml.toml` | Keep | Hassette per-app config |
+| `config_hassette_appconfig.py` | Keep | AppConfig class definition |
 
 ## Cross-Links
 
-- **Links to:** Configuration overview, Apps/Configuration
-- **Linked from:** Migration overview
+- **Links to:** App Configuration, Configuration overview, Global Settings, Applications
+- **Linked from:** Migration overview, Migration checklist

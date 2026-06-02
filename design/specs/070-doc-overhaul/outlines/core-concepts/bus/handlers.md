@@ -1,64 +1,79 @@
-# Bus — Writing Handlers
+# Writing Event Handlers
 
-**Status:** Exists (192 lines), needs restructuring to remove DI overlap
+**Status:** Rewrite from blank
 **Voice mode:** Concept — system-as-subject, no "you"
+**Page type:** Concept
+**Reader's job:** Write a handler that receives the right data, handles errors, and registers correctly.
+
+The existing page mixes three concerns: how to write handlers, how DI works, and how registration works. Readers come here for one of two reasons: "how do I get data into my handler?" or "how do I handle errors and register reliably?" The DI details already have a dedicated page. This page should show the handler patterns (raw through DI), then cover the operational concerns (errors, timeouts, registration mechanics).
+
+## What was cut (and where it goes)
+
+- **DI annotation details** (combining multiple deps, available annotations, union types, custom kwargs) — already on the DI page. This page shows the progression from raw to DI, then links there for the full reference. Snippets `handlers_extract_data.py`, `handlers_multiple_dependencies.py`, and `handlers_custom_args.py` are reviewed below for overlap.
+- **Non-state event types** were listed in the previous outline but never existed in the page. This is a catalog of subscription methods, not handler-writing guidance. Move to a new section on this page that covers "what events can handlers receive?" as a brief table with links. The detailed method signatures already live in the Bus class API reference.
 
 ## Outline
 
-### H2: Event Model
-What events look like: `RawStateChangeEvent`, `CallServiceEvent`, `Event`. The event dict structure.
+### H2: Handler Patterns
+The simplest-first progression. Each pattern gets a snippet and a one-sentence explanation of when to use it:
+1. **No data needed** — handler takes no event params. Use for side-effect-only reactions.
+2. **Raw event** — handler receives the untyped `Event` object. Use when exploring or when DI doesn't cover the event type.
+3. **Typed state event** — handler receives `D.TypedStateChangeEvent[T]`. Use when both old and new states are needed together.
+4. **Extracted data (recommended)** — handler receives specific fields via DI annotations (`D.StateNew[T]`, `D.EntityId`, etc.). Production default.
 
-### H2: Raw Event Handlers
-Handlers that receive the raw event dict. When to use: rare cases where DI doesn't cover the need, or when processing bulk events. Show the pattern.
+Link to DI page for the full annotation reference and advanced patterns.
 
 ### H2: Non-State Event Types
-Cover event types beyond state changes:
-- `on_call_service` — reacting to service calls
-- `on_service_registered` — reacting to new HA service registrations
-- `on` — subscribing to raw HA event types (e.g., `event_triggered`, `automation_triggered`)
-- `on_component_loaded` — HA component load events
-- HA startup/shutdown events (`on_homeassistant_start`, `on_homeassistant_stop` — wrappers around `on_call_service` for `homeassistant` domain)
-- Hassette internal events — typed helpers: `on_hassette_service_status`, `on_hassette_service_failed`, `on_hassette_service_crashed`, `on_hassette_service_started`, `on_websocket_connected`, `on_websocket_disconnected`, `on_app_state_changed`, `on_app_running`, `on_app_stopping`
-- `Bus.emit()` for broadcasting Hassette-internal events between apps
+Brief table of subscription methods beyond `on_state_change`:
+- `on_attribute_change` — attribute value changes
+- `on_call_service` — HA service calls
+- `on_component_loaded` — HA component loads
+- `on_service_registered` — new HA service registrations
+- `on_homeassistant_start` / `on_homeassistant_stop` / `on_homeassistant_restart` — HA lifecycle
+- `on` — any raw HA event topic
+- `emit()` — Hassette-internal broadcast between apps
+
+Hassette-internal event helpers (one table): `on_hassette_service_status`, `on_hassette_service_failed`, `on_hassette_service_crashed`, `on_hassette_service_started`, `on_websocket_connected`, `on_websocket_disconnected`, `on_app_state_changed`, `on_app_running`, `on_app_stopping`.
 
 ### H2: Error Handling
 #### H3: App-Level Error Handler
-`Bus.on_error()` registration method.
+`bus.on_error(handler)` — applies to all listeners without a per-registration handler. Register as the first statement in `on_initialize()` to avoid the reload gap.
 #### H3: Per-Registration Error Handler
-`on_error=` parameter on subscription methods.
+`on_error=` parameter on subscription methods — takes precedence over app-level.
 #### H3: What `BusErrorContext` Contains
-Fields: `topic`, `listener_name`, `event`, plus inherited fields from `ErrorContext` (`exception`, `traceback`).
+Table: `topic`, `listener_name`, `event`, plus `exception` and `traceback` from `ErrorContext` base.
 
 ### H2: Timeout Configuration
-`timeout=` and `timeout_disabled=` options on subscription methods.
+`timeout=` overrides the global default per listener. `timeout_disabled=True` disables enforcement entirely. Brief snippet.
 
-### H2: Subscription Mechanics
-#### H3: The `name=` Parameter (Required)
-Why it's required, what it's used for (telemetry, logging, idempotent registration).
-#### H3: Registration Is Complete When the Awaited Call Returns
-`db_id` is immediately valid. No background registration task.
+### H2: Registration Mechanics
+#### H3: The `name=` Parameter
+Required on all DB-registered listeners. Natural key: `(app_key, instance_index, name, topic)`. `ListenerNameRequiredError` when omitted. `DuplicateListenerError` when colliding within a session.
+#### H3: Registration Completes Synchronously
+`db_id` is valid immediately when the awaited call returns. No background task.
 #### H3: Sequential Operations Are Deterministic
-Registration order guarantees.
+Cancel-then-resubscribe has no race conditions.
 
 ## Snippet Inventory
 
-| Snippet | Status | Notes |
+| Snippet | Decision | Notes |
 |---|---|---|
-| `handlers_no_data.py` | Keep | Raw handler example |
-| `handlers_extract_data.py` | Review | May overlap with DI page — reassign if so |
-| `handlers_multiple_dependencies.py` | Review | Likely belongs on DI page now |
-| `handlers_custom_args.py` | Review | May belong on DI page (custom kwargs) |
-| `bus_error_handler_app.py` | Keep | App-level error handler |
-| `bus_error_handler_per_reg.py` | Keep | Per-registration error handler |
-| `bus_subscription_patterns.py` | Keep | Subscription mechanics |
-| `bus_registration_identity.py` | Keep | name= parameter, identity |
-| `bus_timeouts.py` | Keep | Timeout configuration |
-| `first_automation_step3_raw.py` (from getting-started) | New claim | Raw handler example from getting-started, now lives here |
+| `handlers_no_data.py` | Keep | Pattern 1 |
+| `handlers_raw_event.py` | Keep | Pattern 2 |
+| `handlers_typed_event.py` | Keep | Pattern 3 |
+| `handlers_extract_data.py` | Keep | Pattern 4 — brief DI example here, full details on DI page |
+| `handlers_multiple_dependencies.py` | Drop from this page | Lives on DI page |
+| `handlers_custom_args.py` | Drop from this page | Lives on DI page (`mixing_kwargs.py`) |
+| `bus_error_handler_app.py` | Keep | Error handling |
+| `bus_error_handler_per_reg.py` | Keep | Error handling |
+| `bus_subscription_patterns.py` | Keep | Registration mechanics |
+| `bus_registration_identity.py` | Keep | name= parameter |
+| `bus_timeouts.py` | Keep | Timeout config |
 
 **New snippets needed:**
-- Non-state event handler examples (on_call_service, on("event_triggered"), internal events, HA lifecycle events)
+- Non-state event handler examples (at least one `on_call_service` handler snippet, one `on("event_type")` snippet, one Hassette-internal event snippet)
 
 ## Cross-Links
 
-- **Links to:** DI page (for typed annotations), Filtering (for predicates), States/Subscribing (for state-specific patterns)
+- **Links to:** DI page (annotation reference), Filtering (predicates), States/Subscribing (state-specific patterns)
 - **Linked from:** Bus overview, Apps overview

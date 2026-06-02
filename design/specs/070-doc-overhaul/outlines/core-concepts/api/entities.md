@@ -1,59 +1,70 @@
 # API — Entities & States
 
-**Status:** Exists (72 lines), solid content, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Concept — system-as-subject, no "you"
+**Page type:** Concept
+**Reader's job:** Retrieve the current state of an entity from Home Assistant, at the right level of detail for their use case.
+
+## What was cut (and where it goes)
+
+- **API vs StateManager** — removed from this page. The overview page already covers this decision, and repeating it here splits the reader's attention. A one-line callout linking back to the overview is enough.
+- **Terminology as a standalone section** — dissolved. The three levels (value, state, entity) are introduced inline as each method is shown, not front-loaded as abstract definitions before the reader has seen any code.
+- **Generic type parameters** (`BaseEntity[StateT, StateValueT]`) — cut from the main flow. This is implementation detail relevant to framework contributors or advanced users extending entity types. Mention in a collapsible section under Entities if needed.
+- **Synchronous entity access** (`entity.sync`) — belongs in a collapsible note, not a full section. Sync usage is rare and covered at the overview level.
 
 ## Outline
 
-### H2: Terminology
-Three levels of abstraction — match the existing docs terminology section:
-- **State Value** (`get_state_value`) — the raw value string, what HA calls `state.state` (e.g., `"on"`, `"23.5"`). Cheapest call when attributes/timestamps aren't needed.
-- **State** (`get_state`) — full snapshot: value + typed attributes + timestamps + context. A `BaseState` subclass (e.g., `LightState`). The `.value` field holds the state value, coerced to the domain's type (e.g., `bool` for lights).
-- **Entity** (`get_entity`) — wraps a state + adds action methods (`turn_on()`, `turn_off()`, `toggle()`, `refresh()`). A `BaseEntity` subclass (e.g., `LightEntity`). Requires an explicit model type argument.
+### H2: (Opening — no heading)
+One sentence: the API retrieves entity state directly from Home Assistant over the network. Three methods cover three levels of detail — pick the one that matches what the code needs.
 
-### H2: Retrieving States
-#### H3: Full State Object
-`get_state(entity_id)` → typed `BaseState` subclass with `.value`, `.attributes`, `.last_changed`, etc. `get_state_or_none()` → returns `None` instead of raising. `get_state_raw()` → raw `HassStateDict` without type conversion.
-#### H3: Just the Value
-`get_state_value(entity_id)` → the raw state string only (what HA calls `state.state`). Skips model conversion — use when attributes and timestamps aren't needed.
-#### H3: Single Attribute
-`get_attribute(entity_id, attribute)` → one attribute value, supports dot-path for nested attributes.
-#### H3: Checking Existence
-`entity_exists(entity_id)` for boolean check; `get_state_or_none()` for optional return.
+### H2: Get the Value
+`get_state_value(entity_id)` returns the raw state string (`"on"`, `"23.5"`, `"above_horizon"`). The cheapest call when attributes and timestamps are not needed.
 
-### H2: Retrieving Multiple States
-`get_states()` — returns all entities (no filtering parameter). `get_states_raw()` for raw dicts.
+Snippet: one-liner showing `get_state_value`.
 
-### H2: Retrieving Entities
-`get_entity(entity_id, model)` → typed `BaseEntity` subclass. Wraps the state object and adds domain-specific service methods (e.g., `LightEntity.turn_on(brightness=255)`). `get_entity_or_none(entity_id, model)` → returns `None` instead of raising. Requires passing the entity model class explicitly — the API does not auto-resolve entity types.
+### H2: Get the Full State
+`get_state(entity_id)` returns a typed `BaseState` subclass (e.g., `LightState`) with `.value`, `.attributes`, `.last_changed`, `.last_updated`, `.context`. The `.value` field is coerced to the domain's Python type (e.g., `bool` for lights, `float` for sensors).
 
-#### H3: Entity Properties
-`.state` — the underlying typed state object. `.value` — shortcut to `state.value`. `.entity_id`, `.domain` — identity fields. `.api` — direct access to the `Api` instance. `.hassette` — access to the `Hassette` coordinator instance.
+Snippet: `get_state` with attribute access.
 
-#### H3: Refreshing Entity State
-`entity.refresh()` — re-fetches state from HA and updates the entity's state object in place.
+#### H3: Optional Lookup
+`get_state_or_none(entity_id)` returns `None` instead of raising when the entity does not exist. `entity_exists(entity_id)` for a boolean check.
 
-#### H3: Synchronous Entity Access
-`entity.sync` (`BaseEntitySyncFacade`) — mirrors action methods as blocking calls. Available for sync contexts.
+#### H3: Raw Dict
+`get_state_raw(entity_id)` returns the untyped `HassStateDict` — useful when working outside the type registry or debugging.
 
-#### H3: Generic Type Parameters
-`BaseEntity[StateT, StateValueT]` — entities are generic over their state type and value type. Domain entity subclasses (e.g., `LightEntity`) bind these parameters to the corresponding state class.
+### H2: Get an Entity
+`get_entity(entity_id, model)` wraps the state in a `BaseEntity` subclass that adds domain-specific action methods (`turn_on()`, `turn_off()`, `toggle()`, `refresh()`). Requires passing the entity model class explicitly.
 
-### H2: When to Use Which
-- **`get_state_value`** — just need the value, nothing else
-- **`get_state`** — need attributes, timestamps, or the typed value (most common)
-- **`get_entity`** — need to call services on the entity (turn_on, turn_off, etc.)
+Snippet: `get_entity` with a `LightEntity` showing `.turn_on(brightness=255)`.
 
-### H2: API vs StateManager
-Expanded comparison: when to hit HA directly vs use the local cache.
+#### H3: Refreshing State
+`entity.refresh()` re-fetches from HA and updates the entity's state in place.
+
+### H2: Fetching Multiple States
+`get_states()` retrieves all entities in one call. `get_states_raw()` for raw dicts. No filtering parameter — filter in Python after fetching.
+
+### H2: Which Method to Use
+Short decision table (3 rows):
+- Need just the value string -> `get_state_value`
+- Need attributes, timestamps, or typed value -> `get_state` (most common)
+- Need to call services on the entity -> `get_entity`
+
+### H2: See Also
+Links to States overview (local cache), API overview, Services.
 
 ## Snippet Inventory
 
-| Snippet | Status | Notes |
+| Snippet | Decision | Notes |
 |---|---|---|
-| Relevant files from `api/snippets/` | Review | Entity access examples |
+| `api_get_state.py` | Keep | Full state example |
+| `api_get_state_raw.py` | Keep | Raw dict example |
+| `api_check_existence.py` | Keep | Optional lookup |
+| `api_get_entity.py` | Keep | Entity with actions |
+| `api_get_states.py` | Keep | Bulk fetch |
+| New: `api_get_state_value.py` | Create | Simple value retrieval — currently missing |
 
 ## Cross-Links
 
-- **Links to:** States overview, State Registry, API overview
-- **Linked from:** API overview
+- **Links to:** States overview (local cache), API overview, Services
+- **Linked from:** API overview, Apps overview

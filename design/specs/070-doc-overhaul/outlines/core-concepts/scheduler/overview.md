@@ -1,36 +1,43 @@
-# Scheduler — Overview
+# Scheduler
 
-**Status:** Exists (46 lines), brief intro, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Concept — system-as-subject, no "you"
+**Page type:** Concept (landing page)
+**Reader's job:** Schedule a function to run at a specific time or interval.
+
+The existing page leads with trigger objects and the `schedule()` method — the framework author's mental model. The reader doesn't care about trigger internals. They want to run something after a delay, at a time, or on a schedule. Lead with the three most common patterns (`run_in`, `run_every`, `run_daily`) using code, then introduce the concept of triggers as the underlying mechanism for readers who need custom scheduling.
+
+## What was cut (and where it goes)
+
+- **Job groups, jitter, idempotent registration** — the previous outline had these as H2 sections here. These are operational concerns, not the reader's first job. They belong on the Methods page (groups, jitter, idempotent registration) or Management page (groups for cancellation). A brief mention in a "what else" list at the end is enough for the overview.
+- **Trigger type table** — demoted from the lead position to a supporting section. The convenience methods are what readers actually use; triggers are the mechanism underneath.
 
 ## Outline
 
-### H2: (Opening)
-What the scheduler does: runs functions at specific times or intervals via trigger objects. Available as `self.scheduler` on every app.
+### H2: Common Patterns
+Three snippets showing the most common scheduling tasks. No parameter tables, no trigger theory — just working code:
+1. **Run after a delay** — `run_in(self.check_door, 300)` (5 minutes)
+2. **Run on a repeating interval** — `run_every(self.poll_sensor, minutes=5)`
+3. **Run daily at a fixed time** — `run_daily(self.morning_report, at="07:00")`
+
+Each gets 1-2 sentences of explanation.
 
 ### H2: Trigger Types
-Table of built-in triggers (After, Once, Every, Daily, Cron) with one-line descriptions.
+All scheduling methods create a trigger object under the hood. For most cases, the convenience methods are sufficient. The `schedule()` method accepts a trigger directly for advanced use.
 
-### H2: Examples
-Minimal examples for the most common patterns (run_in, run_every, run_daily).
-
-### H2: Job Groups
-`group=` parameter for organizing related jobs. `cancel_group()` cancels all jobs in a group. `list_jobs(group=)` inspects active jobs. (Moved from Methods — this is a behavioral concept, not a method signature.)
-
-### H2: Jitter
-`jitter=` parameter for randomizing execution times to avoid thundering herd.
-
-### H2: Idempotent Registration
-`name=` identifies the job; `if_exists=` (`"error"`, `"skip"`, `"replace"`) controls behavior on duplicate name.
+Table of built-in triggers: `After`, `Once`, `Every`, `Daily`, `Cron` — one-line descriptions, one-shot column.
 
 ### H2: Next Steps
-→ Scheduling Methods (full reference), → Job Management (cancellation, errors)
+- Scheduling Methods — full method reference, cron expressions, custom triggers, per-job options
+- Job Management — cancelling, grouping, error handling, and the `ScheduledJob` object
 
 ## Snippet Inventory
 
-| Snippet | Status | Notes |
+| Snippet | Decision | Notes |
 |---|---|---|
-| Relevant files from `scheduler/snippets/` (22 total) | Review | Assign per-page |
+| `scheduler_start_examples.py` | Keep | Opening examples (three common patterns) |
+
+No new snippets needed.
 
 ## Cross-Links
 

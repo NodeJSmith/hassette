@@ -1,70 +1,119 @@
 # Troubleshooting
 
-**Status:** Exists (140 lines), restructuring — operational content moves to Operating, pure symptom-lookup stays
-**Voice mode:** Direct, "you" allowed, problem/solution format
+**Status:** Exists (140 lines), needs JTBD redesign — good content but mixes symptom-lookup with operational how-to
+**Voice mode:** Direct, "you" allowed, symptom/cause/fix format
+**Page type:** Troubleshooting
+**Reader's job:** Something is broken. Find the symptom, read the cause, apply the fix.
+
+## What was cut (and where it goes)
+
+The existing page mixes two reader jobs: "fix this specific problem" (belongs
+here) and "understand how the system behaves at runtime" (belongs in Operating).
+
+Moved to Operating:
+- "Home Assistant goes offline" section (WebSocket reconnection sequence,
+  `ServiceWatcher` restart behavior, log signatures) — this is operational
+  knowledge, not a symptom the reader is troubleshooting. Readers who need
+  this are not broken; they want to understand normal behavior.
+- "Event handler exceptions" section (exception handling behavior, log
+  format) — same: this is "how does the framework handle errors?" not "I have
+  a problem."
+- "Upgrading Hassette" section — moves to Operating/upgrading.md.
+
+What stays: pure symptom-lookup. Each H2 is a symptom a reader sees. Each
+entry has: what to check, the likely cause, the fix.
+
+Exception Reference added as a final section — readers who see an unfamiliar
+exception name in their logs can look it up here.
 
 ## Outline
 
-Pure symptom-lookup. Each H2 is a symptom. Each entry: symptom description, likely causes, fixes. No how-to content — that lives in Operating Hassette.
+Each H2 is a symptom. Format: flat, scannable. No sub-categories.
 
 ### H2: Can't Connect to Home Assistant
-Token issues, connection refused/timeout. Links to Auth, Docker Troubleshooting.
+- Token: verify `HASSETTE__TOKEN`. Link to Auth.
+- Connection refused/timeout: check `base_url`. Docker: HA network
+  reachability. Link to Docker Troubleshooting.
 
 ### H2: Apps Not Loading
-App not discovered, import errors, precheck failures. **KI-04**: Include all three log signatures and the `allow_startup_if_app_precheck_fails` workaround.
+Three log signatures:
+- Syntax error or bad import — `SyntaxError` / `ModuleNotFoundError`
+- Class not found — `class_name` doesn't match actual class
+- Invalid configuration — required `AppConfig` field missing
 
-### H2: Handler Registration Fails — `ListenerNameRequiredError`
-`name=` is required on every bus subscription. Most common error for new users and migrators.
+Workaround: `allow_startup_if_app_precheck_fails = true` temporarily.
+Link to Application Configuration.
 
-### H2: Duplicate Handler — `DuplicateListenerError`
-Same `(app_key, instance_index, name, topic)` registered twice in a session.
+### H2: Handler Registration Fails
+`ListenerNameRequiredError` — `name=` is required on every bus subscription.
+Most common error for new users. Fix: add `name="descriptive_name"`.
 
-### H2: Event Handler Never Runs
-**KI-05**: `changed_to` type mismatch (string vs bool).
-**KI-06**: `bus_excluded_domains`/`bus_excluded_entities` silently drop events.
-**KI-07**: Attribute-only changes — use `on_attribute_change` for dedicated attribute monitoring; `on_state_change(changed=False)` fires on every state event regardless.
-Also: entity ID typos, app not enabled.
+`DuplicateListenerError` — same `(app_key, instance_index, name, topic)`
+registered twice. Fix: use unique names or check for double registration
+in `on_initialize`.
+
+### H2: Handler Never Fires
+Checklist, ordered by likelihood:
+1. Entity ID typo — no error, handler simply never matches.
+2. `changed_to` type mismatch — `True` vs `"on"`. HA values are strings.
+3. Domain excluded — `bus_excluded_domains`/`bus_excluded_entities` silently
+   drop events.
+4. Attribute-only change — use `on_attribute_change` or `changed=False`.
+5. App not enabled — check `enabled = true` in config.
 
 ### H2: Scheduler Not Firing
-**KI-08**: Past-time behavior for `run_once` and `run_daily`, `seconds` vs `minutes` gotcha, cron expression pitfall. Links to Job Management troubleshooting.
+- Past-time: `run_once(at="07:00")` after 7 AM defers to tomorrow.
+- Units: `seconds=5` is 5 seconds, not minutes.
+- Cron: `"5 * * * *"` is minute 5 of every hour, not every 5 minutes.
+  Use `"*/5 * * * *"`.
+- Exception in task: logged at ERROR, doesn't crash scheduler.
+  Link to Job Management troubleshooting.
 
 ### H2: Database Degraded / Telemetry Missing
-**KI-09**: Zeroed stats strip, Docker disk check command, DB file location, safe to delete. Links to Database & Telemetry degraded mode.
+Stats strip shows zeros. Check disk space (Docker: `docker compose exec
+hassette df -h /data`). DB file at `/data/hassette.db`. Safe to delete —
+only loses history. Restart to recreate. Link to Database & Telemetry.
 
 ### H2: Cache Not Persisting
-**KI-10**: `data_dir` config, Docker volume mount, instance name key prefix. Links to Cache patterns troubleshooting.
+Check `data_dir` config and volume mount. Instance name key prefix for
+multi-instance apps. Link to Cache patterns.
 
 ### H2: Custom State Class Not Registering
-**KI-11**: `domain: Literal[...]` field required, `super().__init_subclass__()` call. Links to Custom States troubleshooting.
+`domain: Literal["your_domain"]` field required. Call
+`super().__init_subclass__()` if overriding. Link to Custom States.
 
 ### H2: Web UI Not Accessible
-Port/URL, Docker port mapping, `web_api` settings.
+- Port/URL: `http://localhost:8126/ui/`
+- Docker: `ports: ["8126:8126"]`
+- Disabled: check `run` and `run_ui` under `[hassette.web_api]`.
+  Link to Web UI overview.
 
 ### H2: Docker-Specific Issues
-Pointer to Docker Troubleshooting page.
+Pointer to Docker Troubleshooting page for container startup, dependency
+installation, health checks, hot reload, performance.
 
 ### H2: Exception Reference
-Common exceptions app authors may encounter, organized by category:
-- **Connection:** `InvalidAuthError`, `BaseUrlRequiredError`, `CouldNotFindHomeAssistantError`, `ConnectionClosedError`
-- **Registration:** `ListenerNameRequiredError` (cross-link to H2 above), `DuplicateListenerError` (cross-link to H2 above)
-- **State conversion:** `EntityNotFoundError`, `DomainNotFoundError`, `RegistryNotReadyError`
-- **Dependency injection:** `DependencyInjectionError`, `DependencyResolutionError`
-- **Lifecycle:** `InvalidLifecycleTransitionError` (includes `from_status`, `to_status`, `resource_name` attributes)
+Common exceptions organized by category. Per-entry: what triggers it, what
+to do. Not full API reference — link to auto-generated docs for complete list.
+
+- **Connection:** `InvalidAuthError`, `BaseUrlRequiredError`,
+  `CouldNotFindHomeAssistantError`, `ConnectionClosedError`
+- **Registration:** `ListenerNameRequiredError`, `DuplicateListenerError`
+- **State conversion:** `EntityNotFoundError`, `DomainNotFoundError`,
+  `RegistryNotReadyError`
+- **Dependency injection:** `DependencyInjectionError`,
+  `DependencyResolutionError`
+- **Lifecycle:** `InvalidLifecycleTransitionError` (has `from_status`,
+  `to_status`, `resource_name` attributes)
 - **Configuration:** `AppPrecheckFailedError`
-- **Framework:** `HassetteError` (base), `FatalError` (non-restartable, triggers shutdown)
-
-Brief per-entry: what triggers it, what to do about it. Not a full API reference — link to auto-generated exception docs for the complete list.
-
-**Removed from this page (moved to Operating):**
-- WebSocket reconnection sequence → Operating/overview.md
-- Event handler exception behavior → Operating/overview.md
-- Upgrading Hassette → Operating/upgrading.md
+- **Framework:** `HassetteError` (base), `FatalError` (non-restartable,
+  triggers shutdown)
 
 ## Snippet Inventory
 
-No code snippets — log signatures and config examples are inline.
+No code snippets — log signatures and config examples inline.
 
 ## Cross-Links
 
-- **Links to:** Operating (runtime behavior), Docker Troubleshooting, Auth, Configuration, Database & Telemetry, Cache patterns, Custom States
-- **Linked from:** Getting Started (next steps), many concept pages
+- **Links to:** Operating (runtime behavior), Docker Troubleshooting, Auth, Application Configuration, Database & Telemetry, Cache patterns, Custom States, Web UI overview, Job Management
+- **Linked from:** Getting Started (next steps), many concept pages, Home page
