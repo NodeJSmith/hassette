@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Create per-page content outlines for all pages"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#15", "AC#17"]
 ---

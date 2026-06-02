@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create docs branch, site outline, and calibration artifacts"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#7", "FR#8", "FR#9", "FR#10", "FR#16", "FR#18", "AC#8", "AC#10", "AC#11", "AC#13", "AC#18", "AC#20"]
 ---

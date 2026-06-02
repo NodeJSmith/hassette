@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Write and review three exemplar pages"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#6", "FR#14", "FR#17", "AC#1", "AC#12", "AC#16", "AC#19"]
 ---
