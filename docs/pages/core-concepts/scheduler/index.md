@@ -1,46 +1,54 @@
-# Scheduler Overview
+# Scheduler
 
-The scheduler lets you run functions at specific times, after a delay, or on a repeating interval. It is available as `self.scheduler` in every app and runs all jobs safely inside Hassette's async event loop. Scheduled handlers can be async or sync — the scheduler wraps sync callables automatically.
+The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 
-Every scheduling method is backed by a **trigger object** that encapsulates when and how often a job fires. The convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`) create the appropriate trigger for you. For advanced use cases, pass a trigger directly to `schedule()`.
+## Common Patterns
 
-```mermaid
-flowchart TD
-    subgraph app["Your App"]
-        methods["run_*() / schedule()"]
-    end
+### Run after a delay
 
-    subgraph framework["Scheduler"]
-        SCHED["SchedulerService"]
-        JOB["ScheduledJob"]
-        SCHED -- "manages" --> JOB
-    end
+`run_in` schedules a one-shot job that fires after a fixed number of seconds.
 
-    methods --> SCHED
-
-    style app fill:#e8f0ff,stroke:#6688cc
-    style framework fill:#fff0e8,stroke:#cc8844
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
 ```
+
+The `delay` parameter accepts seconds as a `float`. The job fires once and does not repeat.
+
+### Run on a repeating interval
+
+`run_every` schedules a job that fires repeatedly on a fixed interval.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_every.py"
+```
+
+`seconds`, `minutes`, and `hours` are all accepted. The scheduler is drift-resistant. Each run fires relative to the previous scheduled time, not the previous actual time.
+
+### Run daily at a fixed time
+
+`run_daily` schedules a job that fires once per day at a wall-clock time.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_daily.py"
+```
+
+The `at` parameter accepts `"HH:MM"` strings. `run_daily` is DST-safe. It uses a cron expression internally and fires at the local wall-clock time regardless of clock changes.
 
 ## Trigger Types
 
-All triggers live in `hassette.scheduler.triggers` and are importable from `hassette.scheduler`:
+Each convenience method creates a trigger object under the hood. `schedule()` accepts a trigger directly for cases not covered by the convenience methods.
 
-| Trigger | Description | One-shot? |
-|---------|-------------|-----------|
+| Trigger | Description | One-shot |
+|---|---|---|
 | `After(seconds=N)` | Fixed delay from now | Yes |
-| `Once(at="HH:MM")` | Specific wall-clock time | Yes |
-| `Every(seconds=N)` | Fixed interval, drift-resistant | No |
-| `Daily(at="HH:MM")` | Once per day, DST-safe (cron-backed) | No |
+| `Once(at="HH:MM")` | Specific wall-clock time (today, or tomorrow if past) | Yes |
+| `Every(seconds=N)` | Fixed recurring interval | No |
+| `Daily(at="HH:MM")` | Once per day at a wall-clock time | No |
 | `Cron("expr")` | Arbitrary cron expression (5- or 6-field) | No |
 
-### Examples
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_start_examples.py:start_examples"
-```
+`hassette.scheduler` exports all five trigger types.
 
 ## Next Steps
 
-- **[Scheduling Methods](methods.md)**: Explore `run_in`, `run_every`, `run_cron`, `schedule()`, and convenience helpers.
-- **[Job Management](management.md)**: Learn how to name, track, cancel, and group jobs.
+- [Scheduling Methods](methods.md): full method reference, cron expressions, custom triggers, and per-job options including `group`, `jitter`, and `if_exists`
+- [Job Management](management.md): cancelling, grouping, error handling, and the `ScheduledJob` object
