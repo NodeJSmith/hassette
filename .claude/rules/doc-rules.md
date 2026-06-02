@@ -29,7 +29,7 @@ Hassette docs should feel like a patient friend who's already built the thing yo
 ### Voice rules
 
 1. **Use "you" and "your" in getting-started and recipe procedure sections.** In concept and API reference pages, make the system the subject instead — see voice-guide.md rule #10.
-2. **Lead with what it does, not what it is.** "The scheduler lets you run functions at specific times" not "The scheduler is a service that manages timed execution of callable objects."
+2. **Lead with what it does, not what it is.** Every first mention of a Hassette term (`App`, `Bus`, `Scheduler`, `Api`, `StateManager`, `AppConfig`) must define it by function, not by category. "The scheduler runs functions at specific times" not "The scheduler is a service that manages timed execution." "`AppConfig` loads and validates settings from `hassette.toml`" not "`AppConfig` is a Pydantic settings model." The category is invisible to the reader; the function is what they need.
 3. **Use concrete examples in prose, not just code blocks.** "like temperature sensors that report every 2 seconds" not "such as high-frequency update sources."
 4. **Short sentences for concepts, longer ones for flow.** Introduce an idea in one punchy line. Then explain how it works in a sentence or two that builds on the first.
 5. **Active voice.** "Hassette connects to Home Assistant" not "a connection is established." Passive voice makes prose feel distant and academic.

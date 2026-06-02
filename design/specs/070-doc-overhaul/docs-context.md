@@ -23,25 +23,33 @@ Run every item on every page before marking a writing task complete. Each item i
 5. **Every limitation paired with a path forward.** One sentence for the constraint, one naming the alternative. *(Rule 4)*
 6. **Module aliases linked on first use.** First use of `D.*`, `states.*`, `C.*`, `P.*`, or `A.*` links to the canonical page for that module. *(FR#6)*
 
+### Getting-started pages
+
+7. **"you" and "your" used throughout.** NOT system-as-subject. Direct address. *(Rule 17)*
+8. **Code shown FIRST, then explained (HARD RULE).** The code block must be the very first element after the H2 heading. No introductory sentences, no motivational preamble ("Hard-coding values makes reuse difficult..."), no scene-setting. Explanation follows the code. The only exception is "What You'll Build" which has no code. *(Rule 17)*
+9. **Show concrete CLI output.** When a step involves running a command, show the exact mock terminal output the reader will see. Don't say "look for X in the output" — show the output.
+10. **No `---` horizontal rules between sections.** Headings provide enough visual separation.
+11. **Link module aliases inline at first use.** When introducing `D`, `states`, `self.bus`, `self.scheduler`, or `self.api`, the first mention links to the canonical page inline, not in a deferred "See also" sentence. *(Rule 8, checklist #6)*
+
 ### Concept and API reference pages
 
-7. **System-as-subject throughout — no "you."** "The bus delivers events" not "you receive events." "your" is also banned. *(Rule 10)*
-8. **No imperative mood.** No "Use X", "Pass Y", "Set Z." Use declarative: "X provides", "Y accepts", "Z controls." *(Rule 15)*
-9. **Concept introductions follow name -> define -> show -> constrain.** Definition says what it does. Code example is minimal. Constraints come after. *(Rule 16)*
+12. **System-as-subject throughout — no "you."** "The bus delivers events" not "you receive events." "your" is also banned. *(Rule 10)*
+13. **No imperative mood.** No "Use X", "Pass Y", "Set Z." Use declarative: "X provides", "Y accepts", "Z controls." *(Rule 15)*
+14. **Concept introductions follow name -> define -> show -> constrain.** Definition says what it does. Code example is minimal. Constraints come after. *(Rule 16)*
 
 ### Recipe pages
 
-10. **"How It Works" uses flowing prose paragraphs, NOT bullet lists with bolded lead-ins.** Each paragraph covers one decision. No `- **method_name** does X` patterns. *(Rule 21)*
-11. **"How It Works" uses system-as-subject.** The code is the subject when explaining behavior. "you" belongs only in procedural steps and variations. *(Rule 10, 21)*
-12. **"Verify it's working" names a concrete command or UI action.** `hassette log --app <key>`, Handlers tab, or similar — not a theoretical description. *(FR#4)*
+15. **"How It Works" uses flowing prose paragraphs, NOT bullet lists with bolded lead-ins.** Each paragraph covers one decision. No `- **method_name** does X` patterns. *(Rule 21)*
+16. **"How It Works" uses system-as-subject.** The code is the subject when explaining behavior. "you" belongs only in procedural steps and variations. *(Rule 10, 21)*
+17. **"Verify it's working" names a concrete command or UI action.** `hassette log --app <key>`, Handlers tab, or similar — not a theoretical description. *(FR#4)*
 
 ### Reference pages (addendum)
 
-13. **Tables before prose in reference sections.** The table is the primary content; prose supplements.
-14. **Terse functional definitions in table cells.** No narrative. Each cell says what the thing does in one sentence.
-15. **No admonitions in reference tables.** Tips, warnings, and notes belong outside the table.
+18. **Tables before prose in reference sections.** The table is the primary content; prose supplements.
+19. **Terse functional definitions in table cells.** No narrative. Each cell says what the thing does in one sentence.
+20. **No admonitions in reference tables.** Tips, warnings, and notes belong outside the table.
 
-## Top 3 Current Violations
+## Top Violations
 
 These are the patterns you will most naturally fall into. Check for them last as a final pass.
 
@@ -71,3 +79,35 @@ Sentences exceeding 18 words in explanatory prose. Most common in technical desc
 
 **Wrong:** "The StateManager event handler is prioritized over app event handlers to ensure you always have a consistent view of the latest states." (24 words + "you")
 **Right:** "StateManager's event handler runs before app handlers. App handlers always see the latest state." (two sentences, 8 + 8 words)
+
+### 4. Category definitions instead of functional definitions (Rule 8)
+
+Defining a term by what it *is* rather than what it *does*. The most common form is "`X` is the base class for..." or "`X` is a Pydantic settings model." These tell the reader the taxonomy but not what the thing does for them.
+
+**Wrong:** "`App` is the base class for every Hassette automation."
+**Right:** "`App` manages your handlers, scheduler, and connection to Home Assistant."
+
+**Wrong:** "`AppConfig` is a Pydantic settings model."
+**Right:** "`AppConfig` loads and validates your app's settings from `hassette.toml`."
+
+**Wrong:** "`self.bus` is Hassette's event bus."
+**Right:** "`self.bus` delivers Home Assistant events to your handlers."
+
+### 5. Motivational preamble before code (getting-started pages)
+
+Opening a step with a sentence explaining *why* the feature is useful before showing the code. The code speaks for itself. The reader came here to build, not to be convinced.
+
+**Wrong:**
+```
+## Step 2 — Add Typed Configuration
+Hard-coding entity IDs and strings makes your app hard to reuse.
+Hassette gives every app a config class.
+[code]
+```
+
+**Right:**
+```
+## Step 2 — Add Typed Configuration
+[code]
+`MyAppConfig` extends `AppConfig` and declares the fields your app reads.
+```
