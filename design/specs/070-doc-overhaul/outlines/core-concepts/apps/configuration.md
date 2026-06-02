@@ -1,24 +1,13 @@
 # Apps — Configuration
 
-**Status:** Exists (34 lines), very short, may need expansion
-**Voice mode:** Concept — system-as-subject, no "you"
+**Status:** ABSORBED into `apps/overview.md`. Content becomes an H2 in the Apps overview.
 
-## Outline
+At 34 lines (3 base fields + env prefix + secrets), this doesn't justify its own page. The Apps overview already has "Defining an App" — config class definition belongs there.
 
-### H2: Defining Config Models
-AppConfig subclass with Pydantic SettingsConfigDict. How env_prefix maps to hassette.toml.
+Content to fold into apps/overview.md:
+- AppConfig subclass with SettingsConfigDict and env_prefix
+- Base fields: `instance_name`, `log_level`, `app_key` (+ reserved prefix validator)
+- `extra="allow"` behavior, `env_ignore_empty=True`
+- Secrets & env vars via Pydantic BaseSettings
 
-### H2: Base Fields
-Fields inherited from AppConfig (instance_name, etc.).
-
-### H2: Secrets & Environment Variables
-Loading secrets from env vars via Pydantic.
-
-## Snippet Inventory
-
-Snippets from `apps/snippets/` that show config patterns — review and assign.
-
-## Cross-Links
-
-- **Links to:** Configuration/Applications (hassette.toml side), Apps overview
-- **Linked from:** Apps overview, First Automation (step 2)
+See decision in outline audit (2026-06-02).

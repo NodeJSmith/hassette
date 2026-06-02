@@ -1,6 +1,6 @@
 # Testing — Test Harness Reference
 
-**Status:** Exists (243 lines), restructured — Installation and Quick Start moved to `testing/quickstart.md`
+**Status:** Exists (243 lines), restructured — Installation and Quick Start moved to `testing/quickstart.md` (now `index.md`). This page becomes `pages/testing/harness.md` ("Test Harness Reference").
 **Voice mode:** Reference — system-as-subject, no "you"
 
 ## Outline

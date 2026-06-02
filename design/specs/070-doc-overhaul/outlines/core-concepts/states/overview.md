@@ -5,8 +5,11 @@
 
 ## Outline
 
-### H2: Diagram
-Mermaid diagram showing StateManager → StateProxy → DomainStates flow.
+### (Opening)
+Functional definition of the StateManager: what it does, `self.states` access. Match the Bus exemplar pattern — prose first.
+
+### Mermaid Diagram
+StateManager → StateProxy → DomainStates flow. Comes after the opening prose, not before it.
 
 ### H2: Using the StateManager
 #### H3: Domain Access — `self.states.light`, `self.states.sensor`
@@ -18,9 +21,9 @@ Mermaid diagram showing StateManager → StateProxy → DomainStates flow.
 Methods: `get()`, `items()`, `keys()`, `values()`, `to_dict()`, `__iter__`, `__len__`, `__contains__`, `__getitem__`, `__bool__`.
 
 ### H2: Built-in State Types
-Reference table of all auto-generated domain state classes. For each: domain name, state class (e.g., `LightState`), `value` type (bool, str, float, etc.), key attributes (e.g., `brightness`, `color_temp`). These classes are auto-generated from HA core source. Common attribute patterns across domains. Attributes are Python-typed, not raw HA dicts. For domains not covered or custom attributes, link to Custom States.
+Brief introduction: Hassette auto-generates typed state classes for 47 HA domains from HA core source. Show 2-3 examples inline (LightState with brightness, SensorState with numeric value, BinarySensorState with device_class). Explain the pattern: domain → state class → typed `value` + typed attributes. Link to auto-generated API reference (`hassette.models.states`) for the full inventory. For domains not covered or custom attributes, link to Custom States.
 
-*Absorbs content from the former `domain-states.md` standalone page.*
+*No hand-written reference table — the API reference auto-generates from source and never rots.*
 
 ### H2: State Model Properties
 Properties available on all `BaseState` subclasses beyond `value` and `attributes`:

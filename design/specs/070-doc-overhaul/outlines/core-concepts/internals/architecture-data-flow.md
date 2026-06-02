@@ -5,6 +5,9 @@
 
 ## Outline
 
+### (Opening — absorbed from internals/overview.md)
+Audience declaration: "This section is for contributors to Hassette's core and for advanced users who want to understand the framework's internal architecture. App authors do not need to read this section." Brief index of the three internals pages (Architecture & Data Flow, Lifecycle, Service Details).
+
 ### H2: Component Ownership
 Which service owns which state. Map of services to the resources they manage.
 

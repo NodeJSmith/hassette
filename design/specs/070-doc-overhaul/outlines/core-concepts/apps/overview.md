@@ -11,6 +11,13 @@ App[Config] generic, five handles (bus, scheduler, api, states, cache), logger.
 ### H2: Defining an App
 Minimal app example, AppConfig usage.
 
+*Absorbs content from the former `apps/configuration.md` (34 lines):*
+- AppConfig subclass with `SettingsConfigDict` and `env_prefix`
+- Base fields: `instance_name`, `log_level`, `app_key` (reserved prefix validator)
+- `extra="allow"` (arbitrary config without defined fields), `env_ignore_empty=True`
+- Secrets & env vars via Pydantic `BaseSettings`
+- Link to Configuration/Applications for the TOML registration side
+
 ### H2: Dates and Times
 `whenever` library usage for date/time in apps. `self.now()` returns the current `ZonedDateTime`.
 

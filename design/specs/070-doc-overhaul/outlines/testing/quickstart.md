@@ -1,6 +1,6 @@
 # Testing — Write Your First Test
 
-**Status:** New page (split from testing/overview.md)
+**Status:** New page (split from testing/overview.md). This is now the section index (`pages/testing/index.md`).
 **Voice mode:** Getting-started — "you" allowed, step-by-step
 
 ## Outline

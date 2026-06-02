@@ -26,14 +26,8 @@ Brief map of what's configurable, linking to the auto-generated reference for fi
 - File Watcher: `[hassette.file_watcher]`
 - Scheduler: `[hassette.scheduler]`
 
-### H2: Operational Tuning Guidance
-Teaching content that can't come from auto-generated reference — explain the design, not just the fields:
-
-#### H3: WebSocket Resilience
-Three-layer retry model (connect retries → early-drop retries → ServiceWatcher budget). When to tune each layer. `max_recovery_seconds` as the total wall-clock cap.
-
-#### H3: Timeout Behavior
-Timeout enforcement limitations: sync handlers can't be interrupted mid-execution (the timeout fires but the handler continues). `TimeoutError` swallowing behavior. `run_sync_timeout_seconds` default (6s).
+### H2: Configuration Field Notes
+Brief design-rationale notes for fields where the auto-generated reference doesn't explain the "why." Each H3 is 1-3 sentences. Readers looking for field types and defaults go to the auto-generated HassetteConfig reference; this section covers the design intent.
 
 #### H3: Data Directory and Upgrades
 `data_dir` path, major version implications, cache path derivation (`data_dir/<ClassName>/cache`).
@@ -42,10 +36,10 @@ Timeout enforcement limitations: sync handlers can't be interrupted mid-executio
 `apps.directory`, `extend_exclude_dirs` vs `exclude_dirs` footgun, `run_app_precheck` and `allow_startup_if_app_precheck_fails`.
 
 #### H3: Event Filtering
-`bus_excluded_domains` and `bus_excluded_entities` — glob patterns to silently drop events before they reach handlers. Common use: filtering noisy domains like `sensor` during development. Cross-link to troubleshooting KI-06 for the "handler never runs" pitfall.
+`bus_excluded_domains` and `bus_excluded_entities` — glob patterns to silently drop events before they reach handlers. Cross-link to troubleshooting KI-06.
 
 #### H3: Development and Debugging
-`dev_mode` — auto-detected from debugger attachment or `python -X dev`; enables extra diagnostics. `asyncio_debug_mode` — enables asyncio debug mode for coroutine tracing. `ui_hot_reload` — live reloading of web UI files during development.
+`dev_mode` — auto-detected from debugger attachment or `python -X dev`. `asyncio_debug_mode`. `ui_hot_reload`.
 
 #### H3: Web API
 `cors_origins` — allowed CORS origins for the REST API.
@@ -54,7 +48,9 @@ Timeout enforcement limitations: sync handlers can't be interrupted mid-executio
 `default_cache_size` — size limit for per-resource disk caches.
 
 #### H3: State Proxy Polling
-`state_proxy_poll_interval_seconds` and `disable_state_proxy_polling` — control the StateProxy's background polling of HA state. Disabling polling means the cache only updates via the WebSocket event stream.
+`state_proxy_poll_interval_seconds` and `disable_state_proxy_polling`.
+
+*WebSocket resilience and timeout behavior moved to Operating/overview.md alongside KI-01/KI-02 — see outline audit (2026-06-02).*
 
 ### H2: Full Reference
 Link to auto-generated API reference for `HassetteConfig` and all sub-models. All fields, types, defaults, and descriptions are maintained in the source code and rendered automatically.
