@@ -60,6 +60,39 @@ This is a **{{page_type}}** page.
 
 {{cross_links}}
 
+## Symbol verification (CRITICAL)
+
+Before referencing any method, parameter, class, or type in the documentation,
+verify it exists in the codebase. Do NOT guess at method names or parameter
+lists. A page that references a non-existent symbol is worse than one that
+omits it.
+
+Use Serena MCP tools for verification (load via ToolSearch first):
+- `mcp__serena__get_symbols_overview` — list all methods/classes in a file
+- `mcp__serena__find_symbol` — find a specific symbol and read its signature
+
+Key source files:
+- Bus methods & params: src/hassette/bus/bus.py
+- Scheduler methods: src/hassette/scheduler/scheduler.py
+- Api methods: src/hassette/api/api.py
+- App class: src/hassette/app/app.py
+- Predicates (P): src/hassette/event_handling/predicates.py
+- Conditions (C): src/hassette/event_handling/conditions.py
+- Dependencies (D): src/hassette/event_handling/dependencies.py
+- Accessors (A): src/hassette/event_handling/accessors.py
+- Triggers: src/hassette/scheduler/triggers.py
+- Entities: src/hassette/models/entities/base.py
+- StateManager: src/hassette/state_manager/state_manager.py
+
+Before writing a snippet or prose that uses a method, call
+get_symbols_overview on the relevant file to confirm it exists, then
+find_symbol with include_body=True to check the exact signature. Fallback:
+  grep -n 'def method_name' src/hassette/path/to/file.py
+
+Top-level imports are: `from hassette import App, AppConfig, D, states, P, C, A`
+Do NOT use deep import paths like `from hassette.models import states` or
+`from hassette import dependencies as D`.
+
 ## Key technical facts
 
 {{technical_facts}}
@@ -178,6 +211,15 @@ Read the page at {{page_path}}.
 6. Module aliases (`D`, `states`, `self.bus`, etc.) linked on first use.
 
 {{page_type_checklist}}
+
+### Symbol accuracy
+For every method, parameter, or class the page references, verify it exists
+using Serena MCP tools (load via ToolSearch). Use get_symbols_overview on the
+relevant source file, then find_symbol with include_body=True to check exact
+signatures. Flag any symbol that doesn't exist. Check parameter names and
+types against the actual signatures. Verify imports use top-level paths:
+`from hassette import App, AppConfig, D, states` (not deep paths like
+`from hassette.models import states`).
 
 ### Anti-patterns to flag
 - "serves as", "acts as", "functions as"

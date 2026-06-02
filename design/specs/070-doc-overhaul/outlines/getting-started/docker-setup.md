@@ -2,57 +2,63 @@
 
 **Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, step-by-step
+**Page type:** Tutorial
+**Reader's job:** Get Hassette running in a Docker container
+**Aha moment:** `docker compose up` prints "Connected to Home Assistant"
+
+## What was cut (and where it goes)
+
+The original outline included Production Deployment (hot reload, graceful shutdown),
+an env var reference table, and directory structure details. These are operations and
+reference content — they belong in Operating or Configuration pages, not a tutorial.
+
+The reader landing here has one job: get a container running and see it connect. Everything
+else is a distraction from that job.
 
 ## Outline
 
 ### H2: Prerequisites
-Docker, Docker Compose, running HA instance. Brief.
+One-liner: Docker, Docker Compose, running HA, a token. Link to ha_token.md.
 
 ### H2: Quick Start
-Numbered steps: create directory, docker-compose.yml, .env, hassette.toml, first app, `docker compose up`. Each step produces visible progress.
+Four steps (not six — the original had unnecessary ceremony):
 
-### H2: Directory Structure
-Show the resulting project layout after Quick Start.
+1. **Create the project** — `mkdir` the directory, create `apps/`, `config/`, `data/`
+2. **Create `docker-compose.yml`** — minimal compose file with the four mounts
+3. **Create `config/.env`** — token + base_url
+4. **Start it** — `docker compose up -d`, check logs, see "Connected to Home Assistant"
 
-### H2: Configuration
-#### H3: Home Assistant Token
-Link to ha_token.md, show where it goes in .env.
-#### H3: Environment Variables Reference
-Table of HASSETTE__* env vars.
+That's it. The reader has a running container.
 
-### H2: Production Deployment
-#### H3: Hot Reloading in Production
-hassette.toml `file_watcher.watch_files` setting (and `allow_reload_in_prod` guard), volume mount requirements.
-#### H3: Graceful Shutdown
-Docker stop signal handling.
-
-### H2: Viewing Logs
-#### H3: Docker Compose Logs
-`docker compose logs -f hassette` command.
-#### H3: Web UI
-Link to Web UI overview.
+### H2: Write Your First App
+Brief: create `apps/my_app.py` with the same minimal app from the local quickstart.
+Restart the container, see the greeting in logs. Then link to First Automation
+for the real stuff.
 
 ### H2: Next Steps
-→ Dependencies, → Image Tags, → First Automation
+- First Automation — subscribe to events, control devices
+- Managing Dependencies — add Python packages
+- Image Tags — pick a production-ready tag
+- Troubleshooting — if something went wrong
 
 ## Snippet Inventory
 
 | Snippet | Status | Notes |
 |---|---|---|
-| `docker-compose.yml` | Keep | Main compose file |
-| `env-file.sh` | Keep | .env creation |
-| `hassette.toml` | Keep | Minimal config |
-| `my_app.py` | Keep | Example app |
-| `dir-structure.txt` | Keep | Layout diagram |
-| `docker-compose-up.sh` | Keep | Start command |
-| `docker-compose-logs.sh` | Keep | Log viewing |
-| `docker-compose-logs-hassette.sh` | Keep | Filtered logs |
-| `prod-reload.toml` | Keep | Hot reload config |
 | `mkdir-project.sh` | Keep | Directory creation |
-| `uv-cache-volume.yml` | Keep | Cache volume mount |
-| `uv-lock.sh` | Keep | Lock file generation |
+| `docker-compose.yml` | Keep | Minimal compose file |
+| `env-file.sh` | Keep | .env with token + url |
+| `my_app.py` | Keep | Minimal app |
+| `docker-compose-up.sh` | Keep | Start command |
+| `docker-compose-logs-hassette.sh` | Keep | Check logs |
+| `hassette.toml` | Drop | Not needed for minimal setup if base_url is in .env |
+| `dir-structure.txt` | Drop | Unnecessary — the steps show the structure |
+| `docker-compose-logs.sh` | Drop | Redundant with hassette-filtered version |
+| `prod-reload.toml` | Move to Operating | Production config, not getting-started |
+| `uv-cache-volume.yml` | Move to Dependencies | Optimization, not getting-started |
+| `uv-lock.sh` | Move to Dependencies | |
 
 ## Cross-Links
 
-- **Links to:** HA Token, Dependencies, Image Tags, Docker Troubleshooting, Web UI, First Automation
+- **Links to:** HA Token, First Automation, Dependencies, Image Tags, Troubleshooting
 - **Linked from:** Quickstart (alternative path), Evaluator

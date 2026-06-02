@@ -23,31 +23,36 @@ Run every item on every page before marking a writing task complete. Each item i
 5. **Every limitation paired with a path forward.** One sentence for the constraint, one naming the alternative. *(Rule 4)*
 6. **Module aliases linked on first use.** First use of `D.*`, `states.*`, `C.*`, `P.*`, or `A.*` links to the canonical page for that module. *(FR#6)*
 
+### Symbol accuracy (all page types)
+
+7. **Every referenced symbol exists in the codebase.** Method names, parameter names, class names, and type annotations must match the actual source. Grep to verify. *(Writer/Reviewer instruction)*
+8. **Imports use top-level paths.** `from hassette import App, AppConfig, D, states` — not `from hassette.models import states` or `from hassette import dependencies as D`. *(FR#6)*
+
 ### Getting-started pages
 
-7. **"you" and "your" used throughout.** NOT system-as-subject. Direct address. *(Rule 17)*
-8. **Code shown FIRST, then explained (HARD RULE).** The code block must be the very first element after the H2 heading. No introductory sentences, no motivational preamble ("Hard-coding values makes reuse difficult..."), no scene-setting. Explanation follows the code. The only exception is "What You'll Build" which has no code. *(Rule 17)*
-9. **Show concrete CLI output.** When a step involves running a command, show the exact mock terminal output the reader will see. Don't say "look for X in the output" — show the output.
-10. **No `---` horizontal rules between sections.** Headings provide enough visual separation.
-11. **Link module aliases inline at first use.** When introducing `D`, `states`, `self.bus`, `self.scheduler`, or `self.api`, the first mention links to the canonical page inline, not in a deferred "See also" sentence. *(Rule 8, checklist #6)*
+9. **"you" and "your" used throughout.** NOT system-as-subject. Direct address. *(Rule 17)*
+10. **Code shown FIRST, then explained (HARD RULE).** The code block must be the very first element after the H2 heading. No introductory sentences, no motivational preamble ("Hard-coding values makes reuse difficult..."), no scene-setting. Explanation follows the code. The only exception is "What You'll Build" which has no code. *(Rule 17)*
+11. **Show concrete CLI output.** When a step involves running a command, show the exact mock terminal output the reader will see. Don't say "look for X in the output" — show the output.
+12. **No `---` horizontal rules between sections.** Headings provide enough visual separation.
+13. **Link module aliases inline at first use.** When introducing `D`, `states`, `self.bus`, `self.scheduler`, or `self.api`, the first mention links to the canonical page inline, not in a deferred "See also" sentence. *(Rule 8, checklist #6)*
 
 ### Concept and API reference pages
 
-12. **System-as-subject throughout — no "you."** "The bus delivers events" not "you receive events." "your" is also banned. *(Rule 10)*
-13. **No imperative mood.** No "Use X", "Pass Y", "Set Z." Use declarative: "X provides", "Y accepts", "Z controls." *(Rule 15)*
-14. **Concept introductions follow name -> define -> show -> constrain.** Definition says what it does. Code example is minimal. Constraints come after. *(Rule 16)*
+14. **System-as-subject throughout — no "you."** "The bus delivers events" not "you receive events." "your" is also banned. *(Rule 10)*
+15. **No imperative mood.** No "Use X", "Pass Y", "Set Z." Use declarative: "X provides", "Y accepts", "Z controls." *(Rule 15)*
+16. **Concept introductions follow name -> define -> show -> constrain.** Definition says what it does. Code example is minimal. Constraints come after. *(Rule 16)*
 
 ### Recipe pages
 
-15. **"How It Works" uses flowing prose paragraphs, NOT bullet lists with bolded lead-ins.** Each paragraph covers one decision. No `- **method_name** does X` patterns. *(Rule 21)*
-16. **"How It Works" uses system-as-subject.** The code is the subject when explaining behavior. "you" belongs only in procedural steps and variations. *(Rule 10, 21)*
-17. **"Verify it's working" names a concrete command or UI action.** `hassette log --app <key>`, Handlers tab, or similar — not a theoretical description. *(FR#4)*
+17. **"How It Works" uses flowing prose paragraphs, NOT bullet lists with bolded lead-ins.** Each paragraph covers one decision. No `- **method_name** does X` patterns. *(Rule 21)*
+18. **"How It Works" uses system-as-subject.** The code is the subject when explaining behavior. "you" belongs only in procedural steps and variations. *(Rule 10, 21)*
+19. **"Verify it's working" names a concrete command or UI action.** `hassette log --app <key>`, Handlers tab, or similar — not a theoretical description. *(FR#4)*
 
 ### Reference pages (addendum)
 
-18. **Tables before prose in reference sections.** The table is the primary content; prose supplements.
-19. **Terse functional definitions in table cells.** No narrative. Each cell says what the thing does in one sentence.
-20. **No admonitions in reference tables.** Tips, warnings, and notes belong outside the table.
+20. **Tables before prose in reference sections.** The table is the primary content; prose supplements.
+21. **Terse functional definitions in table cells.** No narrative. Each cell says what the thing does in one sentence.
+22. **No admonitions in reference tables.** Tips, warnings, and notes belong outside the table.
 
 ## Top Violations
 

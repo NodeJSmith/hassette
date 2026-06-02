@@ -2,41 +2,40 @@
 
 **Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, brief, decision-oriented
+**Page type:** Reference (minimal)
+**Reader's job:** Pick the right tag for their compose file
+**One sentence:** "What do I put after the colon in `ghcr.io/...hassette:`?"
+
+## What was cut
+
+The original outline had tag format specs, a Python version table, and an
+update procedure section. The reader needs a recommendation, not a specification.
+Tag format details and version matrix belong in a reference page if they're
+needed at all.
 
 ## Outline
 
-### H2: Tag Format
-Brief explanation of the naming convention. One recommended tag example.
+### H2: Which Tag to Use
+Two recommendations, that's it:
 
-### H2: Recommended Tags
-#### H3: Production — pin version + Python (e.g., `v0.35.0-py3.13`)
-#### H3: Development — track latest stable (e.g., `latest-py3.13`)
+- **Production:** `v0.X.Y-py3.13` — pinned version, predictable
+- **Development:** `latest-py3.13` — tracks the latest stable release
 
-### H2: Supported Python Versions
-Short table: 3.11, 3.12, 3.13, 3.14. Note upper bound (<3.15).
+Show a compose snippet for each. One sentence explaining the difference.
 
-### H2: Updating Images
-`docker compose pull` + restart.
-
-Removed from this page (too detailed for getting-started):
-- PR preview tags and bleeding-edge main branch tags
-- "Tags NOT Published" section
-- "Choosing a Tag" decision matrix (production/development/pre-release)
-- Separate "Check Current Version" section
-
-If needed later, these could live in an Operating or Reference page.
+### H2: Updating
+`docker compose pull && docker compose up -d`. Two lines.
 
 ## Snippet Inventory
 
 | Snippet | Status | Notes |
 |---|---|---|
-| `tag-pinned-compose.yml` | Keep | Primary recommendation |
-| `tag-latest-compose.yml` | Keep | Development alternative |
+| `tag-pinned-compose.yml` | Keep | Production recommendation |
+| `tag-latest-compose.yml` | Keep | Dev recommendation |
 | `docker-pull-update.sh` | Keep | Update command |
-| `tag-format-versioned.txt` | Review | May fold into prose |
-| Others | Drop or defer | PR/main/prerelease tags not needed here |
+| `tag-format-versioned.txt` | Drop | Specification detail, not needed |
 
 ## Cross-Links
 
-- **Links to:** Docker Setup, Dependencies
+- **Links to:** Docker Setup
 - **Linked from:** Docker Setup (next steps)

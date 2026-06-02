@@ -1,2 +1,2 @@
-requests>=2.31.0
-aiohttp>=3.9.0
+apprise>=1.9
+astral>=3.2

@@ -6,10 +6,7 @@ services:
       - ./apps:/apps
       - data:/data
       - uv_cache:/uv_cache
-    environment:
-      - TZ=America/New_York
-      - HASSETTE__INSTALL_DEPS=1
 
 volumes:
-  data:
   uv_cache:
+  data:

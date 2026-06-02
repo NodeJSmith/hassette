@@ -1,2 +1,0 @@
-environment:
-  - HASSETTE__APPS__DIRECTORY=/apps/src/my_apps

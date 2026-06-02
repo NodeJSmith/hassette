@@ -1,3 +1,0 @@
-apps/
-├── my_app.py
-└── requirements.txt

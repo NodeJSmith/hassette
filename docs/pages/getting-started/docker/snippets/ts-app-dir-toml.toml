@@ -1,2 +1,0 @@
-[hassette.apps]
-directory = "/apps"  # Must match volume mount

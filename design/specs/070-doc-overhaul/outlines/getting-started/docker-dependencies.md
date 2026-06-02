@@ -2,69 +2,57 @@
 
 **Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, procedural
+**Page type:** How-to
+**Reader's job:** Add a Python package their apps need
+**One sentence:** "I need `httpx` in my app — how do I get it into the container?"
+
+## What was cut (and where it goes)
+
+The original outline had 15 snippets, a Mermaid diagram of the startup script,
+APP_DIR vs PROJECT_DIR comparison, two project structure layouts, performance
+tips, and constraints file internals. The reader's job is "add a package" — they
+don't need to understand the startup script to do that.
+
+Startup script internals, constraints, APP_DIR vs PROJECT_DIR, and performance
+tuning belong in an Operating or Advanced Docker page.
 
 ## Outline
 
-### H2: Overview
-How Hassette's Docker entrypoint handles dependency installation at startup. Brief mental model.
+### H2: Using requirements.txt
+The simple path. Create `requirements.txt` in your project, add packages,
+set `HASSETTE__INSTALL_DEPS=1` in compose, restart. Show the 3 files
+(requirements.txt, compose snippet with env var, the app that imports the package).
 
-#### H3: How Constraints Work
-Hassette pins its own deps via constraints file to prevent conflicts.
-
-### H2: How the Startup Script Works
-What happens at container start: detect project type, install deps, launch. **`HASSETTE__INSTALL_DEPS=1`** must be set to activate dependency installation — without it, no requirements/pyproject install runs.
-
-#### H3: Key Behaviors
-Bulleted list of the script's decisions.
-
-### H2: Understanding APP_DIR vs PROJECT_DIR
-When to use which env var. Canonical env var: `HASSETTE__APPS__DIRECTORY` (legacy fallback: `HASSETTE__APP_DIR`). Table or short comparison.
-
-### H2: Project Structures
-#### H3: Simple Flat Structure
-Directory layout, compose snippet.
-#### H3: Traditional src/ Layout
-Directory layout, compose snippet.
+This is the 80% case. Lead with it.
 
 ### H2: Using pyproject.toml
-#### H3: With a Lock File (Required)
-How uv.lock works in Docker context.
+For projects that already have a pyproject.toml. Needs a `uv.lock` file.
+Show: run `uv lock` locally, mount the project dir, set `HASSETTE__PROJECT_DIR`.
 
-### H2: Using requirements.txt
-Simpler alternative, when to use it.
+### H2: Known Limitations
+- Local path dependencies (`file:///...`) don't work inside Docker
+- First startup with new deps is slower (subsequent starts use the uv cache volume)
 
-### H2: Startup Performance
-#### H3: Using uv.lock for Faster Starts
-#### H3: Known Limitations — Local Path Dependencies
-
-Pre-building a custom image is omitted — CLI tooling for this is planned.
-
-### H2: Complete Examples
-Two full examples with compose + project structure.
+Link to Troubleshooting for "dependency installation fails" problems.
 
 ## Snippet Inventory
 
-All existing snippets (20+) are keeps — they demonstrate specific compose configurations and project structures. Full list:
-
-| Snippet | Status |
-|---|---|
-| `deps-example1-compose.yml` | Keep |
-| `deps-example1-requirements.txt` | Keep |
-| `deps-example2-compose.yml` | Keep |
-| `deps-example2-pyproject.toml` | Keep |
-| `deps-flat-compose.yml` | Keep |
-| `deps-flat-dir-structure.txt` | Keep |
-| `deps-install-deps-env.yml` | Keep |
-| `deps-requirements-dir-structure.txt` | Keep |
-| `deps-src-compose.yml` | Keep |
-| `deps-src-dir-structure.txt` | Keep |
-| `deps-startup-flow.mmd` | Keep |
-| `custom-image-compose.yml` | Keep |
-| `custom-image.dockerfile` | Keep |
-| `pyproject-example.toml` | Keep |
-| `requirements-example.txt` | Keep |
+| Snippet | Status | Notes |
+|---|---|---|
+| `requirements-example.txt` | Keep | Simple requirements file |
+| `deps-install-deps-env.yml` | Keep | Compose with INSTALL_DEPS |
+| `pyproject-example.toml` | Keep | pyproject.toml example |
+| `deps-startup-flow.mmd` | Drop | Internals, not needed for the job |
+| `deps-flat-compose.yml` | Drop | Redundant with main compose |
+| `deps-flat-dir-structure.txt` | Drop | Unnecessary |
+| `deps-src-compose.yml` | Drop | Advanced layout, not getting-started |
+| `deps-src-dir-structure.txt` | Drop | Unnecessary |
+| `deps-requirements-dir-structure.txt` | Drop | Unnecessary |
+| `deps-example1-*` | Drop | Over-engineered for this page |
+| `deps-example2-*` | Drop | Over-engineered for this page |
+| `custom-image-*` | Drop | Future feature |
 
 ## Cross-Links
 
-- **Links to:** Docker Setup, Image Tags
-- **Linked from:** Docker Setup (next steps), Docker Troubleshooting
+- **Links to:** Docker Setup, Troubleshooting
+- **Linked from:** Docker Setup (next steps)

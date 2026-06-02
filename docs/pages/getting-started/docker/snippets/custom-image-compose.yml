@@ -1,6 +1,0 @@
-services:
-  hassette:
-    build: .
-    volumes:
-      - ./apps:/apps/src/my_apps  # Just mount app code
-      - ./config:/config
