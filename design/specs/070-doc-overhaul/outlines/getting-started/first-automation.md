@@ -1,6 +1,6 @@
 # First Automation
 
-**Status:** Exists (115 lines), needs restructuring for DI-first
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, code-first, each step produces visible progress
 
 ## Outline

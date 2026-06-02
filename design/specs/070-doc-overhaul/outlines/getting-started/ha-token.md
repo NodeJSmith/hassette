@@ -1,6 +1,6 @@
 # Home Assistant Token
 
-**Status:** Exists (36 lines), minimal changes needed
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, step-by-step
 
 ## Outline

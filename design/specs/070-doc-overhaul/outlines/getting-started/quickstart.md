@@ -1,6 +1,6 @@
 # Quickstart
 
-**Status:** Exists (117 lines), structure solid, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, code-first, numbered steps
 
 ## Outline

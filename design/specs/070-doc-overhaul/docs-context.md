@@ -111,3 +111,17 @@ Hassette gives every app a config class.
 [code]
 `MyAppConfig` extends `AppConfig` and declares the fields your app reads.
 ```
+
+### 6. Deep imports instead of top-level imports
+
+`D`, `states`, `P`, `C`, and `A` are all available as top-level imports from `hassette`. Do not use deep import paths in snippets.
+
+**Wrong:** `from hassette import dependencies as D` or `from hassette.models import states`
+**Right:** `from hassette import App, AppConfig, D, states`
+
+### 7. Broken linked method calls
+
+When linking a method call like `self.bus.on_state_change()`, put the full call inside the link text. Splitting the link and the method creates a visible gap in the rendered output.
+
+**Wrong:** `` [`self.bus`](../core-concepts/bus/index.md)`.on_state_change()` ``
+**Right:** `` [`self.bus.on_state_change()`](../core-concepts/bus/index.md) ``

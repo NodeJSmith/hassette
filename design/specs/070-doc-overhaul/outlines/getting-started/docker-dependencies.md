@@ -1,6 +1,6 @@
 # Docker — Managing Dependencies
 
-**Status:** Exists (193 lines), structure solid, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, procedural
 
 ## Outline

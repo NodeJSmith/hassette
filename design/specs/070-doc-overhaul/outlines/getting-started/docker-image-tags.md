@@ -1,6 +1,6 @@
 # Docker — Image Tags
 
-**Status:** Exists (151 lines), needs trimming for getting-started audience
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, brief, decision-oriented
 
 ## Outline

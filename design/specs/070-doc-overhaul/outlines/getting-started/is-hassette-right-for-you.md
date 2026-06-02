@@ -1,6 +1,6 @@
 # Is Hassette Right for You?
 
-**Status:** New page (stub exists at `evaluator.md`, will be renamed to `is-hassette-right-for-you.md`)
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, friendly, direct
 
 ## Outline

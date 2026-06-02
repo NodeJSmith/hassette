@@ -1,6 +1,6 @@
 # Docker Setup
 
-**Status:** Exists (173 lines), structure solid, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, step-by-step
 
 ## Outline

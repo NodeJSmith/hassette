@@ -1,6 +1,6 @@
 # Docker — Troubleshooting
 
-**Status:** Exists (350 lines), symptom-lookup format, voice polish needed
+**Status:** Rewrite from blank
 **Voice mode:** Getting-started — "you" allowed, problem/solution format
 
 ## Outline
