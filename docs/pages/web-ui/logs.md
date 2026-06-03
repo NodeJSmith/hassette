@@ -1,119 +1,73 @@
-# Logs
+# Read and Filter Logs
 
-The Logs page provides a global, filterable, searchable view of all log entries
-across your Hassette apps and framework internals, with real-time streaming via
-WebSocket.
+The Logs page streams log entries from every app and framework component in real time. Filter and search controls narrow the view to specific entries.
 
 ![Logs page](../../_static/web_ui_logs.png)
 
-## Log table
+## Filtering and Search
 
-The log table displays entries from all apps, sorted by timestamp descending by
-default. Each row represents a single log entry.
+The filter controls narrow the table to the entries you care about.
+
+**Level** sets the minimum severity shown. It defaults to INFO. Options are: All levels, DEBUG+, INFO+, WARNING+, ERROR+, and CRITICAL only.
+
+**App** limits entries by source. Toggle between All, Apps, and Framework. The default is Apps. When All or Apps is selected, a dropdown narrows to a specific app key.
+
+**Function** filters the function name column by substring. Type any part of a function name to match.
+
+**Search** matches against both message content and logger name.
+
+The footer shows how many entries match. When the result exceeds 500, the footer reads "showing 500 of N". Narrow the filters to see the specific entries you need.
+
+## Trace a Single Execution
+
+Append `?execution_id=<id>` to the URL to filter the table to entries from one handler or job execution. The [Debug Handler](debug-handler.md) page links here automatically from execution history. You can also construct the URL manually if you have an execution ID from logs or the CLI.
+
+When an execution ID filter is active, the other filters use local state. They do not modify the URL, so the execution ID stays intact as you refine your view.
+
+## Log Table Columns
+
+The table is sorted by timestamp descending by default. Sortable columns toggle between descending and ascending on click.
 
 | Column | Sortable | Filterable | Description |
-|--------|----------|------------|-------------|
-| **Level** | Yes | Yes (dropdown) | Severity badge: DEBUG, INFO, WARNING, ERROR, or CRITICAL |
-| **Timestamp** | Yes (default, descending) | No | Time the entry was recorded |
-| **App** | No | Yes (dropdown) | App key for app-generated entries, or `—` for framework logs |
-| **Instance** | No | No | Instance name for multi-instance apps. To view logs from a specific instance, use the [App Detail Logs tab](app-detail/logs.md) for that instance. |
-| **Execution** | No | No | Execution ID linking the entry to a specific handler invocation |
-| **Function** | Yes | Yes (text input) | Name of the Python function that emitted the log entry |
-| **Module** | No | No | Module and logger name |
-| **Message** | Yes | No | Log message text |
+|---|---|---|---|
+| Level | Yes | Yes (dropdown) | Severity badge: DEBUG, INFO, WARNING, ERROR, CRITICAL |
+| Timestamp | Yes (default desc) | No | Time the entry was recorded |
+| App | Yes | Yes (dropdown) | App key, or blank for framework logs |
+| Instance | No | No | Instance name for multi-instance apps |
+| Execution | No | No | Execution ID linking to a handler invocation |
+| Function | Yes | Yes (text input) | Python function that emitted the log |
+| Module | No | No | Python module name |
+| Message | Yes | No | Log message text |
 
-Click any row to open the [log detail drawer](#log-detail-drawer) with the
-complete entry metadata.
+## Column Picker
 
-## Filtering and search
+Click the grid icon in the table footer to choose which columns are visible. Check or uncheck any column to toggle it. Level and Message are required and cannot be hidden.
 
-Use the column filter controls in the table header to narrow results:
-
-- **Level** — sets the minimum level shown. Defaults to INFO. Options: All
-  levels, DEBUG+, INFO+, WARNING+, ERROR+, CRITICAL only.
-- **App** — filter by source. Toggle between All, Apps only, Framework only,
-  then optionally select a specific app key.
-- **Function** — free-text filter on the function name column.
-
-The **search box** above the table filters by message content and logger name.
-
-The footer shows a count of matching entries (e.g. "42 entries"). If the
-filtered result exceeds 500 entries, the footer shows "showing 500 of N" — narrow
-your filters to see specific entries.
-
-## Column picker
-
-The column picker lets you control which columns are visible.
-
-![Column picker](../../_static/web_ui_detail_column_picker.png)
-
-Click the grid icon button in the table footer to open the column visibility
-popover. Check or uncheck columns to toggle their visibility. **Level** and
-**Message** are required columns and cannot be hidden.
-
-Some columns are automatically hidden at narrow viewport widths. Columns hidden
-by the viewport are shown as disabled in the popover with a "Hidden at this
-screen size" tooltip — they cannot be toggled while the viewport is too narrow.
-
-Click **Reset to defaults** to restore the default column set for the global
-logs view (Level, Timestamp, App, Execution, Function, Module, Message).
+Some columns auto-hide at narrow viewport widths. Those columns appear disabled in the popover with a "Hidden at this screen size" tooltip. They cannot be toggled until the viewport widens. Click **Reset to defaults** to restore the default column set.
 
 !!! note
-    The column picker is not shown on mobile viewports, where the table
-    automatically uses a compact layout.
+    The column picker does not appear on mobile viewports. The table uses a compact layout there instead.
 
-## Log detail drawer
+## Log Detail Drawer
 
-Click any log row to open the detail drawer — a side panel showing the complete
-entry.
+Click any row to open the detail drawer with the complete entry.
 
-![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)
+The drawer shows a severity badge, full timestamp, and a metadata grid. The grid includes app (linked to its detail page), instance, execution ID, function name, module, line number, and logger name. The execution ID has a copy button.
 
-The drawer contains:
+Below the grid, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message.
 
-- **Severity and timestamp** — level badge with color coding, full timestamp
-- **Metadata grid** — app (link to app detail), instance, execution ID (with
-  copy button), function name, module, line number, logger name
-- **Message** — full message text with a copy button
-- **Exception / traceback** — if the entry includes exception info, a scrollable
-  code block appears with its own copy button
+Press the arrow keys to move between entries without closing the drawer. Press Escape to close.
 
-Use the arrow buttons in the drawer header, or press the **arrow keys** on your
-keyboard, to navigate to the previous or next log entry without closing the
-drawer. Press **Escape** to close.
+On desktop the drawer opens as a side panel. On mobile and tablet it appears as a bottom sheet.
 
-On mobile and tablet, the drawer appears as a bottom sheet over the table. On
-desktop, it opens as a side panel to the right of the table.
+## Live Streaming
 
-## Live streaming
+New entries appear as they arrive. No refresh needed.
 
-New log entries appear in real-time as your automations run. No manual refresh
-is needed.
-
-### Auto-pause on sort
-
-Live streaming is active only when the table is sorted by **Timestamp** (the
-default). When you sort by any other column, streaming pauses so the sort order
-is not disrupted by incoming entries.
-
-When streaming is paused, a **"paused — click to resume"** button appears in
-the table footer. Click it to reset the sort back to timestamp-descending and
-resume live updates.
-
-## Execution ID filtering
-
-Append `?execution_id=<id>` to the URL to filter the log table to entries from
-a single handler execution. Hassette uses this URL parameter when you navigate
-from the Handlers tab's execution history to the associated logs — you can also
-construct the URL manually if you have an execution ID from elsewhere.
-
-When an execution ID filter is active, the log table uses local state instead
-of URL query parameters for other filters, so you can refine the results without
-clobbering the execution ID in the URL.
+Streaming is active only when the table is sorted by timestamp, the default. Sorting by any other column pauses streaming so incoming entries do not disrupt the sort order. A "paused" button appears in the footer. Click it to reset the sort to timestamp-descending and resume live updates.
 
 ## Related pages
 
-- [App Detail — Logs Tab](app-detail/logs.md) — the same log table filtered to a
-  single app; useful when you want to see all logs from one automation
-- [App Detail — Handlers Tab](app-detail/handlers.md) — execution history for
-  individual handlers, with links to filtered logs for each execution
+- [Web UI overview](index.md) — layout, navigation, and how to enable the UI
+- [Debug a Failing Handler](debug-handler.md) — execution history with links to filtered logs for each run
+- [Database and Telemetry](../core-concepts/database-telemetry.md) — how log entries are persisted and retained
