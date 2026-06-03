@@ -10,7 +10,7 @@ Hassette lets you write Home Assistant automations as Python classes instead of 
 
 If you know Python, think of it as FastAPI-style dependency injection for Home Assistant events — handlers declare the data they need, and Hassette extracts it automatically from the event stream.
 
-**Who it's for:** Python developers who have outgrown YAML automations — automations with complex logic, shared state, unit tests, or a need for type safety. Not sure if Hassette is right for you? See [Is Hassette Right for You?](pages/getting-started/hassette-vs-ha-yaml.md)
+**Who it's for:** Python developers who have outgrown YAML automations — automations with complex logic, shared state, unit tests, or a need for type safety. Coming from AppDaemon or HA YAML? See the [Migration Guide](pages/migration/index.md).
 
 ## Why Hassette?
 
@@ -84,7 +84,6 @@ See the [Migration Guide](pages/migration/index.md) for a concept-by-concept com
 
 ## Next steps
 
-- **Is Hassette right for you?** [Is Hassette Right for You?](pages/getting-started/hassette-vs-ha-yaml.md)
 - **Local setup:** [Quickstart](pages/getting-started/index.md)
 - **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
 - **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
