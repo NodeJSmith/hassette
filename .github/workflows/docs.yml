@@ -58,7 +58,6 @@ jobs:
         needs: build
         runs-on: ubuntu-latest
         timeout-minutes: 10
-        continue-on-error: true # TODO: remove after Phase 3 writing fixes pre-existing broken anchors
 
         steps:
             - name: Download site artifact
