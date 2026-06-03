@@ -111,7 +111,7 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 
 ## `make_mock_hassette`
 
-`make_mock_hassette` returns a sealed `AsyncMock` with a real, Pydantic-validated [HassetteConfig][hassette.config.config.HassetteConfig]. It wires readiness events, scheduler service stubs, bus service stubs, and other standard attributes without running `Hassette.__init__`.
+`make_mock_hassette` returns a sealed `AsyncMock` with a real, Pydantic-validated [`HassetteConfig`][hassette.config.HassetteConfig]. It wires readiness events, scheduler service stubs, bus service stubs, and other standard attributes without running `Hassette.__init__`.
 
 ```python
 --8<-- "pages/testing/snippets/factories_mock_hassette.py"

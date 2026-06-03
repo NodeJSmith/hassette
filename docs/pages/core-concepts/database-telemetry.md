@@ -103,28 +103,6 @@ Three steps resolve most degraded states.
 
 Hassette recreates the database on next startup.
 
-??? note "Execution columns reference"
-    Handler invocations and job executions are stored together in the `executions` table. A `kind` column distinguishes the two types. Handler rows carry a `listener_id` foreign key; job rows carry a `job_id` foreign key. Exactly one is non-null per row.
-
-    | Column | Type | Description |
-    |---|---|---|
-    | `kind` | string | `'handler'` for bus listener invocations; `'job'` for scheduled job executions |
-    | `listener_id` | integer or null | Foreign key into `listeners`. Set for handler rows; null for job rows. |
-    | `job_id` | integer or null | Foreign key into `scheduled_jobs`. Set for job rows; null for handler rows. |
-    | `execution_start_ts` | float | Unix timestamp when execution started |
-    | `duration_ms` | float | Wall-clock time in milliseconds |
-    | `status` | string | Outcome: `success`, `error`, `cancelled`, or `timed_out` |
-    | `is_di_failure` | boolean | Whether the execution failed due to a dependency injection error. Always `0` for job rows. |
-    | `source_tier` | string | `app` for user automations; `framework` for internal Hassette components |
-    | `error_type` | string or null | Exception class name, if execution raised an error |
-    | `error_message` | string or null | Exception message, if execution raised an error |
-    | `error_traceback` | string or null | Full Python traceback, if execution raised an error |
-    | `execution_id` | string or null | UUID tying this row to a specific trigger delivery or scheduler invocation |
-    | `trigger_context_id` | string or null | UUID identifying the originating event. For HA events, this matches `context.id` from Home Assistant and is stable across all handlers receiving the same event. |
-    | `trigger_origin` | string or null | Where the trigger originated: `LOCAL`, `REMOTE`, or `HASSETTE`. Null for job rows. |
-
-    The `execution_id`, `trigger_context_id`, and `trigger_origin` columns were added in a schema migration. Rows written before this migration have null in all three columns. The web UI renders null as "—" in the Trace ID, Trigger, and Origin columns.
-
 ## Related Resources
 
 - [Global Configuration](configuration/index.md), all configuration fields
