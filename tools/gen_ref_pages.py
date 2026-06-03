@@ -126,7 +126,8 @@ def main() -> None:
                 print(f"[gen-ref] skipping {module_path} (not in allowlist)")
             continue
 
-        nav_entry = [format_title(part) for part in parts]
+        nav_parts = parts[1:] if parts[0] == "hassette" and len(parts) > 1 else parts
+        nav_entry = [format_title(part) for part in nav_parts]
         nav[nav_entry] = doc_path.as_posix()
 
         if DEBUG:
