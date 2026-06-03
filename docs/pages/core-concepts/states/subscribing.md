@@ -1,8 +1,8 @@
 # Subscribing to State Changes
 
-The [Bus](../bus/index.md) delivers `state_changed` events to handlers each time Home Assistant reports an entity update. `on_state_change` and `on_attribute_change` are the two subscription methods for reacting to entity state. Both are async and return a [`Subscription`][hassette.bus.listeners.Subscription] handle.
+The [`Bus`](../bus/index.md) delivers `state_changed` events to handlers each time Home Assistant reports an entity update. `on_state_change` and `on_attribute_change` are the two subscription methods for reacting to entity state. Both are async and return a [`Subscription`][hassette.bus.listeners.`Subscription`] handle.
 
-## Basic Subscription
+## Basic `Subscription`
 
 `on_state_change` accepts an entity ID, a `handler=`, and a required `name=`. The `name=` parameter identifies the listener in logs and the telemetry database. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at registration time.
 
@@ -10,7 +10,7 @@ The [Bus](../bus/index.md) delivers `state_changed` events to handlers each time
 --8<-- "pages/core-concepts/states/snippets/state_basic_subscribe.py"
 ```
 
-Entity IDs accept glob patterns. `"light.*"` matches any entity in the `light` domain. `"sensor.bedroom_*"` matches any sensor with a `bedroom_` prefix. Glob patterns work the same as on the [Bus](../bus/index.md#matching-multiple-entities) overview.
+Entity IDs accept glob patterns. `"light.*"` matches any entity in the `light` domain. `"sensor.bedroom_*"` matches any sensor with a `bedroom_` prefix. Glob patterns work the same as on the [`Bus`](../bus/index.md#matching-multiple-entities) overview.
 
 ## Receiving Typed State
 
@@ -91,7 +91,7 @@ The handler fires only when the light moves from an off-like state into `"on"`. 
 
 Attribute-specific predicates compose inside `where=` the same way state predicates do: [`P.AttrFrom`][hassette.event_handling.predicates.AttrFrom], [`P.AttrTo`][hassette.event_handling.predicates.AttrTo], [`P.AttrDidChange`][hassette.event_handling.predicates.AttrDidChange], and [`P.AttrComparison`][hassette.event_handling.predicates.AttrComparison].
 
-## Subscription Options
+## `Subscription` Options
 
 Both `on_state_change` and `on_attribute_change` accept these parameters beyond `entity_id`, `handler=`, and `name=`.
 
@@ -119,7 +119,7 @@ Both `on_state_change` and `on_attribute_change` accept these parameters beyond 
 
 ## See Also
 
-- [Bus](../bus/index.md): subscription lifecycle, glob patterns, and `Subscription` handles
+- [`Bus`](../bus/index.md): subscription lifecycle, glob patterns, and `Subscription` handles
 - [Filtering & Predicates](../bus/filtering.md): complete `P`, `C`, and `A` reference
 - [Dependency Injection](../bus/dependency-injection.md): full `D.*` annotation reference
 - [States](index.md): reading state without subscribing, `self.states`, and domain access

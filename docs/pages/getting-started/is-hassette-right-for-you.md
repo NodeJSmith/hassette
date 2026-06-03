@@ -43,7 +43,7 @@ Hassette does not replace Home Assistant integrations, dashboards, or add-ons. I
 
 **A long-lived access token.** Hassette connects to Home Assistant via a token you generate in your profile settings. It needs read and write access to call services and read state.
 
-**Recommended: comfort with `async`/`await`.** Hassette apps are async Python classes. You do not need to understand the event loop deeply, but `await` and `async def` appear in every example. Hassette also offers [`AppSync`][hassette.app.app.AppSync] for writing synchronous apps, though the async API is what the docs focus on.
+**Recommended: comfort with `async`/`await`.** Hassette apps are async Python classes. You do not need to understand the event loop deeply, but `await` and `async def` appear in every example. Hassette also offers [`AppSync`][hassette.app.app.`AppSync`] for writing synchronous apps, though the async API is what the docs focus on.
 
 ## Next Steps
 

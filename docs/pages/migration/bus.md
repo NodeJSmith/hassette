@@ -1,4 +1,4 @@
-# Bus & Events
+# `Bus` & Events
 
 This page covers migrating AppDaemon event listeners and state change listeners to Hassette's event bus (`self.bus`).
 
@@ -55,7 +55,7 @@ The dependency injection form is preferred. `D.StateNew[states.InputButtonState]
 | `old="off"` | `changed_from="off"` |
 | `attribute="battery"` | Use `on_attribute_change()` instead |
 
-For more complex filtering, pass a predicate via `where=`. See [Bus filtering](../core-concepts/bus/filtering.md) for the full reference.
+For more complex filtering, pass a predicate via `where=`. See [`Bus` filtering](../core-concepts/bus/filtering.md) for the full reference.
 
 ## Attribute Change Listeners
 
@@ -106,7 +106,7 @@ AppDaemon passes extra kwargs from `listen_event()` into the callback via `**kwa
 
 ## Canceling Subscriptions
 
-AppDaemon returns an opaque handle from `listen_state()` and requires a separate cancel call. Hassette returns a [Subscription][hassette.bus.listeners.Subscription] object with a `.cancel()` method.
+AppDaemon returns an opaque handle from `listen_state()` and requires a separate cancel call. Hassette returns a [`Subscription`][hassette.bus.listeners.`Subscription`] object with a `.cancel()` method.
 
 === "AppDaemon"
 
@@ -165,7 +165,7 @@ All registration methods (`on_state_change`, `on_attribute_change`, `on_call_ser
 
 ## See Also
 
-- [Bus Overview](../core-concepts/bus/index.md), the full bus API
+- [`Bus` Overview](../core-concepts/bus/index.md), the full bus API
 - [Writing Handlers](../core-concepts/bus/handlers.md), handler patterns and DI
 - [Filtering & Predicates](../core-concepts/bus/filtering.md), composable predicate system
 - [Dependency Injection](../core-concepts/bus/dependency-injection.md), full DI reference

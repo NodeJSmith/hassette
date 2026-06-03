@@ -10,11 +10,11 @@ A motion sensor in the hallway fires every time someone walks past. The light sh
 
 ## How It Works
 
-`on_state_change` subscribes to every state transition on the motion sensor. [`D.StateNew[states.BinarySensorState]`](../core-concepts/bus/dependency-injection.md) delivers the new state as a typed object from [`hassette.models.states`](../core-concepts/states/index.md) — the handler covers both `True` and `False` transitions in one place rather than two separate subscriptions.
+`on_state_change` subscribes to every state transition on the motion sensor. [`D.StateNew[states.`BinarySensorState`]`](../core-concepts/bus/dependency-injection.md) delivers the new state as a typed object from [`hassette.models.states`](../core-concepts/states/index.md) — the handler covers both `True` and `False` transitions in one place rather than two separate subscriptions.
 
 When motion turns on, any pending off job is cancelled before the light turns on. This resets the timer — if motion fires again while the delay is running, the timeout starts over instead of firing at the original time.
 
-When motion clears, `run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [ScheduledJob][hassette.scheduler.classes.ScheduledJob] is stored on `self.off_job` so the on-handler can cancel it on re-trigger.
+When motion clears, `run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`] is stored on `self.off_job` so the on-handler can cancel it on re-trigger.
 
 `OFF_JOB_NAME` gives the scheduled job a stable name for log readability and deduplication.
 
@@ -57,6 +57,6 @@ The trade-off: two subscriptions are easier to read individually, but the single
 
 ## See Also
 
-- [Bus](../core-concepts/bus/index.md) — event subscriptions and rate control
-- [Scheduler](../core-concepts/scheduler/index.md) — `run_in` and job management
+- [`Bus`](../core-concepts/bus/index.md) — event subscriptions and rate control
+- [`Scheduler`](../core-concepts/scheduler/index.md) — `run_in` and job management
 - [Application Configuration](../core-concepts/configuration/applications.md) — per-instance config in `hassette.toml`

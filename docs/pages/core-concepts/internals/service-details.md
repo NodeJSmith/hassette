@@ -2,9 +2,9 @@
 
 Each section follows the event pipeline from a Home Assistant WebSocket frame through to a recorded execution. A top-to-bottom pass traces a single inbound event through every service it touches.
 
-## Bus Internals
+## `Bus` Internals
 
-The [Bus][hassette.bus.bus.Bus] handle translates `on_*()` calls into [`Listener`][hassette.bus.listeners.Listener] objects. The shared [`BusService`][hassette.core.bus_service.BusService] indexes those listeners by topic and drives dispatch.
+The [`Bus`][hassette.bus.bus.`Bus`] handle translates `on_*()` calls into [`Listener`][hassette.bus.listeners.Listener] objects. The shared [`BusService`][hassette.core.bus_service.BusService] indexes those listeners by topic and drives dispatch.
 
 ```mermaid
 flowchart TD
@@ -54,7 +54,7 @@ Events with other `event_type` values expand to only the base topic.
 
 Each collected listener runs `Listener.matches(event)`. Predicates registered via `P.*` and conditions registered via `C.*` are evaluated here. Listeners that fail the predicate are silently skipped.
 
-Each passing listener spawns a [`TaskBucket`][hassette.task_bucket.task_bucket.TaskBucket] task that calls `CommandExecutor.execute()`. All matching listeners for a given event run in parallel.
+Each passing listener spawns a [`TaskBucket`][hassette.task_bucket.task_bucket.`TaskBucket`] task that calls `CommandExecutor.execute()`. All matching listeners for a given event run in parallel.
 
 ### `Listener` Internal Structure
 
@@ -87,9 +87,9 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 | `once=True` | The listener auto-cancels after the first successful invocation |
 | `priority=N` | Lower values dispatch first; [`StateProxy`][hassette.core.state_proxy.StateProxy] uses priority 100 |
 
-## Scheduler Internals
+## `Scheduler` Internals
 
-[Scheduler][hassette.scheduler.scheduler.Scheduler] wraps convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `schedule`) around trigger objects. All jobs enter a shared min-heap inside [`SchedulerService`][hassette.core.scheduler_service.SchedulerService].
+[`Scheduler`][hassette.scheduler.scheduler.`Scheduler`] wraps convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `schedule`) around trigger objects. All jobs enter a shared min-heap inside [`SchedulerService`][hassette.core.scheduler_service.SchedulerService].
 
 ```mermaid
 flowchart TD
@@ -151,9 +151,9 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 `jitter=N` adds a random offset drawn from `[0, N]` seconds at enqueue time. Jobs in the same group share a `group=` label. `Scheduler.cancel_group(name)` cancels all jobs with that label. Named jobs (`name=`) support deduplication: `if_exists="skip"` leaves the existing job in place; `if_exists="replace"` cancels the existing job and re-registers.
 
-## StateManager and StateProxy
+## `StateManager` and `StateProxy`
 
-`StateProxy` maintains an in-memory cache of all entity states. [StateManager][hassette.state_manager.state_manager.StateManager] provides typed per-app access with Pydantic model validation.
+`StateProxy` maintains an in-memory cache of all entity states. [`StateManager`][hassette.state_manager.state_manager.`StateManager`] provides typed per-app access with Pydantic model validation.
 
 ```mermaid
 flowchart TD
@@ -205,7 +205,7 @@ Second, `_load_cache()` bulk-fetches all entity states via `get_states_raw()` an
 
 ### Type Conversion and `context_id` Caching
 
-[`DomainStates`][hassette.state_manager.state_manager.DomainStates] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` extracts the `context_id` from the raw state dict (a UUID from Home Assistant's event context). If the `context_id` matches the cached `CacheValue`, the previously validated Pydantic model is returned without re-running validation. A new `context_id` triggers a full validation pass and replaces the cached entry.
+[`DomainStates`][hassette.state_manager.state_manager.`DomainStates`] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` extracts the `context_id` from the raw state dict (a UUID from Home Assistant's event context). If the `context_id` matches the cached `CacheValue`, the previously validated Pydantic model is returned without re-running validation. A new `context_id` triggers a full validation pass and replaces the cached entry.
 
 `StateManager.__getattr__` caches `DomainStates` instances by model class in `_domain_states_cache`. Accessing `self.states.light` multiple times returns the same `DomainStates` object.
 
@@ -314,7 +314,7 @@ A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and 
 
 ### Synchronous Registration
 
-`BusService` and `SchedulerService` declare `depends_on: [DatabaseService]`. The database is ready before any listener or job registration runs. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. Scheduler methods behave identically.
+`BusService` and `SchedulerService` declare `depends_on: [DatabaseService]`. The database is ready before any listener or job registration runs. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
 
 ### Retention
 

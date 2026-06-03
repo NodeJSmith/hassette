@@ -1,4 +1,4 @@
-# Bus
+# `Bus`
 
 The event bus delivers Home Assistant events (state changes, service calls, component loads) to any app handler that subscribes. It also delivers Hassette-internal events.
 
@@ -30,13 +30,13 @@ flowchart TD
 
 ## Subscribing to Events
 
-[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
+[`Bus`][hassette.bus.`Bus`] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.`Subscription`] handle.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
 ```
 
-[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
+[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.`BinarySensorState`]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
 Four subscription methods cover the common event types:
 
@@ -51,7 +51,7 @@ All registration methods are async. Each requires a `name=` parameter, a stable 
 
 ## Matching Multiple Entities
 
-Subscription methods accept glob patterns for entity matching.
+`Subscription` methods accept glob patterns for entity matching.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_glob_patterns.py:glob_patterns"
@@ -89,7 +89,7 @@ Three subscription parameters manage handler invocation frequency.
 
 ## Synchronous Usage
 
-`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.`AppSync`] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Next Steps
 

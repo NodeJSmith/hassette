@@ -31,12 +31,12 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
 ```
 
-!!! info "What's `D.StateNew[states.LightState]`?"
+!!! info "What's `D.StateNew[states.`LightState`]`?"
     That annotation is [dependency injection](../bus/dependency-injection.md) — the handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
 ## Configuration
 
-[AppConfig][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
+[`AppConfig`][hassette.app.app_config.`AppConfig`] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
@@ -95,7 +95,7 @@ The `hassette.toml` file registers each app and supplies its config values. See 
 --8<-- "pages/core-concepts/apps/snippets/apps_subscribe_state_change.py:subscribe_state_change"
 ```
 
-See the [Bus](../bus/index.md) page for filtering, predicates, debounce, and throttle options.
+See the [`Bus`](../bus/index.md) page for filtering, predicates, debounce, and throttle options.
 
 ### Schedule Jobs
 
@@ -105,7 +105,7 @@ See the [Bus](../bus/index.md) page for filtering, predicates, debounce, and thr
 --8<-- "pages/core-concepts/apps/snippets/apps_run_hourly.py:run_hourly"
 ```
 
-See the [Scheduler](../scheduler/index.md) page for triggers, job groups, and jitter.
+See the [`Scheduler`](../scheduler/index.md) page for triggers, job groups, and jitter.
 
 ### Read Entity States
 
@@ -181,8 +181,8 @@ In production mode, the decorator is ignored by default. Set `allow_only_app_in_
 
 ## Synchronous Apps
 
-??? note "AppSync — for blocking code"
-    [`AppSync`][hassette.app.app.AppSync] runs automations that depend on blocking (non-async) libraries. Hassette executes the app's lifecycle hooks in a thread pool so they do not block the event loop. The bus, scheduler, and API remain async but expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`).
+??? note "`AppSync` — for blocking code"
+    [`AppSync`][hassette.app.app.`AppSync`] runs automations that depend on blocking (non-async) libraries. Hassette executes the app's lifecycle hooks in a thread pool so they do not block the event loop. The bus, scheduler, and API remain async but expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`).
 
     Prefer async `App` whenever possible. See [Lifecycle](lifecycle.md#synchronous-lifecycle) for the sync hook details and a full example.
 

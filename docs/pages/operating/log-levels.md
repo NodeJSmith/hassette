@@ -63,7 +63,7 @@ The per-app `log_level` under `[apps.<key>]` takes precedence over `logging.apps
 
 ## Examples
 
-### Debugging the Scheduler
+### Debugging the `Scheduler`
 
 ```toml
 --8<-- "pages/operating/snippets/debug_scheduler.toml"

@@ -31,4 +31,4 @@ Some services return data. `weather.get_forecasts` returns forecast arrays; `con
 ## See Also
 
 - [Entities & States](entities.md) for reading state after a service call.
-- [Bus](../bus/index.md) for subscribing to service calls from other sources via `on_call_service`.
+- [`Bus`](../bus/index.md) for subscribing to service calls from other sources via `on_call_service`.

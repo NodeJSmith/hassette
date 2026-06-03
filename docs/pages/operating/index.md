@@ -40,7 +40,7 @@ After the cooldown completes, the budget resets and the full retry sequence star
 
 The bus, scheduler, and state manager stay active during a disconnect. Subscriptions remain registered. Handlers resume without re-registration when the connection restores.
 
-[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.StateProxy] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must handle that exception or wait for reconnection.
+[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.`StateProxy`] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must handle that exception or wait for reconnection.
 
 The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability can subscribe to these topics:
 

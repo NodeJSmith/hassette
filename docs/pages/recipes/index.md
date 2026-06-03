@@ -11,5 +11,5 @@ Copy-paste-ready automations, organized by problem.
 
 ## See Also
 
-- [Core Concepts](../core-concepts/index.md). The building blocks all recipes use: Bus, Scheduler, API, and States.
+- [Core Concepts](../core-concepts/index.md). The building blocks all recipes use: `Bus`, `Scheduler`, API, and States.
 - [Getting Started](../getting-started/index.md). Installation and your first app.

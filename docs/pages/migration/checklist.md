@@ -12,14 +12,14 @@ The [Migration Guide overview](index.md) covers pre-migration setup (installing 
 
 - [ ] Convert `appdaemon.yaml` connection settings to `hassette.toml` `[hassette]` section
 - [ ] Convert each app entry in `apps.yaml` to an `[apps.your_app]` table in `hassette.toml`
-- [ ] Create a typed [AppConfig][hassette.app.app_config.AppConfig] subclass for each app. Move all `self.args["args"]["key"]` accesses to `self.app_config.key`
+- [ ] Create a typed [`AppConfig`][hassette.app.app_config.`AppConfig`] subclass for each app. Move all `self.args["args"]["key"]` accesses to `self.app_config.key`
 - [ ] Verify required fields raise a clear error if missing (run the app without a required config key)
 
 See [Configuration](configuration.md) for the full conversion guide.
 
 ## Step 2: App Structure
 
-- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync)
+- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.`AppSync`] (sync)
 - [ ] Rename `initialize()` to the correct hook for your base class:
     - `App`: `async def on_initialize(self)`. Must be `async def`.
     - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`).
@@ -44,18 +44,18 @@ See [Mental Model](concepts.md) for the lifecycle differences.
   - [ ] Replace `self.cancel_listen_event(handle)` with `subscription.cancel()`
 - [ ] For attribute-level subscriptions, switch to `await self.bus.on_attribute_change(...)`
 
-See [Bus & Events](bus.md) for side-by-side examples.
+See [`Bus` & Events](bus.md) for side-by-side examples.
 
-## Step 4: Scheduler
+## Step 4: `Scheduler`
 
 - [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds)`
 - [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`
 - [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval)`
 - [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM")`
-- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned [ScheduledJob][hassette.scheduler.classes.ScheduledJob]
+- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`]
 - [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
 
-See [Scheduler](scheduler.md) for method equivalents.
+See [`Scheduler`](scheduler.md) for method equivalents.
 
 ## Step 5: API Calls
 

@@ -44,7 +44,7 @@ Works with: any event type.
 
 ### Entity / Domain / Service Matching
 
-Works with: `HassEvent`, [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent].
+Works with: `HassEvent`, [`CallServiceEvent`][hassette.events.hass.hass.`CallServiceEvent`].
 
 | Predicate | Signature | Description |
 |---|---|---|
@@ -63,7 +63,7 @@ When `auto_glob=True` (the default), bare glob strings in `spec` values are auto
 
 ### State Change Predicates
 
-Works with: [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent].
+Works with: [`RawStateChangeEvent`][hassette.events.hass.hass.`RawStateChangeEvent`].
 
 | Predicate | Signature | Description |
 |---|---|---|
@@ -134,7 +134,7 @@ P.AllOf((
 
 ## Accessors (`A`)
 
-An accessor is a factory function that returns a callable `(event) -> value`. Predicates like `P.ValueIs`, `P.DidChange`, `P.IsPresent`, and `P.IsMissing` accept an accessor as their `source=` argument. Bus helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
+An accessor is a factory function that returns a callable `(event) -> value`. Predicates like `P.ValueIs`, `P.DidChange`, `P.IsPresent`, and `P.IsMissing` accept an accessor as their `source=` argument. `Bus` helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
 
 ### State Value
 

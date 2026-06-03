@@ -1,4 +1,4 @@
-# Scheduler
+# `Scheduler`
 
 The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 
@@ -51,4 +51,4 @@ Each convenience method creates a trigger object under the hood. `schedule()` ac
 ## Next Steps
 
 - [Scheduling Methods](methods.md): full method reference, cron expressions, custom triggers, and per-job options including `group`, `jitter`, and `if_exists`
-- [Job Management](management.md): cancelling, grouping, error handling, and the [ScheduledJob][hassette.scheduler.classes.ScheduledJob] object
+- [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`] object

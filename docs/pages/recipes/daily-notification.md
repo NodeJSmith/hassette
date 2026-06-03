@@ -71,5 +71,5 @@ message = "Time to wind down."
 
 ## See Also
 
-- [Scheduler Methods](../core-concepts/scheduler/methods.md), covering `run_daily`, `run_cron`, and all scheduling options
+- [`Scheduler` Methods](../core-concepts/scheduler/methods.md), covering `run_daily`, `run_cron`, and all scheduling options
 - [API Overview](../core-concepts/api/index.md), covering `call_service` and other Home Assistant API methods

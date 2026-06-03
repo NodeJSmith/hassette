@@ -1,6 +1,6 @@
-# Scheduler
+# `Scheduler`
 
-Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [ScheduledJob][hassette.scheduler.classes.ScheduledJob] object for cancellation.
+Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`] object for cancellation.
 
 ## Method Equivalents
 
@@ -19,7 +19,7 @@ Hassette scheduling lives on `self.scheduler`. All methods are `async` and retur
 !!! note "`run_daily` is now cron-backed"
     Hassette's `run_daily` fires at the specified wall-clock time every day, handling DST transitions correctly. An interval-based approach drifts by an hour across a DST boundary. The cron-backed implementation does not.
 
-Every scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. Call `.cancel()` on it to stop the job.
+Every scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`]. Call `.cancel()` on it to stop the job.
 
 ## Callback Signatures
 
@@ -79,10 +79,10 @@ async def periodic_async_task(self):
     ...
 ```
 
-[`AppSync`][hassette.app.app.AppSync] is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
+[`AppSync`][hassette.app.app.`AppSync`] is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
 
 ## See Also
 
-- [Scheduler Overview](../core-concepts/scheduler/index.md). The full scheduler API.
+- [`Scheduler` Overview](../core-concepts/scheduler/index.md). The full scheduler API.
 - [Scheduling Methods](../core-concepts/scheduler/methods.md). All helpers with examples.
 - [Job Management](../core-concepts/scheduler/management.md). Inspecting and canceling jobs.

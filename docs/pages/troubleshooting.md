@@ -32,7 +32,7 @@ AttributeError: Class MyApp not found in module apps.my_app
 
 Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
 
-**Invalid config.** A required [AppConfig][hassette.app.app_config.AppConfig] field has no value and no default:
+**Invalid config.** A required [`AppConfig`][hassette.app.app_config.`AppConfig`] field has no value and no default:
 
 ```
 ERROR hassette — Failed to load app 'MyApp' due to bad configuration
@@ -66,7 +66,7 @@ Work through this checklist in order.
 
 **5. App not enabled.** Check that the app's config block has `enabled = true` (the default). A disabled app's handlers are never registered.
 
-## Scheduler Not Firing
+## `Scheduler` Not Firing
 
 **Job scheduled for the past.** `run_once(at="07:00")` called after 7 AM defers the job to tomorrow and logs a WARNING. `run_daily(at="07:00")` fires at the next 7 AM occurrence.
 

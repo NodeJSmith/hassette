@@ -85,5 +85,5 @@ Typical uses include virtual sensors that expose computed values to the dashboar
 - [API Overview](index.md) — the full `self.api` surface
 - [Retrieving Entities & States](entities.md) — reading current state without history
 - [Calling Services](services.md) — controlling real devices
-- [Bus](../bus/index.md) — in-process event broadcast between apps
+- [`Bus`](../bus/index.md) — in-process event broadcast between apps
 - [App Cache](../cache/index.md) — persisting data across HA restarts

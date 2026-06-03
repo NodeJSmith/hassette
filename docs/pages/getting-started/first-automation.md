@@ -30,7 +30,7 @@ Hassette reads the annotation from your handler signature and passes in a typed 
 
 [`self.scheduler.run_minutely()`](../core-concepts/scheduler/methods.md) runs `log_heartbeat` every minute. The first run fires one minute after startup. Hassette tracks the job and cancels it automatically on shutdown.
 
-`log_heartbeat` takes no DI parameters. Not every handler needs them. See [Scheduler Methods](../core-concepts/scheduler/methods.md) for `run_daily`, `run_cron`, `run_once`, and more.
+`log_heartbeat` takes no DI parameters. Not every handler needs them. See [`Scheduler` Methods](../core-concepts/scheduler/methods.md) for `run_daily`, `run_cron`, `run_once`, and more.
 
 ## Run It
 
@@ -48,9 +48,9 @@ The `Sun changed` and `Porch light turned on` lines appear at the next sunset.
 
 ## Next Steps
 
-- [Bus & Handlers](../core-concepts/bus/index.md) — attribute changes, service calls, glob patterns, predicates, and conditions
+- [`Bus` & Handlers](../core-concepts/bus/index.md) — attribute changes, service calls, glob patterns, predicates, and conditions
 - [Dependency Injection](../core-concepts/bus/dependency-injection.md) — all the types you can extract into handler parameters
-- [Scheduler Methods](../core-concepts/scheduler/methods.md) — `run_daily`, `run_cron`, `run_once`, and jitter
+- [`Scheduler` Methods](../core-concepts/scheduler/methods.md) — `run_daily`, `run_cron`, `run_once`, and jitter
 - [Testing Your Apps](../testing/index.md) — unit tests using `AppTestHarness`
 - [Recipes](../recipes/index.md) — complete worked examples for motion lights, presence detection, and more
 - [Docker](docker/index.md) — run Hassette in production as a container

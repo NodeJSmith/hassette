@@ -52,7 +52,7 @@ Hassette runs all apps in a single asyncio event loop. Two things follow:
 --8<-- "pages/migration/snippets/concepts_sync_async.py"
 ```
 
-If you have blocking code that you cannot convert, use [`AppSync`][hassette.app.app.AppSync] (described below).
+If you have blocking code that you cannot convert, use [`AppSync`][hassette.app.app.`AppSync`] (described below).
 
 ## Typed vs Untyped
 
@@ -60,7 +60,7 @@ AppDaemon returns raw strings and dicts. `self.get_state("light.kitchen")` retur
 
 Hassette uses Pydantic models throughout.
 
-**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape; Pyright catches typos at development time, not at 2am.
+**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.`LightState`] with typed fields. Your IDE knows the shape; Pyright catches typos at development time, not at 2am.
 
 **App configuration** is a validated Pydantic model. You declare fields with types and defaults; Hassette loads and validates them at startup. A missing required field raises an error before any handler fires.
 
@@ -98,7 +98,7 @@ async def on_motion(self): ...
 
 Hassette inspects your handler's type annotations at subscription time and injects the right data automatically. See [Dependency Injection](../core-concepts/bus/dependency-injection.md) for the full reference.
 
-## Synchronous API (AppSync)
+## Synchronous API (`AppSync`)
 
 If you have a large synchronous codebase and don't want to convert everything at once, `AppSync` is an intermediate step. It runs lifecycle hooks in a managed thread, letting you write synchronous code as before.
 
@@ -112,6 +112,6 @@ Because the bus, scheduler, and API are async internally, `AppSync` exposes `.sy
 
 ## See Also
 
-- [Bus & Events](bus.md) — migrating `listen_state` and `listen_event`
+- [`Bus` & Events](bus.md) — migrating `listen_state` and `listen_event`
 - [API Calls](api.md) — migrating `get_state`, `call_service`, and `set_state`
 - [Dependency Injection](../core-concepts/bus/dependency-injection.md) — full DI reference

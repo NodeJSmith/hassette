@@ -12,7 +12,7 @@ Three things go wrong with handlers: they don't fire, they fire but error, or th
 
 ## Common Causes
 
-**Missing `name=` on subscription.** Bus registration raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time if `name=` is omitted. The handler never appears in the Handlers page. Add `name="descriptive_name"` to the `bus.on_state_change()` call. See [handler registration](../core-concepts/bus/handlers.md) for the full signature.
+**Missing `name=` on subscription.** `Bus` registration raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time if `name=` is omitted. The handler never appears in the Handlers page. Add `name="descriptive_name"` to the `bus.on_state_change()` call. See [handler registration](../core-concepts/bus/handlers.md) for the full signature.
 
 **Wrong entity pattern.** The handler is registered for `"light.kitchen"` but the entity is `"light.kitchen_ceiling"`. The handler exists in the Handlers page but shows zero invocations. Check the listener's trigger column for the exact pattern that was registered, then correct it in the source.
 
@@ -62,5 +62,5 @@ You can also construct the URL manually. Grab the execution ID from a CLI comman
 - [Web UI overview](index.md) — navigation, layout, and status bar controls
 - [Manage Apps](manage-apps.md) — app health, start/stop/reload, and status badges
 - [Logs](logs.md) — full log view with execution ID filtering
-- [Bus handlers](../core-concepts/bus/handlers.md) — handler registration, `name=` requirement, and options
+- [`Bus` handlers](../core-concepts/bus/handlers.md) — handler registration, `name=` requirement, and options
 - [Dependency injection](../core-concepts/bus/dependency-injection.md) — DI annotation reference

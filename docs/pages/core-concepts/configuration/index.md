@@ -80,7 +80,7 @@ The `HassetteConfig` reference covers every field, its type, and its default. Th
 --8<-- "pages/core-concepts/configuration/snippets/bus_filter_example.toml"
 ```
 
-Filtering at this level removes the events from every app simultaneously. Per-handler filtering using predicates is more selective. The [Bus](../bus/index.md) page covers handler-level options.
+Filtering at this level removes the events from every app simultaneously. Per-handler filtering using predicates is more selective. The [`Bus`](../bus/index.md) page covers handler-level options.
 
 ### Development and Debugging
 
@@ -92,7 +92,7 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 ### State Proxy Polling
 
-The StateManager keeps a local cache of entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
+The `StateManager` keeps a local cache of entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
 
 ## Full Reference
 

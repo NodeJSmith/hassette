@@ -4,7 +4,7 @@ Hassette manages app initialization and shutdown. The app declares what to do at
 
 ## Initialization
 
-Hassette transitions the app through `STARTING` to `RUNNING` at startup. All core services (API, Bus, Scheduler, and database) are ready before any hook runs.
+Hassette transitions the app through `STARTING` to `RUNNING` at startup. All core services (API, `Bus`, `Scheduler`, and database) are ready before any hook runs.
 
 Three hooks fire in order:
 
@@ -29,7 +29,7 @@ Three hooks fire in order:
 2. `on_shutdown`
 3. `after_shutdown`
 
-`on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. Bus subscriptions, scheduled jobs, and task bucket tasks are cleaned up automatically.
+`on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. `Bus` subscriptions, scheduled jobs, and task bucket tasks are cleaned up automatically.
 
 ## Automatic Cleanup
 
@@ -40,9 +40,9 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 
 ## Synchronous Lifecycle
 
-??? note "AppSync lifecycle hooks"
+??? note "`AppSync` lifecycle hooks"
 
-    [`AppSync`][hassette.app.app.AppSync] provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`. The `_sync` hooks are synchronous and cannot use `await`.
+    [`AppSync`][hassette.app.app.`AppSync`] provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`. The `_sync` hooks are synchronous and cannot use `await`.
 
     | `App` (async) | `AppSync` (sync) |
     |---|---|
@@ -65,4 +65,4 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 
 - [Apps overview](index.md) — app structure and configuration
 - [Task Bucket](task-bucket.md) — background task lifecycle and shutdown behavior
-- [Bus](../bus/index.md) — handler registration in `on_initialize`
+- [`Bus`](../bus/index.md) — handler registration in `on_initialize`
