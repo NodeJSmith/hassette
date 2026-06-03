@@ -25,6 +25,17 @@ video.hero-video {
   }
 }
 
+/* Widen the content grid from the default ~61rem */
+.md-grid {
+  max-width: 1440px;
+}
+
+/* Tables: fill the content area instead of shrinking to inline-block */
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+}
+
 /* Reduce sidebar width at mid-range viewports to prevent content squeeze */
 @media screen and (min-width: 1220px) and (max-width: 1440px) {
   .md-sidebar--primary {
