@@ -55,7 +55,7 @@ full annotation table, union types, and custom extractors.
 
 ## Non-State Event Types
 
-The bus subscribes to more than state changes. Each method below returns a `Subscription`,
+The bus subscribes to more than state changes. Each method below returns a [Subscription][hassette.bus.listeners.Subscription],
 a handle that cancels the listener when called. All accept the same `name=`, `on_error=`,
 `timeout=`, `debounce=`, and `throttle=` options as `on_state_change`.
 

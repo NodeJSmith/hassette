@@ -1,6 +1,6 @@
 # Test Harness Reference
 
-`AppTestHarness` wires an `App` subclass into Hassette's test infrastructure
+`AppTestHarness` wires an [App][hassette.app.app.App] subclass into Hassette's test infrastructure
 without a live Home Assistant connection. It exposes the app's bus, scheduler,
 seeded state, and a `RecordingApi` that records every API call.
 
@@ -235,7 +235,7 @@ output.
 | Parameter | Type | Description |
 |---|---|---|
 | `app_cls` | `type[App]` | The `App` subclass to test |
-| `config` | `dict[str, Any]` | Config values validated against the app's `AppConfig` |
+| `config` | `dict[str, Any]` | Config values validated against the app's [AppConfig][hassette.app.app_config.AppConfig] |
 | `tmp_path` | `Path \| None` | Directory for Hassette data. Auto-created and cleaned up if omitted. |
 
 ### Properties
@@ -243,10 +243,10 @@ output.
 | Property | Type | Description |
 |---|---|---|
 | `harness.app` | `App` | Fully initialized app instance |
-| `harness.bus` | `Bus` | Test bus owned by the app |
-| `harness.scheduler` | `Scheduler` | Test scheduler owned by the app |
+| `harness.bus` | [Bus][hassette.bus.bus.Bus] | Test bus owned by the app |
+| `harness.scheduler` | [Scheduler][hassette.scheduler.scheduler.Scheduler] | Test scheduler owned by the app |
 | `harness.api_recorder` | `RecordingApi` | Records every API call the app makes |
-| `harness.states` | `StateManager` | State manager owned by the app |
+| `harness.states` | [StateManager][hassette.state_manager.state_manager.StateManager] | State manager owned by the app |
 
 ## Next Steps
 

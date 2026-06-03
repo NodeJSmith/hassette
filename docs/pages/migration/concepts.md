@@ -18,7 +18,7 @@ This page maps the design differences between AppDaemon and Hassette so you can 
 
 Three things change:
 
-- **Base class**: `Hass` becomes `App[Config]`. The generic parameter is optional. `App` with no type argument works fine.
+- **Base class**: `Hass` becomes `App[Config]`. The generic parameter is optional. [App][hassette.app.app.App] with no type argument works fine.
 - **Lifecycle hook**: `initialize()` becomes `on_initialize()`.
 - **Async keyword**: Hassette's hook is `async def`. The body uses `await`.
 

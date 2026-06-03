@@ -36,7 +36,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 
 ## Configuration
 
-`AppConfig` loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
+[AppConfig][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"

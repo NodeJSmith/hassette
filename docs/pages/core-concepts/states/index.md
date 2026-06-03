@@ -1,6 +1,6 @@
 # States
 
-The `StateManager` keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
+The [StateManager][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
 
 ```mermaid
 flowchart TD
@@ -60,7 +60,7 @@ Custom state class definition and registration are covered in [Custom States](cu
 
 ## What a State Object Contains
 
-Every state object is a `BaseState` subclass. The following fields and properties are available on all of them.
+Every state object is a [BaseState][hassette.models.states.base.BaseState] subclass. The following fields and properties are available on all of them.
 
 **`value`** is the entity's current state, typed for the domain. `SwitchState.value` is `bool | None`, `SensorState.value` is `str | None`, `SelectState.value` is `str | None`. When HA reports `"unknown"` or `"unavailable"`, `value` is `None`. `is_unknown` and `is_unavailable` identify which case applies.
 

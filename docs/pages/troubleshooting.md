@@ -32,7 +32,7 @@ AttributeError: Class MyApp not found in module apps.my_app
 
 Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
 
-**Invalid config.** A required `AppConfig` field has no value and no default:
+**Invalid config.** A required [AppConfig][hassette.app.app_config.AppConfig] field has no value and no default:
 
 ```
 ERROR hassette — Failed to load app 'MyApp' due to bad configuration
@@ -192,7 +192,7 @@ For container startup failures, dependency installation, health check failures, 
 
 **`CannotOverrideFinalError`** An app class overrides a lifecycle method marked as final (such as `initialize`). Use the public hook (`on_initialize`) instead.
 
-**`InvalidInheritanceError`** An app class inherits from `App` incorrectly. Check the class definition and the error message for details.
+**`InvalidInheritanceError`** An app class inherits from [App][hassette.app.app.App] incorrectly. Check the class definition and the error message for details.
 
 ### Framework Base
 

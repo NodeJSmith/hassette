@@ -4,7 +4,7 @@ Each section follows the event pipeline from a Home Assistant WebSocket frame th
 
 ## Bus Internals
 
-The `Bus` handle translates `on_*()` calls into `Listener` objects. The shared `BusService` indexes those listeners by topic and drives dispatch.
+The [Bus][hassette.bus.bus.Bus] handle translates `on_*()` calls into `Listener` objects. The shared `BusService` indexes those listeners by topic and drives dispatch.
 
 ```mermaid
 flowchart TD
@@ -89,7 +89,7 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 
 ## Scheduler Internals
 
-`Scheduler` wraps convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `schedule`) around trigger objects. All jobs enter a shared min-heap inside `SchedulerService`.
+[Scheduler][hassette.scheduler.scheduler.Scheduler] wraps convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `schedule`) around trigger objects. All jobs enter a shared min-heap inside `SchedulerService`.
 
 ```mermaid
 flowchart TD
@@ -153,7 +153,7 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ## StateManager and StateProxy
 
-`StateProxy` maintains an in-memory cache of all entity states. `StateManager` provides typed per-app access with Pydantic model validation.
+`StateProxy` maintains an in-memory cache of all entity states. [StateManager][hassette.state_manager.state_manager.StateManager] provides typed per-app access with Pydantic model validation.
 
 ```mermaid
 flowchart TD
@@ -215,7 +215,7 @@ On WebSocket disconnect, `StateProxy` clears `self.states` and calls `mark_not_r
 
 ## Api Internals
 
-The per-app `Api` handle delegates all network I/O to two shared singletons: `ApiResource` (REST) and `WebsocketService` (WebSocket).
+The per-app [Api][hassette.api.api.Api] handle delegates all network I/O to two shared singletons: `ApiResource` (REST) and `WebsocketService` (WebSocket).
 
 ```mermaid
 flowchart TD

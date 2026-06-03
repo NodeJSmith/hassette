@@ -1,6 +1,6 @@
 # State Registry
 
-`StateRegistry` maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which `BaseState` subclass handles conversion.
+`StateRegistry` maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which [BaseState][hassette.models.states.base.BaseState] subclass handles conversion.
 
 Most apps never interact with the registry directly. The [DI system](../bus/dependency-injection.md) and [`self.states`](index.md) use it automatically on every state event.
 

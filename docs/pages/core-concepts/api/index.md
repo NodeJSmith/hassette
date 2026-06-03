@@ -50,7 +50,7 @@ The two most common operations are reading state and calling a service.
 
 ## Error Handling
 
-`Api` raises typed exceptions for common failures.
+[Api][hassette.api.api.Api] raises typed exceptions for common failures.
 
 - [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if the entity does not exist in Home Assistant.
 - [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] if authentication failed (invalid or expired token).

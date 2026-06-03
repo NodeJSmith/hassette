@@ -43,6 +43,9 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, CannotOverrideFinalError
         "hassette.state_manager.state_manager",  # StateManager, DomainStates
         "hassette.bus.extraction",  # BusExtraction type used in dependency injection docs
+        "hassette.resources.base",  # Resource base class referenced in lifecycle/internals docs
+        "hassette.resources.service",  # Service base class referenced in internals docs
+        "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
     }
 )
 

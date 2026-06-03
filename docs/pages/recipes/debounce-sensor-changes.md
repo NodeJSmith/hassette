@@ -18,7 +18,7 @@ Your outdoor temperature sensor reports a reading every few seconds. On a warm a
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 
-`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to `AppConfig` fields covers multiple sensors with a single class.
+`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to [AppConfig][hassette.app.app_config.AppConfig] fields covers multiple sensors with a single class.
 
 ## Verify It's Working
 

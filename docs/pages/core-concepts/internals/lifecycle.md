@@ -71,7 +71,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 ## Resource State Machine
 
-Every `Resource` and `Service` tracks its status as a `ResourceStatus` value.
+Every [Resource][hassette.resources.base.Resource] and `Service` tracks its status as a `ResourceStatus` value.
 
 ```mermaid
 stateDiagram-v2

@@ -6,7 +6,7 @@ This page covers the TOML side of app configuration. [Apps](../apps/index.md) co
 
 ## Registering an App
 
-An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to `apps.directory`. `class_name` is the name of the `App` subclass to load.
+An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to `apps.directory`. `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"

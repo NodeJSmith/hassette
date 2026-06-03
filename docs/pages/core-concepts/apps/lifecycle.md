@@ -36,7 +36,7 @@ Three hooks fire in order:
 After the shutdown hooks complete, Hassette cancels all bus subscriptions created via `self.bus`, all scheduled jobs created via `self.scheduler`, and all background tasks tracked by `self.task_bucket`. Manual unsubscription or job cancellation in `on_shutdown` is unnecessary.
 
 !!! warning
-    `initialize` and `shutdown` are marked `@final` on `Resource`. `cleanup` is marked `@final` on `App`. Attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
+    `initialize` and `shutdown` are marked `@final` on [Resource][hassette.resources.base.Resource]. `cleanup` is marked `@final` on `App`. Attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
 
 ## Synchronous Lifecycle
 

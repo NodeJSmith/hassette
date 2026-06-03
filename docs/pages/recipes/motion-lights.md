@@ -14,7 +14,7 @@ A motion sensor in the hallway fires every time someone walks past. The light sh
 
 When motion turns on, any pending off job is cancelled before the light turns on. This resets the timer — if motion fires again while the delay is running, the timeout starts over instead of firing at the original time.
 
-When motion clears, `run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned `ScheduledJob` is stored on `self.off_job` so the on-handler can cancel it on re-trigger.
+When motion clears, `run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [ScheduledJob][hassette.scheduler.classes.ScheduledJob] is stored on `self.off_job` so the on-handler can cancel it on re-trigger.
 
 `OFF_JOB_NAME` gives the scheduled job a stable name for log readability and deduplication.
 

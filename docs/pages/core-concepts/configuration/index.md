@@ -34,7 +34,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 
 ## Configuration Sections
 
-`HassetteConfig` organizes settings into named subsections. Each maps to a TOML table:
+[HassetteConfig][hassette.config.config.HassetteConfig] organizes settings into named subsections. Each maps to a TOML table:
 
 | TOML section | Controls |
 |---|---|

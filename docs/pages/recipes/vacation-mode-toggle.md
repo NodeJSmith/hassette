@@ -12,7 +12,7 @@ You're heading out for a week. You want lights to flicker on and off at odd hour
 
 Two `on_state_change` subscriptions watch the same `input_boolean`. The first fires when it turns `on`; the second fires when it turns `off`. Each handler does exactly one thing, so the two paths stay independent and easy to trace.
 
-When vacation mode activates, `run_every` schedules `simulate_presence` to run on a fixed interval. The returned `ScheduledJob` is stored on the instance so the stop handler can cancel it later.
+When vacation mode activates, `run_every` schedules `simulate_presence` to run on a fixed interval. The returned [ScheduledJob][hassette.scheduler.classes.ScheduledJob] is stored on the instance so the stop handler can cancel it later.
 
 Each tick, `simulate_presence` picks a random light from the configured list and reads its current state. If the light is on, it turns it off. If it is off, it turns it on. The random selection is what creates the irregular pattern. Toggling the same light at a fixed interval would look mechanical. Cycling through a random pick each time does not.
 
