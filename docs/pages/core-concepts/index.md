@@ -106,7 +106,7 @@ flowchart TD
 
 ## Startup
 
-Hassette starts services in dependency order. `Api`, `Bus`, `Scheduler`, and `States` are all ready before `on_initialize` runs on any app. [System Internals](internals.md) covers the full startup sequence and service lifecycle.
+Hassette starts services in dependency order. `Api`, `Bus`, `Scheduler`, and `States` are all ready before `on_initialize` runs on any app. [Resource Lifecycle & Supervision](internals/lifecycle.md) covers the full startup sequence and service lifecycle.
 
 ## Topics
 
@@ -117,7 +117,7 @@ Hassette starts services in dependency order. `Api`, `Bus`, `Scheduler`, and `St
 - [States](states/index.md): state models, domain access, type conversion.
 - [Configuration](configuration/index.md): Hassette and app configuration.
 - [Web UI](../web-ui/index.md): browser-based monitoring and management.
-- [System Internals](internals.md): service lifecycle, startup sequence, resource hierarchy.
+- [System Internals](internals/lifecycle.md): service lifecycle, startup sequence, resource hierarchy.
 - [API Reference](../../reference/index.md): auto-generated reference for all public modules.
 
 ??? note "Advanced Topics"
