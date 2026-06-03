@@ -19,7 +19,7 @@ See [Configuration](configuration.md) for the full conversion guide.
 
 ## Step 2: App Structure
 
-- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or `AppSync` (sync)
+- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync)
 - [ ] Rename `initialize()` to the correct hook for your base class:
     - `App`: `async def on_initialize(self)`. Must be `async def`.
     - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`).

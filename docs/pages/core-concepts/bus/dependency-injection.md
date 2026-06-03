@@ -6,7 +6,7 @@ Hassette's dependency injection system extracts typed data from events and passe
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
 ```
 
-`D.StateNew[states.LightState]` extracts the new state and converts it to a typed `LightState`. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
+`D.StateNew[states.LightState]` extracts the new state and converts it to a typed [`LightState`][hassette.models.states.light.LightState]. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
 
 All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
 
@@ -92,7 +92,7 @@ DI handlers do not support positional-only parameters (those before `/`) or `*ar
 
 ## See Also
 
-- [Custom Extractors](custom-extractors.md). Writing extractors, accessors, `AnnotationDetails`, and automatic type conversion.
+- [Custom Extractors](custom-extractors.md). Writing extractors, accessors, [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails], and automatic type conversion.
 - [Writing Handlers](handlers.md). Raw event and typed event patterns, handler error behavior.
 - [State Registry](../states/state-registry.md). Domain-to-model mapping.
 - [Type Registry](../states/type-registry.md). Automatic type conversion.

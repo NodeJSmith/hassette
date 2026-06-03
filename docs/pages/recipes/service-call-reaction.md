@@ -14,7 +14,7 @@ You have a primary light and an accent light. Whenever someone adjusts the prima
 
 `P.ServiceDataWhere({"entity_id": self.app_config.primary_light})` narrows that subscription further. The predicate compares the `entity_id` field in the incoming call's service data against the configured primary light. Calls targeting any other entity are dropped without invoking the handler.
 
-The handler receives a `CallServiceEvent`, the typed representation of a Home Assistant service call. `event.payload.data.service_data` holds the dict the caller passed to `light.turn_on`. That dict contains whatever combination of `brightness`, `color_temp`, `transition`, and other parameters the caller included. The handler checks each key individually and forwards only the ones present. Keys absent from the original call stay out of the accent call. The accent light keeps its existing values for those attributes.
+The handler receives a [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent], the typed representation of a Home Assistant service call. `event.payload.data.service_data` holds the dict the caller passed to `light.turn_on`. That dict contains whatever combination of `brightness`, `color_temp`, `transition`, and other parameters the caller included. The handler checks each key individually and forwards only the ones present. Keys absent from the original call stay out of the accent call. The accent light keeps its existing values for those attributes.
 
 `primary_light` and `accent_light` are environment-backed config fields. Changing which entities the app watches requires no code change. Set a different value in `hassette.toml` or the corresponding environment variable.
 

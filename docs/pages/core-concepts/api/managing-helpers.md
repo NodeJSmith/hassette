@@ -142,7 +142,7 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
     different wire payloads.
 
-    **`CounterRecord` and `CounterState` are two different models.** `CounterRecord`
+    **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
     represents stored configuration, returned by `list_counters`, `create_counter`, and
     `update_counter`. `CounterState` represents the live runtime value, returned by
     `get_state("counter.mycounter")`. Changes to stored config (for example, updating
@@ -154,9 +154,9 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     idempotent bootstrap pattern in [Creating a Helper on Startup](#creating-a-helper-on-startup)
     exists for this reason.
 
-    **`RetryableConnectionClosedError` is a second exception class callers may receive.**
+    **[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] is a second exception class callers may receive.**
     A WebSocket disconnect mid-CRUD propagates as `RetryableConnectionClosedError`, not
-    `FailedMessageError`. Exception handlers that target only `FailedMessageError` miss
+    [`FailedMessageError`][hassette.exceptions.FailedMessageError]. Exception handlers that target only `FailedMessageError` miss
     this case. A broader `except` clause covering both exception types handles it
     correctly.
 

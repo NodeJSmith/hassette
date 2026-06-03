@@ -4,7 +4,7 @@ The [Bus](../bus/index.md) delivers `state_changed` events to handlers each time
 
 ## Basic Subscription
 
-`on_state_change` accepts an entity ID, a `handler=`, and a required `name=`. The `name=` parameter identifies the listener in logs and the telemetry database. Omitting it raises `ListenerNameRequiredError` at registration time.
+`on_state_change` accepts an entity ID, a `handler=`, and a required `name=`. The `name=` parameter identifies the listener in logs and the telemetry database. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at registration time.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state_basic_subscribe.py"

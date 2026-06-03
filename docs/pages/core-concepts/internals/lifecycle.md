@@ -2,7 +2,7 @@
 
 ## What Happens When a Service Fails
 
-When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. `ServiceWatcher` receives that event and consults the service's `restart_spec` to decide what comes next. `restart_spec` is a frozen dataclass attached to the service class as a class attribute.
+When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] receives that event and consults the service's `restart_spec` to decide what comes next. `restart_spec` is a frozen dataclass attached to the service class as a class attribute.
 
 The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and either enter a long cooldown period or shut the system down entirely.
 
@@ -10,11 +10,11 @@ The outcome depends on three things: the exception type, how many restarts have 
 
 ## Restart Types
 
-`RestartType` controls what `ServiceWatcher` does when the restart budget is exhausted.
+[`RestartType`][hassette.types.enums.RestartType] controls what `ServiceWatcher` does when the restart budget is exhausted.
 
-**`PERMANENT`** means the service cannot be absent. When the budget runs out, `ServiceWatcher` transitions the service to `CRASHED` and calls `hassette.shutdown()`. `BusService` and `SchedulerService` use this type. Without them, no automations can run.
+**`PERMANENT`** means the service cannot be absent. When the budget runs out, `ServiceWatcher` transitions the service to `CRASHED` and calls `hassette.shutdown()`. [`BusService`][hassette.core.bus_service.BusService] and [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] use this type. Without them, no automations can run.
 
-**`TRANSIENT`** means the service can tolerate a long outage. When the budget runs out, the service enters `EXHAUSTED_COOLING`, waits for `cooldown_seconds`, resets the budget, and retries. If `max_cooldown_cycles` is set to a non-zero value, the service moves to `EXHAUSTED_DEAD` after that many failed cooldown cycles. `WebsocketService`, `DatabaseService`, and `WebApiService` use this type.
+**`TRANSIENT`** means the service can tolerate a long outage. When the budget runs out, the service enters `EXHAUSTED_COOLING`, waits for `cooldown_seconds`, resets the budget, and retries. If `max_cooldown_cycles` is set to a non-zero value, the service moves to `EXHAUSTED_DEAD` after that many failed cooldown cycles. [`WebsocketService`][hassette.core.websocket_service.WebsocketService], [`DatabaseService`][hassette.core.database_service.DatabaseService], and [`WebApiService`][hassette.core.web_api_service.WebApiService] use this type.
 
 **`TEMPORARY`** means the service is optional. When the budget runs out, the service transitions to `EXHAUSTED_DEAD` and stops permanently. Hassette continues running without it. `FileWatcherService` and `WebUIWatcherService` use this type. Losing live-reload capability does not impair automation execution.
 
@@ -45,11 +45,11 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 **Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `_handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
 
-**Fatal errors.** The exception name is in `fatal_error_names`, or the exception is a `FatalError` subclass. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for `SchemaVersionError`. A schema version mismatch requires human intervention, so no retry is attempted.
+**Fatal errors.** The exception name is in `fatal_error_names`, or the exception is a [`FatalError`][hassette.exceptions.FatalError] subclass. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted.
 
 ## RestartSpec Reference
 
-`RestartSpec` is a frozen dataclass. Attach it to a `Service` subclass as a class variable named `restart_spec`.
+[`RestartSpec`][hassette.resources.restart.RestartSpec] is a frozen dataclass. Attach it to a `Service` subclass as a class variable named `restart_spec`.
 
 ```python
 --8<-- "pages/core-concepts/snippets/internals_restart_spec.py"
@@ -71,7 +71,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 ## Resource State Machine
 
-Every [Resource][hassette.resources.base.Resource] and `Service` tracks its status as a `ResourceStatus` value.
+Every [Resource][hassette.resources.base.Resource] and `Service` tracks its status as a [`ResourceStatus`][hassette.types.enums.ResourceStatus] value.
 
 ```mermaid
 stateDiagram-v2

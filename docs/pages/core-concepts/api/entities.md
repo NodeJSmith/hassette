@@ -18,7 +18,7 @@ The [API overview](index.md) covers when to prefer `self.api` over `self.states`
 
 `get_state(entity_id)` returns a **state**, a snapshot of an entity at a point in time. A state includes `.value`, `.attributes`, `.last_changed`, `.last_updated`, and `.context`. The `.value` field is coerced to the domain's Python type. Lights and switches produce `bool`. Numeric sensors produce `float`. Most others remain `str`.
 
-The return type is a [BaseState][hassette.models.states.base.BaseState] subclass matched to the entity's domain. `light.kitchen` returns a `LightState` with typed attribute access.
+The return type is a [BaseState][hassette.models.states.base.BaseState] subclass matched to the entity's domain. `light.kitchen` returns a [`LightState`][hassette.models.states.light.LightState] with typed attribute access.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state.py"

@@ -44,7 +44,7 @@ Works with: any event type.
 
 ### Entity / Domain / Service Matching
 
-Works with: `HassEvent`, `CallServiceEvent`.
+Works with: `HassEvent`, [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent].
 
 | Predicate | Signature | Description |
 |---|---|---|
@@ -63,7 +63,7 @@ When `auto_glob=True` (the default), bare glob strings in `spec` values are auto
 
 ### State Change Predicates
 
-Works with: `RawStateChangeEvent`.
+Works with: [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent].
 
 | Predicate | Signature | Description |
 |---|---|---|

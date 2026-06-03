@@ -36,7 +36,7 @@ flowchart TD
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
 ```
 
-[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed `BinarySensorState`. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
+[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
 Four subscription methods cover the common event types:
 
@@ -89,7 +89,7 @@ Three subscription parameters manage handler invocation frequency.
 
 ## Synchronous Usage
 
-`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for `AppSync` lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Next Steps
 

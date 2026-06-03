@@ -20,7 +20,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 ## `schedule(func, trigger)`
 
-The primary scheduling entry point. All convenience methods delegate here. `schedule()` accepts any object implementing `TriggerProtocol`, including the built-in trigger classes and custom implementations.
+The primary scheduling entry point. All convenience methods delegate here. `schedule()` accepts any object implementing [`TriggerProtocol`][hassette.types.types.TriggerProtocol], including the built-in trigger classes and custom implementations.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -37,7 +37,7 @@ Shared parameters apply ([see above](#shared-parameters)).
 
 ### `run_in(func, delay)`
 
-The handler runs once after a fixed delay. The `After` trigger fires once and does not repeat.
+The handler runs once after a fixed delay. The [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -52,7 +52,7 @@ Shared parameters apply.
 
 ### `run_once(func, at)`
 
-The handler runs once at a specific wall-clock time. The `Once` trigger fires once and does not repeat.
+The handler runs once at a specific wall-clock time. The [`Once`][hassette.scheduler.triggers.Once] trigger fires once and does not repeat.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -206,7 +206,7 @@ All scheduling methods accept `args` and `kwargs` to supply data to the handler 
 
 ## Synchronous Scheduling
 
-`self.scheduler.sync` exposes a `SchedulerSyncFacade` that mirrors all scheduling methods as blocking calls. This is intended for use in `AppSync` lifecycle hooks, which run in a synchronous context.
+`self.scheduler.sync` exposes a `SchedulerSyncFacade` that mirrors all scheduling methods as blocking calls. This is intended for use in [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a synchronous context.
 
 All method signatures and parameters are identical to the async versions. The facade blocks until the registration completes.
 

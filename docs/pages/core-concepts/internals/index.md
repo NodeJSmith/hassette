@@ -5,14 +5,14 @@ This section covers Hassette's internal architecture for contributors and advanc
 Three pages make up the internals section:
 
 - **Architecture & Data Flow** (this page): event pipeline, service dependencies, component ownership
-- [Lifecycle & Supervision](lifecycle.md): state machines, readiness signaling, `ServiceWatcher` restart logic
+- [Lifecycle & Supervision](lifecycle.md): state machines, readiness signaling, [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] restart logic
 - [Per-Service Internals](service-details.md): bus routing, scheduler dispatch, database schema, state cache, web layer
 
 ## Event Pipeline
 
 An event travels through four stages before reaching a handler.
 
-`WebsocketService` receives raw frames from Home Assistant over a persistent WebSocket connection. It forwards each event to `EventStreamService`, which owns an anyio memory channel that decouples reception from processing. `BusService` reads from that channel and expands each event into a set of topics ordered by specificity. It then filters the topics against registered listeners. `CommandExecutor` invokes the matching handler and writes an execution record to SQLite.
+[`WebsocketService`][hassette.core.websocket_service.WebsocketService] receives raw frames from Home Assistant over a persistent WebSocket connection. It forwards each event to [`EventStreamService`][hassette.core.event_stream_service.EventStreamService], which owns an anyio memory channel that decouples reception from processing. [`BusService`][hassette.core.bus_service.BusService] reads from that channel and expands each event into a set of topics ordered by specificity. It then filters the topics against registered listeners. [`CommandExecutor`][hassette.core.command_executor.CommandExecutor] invokes the matching handler and writes an execution record to SQLite.
 
 ```mermaid
 flowchart TD
@@ -63,16 +63,16 @@ flowchart TD
     style outbound fill:#fff0e8,stroke:#cc8844
 ```
 
-`StateProxy` holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
+[`StateProxy`][hassette.core.state_proxy.StateProxy] holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
 
-Outbound calls go through the per-app [Api][hassette.api.api.Api] handle. Single-entity reads use `ApiResource` over REST. Service calls and bulk state reads use `WebsocketService` over WebSocket.
+Outbound calls go through the per-app [Api][hassette.api.api.Api] handle. Single-entity reads use [`ApiResource`][hassette.core.api_resource.ApiResource] over REST. Service calls and bulk state reads use `WebsocketService` over WebSocket.
 
 ### Failure behavior
 
 | Failure | Behavior |
 |---|---|
 | WS disconnect | `WebsocketService` retries with exponential jitter. `ServiceWatcher` restarts the service if `serve()` fails, within the TRANSIENT budget (5 restarts / 300 s). |
-| Auth failure | `InvalidAuthError` is a `FatalError` subclass. The `Service` base class catches it, calls `handle_crash()`, and `ServiceWatcher` triggers an immediate shutdown. |
+| Auth failure | [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] is a [`FatalError`][hassette.exceptions.FatalError] subclass. The `Service` base class catches it, calls `handle_crash()`, and `ServiceWatcher` triggers an immediate shutdown. |
 | Handler timeout | Logged; invocation recorded as timed-out. |
 | DB write failure | `CommandExecutor` retries up to 3 times, then drops the record with a counter increment. |
 
@@ -86,7 +86,7 @@ Services declare startup dependencies as a class-level `ClassVar`. The framework
 --8<-- "pages/core-concepts/snippets/index_depends_on.py"
 ```
 
-`depends_on` scoping is intentional: only direct children of the `Hassette` root participate. Per-app resources ([Bus][hassette.bus.bus.Bus], [Scheduler][hassette.scheduler.scheduler.Scheduler], `Api`, [StateManager][hassette.state_manager.state_manager.StateManager]) are not services and do not declare `depends_on`.
+`depends_on` scoping is intentional: only direct children of the [`Hassette`][hassette.core.core.Hassette] root participate. Per-app resources ([Bus][hassette.bus.bus.Bus], [Scheduler][hassette.scheduler.scheduler.Scheduler], `Api`, [StateManager][hassette.state_manager.state_manager.StateManager]) are not services and do not declare `depends_on`.
 
 ### Wave-Based Ordering
 
@@ -152,7 +152,7 @@ graph BT
     style wave5 fill:#acc8d8,stroke:#6688cc
 ```
 
-Shutdown proceeds in reverse wave order. `WebApiService` stops first. `DatabaseService` and `WebsocketService` stop last.
+Shutdown proceeds in reverse wave order. [`WebApiService`][hassette.core.web_api_service.WebApiService] stops first. [`DatabaseService`][hassette.core.database_service.DatabaseService] and `WebsocketService` stop last.
 
 ## Component Ownership
 
@@ -218,7 +218,7 @@ graph TD
     style perapp fill:#f8f0ff,stroke:#8866cc
 ```
 
-Per-app handles are thin wrappers around the shared services. When an app shuts down, its `Bus` removes listeners from `BusService` and its `Scheduler` removes jobs from `SchedulerService`. Each handle cleans up its own registrations. The shared services continue running for other apps.
+Per-app handles are thin wrappers around the shared services. When an app shuts down, its `Bus` removes listeners from `BusService` and its `Scheduler` removes jobs from [`SchedulerService`][hassette.core.scheduler_service.SchedulerService]. Each handle cleans up its own registrations. The shared services continue running for other apps.
 
 ## EventStreamService: Constructor-Time Dependency
 

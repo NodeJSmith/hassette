@@ -1,6 +1,6 @@
 # Type Registry
 
-Home Assistant sends nearly all values as strings over its WebSocket API. The `TypeRegistry` converts those strings to typed Python values (`int`, `float`, `bool`, `ZonedDateTime`, `Decimal`, and others) before they reach handler code.
+Home Assistant sends nearly all values as strings over its WebSocket API. The [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts those strings to typed Python values (`int`, `float`, `bool`, `ZonedDateTime`, `Decimal`, and others) before they reach handler code.
 
 The `TypeRegistry` handles value conversion. The [State Registry](state-registry.md) handles domain-to-class mapping. Most apps never touch the `TypeRegistry` directly because the built-in converters cover all standard HA types.
 
@@ -89,7 +89,7 @@ The decorator also accepts keyword arguments for error handling:
 def str_to_effect(value: str) -> Effect: ...
 ```
 
-`error_message` supports `{value}`, `{from_type}`, and `{to_type}` placeholders. `error_types` controls which exceptions trigger a wrapped `UnableToConvertValueError`; other exceptions propagate as `RuntimeError`.
+`error_message` supports `{value}`, `{from_type}`, and `{to_type}` placeholders. `error_types` controls which exceptions trigger a wrapped [`UnableToConvertValueError`][hassette.exceptions.UnableToConvertValueError]; other exceptions propagate as `RuntimeError`.
 
 ### Simple Registration
 

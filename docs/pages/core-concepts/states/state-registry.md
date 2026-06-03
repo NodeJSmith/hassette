@@ -1,6 +1,6 @@
 # State Registry
 
-`StateRegistry` maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which [BaseState][hassette.models.states.base.BaseState] subclass handles conversion.
+[`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which [BaseState][hassette.models.states.base.BaseState] subclass handles conversion.
 
 Most apps never interact with the registry directly. The [DI system](../bus/dependency-injection.md) and [`self.states`](index.md) use it automatically on every state event.
 
@@ -52,14 +52,14 @@ When direct registry access is needed outside an app, `STATE_REGISTRY` is availa
 
 ## The Conversion Flow
 
-When state data arrives from Home Assistant, `StateRegistry` and `TypeRegistry` cooperate to produce a typed object.
+When state data arrives from Home Assistant, `StateRegistry` and [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] cooperate to produce a typed object.
 
 1. Raw dict arrives from Home Assistant:
    ```python
    --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
    ```
 
-2. `StateRegistry.resolve(domain="time")` returns `TimeState`.
+2. `StateRegistry.resolve(domain="time")` returns [`TimeState`][hassette.models.states.time.TimeState].
 
 3. Pydantic validation begins on `TimeState`.
 

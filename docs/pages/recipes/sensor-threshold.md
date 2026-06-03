@@ -46,4 +46,4 @@ The log shows the warning line with the sensor name, value, and unit.
 
 - [Filtering](../core-concepts/bus/filtering.md). Full reference for `C.Comparison` and all other conditions.
 - [Dependency Injection](../core-concepts/bus/dependency-injection.md). How `D.StateNew` and `D.EntityId` work.
-- [States](../core-concepts/states/index.md). Typed state models and the `SensorState` attributes.
+- [States](../core-concepts/states/index.md). Typed state models and the [`SensorState`][hassette.models.states.sensor.SensorState] attributes.

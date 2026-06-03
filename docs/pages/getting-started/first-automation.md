@@ -18,7 +18,7 @@ The handler parameter `new_state: D.StateNew[states.SunState]` tells Hassette wh
 - **[`D`](../core-concepts/bus/dependency-injection.md)** is `hassette.dependencies`, a module of type annotations. `D.StateNew[T]` means "give me the new state, converted to type `T`."
 - **[`states`](../core-concepts/states/index.md#built-in-state-types)** is `hassette.models.states`, typed state classes for each HA domain. `states.SunState` has a `.value` attribute holding `"above_horizon"` or `"below_horizon"`.
 
-Hassette reads the annotation from your handler signature and passes in a typed `SunState` object. No event dict parsing. Your IDE knows the type, and Pyright catches typos.
+Hassette reads the annotation from your handler signature and passes in a typed [`SunState`][hassette.models.states.sun.SunState] object. No event dict parsing. Your IDE knows the type, and Pyright catches typos.
 
 [`self.api.turn_on()`](../core-concepts/api/index.md) calls a Home Assistant service. `domain="light"` routes it to `light.turn_on`.
 

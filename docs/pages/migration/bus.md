@@ -4,7 +4,7 @@ This page covers migrating AppDaemon event listeners and state change listeners 
 
 ## The `name=` Requirement
 
-Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises `ListenerNameRequiredError` at call time. Hassette uses this name for telemetry, log output, and listener deduplication across restarts.
+Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name for telemetry, log output, and listener deduplication across restarts.
 
 === "Missing name (breaks)"
 

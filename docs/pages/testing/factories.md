@@ -79,7 +79,7 @@ Event factories build typed event objects for direct bus dispatch. Most tests ca
 
 ### `create_state_change_event`
 
-`create_state_change_event` builds a `RawStateChangeEvent` suitable for direct bus dispatch.
+`create_state_change_event` builds a [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] suitable for direct bus dispatch.
 
 ```python
 --8<-- "pages/testing/snippets/testing_create_state_change_event.py"
@@ -97,7 +97,7 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 
 ### `create_call_service_event`
 
-`create_call_service_event` builds a `CallServiceEvent`.
+`create_call_service_event` builds a [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent].
 
 ```python
 --8<-- "pages/testing/snippets/testing_create_call_service_event.py"
@@ -155,7 +155,7 @@ The mock is sealed by default. Accessing any attribute not wired by the factory 
 
 ## RecordingApi Coverage Boundary
 
-`RecordingApi` records write-method calls and delegates read methods to the seeded `StateProxy`. Methods requiring a live HA connection raise `NotImplementedError`.
+`RecordingApi` records write-method calls and delegates read methods to the seeded [`StateProxy`][hassette.core.state_proxy.StateProxy]. Methods requiring a live HA connection raise `NotImplementedError`.
 
 **Explicit stubs** that raise `NotImplementedError` directly:
 
@@ -191,8 +191,8 @@ Methods not covered by the sync facade raise `NotImplementedError` rather than s
 `hassette.test_utils.helpers` contains several helpers used internally by the test infrastructure but not exported in `__all__`:
 
 - `make_full_state_change_event` builds a `RawStateChangeEvent` from pre-built state dicts rather than raw values. Also available via the Tier 2 re-export at `hassette.test_utils.make_full_state_change_event`.
-- `create_component_loaded_event` builds a `ComponentLoadedEvent` for a given component name.
-- `create_service_registered_event` builds a `ServiceRegisteredEvent` for a given domain and service.
+- `create_component_loaded_event` builds a [`ComponentLoadedEvent`][hassette.events.hass.hass.ComponentLoadedEvent] for a given component name.
+- `create_service_registered_event` builds a [`ServiceRegisteredEvent`][hassette.events.hass.hass.ServiceRegisteredEvent] for a given domain and service.
 
 `create_hassette_stub` is available from `hassette.test_utils._internal` and builds a `MagicMock` stub for web and API tests.
 

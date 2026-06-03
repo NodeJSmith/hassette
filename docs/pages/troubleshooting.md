@@ -4,11 +4,11 @@
 
 **Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](getting-started/ha_token.md).
 
-**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise `SchemeRequiredInBaseUrlError` at startup.
+**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup.
 
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
-**Invalid token at startup.** Look for `InvalidAuthError` in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
+**Invalid token at startup.** Look for [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
 
 **During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on the state proxy to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
@@ -44,13 +44,13 @@ Set the missing field in `hassette.toml` or via an environment variable.
 
 ## Handler Registration Fails
 
-**`ListenerNameRequiredError`.** All bus registration methods require a `name=` parameter. Omitting it raises this error immediately at registration time. Add a stable, descriptive name:
+**[`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError].** All bus registration methods require a `name=` parameter. Omitting it raises this error immediately at registration time. Add a stable, descriptive name:
 
 ```python
 await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
 ```
 
-**`DuplicateListenerError`.** Two listeners registered within the same app instance and session share the same `name` and topic. Use a different name for each listener, or remove the first registration before re-registering. Cross-session duplicates (after a restart) are handled by upsert and don't raise this error.
+**[`DuplicateListenerError`][hassette.exceptions.DuplicateListenerError].** Two listeners registered within the same app instance and session share the same `name` and topic. Use a different name for each listener, or remove the first registration before re-registering. Cross-session duplicates (after a restart) are handled by upsert and don't raise this error.
 
 ## Handler Never Fires
 
@@ -90,7 +90,7 @@ The database file is at `/data/hassette.db` by default.
 
 **Safe to delete.** Deleting `hassette.db` only removes telemetry history. Your automations continue to run. Restart Hassette to recreate the database.
 
-**Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises `SchemaVersionError` and halts. Auto-migration is not attempted. Either upgrade Hassette to match the database or delete the database to start fresh.
+**Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises [`SchemaVersionError`][hassette.exceptions.SchemaVersionError] and halts. Auto-migration is not attempted. Either upgrade Hassette to match the database or delete the database to start fresh.
 
 See also: [Database and Telemetry](core-concepts/database-telemetry.md#degraded-mode).
 
@@ -140,7 +140,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`CouldNotFindHomeAssistantError`** Raised when Hassette cannot reach the Home Assistant WebSocket at startup. Extends `FatalError`. Hassette will not retry. Check `base_url` and confirm Home Assistant is running and accessible.
+**`CouldNotFindHomeAssistantError`** Raised when Hassette cannot reach the Home Assistant WebSocket at startup. Extends [`FatalError`][hassette.exceptions.FatalError]. Hassette will not retry. Check `base_url` and confirm Home Assistant is running and accessible.
 
 **`InvalidAuthError`** The token was rejected by Home Assistant. Generate a new long-lived access token and update `HASSETTE__TOKEN`.
 
@@ -148,11 +148,11 @@ For container startup failures, dependency installation, health check failures, 
 
 **`SchemeRequiredInBaseUrlError`** `base_url` is set but has no scheme. Use `http://` or `https://`.
 
-**`ResourceNotReadyError`** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
+**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
 
 **`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
 
-**`FailedMessageError`** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
+**[`FailedMessageError`][hassette.exceptions.FailedMessageError]** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
 
 ### Registration
 
@@ -168,17 +168,17 @@ For container startup failures, dependency installation, health check failures, 
 
 **`NoDomainAnnotationError`** A state class is missing `domain: Literal["..."]`. Add the annotation.
 
-**`InvalidDataForStateConversionError`** The data passed to state conversion is malformed or `None`. Check the upstream event or API response.
+**[`InvalidDataForStateConversionError`][hassette.exceptions.InvalidDataForStateConversionError]** The data passed to state conversion is malformed or `None`. Check the upstream event or API response.
 
-**`UnableToConvertStateError`** The state dict exists but cannot be coerced to the target state class. Check that the class fields match the entity's actual attributes.
+**[`UnableToConvertStateError`][hassette.exceptions.UnableToConvertStateError]** The state dict exists but cannot be coerced to the target state class. Check that the class fields match the entity's actual attributes.
 
-**`InvalidEntityIdError`** An entity ID string is malformed (wrong format, empty, wrong type). Entity IDs must follow the `domain.object_id` pattern.
+**[`InvalidEntityIdError`][hassette.exceptions.InvalidEntityIdError]** An entity ID string is malformed (wrong format, empty, wrong type). Entity IDs must follow the `domain.object_id` pattern.
 
 ### Dependency Injection
 
 **`DependencyInjectionError`** The handler signature is invalid. A parameter uses `*args`, is positional-only, or is missing a type annotation. Fix the handler signature.
 
-**`DependencyResolutionError`** Injection succeeded at inspection time but failed at runtime while extracting or converting a value. Check the event data and the type annotations in the handler.
+**[`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError]** Injection succeeded at inspection time but failed at runtime while extracting or converting a value. Check the event data and the type annotations in the handler.
 
 ### Lifecycle
 
@@ -196,6 +196,6 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Framework Base
 
-**`HassetteError`** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
+**[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
 **`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `CouldNotFindHomeAssistantError`, `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`.

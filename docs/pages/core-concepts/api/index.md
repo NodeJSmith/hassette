@@ -61,7 +61,7 @@ Network errors are retried automatically. Catching [`HassetteError`][hassette.ex
 ## Synchronous Usage
 
 ??? note "AppSync and self.api.sync"
-    Apps that subclass `AppSync` override `on_initialize_sync` instead of `on_initialize`. Hassette runs the sync method in a thread. `self.api.sync` provides blocking versions of all async API methods.
+    Apps that subclass [`AppSync`][hassette.app.app.AppSync] override `on_initialize_sync` instead of `on_initialize`. Hassette runs the sync method in a thread. `self.api.sync` provides blocking versions of all async API methods.
 
     ```python
     --8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"

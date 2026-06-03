@@ -8,7 +8,7 @@ The WebSocket connection between Hassette and Home Assistant can drop for many r
 
 ### Layer 1: Initial connection retries
 
-When Hassette first starts (or `WebsocketService` restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added. Tenacity logs a WARNING before each sleep:
+When Hassette first starts (or [`WebsocketService`][hassette.core.websocket_service.WebsocketService] restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added. Tenacity logs a WARNING before each sleep:
 
 ```
 Retrying hassette.core.websocket_service.WebsocketService._make_connection.<locals>._inner_connect in X.Xs as it raised ...
@@ -24,11 +24,11 @@ A connection is considered "early drop" when it falls within `websocket.early_dr
 WebSocket early drop detected (elapsed=X.Xs, attempt=N/5) — retrying
 ```
 
-Early-drop retries only apply to genuine post-auth disconnects (`ServerDisconnectedError`, `RetryableConnectionClosedError`). Connection-refused errors bypass this layer entirely and go straight to layer 1's retry loop.
+Early-drop retries only apply to genuine post-auth disconnects (`ServerDisconnectedError`, [`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError]). Connection-refused errors bypass this layer entirely and go straight to layer 1's retry loop.
 
 ### Layer 3: ServiceWatcher restart budget
 
-`ServiceWatcher` supervises `WebsocketService` using a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters `EXHAUSTED_COOLING`, a 300-second cooldown, and retries from scratch. The logs show:
+[`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] supervises `WebsocketService` using a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters `EXHAUSTED_COOLING`, a 300-second cooldown, and retries from scratch. The logs show:
 
 ```
 Service 'WebsocketService' restart budget exhausted (TRANSIENT), entering cooldown for 300.0s
@@ -40,7 +40,7 @@ After the cooldown completes, the budget resets and the full retry sequence star
 
 The bus, scheduler, and state manager stay active during a disconnect. Subscriptions remain registered. Handlers resume without re-registration when the connection restores.
 
-[Api][hassette.api.api.Api] methods (REST calls to HA) and `StateProxy` access raise `ResourceNotReadyError` while the WebSocket is down. Code that calls these during a disconnect must handle that exception or wait for reconnection.
+[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.StateProxy] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must handle that exception or wait for reconnection.
 
 The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability can subscribe to these topics:
 

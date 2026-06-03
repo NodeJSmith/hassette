@@ -12,13 +12,13 @@ Three things go wrong with handlers: they don't fire, they fire but error, or th
 
 ## Common Causes
 
-**Missing `name=` on subscription.** Bus registration raises `ListenerNameRequiredError` at call time if `name=` is omitted. The handler never appears in the Handlers page. Add `name="descriptive_name"` to the `bus.on_state_change()` call. See [handler registration](../core-concepts/bus/handlers.md) for the full signature.
+**Missing `name=` on subscription.** Bus registration raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time if `name=` is omitted. The handler never appears in the Handlers page. Add `name="descriptive_name"` to the `bus.on_state_change()` call. See [handler registration](../core-concepts/bus/handlers.md) for the full signature.
 
 **Wrong entity pattern.** The handler is registered for `"light.kitchen"` but the entity is `"light.kitchen_ceiling"`. The handler exists in the Handlers page but shows zero invocations. Check the listener's trigger column for the exact pattern that was registered, then correct it in the source.
 
 **`changed_to` type mismatch.** Home Assistant state values are strings. `changed_to=True` never matches because the value on the wire is `"on"`, not `True`. Use `changed_to="on"` and `changed_to="off"`.
 
-**DI annotation mismatch.** A handler annotated with the wrong state type raises `DependencyResolutionError` at invocation time. The error banner in the handler detail panel shows the exception class and message. Check the parameter annotation against the entity's domain and see [dependency injection](../core-concepts/bus/dependency-injection.md) for the available types.
+**DI annotation mismatch.** A handler annotated with the wrong state type raises [`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError] at invocation time. The error banner in the handler detail panel shows the exception class and message. Check the parameter annotation against the entity's domain and see [dependency injection](../core-concepts/bus/dependency-injection.md) for the available types.
 
 **Domain excluded.** If the entity's domain appears in `bus_excluded_domains`, Hassette drops all events for that domain before they reach any handler. The handler exists and registers cleanly, but invocations never arrive. Check `bus_excluded_domains` in your `hassette.toml` and remove the domain if the exclusion is unintentional.
 

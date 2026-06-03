@@ -20,7 +20,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `StringBaseState`: `str` value
 
-`StringBaseState` is the most common choice. It passes through the raw HA state string with no conversion.
+[`StringBaseState`][hassette.models.states.base.StringBaseState] is the most common choice. It passes through the raw HA state string with no conversion.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/string_base_state.py"
@@ -28,7 +28,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `NumericBaseState`: `Decimal` value
 
-`NumericBaseState` converts the raw state string to `Decimal`. It accepts integer, float, and `Decimal` inputs.
+[`NumericBaseState`][hassette.models.states.base.NumericBaseState] converts the raw state string to `Decimal`. It accepts integer, float, and `Decimal` inputs.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/numeric_base_state.py"
@@ -36,7 +36,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `BoolBaseState`: `bool` value
 
-`BoolBaseState` converts `"on"` to `True` and `"off"` to `False` automatically.
+[`BoolBaseState`][hassette.models.states.base.BoolBaseState] converts `"on"` to `True` and `"off"` to `False` automatically.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/bool_base_state.py"
@@ -44,7 +44,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `DateTimeBaseState`: `ZonedDateTime`, `PlainDateTime`, or `Date` value
 
-`DateTimeBaseState` parses the raw state string into a `whenever` datetime type. The exact type depends on the string format from Home Assistant.
+[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] parses the raw state string into a `whenever` datetime type. The exact type depends on the string format from Home Assistant.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
@@ -52,7 +52,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `TimeBaseState`: `Time` value
 
-`TimeBaseState` parses the raw state string into a `whenever.Time` value.
+[`TimeBaseState`][hassette.models.states.base.TimeBaseState] parses the raw state string into a `whenever.Time` value.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/time_base_state.py"
@@ -70,7 +70,7 @@ When no built-in base class fits, a class can inherit from `BaseState[T]` direct
 
 ## Adding Typed Attributes
 
-Domain-specific attributes beyond `value` belong in an attributes class that inherits from `AttributesBase`. The `attributes` field on the state class accepts this class, overriding the default.
+Domain-specific attributes beyond `value` belong in an attributes class that inherits from [`AttributesBase`][hassette.models.states.base.AttributesBase]. The `attributes` field on the state class accepts this class, overriding the default.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/adding_custom_attributes.py"
@@ -82,7 +82,7 @@ Fields on the attributes class are optional by default when typed with `| None`.
 
 ### Via `self.states[CustomStateClass]`
 
-`self.states[RedditState]` returns a `DomainStates` collection typed to `RedditState`. Iteration yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance.
+`self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection typed to `RedditState`. Iteration yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/via_get_states.py"

@@ -57,7 +57,7 @@ The polling loop runs indefinitely without blocking the handler that started it.
     ```
 
     !!! warning
-        `run_sync()` blocks the calling thread. Calling it from the event loop thread causes a deadlock. It is safe inside `run_in_thread()` callbacks and `AppSync` lifecycle methods only.
+        `run_sync()` blocks the calling thread. Calling it from the event loop thread causes a deadlock. It is safe inside `run_in_thread()` callbacks and [`AppSync`][hassette.app.app.AppSync] lifecycle methods only.
 
     ### Running on the Loop Thread
 

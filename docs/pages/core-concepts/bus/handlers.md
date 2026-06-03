@@ -16,7 +16,7 @@ A handler with no parameters runs as a side effect. No event data is extracted o
 
 ### Raw event
 
-A handler annotated with `RawStateChangeEvent` receives the untyped event object directly.
+A handler annotated with [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] receives the untyped event object directly.
 The state value lives at `event.payload.data.new_state.get("state")`.
 
 ```python
@@ -178,10 +178,10 @@ used for upsert deduplication across restarts.
 Two listeners on the same topic in the same app instance must carry distinct names. Two
 listeners with the same name on different topics are distinct; topic is part of the key.
 
-`ListenerNameRequiredError` is raised at call time when `name=` is omitted. The message
+[`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] is raised at call time when `name=` is omitted. The message
 includes the handler method and topic.
 
-`DuplicateListenerError` is raised when a second listener with the same `(name, topic)`
+[`DuplicateListenerError`][hassette.exceptions.DuplicateListenerError] is raised when a second listener with the same `(name, topic)`
 is registered within the same app session. Cross-session registrations with the same name
 and topic update the existing record via upsert. This is not an error.
 

@@ -46,6 +46,22 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.resources.base",  # Resource base class referenced in lifecycle/internals docs
         "hassette.resources.service",  # Service base class referenced in internals docs
         "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
+        "hassette.bus.error_context",  # BusErrorContext referenced in handler docs
+        "hassette.events.hass.hass",  # RawStateChangeEvent, CallServiceEvent, ComponentLoadedEvent
+        "hassette.config.classes",  # AppManifest referenced in config docs
+        "hassette.scheduler.error_context",  # SchedulerErrorContext referenced in scheduler docs
+        "hassette.types.enums",  # ResourceStatus, RestartType referenced in lifecycle docs
+        "hassette.resources.restart",  # RestartSpec referenced in lifecycle docs
+        "hassette.core.service_watcher",  # ServiceWatcher referenced in internals/operating docs
+        "hassette.core.websocket_service",  # WebsocketService referenced in internals/operating docs
+        "hassette.core.bus_service",  # BusService referenced in internals docs
+        "hassette.core.scheduler_service",  # SchedulerService referenced in internals docs
+        "hassette.core.database_service",  # DatabaseService referenced in internals docs
+        "hassette.core.state_proxy",  # StateProxy referenced in internals/operating docs
+        "hassette.core.web_api_service",  # WebApiService referenced in internals docs
+        "hassette.core.event_stream_service",  # EventStreamService referenced in internals docs
+        "hassette.core.command_executor",  # CommandExecutor referenced in internals docs
+        "hassette.core.api_resource",  # ApiResource referenced in internals docs
     }
 )
 

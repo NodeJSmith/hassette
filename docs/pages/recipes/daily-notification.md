@@ -12,7 +12,7 @@ You want a push notification at the same time every day. A morning greeting, a w
 
 `DailyNotificationConfig` defines three fields: the wall-clock time as an `"HH:MM"` string, the notify service name, and the message body. All three carry defaults and can be overridden per instance in `hassette.toml`. The `env_prefix` means environment variables (`DAILY_NOTIFICATION_NOTIFY_TIME`, etc.) override config file values.
 
-`on_initialize` calls `self.scheduler.run_daily(self.send_notification, at=...)` with the configured time string. `run_daily` registers a `Daily` trigger that aligns to wall-clock time and handles DST transitions. The notification fires at 08:00 local time year-round, not at a fixed UTC offset.
+`on_initialize` calls `self.scheduler.run_daily(self.send_notification, at=...)` with the configured time string. `run_daily` registers a [`Daily`][hassette.scheduler.triggers.Daily] trigger that aligns to wall-clock time and handles DST transitions. The notification fires at 08:00 local time year-round, not at a fixed UTC offset.
 
 `send_notification` calls `self.api.call_service("notify", self.app_config.notify_service, ...)`. The first argument is the HA domain (`notify`). The second is the service name, the part after `notify.` in the HA instance. For `notify.mobile_app_phone`, pass `"mobile_app_phone"`. Extra keyword arguments (`message`, `title`) become `service_data` fields forwarded to Home Assistant.
 

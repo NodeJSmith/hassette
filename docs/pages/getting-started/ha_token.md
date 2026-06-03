@@ -12,7 +12,7 @@ Hassette authenticates to Home Assistant using a long-lived access token. You ge
 
    ![Create Long-Lived Access Token](../../_static/ha-create-token.png)
 
-3. Enter a name, for example `Hassette`, and click **OK**.
+3. Enter a name, for example [`Hassette`][hassette.core.core.Hassette], and click **OK**.
 
    ![Name Long-Lived Access Token](../../_static/ha-token-name.png)
 

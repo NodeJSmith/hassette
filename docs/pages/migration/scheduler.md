@@ -79,7 +79,7 @@ async def periodic_async_task(self):
     ...
 ```
 
-`AppSync` is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
+[`AppSync`][hassette.app.app.AppSync] is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
 
 ## See Also
 

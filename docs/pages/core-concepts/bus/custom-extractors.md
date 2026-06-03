@@ -16,7 +16,7 @@ Accessors also compose with predicates. `P.ValueIs(source=A.get_service_data_key
 
 ## Writing an Extractor
 
-A custom extractor is a plain callable that receives the raw event and returns a value. `AnnotationDetails` wraps that callable and registers it with the DI system.
+A custom extractor is a plain callable that receives the raw event and returns a value. [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails] wraps that callable and registers it with the DI system.
 
 `AnnotationDetails` is a frozen dataclass with two fields:
 
@@ -31,7 +31,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
-`get_friendly_name` receives the raw `RawStateChangeEvent` and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
+`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
 
 ## How Built-In Extractors Work
 
@@ -46,7 +46,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
     ]
     ```
 
-    `A.get_state_object_new` is an accessor that reads `event.payload.data.new_state` and converts it via the State Registry. `ensure_present` wraps it to raise `DependencyResolutionError` if the value is missing. A missing value skips the handler rather than passing `None`. The `Annotated` wrapper is what `extract_from_annotated` looks for when scanning the handler signature.
+    `A.get_state_object_new` is an accessor that reads `event.payload.data.new_state` and converts it via the State Registry. `ensure_present` wraps it to raise [`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError] if the value is missing. A missing value skips the handler rather than passing `None`. The `Annotated` wrapper is what `extract_from_annotated` looks for when scanning the handler signature.
 
     The `A.get_attr_new` pattern used in custom extractors follows the same structure:
 
