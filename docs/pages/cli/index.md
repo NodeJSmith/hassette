@@ -1,26 +1,27 @@
 # CLI
 
-The `hassette` CLI lets you query a running Hassette instance from the terminal. Check system health, inspect app status, browse listener invocations, tail logs, and review scheduled jobs — all without opening a browser or composing raw HTTP requests.
+The `hassette` CLI queries a running Hassette instance over HTTP. Check system health, inspect apps, read logs, and trace handler executions from the terminal. No HA credentials needed for read commands.
 
-The CLI queries the same REST API the web UI uses. You get the same data, formatted for the terminal by default or serialized to JSON for scripting.
+The default address is `http://localhost:8126`. See [Configuration](configuration.md) to point the CLI at a remote instance.
 
 ## Quick Start
 
-With Hassette running, open a second terminal:
-
 ```console
 $ hassette status
-╭──────────────────── SystemStatusResponse ────────────────────╮
-│  status               ok                                     │
-│  websocket_connected  True                                   │
-│  uptime_seconds       16.57                                  │
-│  entity_count         103                                    │
-│  app_count            3                                      │
-│  services_running     ["EventStreamService", ...]            │
-│  version              0.32.0                                 │
-│  boot_issues          []                                     │
-╰──────────────────────────────────────────────────────────────╯
+╭────────────────────── System Status ──────────────────────╮
+│  status               ok                                  │
+│  websocket_connected  true                                │
+│  uptime_seconds       17s                                 │
+│  entity_count         103                                 │
+│  app_count            3                                   │
+│  services_running     EventStreamService, WebApiService,  │
+│                       BusService, SchedulerService        │
+│  version              0.32.0                              │
+│  boot_issues          —                                   │
+╰───────────────────────────────────────────────────────────╯
 ```
+
+`hassette status` shows connection state, uptime, and app count. `boot_issues` lists any apps that failed to initialize.
 
 ```console
 $ hassette app
@@ -33,6 +34,8 @@ $ hassette app
 │ bus_handler_app │ running │ BusHandler… │ 1         │ 0        │ True    │ bus_handler_app.py│
 └─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────────────┘
 ```
+
+`hassette app` lists every loaded app with its status and invocation count. `Invoc/1h` shows handler firings in the last hour. A count of 0 is normal for apps that react to infrequent events.
 
 ```console
 $ hassette log --limit 5
@@ -51,17 +54,19 @@ $ hassette log --limit 5
 └─────────┴───────┴─────┴──────────┴─────────────────────┴────────────────────────────┘
 ```
 
-If Hassette is not running, you'll see a connection error:
+`hassette log` shows the most recent log entries. Narrow to a specific app with `--app <key>`, or go back further with `--since 1h`.
+
+If Hassette isn't running, every command gives the same error:
 
 ```console
 $ hassette status
-Network error: Connection refused: http://127.0.0.1:8126
+Could not connect to Hassette at http://localhost:8126
 ```
 
-See [Configuration](configuration.md) for how to point the CLI at a different address.
+Start Hassette with `hassette run`, then retry. See [Configuration](configuration.md) to connect to a remote instance.
 
 ## Next Steps
 
-- **[Command Reference](commands.md)**: Every command with flags and output examples.
-- **[Workflows](workflows.md)**: How to drill down from system status to a specific invocation.
-- **[Configuration & Scripting](configuration.md)**: JSON mode, `jq` recipes, shell completion, error handling.
+- [Command Reference](commands.md) — every command with flags and output examples
+- [Workflows](workflows.md) — drill down from "something is wrong" to root cause
+- [Configuration & Scripting](configuration.md) — JSON output, `jq`, shell completion
