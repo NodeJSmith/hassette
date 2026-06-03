@@ -51,9 +51,9 @@ nav:
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
+          - Filtering & Predicates: pages/core-concepts/bus/filtering.md
           - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
           - Custom Extractors: pages/core-concepts/bus/custom-extractors.md
-          - Filtering & Predicates: pages/core-concepts/bus/filtering.md
           - Predicate & Condition Reference: pages/core-concepts/bus/predicate-reference.md
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
