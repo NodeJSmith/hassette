@@ -1,39 +1,41 @@
 # Scheduler
 
-This page covers how to migrate AppDaemon scheduler calls to Hassette's `self.scheduler` attribute.
+Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a `ScheduledJob` object for cancellation.
 
-## Overview
+## Method Equivalents
 
-AppDaemon exposes scheduler helpers as methods directly on `self`: `self.run_in(...)`, `self.run_daily(...)`. They return an opaque handle you pass to `self.cancel_timer(handle)` to cancel the job.
+| AppDaemon | Hassette | Notes |
+|-----------|----------|-------|
+| `self.run_in(cb, 60)` | `await self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
+| `self.run_once(cb, time(7, 30))` | `await self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` |
+| `self.run_every(cb, "now", 300)` | `await self.scheduler.run_every(cb, seconds=300)` | Use `hours=`, `minutes=`, or `seconds=` |
+| `self.run_minutely(cb)` | `await self.scheduler.run_minutely(cb)` | Every 1 minute |
+| `self.run_hourly(cb, time(0, 30))` | `await self.scheduler.run_hourly(cb)` | Every 1 hour |
+| `self.run_daily(cb, time(7, 30))` | `await self.scheduler.run_daily(cb, at="07:30")` | Wall-clock, DST-safe |
+| `self.cancel_timer(handle)` | `job.cancel()` | Cancel via the returned job object |
+| — | `await self.scheduler.run_cron(cb, "0 7 * * *")` | Hassette-only; cron expression |
+| — | `await self.scheduler.schedule(cb, trigger)` | Hassette-only; custom trigger object |
 
-Hassette exposes the scheduler as a separate attribute `self.scheduler`. Methods use named parameters, and they return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object you cancel with `.cancel()`. Handlers can be async or sync, and they don't need to follow a fixed signature.
+!!! note "`run_daily` is now cron-backed"
+    Hassette's `run_daily` fires at the specified wall-clock time every day, handling DST transitions correctly. An interval-based approach drifts by an hour across a DST boundary. The cron-backed implementation does not.
+
+Every scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. Call `.cancel()` on it to stop the job.
 
 ## Callback Signatures
 
-**AppDaemon** requires schedule callbacks to follow `def my_callback(self, **kwargs)`. The `kwargs` dictionary includes any data you passed when scheduling plus an internal `__thread_id` value. The documentation recommends not using async functions due to the threading model.
+AppDaemon requires all schedule callbacks to match `def my_callback(self, **kwargs)`. The `kwargs` dict carries any data you passed at registration, plus an internal `__thread_id` key.
 
-**Hassette** scheduled jobs can be any callable — async or sync, with any parameters. If you pass keyword arguments when scheduling, declare them as parameters on your handler:
+Hassette accepts any callable, async or sync, with any parameters. Keyword arguments passed when scheduling arrive as named parameters on the handler:
 
 ```python
 --8<-- "pages/migration/snippets/scheduler_hassette.py"
 ```
 
-## Method Equivalents
+No fixed signature. No `**kwargs` unwrapping.
 
-| AppDaemon | Hassette | Hassette Notes |
-|-----------|----------|----------------|
-| `self.run_in(cb, 60)` | `self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
-| `self.run_once(cb, time(7, 30))` | `self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` |
-| `self.run_every(cb, "now", 300)` | `self.scheduler.run_every(cb, seconds=300)` | Interval via `hours=`, `minutes=`, `seconds=` |
-| `self.run_minutely(cb)` | `self.scheduler.run_minutely(cb)` | Every 1 minute by default |
-| `self.run_hourly(cb, time(0, 30))` | `self.scheduler.run_hourly(cb)` | Every 1 hour by default |
-| `self.run_daily(cb, time(7, 30))` | `self.scheduler.run_daily(cb, at="07:30")` | Wall-clock, DST-safe (cron-backed) |
-| `self.cancel_timer(handle)` | `job.cancel()` | Cancel via the returned job object |
+## Migration Example
 
-!!! note "`run_daily` is now wall-clock-aligned"
-    Hassette's `run_daily` uses a cron-based trigger internally. It fires at the specified wall-clock time every day, correctly handling DST transitions. This is different from the old interval-based approach that could drift by an hour across DST boundaries.
-
-## Side-by-Side Comparison
+The complete before/after for an app that uses `run_in`, `run_daily`, and `run_every`:
 
 === "AppDaemon"
 
@@ -44,50 +46,43 @@ Hassette exposes the scheduler as a separate attribute `self.scheduler`. Methods
 === "Hassette"
 
     ```python
-    --8<-- "pages/migration/snippets/scheduler_hassette.py"
-    ```
-
-## Migration Example
-
-The following shows a typical AppDaemon pattern converted to Hassette:
-
-=== "AppDaemon"
-
-    ```python
-    from datetime import time
-
-    def initialize(self):
-        self.run_in(self.delayed_task, 60)
-        self.run_daily(self.morning_task, time(7, 30))
-        handle = self.run_every(self.periodic_task, "now", 300)
-    ```
-
-=== "Hassette"
-
-    ```python
     --8<-- "pages/migration/snippets/scheduler_migration.py"
     ```
 
 **Key changes:**
 
-- Access via `self.scheduler` instead of calling directly on `self`
-- `run_daily` takes an `at="HH:MM"` string instead of a `time` object or `start=` parameter
-- `run_every` takes `hours=`, `minutes=`, `seconds=` keyword arguments instead of a positional `interval`
-- `run_cron` takes a cron expression string instead of keyword fields (`hour=`, `minute=`, etc.)
-- Jobs return rich `ScheduledJob` objects instead of opaque handles
-- Cancel with `job.cancel()` instead of `self.cancel_timer(handle)`
+- Call scheduling methods on `self.scheduler`, not directly on `self`
+- `await` every scheduling call
+- `run_daily` takes `at="HH:MM"` instead of a `datetime.time` object
+- `run_every` takes `hours=`, `minutes=`, or `seconds=` instead of a positional interval
+- Jobs return `ScheduledJob` objects; cancel with `job.cancel()` instead of `self.cancel_timer(handle)`
 
-## Blocking Work in Scheduler Callbacks
+## Blocking Work
 
-In AppDaemon, every callback runs in its own thread, so you can do blocking IO safely. In Hassette, the scheduler automatically runs sync callables in a thread pool, regardless of whether you're using `App` or `AppSync`. This means:
+In AppDaemon, every callback runs in its own thread, so blocking IO is safe anywhere.
 
-- Write the callback as a plain (non-async) `def` — the scheduler detects that it's not a coroutine and runs it in a thread automatically.
-- Use `AppSync` only if you also want sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`, etc.) — not because you need scheduler callbacks to run in threads.
+In Hassette, sync callables passed to the scheduler run in a thread pool automatically. Write a plain `def` callback and Hassette detects it is not a coroutine. No extra configuration needed.
 
-If your callback is `async def`, it runs in the event loop directly. For blocking IO inside an async callback, use `asyncio.to_thread()` or `self.task_bucket.run_in_thread()`.
+```python
+def periodic_sync_task(self):
+    # Runs in a thread pool. Blocking IO is safe here.
+    data = requests.get("http://example.com/api").json()
+    ...
+```
+
+Async callbacks run in the event loop directly. For blocking IO inside an `async def` callback, offload with `asyncio.to_thread()` or `self.task_bucket.run_in_thread()`:
+
+```python
+async def periodic_async_task(self):
+    # Must offload blocking work explicitly
+    data = await asyncio.to_thread(requests.get, "http://example.com/api")
+    ...
+```
+
+`AppSync` is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
 
 ## See Also
 
-- [Scheduler Overview](../core-concepts/scheduler/index.md) — the full scheduler API
-- [Scheduling Methods](../core-concepts/scheduler/methods.md) — all scheduling helpers with examples
-- [Job Management](../core-concepts/scheduler/management.md) — inspecting and canceling jobs
+- [Scheduler Overview](../core-concepts/scheduler/index.md). The full scheduler API.
+- [Scheduling Methods](../core-concepts/scheduler/methods.md). All helpers with examples.
+- [Job Management](../core-concepts/scheduler/management.md). Inspecting and canceling jobs.

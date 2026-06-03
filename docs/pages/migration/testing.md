@@ -1,41 +1,35 @@
 # Testing
 
-This page covers the key differences in the testing approach when migrating from AppDaemon to Hassette.
+AppDaemon has no official test harness. Testing AppDaemon apps means patching the `Hass` runtime, which is fragile and usually tests the mock rather than your code.
 
-## The Mental Model Shift
+Hassette ships `hassette.test_utils` with `AppTestHarness`, an async test harness that wires your app into a real Hassette environment. `RecordingApi` replaces the live Home Assistant connection, recording every API call your app makes so you can assert against it.
 
-AppDaemon has no official test harness. Testing AppDaemon apps typically means patching the `Hass` runtime, which is fragile and often ends up testing the mock rather than your code.
+## Setup
 
-Hassette ships with `hassette.test_utils` — a first-class async test harness. Instead of patching a runtime, you open an `AppTestHarness` context manager: it wires your app class into a real (but test-grade) Hassette environment with a `RecordingApi` instead of a live Home Assistant connection.
-
-The other shift is from synchronous to asynchronous tests. AppDaemon apps and tests are synchronous. Hassette apps are async, so your tests are async too. This is handled automatically by `pytest-asyncio`.
-
-## asyncio_mode = "auto" (Required)
-
-Add this to your `pyproject.toml`:
+**Add `asyncio_mode = "auto"` to your `pyproject.toml`:**
 
 ```toml
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 ```
 
-!!! warning "Don't skip this config"
-    If you omit `asyncio_mode = "auto"`, async tests will silently succeed **without actually running** — a false-green failure mode that is especially hard to diagnose after migration. This is the most common setup mistake when migrating from AppDaemon.
+!!! warning "Don't skip this"
+    Without it, async tests silently pass without running. This is the most common setup mistake when migrating from AppDaemon.
 
-## set_state() Order Matters
-
-Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward will overwrite the simulated state with the seeded value, silently corrupting subsequent reads.
+**Seed state before simulating events.** Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward overwrites the simulated state with the seeded value, silently corrupting subsequent reads.
 
 ```python
 --8<-- "pages/migration/snippets/testing_seed_order.py"
 ```
 
+## What a Test Looks Like
+
+Open an `AppTestHarness` context manager, seed your state, fire an event, assert the API call.
+
+```python
+--8<-- "pages/migration/snippets/testing_hassette_example.py"
+```
+
 ## Full Reference
 
-For the complete harness API — seeding state, simulating events, asserting API calls, scheduler time control, and more — see [Testing Your Apps](../testing/index.md).
-
-## See Also
-
-- [Testing Your Apps](../testing/index.md) — full test harness reference
-- [Time Control](../testing/time-control.md) — freezing and advancing time in tests
-- [Concurrency & pytest-xdist](../testing/concurrency.md) — parallel test execution
+The [Testing Your Apps](../testing/index.md) section covers the complete harness API: state seeding, event simulation, API call assertions, scheduler time control, and concurrency helpers.

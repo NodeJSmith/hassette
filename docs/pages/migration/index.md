@@ -1,92 +1,58 @@
 # Migration Guide
 
-This guide helps AppDaemon developers migrate their automations to Hassette. You will find concept-by-concept comparisons, side-by-side code examples, and a final checklist to track your progress.
+This guide covers migrating AppDaemon automations to Hassette.
 
-!!! note "Coming from Node-RED or pyscript?"
-    This guide focuses on AppDaemon because the mental model is the closest match to Hassette — both are Python-based, event-driven, and connect to Home Assistant via WebSocket. If you're coming from **Node-RED**, the visual flow model is very different from writing Python classes, so the [Getting Started guide](../getting-started/index.md) is a better starting point than this migration guide. If you're coming from **pyscript**, the transition is closer: you already write Python, but Hassette replaces the decorator-based, script-level approach with a structured class and dependency injection model — skimming this guide alongside Getting Started should orient you.
+## Quick Reference
+
+Four areas change: configuration, app structure, event handlers, and API calls.
+
+| Action | AppDaemon | Hassette | Guide |
+|--------|-----------|----------|-------|
+| Define an app | `class MyApp(Hass)` | `class MyApp(App[MyConfig])` | [Configuration](configuration.md) |
+| Lifecycle hook | `def initialize(self):` | `async def on_initialize(self):` | [Mental Model](concepts.md) |
+| Listen for state changes | `self.listen_state(self.cb, "light.x", new="on")` | `await self.bus.on_state_change("light.x", handler=self.cb, changed_to="on", name="...")` | [Bus & Events](bus.md) |
+| Listen for service calls | `self.listen_event(self.cb, "call_service", domain="light")` | `await self.bus.on_call_service(domain="light", handler=self.cb, name="...")` | [Bus & Events](bus.md) |
+| Cancel a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` | [Bus & Events](bus.md) |
+| Schedule a timer | `self.run_in(self.cb, 60)` | `await self.scheduler.run_in(self.cb, delay=60)` | [Scheduler](scheduler.md) |
+| Cancel a timer | `self.cancel_timer(handle)` | `job.cancel()` | [Scheduler](scheduler.md) |
+| Run daily at 07:30 | `self.run_daily(self.cb, time(7, 30, 0))` | `await self.scheduler.run_daily(self.cb, at="07:30")` | [Scheduler](scheduler.md) |
+| Call a HA service | `self.call_service("light/turn_on", entity_id="light.x")` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.x"})` | [API Calls](api.md) |
+| Get entity state | `self.get_state("light.x")` | `self.states.light.get("light.x")` or `await self.api.get_state("light.x")` | [API Calls](api.md) |
+| Access app config | `self.args["entity"]` | `self.app_config.entity` | [Configuration](configuration.md) |
+| Logging | `self.log("message")` | `self.logger.info("message")` | [Mental Model](concepts.md) |
 
 ## Is Migration Worth It?
 
-Both AppDaemon and Hassette connect to Home Assistant via WebSocket and let you write Python automations. The decision to migrate comes down to what you value:
-
-| You should migrate if... | You might stay with AppDaemon if... |
-|--------------------------|--------------------------------------|
-| You want IDE autocomplete and type errors at development time, not runtime | Your existing apps work and you don't need type safety |
-| You want to unit-test your automations with a proper test harness | You prefer synchronous code without `async`/`await` |
-| You want Pydantic-validated configuration with defaults and clear error messages | Your team already knows AppDaemon well |
-| You want structured logs that include the calling method and line number | You rely on AppDaemon-specific features not yet in Hassette |
-| You want a dependency injection model for event handlers | — |
+| Migrate if... | Stay with AppDaemon if... |
+|---------------|--------------------------|
+| You want IDE autocomplete and type errors at write time | Your apps work and you don't need type safety |
+| You want to unit-test automations with a real test harness | You prefer synchronous code without `async`/`await` |
+| You want Pydantic-validated config with clear error messages | Your team already knows AppDaemon well |
+| You want dependency injection in event handlers | You rely on AppDaemon features not yet in Hassette |
+| You want structured per-app logs with method and line context | |
 
 ## Known Gaps
 
-The following AppDaemon features are not currently in Hassette. If your apps rely on any of these, migration is not yet recommended:
-
 | AppDaemon feature | Status in Hassette |
 |-------------------|--------------------|
-| `listen_log` / log event subscriptions | Out of scope — not planned |
-| HADashboard | Out of scope — Hassette has its own web UI for monitoring, not display panels |
-| Notification app helpers (`notify`, `call_action`) | Out of scope — call `self.api.call_service("notify", ...)` directly |
-| MQTT plugin | Roadmap — not yet supported; use `self.api.call_service` workarounds |
-| Global variables / inter-app communication via `AD` | `self.bus.emit(topic, data)` for in-process broadcast — see [Broadcasting Events Between Apps](../core-concepts/apps/index.md#broadcasting-events-between-apps) |
+| `listen_log` / log event subscriptions | Not planned |
+| HADashboard | Not planned. Hassette has its own monitoring UI. |
+| Notification helpers (`notify`, `call_action`) | Use `await self.api.call_service("notify", ...)` directly |
+| MQTT plugin | Not yet supported. No workaround available. |
+| Global variables / inter-app communication | Use `await self.bus.emit(topic, data)` for in-process broadcast |
 
-If a feature you depend on is missing, open an issue or check the [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
+If a feature you depend on is missing, [open an issue](https://github.com/NodeJSmith/hassette/issues) or check [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
 
-## What Changes
+## Common Pitfalls
 
-When you migrate from AppDaemon, you change four areas:
+**`name=` is required on all bus subscriptions.** Omitting it raises `ListenerNameRequiredError` at runtime. Every `on_state_change`, `on_call_service`, and `on` call needs a stable string name.
 
-1. **Configuration** — `appdaemon.yaml` + `apps.yaml` become a single `hassette.toml`. App arguments become typed Pydantic models instead of raw dictionaries.
-2. **App structure** — `Hass` subclass with `initialize()` becomes an `App` subclass with `async def on_initialize()`.
-3. **Event handlers** — `self.listen_state(...)` and `self.listen_event(...)` become `await self.bus.on_state_change(..., name=...)` and `await self.bus.on_call_service(..., name=...)` (async; `name=` required).
-4. **API calls** — synchronous `self.call_service(...)` becomes `await self.api.call_service(...)`.
+**`self.api.*` and `self.bus.on_*` are async and must be awaited.** Forgetting `await` returns a coroutine object. Nothing is registered or called.
 
-The scheduler API is similar to AppDaemon's, with named parameters and richer job objects.
+**`changed_to=` takes the string value, not a bool.** Use `changed_to="on"`, not `changed_to=True`. HA state values are strings.
 
-## Quick Start Checklist
+**`AppSync` apps use `.sync` facades.** If you subclass `AppSync` for synchronous handlers, use `self.bus.sync.on_state_change(...)` and `self.scheduler.sync.run_in(...)`. The async methods are not available in sync hooks.
 
-Before you start migrating app by app, complete this setup:
+## Per-App Migration Checklist
 
-- [ ] Follow the [Quickstart guide](../getting-started/index.md) to install Hassette and confirm `hassette.toml` connects to Home Assistant
-- [ ] Review [Mental Model](concepts.md) — covers the key design differences between AppDaemon and Hassette
-- [ ] Pick one small, simple app as your first migration target
-- [ ] Follow the [Migration Checklist](checklist.md) for that app
-- [ ] Run the [test harness](testing.md) to verify behavior before going live
-
-## Guide Structure
-
-| Page | What it covers |
-|------|----------------|
-| [Mental Model](concepts.md) | How AppDaemon and Hassette differ in design philosophy |
-| [Bus & Events](bus.md) | `listen_state` / `listen_event` → `bus.on_state_change` / `bus.on_call_service` |
-| [Scheduler](scheduler.md) | `run_in`, `run_daily`, and other scheduler equivalents |
-| [API Calls](api.md) | Getting states, calling services, setting states |
-| [Configuration](configuration.md) | `appdaemon.yaml` + `apps.yaml` → `hassette.toml` + `AppConfig` |
-| [Testing](testing.md) | How to test Hassette apps with `AppTestHarness` |
-| [Migration Checklist](checklist.md) | Step-by-step migration checklist |
-
-## Quick Reference Table
-
-The table below maps the most common AppDaemon operations to their Hassette equivalents.
-
-| Action | AppDaemon | Hassette |
-|--------|-----------|----------|
-| Listen for a state change | `self.listen_state(self.cb, "binary_sensor.door", new="on")` | `await self.bus.on_state_change("binary_sensor.door", handler=self.cb, changed_to="on", name="...")` |
-| React on attribute threshold | `self.listen_state(self.cb, "sensor.x", attribute="battery", below=20)` | `await self.bus.on_attribute_change("sensor.x", "battery", handler=self.cb, changed_to=lambda v: v < 20, name="...")` |
-| Monitor service calls | `self.listen_event(self.on_service, "call_service", domain="light")` | `await self.bus.on_call_service(domain="light", handler=self.on_service, name="...")` |
-| Schedule something in 60 seconds | `self.run_in(self.turn_off, 60)` | `self.scheduler.run_in(self.turn_off, delay=60)` |
-| Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, at="07:30")` |
-| Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("light.kitchen")` |
-| Call a HA service | `self.call_service("light/turn_on", entity_id="light.x", brightness=200)` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.x"}, brightness=200)` |
-| Access app configuration | `self.args["args"]["entity"]` | `self.app_config.entity` |
-| Stop a listener | `self.cancel_listen_state(handle)` | `subscription.cancel()` |
-| Stop a scheduled job | `self.cancel_timer(handle)` | `job.cancel()` |
-
-## Next Steps
-
-- [Mental Model](concepts.md) — how AppDaemon and Hassette differ in design philosophy
-- [Bus & Events](bus.md) — `listen_state` / `listen_event` → `bus.on_state_change` / `bus.on_call_service`
-- [Scheduler](scheduler.md) — `run_in`, `run_daily`, and other scheduler equivalents
-- [API Calls](api.md) — getting states, calling services, setting states
-- [Configuration](configuration.md) — `appdaemon.yaml` + `apps.yaml` → `hassette.toml` + `AppConfig`
-- [Testing](testing.md) — how to test Hassette apps with `AppTestHarness`
-- [Migration Checklist](checklist.md) — step-by-step migration checklist
+The [Migration Checklist](checklist.md) walks through converting a single app from AppDaemon to Hassette. Work through it once for your first app, then use it as a reference for the rest.
