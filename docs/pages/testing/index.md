@@ -52,7 +52,7 @@ The `async with` block handles the full app lifecycle. Inside it, `on_initialize
 await harness.simulate_state_change("binary_sensor.hallway", old_value="off", new_value="on")
 ```
 
-**`harness.api_recorder.assert_called()`** checks that your app called the named method at least once with the given kwargs. Extra kwargs in the recorded call are allowed, so you only need to specify what you care about.
+**`harness.api_recorder.assert_called()`** checks that your app called the named method at least once with the given kwargs. Extra kwargs in the recorded call are allowed — only the specified kwargs need to match.
 
 ```python
 harness.api_recorder.assert_called("turn_on", entity_id="light.hallway")

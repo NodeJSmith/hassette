@@ -4,17 +4,17 @@ Hassette runs as a long-lived process. The runtime behaviors that matter in prod
 
 ## WebSocket Reconnection
 
-The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette uses a three-layer retry model to recover automatically.
+The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model.
 
 ### Layer 1: Initial connection retries
 
-When Hassette first starts (or `WebsocketService` restarts), it attempts to establish the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last, starting at `websocket.connect_retry_initial_wait_seconds` (default: 1s) and capping at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added to each interval. Tenacity logs a WARNING before each sleep:
+When Hassette first starts (or `WebsocketService` restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added. Tenacity logs a WARNING before each sleep:
 
 ```
 Retrying hassette.core.websocket_service.WebsocketService._make_connection.<locals>._inner_connect in X.Xs as it raised ...
 ```
 
-If all five attempts fail, the error propagates to layer 3.
+If all five attempts fail, the error reaches layer 3.
 
 ### Layer 2: Early-drop retries
 

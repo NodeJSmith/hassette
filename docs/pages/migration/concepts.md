@@ -20,11 +20,11 @@ Three things change:
 
 - **Base class**: `Hass` becomes `App[Config]`. The generic parameter is optional. `App` with no type argument works fine.
 - **Lifecycle hook**: `initialize()` becomes `on_initialize()`.
-- **Async keyword**: Hassette's hook is `async def`. You write `await` inside it.
+- **Async keyword**: Hassette's hook is `async def`. The body uses `await`.
 
 ## Access Model
 
-AppDaemon puts everything on `self`. You call `self.listen_state(...)`, `self.call_service(...)`, `self.run_in(...)` directly. One flat surface.
+AppDaemon puts everything on `self`. `self.listen_state(...)`, `self.call_service(...)`, `self.run_in(...)` all live on one flat surface.
 
 Hassette uses composition. Each subsystem is a separate attribute:
 

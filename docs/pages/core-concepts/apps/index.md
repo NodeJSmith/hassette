@@ -32,7 +32,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 ```
 
 !!! info "What's `D.StateNew[states.LightState]`?"
-    That annotation is [dependency injection](../bus/handlers.md) — the handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
+    That annotation is [dependency injection](../bus/dependency-injection.md) — the handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
 ## Configuration
 
