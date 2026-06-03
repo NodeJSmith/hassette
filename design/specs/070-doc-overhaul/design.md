@@ -1,7 +1,7 @@
 # Design: Documentation Overhaul
 
 **Date:** 2026-06-01
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/070-doc-overhaul/brief.md
 
