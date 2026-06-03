@@ -4,11 +4,11 @@ Template for briefing subagents that write documentation pages. Fill in the `{{v
 
 ## How to use
 
-The orchestrating agent fills `{{variables}}` from each page's outline entry and dispatches the filled prompt to a Sonnet writer subagent. The reviewer prompt is dispatched after the writer completes. Use `get-skill-tmpdir doc-overhaul` for `{{output_dir}}`.
+The orchestrating agent fills `{{variables}}` from each page's outline entry and dispatches the filled prompt to a Sonnet writer subagent. The reviewer prompt is dispatched after the writer completes. Use `get-skill-tmpdir docs` for `{{output_dir}}`.
 
 **Variables to fill:**
 - `{{page_title}}` -- the page's H1 heading
-- `{{output_dir}}` -- from `get-skill-tmpdir doc-overhaul`
+- `{{output_dir}}` -- from `get-skill-tmpdir docs`
 - `{{filename}}` -- the target markdown filename
 - `{{section}}` -- the nav section path (e.g., `core-concepts/bus`)
 - `{{outline}}` -- the full outline from Phase 2

@@ -23,7 +23,8 @@ Items tracked during the documentation overhaul (PR #970).
 
 ## Process Artifacts Saved
 
-- `.claude/skills/doc-overhaul/SKILL.md` — skill capturing the full 3-phase process
-- `design/specs/070-doc-overhaul/writing-prompt-template.md` — writer/reviewer subagent prompts
-- `design/specs/070-doc-overhaul/docs-context.md` — voice calibration artifact
-- `design/specs/070-doc-overhaul/outlines/` — all 76 per-page content outlines
+- `.claude/skills/docs/` — scale-aware doc-writing skill (renamed from doc-overhaul)
+- `.claude/skills/docs/references/writing-prompt-template.md` — writer/reviewer subagent prompts
+- `.claude/skills/docs/references/docs-context-example.md` — voice calibration artifact (PR #970 version)
+- `.claude/skills/docs/references/prior-art-doc-ia.md` — Diataxis/JTBD research
+- Outlines archived — recoverable from git history
