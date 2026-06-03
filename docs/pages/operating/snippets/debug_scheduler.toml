@@ -1,0 +1,2 @@
+[hassette.logging]
+scheduler_service = "DEBUG"

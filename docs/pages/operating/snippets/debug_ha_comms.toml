@@ -1,0 +1,3 @@
+[hassette.logging]
+websocket = "DEBUG"
+api = "DEBUG"

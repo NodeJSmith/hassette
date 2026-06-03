@@ -1,139 +1,201 @@
 # Troubleshooting
 
-This page organizes common problems by symptom. Click through to the relevant section for detailed guidance.
+## Can't Connect to Home Assistant
 
-## Can't connect to Home Assistant
+**Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](core-concepts/configuration/auth.md).
 
-- **Token issues**: Verify `HASSETTE__TOKEN` is set correctly in your `.env` file. See [Authentication](core-concepts/configuration/auth.md).
-- **Connection refused / timeout**: Check `base_url` in `hassette.toml`. If running in Docker, ensure Hassette can reach Home Assistant's network. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-reach-home-assistant).
+**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise `SchemeRequiredInBaseUrlError` at startup.
 
-## Apps not loading
+**Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-reach-home-assistant).
 
-- **App not discovered**: Verify `apps.directory` points to the correct directory and your app file is registered in `hassette.toml`. See [Application Configuration](core-concepts/configuration/applications.md). Success: you'll see `INFO hassette.<AppName>.0 ... ─ App initialized` in the logs.
-- **Import errors**: Check for missing dependencies or syntax errors in logs. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#apps-not-loading).
-- **App precheck fails**: If an app fails to load, Hassette won't start by default. The precheck runs each app's module through import before starting the WebSocket connection, so any problem is reported immediately. Common causes and their log signatures:
-
-    - **Syntax error or bad import** — a `SyntaxError` or `ModuleNotFoundError` at the top of your app file. Look for: `ERROR hassette.utils.app_utils — Failed to load app 'MyApp': SyntaxError: invalid syntax (at /apps/my_app.py:12)`
-    - **Class not found** — the `class_name` in `hassette.toml` doesn't match the actual class name in the file. Look for: `AttributeError: Class MyApp not found in module apps.my_app`
-    - **Invalid configuration** — a required `AppConfig` field has no value and no default. Look for: `ERROR ... Failed to load app 'MyApp' due to bad configuration`
-
-    To diagnose without blocking startup, set `allow_startup_if_app_precheck_fails = true` in `hassette.toml` temporarily. This logs the same errors but lets other apps run. Remove it once the problem is fixed — a failing precheck means the broken app won't be loaded either way.
-
-## Event handler never runs
-
-- **Entity ID typo**: Double-check the entity ID string — `"binary_sensor.motion"` vs `"binary_sensor.motoin"`. Hassette won't error on a non-existent entity; the handler simply never fires.
-- **`changed_to` type mismatch**: Home Assistant state values are strings. `changed_to="on"` works; `changed_to=True` does not — it compares against the Python `bool`, not the HA string `"on"`.
-- **Domain excluded**: Check `bus_excluded_domains` and `bus_excluded_entities` in your `hassette.toml` — events from excluded domains are silently dropped before reaching your handlers.
-- **App not enabled**: Verify the app's config block has `enabled = true` (the default). A disabled app's handlers are never registered.
-- **Attribute-only change**: By default, `on_state_change` only fires when the main state value changes. If only an attribute changed (e.g., brightness), pass `changed=False`. See [Filtering — The `changed` Parameter](core-concepts/bus/filtering.md#the-changed-parameter).
-
-## Home Assistant goes offline
-
-When Home Assistant becomes unreachable or disconnects mid-session, Hassette handles recovery automatically without restarting the process.
-
-**What happens immediately:**
-
-1. The WebSocket receive loop detects the disconnect (closed frame, connection reset, or server disconnect) and raises internally.
-2. Hassette fires a `hassette.event.websocket_disconnected` event on the bus — your apps can subscribe to it via `await self.bus.on_websocket_disconnected(handler=..., name="ws_disconnect")` to react (for example, to pause outgoing calls).
-3. The `WebsocketService` is marked not-ready and the framework begins reconnecting.
-
-**Reconnection sequence:**
-
-The initial connection itself retries up to 5 times with exponential backoff (starting at 1 second, capping at 32 seconds) before the service is considered failed. If the service fails, the `ServiceWatcher` takes over:
-
-- It restarts `WebsocketService` using its `RestartSpec`: up to **5 restarts** within a **300-second sliding window** (TRANSIENT type).
-- Each restart waits an exponentially increasing delay starting at **2 seconds**, doubling each attempt, capped at **60 seconds**.
-- When Home Assistant comes back and the service recovers to RUNNING and becomes ready, Hassette fires `hassette.event.websocket_connected` and the restart budget resets automatically.
-
-**If the restart budget is exhausted**, `WebsocketService` enters `EXHAUSTED_COOLING` for a 300-second cooldown, then resets its budget and retries. The TRANSIENT restart type means it keeps trying rather than shutting down immediately.
-
-**What to look for in logs:**
-
-```
-WARNING  hassette.WebsocketService -- Retrying _inner_connect in Xs as it raised CouldNotFindHomeAssistantError: ...
-ERROR    hassette.WebsocketService -- Serve() task failed: CouldNotFindHomeAssistantError ...
-INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' restarting (attempt N, waiting Xs)
-DEBUG    hassette.WebsocketService -- Connected to WebSocket at ws://...
-INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' in cooldown for 300.0s (cycle 1)
-```
+**Invalid token at startup.** Look for `InvalidAuthError` in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
 
 **During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on the state proxy to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
-## Event handler exceptions
+## Apps Not Loading
 
-Exceptions raised inside a bus handler are caught by the framework, logged, and swallowed — they do not propagate to the caller, do not crash the app, and do not affect other handlers.
+The app precheck runs before the WebSocket connection opens. It imports each app module, resolves the class, and validates config. Any failure blocks startup by default.
 
-The specific behavior:
-
-- The exception is logged at `ERROR` level with the full traceback: `Handler error (topic=..., handler=...) \n<traceback>`
-- Hassette records the invocation in the telemetry database with `status='error'` and the error type and message.
-- The app continues running normally; subsequent events are dispatched as usual.
-
-This matches the scheduler's behavior for jobs — exceptions fail silently (logged to error).
-
-**What to look for in logs:**
+**Syntax error or bad import.** Look for this pattern in the log:
 
 ```
-ERROR hassette.CommandExecutor -- Handler error (topic=hass.event.state_changed.light.kitchen, handler=Listener<Hassette.MyApp.0 - on_light_change>)
-Traceback (most recent call last):
-  ...
-AttributeError: 'NoneType' object has no attribute 'brightness'
+ERROR hassette.utils.app_utils — Failed to load app 'MyApp': SyntaxError: invalid syntax (at /apps/my_app.py:12)
 ```
 
-See also: [Writing Handlers](core-concepts/bus/handlers.md) for how to use dependency injection to avoid common handler errors.
+Fix the syntax error or install the missing dependency.
 
-## Scheduler not firing
+**Class not found.** The `class_name` in `hassette.toml` doesn't match the actual class name in the file:
 
-- **Job scheduled for the past**: `run_once(at="07:00")` called after 7 AM defers the job to tomorrow (with a WARNING log). `run_daily(at="07:00")` fires at the next 7 AM occurrence (today if before 7 AM, tomorrow otherwise).
-- **Runs too often or too rarely**: `run_every(seconds=5)` is 5 *seconds*, not minutes — use `run_every(minutes=5)` for a 5-minute interval. For `run_cron`, the expression `"5 * * * *"` means "at minute 5 of every hour", not "every 5 minutes" — use `"*/5 * * * *"` for intervals.
-- **Exception in task**: Unhandled exceptions in scheduled tasks are logged at ERROR level but don't crash the scheduler. Check your logs.
-- See [Job Management — Troubleshooting](core-concepts/scheduler/management.md#troubleshooting) for more.
+```
+AttributeError: Class MyApp not found in module apps.my_app
+```
 
-## Database degraded / telemetry missing
+Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
 
-- **Stats strip shows zeroed-out metrics**: The telemetry database may be unavailable. Check for disk space issues or file permission problems.
-- **Docker**: Check the data volume has space: `docker compose exec hassette df -h /data`. The database file is at `/data/hassette.db` by default.
-- **Safe to delete**: Deleting `hassette.db` only loses telemetry history — your automations continue to run. Restart Hassette to recreate the database.
-- See [Database & Telemetry — Degraded Mode](core-concepts/database-telemetry.md#degraded-mode) for details.
+**Invalid config.** A required `AppConfig` field has no value and no default:
 
-## Cache not persisting
+```
+ERROR hassette — Failed to load app 'MyApp' due to bad configuration
+```
 
-- **Data lost after restart**: Verify the `data_dir` is correctly configured and writable. In Docker, ensure the `/data` volume is mounted.
-- **Cache shared between instances**: All instances of the same app class share one cache directory. Use `self.app_config.instance_name` as a key prefix to avoid collisions.
-- See [App Cache — Troubleshooting](core-concepts/cache/patterns.md#troubleshooting) for more.
+Set the missing field in `hassette.toml` or via an environment variable.
 
-## Custom state class not registering
+**Diagnosing without blocking startup.** Set `allow_startup_if_app_precheck_fails = true` in `hassette.toml`. This logs the same errors but lets healthy apps start. The broken app still won't run. Remove this setting once the problem is fixed.
 
-- Ensure the class has `domain: Literal["your_domain"]` as a field.
-- If overriding `__init_subclass__`, call `super().__init_subclass__()`.
-- See [Custom States — Troubleshooting](advanced/custom-states.md#troubleshooting).
+## Handler Registration Fails
 
-## Upgrading Hassette
+**`ListenerNameRequiredError`.** All bus registration methods require a `name=` parameter. Omitting it raises this error immediately at registration time. Add a stable, descriptive name:
 
-**Check your current version:**
+```python
+await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
+```
+
+**`DuplicateListenerError`.** Two listeners registered within the same app instance and session share the same `name` and topic. Use a different name for each listener, or remove the first registration before re-registering. Cross-session duplicates (after a restart) are handled by upsert and don't raise this error.
+
+## Handler Never Fires
+
+Work through this checklist in order.
+
+**1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. Double-check the entity ID string. Use `hassette status` or the web UI to confirm the entity exists and its exact ID.
+
+**2. `changed_to` type mismatch.** Home Assistant state values are strings. `changed_to="on"` works. `changed_to=True` does not. It compares a Python `bool` against a string and never matches. Use the string form.
+
+**3. Domain excluded by config.** Check `bus_excluded_domains` and `bus_excluded_entities` in `hassette.toml`. Events from excluded domains are dropped before reaching any handler.
+
+**4. Attribute-only change.** `on_state_change` fires when the main state value changes. If only an attribute changed (brightness, temperature, etc.) without the state string changing, the handler won't fire. Pass `changed=False` to receive both state and attribute changes. See [Filtering](core-concepts/bus/filtering.md#the-changed-parameter).
+
+**5. App not enabled.** Check that the app's config block has `enabled = true` (the default). A disabled app's handlers are never registered.
+
+## Scheduler Not Firing
+
+**Job scheduled for the past.** `run_once(at="07:00")` called after 7 AM defers the job to tomorrow and logs a WARNING. `run_daily(at="07:00")` fires at the next 7 AM occurrence.
+
+**Unit confusion.** `run_every(seconds=5)` fires every 5 seconds. Use named parameters to be explicit: `run_every(minutes=5)`. For `run_cron`, `"5 * * * *"` means "at minute 5 of every hour," not "every 5 minutes." Use `"*/5 * * * *"` for a 5-minute interval.
+
+**Exception in the task.** Unhandled exceptions inside scheduled tasks are caught, logged at ERROR level, and swallowed. The scheduler keeps running. Check your logs for the traceback.
+
+See also: [Job Management](core-concepts/scheduler/management.md#troubleshooting).
+
+## Database Degraded / Telemetry Missing
+
+**Stats show zeroed-out metrics.** The telemetry database is unavailable. Check disk space and file permissions.
+
+In Docker, check the data volume:
 
 ```bash
-hassette --version          # if installed as a CLI tool
-uv pip show hassette        # shows installed version in your project
+docker compose exec hassette df -h /data
 ```
 
-**Upgrade to the latest release:**
+The database file is at `/data/hassette.db` by default.
 
-```bash
-uv add hassette@latest
+**Safe to delete.** Deleting `hassette.db` only removes telemetry history. Your automations continue to run. Restart Hassette to recreate the database.
+
+**Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises `SchemaVersionError` and halts. Auto-migration is not attempted. Either upgrade Hassette to match the database or delete the database to start fresh.
+
+See also: [Database and Telemetry](core-concepts/database-telemetry.md#degraded-mode).
+
+## Cache Not Persisting
+
+**Data lost after restart.** Verify `data_dir` is correctly configured and writable. In Docker, ensure the `/data` volume is mounted. Cache files live under `data_dir`.
+
+**Multi-instance collisions.** All instances of the same app class share one cache namespace. Use `self.app_config.instance_name` as a key prefix to isolate each instance's data:
+
+```python
+key = f"{self.app_config.instance_name}:last_seen"
 ```
 
-**Release notes:** See the [Changelog](../CHANGELOG.md) for what changed in each version. Breaking changes are flagged with a `BREAKING CHANGE` footer in commit messages and are called out explicitly in the changelog under a "Breaking Changes" heading.
+See also: [App Cache](core-concepts/cache/patterns.md#troubleshooting).
 
-**Major version upgrades — data directory:** On bare-metal installs (not Docker), Hassette's default `data_dir` and `config_dir` include the major version number (e.g., `~/.local/share/hassette/v0/`). If a future major release changes this to `v1/`, Hassette will start with a fresh data directory. To keep your existing telemetry and cache, set `data_dir` and `config_dir` explicitly in `hassette.toml` or via the `HASSETTE__DATA_DIR` / `HASSETTE__CONFIG_DIR` environment variables. Docker users are unaffected — the `/data` and `/config` paths are version-independent.
+## Custom State Class Not Registering
 
-## Docker-specific issues
+**Missing `domain` annotation.** Every custom state class needs a `domain: Literal["your_domain"]` field. Without it, the class raises `NoDomainAnnotationError` internally and is not registered.
 
-For container startup failures, dependency installation problems, health check failures, hot reload issues, and performance tuning, see the dedicated [Docker Troubleshooting](getting-started/docker/troubleshooting.md) guide.
+**`super().__init_subclass__()` not called.** If you override `__init_subclass__`, call `super().__init_subclass__()` to preserve registration. Omitting it silently prevents the class from being added to the registry.
 
-## Web UI not accessible
+See also: [Custom States](advanced/custom-states.md#troubleshooting).
 
-- **Running locally**: Open `http://localhost:8126/ui/` after starting Hassette.
-- **Running in Docker**: Ensure your `docker-compose.yml` includes `ports: ["8126:8126"]`.
-- **Disabled**: Check that `run` and `run_ui` are both `true` under `[hassette.web_api]` in `hassette.toml`.
-- See [Web UI](web-ui/index.md) for configuration options.
+## Web UI Not Accessible
+
+**Running locally.** Open `http://localhost:8126/ui/` after starting Hassette.
+
+**Running in Docker.** Ensure `docker-compose.yml` includes `ports: ["8126:8126"]`.
+
+**Disabled in config.** Check `hassette.toml`:
+
+```toml
+[hassette.web_api]
+run = true
+run_ui = true
+```
+
+Both must be `true`. `run = false` disables the entire web API, including the health check. `run_ui = false` disables the dashboard while keeping the API and health check active.
+
+See also: [Web UI](web-ui/index.md).
+
+## Docker-Specific Issues
+
+For container startup failures, dependency installation, health check failures, hot reload issues, and network configuration, see the [Docker Troubleshooting](getting-started/docker/troubleshooting.md) guide.
+
+## Exception Reference
+
+### Connection
+
+**`CouldNotFindHomeAssistantError`** Raised when Hassette cannot reach the Home Assistant WebSocket at startup. Extends `FatalError`. Hassette will not retry. Check `base_url` and confirm Home Assistant is running and accessible.
+
+**`InvalidAuthError`** The token was rejected by Home Assistant. Generate a new long-lived access token and update `HASSETTE__TOKEN`.
+
+**`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
+
+**`SchemeRequiredInBaseUrlError`** `base_url` is set but has no scheme. Use `http://` or `https://`.
+
+**`ResourceNotReadyError`** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
+
+**`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
+
+**`FailedMessageError`** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
+
+### Registration
+
+**`ListenerNameRequiredError`** `name=` was omitted on a bus registration call. Add a stable `name=` parameter to the registration.
+
+**`DuplicateListenerError`** Two listeners in the same app instance registered with the same name and topic. Use distinct names.
+
+### State Conversion
+
+**`DomainNotFoundError`** No state class is registered for the requested domain. Import the relevant state module or define a custom state class with a matching `domain` annotation.
+
+**`RegistryNotReadyError`** The state registry was queried before any state classes were imported. Ensure state modules are imported before state conversion is attempted.
+
+**`NoDomainAnnotationError`** A state class is missing `domain: Literal["..."]`. Add the annotation.
+
+**`InvalidDataForStateConversionError`** The data passed to state conversion is malformed or `None`. Check the upstream event or API response.
+
+**`UnableToConvertStateError`** The state dict exists but cannot be coerced to the target state class. Check that the class fields match the entity's actual attributes.
+
+**`InvalidEntityIdError`** An entity ID string is malformed (wrong format, empty, wrong type). Entity IDs must follow the `domain.object_id` pattern.
+
+### Dependency Injection
+
+**`DependencyInjectionError`** The handler signature is invalid. A parameter uses `*args`, is positional-only, or is missing a type annotation. Fix the handler signature.
+
+**`DependencyResolutionError`** Injection succeeded at inspection time but failed at runtime while extracting or converting a value. Check the event data and the type annotations in the handler.
+
+### Lifecycle
+
+**`InvalidLifecycleTransitionError`** A resource attempted an invalid status transition. Only raised when `strict_lifecycle = true` in `hassette.toml`. In non-strict mode, the same condition logs a WARNING. Disable strict mode or investigate the resource initialization order.
+
+**`AppPrecheckFailedError`** One or more apps failed the precheck. Check the log for the specific app and error. Set `allow_startup_if_app_precheck_fails = true` to let other apps run while you diagnose.
+
+### Configuration
+
+**`SchemaVersionError`** The database was created by a newer version of Hassette than the one currently running. Either upgrade Hassette or delete `hassette.db` to start fresh.
+
+**`CannotOverrideFinalError`** An app class overrides a lifecycle method marked as final (such as `initialize`). Use the public hook (`on_initialize`) instead.
+
+**`InvalidInheritanceError`** An app class inherits from `App` incorrectly. Check the class definition and the error message for details.
+
+### Framework Base
+
+**`HassetteError`** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
+
+**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `CouldNotFindHomeAssistantError`, `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`.

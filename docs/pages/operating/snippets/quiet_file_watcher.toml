@@ -1,0 +1,2 @@
+[hassette.logging]
+file_watcher = "WARNING"
