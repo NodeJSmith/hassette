@@ -73,7 +73,10 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 
 ## `on_attribute_change(entity_id, attr)`
 
-Fires when a specific attribute of an entity changes. `entity_id` accepts glob patterns; `attr` does not.
+Fires when a specific attribute of an entity changes. `entity_id` accepts glob patterns.
+
+!!! warning "`attr` does not support glob patterns"
+    The `attr` parameter matches a single attribute name exactly. Glob characters in `attr` are treated as literal characters, not patterns. [Predicates](filtering.md) handle multi-attribute matching.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_attribute_change.py:basic"

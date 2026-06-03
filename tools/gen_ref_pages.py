@@ -50,7 +50,9 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.events.hass.hass",  # RawStateChangeEvent, CallServiceEvent, ComponentLoadedEvent
         "hassette.config.classes",  # AppManifest referenced in config docs
         "hassette.scheduler.error_context",  # SchedulerErrorContext referenced in scheduler docs
+        "hassette.types",  # Public type aliases: HandlerType, Predicate, ChangeType, TriggerProtocol, etc.
         "hassette.types.enums",  # ResourceStatus, RestartType referenced in lifecycle docs
+        "hassette.types.types",  # Type definitions for handler, predicate, trigger, and change types
         "hassette.resources.restart",  # RestartSpec referenced in lifecycle docs
         "hassette.core.service_watcher",  # ServiceWatcher referenced in internals/operating docs
         "hassette.core.websocket_service",  # WebsocketService referenced in internals/operating docs

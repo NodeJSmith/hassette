@@ -29,31 +29,6 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 !!! warning "Glob patterns match identifiers only"
     Glob patterns do not match attribute names or data values. [Predicates](filtering.md) handle those cases.
 
-## Rate Control
-
-Three subscription parameters manage handler invocation frequency.
-
-`debounce` delays the handler until the event source has been quiet for N seconds. Each new event resets the timer.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:debounce"
-```
-
-`throttle` limits the handler to one invocation per N seconds. Events during the cooldown are dropped.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:throttle"
-```
-
-`once=True` fires the handler exactly once, then cancels the subscription.
-
-```python
---8<-- "pages/core-concepts/bus/snippets/bus_rate_control.py:once"
-```
-
-!!! warning "One strategy per subscription"
-    `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError` at registration.
-
 ## Synchronous Usage
 
 `self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
