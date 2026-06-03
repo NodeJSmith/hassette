@@ -13,7 +13,7 @@ returned record for the app's lifetime. Because helpers persist across restarts,
 idempotent approach checks for an existing record before creating:
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:bootstrap"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:bootstrap"
 ```
 
 `list_input_booleans()` returns all stored `input_boolean` records. The loop exits early
@@ -36,7 +36,7 @@ examples below use `input_boolean`; the same method names apply to every domain 
 ### Create
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/create_helper.py"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/create_helper.py"
 ```
 
 The returned `InputBooleanRecord` carries the `id` HA assigned, typically the slugified
@@ -46,7 +46,7 @@ is useful, as `list_input_booleans()` is the only retrieval path if the id is no
 ### List
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:list"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:list"
 ```
 
 `list_*` returns all records for the domain, regardless of which app created them.
@@ -54,7 +54,7 @@ is useful, as `list_input_booleans()` is the only retrieval path if the id is no
 ### Update
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:update"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:update"
 ```
 
 `update_input_boolean` accepts a `helper_id` string (the stored `id` field, not the
@@ -65,7 +65,7 @@ raises `FailedMessageError(code="not_found")`.
 ### Delete
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/crud_operations.py:delete"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:delete"
 ```
 
 `delete_*` returns `None`. It raises `FailedMessageError(code="not_found")` if the id
@@ -93,14 +93,14 @@ state, not stored configuration. They call HA's `counter` service domain and tak
 immediately:
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/counter_shortcuts.py"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/counter_shortcuts.py"
 ```
 
 Timer actions (`timer.start`, `timer.pause`, `timer.cancel`) are not wrapped as
 shortcuts. They go through `call_service` directly:
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/timer_call_service.py:timer"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/timer_call_service.py:timer"
 ```
 
 Counter shortcuts are high-frequency operations. The shorter call site makes a difference
@@ -114,7 +114,7 @@ helper store. The harness derives the domain from the record's class, so no `dom
 parameter is needed. The typed record is sufficient:
 
 ```python
---8<-- "pages/advanced/snippets/managing-helpers/testing_harness.py"
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/testing_harness.py"
 ```
 
 Seeded records are stored as deep copies. Later mutations to the record passed into

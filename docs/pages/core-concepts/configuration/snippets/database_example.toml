@@ -1,4 +1,0 @@
-[hassette.database]
-path = "/var/lib/hassette/telemetry.db"
-retention_days = 14
-max_size_mb = 1000

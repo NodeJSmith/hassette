@@ -105,5 +105,5 @@ See [Testing](testing.md) for the test harness guide.
 After migrating all your apps:
 
 - Review the [Core Concepts](../core-concepts/index.md) to learn the full Hassette feature set
-- Explore [Dependency Injection](../core-concepts/bus/dependency-injection.md), [Custom States](../advanced/custom-states.md), and [Type Registries](../advanced/type-registry.md)
+- Explore [Dependency Injection](../core-concepts/bus/dependency-injection.md), [Custom States](../core-concepts/states/custom-states.md), and [Type Registries](../core-concepts/states/type-registry.md)
 - Set up the [Web UI](../web-ui/index.md) for live monitoring of your automations

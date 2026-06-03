@@ -2,7 +2,7 @@
 
 Apps are registered in `hassette.toml` under `[hassette.apps.<key>]`. Each block tells Hassette which Python file and class to load, and passes configuration values to the app.
 
-This page covers the TOML side of app configuration. [App Configuration](../apps/configuration.md) covers defining typed `AppConfig` models in Python.
+This page covers the TOML side of app configuration. [Apps](../apps/index.md) covers defining typed `AppConfig` models in Python.
 
 ## Registering an App
 
@@ -61,4 +61,4 @@ Single-instance apps are the default. Most apps never need `[[...]]` blocks. Mul
 
 ## Typed Configuration
 
-The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a configuration error before any app starts. [App Configuration](../apps/configuration.md) covers defining the model.
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a configuration error before any app starts. [Apps](../apps/index.md) covers defining the model.

@@ -13,7 +13,7 @@ The registry maps `(from_type, to_type)` pairs to converter functions. When stat
 If no registered converter exists for the pair, the registry attempts the target type's constructor as a fallback. A successful constructor call auto-registers the conversion for future use.
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/lookup_example.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/lookup_example.py"
 ```
 
 For union types (`value_type = (int, float, str)`), conversion attempts each member type in order. Placing the most specific type first avoids premature matches. `str` matches everything, so `(int, float, str)` is correct and `(str, int, float)` is not.
@@ -96,7 +96,7 @@ def str_to_effect(value: str) -> Effect: ...
 `register_simple_type_converter` registers an existing callable (a constructor, a method, or a lambda) without wrapping it in a dedicated function.
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/simple_registration.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/simple_registration.py"
 ```
 
 When `fn` is omitted, the target type's constructor is used. `error_message` and `error_types` accept the same arguments as the decorator form.
@@ -106,7 +106,7 @@ When `fn` is omitted, the target type's constructor is used. `error_message` and
 ### Enum Conversion
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/pattern_enum.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/pattern_enum.py"
 ```
 
 The decorator infers `str → FanSpeed` from the function signature. The converter is available immediately at module import time.
@@ -114,7 +114,7 @@ The decorator infers `str → FanSpeed` from the function signature. The convert
 ### Structured Data
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/pattern_structured.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/pattern_structured.py"
 ```
 
 `json.loads` raises `json.JSONDecodeError` (a `ValueError` subclass), so the default `error_types=(ValueError,)` catches parse failures automatically.
@@ -124,19 +124,19 @@ The decorator infers `str → FanSpeed` from the function signature. The convert
 When a registered converter raises one of its `error_types`, the registry wraps it in `UnableToConvertValueError`. The wrapped exception includes the source value and both types:
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/conversion_error.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/conversion_error.py"
 ```
 
 When no converter is registered and the target type's constructor also fails, the registry raises `UnableToConvertValueError`:
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/missing_converter.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/missing_converter.py"
 ```
 
 Custom error messages make failures easier to diagnose. The `{value}` placeholder renders the actual value that failed conversion:
 
 ```python
---8<-- "pages/advanced/snippets/type-registry/custom_error_msg.py"
+--8<-- "pages/core-concepts/states/snippets/type-registry/custom_error_msg.py"
 ```
 
 ??? note "Inspection and debugging"
@@ -146,18 +146,18 @@ Custom error messages make failures easier to diagnose. The `{value}` placeholde
     **List all registered converters:**
 
     ```python
-    --8<-- "pages/advanced/snippets/type-registry/inspect_list.py"
+    --8<-- "pages/core-concepts/states/snippets/type-registry/inspect_list.py"
     ```
 
     Output:
     ```
-    --8<-- "pages/advanced/snippets/type-registry/inspect_list_output.txt"
+    --8<-- "pages/core-concepts/states/snippets/type-registry/inspect_list_output.txt"
     ```
 
     **Check whether a specific converter is registered:**
 
     ```python
-    --8<-- "pages/advanced/snippets/type-registry/inspect_check.py"
+    --8<-- "pages/core-concepts/states/snippets/type-registry/inspect_check.py"
     ```
 
     `TypeRegistry.conversion_map` is a dict keyed by `(from_type, to_type)` tuples. Each value is a `TypeConverterEntry` with `func`, `from_type`, `to_type`, `error_types`, and `error_message` fields.

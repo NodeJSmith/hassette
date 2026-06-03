@@ -78,12 +78,12 @@ If values do not survive a restart, check four common causes. The write may targ
 
 ### Cache Size Exceeded
 
-When the cache reaches `default_cache_size`, diskcache silently evicts the least recently used entries. A larger `default_cache_size` in [Global Settings](../configuration/global.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
+When the cache reaches `default_cache_size`, diskcache silently evicts the least recently used entries. A larger `default_cache_size` in [Global Settings](../configuration/index.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
 
 `log_level = "DEBUG"` in `hassette.toml` enables cache operation logging. The cache directory at `~/.local/share/hassette/v0/MyApp/cache/` should contain data after the first successful write.
 
 ## See Also
 
 - [App Cache Overview](index.md). How it works, configuration, lifecycle.
-- [Global Settings](../configuration/global.md). `data_dir` and `default_cache_size`.
+- [Global Settings](../configuration/index.md). `data_dir` and `default_cache_size`.
 - [diskcache documentation](https://grantjenks.com/docs/diskcache/). Full cache library reference.

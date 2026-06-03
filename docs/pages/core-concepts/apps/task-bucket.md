@@ -69,7 +69,7 @@ The polling loop runs indefinitely without blocking the handler that started it.
 
 ## Shutdown
 
-The bucket cancels all tracked tasks when the app shuts down. Hassette cancels every pending task, waits up to `task_cancellation_timeout_seconds` (configurable in [global settings](../configuration/global.md)) for them to finish, and logs warnings for any tasks that do not exit within the timeout.
+The bucket cancels all tracked tasks when the app shuts down. Hassette cancels every pending task, waits up to `task_cancellation_timeout_seconds` (configurable in [global settings](../configuration/index.md)) for them to finish, and logs warnings for any tasks that do not exit within the timeout.
 
 Manual cleanup is not required.
 

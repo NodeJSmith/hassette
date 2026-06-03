@@ -49,7 +49,7 @@ data_dir = "/path/to/data"
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `default_cache_size` | integer (bytes) | `104857600` | Size limit for each app's cache. Least-recently-used items are evicted when the limit is reached. |
-| `data_dir` | path | platform-dependent | Root directory for all persistent data. See [Global Settings](../configuration/global.md) for platform defaults. |
+| `data_dir` | path | platform-dependent | Root directory for all persistent data. See [Global Settings](../configuration/index.md) for platform defaults. |
 
 ## How It Works
 
@@ -64,6 +64,6 @@ data_dir = "/path/to/data"
 ## See Also
 
 - [Patterns & Examples](patterns.md). Rate-limiting, counters, complex data, expiring entries, and troubleshooting.
-- [Global Settings](../configuration/global.md). `data_dir` and `default_cache_size` reference.
+- [Global Settings](../configuration/index.md). `data_dir` and `default_cache_size` reference.
 - [States](../states/index.md). Real-time HA entity state (not the cache).
 - [diskcache documentation](https://grantjenks.com/docs/diskcache/). The underlying library.

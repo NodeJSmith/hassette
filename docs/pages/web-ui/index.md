@@ -47,7 +47,7 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
     | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
 
-    See [Global Settings](../core-concepts/configuration/global.md#web-ui-settings) for the full reference.
+    See [Global Settings](../core-concepts/configuration/index.md) for the full reference.
 
 ## Layout
 

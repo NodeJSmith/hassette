@@ -71,11 +71,10 @@ light = "light.bedroom"
 off_delay = 120
 ```
 
-Each block becomes a separate app instance. Both run the same `MotionLights` class with different config values. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
+Each block becomes a separate app instance. Both run the same `MotionLights` class with different config values. See [App Configuration](../core-concepts/configuration/applications.md) for the full reference.
 
 ## See Also
 
-- [App Configuration](../core-concepts/apps/configuration.md) — defining `AppConfig` models
+- [App Configuration](../core-concepts/configuration/applications.md) — defining `AppConfig` models
 - [Configuration Overview](../core-concepts/configuration/index.md) — `hassette.toml` structure
-- [Global Settings](../core-concepts/configuration/global.md) — all global Hassette settings
 - [Applications](../core-concepts/configuration/applications.md) — app registration and toml syntax

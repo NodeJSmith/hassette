@@ -127,5 +127,5 @@ Hassette recreates the database on next startup.
 
 ## Related Resources
 
-- [Global Configuration](configuration/global.md), all configuration fields
+- [Global Configuration](configuration/index.md), all configuration fields
 - [App Cache](cache/index.md), the disk cache for app data (separate from telemetry)

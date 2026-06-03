@@ -2,7 +2,7 @@
 
 ## Can't Connect to Home Assistant
 
-**Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](core-concepts/configuration/auth.md).
+**Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](getting-started/ha_token.md).
 
 **Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise `SchemeRequiredInBaseUrlError` at startup.
 
@@ -112,7 +112,7 @@ See also: [App Cache](core-concepts/cache/patterns.md#troubleshooting).
 
 **`super().__init_subclass__()` not called.** If you override `__init_subclass__`, call `super().__init_subclass__()` to preserve registration. Omitting it silently prevents the class from being added to the registry.
 
-See also: [Custom States](advanced/custom-states.md#troubleshooting).
+See also: [Custom States](core-concepts/states/custom-states.md#troubleshooting).
 
 ## Web UI Not Accessible
 

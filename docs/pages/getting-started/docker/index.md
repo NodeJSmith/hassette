@@ -68,7 +68,7 @@ Create `apps/my_app.py`:
 --8<-- "pages/getting-started/docker/snippets/my_app.py"
 ```
 
-[`App`](../../core-concepts/apps/index.md) runs your automation logic and gives you access to the bus, scheduler, and API. [`AppConfig`](../../core-concepts/apps/configuration.md) loads and validates your app's settings from the environment. `on_initialize` runs once when the app starts.
+[`App`](../../core-concepts/apps/index.md) runs your automation logic and gives you access to the bus, scheduler, and API. [`AppConfig`](../../core-concepts/configuration/applications.md) loads and validates your app's settings from the environment. `on_initialize` runs once when the app starts.
 
 Restart the container to pick up the new file:
 

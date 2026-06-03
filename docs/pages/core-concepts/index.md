@@ -122,6 +122,6 @@ Hassette starts services in dependency order. `Api`, `Bus`, `Scheduler`, and `St
 
 ??? note "Advanced Topics"
     - [Dependency Injection](bus/dependency-injection.md): automatic event data extraction and type conversion.
-    - [Type Registry](../advanced/type-registry.md): automatic value type conversion system.
-    - [State Registry](../advanced/state-registry.md): domain to state model mapping.
-    - [Custom States](../advanced/custom-states.md): defining custom state classes for non-standard entity types.
+    - [Type Registry](states/type-registry.md): automatic value type conversion system.
+    - [State Registry](states/state-registry.md): domain to state model mapping.
+    - [Custom States](states/custom-states.md): defining custom state classes for non-standard entity types.

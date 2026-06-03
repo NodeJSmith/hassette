@@ -56,7 +56,7 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 --8<-- "pages/core-concepts/states/snippets/states_generic_access.py"
 ```
 
-Custom state class definition and registration are covered in [Custom States](../../advanced/custom-states.md).
+Custom state class definition and registration are covered in [Custom States](custom-states.md).
 
 ## What a State Object Contains
 
@@ -98,7 +98,7 @@ Three common examples:
 - **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: str | None`
 - **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: str | None`
 
-The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](../../advanced/custom-states.md).
+The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
 
 ??? info "Full domain-to-class table"
     | Domain | Class |
@@ -199,7 +199,7 @@ Additional collection methods:
 ## See Also
 
 - [Subscribing to State Changes](../bus/index.md): react to state transitions as they happen
-- [Custom States](../../advanced/custom-states.md): define typed models for custom integrations
+- [Custom States](custom-states.md): define typed models for custom integrations
 - [API - Entities & States](../api/entities.md): retrieve states via the REST/WebSocket API
 - [Bus](../bus/index.md): the event system that delivers state changes to handlers
 - [App Cache](../cache/index.md): persist data locally across restarts

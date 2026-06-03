@@ -20,7 +20,7 @@ Entity IDs accept glob patterns. `"light.*"` matches any entity in the `light` d
 --8<-- "pages/core-concepts/states/snippets/state_typed_di.py"
 ```
 
-Four annotations extract typed state from events. `T` is any class from [`hassette.models.states`](domain-states.md), imported as `states`.
+Four annotations extract typed state from events. `T` is any class from [`hassette.models.states`](index.md), imported as `states`.
 
 | Annotation | Returns | When the value is absent |
 |---|---|---|

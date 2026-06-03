@@ -7,7 +7,7 @@ Most apps never interact with the registry directly. The [DI system](../bus/depe
 This page is relevant when overriding a default domain mapping, writing a custom state class, or debugging an unexpected state type at runtime.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/raw_data_example.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/raw_data_example.py"
 ```
 
 ## How Registration Works
@@ -25,7 +25,7 @@ Classes without a `domain` annotation are silently skipped.
     `get_domain()` uses `typing.get_args()` to extract the string from a `Literal["domain_name"]` annotation on the `domain` field. A `ClassVar[str]` annotation or a plain `str` annotation will not register. The annotation must be `Literal["domain_name"]`.
 
     ```python
-    --8<-- "pages/advanced/snippets/state-registry/automatic_registration.py"
+    --8<-- "pages/core-concepts/states/snippets/state-registry/automatic_registration.py"
     ```
 
 ## Domain Lookup
@@ -33,7 +33,7 @@ Classes without a `domain` annotation are silently skipped.
 `StateRegistry.resolve(domain=...)` returns the registered state class for a domain, or `None` if no class is registered for that domain.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/domain_lookup.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/domain_lookup.py"
 ```
 
 The `None` return for an unregistered domain is intentional. `try_convert_state` handles the fallback to `BaseState` when `resolve` returns `None`.
@@ -43,7 +43,7 @@ The `None` return for an unregistered domain is intentional. `try_convert_state`
 A custom class declared with the same `Literal` domain as a built-in replaces the existing mapping in the registry. The override takes effect at class definition time, so placing the class after the import of the original is sufficient.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/domain_override.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/domain_override.py"
 ```
 
 The registry silently replaces the previous mapping. All subsequent state events for `sensor` entities produce `CustomSensorState` instances.
@@ -56,7 +56,7 @@ When state data arrives from Home Assistant, `StateRegistry` and `TypeRegistry` 
 
 1. Raw dict arrives from Home Assistant:
    ```python
-   --8<-- "pages/advanced/snippets/state-registry/flow_raw_input.py"
+   --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
    ```
 
 2. `StateRegistry.resolve(domain="time")` returns `TimeState`.
@@ -69,13 +69,13 @@ When state data arrives from Home Assistant, `StateRegistry` and `TypeRegistry` 
 
 6. Validation completes with a fully typed state object:
    ```python
-   --8<-- "pages/advanced/snippets/state-registry/flow_converted_output.py"
+   --8<-- "pages/core-concepts/states/snippets/state-registry/flow_converted_output.py"
    ```
 
 The `value_type` ClassVar declares which Python types the `state` field accepts. `TypeRegistry` performs the actual conversion from raw string to that type. `StateRegistry` answers "which class?"; `TypeRegistry` answers "which type for the value?". [Type Registry](type-registry.md) covers value conversion in detail.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/value_type_example.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
 ```
 
 ## Union Type Support
@@ -83,7 +83,7 @@ The `value_type` ClassVar declares which Python types the `state` field accepts.
 `StateRegistry` resolves union-typed DI annotations by checking each type's domain against the incoming entity's domain.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/union_type_support.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/union_type_support.py"
 ```
 
 For `D.StateNew[states.SensorState | states.BinarySensorState]`, the DI system extracts the domain from the entity ID. It checks each type in the union and selects the one whose `Literal` domain matches. When no type in the union matches, conversion falls back to `BaseState`.
@@ -97,7 +97,7 @@ For `D.StateNew[states.SensorState | states.BinarySensorState]`, the DI system e
 Raised when the state data is malformed or missing required fields. For example, the input is `None` or contains an `event` key instead of a state dict.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_invalid_data.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/error_invalid_data.py"
 ```
 
 ### `InvalidEntityIdError`
@@ -105,7 +105,7 @@ Raised when the state data is malformed or missing required fields. For example,
 Raised when the `entity_id` field is missing, not a string, or lacks a `.` separator between domain and entity name.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_invalid_entity_id.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/error_invalid_entity_id.py"
 ```
 
 ### `UnableToConvertStateError`
@@ -113,7 +113,7 @@ Raised when the `entity_id` field is missing, not a string, or lacks a `.` separ
 Raised when Pydantic validation fails for both the resolved state class and the `BaseState` fallback.
 
 ```python
---8<-- "pages/advanced/snippets/state-registry/error_unable_to_convert.py"
+--8<-- "pages/core-concepts/states/snippets/state-registry/error_unable_to_convert.py"
 ```
 
 ## See Also
