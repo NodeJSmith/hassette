@@ -1,0 +1,5 @@
+str → int
+str → float
+str → bool
+int → float
+...
