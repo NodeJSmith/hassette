@@ -6,6 +6,8 @@ The apps page is the landing page of the web UI. Navigating to `/` redirects to 
 
 ## Check App Health
 
+![Apps page table](../../_static/web_ui_apps.png)
+
 The stats strip at the top shows aggregate counts: **TOTAL**, **RUNNING**, **FAILED**, **STOPPED**, **DISABLED**, **HANDLERS**, and **RUNS/HR**. A non-zero **FAILED** count turns that cell red. Zero means all automations are alive.
 
 Below the strip, the app table shows one row per app with the following columns:
@@ -19,6 +21,10 @@ Below the strip, the app table shows one row per app with the following columns:
 | **LAST FIRED** | Relative timestamp of the most recent handler or job execution, for example "3 min ago". Shows `—` if the app has never fired. |
 | **ACTIONS** | Context-sensitive buttons based on current status. See [Start, Stop, and Reload](#start-stop-and-reload) below. |
 
+Clicking a **LAST ERROR** cell expands the full error message and traceback inline:
+
+![Error spotlight](../../_static/web_ui_detail_error_spotlight.png)
+
 ### Find a specific app
 
 The search box above the table filters rows by app key and class name as you type. The status filter popover on the **STATUS** column header narrows the table to one lifecycle state. Per-status counts appear in the popover. Searching and status filtering work together.
@@ -26,6 +32,8 @@ The search box above the table filters rows by app key and class name as you typ
 ### Drill into an app
 
 Click any app row to open the App Detail view. The detail view shows health indicators, a handler list, recent activity, and error details across five tabs.
+
+![App detail overview](../../_static/web_ui_app_detail_overview.png)
 
 ### Multi-instance apps
 

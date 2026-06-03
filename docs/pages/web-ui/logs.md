@@ -52,6 +52,8 @@ Some columns auto-hide at narrow viewport widths. Those columns appear disabled 
 
 Click any row to open the detail drawer with the complete entry.
 
+![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)
+
 The drawer shows a severity badge, full timestamp, and a metadata grid. The grid includes app (linked to its detail page), instance, execution ID, function name, module, line number, and logger name. The execution ID has a copy button.
 
 Below the grid, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message.

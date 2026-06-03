@@ -6,6 +6,8 @@ The web UI shows what configuration Hassette is running with and what the app co
 
 ### Global Configuration
 
+![Global configuration page](../../_static/web_ui_config.png)
+
 The Configuration page displays all `hassette.toml` values grouped by section. Groups include `web_api`, `logging`, `lifecycle`, `apps`, `scheduler`, and `file_watcher`. Top-level fields like `dev_mode`, `base_url`, and `config_dir` appear outside any group. Each section renders as a key-value card. Booleans appear as `true`/`false`, paths as strings, arrays as comma-separated lists.
 
 Open it from the sidebar, then click **Config**.
@@ -16,6 +18,8 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 ### Per-App Configuration
 
+![Per-app configuration tab](../../_static/web_ui_app_detail_config.png)
+
 The **Config** tab on an app detail page shows the resolved configuration for that app instance. It merges three sources: `hassette.toml` values, environment variable overrides, and field defaults from the [`AppConfig`](../core-concepts/apps/index.md) class. Pydantic validates the merged result.
 
 Navigate there from the sidebar, click an app, then open the **Config** tab.
@@ -23,6 +27,8 @@ Navigate there from the sidebar, click an app, then open the **Config** tab.
 If a value you set via environment variable is not reflected, the env var name does not match the config class field name. The tab shows exactly what the app received, so it is the fastest way to confirm an override took effect.
 
 ## Read App Source Code
+
+![Code tab](../../_static/web_ui_app_detail_code.png)
 
 The **Code** tab on an app detail page displays the Python source of the app as deployed. The view is read-only and syntax-highlighted.
 

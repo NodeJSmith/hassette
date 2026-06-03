@@ -24,6 +24,8 @@ Three things go wrong with handlers: they don't fire, they fire but error, or th
 
 ## Using the Handlers Page
 
+![Handlers page](../../_static/web_ui_handlers.png)
+
 Open **Handlers** in the sidebar. The page shows every registered event handler and scheduled job across all your apps in one table.
 
 Find your handler by searching the name box or filtering by app with the **App** column dropdown. The table shows:
@@ -40,12 +42,15 @@ The time window for all counts comes from the preset selector in the status bar.
 
 Open the app from the sidebar, then select the **Handlers** tab. The left panel lists every handler and job for this app. The right panel shows detail for the selected item.
 
+![Handler detail panel](../../_static/web_ui_app_detail_handlers.png)
+
 Select your handler. The detail panel shows:
 
 - **Registration source** — the exact `bus.on_state_change()` call Hassette recorded at startup, including the entity pattern and any options.
 - **Modifier chips** — any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, or `duration`. A handler with no modifiers shows no chip row.
 - **Source location** — the file path and line number where the handler is defined. Click **view in code →** to open the Code tab at that line.
 - **Error banner** — appears when the handler has at least one failure. Shows the exception class, the full message, and a **show traceback** toggle that expands the Python traceback inline.
+![Handler error banner](../../_static/web_ui_detail_handler_error.png)
 - **Stats grid** — calls, successful, failed, timed out, and min/avg/max duration for the current time window.
 - **Invocations table** — the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
 

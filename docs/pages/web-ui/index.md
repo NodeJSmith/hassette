@@ -55,9 +55,15 @@ The UI has three persistent navigation elements.
 
 The **sidebar** lists every app grouped by lifecycle status: `FAILING`, `BLOCKED`, `SLOW`, `RUNNING`, `STOPPED`, and `DISABLED`. A search field filters the list by app name. The command palette opens from the search area or with Ctrl+K (Cmd+K on macOS).
 
+![Sidebar](../../_static/web_ui_detail_sidebar.png)
+
 The **status bar** runs across the top. It holds a time-preset selector (Since restart, 1h, 24h, 7d) that scopes all history views. A connection indicator, uptime counter, and theme toggle sit alongside it.
 
+![Status bar](../../_static/web_ui_detail_status_bar.png)
+
 The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, handlers, and actions without navigating through the sidebar.
+
+![Command palette](../../_static/web_ui_detail_command_palette.png)
 
 **Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners indicate telemetry backpressure, meaning events or log entries are being dropped to stay within configured buffer limits.
 
