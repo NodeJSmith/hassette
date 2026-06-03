@@ -65,7 +65,7 @@ Every `AppConfig` includes two built-in fields:
 
 ### TOML Registration
 
-The `hassette.toml` file registers each app and supplies its config values. See [Configuration: Applications](../../configuration/applications.md) for the full reference.
+The `hassette.toml` file registers each app and supplies its config values. See [Configuration: Applications](../configuration/applications.md) for the full reference.
 
 ```toml
 --8<-- "pages/core-concepts/apps/snippets/app_config.toml"

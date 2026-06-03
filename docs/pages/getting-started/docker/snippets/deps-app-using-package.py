@@ -1,4 +1,4 @@
-import apprise
+import apprise  # pyright: ignore[reportMissingImports]
 from hassette import App, AppConfig
 
 

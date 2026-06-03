@@ -166,4 +166,4 @@ Custom error messages make failures easier to diagnose. The `{value}` placeholde
 
 - [State Registry](state-registry.md): domain-to-class mapping
 - [Custom States](custom-states.md): defining `value_type` on state models
-- [Dependency Injection](../../bus/dependency-injection.md): type conversion in custom extractors
+- [Dependency Injection](../bus/dependency-injection.md): type conversion in custom extractors

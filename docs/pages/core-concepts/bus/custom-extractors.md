@@ -12,7 +12,7 @@ The built-in [`D.*`](dependency-injection.md) annotations cover state values, en
 --8<-- "pages/core-concepts/bus/snippets/filtering/custom_accessors.py"
 ```
 
-Accessors also compose with predicates. `P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")` filters a service call subscription to a specific target entity without any handler logic. The full predicate reference is in [Filtering](filtering/index.md).
+Accessors also compose with predicates. `P.ValueIs(source=A.get_service_data_key("entity_id"), condition="light.living_room")` filters a service call subscription to a specific target entity without any handler logic. The full predicate reference is in [Filtering](filtering.md).
 
 ## Writing an Extractor
 
@@ -71,6 +71,6 @@ The [Type Registry](../states/type-registry.md) provides built-in converters for
 ## See Also
 
 - [Dependency Injection](dependency-injection.md): built-in `D.*` annotations
-- [Filtering](filtering/index.md): composing accessors with predicates
+- [Filtering](filtering.md): composing accessors with predicates
 - [Type Registry](../states/type-registry.md): built-in type converters and how to register custom ones
 - [State Registry](../states/state-registry.md): domain-to-model mapping

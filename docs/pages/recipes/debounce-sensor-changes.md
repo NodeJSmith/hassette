@@ -12,9 +12,9 @@ Your outdoor temperature sensor reports a reading every few seconds. On a warm a
 
 `debounce=10.0` tells the bus to hold the handler until the sensor has been quiet for 10 seconds. Each new event that arrives during that window resets the timer. Rapid fluctuations are silently discarded, and the handler fires exactly once when the readings stop.
 
-`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../../reference/event_handling/conditions.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
+`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
 
-`D.StateNew[states.SensorState]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../../reference/event_handling/dependencies.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a `SensorState` object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
+`D.StateNew[states.SensorState]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a `SensorState` object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 

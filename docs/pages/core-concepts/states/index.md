@@ -86,7 +86,7 @@ Every state object is a `BaseState` subclass. The following fields and propertie
 
 ## Built-in State Types
 
-Hassette auto-generates typed state classes for 55 Home Assistant domains from HA core source. All classes are available from the [`states`](../../api-reference/states.md) module:
+Hassette auto-generates typed state classes for 55 Home Assistant domains from HA core source. All classes are available from the `states` module:
 
 ```python
 --8<-- "pages/core-concepts/snippets/states_import.py"
@@ -98,7 +98,7 @@ Three common examples:
 - **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: str | None`
 - **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: str | None`
 
-The [API reference](../../api-reference/states.md) lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](../../advanced/custom-states.md).
+The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](../../advanced/custom-states.md).
 
 ??? info "Full domain-to-class table"
     | Domain | Class |

@@ -164,7 +164,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 ## Custom Accessors
 
-[`A`](accessors.md) (accessors) point predicates at fields not directly exposed by the helper methods. `P.ValueIs` extracts a value with an accessor, then tests it against a condition.
+[`A`](custom-extractors.md) (accessors) point predicates at fields not directly exposed by the helper methods. `P.ValueIs` extracts a value with an accessor, then tests it against a condition.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering/custom_accessors.py"

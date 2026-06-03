@@ -42,7 +42,7 @@ Without `-n`, pytest runs sequentially in a single process. The marker has no ef
 
 ## pytest-asyncio Mode
 
-`asyncio_mode = "auto"` is required. Without it, async tests silently pass without executing. The [Testing index](index.md#installation) covers setup and the false-green warning.
+`asyncio_mode = "auto"` is required. Without it, async tests silently pass without executing. The [Testing index](index.md#install) covers setup and the false-green warning.
 
 ## Next Steps
 

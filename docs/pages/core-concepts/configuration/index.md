@@ -30,7 +30,7 @@ The recommended approach is an environment variable or `.env` file so the token 
 HASSETTE__TOKEN=your_long_lived_access_token
 ```
 
-`verify_ssl` controls certificate validation. Setting it to `false` allows connections to Home Assistant instances with self-signed certificates. [Create a Long-Lived Access Token](../../getting-started/ha-token.md) covers step-by-step token generation.
+`verify_ssl` controls certificate validation. Setting it to `false` allows connections to Home Assistant instances with self-signed certificates. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers step-by-step token generation.
 
 ## Configuration Sections
 
@@ -58,7 +58,7 @@ App definitions live inside `[hassette.apps]` as named subsections:
 
 ## Design Notes
 
-The [auto-generated `HassetteConfig` reference](../../reference/config/index.md) covers every field, its type, and its default. The notes below explain the "why" for fields where the field name alone does not make the intent obvious.
+The `HassetteConfig` reference covers every field, its type, and its default. The notes below explain the "why" for fields where the field name alone does not make the intent obvious.
 
 ### Data Directory and Upgrades
 
@@ -96,4 +96,4 @@ The StateManager keeps a local cache of entity states. `state_proxy_poll_interva
 
 ## Full Reference
 
-The [HassetteConfig API reference](../../reference/config/index.md) lists every field with its type, default, and description.
+The `HassetteConfig` API reference lists every field with its type, default, and description.
