@@ -28,12 +28,14 @@ Thank you for your interest in contributing to Hassette! We welcome contribution
    uv sync
    ```
 
-3. **Install pre-commit hooks**
+3. **Install prek hooks**
 
-   We use [pre-commit](https://pre-commit.com/#install):
+   We use [prek](https://prek.j178.dev/) (a fast, Rust-based pre-commit runner).
+   [mise](https://mise.jdx.dev/) manages the version (pinned in `mise.toml`):
 
    ```bash
-   uv run pre-commit install
+   mise install
+   prek install
    ```
 
 ### Running Tests
@@ -56,7 +58,7 @@ We use several tools to maintain code quality:
 
 - **Ruff** - Linting and formatting
 - **Pyright** - Type checking
-- **Pre-commit** - Automated checks before commits
+- **prek** - Automated checks before commits
 
 Run checks manually:
 
@@ -98,7 +100,7 @@ uv run pyright
 - Include tests for new functionality
 - Update documentation as needed
 - Follow existing code style and conventions
-- Ensure all tests pass and pre-commit checks succeed
+- Ensure all tests pass and prek checks succeed
 
 ## Code Style
 
