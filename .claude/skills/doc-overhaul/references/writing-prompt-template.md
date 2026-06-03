@@ -4,13 +4,21 @@ Template for briefing subagents that write documentation pages. Fill in the `{{v
 
 ## How to use
 
-1. Copy the template below
-2. Fill in all `{{variables}}` from the page's outline (in `outlines/`) and existing content
-3. Send to a Sonnet subagent writing to a temp directory
-4. Send the output to an Opus reviewer subagent with the review prompt (at the bottom)
-5. Apply fixes in the main loop
+The orchestrating agent fills `{{variables}}` from each page's outline entry and dispatches the filled prompt to a Sonnet writer subagent. The reviewer prompt is dispatched after the writer completes. Use `get-skill-tmpdir doc-overhaul` for `{{output_dir}}`.
 
----
+**Variables to fill:**
+- `{{page_title}}` -- the page's H1 heading
+- `{{output_dir}}` -- from `get-skill-tmpdir doc-overhaul`
+- `{{filename}}` -- the target markdown filename
+- `{{section}}` -- the nav section path (e.g., `core-concepts/bus`)
+- `{{outline}}` -- the full outline from Phase 2
+- `{{snippet_inventory}}` -- the snippet list from the outline
+- `{{page_type}}` -- `getting-started`, `concept`, `recipe`, or `reference`
+- `{{voice_rules_block}}` -- the matching block from "Voice Rules Blocks" below
+- `{{cross_links}}` -- the cross-link list from the outline
+- `{{technical_facts}}` -- relevant technical details from the codebase
+- `{{page_path}}` -- path to the written page (reviewer prompt only)
+- `{{page_type_checklist}}` -- the matching block from "Page-Type Checklists" below (reviewer prompt only)
 
 ## Writer Prompt
 
@@ -244,4 +252,39 @@ For each finding:
 
 Group by: MUST FIX, SHOULD FIX, CONSIDER.
 End with a one-paragraph overall assessment.
+```
+
+---
+
+## Page-Type Checklists (for {{page_type_checklist}})
+
+Paste the matching block into the reviewer prompt's `{{page_type_checklist}}` slot.
+
+### Getting-started pages
+
+```
+7. "you" and "your" used throughout — direct address. NOT system-as-subject.
+8. Code shown FIRST, then explained. Code block immediately after the H2 heading. No introductory sentences before code.
+9. Concrete CLI output shown. When a step runs a command, show the exact terminal output.
+10. No motivational preamble before code. Don't explain WHY before showing WHAT.
+11. Link module aliases inline at first use (D, states, self.bus, self.scheduler, self.api).
+```
+
+### Concept and API reference pages
+
+```
+7. System-as-subject throughout — no "you" or "your." "The bus delivers events" not "you receive events."
+8. No imperative mood. No "Use X", "Pass Y." Use declarative: "X provides", "Y accepts."
+9. Concept introductions follow name -> define -> show -> constrain.
+10. Reference sections use tables before prose. Terse functional definitions in table cells.
+11. No admonitions inside reference tables.
+```
+
+### Recipe pages
+
+```
+7. "How It Works" uses system-as-subject. The code is the subject. No "you" in this section.
+8. "How It Works" uses flowing prose paragraphs, NOT bullet lists with bolded lead-ins. Each paragraph covers one decision.
+9. "Verify it's working" names a concrete command or UI action with expected output.
+10. Problem statement and Variations sections may use "you" and "your."
 ```
