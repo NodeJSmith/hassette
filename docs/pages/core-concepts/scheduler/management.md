@@ -132,4 +132,5 @@ Both levels accept sync or async callables.
 ## See Also
 
 - [Scheduling Methods](methods.md) for registration options, `if_exists`, and per-job parameters
+- [Triggers](triggers.md) for built-in trigger types and writing custom triggers
 - [Apps Lifecycle](../apps/lifecycle.md) for how shutdown triggers automatic job cleanup

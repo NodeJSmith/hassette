@@ -210,30 +210,8 @@ All scheduling methods accept `args` and `kwargs` to supply data to the handler 
 
 All method signatures and parameters are identical to the async versions. The facade blocks until the registration completes.
 
-## Custom Triggers
-
-`TriggerProtocol` defines the interface for custom scheduling patterns. Any class implementing all six methods can be passed to `schedule()`.
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_custom_trigger.py:trigger_class"
-```
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_custom_trigger.py:trigger_usage"
-```
-
-`TriggerProtocol` requires six methods:
-
-| Method | Signature | Returns | Description |
-|---|---|---|---|
-| `first_run_time` | `(current_time: ZonedDateTime)` | `ZonedDateTime` | The time for the first execution. |
-| `next_run_time` | `(previous_run: ZonedDateTime, current_time: ZonedDateTime)` | `ZonedDateTime \| None` | The time for the next execution. `None` makes the trigger one-shot. |
-| `trigger_label` | `()` | `str` | Short label used in logs and the web UI. |
-| `trigger_detail` | `()` | `str \| None` | Optional human-readable detail string. |
-| `trigger_db_type` | `()` | `Literal["interval", "cron", "once", "after", "custom"]` | Canonical type string for database storage. Application triggers return `"custom"`. |
-| `trigger_id` | `()` | `str` | Stable identifier for deduplication. Used by `if_exists="skip"` and auto-generated job names. |
-
 ## See Also
 
+- [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
 - [Job Management](management.md): cancelling, inspecting, and handling errors on scheduled jobs
-- [`Scheduler` Overview](index.md): trigger types and the scheduling model
+- [Scheduler Overview](index.md): getting started with the scheduler

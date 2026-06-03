@@ -59,6 +59,7 @@ nav:
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
           - Scheduling Methods: pages/core-concepts/scheduler/methods.md
+          - Triggers: pages/core-concepts/scheduler/triggers.md
           - Job Management: pages/core-concepts/scheduler/management.md
       - States:
           - Overview: pages/core-concepts/states/index.md
