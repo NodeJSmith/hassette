@@ -4,30 +4,6 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 `self.bus` is available on every [App](../apps/index.md) instance. Hassette creates it at startup.
 
-```mermaid
-flowchart TD
-    subgraph ha["Home Assistant"]
-        HA["Events"]
-    end
-
-    subgraph bus["Event Bus"]
-        BUS["Bus"]
-    end
-
-    subgraph handlers["App Handlers"]
-        APP1["Handler 1<br/><i>state_changed</i>"]
-        APP2["Handler 2<br/><i>call_service</i>"]
-        APP3["Handler 3<br/><i>custom_event</i>"]
-    end
-
-    HA --> BUS
-    BUS --> APP1 & APP2 & APP3
-
-    style ha fill:#f0f0f0,stroke:#999
-    style bus fill:#fff0e8,stroke:#cc8844
-    style handlers fill:#e8f0ff,stroke:#6688cc
-```
-
 ## Subscribing to Events
 
 [`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
