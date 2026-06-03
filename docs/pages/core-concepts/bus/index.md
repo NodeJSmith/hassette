@@ -69,6 +69,7 @@ Three subscription parameters manage handler invocation frequency.
 
 ## Next Steps
 
-- [Writing Handlers](handlers.md): handler signatures, immediate fire, duration hold, timeouts, and error behavior
+- [Writing Handlers](handlers.md): handler signature patterns and choosing the right one
+- [Subscription Methods](methods.md): full method reference, parameters, error handling, timeouts, and registration
 - [Filtering & Predicates](filtering.md): predicates, conditions, and accessors for complex event matching
 - [Dependency Injection](dependency-injection.md): the full `D.*` annotation reference and how Hassette resolves handler parameters

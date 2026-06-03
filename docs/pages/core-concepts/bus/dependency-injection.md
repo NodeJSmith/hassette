@@ -93,6 +93,7 @@ DI handlers do not support positional-only parameters (those before `/`) or `*ar
 ## See Also
 
 - [Custom Extractors](custom-extractors.md). Writing extractors, accessors, [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails], and automatic type conversion.
-- [Writing Handlers](handlers.md). Raw event and typed event patterns, handler error behavior.
+- [Writing Handlers](handlers.md). Handler signature patterns.
+- [Subscription Methods](methods.md). Which `D.*` annotations each method supports.
 - [State Registry](../states/state-registry.md). Domain-to-model mapping.
 - [Type Registry](../states/type-registry.md). Automatic type conversion.

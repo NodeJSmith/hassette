@@ -180,7 +180,8 @@ The complete `P`, `C`, and `A` lookup tables live on [Predicate Reference](predi
 
 ## See Also
 
-- [Writing Handlers](handlers.md). Typed data extraction from events with dependency injection.
+- [Writing Handlers](handlers.md). Handler signature patterns and dependency injection.
+- [Subscription Methods](methods.md). Method reference, parameters, and registration.
 - [Dependency Injection](dependency-injection.md). How `D.*` annotations work alongside predicates.
 - [Predicate Reference](predicate-reference.md). Complete `P`, `C`, and `A` tables.
 - [Custom Extractors](custom-extractors.md). Accessors for non-standard fields.
