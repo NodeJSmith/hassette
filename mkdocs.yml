@@ -45,6 +45,7 @@ nav:
       - Architecture: pages/core-concepts/index.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
+          - Configuration: pages/core-concepts/apps/configuration.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Task Bucket: pages/core-concepts/apps/task-bucket.md
       - Bus:
@@ -76,7 +77,6 @@ nav:
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
-          - Applications: pages/core-concepts/configuration/applications.md
       - System Internals:
           - Architecture & Data Flow: pages/core-concepts/internals/index.md
           - Per-Service Internals: pages/core-concepts/internals/service-details.md

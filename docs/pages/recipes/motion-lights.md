@@ -59,4 +59,4 @@ The trade-off: two subscriptions are easier to read individually, but the single
 
 - [`Bus`](../core-concepts/bus/index.md) — event subscriptions and rate control
 - [`Scheduler`](../core-concepts/scheduler/index.md) — `run_in` and job management
-- [Application Configuration](../core-concepts/configuration/applications.md) — per-instance config in `hassette.toml`
+- [Application Configuration](../core-concepts/apps/configuration.md) — per-instance config in `hassette.toml`

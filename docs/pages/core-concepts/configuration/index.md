@@ -54,7 +54,7 @@ App definitions live inside `[hassette.apps]` as named subsections:
 --8<-- "pages/core-concepts/configuration/snippets/basic_config.toml"
 ```
 
-[Applications](applications.md) covers app registration details and multi-instance configuration.
+[App Configuration](../apps/configuration.md) covers app registration details and multi-instance configuration.
 
 ## Design Notes
 
