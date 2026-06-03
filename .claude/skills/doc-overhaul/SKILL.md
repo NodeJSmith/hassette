@@ -2,6 +2,9 @@
 name: doc-overhaul
 description: "Full documentation rewrite using outline-first process. Three phases: site outline, per-page content outlines, section-by-section writing with subagent writer/reviewer pairs."
 user-invocable: true
+references:
+  - references/docs-context.md
+  - references/writing-prompt-template.md
 ---
 
 # Documentation Overhaul
