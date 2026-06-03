@@ -35,7 +35,7 @@ The two most common operations are reading state and calling a service.
 
 `get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object. `call_service()` sends a service call via WebSocket.
 
-## API vs `StateManager`
+## API vs StateManager
 
 [`self.states`](../states/index.md) covers most state-reading needs. It returns typed state objects from a local cache, with no network call and no `await`.
 

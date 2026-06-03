@@ -1,4 +1,4 @@
-# `Scheduler`
+# Scheduler
 
 The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 

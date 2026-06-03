@@ -98,7 +98,7 @@ async def on_motion(self): ...
 
 Hassette inspects your handler's type annotations at subscription time and injects the right data automatically. See [Dependency Injection](../core-concepts/bus/dependency-injection.md) for the full reference.
 
-## Synchronous API (`AppSync`)
+## Synchronous API (AppSync)
 
 If you have a large synchronous codebase and don't want to convert everything at once, `AppSync` is an intermediate step. It runs lifecycle hooks in a managed thread, letting you write synchronous code as before.
 

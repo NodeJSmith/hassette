@@ -46,7 +46,7 @@ See [Mental Model](concepts.md) for the lifecycle differences.
 
 See [`Bus` & Events](bus.md) for side-by-side examples.
 
-## Step 4: `Scheduler`
+## Step 4: Scheduler
 
 - [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds)`
 - [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`

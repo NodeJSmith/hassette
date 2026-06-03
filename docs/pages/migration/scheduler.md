@@ -1,4 +1,4 @@
-# `Scheduler`
+# Scheduler
 
 Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object for cancellation.
 

@@ -1,4 +1,4 @@
-# `Bus` & Events
+# Bus & Events
 
 This page covers migrating AppDaemon event listeners and state change listeners to Hassette's event bus (`self.bus`).
 

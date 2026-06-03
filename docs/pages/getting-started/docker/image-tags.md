@@ -18,7 +18,7 @@ For development, use `latest-py3.13`:
 --8<-- "pages/getting-started/docker/snippets/tag-latest-compose.yml"
 ```
 
-`latest-py3.13` tracks the most recent stable release. New features arrive on the next pull.
+`latest-py3.*` tags track the most recent stable release. New features arrive on the next pull.
 
 Python 3.11, 3.12, 3.13, and 3.14 are all supported. Replace `py3.13` with your preferred version.
 

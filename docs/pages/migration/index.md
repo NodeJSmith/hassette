@@ -36,7 +36,7 @@ Four areas change: configuration, app structure, event handlers, and API calls. 
 | AppDaemon feature | Status in Hassette |
 |-------------------|--------------------|
 | `listen_log` / log event subscriptions | Not planned |
-| HADashboard | Not planned. Hassette has its own monitoring UI. |
+| HADashboard | Not planned |
 | Notification helpers (`notify`, `call_action`) | Use `await self.api.call_service("notify", ...)` directly |
 | MQTT plugin | Not yet supported. No workaround available. |
 | Global variables / inter-app communication | Use `await self.bus.emit(topic, data)` for in-process broadcast |
@@ -47,9 +47,7 @@ If a feature you depend on is missing, [open an issue](https://github.com/NodeJS
 
 **`name=` is required on all bus subscriptions.** Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at runtime. Every `on_state_change`, `on_call_service`, and `on` call needs a stable string name.
 
-**`self.api.*` and `self.bus.on_*` are async and must be awaited.** Forgetting `await` returns a coroutine object. Nothing is registered or called.
-
-**`changed_to=` takes the string value, not a bool.** Use `changed_to="on"`, not `changed_to=True`. HA state values are strings.
+**`self.api.*`, `self.bus.on_*`, and `self.scheduler.*` are async and must be awaited.** Forgetting `await` returns a coroutine object. Nothing is registered or called.
 
 **[`AppSync`][hassette.app.app.AppSync] apps use `.sync` facades.** If you subclass `AppSync` for synchronous handlers, use `self.bus.sync.on_state_change(...)` and `self.scheduler.sync.run_in(...)`. The async methods are not available in sync hooks.
 

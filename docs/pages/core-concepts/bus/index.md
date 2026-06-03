@@ -1,4 +1,4 @@
-# `Bus`
+# Bus
 
 The event bus delivers Home Assistant events (state changes, service calls, component loads) to any app handler that subscribes. It also delivers Hassette-internal events.
 
