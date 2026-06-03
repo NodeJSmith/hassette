@@ -1,31 +1,49 @@
 # Monitor Sensor Thresholds
 
-Send a notification whenever a sensor value rises above a configured limit — useful for temperature, humidity, CO2, or any numeric sensor in Home Assistant.
+Temperature spikes, humidity creeps, CO2 builds up. Numeric sensors in Home Assistant report values continuously. You want a notification when a value crosses a limit, but only once per crossing. Not a flood while the value stays high.
 
-## The code
+## The Code
 
 ```python
 --8<-- "pages/recipes/snippets/sensor_threshold.py"
 ```
 
-## How it works
+## How It Works
 
-- **Typed config** — `ThresholdConfig` exposes `entity_id`, `threshold`, and `notify_target` as environment-backed settings. Override any of them per-instance without touching the code.
-- **Threshold filter** — `C.Comparison("gt", threshold)` is passed to `changed_to`, so the handler only fires when the new state value is greater than the configured limit. Events below the threshold are dropped before the handler runs.
-- **DI extraction** — `D.StateNew[states.SensorState]` gives a typed state object. `D.EntityId` provides the entity ID as a plain string for logging.
-- **Attributes** — `new_state.attributes.unit_of_measurement` and `friendly_name` are read directly from the typed model, keeping the notification message readable without manual string parsing.
-- **Notification** — `api.call_service("notify", ...)` sends the alert via any Home Assistant notify target (mobile app, persistent notification, etc.).
+`ThresholdConfig` exposes `entity_id`, `threshold`, and `notify_target` as settings. Each instance reads its own values from `hassette.toml`. The same app class watches different sensors in different rooms without code changes.
+
+`C.Comparison("gt", threshold)` passed to `changed_to` acts as a gate. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison functions. The bus evaluates the condition before invoking the handler. Events where the new state value is not greater than the threshold are dropped. The handler fires only on the crossing itself, not on every subsequent reading above the limit.
+
+`D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. `D.StateNew[states.SensorState]` delivers the new state as a typed object. `D.EntityId` delivers the entity ID as a plain string. Hassette resolves both from the event automatically. The handler declares what it needs, and the framework fills it in.
+
+`api.call_service("notify", ...)` sends the alert. `new_state.attributes.unit_of_measurement` and `new_state.attributes.friendly_name` come directly from the typed model, so the message reads naturally without manual attribute dict lookups.
+
+## Verify It's Working
+
+Check that the handler registered with the threshold condition:
+
+```
+hassette listener --app <key>
+```
+
+After a threshold crossing, confirm the handler fired:
+
+```
+hassette log --app <key> --since 1h
+```
+
+The log shows the warning line with the sensor name, value, and unit.
 
 ## Variations
 
-**Lower threshold (below-limit alert):** Change `"gt"` to `"lt"` to alert when the value drops below the limit — for example, alerting when battery level or water pressure falls too low.
+**Below-limit alert.** Change `"gt"` to `"lt"` to alert when a value drops below the threshold. Battery level and water pressure are natural fits. Alert when either falls too low.
 
-**Hysteresis to prevent alert storms:** Subscribe to a second listener with `changed_to=C.Comparison("le", threshold)` that sets a flag when the sensor recovers. Check the flag in `on_threshold_exceeded` and skip the notification if the sensor has not yet recovered, preventing repeated alerts while the value hovers near the threshold.
+**Hysteresis.** A second listener with `changed_to=C.Comparison("le", threshold)` fires when the sensor recovers back to or below the limit. Store a flag on `self` when recovery fires, and check it in `on_threshold_exceeded` before sending. The notification skips if the sensor has not yet cleared since the last alert.
 
-**Multiple sensors:** Register the same handler for several entities using a glob pattern (`"sensor.temp_*"`) or call `on_state_change` once per entity inside a loop over a `list[str]` config field.
+**Multiple sensors.** Pass a glob pattern like `"sensor.temp_*"` to `on_state_change` to cover a group of sensors with one registration. Alternatively, loop over a `list[str]` config field and call `on_state_change` once per entity. `D.EntityId` in the handler identifies which sensor triggered each alert.
 
-## See also
+## See Also
 
-- [Filtering](../core-concepts/bus/filtering.md) — full reference for `C.Comparison` and all other conditions
-- [Dependency Injection](../core-concepts/bus/dependency-injection.md) — how `D.StateNew` and `D.EntityId` work
-- [States](../core-concepts/states/index.md) — typed state models and the `SensorState` attributes
+- [Filtering](../core-concepts/bus/filtering.md). Full reference for `C.Comparison` and all other conditions.
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md). How `D.StateNew` and `D.EntityId` work.
+- [States](../core-concepts/states/index.md). Typed state models and the `SensorState` attributes.

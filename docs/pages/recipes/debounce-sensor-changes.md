@@ -1,6 +1,6 @@
 # Debounce Sensor Changes
 
-Sensors like temperature or humidity often emit bursts of near-identical readings. This recipe waits until a value has been stable for a set period before reacting, and only fires when the temperature has increased and crossed a threshold.
+Your outdoor temperature sensor reports a reading every few seconds. On a warm afternoon, it may emit a dozen near-identical values before settling. Reacting to each one produces redundant log entries and wasted service calls. This recipe waits until the sensor has been quiet for a set period before acting. It only fires when the temperature has risen.
 
 ## The Code
 
@@ -10,19 +10,41 @@ Sensors like temperature or humidity often emit bursts of near-identical reading
 
 ## How It Works
 
-- **`debounce=10.0`** — the handler is not called until the sensor has been quiet for 10 seconds. Any new event during that window resets the timer, so rapid fluctuations are silently discarded.
-- **`changed=C.Increased()`** — the debounce timer only starts for events where the new value is numerically greater than the old one. Decreases and unchanged readings never queue the handler.
-- The handler uses **dependency injection** (`D.StateNew[states.SensorState]`) to receive the new state as a typed object. The value is converted to a float before comparing to `THRESHOLD`.
-- When the temperature is at or above the threshold after stabilising, a single log line is emitted.
-- Adjust `THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID for your sensor.
+`debounce=10.0` tells the bus to hold the handler until the sensor has been quiet for 10 seconds. Each new event that arrives during that window resets the timer. Rapid fluctuations are silently discarded, and the handler fires exactly once when the readings stop.
+
+`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../../reference/event_handling/conditions.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
+
+`D.StateNew[states.SensorState]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../../reference/event_handling/dependencies.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a `SensorState` object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
+
+When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
+
+`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to `AppConfig` fields covers multiple sensors with a single class.
+
+## Verify It's Working
+
+Confirm the handler registered after startup:
+
+```
+hassette listener --app debounce_sensor
+```
+
+Expected output shows one listener named `outdoor_temp_debounced` with `debounce=10.0` and `changed=Increased`.
+
+After the sensor emits a rising reading and 10 seconds of quiet pass, check invocations:
+
+```
+hassette log --app debounce_sensor --since 5m
+```
+
+The log shows one entry per stabilized crossing, not one per raw sensor event. If the sensor fluctuated three times during the quiet window, only the final stable value appears.
 
 ## Variations
 
-**Use throttle instead of debounce.** If you want to log at most once every 30 seconds regardless of how many events arrive, replace `debounce=10.0` with `throttle=30.0`. Throttle fires on the first event and then suppresses the rest for the window; debounce waits for a quiet period before firing.
+**Throttle instead of debounce.** `throttle=30.0` fires on the first matching event and suppresses the rest for 30 seconds. Debounce waits for quiet; throttle fires immediately then goes silent. The two parameters are mutually exclusive: passing both raises a `ValueError` at registration time.
 
-**Watch a different sensor.** Swap `"sensor.outdoor_temperature"` for any numeric sensor — humidity (`sensor.living_room_humidity`), CO₂ (`sensor.co2_level`), or power draw (`sensor.solar_inverter_power`). Adjust `THRESHOLD` to match the units.
+**Different sensor types.** Swap `sensor.outdoor_temperature` for any numeric sensor and adjust `THRESHOLD` to match the units. Humidity (`sensor.living_room_humidity`), CO₂ (`sensor.co2_level`), and power draw (`sensor.solar_inverter_power`) all work the same way.
 
 ## See Also
 
-- [Bus Overview](../core-concepts/bus/index.md) — how subscriptions work and what methods are available.
-- [Filtering & Advanced Subscriptions](../core-concepts/bus/filtering.md) — full reference for `changed`, `C.Increased`, and other conditions.
+- [Bus Overview](../core-concepts/bus/index.md). Subscription model and available methods.
+- [Filtering](../core-concepts/bus/filtering.md). Full reference for `changed`, `C.Increased`, debounce, and throttle.

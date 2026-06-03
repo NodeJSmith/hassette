@@ -1,24 +1,15 @@
 # Recipes
 
-Recipes are complete, working automations that solve common Home Assistant tasks. Each one is a self-contained app you can copy, update the entity IDs for your setup, and run. They are not step-by-step tutorials — they are starting points.
+Copy-paste-ready automations, organized by problem.
 
-## Recipes
-
-**[Motion-Activated Lights](motion-lights.md)** — Turn lights on when a motion sensor triggers and off again after a configurable delay.
-
-**[Daily Notification](daily-notification.md)** — Send a push notification to a mobile device at a specific time each day.
-
-**[Debounce Sensor Changes](debounce-sensor-changes.md)** — Avoid reacting to rapid sensor fluctuations by waiting until a value has been stable for a set period.
-
-**[React to a Service Call](service-call-reaction.md)** — Intercept a Home Assistant service call and run custom logic in response.
-
-**[Monitor Sensor Thresholds](sensor-threshold.md)** — Alert when a sensor value crosses a configured limit, with hysteresis to prevent alert storms.
-
-**[Vacation Mode Toggle](vacation-mode-toggle.md)** — Use a Home Assistant input boolean helper to switch app behavior on and off without redeploying.
-
-Each recipe is a complete, working app. Copy the code, update the entity IDs for your setup, and run it.
+- **[Motion-Activated Lights](motion-lights.md)**. Lights that respond to motion and turn themselves off after a quiet period.
+- **[Debounce Sensor Changes](debounce-sensor-changes.md)**. Sensors that report noisy, rapid-fire readings you want to ignore until a value stabilizes.
+- **[Monitor Sensor Thresholds](sensor-threshold.md)**. A reading crosses a limit and you need to act on it immediately.
+- **[Daily Notification](daily-notification.md)**. Recurring tasks that need to fire at the same time every day.
+- **[React to a Service Call](service-call-reaction.md)**. You want to run custom logic whenever a specific HA service is called.
+- **[Vacation Mode Toggle](vacation-mode-toggle.md)**. Changing app behavior at runtime without redeploying.
 
 ## See Also
 
-- [Core Concepts](../core-concepts/index.md) — the building blocks all recipes use: Bus, Scheduler, API, and States.
-- [Getting Started](../getting-started/index.md) — installation and your first app.
+- [Core Concepts](../core-concepts/index.md). The building blocks all recipes use: Bus, Scheduler, API, and States.
+- [Getting Started](../getting-started/index.md). Installation and your first app.
