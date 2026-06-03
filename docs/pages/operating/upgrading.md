@@ -28,14 +28,14 @@ This updates `pyproject.toml` and installs the new version into your project env
 
 **Docker**
 
-Pull the new image tag and restart your container:
+Pull the latest image and restart your container:
 
 ```bash
-docker pull ghcr.io/nodejsmith/hassette:latest
+docker compose pull
 docker compose up -d
 ```
 
-Replace `latest` with a specific version tag if you pin releases.
+This pulls whatever tag is configured in your `docker-compose.yml`. To pin a specific version, change the `image:` tag there.
 
 ## Reading the Changelog
 
