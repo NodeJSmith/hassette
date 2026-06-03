@@ -2,6 +2,8 @@
 
 The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
 
+<div style="text-align: center">
+
 ```mermaid
 flowchart TD
     subgraph ha["Home Assistant"]
@@ -25,6 +27,8 @@ flowchart TD
     style framework fill:#fff0e8,stroke:#cc8844
     style app fill:#e8f0ff,stroke:#6688cc
 ```
+
+</div>
 
 ## Reading State
 
@@ -99,67 +103,6 @@ Three common examples:
 - **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: str | None`
 
 The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
-
-??? info "Full domain-to-class table"
-    | Domain | Class |
-    |---|---|
-    | `ai_task` | `AiTaskState` |
-    | `air_quality` | `AirQualityState` |
-    | `alarm_control_panel` | `AlarmControlPanelState` |
-    | `assist_satellite` | `AssistSatelliteState` |
-    | `automation` | `AutomationState` |
-    | `binary_sensor` | `BinarySensorState` |
-    | `button` | `ButtonState` |
-    | `calendar` | `CalendarState` |
-    | `camera` | `CameraState` |
-    | `climate` | `ClimateState` |
-    | `conversation` | `ConversationState` |
-    | `counter` | `CounterState` |
-    | `cover` | `CoverState` |
-    | `date` | `DateState` |
-    | `datetime` | `DateTimeState` |
-    | `device_tracker` | `DeviceTrackerState` |
-    | `event` | `EventState` |
-    | `fan` | `FanState` |
-    | `geo_location` | `GeoLocationState` |
-    | `humidifier` | `HumidifierState` |
-    | `image` | `ImageState` |
-    | `image_processing` | `ImageProcessingState` |
-    | `input_boolean` | `InputBooleanState` |
-    | `input_button` | `InputButtonState` |
-    | `input_datetime` | `InputDatetimeState` |
-    | `input_number` | `InputNumberState` |
-    | `input_select` | `InputSelectState` |
-    | `input_text` | `InputTextState` |
-    | `lawn_mower` | `LawnMowerState` |
-    | `light` | `LightState` |
-    | `lock` | `LockState` |
-    | `media_player` | `MediaPlayerState` |
-    | `notify` | `NotifyState` |
-    | `number` | `NumberState` |
-    | `person` | `PersonState` |
-    | `remote` | `RemoteState` |
-    | `scene` | `SceneState` |
-    | `script` | `ScriptState` |
-    | `select` | `SelectState` |
-    | `sensor` | `SensorState` |
-    | `siren` | `SirenState` |
-    | `stt` | `SttState` |
-    | `sun` | `SunState` |
-    | `switch` | `SwitchState` |
-    | `text` | `TextState` |
-    | `time` | `TimeState` |
-    | `timer` | `TimerState` |
-    | `todo` | `TodoState` |
-    | `tts` | `TtsState` |
-    | `update` | `UpdateState` |
-    | `vacuum` | `VacuumState` |
-    | `valve` | `ValveState` |
-    | `water_heater` | `WaterHeaterState` |
-    | `weather` | `WeatherState` |
-    | `zone` | `ZoneState` |
-
-    The API reference is the canonical source. This table may lag behind new HA releases.
 
 ## Iterating Over States
 
