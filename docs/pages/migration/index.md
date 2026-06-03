@@ -51,7 +51,7 @@ If a feature you depend on is missing, [open an issue](https://github.com/NodeJS
 
 **`changed_to=` takes the string value, not a bool.** Use `changed_to="on"`, not `changed_to=True`. HA state values are strings.
 
-**[`AppSync`][hassette.app.app.`AppSync`] apps use `.sync` facades.** If you subclass `AppSync` for synchronous handlers, use `self.bus.sync.on_state_change(...)` and `self.scheduler.sync.run_in(...)`. The async methods are not available in sync hooks.
+**[`AppSync`][hassette.app.app.AppSync] apps use `.sync` facades.** If you subclass `AppSync` for synchronous handlers, use `self.bus.sync.on_state_change(...)` and `self.scheduler.sync.run_in(...)`. The async methods are not available in sync hooks.
 
 ## Per-App Migration Checklist
 

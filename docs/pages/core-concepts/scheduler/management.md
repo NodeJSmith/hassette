@@ -1,6 +1,6 @@
 # Job Management
 
-`schedule()` and all convenience methods return a [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`]. The object carries metadata about the job and provides the primary cancellation method.
+`schedule()` and all convenience methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. The object carries metadata about the job and provides the primary cancellation method.
 
 ## The `ScheduledJob` Object
 

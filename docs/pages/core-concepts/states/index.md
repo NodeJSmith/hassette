@@ -1,6 +1,6 @@
 # States
 
-The [`StateManager`][hassette.state_manager.state_manager.`StateManager`] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
+The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
 
 ```mermaid
 flowchart TD
@@ -30,7 +30,7 @@ flowchart TD
 
 ### Domain Access
 
-`self.states.light`, `self.states.sensor`, and similar domain properties return a [`DomainStates`][hassette.state_manager.state_manager.`DomainStates`] collection, a typed view of every entity in that domain.
+`self.states.light`, `self.states.sensor`, and similar domain properties return a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection, a typed view of every entity in that domain.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_domain_access.py"
@@ -42,7 +42,7 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 
 ### Direct Entity Access
 
-`self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific registered type. [`LightState`][hassette.models.states.light.`LightState`] for `light.*`, [`SensorState`][hassette.models.states.sensor.`SensorState`] for `sensor.*`, `BaseState` for anything unregistered.
+`self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific registered type. [`LightState`][hassette.models.states.light.LightState] for `light.*`, [`SensorState`][hassette.models.states.sensor.SensorState] for `sensor.*`, `BaseState` for anything unregistered.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_direct_access.py"
@@ -60,7 +60,7 @@ Custom state class definition and registration are covered in [Custom States](cu
 
 ## What a State Object Contains
 
-Every state object is a [`BaseState`][hassette.models.states.base.`BaseState`] subclass. The following fields and properties are available on all of them.
+Every state object is a [`BaseState`][hassette.models.states.base.BaseState] subclass. The following fields and properties are available on all of them.
 
 **`value`** is the entity's current state, typed for the domain. `SwitchState.value` is `bool | None`, `SensorState.value` is `str | None`, `SelectState.value` is `str | None`. When HA reports `"unknown"` or `"unavailable"`, `value` is `None`. `is_unknown` and `is_unavailable` identify which case applies.
 
@@ -192,7 +192,7 @@ Additional collection methods:
 
 **Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The `StateManager` event handler runs before app handlers, so handlers always see the latest state.
 
-**Reconnection.** During a HA reconnect the cache is temporarily cleared. The [`StateProxy`][hassette.core.state_proxy.`StateProxy`] marks itself not ready and retries reads automatically.
+**Reconnection.** During a HA reconnect the cache is temporarily cleared. The [`StateProxy`][hassette.core.state_proxy.StateProxy] marks itself not ready and retries reads automatically.
 
 **Missing entities.** `.get()` returns `None` for absent entities. Bracket access raises `KeyError`. `.get()` with a `None` check is the safe path when entity presence is uncertain.
 

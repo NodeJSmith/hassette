@@ -1,6 +1,6 @@
 # Scheduling Methods
 
-All scheduling methods return a [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`]. Every method is `async` and requires `await`.
+All scheduling methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. Every method is `async` and requires `await`.
 
 ## Shared Parameters
 
@@ -206,7 +206,7 @@ All scheduling methods accept `args` and `kwargs` to supply data to the handler 
 
 ## Synchronous Scheduling
 
-`self.scheduler.sync` exposes a `SchedulerSyncFacade` that mirrors all scheduling methods as blocking calls. This is intended for use in [`AppSync`][hassette.app.app.`AppSync`] lifecycle hooks, which run in a synchronous context.
+`self.scheduler.sync` exposes a `SchedulerSyncFacade` that mirrors all scheduling methods as blocking calls. This is intended for use in [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a synchronous context.
 
 All method signatures and parameters are identical to the async versions. The facade blocks until the registration completes.
 

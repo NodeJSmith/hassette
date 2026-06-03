@@ -1,6 +1,6 @@
 # Configuration
 
-AppDaemon splits configuration across two YAML files: `appdaemon.yaml` for global settings and `apps.yaml` for per-app arguments. Hassette uses a single `hassette.toml` for everything, and replaces raw argument dictionaries with typed [`AppConfig`][hassette.app.app_config.`AppConfig`] models.
+AppDaemon splits configuration across two YAML files: `appdaemon.yaml` for global settings and `apps.yaml` for per-app arguments. Hassette uses a single `hassette.toml` for everything, and replaces raw argument dictionaries with typed [`AppConfig`][hassette.app.app_config.AppConfig] models.
 
 ## Global Configuration
 

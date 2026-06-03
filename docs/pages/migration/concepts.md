@@ -52,7 +52,7 @@ Hassette runs all apps in a single asyncio event loop. Two things follow:
 --8<-- "pages/migration/snippets/concepts_sync_async.py"
 ```
 
-If you have blocking code that you cannot convert, use [`AppSync`][hassette.app.app.`AppSync`] (described below).
+If you have blocking code that you cannot convert, use [`AppSync`][hassette.app.app.AppSync] (described below).
 
 ## Typed vs Untyped
 
@@ -60,7 +60,7 @@ AppDaemon returns raw strings and dicts. `self.get_state("light.kitchen")` retur
 
 Hassette uses Pydantic models throughout.
 
-**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.`LightState`] with typed fields. Your IDE knows the shape; Pyright catches typos at development time, not at 2am.
+**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape; Pyright catches typos at development time, not at 2am.
 
 **App configuration** is a validated Pydantic model. You declare fields with types and defaults; Hassette loads and validates them at startup. A missing required field raises an error before any handler fires.
 

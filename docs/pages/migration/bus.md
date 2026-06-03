@@ -106,7 +106,7 @@ AppDaemon passes extra kwargs from `listen_event()` into the callback via `**kwa
 
 ## Canceling Subscriptions
 
-AppDaemon returns an opaque handle from `listen_state()` and requires a separate cancel call. Hassette returns a [`Subscription`][hassette.bus.listeners.`Subscription`] object with a `.cancel()` method.
+AppDaemon returns an opaque handle from `listen_state()` and requires a separate cancel call. Hassette returns a [`Subscription`][hassette.bus.listeners.Subscription] object with a `.cancel()` method.
 
 === "AppDaemon"
 

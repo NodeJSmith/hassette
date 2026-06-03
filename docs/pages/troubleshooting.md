@@ -32,7 +32,7 @@ AttributeError: Class MyApp not found in module apps.my_app
 
 Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
 
-**Invalid config.** A required [`AppConfig`][hassette.app.app_config.`AppConfig`] field has no value and no default:
+**Invalid config.** A required [`AppConfig`][hassette.app.app_config.AppConfig] field has no value and no default:
 
 ```
 ERROR hassette — Failed to load app 'MyApp' due to bad configuration

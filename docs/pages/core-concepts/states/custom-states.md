@@ -82,7 +82,7 @@ Fields on the attributes class are optional by default when typed with `| None`.
 
 ### Via `self.states[CustomStateClass]`
 
-`self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.`DomainStates`] collection typed to `RedditState`. Iteration yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance.
+`self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection typed to `RedditState`. Iteration yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/via_get_states.py"

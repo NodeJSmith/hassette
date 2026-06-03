@@ -14,7 +14,7 @@ Temperature spikes, humidity creeps, CO2 builds up. Numeric sensors in Home Assi
 
 `C.Comparison("gt", threshold)` passed to `changed_to` acts as a gate. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison functions. The bus evaluates the condition before invoking the handler. Events where the new state value is not greater than the threshold are dropped. The handler fires only on the crossing itself, not on every subsequent reading above the limit.
 
-`D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. `D.StateNew[states.`SensorState`]` delivers the new state as a typed object. `D.EntityId` delivers the entity ID as a plain string. Hassette resolves both from the event automatically. The handler declares what it needs, and the framework fills it in.
+`D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. `D.StateNew[states.SensorState]` delivers the new state as a typed object. `D.EntityId` delivers the entity ID as a plain string. Hassette resolves both from the event automatically. The handler declares what it needs, and the framework fills it in.
 
 `api.call_service("notify", ...)` sends the alert. `new_state.attributes.unit_of_measurement` and `new_state.attributes.friendly_name` come directly from the typed model, so the message reads naturally without manual attribute dict lookups.
 
@@ -46,4 +46,4 @@ The log shows the warning line with the sensor name, value, and unit.
 
 - [Filtering](../core-concepts/bus/filtering.md). Full reference for `C.Comparison` and all other conditions.
 - [Dependency Injection](../core-concepts/bus/dependency-injection.md). How `D.StateNew` and `D.EntityId` work.
-- [States](../core-concepts/states/index.md). Typed state models and the [`SensorState`][hassette.models.states.sensor.`SensorState`] attributes.
+- [States](../core-concepts/states/index.md). Typed state models and the [`SensorState`][hassette.models.states.sensor.SensorState] attributes.

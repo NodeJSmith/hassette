@@ -16,7 +16,7 @@ A handler with no parameters runs as a side effect. No event data is extracted o
 
 ### Raw event
 
-A handler annotated with [`RawStateChangeEvent`][hassette.events.hass.hass.`RawStateChangeEvent`] receives the untyped event object directly.
+A handler annotated with [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] receives the untyped event object directly.
 The state value lives at `event.payload.data.new_state.get("state")`.
 
 ```python
@@ -55,7 +55,7 @@ full annotation table, union types, and custom extractors.
 
 ## Non-State Event Types
 
-The bus subscribes to more than state changes. Each method below returns a [`Subscription`][hassette.bus.listeners.`Subscription`],
+The bus subscribes to more than state changes. Each method below returns a [`Subscription`][hassette.bus.listeners.Subscription],
 a handle that cancels the listener when called. All accept the same `name=`, `on_error=`,
 `timeout=`, `debounce=`, and `throttle=` options as `on_state_change`.
 

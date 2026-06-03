@@ -1,6 +1,6 @@
 # State Registry
 
-[`StateRegistry`][hassette.conversion.state_registry.`StateRegistry`] maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which [`BaseState`][hassette.models.states.base.`BaseState`] subclass handles conversion.
+[`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps Home Assistant domains to Python state model classes. When state data arrives as an untyped dictionary, the registry determines which [`BaseState`][hassette.models.states.base.BaseState] subclass handles conversion.
 
 Most apps never interact with the registry directly. The [DI system](../bus/dependency-injection.md) and [`self.states`](index.md) use it automatically on every state event.
 
@@ -52,7 +52,7 @@ When direct registry access is needed outside an app, `STATE_REGISTRY` is availa
 
 ## The Conversion Flow
 
-When state data arrives from Home Assistant, `StateRegistry` and [`TypeRegistry`][hassette.conversion.type_registry.`TypeRegistry`] cooperate to produce a typed object.
+When state data arrives from Home Assistant, `StateRegistry` and [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] cooperate to produce a typed object.
 
 1. Raw dict arrives from Home Assistant:
    ```python
@@ -86,7 +86,7 @@ The `value_type` ClassVar declares which Python types the `state` field accepts.
 --8<-- "pages/core-concepts/states/snippets/state-registry/union_type_support.py"
 ```
 
-For `D.StateNew[states.`SensorState` | states.`BinarySensorState`]`, the DI system extracts the domain from the entity ID. It checks each type in the union and selects the one whose `Literal` domain matches. When no type in the union matches, conversion falls back to `BaseState`.
+For `D.StateNew[states.SensorState | states.BinarySensorState]`, the DI system extracts the domain from the entity ID. It checks each type in the union and selects the one whose `Literal` domain matches. When no type in the union matches, conversion falls back to `BaseState`.
 
 ## Error Handling
 

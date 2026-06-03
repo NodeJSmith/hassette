@@ -31,7 +31,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
-`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.`RawStateChangeEvent`] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
+`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
 
 ## How Built-In Extractors Work
 

@@ -42,7 +42,7 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 
 ??? note "`AppSync` lifecycle hooks"
 
-    [`AppSync`][hassette.app.app.`AppSync`] provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`. The `_sync` hooks are synchronous and cannot use `await`.
+    [`AppSync`][hassette.app.app.AppSync] provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`. The `_sync` hooks are synchronous and cannot use `await`.
 
     | `App` (async) | `AppSync` (sync) |
     |---|---|

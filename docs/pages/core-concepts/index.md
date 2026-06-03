@@ -106,11 +106,11 @@ flowchart TD
 
 ## Startup
 
-Hassette starts services in dependency order. [Api][hassette.api.api.Api], [`Bus`][hassette.bus.bus.`Bus`], [`Scheduler`][hassette.scheduler.scheduler.`Scheduler`], and `States` are all ready before `on_initialize` runs on any app. [Resource Lifecycle & Supervision](internals/lifecycle.md) covers the full startup sequence and service lifecycle.
+Hassette starts services in dependency order. [Api][hassette.api.api.Api], [`Bus`][hassette.bus.bus.Bus], [`Scheduler`][hassette.scheduler.scheduler.Scheduler], and `States` are all ready before `on_initialize` runs on any app. [Resource Lifecycle & Supervision](internals/lifecycle.md) covers the full startup sequence and service lifecycle.
 
 ## Topics
 
-- [Apps](apps/index.md): the `App` base class, lifecycle hooks, and [`AppConfig`][hassette.app.app_config.`AppConfig`].
+- [Apps](apps/index.md): the `App` base class, lifecycle hooks, and [`AppConfig`][hassette.app.app_config.AppConfig].
 - [`Bus`](bus/index.md): subscribing to events, filtering, handler options.
 - [`Scheduler`](scheduler/index.md): triggers, job groups, jitter.
 - [API](api/index.md): service calls, state reads, WebSocket commands.

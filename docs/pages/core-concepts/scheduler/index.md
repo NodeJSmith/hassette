@@ -51,4 +51,4 @@ Each convenience method creates a trigger object under the hood. `schedule()` ac
 ## Next Steps
 
 - [Scheduling Methods](methods.md): full method reference, cron expressions, custom triggers, and per-job options including `group`, `jitter`, and `if_exists`
-- [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.`ScheduledJob`] object
+- [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object

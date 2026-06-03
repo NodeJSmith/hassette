@@ -1,6 +1,6 @@
 # Subscribing to State Changes
 
-The [`Bus`](../bus/index.md) delivers `state_changed` events to handlers each time Home Assistant reports an entity update. `on_state_change` and `on_attribute_change` are the two subscription methods for reacting to entity state. Both are async and return a [`Subscription`][hassette.bus.listeners.`Subscription`] handle.
+The [`Bus`](../bus/index.md) delivers `state_changed` events to handlers each time Home Assistant reports an entity update. `on_state_change` and `on_attribute_change` are the two subscription methods for reacting to entity state. Both are async and return a [`Subscription`][hassette.bus.listeners.Subscription] handle.
 
 ## Basic `Subscription`
 

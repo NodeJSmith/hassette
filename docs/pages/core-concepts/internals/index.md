@@ -63,7 +63,7 @@ flowchart TD
     style outbound fill:#fff0e8,stroke:#cc8844
 ```
 
-[`StateProxy`][hassette.core.state_proxy.`StateProxy`] holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
+[`StateProxy`][hassette.core.state_proxy.StateProxy] holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
 
 Outbound calls go through the per-app [Api][hassette.api.api.Api] handle. Single-entity reads use [`ApiResource`][hassette.core.api_resource.ApiResource] over REST. Service calls and bulk state reads use `WebsocketService` over WebSocket.
 
@@ -86,7 +86,7 @@ Services declare startup dependencies as a class-level `ClassVar`. The framework
 --8<-- "pages/core-concepts/snippets/index_depends_on.py"
 ```
 
-`depends_on` scoping is intentional: only direct children of the [`Hassette`][hassette.core.core.Hassette] root participate. Per-app resources ([`Bus`][hassette.bus.bus.`Bus`], [`Scheduler`][hassette.scheduler.scheduler.`Scheduler`], `Api`, [`StateManager`][hassette.state_manager.state_manager.`StateManager`]) are not services and do not declare `depends_on`.
+`depends_on` scoping is intentional: only direct children of the [`Hassette`][hassette.core.core.Hassette] root participate. Per-app resources ([`Bus`][hassette.bus.bus.Bus], [`Scheduler`][hassette.scheduler.scheduler.Scheduler], `Api`, [`StateManager`][hassette.state_manager.state_manager.StateManager]) are not services and do not declare `depends_on`.
 
 ### Wave-Based Ordering
 

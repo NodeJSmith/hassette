@@ -14,11 +14,11 @@ Your outdoor temperature sensor reports a reading every few seconds. On a warm a
 
 `changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
 
-`D.StateNew[states.`SensorState`]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a [`SensorState`][hassette.models.states.sensor.`SensorState`] object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
+`D.StateNew[states.SensorState]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a [`SensorState`][hassette.models.states.sensor.SensorState] object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 
-`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to [`AppConfig`][hassette.app.app_config.`AppConfig`] fields covers multiple sensors with a single class.
+`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to [`AppConfig`][hassette.app.app_config.AppConfig] fields covers multiple sensors with a single class.
 
 ## Verify It's Working
 

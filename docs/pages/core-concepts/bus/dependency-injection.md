@@ -6,7 +6,7 @@ Hassette's dependency injection system extracts typed data from events and passe
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
 ```
 
-`D.StateNew[states.`LightState`]` extracts the new state and converts it to a typed [`LightState`][hassette.models.states.light.`LightState`]. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
+`D.StateNew[states.LightState]` extracts the new state and converts it to a typed [`LightState`][hassette.models.states.light.LightState]. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
 
 All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
 
