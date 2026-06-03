@@ -79,7 +79,7 @@ The project must have:
 
 1. **Write** -- For each page, fill the writer prompt template from `references/writing-prompt-template.md` with the page's outline, snippet inventory, voice rules block, and cross-links. Dispatch to a Sonnet writer subagent. Use `get-skill-tmpdir doc-overhaul` for the output directory.
 
-2. **Review** -- Send each written page to a Sonnet reviewer subagent using the reviewer prompt from `references/writing-prompt-template.md`. Fill `{{page_type_checklist}}` with the matching page-type checklist from the same file. The reviewer checks voice compliance, symbol accuracy, and anti-patterns.
+2. **Review** -- Send each written page to an Opus reviewer subagent using the reviewer prompt from `references/writing-prompt-template.md`. Fill `{{page_type_checklist}}` with the matching page-type checklist from the same file. The reviewer checks voice compliance, symbol accuracy, and anti-patterns.
 
 3. **Apply fixes** -- Apply reviewer findings in the main loop. Re-review if MUST FIX items were found.
 
