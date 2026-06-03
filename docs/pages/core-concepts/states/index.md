@@ -141,8 +141,7 @@ Additional collection methods:
 
 ## See Also
 
-- [Subscribing to State Changes](../bus/index.md): react to state transitions as they happen
+- [Subscription Methods](../bus/methods.md): `on_state_change`, `on_attribute_change`, and their parameters
 - [Custom States](custom-states.md): define typed models for custom integrations
 - [API - Entities & States](../api/entities.md): retrieve states via the REST/WebSocket API
-- [`Bus`](../bus/index.md): the event system that delivers state changes to handlers
 - [App Cache](../cache/index.md): persist data locally across restarts

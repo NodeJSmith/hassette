@@ -63,7 +63,6 @@ nav:
           - Job Management: pages/core-concepts/scheduler/management.md
       - States:
           - Overview: pages/core-concepts/states/index.md
-          - Subscribing to State Changes: pages/core-concepts/states/subscribing.md
           - Custom States: pages/core-concepts/states/custom-states.md
           - State Registry: pages/core-concepts/states/state-registry.md
           - Type Registry: pages/core-concepts/states/type-registry.md
