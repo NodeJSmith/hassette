@@ -2,29 +2,6 @@
 
 `self.api` sends commands to Home Assistant and retrieves data from it. It wraps the REST and WebSocket APIs with automatic authentication, retries, and type conversion. Every [`App`](../apps/index.md) instance has one.
 
-```mermaid
-flowchart TD
-    subgraph app["App"]
-        APP["self.api"]
-    end
-
-    subgraph framework["Api Client"]
-        REST["REST<br/><i>get_state()</i>"]
-        WS["WebSocket<br/><i>call_service()</i>"]
-    end
-
-    subgraph ha["Home Assistant"]
-        HA["HA API"]
-    end
-
-    APP --> REST & WS
-    REST & WS --> HA
-
-    style app fill:#e8f0ff,stroke:#6688cc
-    style framework fill:#fff0e8,stroke:#cc8844
-    style ha fill:#f0f0f0,stroke:#999
-```
-
 ## Quick Example
 
 The two most common operations are reading state and calling a service.

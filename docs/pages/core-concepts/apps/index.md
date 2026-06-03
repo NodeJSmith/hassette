@@ -2,27 +2,6 @@
 
 An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of handles for interacting with HA.
 
-```mermaid
-flowchart TD
-    subgraph app["Your App"]
-        A["App"]
-    end
-
-    subgraph resources["Resources"]
-        direction LR
-        Api
-        Bus
-        Scheduler
-        States
-        Cache
-    end
-
-    A --> Api & Bus & Scheduler & States & Cache
-
-    style app fill:#e8f0ff,stroke:#6688cc
-    style resources fill:#fff0e8,stroke:#cc8844
-```
-
 ## Defining an App
 
 Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `App` manages handlers, scheduling, and the connection to Home Assistant. The `on_initialize` lifecycle hook runs at startup, before any events arrive.
