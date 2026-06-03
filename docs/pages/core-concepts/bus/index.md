@@ -14,16 +14,7 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 [`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
-Four subscription methods cover the common event types:
-
-| Method | Fires when |
-|---|---|
-| `on_state_change` | An entity's state value changes |
-| `on_attribute_change` | A named attribute on an entity changes |
-| `on_call_service` | A Home Assistant service is called |
-| `on` | Any event on a given topic string |
-
-All registration methods are async. Each requires a `name=` parameter, a stable string identifier for the listener. Additional specialized methods like `on_component_loaded` are covered in [Writing Handlers](handlers.md).
+`Bus` provides typed subscription methods for state changes, attribute changes, service calls, Home Assistant lifecycle events, and Hassette-internal events. [Subscription Methods](methods.md) covers each method, its parameters, and compatible DI annotations.
 
 ## Matching Multiple Entities
 
