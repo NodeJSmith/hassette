@@ -359,7 +359,7 @@ These flags apply to every command and are placed before the subcommand name.
 | `--json` | n/a | Outputs results as JSON. |
 | `--debug` | n/a | Shows the full HTTP response on CLI errors. |
 
-### --since format
+### --since format { #--since-format }
 
 `--since` accepts relative durations and absolute timestamps.
 
