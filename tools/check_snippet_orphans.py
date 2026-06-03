@@ -25,7 +25,7 @@ INCLUDE_RE = re.compile(r'--8<--\s+"([^"]+)"')
 
 def find_snippet_files() -> set[Path]:
     results: set[Path] = set()
-    for path in DOCS_DIR.rglob("*/snippets/*"):
+    for path in DOCS_DIR.rglob("snippets/**/*"):
         if path.is_file():
             results.add(path)
     return results
@@ -34,7 +34,7 @@ def find_snippet_files() -> set[Path]:
 def find_referenced_paths() -> set[Path]:
     referenced: set[Path] = set()
     for md_file in DOCS_DIR.rglob("*.md"):
-        for match in INCLUDE_RE.finditer(md_file.read_text()):
+        for match in INCLUDE_RE.finditer(md_file.read_text(encoding="utf-8")):
             raw = match.group(1)
             file_part = raw.split(":")[0]
             referenced.add((DOCS_DIR / file_part).resolve())

@@ -6,7 +6,7 @@
 
 **Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise `SchemeRequiredInBaseUrlError` at startup.
 
-**Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
+**Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
 **Invalid token at startup.** Look for `InvalidAuthError` in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
 
@@ -62,7 +62,7 @@ Work through this checklist in order.
 
 **3. Domain excluded by config.** Check `bus_excluded_domains` and `bus_excluded_entities` in `hassette.toml`. Events from excluded domains are dropped before reaching any handler.
 
-**4. Attribute-only change.** `on_state_change` fires when the main state value changes. If only an attribute changed (brightness, temperature, etc.) without the state string changing, the handler won't fire. Pass `changed=False` to receive both state and attribute changes. See [Filtering](core-concepts/core-concepts/bus/filtering.md#changedfalse).
+**4. Attribute-only change.** `on_state_change` fires when the main state value changes. If only an attribute changed (brightness, temperature, etc.) without the state string changing, the handler won't fire. Pass `changed=False` to receive both state and attribute changes. See [Filtering](core-concepts/bus/filtering.md#changedfalse).
 
 **5. App not enabled.** Check that the app's config block has `enabled = true` (the default). A disabled app's handlers are never registered.
 
@@ -74,7 +74,7 @@ Work through this checklist in order.
 
 **Exception in the task.** Unhandled exceptions inside scheduled tasks are caught, logged at ERROR level, and swallowed. The scheduler keeps running. Check your logs for the traceback.
 
-See also: [Job Management](core-concepts/core-concepts/scheduler/management.md#error-handling).
+See also: [Job Management](core-concepts/scheduler/management.md#error-handling).
 
 ## Database Degraded / Telemetry Missing
 

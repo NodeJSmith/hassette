@@ -3,7 +3,7 @@ from hassette.scheduler.classes import ScheduledJob
 
 
 class PollApp(App[AppConfig]):
-    poll_job: ScheduledJob | None = None
+    poll_job: ScheduledJob | None
 
     async def on_initialize(self):
         self.poll_job = await self.scheduler.run_every(

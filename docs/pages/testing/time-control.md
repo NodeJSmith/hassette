@@ -44,7 +44,7 @@ Calling `freeze_time` again replaces the frozen time. The old patchers stop and 
 
 `trigger_due_jobs` operates on a snapshot of due jobs taken at the moment of the call. Jobs re-enqueued during dispatch (repeating jobs) are not included in that snapshot and are not re-triggered in the same call. This prevents infinite loops when the clock is frozen.
 
-If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. A `simulate_*` call or `_drain_task_bucket` call afterward drains those handler tasks before assertions run.
+If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. Call `drain_task_bucket` afterward to wait for those handler tasks to complete before assertions run.
 
 ## Next Steps
 

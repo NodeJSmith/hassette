@@ -54,7 +54,7 @@ Identity extractors resolve entity IDs and domains from events.
 | `D.EventContext` | `HassContext` | `None` | Home Assistant event context (user ID, parent/origin IDs) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
-`D.EventData[T]` pairs with [`Bus.emit`](../../apps/index.md). The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
+`D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md). The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"

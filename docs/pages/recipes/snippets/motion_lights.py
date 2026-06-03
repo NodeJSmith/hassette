@@ -11,9 +11,10 @@ class MotionLightsConfig(AppConfig):
 
 
 class MotionLights(App[MotionLightsConfig]):
-    off_job: ScheduledJob | None = None
+    off_job: ScheduledJob | None
 
     async def on_initialize(self) -> None:
+        self.off_job = None
         await self.bus.on_state_change(
             self.app_config.motion_sensor,
             handler=self.on_motion,
