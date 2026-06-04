@@ -34,19 +34,9 @@ The `delay` parameter accepts seconds as a `float`. The job fires once and does 
 
 The `at` parameter accepts `"HH:MM"` strings. `run_daily` is DST-safe. It uses a cron expression internally and fires at the local wall-clock time regardless of clock changes.
 
-## Trigger Types
+## Schedule from a sync app
 
-Each convenience method creates a trigger object under the hood. `schedule()` accepts a trigger directly for cases not covered by the convenience methods.
-
-| Trigger | Description | One-shot |
-|---|---|---|
-| `After(seconds=N)` | Fixed delay from now | Yes |
-| `Once(at="HH:MM")` | Specific wall-clock time (today, or tomorrow if past) | Yes |
-| `Every(seconds=N)` | Fixed recurring interval | No |
-| `Daily(at="HH:MM")` | Once per day at a wall-clock time | No |
-| `Cron("expr")` | Arbitrary cron expression (5- or 6-field) | No |
-
-`hassette.scheduler` exports all five trigger types.
+An [`AppSync`][hassette.app.app.AppSync] app runs its lifecycle hooks outside the async event loop. `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls for those hooks. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Next Steps
 

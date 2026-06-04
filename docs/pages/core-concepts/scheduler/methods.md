@@ -1,79 +1,36 @@
 # Scheduling Methods
 
-All scheduling methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. Every method is `async` and requires `await`.
+The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Every method is `async`, requires `await`, and returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
 
-## Shared Parameters
+## Which method should I use?
 
-These parameters are accepted by every scheduling method. Individual method tables list only method-specific parameters; shared parameters always apply.
+| Timing need | Method |
+|---|---|
+| Run once, N seconds from now | `run_in` |
+| Repeat on a fixed interval | `run_every` (or `run_minutely` / `run_hourly`) |
+| Run at the same time every day | `run_daily` |
+| Run on a complex or calendar schedule | `run_cron` |
+| Run once at a specific wall-clock time | `run_once` |
+| Use a custom trigger | `schedule` |
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `name` | `str` | `""` | Name for the job. Auto-generated from the callable and trigger when empty. Must be unique within the app instance. |
-| `group` | `str \| None` | `None` | Group name for bulk management. See [Job Groups](#job-groups). |
-| `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Jitter](#jitter). |
-| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler_job_timeout_seconds` setting. |
-| `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
-| `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |
-| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
-| `args` | `tuple \| None` | `None` | Positional arguments passed to the handler at call time. |
-| `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at call time. |
+## Run once after a delay: `run_in`
 
-## `schedule(func, trigger)`
-
-The primary scheduling entry point. All convenience methods delegate here. `schedule()` accepts any object implementing [`TriggerProtocol`][hassette.types.types.TriggerProtocol], including the built-in trigger classes and custom implementations.
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `func` | callable | *(required)* | The handler to run. |
-| `trigger` | `TriggerProtocol` | *(required)* | A trigger object that determines first run time and recurrences. |
-
-Shared parameters apply ([see above](#shared-parameters)).
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_schedule_examples.py"
-```
-
-## Delay and One-Shot Methods
-
-### `run_in(func, delay)`
-
-The handler runs once after a fixed delay. The [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat.
+The handler runs once after a fixed delay. The underlying [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
 | `delay` | `float` | *(required)* | Seconds to wait before running. |
 
-Shared parameters apply.
+Shared parameters apply (see [Parameters every method accepts](#parameters-every-method-accepts)).
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
 ```
 
-### `run_once(func, at)`
+## Repeat on an interval: `run_every`
 
-The handler runs once at a specific wall-clock time. The [`Once`][hassette.scheduler.triggers.Once] trigger fires once and does not repeat.
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `func` | callable | *(required)* | The handler to run. |
-| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A `ZonedDateTime` fires at the exact instant specified. |
-| `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when a `"HH:MM"` target has already passed today. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` instead. Has no effect on `ZonedDateTime` inputs. |
-
-Shared parameters apply.
-
-!!! note "Past `ZonedDateTime` inputs fire immediately"
-    When `at` is a `ZonedDateTime` in the past, the job fires at the next scheduler tick regardless of `if_past`. Only `"HH:MM"` strings are affected by `if_past`.
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"
-```
-
-## Repeating Methods
-
-### `run_every(func, hours, minutes, seconds)`
-
-The handler runs repeatedly at a fixed interval. The `hours`, `minutes`, and `seconds` parameters are additive; at least one must be nonzero. The interval is drift-resistant: each next run is calculated from the previous run time, not from wall-clock time.
+The handler runs repeatedly at a fixed interval. The `hours`, `minutes`, and `seconds` parameters are additive; at least one must be nonzero. Each next run is calculated from the previous run time, not from wall-clock time. The interval stays drift-resistant under load.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -88,9 +45,9 @@ Shared parameters apply.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_every.py"
 ```
 
-### `run_minutely` / `run_hourly`
+### Shorthands: `run_minutely` and `run_hourly`
 
-`run_minutely` and `run_hourly` are shorthands for `run_every`. They accept a single integer interval parameter and enforce a minimum of 1.
+`run_minutely` and `run_hourly` are shorthands for `run_every` with a single integer interval parameter. Both enforce a minimum of 1.
 
 | Method | Shorthand for | Interval parameter | Minimum |
 |---|---|---|---|
@@ -107,7 +64,7 @@ Shared parameters apply to both.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_hourly.py"
 ```
 
-### `run_daily(func, at)`
+## Run at the same time every day: `run_daily`
 
 The handler runs once per day at a fixed wall-clock time. A cron-based trigger ensures DST-correct, wall-clock-aligned scheduling. Interval-based daily scheduling drifts by one hour on DST transitions; `run_daily` does not.
 
@@ -122,7 +79,7 @@ Shared parameters apply.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_daily.py"
 ```
 
-### `run_cron(func, expression)`
+## Run on a cron schedule: `run_cron`
 
 The handler runs on a schedule defined by a cron expression. Both 5-field (standard Unix cron) and 6-field expressions are accepted. An invalid expression raises `ValueError` at registration time.
 
@@ -143,38 +100,71 @@ Shared parameters apply.
 | 4 | month | 1–12 | `6` (June) |
 | 5 | day of week | 0–6 (Sunday=0) | `1-5` (weekdays) |
 
-6-field expressions append seconds as a 6th field per the croniter convention: `minute hour dom month dow second`.
+6-field expressions append seconds as a 6th field per the croniter library convention: `minute hour dom month dow second`.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_cron.py"
 ```
 
-## Job Groups
+## Run once at a specific time: `run_once`
 
-The `group=` parameter assigns a job to a named group. Groups support bulk cancellation and inspection.
+The handler runs once at a specific wall-clock time. The [`Once`][hassette.scheduler.triggers.Once] trigger fires once and does not repeat.
 
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_groups.py"
-```
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `func` | callable | *(required)* | The handler to run. |
+| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A `ZonedDateTime` fires at the exact instant specified. |
+| `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when a `"HH:MM"` target has already passed today. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` instead. Has no effect on `ZonedDateTime` inputs. |
 
-| Method | Description |
-|---|---|
-| `scheduler.cancel_group(group)` | Cancels all jobs in the group. No-op when the group does not exist. |
-| `scheduler.list_jobs(group=group)` | Returns all jobs in the group. Without `group=`, returns all jobs for the app instance. |
+Shared parameters apply.
 
-## Jitter
-
-The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter]` seconds and applied at enqueue time.
-
-Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged, and the trigger's interval grid is not affected.
+!!! note "Past `ZonedDateTime` inputs fire immediately"
+    When `at` is a `ZonedDateTime` in the past, the job fires at the next scheduler tick regardless of `if_past`. Only `"HH:MM"` strings are affected by `if_past`.
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_jitter.py:jitter"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"
 ```
 
-Jitter is useful when several apps schedule work at the same wall-clock time and concurrent execution would cause contention.
+## Use a custom trigger: `schedule`
 
-## Idempotent Registration
+`schedule` is the base method all convenience methods delegate to. Most apps never call it directly. `schedule` is the right choice when a built-in convenience method cannot express the required timing, such as a custom trigger that implements [`TriggerProtocol`][hassette.types.types.TriggerProtocol]. See [Triggers](triggers.md) for the built-in trigger types and the protocol definition.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `func` | callable | *(required)* | The handler to run. |
+| `trigger` | `TriggerProtocol` | *(required)* | A trigger object that determines first run time and recurrences. |
+
+Shared parameters apply.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_schedule_examples.py"
+```
+
+## Parameters every method accepts
+
+These parameters are accepted by every scheduling method. Individual method tables list only method-specific parameters.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `name` | `str` | `""` | Name for the job. Auto-generated from the callable and trigger when empty. Must be unique within the app instance. |
+| `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
+| `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Job Management](management.md) for jitter. |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler_job_timeout_seconds` setting. |
+| `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
+| `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `args` | `tuple \| None` | `None` | Positional arguments passed to the handler at call time. |
+| `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at call time. |
+
+## Passing arguments to handlers
+
+All scheduling methods accept `args` and `kwargs` to supply data to the handler at call time. This avoids capturing mutable state in closures.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_args_kwargs.py"
+```
+
+## Idempotent registration
 
 Job names must be unique within an app instance. Registering a second job with an existing name raises `ValueError` by default. The `if_exists` parameter controls this behavior.
 
@@ -184,7 +174,7 @@ Job names must be unique within an app instance. Registering a second job with a
 | `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, and `kwargs`. |
 | `"replace"` | Cancels the existing job and registers the new one. The new job's configuration does not need to match the old one. |
 
-`if_exists` is essential in `on_initialize`, which re-runs on app reload.
+`if_exists` matters most in `on_initialize`, which re-runs on app reload.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"
@@ -196,22 +186,8 @@ Job names must be unique within an app instance. Registering a second job with a
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:replace_registration"
 ```
 
-## Passing Arguments to Handlers
-
-All scheduling methods accept `args` and `kwargs` to supply data to the handler at call time. This avoids capturing mutable state in closures.
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_args_kwargs.py"
-```
-
-## Synchronous Scheduling
-
-`self.scheduler.sync` exposes a `SchedulerSyncFacade` that mirrors all scheduling methods as blocking calls. This is intended for use in [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a synchronous context.
-
-All method signatures and parameters are identical to the async versions. The facade blocks until the registration completes.
-
 ## See Also
 
 - [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
-- [Job Management](management.md): cancelling, inspecting, and handling errors on scheduled jobs
+- [Job Management](management.md): cancelling, inspecting, grouping, jitter, and error handling for scheduled jobs
 - [Scheduler Overview](index.md): getting started with the scheduler

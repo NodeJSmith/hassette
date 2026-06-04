@@ -74,7 +74,7 @@ Work through this checklist in order.
 
 **Exception in the task.** Unhandled exceptions inside scheduled tasks are caught, logged at ERROR level, and swallowed. The scheduler keeps running. Check your logs for the traceback.
 
-See also: [Job Management](core-concepts/scheduler/management.md#error-handling).
+See also: [Job Management](core-concepts/scheduler/management.md#handle-errors).
 
 ## Database Degraded / Telemetry Missing
 
