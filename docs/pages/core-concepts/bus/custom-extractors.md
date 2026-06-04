@@ -66,11 +66,10 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 
 `extract_timestamp` returns an ISO string. `convert_to_datetime` converts that string to a `datetime`. The `LastChanged` type alias bundles both into a reusable annotation. Any handler parameter typed as `LastChanged` receives a `datetime` with no inline parsing.
 
-The [Type Registry](../states/type-registry.md) provides built-in converters for standard scalar types. `AnnotationDetails.converter` handles conversions specific to a single extractor. It covers types the registry does not handle, or conversions that need context from the extractor itself.
+The [State Conversion](../states/conversion.md) pipeline provides built-in converters for standard scalar types. `AnnotationDetails.converter` handles conversions specific to a single extractor. It covers types the registry does not handle, or conversions that need context from the extractor itself.
 
 ## See Also
 
 - [Dependency Injection](dependency-injection.md): built-in `D.*` annotations
 - [Filtering](filtering.md): composing accessors with predicates
-- [Type Registry](../states/type-registry.md): built-in type converters and how to register custom ones
-- [State Registry](../states/state-registry.md): domain-to-model mapping
+- [State Conversion](../states/conversion.md): domain-to-model mapping, built-in type converters, and custom converters

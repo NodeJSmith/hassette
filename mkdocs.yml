@@ -64,14 +64,11 @@ nav:
       - States:
           - Overview: pages/core-concepts/states/index.md
           - Custom States: pages/core-concepts/states/custom-states.md
-          - State Registry: pages/core-concepts/states/state-registry.md
-          - Type Registry: pages/core-concepts/states/type-registry.md
+          - State Conversion: pages/core-concepts/states/conversion.md
       - API:
           - Overview: pages/core-concepts/api/index.md
-          - Entities & States: pages/core-concepts/api/entities.md
-          - Services: pages/core-concepts/api/services.md
+          - API Methods: pages/core-concepts/api/methods.md
           - Managing Helpers: pages/core-concepts/api/managing-helpers.md
-          - Utilities: pages/core-concepts/api/utilities.md
       - App Cache:
           - Overview: pages/core-concepts/cache/index.md
           - Patterns & Examples: pages/core-concepts/cache/patterns.md

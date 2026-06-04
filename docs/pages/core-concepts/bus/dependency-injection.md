@@ -76,7 +76,7 @@ State extractors accept union types for handlers that cover multiple entity doma
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
-The [State Registry](../states/state-registry.md) determines the concrete state class from the entity's domain at dispatch time.
+The [State Conversion](../states/conversion.md) pipeline determines the concrete state class from the entity's domain at dispatch time.
 
 ## Custom Keyword Arguments
 
@@ -95,5 +95,4 @@ DI handlers do not support positional-only parameters (those before `/`) or `*ar
 - [Custom Extractors](custom-extractors.md). Writing extractors, accessors, [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails], and automatic type conversion.
 - [Writing Handlers](handlers.md). Handler signature patterns.
 - [Subscription Methods](methods.md). Which `D.*` annotations each method supports.
-- [State Registry](../states/state-registry.md). Domain-to-model mapping.
-- [Type Registry](../states/type-registry.md). Automatic type conversion.
+- [State Conversion](../states/conversion.md). Domain-to-model mapping and automatic type conversion.

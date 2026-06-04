@@ -100,6 +100,5 @@ AppDaemon provides `self.log()` and `self.error()`. Hassette uses Python's stand
 ## See Also
 
 - [States](../core-concepts/states/index.md), state cache and state models
-- [Entities & States](../core-concepts/api/entities.md), typed entity state access
-- [Services](../core-concepts/api/services.md), calling HA services
+- [API Methods](../core-concepts/api/methods.md), reading state and calling services
 - [API Overview](../core-concepts/api/index.md), full API reference

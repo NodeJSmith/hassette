@@ -27,6 +27,44 @@ if a matching id is found, so `create_input_boolean` only runs on first startup.
     (for example, `motionapp_cycles` rather than `cycles`), and only one app should ever
     provision a given helper.
 
+## Common Pitfalls
+
+**HA auto-suffixes on name collision.** When `create_*` receives a `name` that
+slugifies to an `id` already in storage, HA does not raise an error. It silently
+appends `_2`, `_3`, and so on until it finds a free slot. Two concurrent creators of
+the same-named helper both succeed, leaving two semantically-duplicate records. There
+is no `name_in_use` error code to catch. Each helper's name should carry a prefix
+unique to its owning app, and only one app should provision it.
+
+**`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
+fields `False` raises `ValidationError` at construction time, before any network call.
+`UpdateInputDatetimeParams` does not enforce this constraint on partial updates, because
+the counterpart field retains its stored value.
+
+**`exclude_unset=True` vs explicit `None`.** All CRUD methods serialize params with
+`model_dump(exclude_unset=True)`. A field omitted from the constructor is not sent to
+HA; HA keeps its stored value. A field passed as `None` is sent as `null`, which may
+clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
+different wire payloads.
+
+**`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
+represents stored configuration, returned by `list_counters`, `create_counter`, and
+`update_counter`. `CounterState` represents the live runtime value, returned by
+`get_state("counter.mycounter")`. Changes to stored config (for example, updating
+`initial`) take effect after an HA restart. `increment_counter`, `decrement_counter`,
+and `reset_counter` are immediate but do not modify stored config.
+
+**Helper creation persists across HA restarts.** HA stores helpers in `.storage/`.
+A helper created during `on_initialize` is still present on the next run. The
+idempotent bootstrap pattern in [Creating a Helper on Startup](#creating-a-helper-on-startup)
+exists for this reason.
+
+**[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] is a second exception class callers may receive.**
+A WebSocket disconnect mid-CRUD propagates as `RetryableConnectionClosedError`, not
+[`FailedMessageError`][hassette.exceptions.FailedMessageError]. Exception handlers that target only `FailedMessageError` miss
+this case. A broader `except` clause covering both exception types handles it
+correctly.
+
 ## CRUD Operations
 
 The create, list, update, and delete pattern is identical across all 8 domains. The
@@ -120,46 +158,6 @@ parameter is needed. The typed record is sufficient:
 Seeded records are stored as deep copies. Later mutations to the record passed into
 `seed_helper` do not affect harness state.
 
-## Gotchas
-
-??? note "Common pitfalls"
-
-    **HA auto-suffixes on name collision.** When `create_*` receives a `name` that
-    slugifies to an `id` already in storage, HA does not raise an error. It silently
-    appends `_2`, `_3`, and so on until it finds a free slot. Two concurrent creators of
-    the same-named helper both succeed, leaving two semantically-duplicate records. There
-    is no `name_in_use` error code to catch. Each helper's name should carry a prefix
-    unique to its owning app, and only one app should provision it.
-
-    **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
-    fields `False` raises `ValidationError` at construction time, before any network call.
-    `UpdateInputDatetimeParams` does not enforce this constraint on partial updates, because
-    the counterpart field retains its stored value.
-
-    **`exclude_unset=True` vs explicit `None`.** All CRUD methods serialize params with
-    `model_dump(exclude_unset=True)`. A field omitted from the constructor is not sent to
-    HA; HA keeps its stored value. A field passed as `None` is sent as `null`, which may
-    clear the value on the HA side. Omitting `icon` and passing `icon=None` produce
-    different wire payloads.
-
-    **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
-    represents stored configuration, returned by `list_counters`, `create_counter`, and
-    `update_counter`. `CounterState` represents the live runtime value, returned by
-    `get_state("counter.mycounter")`. Changes to stored config (for example, updating
-    `initial`) take effect after an HA restart. `increment_counter`, `decrement_counter`,
-    and `reset_counter` are immediate but do not modify stored config.
-
-    **Helper creation persists across HA restarts.** HA stores helpers in `.storage/`.
-    A helper created during `on_initialize` is still present on the next run. The
-    idempotent bootstrap pattern in [Creating a Helper on Startup](#creating-a-helper-on-startup)
-    exists for this reason.
-
-    **[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] is a second exception class callers may receive.**
-    A WebSocket disconnect mid-CRUD propagates as `RetryableConnectionClosedError`, not
-    [`FailedMessageError`][hassette.exceptions.FailedMessageError]. Exception handlers that target only `FailedMessageError` miss
-    this case. A broader `except` clause covering both exception types handles it
-    correctly.
-
 ??? note "Typed model reference"
 
     Each domain exposes three Pydantic model classes in `hassette.models.helpers`:
@@ -176,7 +174,7 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
 
 ## See Also
 
-- [API overview](index.md) and other method categories
-- [Services](services.md) for `call_service`, timer actions, and other service calls
-- [Testing Your Apps](../../testing/index.md) for full harness documentation
-- [Apps](../apps/index.md) for lifecycle hooks including `on_initialize`
+- [API Overview](index.md) — when to use `self.api` vs `self.states`
+- [API Methods](methods.md) — `call_service` for timer actions and other service calls
+- [Testing Your Apps](../../testing/index.md) — full harness documentation
+- [Apps](../apps/index.md) — lifecycle hooks including `on_initialize`

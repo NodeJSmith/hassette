@@ -106,28 +106,13 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 ## Iterating Over States
 
-`DomainStates` supports direct iteration over `(entity_id, state)` pairs.
+`DomainStates` supports direct iteration over `(entity_id, state)` pairs, plus `.keys()`, `.values()`, `.to_dict()`, containment checks (`"kitchen" in self.states.light`), and `len()`.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
 ```
 
-Additional collection methods:
-
-| Method | Returns | Notes |
-|---|---|---|
-| `for entity_id, state in self.states.light` | `(str, StateT)` pairs | Lazy; same as `.items()` |
-| `.items()` | Iterator of `(entity_id, StateT)` | Lazy |
-| `.keys()` | `list[str]` | Eager |
-| `.iterkeys()` | Iterator of `str` | Lazy |
-| `.values()` | `list[StateT]` | Eager |
-| `.itervalues()` | Iterator of `StateT` | Lazy |
-| `.to_dict()` | `dict[str, StateT]` | Eager |
-| `"kitchen" in self.states.light` | `bool` | Containment check |
-| `len(self.states.light)` | `int` | Count of entities in domain |
-
-??? note "Lazy vs. eager"
-    `.items()`, `.iterkeys()`, and `.itervalues()` are lazy. They validate entities on demand and avoid touching the entire domain up front. `.keys()`, `.values()`, and `.to_dict()` are eager and walk every entity immediately. Lazy iteration performs better for large domains like `sensor`.
+`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they validate entities on demand. `.keys()`, `.values()`, and `.to_dict()` are eager. Lazy iteration performs better for large domains like `sensor`.
 
 ## Good to Know
 
@@ -143,5 +128,6 @@ Additional collection methods:
 
 - [Subscription Methods](../bus/methods.md): `on_state_change`, `on_attribute_change`, and their parameters
 - [Custom States](custom-states.md): define typed models for custom integrations
-- [API - Entities & States](../api/entities.md): retrieve states via the REST/WebSocket API
+- [State Conversion](conversion.md): how raw HA dicts become typed Python objects
+- [API Methods](../api/methods.md): retrieve states via the REST/WebSocket API
 - [App Cache](../cache/index.md): persist data locally across restarts

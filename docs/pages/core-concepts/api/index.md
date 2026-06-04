@@ -49,7 +49,5 @@ Network errors are retried automatically. Catching [`HassetteError`][hassette.ex
 
 ## Next Steps
 
-- [Entities & States](entities.md) covers reading state data from Home Assistant.
-- [Services](services.md) covers calling Home Assistant services.
-- [Managing Helpers](managing-helpers.md) covers creating and managing input helpers (booleans, counters, timers, and more).
-- [Utilities](utilities.md) covers history, logbook, templates, and calendars.
+- [API Methods](methods.md) — all `self.api` methods organized by task: reading state, calling services, history, templates, and more.
+- [Managing Helpers](managing-helpers.md) — creating and managing input helpers (booleans, counters, timers, and more).

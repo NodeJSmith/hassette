@@ -53,6 +53,5 @@ flowchart TD
 
 ??? note "Advanced Topics"
     - [Dependency Injection](bus/dependency-injection.md): automatic event data extraction and type conversion.
-    - [Type Registry](states/type-registry.md): automatic value type conversion system.
-    - [State Registry](states/state-registry.md): domain to state model mapping.
+    - [State Conversion](states/conversion.md): domain-to-class mapping and value type conversion.
     - [Custom States](states/custom-states.md): defining custom state classes for non-standard entity types.

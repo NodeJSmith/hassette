@@ -106,6 +106,5 @@ Fields on the attributes class are optional by default when typed with `| None`.
 
 ## See Also
 
-- [State Registry](state-registry.md): how automatic registration works and how to override it
-- [Type Registry](type-registry.md): registering custom converters for individual field types
-- [Dependency Injection](../../core-concepts/bus/dependency-injection.md): injecting typed states into event handlers
+- [State Conversion](conversion.md): how automatic registration works, domain overrides, and custom value converters
+- [Dependency Injection](../bus/dependency-injection.md): injecting typed states into event handlers
