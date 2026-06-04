@@ -33,10 +33,14 @@ This is the cheapest state call when the value string is all the code needs.
 
 ### `get_state(entity_id)`
 
-Returns a typed [`BaseState`][hassette.models.states.base.BaseState] subclass matched to the entity's
-domain. The `.value` field is coerced to the domain's Python type: `bool` for lights and switches,
-`float` for numeric sensors, `str` for most others. The object includes `.attributes`,
-`.last_changed`, `.last_updated`, and `.context`.
+Looks up the entity in the state registry and returns the domain-specific
+[`BaseState`][hassette.models.states.base.BaseState] subclass — `LightState` for lights,
+`SensorState` for sensors, and so on. Each subclass defines its own `.value` type
+(`bool`, `float`, `str`, etc.), along with `.attributes`, `.last_changed`,
+`.last_updated`, and `.context`.
+
+The return annotation is `BaseState`, so type checkers see the base type.
+To narrow it, assign through a cast or use `get_state_value_typed()`.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state.py"
@@ -44,13 +48,20 @@ domain. The `.value` field is coerced to the domain's Python type: `bool` for li
 
 Raises `EntityNotFoundError` when the entity does not exist.
 
-### `get_state_or_none(entity_id)` / `entity_exists(entity_id)`
+### `get_state_or_none(entity_id)`
 
-`get_state_or_none` returns `None` instead of raising when the entity is absent.
-`entity_exists` returns a plain `bool`.
+Same as `get_state`, but returns `None` instead of raising when the entity is absent.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_check_existence.py"
+```
+
+### `entity_exists(entity_id)`
+
+Returns `True` if the entity exists, `False` otherwise.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_entity_exists.py"
 ```
 
 ### `get_state_raw(entity_id)`
@@ -64,17 +75,16 @@ registry or inspecting the raw HA payload for debugging.
 
 ### `get_state_value_typed(entity_id)`
 
-Returns the state value converted to the domain's Python type — like `get_state`, but without
-fetching attributes or timestamps.
+Equivalent to `(await self.api.get_state(entity_id)).value` — returns just the
+converted value without attributes or timestamps.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state_value_typed.py"
 ```
 
-!!! note "`SensorState` value type is always `str`"
-    Sensors are `str` even when the sensor represents a number, because Hassette cannot determine the
-    numeric type without additional context. Convert manually with `float(value)` or `int(value)`.
-    `binary_sensor` returns `bool`. `light` and `switch` return `bool`.
+!!! note "Return type is `Any`"
+    The domain's Python type is only known at runtime, so the return annotation
+    is `Any`. Cast or assert the type if your type checker needs it narrowed.
 
 ### `get_attribute(entity_id, attribute)`
 
@@ -94,11 +104,12 @@ raising.
 The return value should be compared against `MISSING_VALUE` before use. A truthiness check
 alone is unreliable because some valid attribute values are falsy (`0`, `False`, `""`).
 
-### `get_entity(entity_id, model)` / `get_entity_or_none(entity_id, model)`
+### `get_entity(entity_id, model)`
 
-Wraps a state in a [`BaseEntity`][hassette.models.entities.base.BaseEntity] subclass. An entity
-adds domain-specific action methods to the state snapshot: `turn_on()`, `turn_off()`, `toggle()`,
-and `refresh()`. The `model` argument specifies which entity class to use.
+Returns a [`BaseEntity`][hassette.models.entities.base.BaseEntity] subclass with
+domain-specific action methods — `turn_on()`, `turn_off()`, `toggle()`, and
+`refresh()` — along with the entity's current state. The `model` argument
+specifies which entity class to return.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -112,20 +123,34 @@ and `refresh()`. The `model` argument specifies which entity class to use.
 `entity.refresh()` re-fetches the entity's state from Home Assistant and replaces `.state`
 with the new snapshot. The updated state is also returned.
 
-`get_entity_or_none` returns `None` when the entity is not found, following the same pattern as
-`get_state_or_none`.
+### `get_entity_or_none(entity_id, model)`
 
-### `get_states()` / `get_states_raw()`
+Same as `get_entity`, but returns `None` when the entity is not found.
 
-`get_states()` retrieves all entities in a single call and returns them as a list of typed
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_or_none.py"
+```
+
+### `get_states()`
+
+Retrieves all entities in a single call and returns them as a list of typed
 `BaseState` objects. States that fail to convert are skipped and logged as errors.
-`get_states_raw()` returns the untyped list instead.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_states.py"
 ```
 
-Neither method accepts filtering parameters. Filtering happens in Python after the call.
+Neither `get_states` nor `get_states_raw` accepts filtering parameters. Filtering
+happens in Python after the call.
+
+### `get_states_raw()`
+
+Same as `get_states`, but returns a list of untyped `HassStateDict` dicts instead of
+`BaseState` objects.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_states_raw.py"
+```
 
 ---
 
@@ -148,28 +173,52 @@ The generic service call method. Service data passes as keyword arguments — th
 --8<-- "pages/core-concepts/api/snippets/api_call_service.py"
 ```
 
-### `turn_on(entity_id, domain, **data)` / `turn_off(...)` / `toggle_service(...)`
+### `turn_on(entity_id, domain, **data)`
 
-Shorthands for the most common service calls. Each accepts an entity ID and dispatches the
-corresponding service.
+Shorthand for `call_service(domain, "turn_on", ...)`. Extra keyword arguments pass
+through as service data, so light-specific fields like `brightness` and `color_name`
+work directly.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str \| StrEnum` | — | Entity to target. |
 | `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
 
-`turn_on` also accepts `**data` keyword arguments, so light-specific fields like
-`brightness` and `color_name` pass through to the service call. `turn_off` and
-`toggle_service` do not accept extra data.
-
 ```python
---8<-- "pages/core-concepts/api/snippets/api_helpers.py"
+--8<-- "pages/core-concepts/api/snippets/api_helpers.py:turn_on"
 ```
 
 !!! warning "HA 2024.x deprecated `homeassistant.*` generic services"
     The default `domain="homeassistant"` routes to `homeassistant.turn_on`, which Home Assistant
     deprecated in 2024.x. Pass `domain="light"`, `domain="switch"`, or the appropriate domain to
     route to the domain-specific service instead.
+
+### `turn_off(entity_id, domain)`
+
+Shorthand for `call_service(domain, "turn_off", ...)`. Does not accept extra data.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entity_id` | `str \| StrEnum` | — | Entity to target. |
+| `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_helpers.py:turn_off"
+```
+
+### `toggle_service(entity_id, domain)`
+
+Shorthand for `call_service(domain, "toggle", ...)`. Reverses the entity's current
+on/off state. Does not accept extra data.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `entity_id` | `str \| StrEnum` | — | Entity to target. |
+| `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_helpers.py:toggle"
+```
 
 ### Getting a response
 
@@ -347,22 +396,29 @@ Returns the camera image as `bytes`. Omitting `timestamp` returns the latest ima
 
 ## System
 
-### `get_config()` / `get_services()` / `get_panels()`
+### `get_config()`
 
-Three methods for reading Home Assistant system information.
-
-| Method | Returns |
-|---|---|
-| `get_config()` | HA configuration dict: version, location, unit system, time zone, installed components. |
-| `get_services()` | All registered services, keyed by domain then service name. |
-| `get_panels()` | All registered frontend panels, keyed by panel URL path. |
+Returns the Home Assistant configuration dict: version, location, unit system,
+time zone, and installed components.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_system.py:get_config"
 ```
 
+### `get_services()`
+
+Returns all registered services, keyed by domain then service name.
+
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_system.py:get_services"
+```
+
+### `get_panels()`
+
+Returns all registered frontend panels, keyed by panel URL path.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_system.py:get_panels"
 ```
 
 ### `delete_entity(entity_id)`

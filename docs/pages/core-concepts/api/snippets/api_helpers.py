@@ -3,13 +3,16 @@ from hassette import App
 
 class HelperApp(App):
     async def on_initialize(self):
-        # Turn on with attributes
+        # --8<-- [start:turn_on]
         await self.api.turn_on(
             "light.kitchen", brightness=255, color_name="blue"
         )
+        # --8<-- [end:turn_on]
 
-        # Turn off
+        # --8<-- [start:turn_off]
         await self.api.turn_off("switch.fan")
+        # --8<-- [end:turn_off]
 
-        # Toggle (reverses current on/off state)
+        # --8<-- [start:toggle]
         await self.api.toggle_service("light.bedroom")
+        # --8<-- [end:toggle]
