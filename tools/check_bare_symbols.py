@@ -51,7 +51,11 @@ def check_page(path: Path, fix: bool = False) -> list[str]:
             in_code = not in_code
             new_lines.append(line)
             continue
-        if in_code or line.strip().startswith("|"):
+        # Skip code fences (handled above), table rows, and headings. Symbols in
+        # headings are titles by convention and are not code-formatted.
+        # NOTE: tools/check_xref_coverage.py applies the same three skips — keep in sync.
+        stripped = line.strip()
+        if in_code or stripped.startswith("|") or stripped.startswith("#"):
             new_lines.append(line)
             continue
 
