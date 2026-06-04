@@ -37,15 +37,7 @@ Network errors are retried automatically. Catching [`HassetteError`][hassette.ex
 
 ## Synchronous Usage
 
-??? note "`AppSync` and self.api.sync"
-    Apps that subclass [`AppSync`][hassette.app.app.AppSync] override `on_initialize_sync` instead of `on_initialize`. Hassette runs the sync method in a thread. `self.api.sync` provides blocking versions of all async API methods.
-
-    ```python
-    --8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"
-    ```
-
-    !!! warning
-        `self.api.sync` is only safe to call from outside the event loop, specifically from `AppSync` lifecycle methods (`on_initialize_sync`, `on_shutdown_sync`). Calling it from inside an `async def` method deadlocks.
+`self.api.sync` exposes a [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Next Steps
 

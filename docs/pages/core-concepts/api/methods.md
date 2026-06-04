@@ -435,18 +435,6 @@ WebSocket API handles that.
 
 ---
 
-## Synchronous Usage
-
-`self.api.sync` provides blocking versions of every `Api` method. These are only safe to call from
-[`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a dedicated worker thread
-outside the event loop. Calling `self.api.sync` from an `async` context deadlocks.
-
-```python
---8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"
-```
-
----
-
 ## See Also
 
 - [API Overview](index.md) — when to use `self.api` vs `self.states`, error handling
