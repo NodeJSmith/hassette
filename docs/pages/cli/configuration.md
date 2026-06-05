@@ -107,11 +107,11 @@ hassette listener 42 --since 1h --json | jq '[.[] | select(.status == "error")] 
 set -euo pipefail
 
 STATUS=$(hassette status --json | jq -r '.status')
-if [[ "$STATUS" != "ok" ]]; then
-  echo "Hassette is degraded: $STATUS" >&2
+if [[ "$STATUS" == "starting" ]]; then
+  echo "Hassette is not ready: $STATUS" >&2
   exit 1
 fi
-echo "Hassette is healthy"
+echo "Hassette is healthy (status: $STATUS)"
 ```
 
 ### Alerting on error rate

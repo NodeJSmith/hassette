@@ -212,7 +212,7 @@ If apps fail to import installed packages:
 
 ## Health Check Failing
 
-The health check queries `http://127.0.0.1:8126/api/health`.
+The health check queries `http://127.0.0.1:8126/api/health`. This endpoint returns 200 for both `ok` and `degraded` status (WebSocket disconnected but apps running), and 503 only during startup before the system is ready.
 
 ### Symptoms
 
