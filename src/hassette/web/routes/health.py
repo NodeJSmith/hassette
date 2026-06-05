@@ -16,6 +16,7 @@ router = APIRouter(tags=["health"])
 )
 async def get_health(runtime: RuntimeDep, response: Response) -> SystemStatusResponse:
     status_data = runtime.get_system_status()
-    if status_data.status != "ok":
+    # degraded (WS down, apps running) is still functional — only starting is not ready
+    if status_data.status == "starting":
         response.status_code = 503
     return system_status_response_from(status_data)

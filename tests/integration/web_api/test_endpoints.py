@@ -27,11 +27,11 @@ class TestHealthEndpoints:
         assert "entity_count" in data
         assert "app_count" in data
 
-    async def test_health_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
-        """GET /api/health returns 503 with status 'degraded' when WebSocket is not ready."""
+    async def test_health_returns_200_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 200 with status 'degraded' when WebSocket is not ready."""
         mock_hassette._websocket_service.is_ready.return_value = False
         response = await client.get("/api/health")
-        assert response.status_code == 503
+        assert response.status_code == 200
         data = response.json()
         assert data["status"] == "degraded"
         assert data["websocket_connected"] is False

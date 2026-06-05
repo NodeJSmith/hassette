@@ -83,7 +83,13 @@ Use this endpoint if you want to monitor specifically whether telemetry data col
 
 ### `/api/health`
 
-This is the **system-level** health check for Hassette as a whole. It reports the overall status of the Hassette process — whether it is running, starting up, or shutting down. Use this endpoint for Docker health checks and uptime monitoring.
+This is the **system-level** health check for Hassette as a whole. It reports the overall status of the Hassette process — whether it is running, starting up, or operating in a degraded state. Use this endpoint for Docker health checks and uptime monitoring.
+
+| Status | HTTP | Meaning |
+|---|---|---|
+| `ok` | 200 | WebSocket connected, all systems running |
+| `degraded` | 200 | WebSocket disconnected, but apps and state proxy are running |
+| `starting` | 503 | System not yet ready to serve traffic |
 
 ```yaml
 --8<-- "pages/core-concepts/snippets/database-telemetry/healthcheck.yml"
