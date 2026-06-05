@@ -104,11 +104,13 @@ hassette listener 42 --since 1h --json | jq '[.[] | select(.status == "error")] 
 
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
-STATUS=$(hassette status --json | jq -r '.status')
-if [[ "$STATUS" == "starting" ]]; then
-  echo "Hassette is not ready: $STATUS" >&2
+OUTPUT=$(hassette status --json 2>/dev/null) || true
+STATUS=$(echo "$OUTPUT" | jq -r '.status // empty')
+
+if [[ -z "$STATUS" || "$STATUS" == "starting" ]]; then
+  echo "Hassette is not ready: ${STATUS:-unreachable}" >&2
   exit 1
 fi
 echo "Hassette is healthy (status: $STATUS)"
