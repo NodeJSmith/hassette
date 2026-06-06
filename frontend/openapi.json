@@ -11,6 +11,7 @@
           "health"
         ],
         "summary": "Get Health",
+        "description": "Return the full system status. Always HTTP 200 while the process can serve.",
         "operationId": "get_health_api_health_get",
         "responses": {
           "200": {
@@ -22,13 +23,56 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Live",
+        "operationId": "get_live_api_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Ready",
+        "description": "Return readiness status. 200 only when aggregate status is 'ok', else 503.",
+        "operationId": "get_ready_api_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
           },
           "503": {
             "description": "Service Unavailable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SystemStatusResponse"
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -3053,6 +3097,19 @@
         "title": "ListenerWithSummary",
         "description": "Listener metrics enriched with human-readable handler summary."
       },
+      "LivenessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "live",
+            "title": "Status",
+            "default": "live"
+          }
+        },
+        "type": "object",
+        "title": "LivenessResponse",
+        "description": "Response model for GET /api/health/live."
+      },
       "LogEntryResponse": {
         "properties": {
           "seq": {
@@ -3268,6 +3325,30 @@
         ],
         "title": "LogsByExecutionResponse",
         "description": "Response for GET /api/executions/{execution_id}."
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "starting"
+            ],
+            "title": "Status"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "ready"
+        ],
+        "title": "ReadinessResponse",
+        "description": "Response model for GET /api/health/ready."
       },
       "ResourceStatus": {
         "type": "string",

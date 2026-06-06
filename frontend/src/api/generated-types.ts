@@ -11,8 +11,48 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Health */
+        /**
+         * Get Health
+         * @description Return the full system status. Always HTTP 200 while the process can serve.
+         */
         get: operations["get_health_api_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Live */
+        get: operations["get_live_api_health_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ready
+         * @description Return readiness status. 200 only when aggregate status is 'ok', else 503.
+         */
+        get: operations["get_ready_api_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1121,6 +1161,18 @@ export interface components {
             /** Entity Id */
             entity_id?: string | null;
         };
+        /**
+         * LivenessResponse
+         * @description Response model for GET /api/health/live.
+         */
+        LivenessResponse: {
+            /**
+             * Status
+             * @default live
+             * @constant
+             */
+            status: "live";
+        };
         /** LogEntryResponse */
         LogEntryResponse: {
             /** Seq */
@@ -1194,6 +1246,19 @@ export interface components {
             truncated: boolean;
             /** Retention Expired */
             retention_expired: boolean;
+        };
+        /**
+         * ReadinessResponse
+         * @description Response model for GET /api/health/ready.
+         */
+        ReadinessResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "starting";
+            /** Ready */
+            ready: boolean;
         };
         /**
          * ResourceStatus
@@ -1355,13 +1420,53 @@ export interface operations {
                     "application/json": components["schemas"]["SystemStatusResponse"];
                 };
             };
+        };
+    };
+    get_live_api_health_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LivenessResponse"];
+                };
+            };
+        };
+    };
+    get_ready_api_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
             /** @description Service Unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemStatusResponse"];
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
         };

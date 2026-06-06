@@ -9,10 +9,18 @@ from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,
     connected_payload_from,
+    readiness_response_from,
     system_status_response_from,
     to_listener_with_summary,
 )
-from hassette.web.models import AppManifestListResponse, AppStatusResponse, ConnectedPayload, SystemStatusResponse
+from hassette.web.models import (
+    AppManifestListResponse,
+    AppStatusResponse,
+    ConnectedPayload,
+    LivenessResponse,
+    ReadinessResponse,
+    SystemStatusResponse,
+)
 
 
 def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
@@ -337,3 +345,45 @@ def test_to_listener_with_summary_min_max_numeric_passthrough():
 
     assert result.min_duration_ms == 5.0
     assert result.max_duration_ms == 100.0
+
+
+# ---------------------------------------------------------------------------
+# LivenessResponse and ReadinessResponse
+# ---------------------------------------------------------------------------
+
+
+def test_liveness_response_has_live_status():
+    """LivenessResponse.status defaults to 'live'."""
+    result = LivenessResponse()
+    assert result.status == "live"
+
+
+def test_liveness_response_status_field_is_literal_live():
+    """LivenessResponse constructed with status='live' produces the correct body."""
+    result = LivenessResponse(status="live")
+    assert result.status == "live"
+
+
+def test_readiness_response_from_ok_status():
+    """readiness_response_from produces ready=True for 'ok' status."""
+    domain = make_system_status(status="ok")
+    result = readiness_response_from(domain)
+    assert isinstance(result, ReadinessResponse)
+    assert result.ready is True
+    assert result.status == "ok"
+
+
+def test_readiness_response_from_degraded_status():
+    """readiness_response_from produces ready=False for 'degraded' status."""
+    domain = make_system_status(status="degraded", websocket_connected=False)
+    result = readiness_response_from(domain)
+    assert result.ready is False
+    assert result.status == "degraded"
+
+
+def test_readiness_response_from_starting_status():
+    """readiness_response_from produces ready=False for 'starting' status."""
+    domain = make_system_status(status="starting", websocket_connected=False)
+    result = readiness_response_from(domain)
+    assert result.ready is False
+    assert result.status == "starting"

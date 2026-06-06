@@ -37,13 +37,50 @@ class TestHealthEndpoints:
         assert data["status"] == "degraded"
         assert data["websocket_connected"] is False
 
-    async def test_health_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
-        """GET /api/health returns 503 with status 'starting' during startup."""
+    async def test_health_returns_200_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health returns 200 (not 503) with status 'starting' during startup."""
         mock_hassette._websocket_service.is_ready.return_value = False
         mock_hassette._websocket_service.ever_connected = False
         response = await client.get("/api/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "starting"
+
+    async def test_health_live_returns_200_regardless_of_ws_state(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health/live returns 200 even when WS is disconnected and never connected."""
+        mock_hassette._websocket_service.is_ready.return_value = False
+        mock_hassette._websocket_service.ever_connected = False
+        response = await client.get("/api/health/live")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "live"
+
+    async def test_health_ready_returns_200_when_ok(self, client: "AsyncClient") -> None:
+        """GET /api/health/ready returns 200 when status is 'ok'."""
+        response = await client.get("/api/health/ready")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ready"] is True
+        assert data["status"] == "ok"
+
+    async def test_health_ready_returns_503_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health/ready returns 503 when status is 'degraded'."""
+        mock_hassette._websocket_service.is_ready.return_value = False
+        mock_hassette._websocket_service.ever_connected = True
+        response = await client.get("/api/health/ready")
         assert response.status_code == 503
         data = response.json()
+        assert data["ready"] is False
+        assert data["status"] == "degraded"
+
+    async def test_health_ready_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
+        """GET /api/health/ready returns 503 when status is 'starting'."""
+        mock_hassette._websocket_service.is_ready.return_value = False
+        mock_hassette._websocket_service.ever_connected = False
+        response = await client.get("/api/health/ready")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["ready"] is False
         assert data["status"] == "starting"
 
     async def test_healthz_returns_404(self, client: "AsyncClient") -> None:

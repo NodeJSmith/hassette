@@ -74,6 +74,19 @@ class SystemStatusResponse(BaseModel):
     log_records_dropped: int = 0
 
 
+class LivenessResponse(BaseModel):
+    """Response model for GET /api/health/live."""
+
+    status: Literal["live"] = "live"
+
+
+class ReadinessResponse(BaseModel):
+    """Response model for GET /api/health/ready."""
+
+    status: SystemHealthStatus
+    ready: bool
+
+
 class EntityStateResponse(BaseModel):
     entity_id: str
     state: str

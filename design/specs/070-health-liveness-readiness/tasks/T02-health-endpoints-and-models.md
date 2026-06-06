@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Split health endpoints and add liveness/readiness models"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "FR#6", "FR#8", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#9"]
 ---
