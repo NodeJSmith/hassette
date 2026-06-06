@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  profile: assertive
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+
+  path_filters:
+    - "!design/**"
+
+  path_instructions:
+    - path: "src/hassette/**"
+      instructions: |
+        Async-first Python framework, 3.11+. Enforce the project's hard rules:
+        never `from __future__ import annotations`, never `Optional[X]` (use
+        `X | None`), no lazy imports (top-level only, except TYPE_CHECKING
+        guards). Type hints everywhere; code must be pyright-clean. No blanket
+        `# type: ignore` — use `# pyright: ignore[reportXxx]`. Prefer immutability
+        (new objects over mutation). External calls need explicit timeouts.
+        Line length 120, Google-style docstrings.
+
+    - path: "frontend/**"
+      instructions: |
+        Preact + TypeScript. Use `class=` not `className=`. No `any` (use
+        `unknown` and narrow), no `as` casts outside validated boundaries, no
+        TS enums (use `as const` or unions). Functional components only; every
+        subscribing useEffect returns a cleanup. CSS Modules with `ht-` design
+        tokens from tokens.css — no raw hex/px values, no bare `.ht-*` class
+        names in module CSS (use `:global()`). Generated type files
+        (generated-types.ts, ws-types.ts) are not hand-edited.
+
+    - path: "docs/**"
+      instructions: |
+        User-facing documentation site. Follow .claude/rules/voice-guide.md:
+        on concept and API-reference pages make the system the subject (no
+        "you"); "you" belongs only in getting-started and recipe steps. State
+        behavior first, caveats after, and pair every limitation with a path
+        forward. All code examples come from tested snippet files via `--8<--`
+        includes, never inline blocks.
+
+    - path: "tests/**"
+      instructions: |
+        Mock only at system boundaries (HA API, DB, time, filesystem); use real
+        instances for internal collaborators and prefer dependency injection.
+        Do not assert on log output. One behavior per test. pytest must be run
+        with a timeout wrapper. Verify new/changed source ships with matching
+        unit tests in the same change.
+
+    - path: ".github/workflows/**"
+      instructions: |
+        GitHub Actions. Pin third-party actions to a full commit SHA, keep
+        workflows zizmor-clean, and grant least-privilege permissions. Flag any
+        unpinned action or broadened token scope.
+
+chat:
+  auto_reply: true
