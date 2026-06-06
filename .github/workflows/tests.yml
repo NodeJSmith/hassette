@@ -225,6 +225,7 @@ jobs:
 
             - name: Upload coverage to Codecov
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+              continue-on-error: true
               uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
               with:
                   files: coverage.xml,frontend-coverage/lcov.info
