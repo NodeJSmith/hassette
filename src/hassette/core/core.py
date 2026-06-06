@@ -488,6 +488,16 @@ class Hassette(Resource):
                 child.start()
             started = await self.wait_for_ready(wave, timeout=self.config.lifecycle.startup_timeout_seconds)
             if not started:
+                if self.shutdown_event.is_set():
+                    # Shutdown was requested while this wave was still starting — that is a
+                    # shutdown, not a resource startup failure.  It happens when a clean/operator
+                    # shutdown (or a crash that already recorded its reason) lands before the later
+                    # waves finish, including the common case where a caller stops the instance
+                    # right after readiness is signalled.  Route to teardown; _raise_if_fatal_shutdown
+                    # raises only when a fatal reason was recorded, so a clean shutdown exits 0.
+                    await self.shutdown()
+                    self._raise_if_fatal_shutdown()
+                    return
                 not_ready = [r.class_name for r in wave if not r.is_ready()]
                 self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
                 self.logger.error("Not all resources started successfully, shutting down")
