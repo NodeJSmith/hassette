@@ -274,7 +274,7 @@ class SessionManager(Resource):
                     " WHERE id = ?",
                     (now, now, overflow, exhausted, shutdown, self._session_id),
                 )
-            elif self.hassette._fatal_shutdown_reason is not None:
+            elif self.hassette.fatal_shutdown_reason is not None:
                 # Fatal shutdown, but the async CRASHED handler did not record failure details before
                 # teardown (it races finalize and the bus/DB are tearing down). The fatal reason is set
                 # synchronously at the crash decision site, so persist a failure status here rather than
@@ -287,7 +287,7 @@ class SessionManager(Resource):
                         SESSION_STATUS_FAILURE,
                         now,
                         now,
-                        self.hassette._fatal_shutdown_reason,
+                        self.hassette.fatal_shutdown_reason,
                         overflow,
                         exhausted,
                         shutdown,

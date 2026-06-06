@@ -27,9 +27,17 @@ class TestShutdownIfCrashedSetsFatalReason:
         hassette = MagicMock()
         hassette.config.logging.service_watcher = "DEBUG"
         hassette.shutdown_event = asyncio.Event()
-        # After implementation, request_shutdown is a sync call that sets shutdown_event
+        # request_shutdown is a sync call that sets shutdown_event
         hassette.request_shutdown = MagicMock()
         hassette._fatal_shutdown_reason = None
+
+        # record_fatal_reason mirrors the real Hassette method (first reason wins), so the watcher's
+        # delegation is exercised faithfully rather than mocked to a no-op.
+        def record(reason: str) -> None:
+            if hassette._fatal_shutdown_reason is None:
+                hassette._fatal_shutdown_reason = reason
+
+        hassette.record_fatal_reason = MagicMock(side_effect=record)
         return hassette
 
     def make_watcher(self, hassette) -> ServiceWatcher:

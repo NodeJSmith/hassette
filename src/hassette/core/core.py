@@ -466,7 +466,7 @@ class Hassette(Resource):
             await self._session_manager.create_session()
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
-            self._fatal_shutdown_reason = "startup failure: session tracking initialization failed"
+            self.record_fatal_reason("startup failure: session tracking initialization failed")
             await self.shutdown()
             self._raise_if_fatal_shutdown()
             return
@@ -491,9 +491,7 @@ class Hassette(Resource):
                 not_ready = [r.class_name for r in wave if not r.is_ready()]
                 self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
                 self.logger.error("Not all resources started successfully, shutting down")
-                self._fatal_shutdown_reason = (
-                    f"startup failure: required resources did not start: {', '.join(not_ready)}"
-                )
+                self.record_fatal_reason(f"startup failure: required resources did not start: {', '.join(not_ready)}")
                 await self.shutdown()
                 self._raise_if_fatal_shutdown()
                 return
@@ -524,11 +522,25 @@ class Hassette(Resource):
         self.logger.info("Hassette stopped.")
         self._raise_if_fatal_shutdown()
 
-    def _raise_if_fatal_shutdown(self) -> None:
-        """Emit a CRITICAL log and raise FatalError if a fatal reason was recorded.
+    @property
+    def fatal_shutdown_reason(self) -> str | None:
+        """The reason a fatal shutdown was triggered, or None for a clean shutdown (read-only)."""
+        return self._fatal_shutdown_reason
 
-        Called after teardown completes. Separates the log+raise from the three call
-        sites (two startup branches + post-run-loop) so the text lives in one place.
+    def record_fatal_reason(self, reason: str) -> None:
+        """Record why a fatal shutdown is happening, so the process exits non-zero.
+
+        Set synchronously at the crash decision site (before any teardown) so run_forever()
+        observes it independent of async event dispatch. The first reason wins — the universal
+        crash handler does not overwrite a more specific reason from the exhaustion/fatal-error path.
+        """
+        if self._fatal_shutdown_reason is None:
+            self._fatal_shutdown_reason = reason
+
+    def _raise_if_fatal_shutdown(self) -> None:
+        """Raise FatalError (after a CRITICAL log) if a fatal reason was recorded.
+
+        Called after teardown completes, at the two startup-failure branches and after the run loop.
         """
         if self._fatal_shutdown_reason is not None:
             self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
