@@ -30,6 +30,7 @@ class TestHealthEndpoints:
     async def test_health_returns_200_when_degraded(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 200 with status 'degraded' when WebSocket is not ready."""
         mock_hassette._websocket_service.is_ready.return_value = False
+        mock_hassette._websocket_service.ever_connected = True
         response = await client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
@@ -39,7 +40,7 @@ class TestHealthEndpoints:
     async def test_health_returns_503_when_starting(self, client: "AsyncClient", mock_hassette) -> None:
         """GET /api/health returns 503 with status 'starting' during startup."""
         mock_hassette._websocket_service.is_ready.return_value = False
-        mock_hassette._state_proxy.is_ready.return_value = False
+        mock_hassette._websocket_service.ever_connected = False
         response = await client.get("/api/health")
         assert response.status_code == 503
         data = response.json()

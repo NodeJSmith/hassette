@@ -23,7 +23,7 @@ Implement the fatal-exit observability described in `design.md` → Architecture
 5. **Tests** — per `design.md` → Test Strategy. Assert on exit code and the persisted telemetry row, NEVER on log output (project rule: no log-capture tests):
    - A failure-driven shutdown (drive a PERMANENT service to its exhaustion path so the watcher emits `CRASHED` → `shutdown_if_crashed`) causes the entry path to exit non-zero / `run_forever()` to raise `FatalError`.
    - A SIGTERM/operator shutdown (`request_shutdown`) exits 0.
-   - After a `CRASHED` event for a PERMANENT service, the active session row in the telemetry DB carries the failure status, written before teardown completes.
+   - After a `CRASHED` event for a PERMANENT service, the active session row in the telemetry DB carries the failure status, written before teardown completes. NOTE: `on_service_crashed` submits the session error to the async database write queue (`_database_service.submit`); assert on the persisted row only after the session is fully finalized (teardown/`finalize_session` complete), not immediately after the `CRASHED` event fires, or the write may not have drained yet.
 
 ## Focus
 - Exit path: `__main__:entrypoint` → `cli/commands/run.py:45` `asyncio.run(run_server(config))` (inside a `try` with `except FatalError → SystemExit(1)` at `:52`) → `server.py:30` `await core.run_forever()`.

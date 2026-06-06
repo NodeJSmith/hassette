@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add ever-connected latch and fix status taxonomy"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "AC#1", "AC#2"]
 ---
@@ -29,7 +29,7 @@ Implement the latch and status-taxonomy change described in `design.md` → Arch
 3. **`src/hassette/test_utils/web_mocks.py`** — in `create_hassette_stub` (~line 131, where `hassette._websocket_service.is_ready.return_value = is_ready` is set), expose `ever_connected` as an explicit attribute defaulting to the same value as `is_ready` (i.e. `hassette._websocket_service.ever_connected = is_ready`). This prevents health tests from relying on MagicMock's auto-truthy attribute behavior.
 
 4. **Tests** — follow `design.md` → Test Strategy:
-   - WebSocket service unit test: `ever_connected` starts `False`, flips `True` after a `_set_connection_state(ConnectionState.CONNECTED)` transition, and stays `True` across a subsequent disconnect.
+   - WebSocket service unit test (add to the existing `tests/unit/core/test_websocket_readiness_events.py`): `ever_connected` starts `False`, flips `True` after a `_set_connection_state(ConnectionState.CONNECTED)` transition, and stays `True` across a subsequent disconnect.
    - `tests/unit/core/test_runtime_query_service.py` (`TestSystemStatus`): add cases for latched + not-ready → `degraded` (AC#1), and never-latched + not-connected → `starting` (AC#2). Update any existing `degraded` test that relied on `proxy_ready` to instead drive `websocket_service.ever_connected`.
 
 Do not touch the health routes, response models, or the shutdown path — those are separate tasks.

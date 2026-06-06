@@ -122,6 +122,7 @@ class WebsocketService(Service):
         self._connect_lock = asyncio.Lock()
         self._connected_at = None
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
+        self._ever_connected: bool = False
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -131,6 +132,11 @@ class WebsocketService(Service):
     def connection_state(self) -> ConnectionState:
         """Return the current WebSocket connection state (read-only)."""
         return self._connection_state
+
+    @property
+    def ever_connected(self) -> bool:
+        """True once the connection has reached CONNECTED at least once; never reverts."""
+        return self._ever_connected
 
     def _set_connection_state(self, new: ConnectionState) -> None:
         """Transition to a new connection state with validation.
@@ -169,6 +175,8 @@ class WebsocketService(Service):
 
         self.logger.debug("WebSocket: %s → %s", old, new)
         self._connection_state = new
+        if new == ConnectionState.CONNECTED:
+            self._ever_connected = True
 
     @property
     def resp_timeout_seconds(self) -> int:
