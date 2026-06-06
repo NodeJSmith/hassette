@@ -1,7 +1,7 @@
 # Design: Health Endpoints, Status Taxonomy, and Fatal-Exit Observability
 
 **Date:** 2026-06-05
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-05-health-status-lifecycle-modeling/research.md
 
