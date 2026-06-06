@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Make fatal self-shutdown exit non-zero and observable"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "FR#9", "AC#10", "AC#11", "AC#12"]
 ---

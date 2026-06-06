@@ -183,6 +183,10 @@ class ServiceWatcher(Resource):
                 role,
                 name,
             )
+            # Record the fatal reason synchronously at the decision site so run_forever()
+            # exits non-zero. The CRASHED event is dispatched asynchronously (task-per-handler),
+            # so relying on shutdown_if_crashed alone would race the inline shutdown() below.
+            self._record_fatal_reason(f"{role} '{name}' restart budget exhausted (PERMANENT)")
             crashed_event = self._emit_service_status_event(
                 name=name,
                 role=role,
@@ -339,6 +343,8 @@ class ServiceWatcher(Resource):
                 name,
                 data.exception_type,
             )
+            # Record the fatal reason synchronously (see _handle_exhaustion for rationale).
+            self._record_fatal_reason(f"{role} '{name}' raised fatal error '{data.exception_type}'")
             crashed_event = self._emit_service_status_event(
                 name=name,
                 role=role,
@@ -446,8 +452,28 @@ class ServiceWatcher(Resource):
             event.payload.data.previous_status,
         )
 
+    def _record_fatal_reason(self, reason: str) -> None:
+        """Record the fatal shutdown reason on Hassette unless one is already set.
+
+        Setting this synchronously at the crash decision site guarantees run_forever()
+        observes it before _raise_if_fatal_shutdown() runs, independent of async event
+        dispatch. The first (most specific) reason wins, so the universal shutdown_if_crashed
+        handler does not overwrite a reason already recorded by _handle_exhaustion or the
+        fatal-error path.
+        """
+        if self.hassette._fatal_shutdown_reason is None:
+            self.hassette._fatal_shutdown_reason = reason
+
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
-        """Shutdown the Hassette instance if a service has crashed."""
+        """Record the fatal reason and request shutdown when a service has crashed.
+
+        Universal reaction to a CRASHED event from any source. Records the fatal reason
+        (unless a more specific one is already set) before calling request_shutdown() so
+        run_forever()'s shutdown_event.wait() unblocks, runs the full teardown (including
+        finalize_session), and then raises FatalError via _raise_if_fatal_shutdown(). This
+        makes a crash-driven exit non-zero to external supervisors (systemd Restart=on-failure,
+        Docker healthcheck).
+        """
         data = event.payload.data
         name = data.resource_name
         role = data.role
@@ -460,7 +486,11 @@ class ServiceWatcher(Resource):
                 event.payload.event_id,
                 data.exception_traceback,
             )
-            await self.hassette.shutdown()
+            reason = f"{role} '{name}' crashed"
+            if data.exception_type:
+                reason += f": {data.exception_type}"
+            self._record_fatal_reason(reason)
+            self.hassette.request_shutdown(reason)
         except Exception as e:
             self.logger.error("Failed to handle %s crash for '%s': %s", role, name, e)
             raise

@@ -13,7 +13,7 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
-from hassette.exceptions import AppPrecheckFailedError
+from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
@@ -111,6 +111,10 @@ class Hassette(Resource):
         # Dependency graph — populated by wire_services()
         self._init_order: list[type[Resource]] = []
         self._init_waves: list[list[type[Resource]]] = []
+
+        # Fatal-exit observability: set by shutdown_if_crashed or startup-failure branches.
+        # When set, run_forever() raises FatalError after teardown instead of returning normally.
+        self._fatal_shutdown_reason: str | None = None
 
     def startup_tasks(self) -> None:
         """Perform one-time startup tasks.
@@ -462,7 +466,9 @@ class Hassette(Resource):
             await self._session_manager.create_session()
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
+            self._fatal_shutdown_reason = "startup failure: session tracking initialization failed"
             await self.shutdown()
+            self._raise_if_fatal_shutdown()
             return
 
         # Phase 2: Start remaining children wave-by-wave.  Each wave's deps
@@ -485,7 +491,11 @@ class Hassette(Resource):
                 not_ready = [r.class_name for r in wave if not r.is_ready()]
                 self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
                 self.logger.error("Not all resources started successfully, shutting down")
+                self._fatal_shutdown_reason = (
+                    f"startup failure: required resources did not start: {', '.join(not_ready)}"
+                )
                 await self.shutdown()
+                self._raise_if_fatal_shutdown()
                 return
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
@@ -512,6 +522,17 @@ class Hassette(Resource):
             await self.shutdown()
 
         self.logger.info("Hassette stopped.")
+        self._raise_if_fatal_shutdown()
+
+    def _raise_if_fatal_shutdown(self) -> None:
+        """Emit a CRITICAL log and raise FatalError if a fatal reason was recorded.
+
+        Called after teardown completes. Separates the log+raise from the three call
+        sites (two startup branches + post-run-loop) so the text lives in one place.
+        """
+        if self._fatal_shutdown_reason is not None:
+            self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
+            raise FatalError(self._fatal_shutdown_reason)
 
     async def _shutdown_children(self) -> bool:
         """Wave-based shutdown: gather each dependency level sequentially.
