@@ -102,18 +102,24 @@ hassette listener 42 --since 1h --json | jq '[.[] | select(.status == "error")] 
 
 ### Health check script
 
+This script checks whether Hassette is reachable. For restart automation, point your container healthcheck at `/api/health/live` instead — a live probe returns 200 whenever the process is up, regardless of whether Home Assistant is connected. A fatal exit sets a non-zero exit code, which `Restart=on-failure` (systemd) and `restart: unless-stopped` (Docker) pick up directly.
+
 ```bash
 #!/usr/bin/env bash
 set -uo pipefail
 
-OUTPUT=$(hassette status --json 2>/dev/null) || true
-STATUS=$(echo "$OUTPUT" | jq -r '.status // empty')
-
-if [[ -z "$STATUS" || "$STATUS" == "starting" ]]; then
-  echo "Hassette is not ready: ${STATUS:-unreachable}" >&2
+# Liveness: the process is up and the event loop can respond.
+# Use /api/health/live for container healthchecks and restart automation.
+# Use /api/health/ready to gate traffic routing.
+if ! curl -sf http://127.0.0.1:8126/api/health/live > /dev/null 2>&1; then
+  echo "Hassette is not responding" >&2
   exit 1
 fi
-echo "Hassette is healthy (status: $STATUS)"
+
+# Optional: check aggregate status from /api/health (always 200, even when starting or degraded)
+OUTPUT=$(hassette status --json 2>/dev/null) || true
+STATUS=$(echo "$OUTPUT" | jq -r '.status // empty')
+echo "Hassette is up (status: ${STATUS:-unknown})"
 ```
 
 ### Alerting on error rate

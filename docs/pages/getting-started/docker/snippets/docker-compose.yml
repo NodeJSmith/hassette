@@ -15,7 +15,10 @@ services:
       - HASSETTE__LOG_LEVEL=info
       - TZ=America/New_York # Set your timezone
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8126/api/health"]
+      # Liveness, not readiness: /api/health/live ignores Home Assistant connectivity, so an HA
+      # outage does not mark the container unhealthy. Pointing a restart-triggering healthcheck at
+      # /api/health (or /api/health/ready) causes a restart loop whenever HA restarts.
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8126/api/health/live"]
       interval: 30s
       timeout: 5s
       retries: 3

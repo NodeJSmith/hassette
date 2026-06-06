@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Document the health endpoints and fatal-exit behavior"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: []
 ---
