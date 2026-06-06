@@ -87,7 +87,7 @@ This is the system-level status view for Hassette as a whole. It reports whether
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket connected; all services running |
+| `ok` | 200 | WebSocket currently connected (per-service health is in the `services` field) |
 | `degraded` | 200 | Was connected at least once; currently disconnected (e.g. HA restarting) |
 | `starting` | 200 | Has not finished the initial connection yet |
 

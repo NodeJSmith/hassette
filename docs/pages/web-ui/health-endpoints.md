@@ -33,7 +33,7 @@ The full status endpoint returns HTTP 200 in all states while the process can se
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket connected; all services running |
+| `ok` | 200 | WebSocket currently connected (per-service health is in the `services` field) |
 | `degraded` | 200 | Was connected at least once; currently disconnected |
 | `starting` | 200 | Has not finished the initial connection yet |
 
