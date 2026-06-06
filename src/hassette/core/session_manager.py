@@ -274,6 +274,26 @@ class SessionManager(Resource):
                     " WHERE id = ?",
                     (now, now, overflow, exhausted, shutdown, self._session_id),
                 )
+            elif self.hassette.fatal_shutdown_reason is not None:
+                # Fatal shutdown, but the async CRASHED handler did not record failure details before
+                # teardown (it races finalize and the bus/DB are tearing down). The fatal reason is set
+                # synchronously at the crash decision site, so persist a failure status here rather than
+                # masking the crash as a clean success.
+                await self._database_service.db.execute(
+                    "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
+                    " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
+                    " WHERE id = ?",
+                    (
+                        SESSION_STATUS_FAILURE,
+                        now,
+                        now,
+                        self.hassette.fatal_shutdown_reason,
+                        overflow,
+                        exhausted,
+                        shutdown,
+                        self._session_id,
+                    ),
+                )
             else:
                 await self._database_service.db.execute(
                     "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"

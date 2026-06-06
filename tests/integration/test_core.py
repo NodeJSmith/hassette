@@ -24,6 +24,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
+from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
@@ -203,14 +204,15 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
-    """run_forever triggers shutdown when session initialization raises."""
+    """run_forever triggers shutdown and raises FatalError when session initialization raises."""
     hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
     hassette_instance._session_manager.create_session = AsyncMock()
 
-    await hassette_instance.run_forever()
+    with pytest.raises(FatalError):
+        await hassette_instance.run_forever()
 
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
     hassette_instance._session_manager.create_session.assert_not_awaited()
@@ -218,7 +220,7 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
 
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
-    """run_forever triggers shutdown when remaining resources fail to become ready."""
+    """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
     hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     for child in hassette_instance.children:
         if child is not hassette_instance._database_service:
@@ -229,7 +231,8 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
     hassette_instance._session_manager.create_session = AsyncMock()
 
-    await hassette_instance.run_forever()
+    with pytest.raises(FatalError):
+        await hassette_instance.run_forever()
 
     assert hassette_instance.wait_for_ready.await_count == 2
     hassette_instance.shutdown.assert_awaited_once()

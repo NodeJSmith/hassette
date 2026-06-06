@@ -99,6 +99,13 @@ def make_mock_hassette(
     hassette.ready_event = ready_event
     hassette.shutdown_event = asyncio.Event()
 
+    # Fatal-exit state — matches a real fresh Hassette (no fatal reason recorded yet). Explicit so
+    # code that branches on `fatal_shutdown_reason is not None` does not see MagicMock's auto-truthy
+    # attribute (e.g. finalize_session persisting a spurious failure status). Set both the property
+    # name (read path) and the backing field.
+    hassette._fatal_shutdown_reason = None
+    hassette.fatal_shutdown_reason = None
+
     # Event stream state
     hassette.event_streams_closed = False
 

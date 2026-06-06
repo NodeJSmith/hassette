@@ -83,6 +83,11 @@ def create_hassette_stub(
     """
     hassette = MagicMock()
 
+    # Matches a real fresh Hassette (no fatal reason yet) so code branching on
+    # `fatal_shutdown_reason is not None` sees None, not MagicMock's auto-truthy attribute.
+    hassette._fatal_shutdown_reason = None
+    hassette.fatal_shutdown_reason = None
+
     # Root-level fields
     hassette.config.dev_mode = dev_mode
     hassette.config.base_url = "http://127.0.0.1:8123"
@@ -129,6 +134,7 @@ def create_hassette_stub(
     hassette.websocket_service = hassette._websocket_service
     hassette._websocket_service._status = ResourceStatus.RUNNING
     hassette._websocket_service.is_ready.return_value = is_ready
+    hassette._websocket_service.ever_connected = is_ready
 
     hassette.app_handler = hassette._app_handler
 

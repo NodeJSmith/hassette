@@ -89,6 +89,30 @@ class TestCmdStatus:
         output = buf.getvalue()
         assert "1h 1m 1s" in output
 
+    def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
+        """status command prints status body (not an error) when instance is 'degraded' (200)."""
+        status_data = make_system_status_response(status="degraded", websocket_connected=False)
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
+        with (
+            capture_stdout() as buf,
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+        ):
+            cmd_status()
+        output = buf.getvalue()
+        assert "degraded" in output
+
+    def test_status_starting_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
+        """status command prints status body (not an error) when instance is 'starting' (200)."""
+        status_data = make_system_status_response(status="starting", websocket_connected=False)
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
+        with (
+            capture_stdout() as buf,
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+        ):
+            cmd_status()
+        output = buf.getvalue()
+        assert "starting" in output
+
 
 # ---------------------------------------------------------------------------
 # cmd_telemetry

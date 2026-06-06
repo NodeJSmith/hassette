@@ -1,11 +1,11 @@
 """System tests for Hassette shutdown lifecycle."""
 
-import asyncio
 import sqlite3
 from typing import ClassVar
 
 import pytest
 
+from hassette.exceptions import FatalError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_service_failed_event, wait_for
@@ -49,11 +49,24 @@ async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
     assert stopped_at is not None, "stopped_at should be non-null after shutdown"
 
 
-async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_path) -> None:
-    """A FAILED event for an unknown service cascades through ServiceWatcher and triggers shutdown."""
+async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str, tmp_path) -> None:
+    """A FAILED event for a PERMANENT service cascades through ServiceWatcher into a fatal shutdown.
+
+    This is the destructive counterpart to the fatal-exit unit/integration tests — it can only live
+    here because it tears the running instance down. It drives a real PERMANENT service to budget
+    exhaustion through the real bus (where the CRASHED event is dispatched asynchronously) and proves
+    the end-to-end fatal-exit contract that mocks cannot:
+
+    1. ``run_forever()`` raises ``FatalError`` (which maps to a non-zero process exit via run.py), so
+       an external supervisor restarts after a fatal crash (FR#7/AC#10). startup_context re-raises the
+       background task's exception on exit, so the crash surfaces here as ``FatalError``.
+    2. The fatal reason is recorded synchronously at the exhaustion decision site, naming the cause.
+    3. The crash is persisted to the telemetry session before teardown, so the session is NOT recorded
+       as a clean success (FR#9/AC#12).
+    """
 
     class _AlwaysFailingService(Service):
-        """A service that always fails on initialize — used to drive the cascade test."""
+        """A PERMANENT service that always fails on initialize — drives the exhaustion/crash path."""
 
         restart_spec: ClassVar[RestartSpec] = RestartSpec(
             restart_type=RestartType.PERMANENT,
@@ -68,34 +81,41 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
             pass  # never reached
 
     config = make_system_config(ha_container, tmp_path)
-    async with startup_context(config) as hassette:
-        shutdown_event = asyncio.Event()
+    db_path = config.database.path or (config.data_dir / "hassette.db")
+    session_id: int | None = None
 
-        # Add the always-failing service as a child so ServiceWatcher can find it by class_name
-        failing_service = _AlwaysFailingService(hassette, parent=hassette)
-        hassette.children.append(failing_service)
+    # The FatalError is raised by startup_context's exit (after the in-context assertions run),
+    # so the raises block must wrap the whole async-with, not a single call (hence PT012 suppressed).
+    with pytest.raises(FatalError, match="PERMANENT"):  # noqa: PT012
+        async with startup_context(config) as hassette:
+            session_id = hassette.session_id
+            # Add the always-failing service as a child so ServiceWatcher can find it by class_name.
+            failing_service = _AlwaysFailingService(hassette, parent=hassette)
+            hassette.children.append(failing_service)
 
-        real_shutdown = hassette.shutdown
-
-        async def _stub_shutdown() -> None:
-            shutdown_event.set()
-
-        hassette.shutdown = _stub_shutdown  # pyright: ignore[reportAttributeAccessIssue]
-
-        try:
-            # Fire a FAILED event — ServiceWatcher will restart once (budget_intensity=1),
-            # then exhaust the budget and call hassette.shutdown() (which is now the stub)
-            failed_event = make_service_failed_event(failing_service)
-            await hassette.send_event(failed_event)
+            # Fire a FAILED event — ServiceWatcher restarts once (budget_intensity=1), then exhausts the
+            # budget, records the fatal reason, emits CRASHED, and triggers shutdown. run_forever()
+            # unblocks and raises FatalError, which startup_context re-raises on context exit.
+            await hassette.send_event(make_service_failed_event(failing_service))
 
             await wait_for(
-                shutdown_event.is_set,
+                hassette.shutdown_event.is_set,
                 timeout=45,
-                desc="ServiceWatcher to exhaust retries and call shutdown",
+                desc="ServiceWatcher to exhaust retries and trigger fatal shutdown",
             )
-        finally:
-            hassette.shutdown = real_shutdown  # pyright: ignore[reportAttributeAccessIssue]
-            # Remove manually-injected child to prevent its lingering tasks from
-            # polluting the shared session-scoped event loop in subsequent tests.
-            if failing_service in hassette.children:
-                hassette.children.remove(failing_service)
+
+            # Recorded synchronously at the exhaustion decision site, before any teardown.
+            assert hassette._fatal_shutdown_reason is not None
+            assert failing_service.class_name in hassette._fatal_shutdown_reason
+
+    # run_forever() raised FatalError (caught above) → non-zero exit signal. The real teardown ran,
+    # finalizing the session. The crashed session must not be recorded as a clean success.
+    assert session_id is not None
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute("SELECT status FROM sessions WHERE id = ?", (session_id,)).fetchone()
+    finally:
+        conn.close()
+
+    assert row is not None, "Session row not found"
+    assert row[0] != "success", f"Crashed session must not be recorded as success, got {row[0]!r}"

@@ -14,6 +14,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.test_utils import make_ws_hassette_stub
 from hassette.types import Topic
+from hassette.types.enums import ConnectionState
 
 
 @pytest.fixture
@@ -183,3 +184,34 @@ class TestWebsocketReadinessEvents:
         assert payload.ready is True
         assert payload.ready_phase is not None
         assert "connected" in payload.ready_phase.lower()
+
+
+class TestEverConnectedLatch:
+    """FR#1: ever_connected latch starts False, flips True on CONNECTED, stays True after disconnect."""
+
+    def test_ever_connected_starts_false(self, websocket_service: WebsocketService) -> None:
+        """ever_connected is False before any connection transition."""
+        assert websocket_service.ever_connected is False
+
+    def test_ever_connected_becomes_true_after_connected_transition(
+        self,
+        websocket_service: WebsocketService,
+    ) -> None:
+        """ever_connected flips True when _set_connection_state transitions to CONNECTED."""
+        websocket_service._set_connection_state(ConnectionState.CONNECTING)
+        assert websocket_service.ever_connected is False  # not yet
+
+        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        assert websocket_service.ever_connected is True
+
+    def test_ever_connected_stays_true_after_disconnect(
+        self,
+        websocket_service: WebsocketService,
+    ) -> None:
+        """ever_connected remains True after a subsequent disconnect (one-way latch)."""
+        websocket_service._set_connection_state(ConnectionState.CONNECTING)
+        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        assert websocket_service.ever_connected is True
+
+        websocket_service._set_connection_state(ConnectionState.DISCONNECTED)
+        assert websocket_service.ever_connected is True  # latch does not revert

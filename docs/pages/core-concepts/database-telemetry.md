@@ -83,20 +83,20 @@ Use this endpoint if you want to monitor specifically whether telemetry data col
 
 ### `/api/health`
 
-This is the **system-level** health check for Hassette as a whole. It reports the overall status of the Hassette process — whether it is running, starting up, or operating in a degraded state. Use this endpoint for Docker health checks and uptime monitoring.
+This is the system-level status view for Hassette as a whole. It reports whether the WebSocket connection to Home Assistant is up, starting, or disconnected. The endpoint returns HTTP 200 in all states while the process can serve — it never returns 503 from the handler itself.
 
-| Status | HTTP | Meaning |
+| `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket connected, all systems running |
-| `degraded` | 200 | WebSocket disconnected, but apps and state proxy are running |
-| `starting` | 503 | System not yet ready to serve traffic |
+| `ok` | 200 | WebSocket currently connected (per-service health is in the `services` field) |
+| `degraded` | 200 | Was connected at least once; currently disconnected (e.g. HA restarting) |
+| `starting` | 200 | Has not finished the initial connection yet |
 
-```yaml
---8<-- "pages/core-concepts/snippets/database-telemetry/healthcheck.yml"
-```
+A fatal crash (a PERMANENT service exhausting its restart budget, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.
+
+For container restart automation, use `/api/health/live` or rely on the non-zero exit and a restart policy. Use `/api/health` for the human-readable aggregate view and use `/api/health/ready` for load-balancer routing. See [Health Endpoints](../web-ui/health-endpoints.md) for the full reference.
 
 !!! note "Choosing the right endpoint"
-    Use `/api/health` for container orchestration and uptime monitoring. Use `/api/telemetry/status` if you specifically need to know whether the telemetry database is functional.
+    Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
 
 ## Registration Persistence
 

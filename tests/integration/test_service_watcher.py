@@ -264,6 +264,58 @@ async def test_permanent_exhaustion_triggers_shutdown(get_service_watcher_mock: 
     assert hassette.shutdown_event.is_set()
 
 
+async def test_permanent_exhaustion_records_fatal_reason(get_service_watcher_mock: ServiceWatcher):
+    """PERMANENT exhaustion records _fatal_shutdown_reason synchronously at the decision site.
+
+    Regression test for the reason-race: the CRASHED event is dispatched asynchronously
+    (task-per-handler), so the reason must be set synchronously in _handle_exhaustion — not
+    only in the async shutdown_if_crashed handler — or run_forever() exits 0 on a real crash.
+    """
+    watcher = get_service_watcher_mock
+    hassette = watcher.hassette
+    assert hassette._fatal_shutdown_reason is None
+
+    spec = RestartSpec(
+        restart_type=RestartType.PERMANENT,
+        budget_intensity=2,
+        budget_period_seconds=300,
+        backoff_base_seconds=0,
+    )
+    dummy_service = get_dummy_service({"cancel": 0, "start": 0}, hassette, restart_spec=spec)
+    hassette.children.append(dummy_service)
+
+    event = make_service_failed_event(dummy_service)
+    await watcher.restart_service(event)
+    await watcher.restart_service(event)
+    await watcher.restart_service(event)  # exhausts → _handle_exhaustion (PERMANENT)
+
+    assert hassette._fatal_shutdown_reason is not None
+    assert dummy_service.class_name in hassette._fatal_shutdown_reason
+
+
+async def test_fatal_error_records_fatal_reason(get_service_watcher_mock: ServiceWatcher):
+    """A service raising a configured fatal error records _fatal_shutdown_reason synchronously."""
+    watcher = get_service_watcher_mock
+    hassette = watcher.hassette
+    assert hassette._fatal_shutdown_reason is None
+
+    spec = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        budget_period_seconds=300,
+        backoff_base_seconds=0,
+        fatal_error_names=("RuntimeError",),
+    )
+    dummy_service = get_dummy_service({"cancel": 0, "start": 0}, hassette, restart_spec=spec)
+    hassette.children.append(dummy_service)
+
+    event = make_service_failed_event(dummy_service, exception=RuntimeError("boom"))
+    await watcher.restart_service(event)  # fatal-error path triggers immediately
+
+    assert hassette._fatal_shutdown_reason is not None
+    assert "RuntimeError" in hassette._fatal_shutdown_reason
+
+
 async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: ServiceWatcher):
     """TRANSIENT service: exhausting budget emits EXHAUSTED_COOLING and schedules cooldown task."""
     watcher = get_service_watcher_mock

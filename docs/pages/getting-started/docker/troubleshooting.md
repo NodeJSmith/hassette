@@ -210,9 +210,23 @@ If apps fail to import installed packages:
 2. Check logs for installation errors at startup
 3. Ensure `HASSETTE__APPS__DIRECTORY` points to the correct location
 
+## Hassette Restarts Whenever Home Assistant Goes Down
+
+**Symptom:** Hassette keeps restarting in a loop whenever Home Assistant restarts or goes offline, even though Hassette itself is healthy.
+
+**Cause:** A Docker healthcheck or an autoheal tool (e.g. `willfarrell/autoheal`) is pointed at `/api/health/ready`. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage — including routine HA restarts — so autoheal keeps killing and restarting Hassette unnecessarily.
+
+**Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure (wedged event loop, container crash, non-zero exit) makes a liveness probe fail.
+
+```yaml
+--8<-- "pages/getting-started/docker/snippets/ts-healthcheck-live.yml"
+```
+
+If you need a separate traffic-routing signal, use `/api/health/ready` — but keep it out of any healthcheck that triggers restarts. See [Health Endpoints](../../web-ui/health-endpoints.md) for the full reference.
+
 ## Health Check Failing
 
-The health check queries `http://127.0.0.1:8126/api/health`. This endpoint returns 200 for both `ok` and `degraded` status (WebSocket disconnected but apps running), and 503 only during startup before the system is ready.
+The liveness check queries `http://127.0.0.1:8126/api/health/live`. This endpoint returns 200 whenever the Hassette process is up and the event loop can respond. It does not check Home Assistant connectivity — HA being down never makes the liveness probe return a non-200 response.
 
 ### Symptoms
 

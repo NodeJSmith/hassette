@@ -13,7 +13,7 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
-from hassette.exceptions import AppPrecheckFailedError
+from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
@@ -111,6 +111,10 @@ class Hassette(Resource):
         # Dependency graph — populated by wire_services()
         self._init_order: list[type[Resource]] = []
         self._init_waves: list[list[type[Resource]]] = []
+
+        # Fatal-exit observability: set by shutdown_if_crashed or startup-failure branches.
+        # When set, run_forever() raises FatalError after teardown instead of returning normally.
+        self._fatal_shutdown_reason: str | None = None
 
     def startup_tasks(self) -> None:
         """Perform one-time startup tasks.
@@ -462,7 +466,9 @@ class Hassette(Resource):
             await self._session_manager.create_session()
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
+            self.record_fatal_reason("startup failure: session tracking initialization failed")
             await self.shutdown()
+            self._raise_if_fatal_shutdown()
             return
 
         # Phase 2: Start remaining children wave-by-wave.  Each wave's deps
@@ -482,10 +488,22 @@ class Hassette(Resource):
                 child.start()
             started = await self.wait_for_ready(wave, timeout=self.config.lifecycle.startup_timeout_seconds)
             if not started:
+                if self.shutdown_event.is_set():
+                    # Shutdown was requested while this wave was still starting — that is a
+                    # shutdown, not a resource startup failure.  It happens when a clean/operator
+                    # shutdown (or a crash that already recorded its reason) lands before the later
+                    # waves finish, including the common case where a caller stops the instance
+                    # right after readiness is signalled.  Route to teardown; _raise_if_fatal_shutdown
+                    # raises only when a fatal reason was recorded, so a clean shutdown exits 0.
+                    await self.shutdown()
+                    self._raise_if_fatal_shutdown()
+                    return
                 not_ready = [r.class_name for r in wave if not r.is_ready()]
                 self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
                 self.logger.error("Not all resources started successfully, shutting down")
+                self.record_fatal_reason(f"startup failure: required resources did not start: {', '.join(not_ready)}")
                 await self.shutdown()
+                self._raise_if_fatal_shutdown()
                 return
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
@@ -512,6 +530,31 @@ class Hassette(Resource):
             await self.shutdown()
 
         self.logger.info("Hassette stopped.")
+        self._raise_if_fatal_shutdown()
+
+    @property
+    def fatal_shutdown_reason(self) -> str | None:
+        """The reason a fatal shutdown was triggered, or None for a clean shutdown (read-only)."""
+        return self._fatal_shutdown_reason
+
+    def record_fatal_reason(self, reason: str) -> None:
+        """Record why a fatal shutdown is happening, so the process exits non-zero.
+
+        Set synchronously at the crash decision site (before any teardown) so run_forever()
+        observes it independent of async event dispatch. The first reason wins — the universal
+        crash handler does not overwrite a more specific reason from the exhaustion/fatal-error path.
+        """
+        if self._fatal_shutdown_reason is None:
+            self._fatal_shutdown_reason = reason
+
+    def _raise_if_fatal_shutdown(self) -> None:
+        """Raise FatalError (after a CRITICAL log) if a fatal reason was recorded.
+
+        Called after teardown completes, at the two startup-failure branches and after the run loop.
+        """
+        if self._fatal_shutdown_reason is not None:
+            self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
+            raise FatalError(self._fatal_shutdown_reason)
 
     async def _shutdown_children(self) -> bool:
         """Wave-based shutdown: gather each dependency level sequentially.

@@ -29,6 +29,7 @@ from hassette.web.models import (
     ListenerKind,
     ListenerWithSummary,
     ManifestStatus,
+    ReadinessResponse,
     ServiceInfoResponse,
     SystemStatusResponse,
 )
@@ -132,6 +133,14 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         boot_issues=boot_issues,
         log_records_dropped=status.log_records_dropped,
     )
+
+
+def readiness_response_from(status: SystemStatus) -> ReadinessResponse:
+    """Convert a ``SystemStatus`` domain object to ``ReadinessResponse``.
+
+    Readiness is derived solely from the aggregate status: ready only when ``ok``.
+    """
+    return ReadinessResponse(status=status.status, ready=status.status == "ok")
 
 
 def connected_payload_from(status: SystemStatus) -> ConnectedPayload:

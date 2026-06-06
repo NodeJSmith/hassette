@@ -267,7 +267,8 @@ class RuntimeQueryService(Resource):
         return events[-limit:]
 
     def get_system_status(self) -> SystemStatus:
-        ws_connected = self.hassette.websocket_service.is_ready()
+        ws = self.hassette.websocket_service
+        ws_connected = ws.is_ready()
         uptime = time.time() - self._start_time
 
         try:
@@ -294,14 +295,9 @@ class RuntimeQueryService(Resource):
         ]
         services_running = [s.name for s in services if s.status == ResourceStatus.RUNNING.value]
 
-        try:
-            proxy_ready = self.hassette.state_proxy.is_ready()
-        except (AttributeError, RuntimeError):
-            proxy_ready = False
-
         if ws_connected:
             status = "ok"
-        elif proxy_ready:
+        elif ws.ever_connected:
             status = "degraded"
         else:
             status = "starting"
