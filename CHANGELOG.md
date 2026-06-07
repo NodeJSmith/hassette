@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0](https://github.com/NodeJSmith/hassette/compare/v0.39.1...v0.40.0) (2026-06-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* `GET /api/health` now returns HTTP 200 (not 503) while the process is serving — for `starting` and `degraded` as well as `ok`. The handler never returns 503. Any healthcheck or restart automation pointed at `/api/health` should move to `/api/health/live` (liveness, HA-independent) for restart decisions, or `/api/health/ready` (200 only when fully connected) for traffic routing. Separately, a fatal, unrecoverable shutdown now exits with a non-zero status code instead of 0, so supervisors using `Restart=on-failure` will restart after a fatal crash; a clean operator shutdown (SIGTERM / `docker stop`) still exits 0.
+
+### Features
+
+* add liveness/readiness health endpoints and non-zero fatal exit ([#978](https://github.com/NodeJSmith/hassette/issues/978)) ([3c84005](https://github.com/NodeJSmith/hassette/commit/3c84005b37730da85171a2d335d6eb8f303ab0d9))
+
 ## [0.39.1](https://github.com/NodeJSmith/hassette/compare/v0.39.0...v0.39.1) (2026-06-05)
 
 
