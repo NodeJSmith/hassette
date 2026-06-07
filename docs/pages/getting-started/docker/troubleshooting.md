@@ -114,7 +114,7 @@ To apply edits without restarting, set `watch_files = true` and `allow_reload_in
 --8<-- "pages/getting-started/docker/snippets/ts-healthcheck-live.yml"
 ```
 
-If you need a separate traffic-routing signal, use `/api/health/ready` — but keep it out of any healthcheck that triggers restarts. See [Health Endpoints](../../web-ui/health-endpoints.md) for the full reference.
+If you need a separate traffic-routing signal, use `/api/health/ready` — but keep it out of any healthcheck that triggers restarts. See [Configure Health Checks](../../web-ui/health-endpoints.md) for the full reference.
 
 ## Getting Help
 

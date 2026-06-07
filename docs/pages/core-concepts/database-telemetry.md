@@ -72,7 +72,7 @@ Three commands and their API equivalents cover telemetry and system health.
 
 A fatal crash (a PERMANENT service exhausting its restart budget, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.
 
-For container restart automation, use `/api/health/live` or rely on the non-zero exit and a restart policy. Use `/api/health` for the human-readable aggregate view and use `/api/health/ready` for load-balancer routing. See [Health Endpoints](../web-ui/health-endpoints.md) for the full reference.
+For container restart automation, use `/api/health/live` or rely on the non-zero exit and a restart policy. Use `/api/health` for the human-readable aggregate view and use `/api/health/ready` for load-balancer routing. See [Configure Health Checks](../web-ui/health-endpoints.md) for the full reference.
 
 !!! note "Choosing the right endpoint"
     Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
