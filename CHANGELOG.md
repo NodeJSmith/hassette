@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0](https://github.com/NodeJSmith/hassette/compare/v0.40.0...v0.41.0) (2026-06-07)
+
+
+### Features
+
+* split health endpoint into liveness, readiness, and aggregate status ([#982](https://github.com/NodeJSmith/hassette/issues/982)) ([1853b8f](https://github.com/NodeJSmith/hassette/commit/1853b8f4c4b70e4cff2b9e2028813252487724af))
+
 ## [0.40.0](https://github.com/NodeJSmith/hassette/compare/v0.39.1...v0.40.0) (2026-06-06)
 
 
