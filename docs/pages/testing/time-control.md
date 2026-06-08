@@ -13,6 +13,8 @@ The canonical sequence is: freeze, advance, trigger.
 
 `freeze_time` pins the clock at a known point. `advance_time` moves it forward. `trigger_due_jobs` fires every job whose scheduled time is at or before the frozen clock.
 
+The three steps are separate because advancing time and dispatching jobs are distinct operations. A test that advances the clock by 30 minutes may only care about the first job. Remaining due jobs stay untriggered until an explicit `trigger_due_jobs` call. This separation gives each test precise control over which jobs fire and when.
+
 ## `freeze_time(instant)`
 
 `freeze_time` patches `hassette.utils.date_utils.now` to return a fixed time. The `instant` parameter accepts an `Instant` or `ZonedDateTime` from [`whenever`](https://whenever.readthedocs.io/en/latest/).
@@ -32,7 +34,7 @@ Calling `freeze_time` again replaces the frozen time. The old patchers stop and 
 ```
 
 !!! warning "`advance_time` does not trigger jobs"
-    Advancing the clock does not dispatch any scheduled jobs. Call `trigger_due_jobs()` explicitly afterward. Without it, jobs accumulate silently and assertions on side effects fail.
+    Advancing the clock does not dispatch any scheduled jobs. `trigger_due_jobs()` must be called explicitly afterward. Without it, jobs accumulate silently and side-effect assertions fail.
 
 ## `trigger_due_jobs()`
 
@@ -44,7 +46,7 @@ Calling `freeze_time` again replaces the frozen time. The old patchers stop and 
 
 `trigger_due_jobs` operates on a snapshot of due jobs taken at the moment of the call. Jobs re-enqueued during dispatch (repeating jobs) are not included in that snapshot and are not re-triggered in the same call. This prevents infinite loops when the clock is frozen.
 
-If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. Call `drain_task_bucket` afterward to wait for those handler tasks to complete before assertions run.
+If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. `drain_task_bucket` waits for those handler tasks to complete before assertions run.
 
 ## Next Steps
 

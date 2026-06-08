@@ -1,8 +1,18 @@
 # Test Harness Reference
 
-`AppTestHarness` wires an [App][hassette.app.app.App] subclass into Hassette's test infrastructure
-without a live Home Assistant connection. It exposes the app's bus, scheduler,
-seeded state, and a `RecordingApi` that records every API call.
+`AppTestHarness` wires an [App][hassette.app.app.App] subclass into Hassette's test infrastructure without a live Home Assistant connection. It exposes the app's bus, scheduler, seeded state, and a `RecordingApi` that records every API call.
+
+## Basic Pattern
+
+A typical test creates a harness, simulates an event, and asserts on the API calls the app made:
+
+```python
+--8<-- "pages/testing/snippets/testing_quick_start.py"
+```
+
+The `async with` block initializes the app (running `on_initialize`), then tears it down on exit. `simulate_state_change` publishes an event through the bus and waits for all handlers to finish. `api_recorder.assert_called` verifies the app called the expected service.
+
+The sections below cover each piece of this pattern in detail.
 
 ## Prerequisites
 
@@ -25,9 +35,9 @@ do not run.
 entity.
 
 !!! warning "Seed state before simulating events"
-    `set_state()` does not fire bus events. It should be called before
-    `simulate_state_change()` for the same entity, not after. A later call
-    silently overwrites the state the simulation wrote.
+    `set_state()` does not fire bus events. It must precede
+    `simulate_state_change()` for the same entity, not follow it. A later
+    `set_state()` silently overwrites the state the simulation wrote.
 
 ## Simulating Events
 

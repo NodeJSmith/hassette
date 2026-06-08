@@ -78,7 +78,7 @@ Job error (job_db_id=<id>, exec=<execution_id>)
 <traceback>
 ```
 
-If you register an error handler on a subscription or a scheduled job, Hassette calls it after logging. Use it to send alerts, trigger recovery logic, or record additional context. The error handler itself is also subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
+Registered error handlers on subscriptions or scheduled jobs fire after Hassette logs the exception. They are the right place for alerting integrations, recovery logic, or additional context recording. The error handler itself is subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
 
 ## Timeouts
 
@@ -97,9 +97,9 @@ Individual subscriptions and jobs can override the global default:
 
 ### Limitations
 
-**Synchronous handlers.** Hassette runs synchronous handlers in a thread executor. `asyncio.timeout` cancels the awaitable wrapping the thread, but it cannot stop the thread itself. A sync handler that ignores cancellation may continue running in the background after the timeout fires. If long-running sync work needs reliable cancellation, convert it to `async`.
+**Synchronous handlers.** Hassette runs synchronous handlers in a thread executor. `asyncio.timeout` cancels the awaitable wrapping the thread, but it cannot stop the thread itself. A sync handler that ignores cancellation may continue running in the background after the timeout fires. Long-running sync work that needs reliable cancellation requires an `async` implementation.
 
-**Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Avoid catching `TimeoutError` in handler bodies unless you re-raise it.
+**Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
 
 **`lifecycle.run_sync_timeout_seconds`** (default: 6s) is a separate timeout that applies to calls made from synchronous (non-async) contexts into Hassette's event loop via `task_bucket.run_sync()`. This timeout is not related to handler execution. It governs blocking calls made from threads outside the event loop.
 
