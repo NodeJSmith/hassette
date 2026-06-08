@@ -475,7 +475,7 @@ class WebsocketService(Service):
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
         )
-        async def send_once() -> dict[str, Any]:
+        async def send_with_retry() -> dict[str, Any]:
             data["id"] = msg_id = self.get_next_message_id()
 
             fut = self.hassette.loop.create_future()
@@ -490,7 +490,7 @@ class WebsocketService(Service):
             finally:
                 self._response_futures.pop(msg_id, None)
 
-        return await send_once()
+        return await send_with_retry()
 
     def _respond_if_necessary(self, message: dict) -> None:
         if message.get("type") != "result":
