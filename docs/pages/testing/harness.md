@@ -263,4 +263,4 @@ output.
 - [Time Control](time-control.md) — freeze time and trigger scheduled jobs
 - [Concurrency & pytest-xdist](concurrency.md) — parallel test execution and
   drain failure details
-- [Factories & Internals](factories.md) — build custom state dicts and event objects
+- [Factories](factories.md) — build custom state dicts and event objects

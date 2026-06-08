@@ -15,10 +15,11 @@ Usage:
 """
 
 import argparse
+import json
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -462,6 +463,7 @@ def main() -> int:
     parser.add_argument("--page", help="Audit a single page (path relative to docs/pages/, without .md extension)")
     parser.add_argument("--section", help="Audit one section (e.g., 'recipes', 'core-concepts/bus')")
     parser.add_argument("--rule", help="Show only findings matching this rule name")
+    parser.add_argument("--json", action="store_true", help="Output findings as JSON")
     args = parser.parse_args()
 
     if args.page:
@@ -490,10 +492,21 @@ def main() -> int:
     if args.rule:
         result.findings = [f for f in result.findings if f.rule == args.rule]
 
-    output = format_findings(result)
-    if output:
-        print(output)
-    print(format_summary(result, len(pages)))
+    if args.json:
+        by_rule = Counter(finding.rule for finding in result.findings)
+        output = {
+            "pages_scanned": len(pages),
+            "total_findings": len(result.findings),
+            "files_with_findings": len({f.file for f in result.findings}),
+            "by_rule": dict(by_rule.most_common()),
+            "findings": [asdict(f) for f in result.findings],
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        output = format_findings(result)
+        if output:
+            print(output)
+        print(format_summary(result, len(pages)))
 
     return 1 if result.findings else 0
 

@@ -126,10 +126,7 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 No `C.InRange` condition exists. For range checks, combine two `C.Comparison` instances inside `P.AllOf`:
 
 ```python
-P.AllOf((
-    P.ValueIs(source=A.get_state_value_new, condition=C.Comparison(">=", 18)),
-    P.ValueIs(source=A.get_state_value_new, condition=C.Comparison("<=", 26)),
-))
+--8<-- "pages/core-concepts/bus/snippets/filtering/range_check.py:range_check"
 ```
 
 ## Accessors (`A`)

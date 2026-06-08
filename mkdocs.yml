@@ -96,7 +96,7 @@ nav:
       - Test Harness Reference: pages/testing/harness.md
       - Time Control: pages/testing/time-control.md
       - Concurrency & pytest-xdist: pages/testing/concurrency.md
-      - Factories & Internals: pages/testing/factories.md
+      - Factories: pages/testing/factories.md
   - Recipes:
       - Overview: pages/recipes/index.md
       - Motion-Activated Lights: pages/recipes/motion-lights.md

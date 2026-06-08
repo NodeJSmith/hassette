@@ -33,29 +33,6 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 
 `get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
 
-## How Built-In Extractors Work
-
-??? note "Internals: how `D.StateNew` is defined"
-
-    Every built-in annotation in `D` is an `Annotated` type alias carrying an `AnnotationDetails` instance. `D.StateNew` is defined as:
-
-    ```python
-    StateNew: TypeAlias = Annotated[
-        StateT,
-        AnnotationDetails["RawStateChangeEvent"](ensure_present(A.get_state_object_new)),
-    ]
-    ```
-
-    `A.get_state_object_new` is an accessor that reads `event.payload.data.new_state` and converts it via the State Registry. `ensure_present` wraps it to raise [`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError] if the value is missing. A missing value skips the handler rather than passing `None`. The `Annotated` wrapper is what `extract_from_annotated` looks for when scanning the handler signature.
-
-    The `A.get_attr_new` pattern used in custom extractors follows the same structure:
-
-    ```python
-    --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_builtin.py"
-    ```
-
-    `extract_from_annotated` accepts either a bare callable or a full `AnnotationDetails` instance in the `Annotated` metadata position. Both produce the same resolution behavior. The bare callable form is a convenience shorthand.
-
 ## Adding Type Conversion
 
 `AnnotationDetails.converter` accepts a function with the signature `(value: Any, to_type: type) -> Any`. The DI system calls it after extraction to convert the raw value to the declared type.

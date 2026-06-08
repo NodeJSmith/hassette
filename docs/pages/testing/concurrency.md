@@ -47,5 +47,5 @@ Without `-n`, pytest runs sequentially in a single process. The marker has no ef
 ## Next Steps
 
 - **[Time Control](time-control.md)**: Freezing and advancing time in tests
-- **[Factories & Internals](factories.md)**: Event factories and `RecordingApi` coverage boundary
+- **[Factories](factories.md)**: Event factories and `RecordingApi` coverage boundary
 - **[Testing index](index.md)**: Harness setup and quick start

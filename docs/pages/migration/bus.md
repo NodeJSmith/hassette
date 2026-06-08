@@ -9,14 +9,13 @@ Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`L
 === "Missing name (breaks)"
 
     ```python
-    # Raises ListenerNameRequiredError immediately
-    await self.bus.on_state_change("light.kitchen", handler=self.on_change)
+    --8<-- "pages/migration/snippets/bus_name_missing.py"
     ```
 
 === "With name (correct)"
 
     ```python
-    await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen_light")
+    --8<-- "pages/migration/snippets/bus_name_correct.py"
     ```
 
 This is the most common cause of breakage when porting AppDaemon apps. Add `name=` to every subscription call before running the app.
@@ -106,8 +105,7 @@ AppDaemon returns an opaque handle from `listen_state()` and requires a separate
 === "AppDaemon"
 
     ```python
-    handle = self.listen_state(self.on_change, "light.kitchen")
-    self.cancel_listen_state(handle)
+    --8<-- "pages/migration/snippets/bus_cancel_appdaemon.py"
     ```
 
 === "Hassette"
@@ -125,11 +123,7 @@ All registration methods (`on_state_change`, `on_attribute_change`, `on_call_ser
 === "AppDaemon"
 
     ```python
-    def initialize(self):
-        self.listen_state(self.on_motion, "binary_sensor.motion", new="on")
-
-    def on_motion(self, entity, attribute, old, new, **kwargs):
-        self.log(f"Motion detected on {entity}")
+    --8<-- "pages/migration/snippets/bus_migration_state_appdaemon.py"
     ```
 
 === "Hassette"
@@ -143,13 +137,7 @@ All registration methods (`on_state_change`, `on_attribute_change`, `on_call_ser
 === "AppDaemon"
 
     ```python
-    def initialize(self):
-        self.listen_event(
-            self.on_service,
-            "call_service",
-            domain="light",
-            service="turn_on",
-        )
+    --8<-- "pages/migration/snippets/bus_migration_service_appdaemon.py"
     ```
 
 === "Hassette"

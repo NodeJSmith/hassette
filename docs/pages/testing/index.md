@@ -38,10 +38,7 @@ Add this to your `pyproject.toml`:
 **`AppTestHarness`** runs your app against a test environment. `RecordingApi` replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`.
 
 ```python
-async with AppTestHarness(
-    MotionLights,
-    config={"motion_entity": "binary_sensor.hallway", "light_entity": "light.hallway"},
-) as harness:
+--8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"
 ```
 
 The `async with` block handles the full app lifecycle. Inside it, `on_initialize()` has run and the app is ready to receive events. When the block exits, the harness tears everything down.
@@ -49,20 +46,19 @@ The `async with` block handles the full app lifecycle. Inside it, `on_initialize
 **`simulate_state_change()`** publishes a `state_changed` event through the bus and waits for all triggered handlers to finish before returning.
 
 ```python
-await harness.simulate_state_change("binary_sensor.hallway", old_value="off", new_value="on")
+--8<-- "pages/testing/snippets/testing_quick_start.py:simulate"
 ```
 
 **`harness.api_recorder.assert_called()`** checks that your app called the named method at least once with the given kwargs. Extra kwargs in the recorded call are allowed — only the specified kwargs need to match.
 
 ```python
-harness.api_recorder.assert_called("turn_on", entity_id="light.hallway")
+--8<-- "pages/testing/snippets/testing_quick_start.py:assert_called"
 ```
 
 If your handler reads entity state during handling, seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the state proxy without publishing a bus event, so no handlers fire. Seed before you simulate.
 
 ```python
-await harness.set_state("binary_sensor.hallway", "off")
-await harness.simulate_state_change("binary_sensor.hallway", old_value="off", new_value="on")
+--8<-- "pages/testing/snippets/testing_seed_state.py:seed"
 ```
 
 ## Run It
@@ -86,4 +82,4 @@ test_my_app.py::test_light_turns_on_when_motion_detected PASSED
 - [Test Harness Reference](harness.md) — full API: all simulate methods, all assert methods, error handling
 - [Time Control](time-control.md) — test scheduler-driven behavior
 - [Concurrency & pytest-xdist](concurrency.md) — parallel test execution
-- [Factories & Internals](factories.md) — build custom test data
+- [Factories](factories.md) — build custom test data

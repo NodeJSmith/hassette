@@ -47,11 +47,7 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
 === "AppDaemon"
 
     ```python
-    def my_callback(self, **kwargs):
-        self.call_service("light/turn_on", entity_id="light.kitchen", brightness=200)
-
-        # or use the helper
-        self.turn_on("light.kitchen", brightness=200)
+    --8<-- "pages/migration/snippets/api_appdaemon_call_service.py"
     ```
 
 === "Hassette"
@@ -68,7 +64,7 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
 === "AppDaemon"
 
     ```python
-    self.set_state("sensor.custom", state="42", attributes={"unit": "widgets"})
+    --8<-- "pages/migration/snippets/api_appdaemon_set_state.py"
     ```
 
 === "Hassette"
@@ -84,9 +80,7 @@ AppDaemon provides `self.log()` and `self.error()`. Hassette uses Python's stand
 === "AppDaemon"
 
     ```python
-    self.log("This is a log message")
-    self.log(f"Value: {value}")
-    self.error("Something went wrong")
+    --8<-- "pages/migration/snippets/api_appdaemon_logging.py"
     ```
 
 === "Hassette"

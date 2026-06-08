@@ -1,4 +1,4 @@
-# Factories & Internals
+# Factories
 
 All factory functions listed here are exported from `hassette.test_utils`.
 
@@ -185,18 +185,6 @@ Any other public name not defined on `RecordingApi` also falls through to `__get
 ```
 
 Methods not covered by the sync facade raise `NotImplementedError` rather than silently succeeding.
-
-## Internal Helpers
-
-`hassette.test_utils.helpers` contains several helpers used internally by the test infrastructure but not exported in `__all__`:
-
-- `make_full_state_change_event` builds a `RawStateChangeEvent` from pre-built state dicts rather than raw values. Also available via the Tier 2 re-export at `hassette.test_utils.make_full_state_change_event`.
-- `create_component_loaded_event` builds a [`ComponentLoadedEvent`][hassette.events.hass.hass.ComponentLoadedEvent] for a given component name.
-- `create_service_registered_event` builds a [`ServiceRegisteredEvent`][hassette.events.hass.hass.ServiceRegisteredEvent] for a given domain and service.
-
-`create_hassette_stub` is available from `hassette.test_utils._internal` and builds a `MagicMock` stub for web and API tests.
-
-These are stable in practice but are not part of the documented public API. They may change without notice.
 
 ## Next Steps
 
