@@ -341,9 +341,8 @@ class StateProxy(Resource):
         the state cache, as well as during periodic polling to keep the cache up to date.
         """
         states = await self.hassette.api.get_states_raw()
+        state_dict = {s["entity_id"]: s for s in states if s["entity_id"]}
         async with self.lock:
-            self.states.clear()
-            state_dict = {s["entity_id"]: s for s in states if s["entity_id"]}
-            self.states.update(state_dict)
+            self.states = state_dict
 
         self.logger.debug("State cache loaded, tracking %d entities", len(self.states))
