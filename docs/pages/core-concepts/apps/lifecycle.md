@@ -16,6 +16,10 @@ Three hooks fire in order:
 --8<-- "pages/core-concepts/apps/snippets/lifecycle_hooks.py"
 ```
 
+`on_initialize` is where most apps do their setup. `self.bus.on_state_change` registers a handler that fires on entity state changes. `self.scheduler.run_in` schedules a one-shot job after a fixed delay. Both calls are `async` and must be awaited. By the time `on_initialize` runs, the bus, scheduler, API, and database are all ready.
+
+`before_initialize` and `after_initialize` exist for setup that must happen strictly before or after the main registration. Most apps only need `on_initialize`.
+
 !!! note
     The base implementations of these hooks are empty. No `super()` call is necessary.
 

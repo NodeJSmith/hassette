@@ -2,6 +2,12 @@
 
 The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 
+## How It Works
+
+All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object that determines when the job fires. Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
+
+Each call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle. The handle cancels the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
+
 ## Common Patterns
 
 ### Run after a delay

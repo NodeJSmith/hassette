@@ -2,6 +2,14 @@
 
 All Hassette settings live in `hassette.toml`. Environment variables and CLI flags override TOML values. The configuration controls connection, app discovery, the web UI, storage, and runtime behavior.
 
+A minimal `hassette.toml` declares the Home Assistant URL, the apps directory, and one app:
+
+```toml
+--8<-- "pages/core-concepts/configuration/snippets/basic_config.toml"
+```
+
+The token is the only required credential. `HASSETTE__TOKEN` supplies it via environment variable, keeping the credential out of version control. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers token generation.
+
 ## Configuration Sources
 
 Hassette loads settings from four sources, applied in this precedence order (highest wins):
@@ -48,13 +56,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 | `[hassette.file_watcher]` | Debounce, step timing, and enable/disable |
 | `[hassette.scheduler]` | Job delay thresholds and execution timeouts |
 
-App definitions live inside `[hassette.apps]` as named subsections:
-
-```toml
---8<-- "pages/core-concepts/configuration/snippets/basic_config.toml"
-```
-
-[App Configuration](../apps/configuration.md) covers app registration details and multi-instance configuration.
+App definitions live inside `[hassette.apps]` as named subsections, as shown in the opening example. [App Configuration](../apps/configuration.md) covers registration details and multi-instance configuration.
 
 ## Design Notes
 
@@ -70,7 +72,7 @@ The `HassetteConfig` reference covers every field, its type, and its default. Th
 
 `extend_exclude_dirs` adds directories to the built-in exclusion list. `exclude_dirs` replaces it entirely. Setting `exclude_dirs` directly removes the framework defaults and can cause Hassette to scan directories it would normally skip.
 
-`run_app_precheck` controls whether Hassette imports and validates all app modules before starting. When a module fails precheck, Hassette refuses to start. `allow_startup_if_app_precheck_fails` overrides that refusal. Development environments may enable it; production environments should not.
+`run_app_precheck` controls whether Hassette imports and validates all app modules before starting. When a module fails precheck, Hassette refuses to start. `allow_startup_if_app_precheck_fails` overrides that refusal. Development environments may enable it; production environments benefit from leaving it disabled.
 
 ### Event Filtering
 
@@ -97,3 +99,9 @@ The `StateManager` keeps a local cache of entity states. `state_proxy_poll_inter
 ## Full Reference
 
 The `HassetteConfig` API reference lists every field with its type, default, and description.
+
+## Next Steps
+
+- [App Configuration](../apps/configuration.md): registering apps, passing config values, and multi-instance setup
+- [Apps overview](../apps/index.md): defining `AppConfig` models and accessing config values in Python
+- [CLI Configuration](../../cli/configuration.md): CLI flags and environment variables for runtime overrides

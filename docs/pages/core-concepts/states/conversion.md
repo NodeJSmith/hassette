@@ -1,13 +1,8 @@
 # State Conversion
 
-Home Assistant sends state data as untyped dicts with string values. Two registries
-cooperate to produce typed Python objects: the
-[`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps domains to state
-classes, and the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts
-string values to typed Python values. Most apps never touch either registry directly.
+Home Assistant sends state data as untyped dicts with string values. Two registries cooperate to produce typed Python objects: the [`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps domains to state classes, and the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts string values to typed Python values. This conversion runs automatically whenever a handler receives state via [dependency injection](../bus/dependency-injection.md). Most apps benefit from it without touching either registry directly.
 
-This page is relevant when overriding a default domain mapping, registering a custom value
-converter, or debugging unexpected state types or values at runtime.
+The registries become relevant when overriding domain mappings, registering custom converters, or debugging unexpected types.
 
 ## The Conversion Pipeline
 
@@ -118,9 +113,7 @@ applies it.
 When no registered converter exists, the registry tries the target type's constructor as a
 fallback. A successful constructor call auto-registers the pair for future calls.
 
-For union `value_type` declarations (`value_type = (int, float, str)`), conversion attempts
-each member in order. Place the most specific type first. `str` matches everything, so
-`(int, float, str)` is correct and `(str, int, float)` is not.
+For union `value_type` declarations (`value_type = (int, float, str)`), conversion attempts each member in order. The most specific type belongs first. `str` matches everything, so `(int, float, str)` is correct and `(str, int, float)` is not.
 
 ### Built-in Converters
 

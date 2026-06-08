@@ -62,3 +62,9 @@ Single-instance apps are the default. Most apps never need `[[...]]` blocks. Mul
 ## Typed Configuration
 
 The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a configuration error before any app starts. [Apps](../apps/index.md) covers defining the model.
+
+## Next Steps
+
+- [Apps overview](index.md): defining `AppConfig` models, accessing config values, and app structure
+- [Global Configuration](../configuration/index.md): `hassette.toml` settings outside the `[apps]` section
+- [Lifecycle](lifecycle.md): what happens after Hassette loads and validates the app config

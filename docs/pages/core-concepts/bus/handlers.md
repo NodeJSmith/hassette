@@ -75,6 +75,14 @@ This pattern works only with `on_state_change` and `on_attribute_change`.
 Service call handlers use the [extracted data](#extracted-data-recommended)
 pattern with [`D.EntityId`](dependency-injection.md) instead.
 
+## Choosing a Pattern
+
+`D` annotations are the default for most handlers. They deliver only the fields the handler needs. The signature stays readable, and Hassette handles parsing and type conversion.
+
+Raw events deliver the full event structure, which suits event-forwarding or generic logging. Typed state events provide the same structure but with typed state objects instead of raw dicts.
+
+No-parameter handlers work when the event itself does not matter. The subscription filters to the right entity and transition, so the handler just acts.
+
 ## Cross-app Communication
 
 Apps can broadcast data to other apps through custom topics.
