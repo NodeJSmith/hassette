@@ -33,6 +33,8 @@ The UI can be disabled independently while the REST API stays active:
     A fresh Hassette install shows empty tables and zero counts until automations
     run and handlers fire. Telemetry accumulates as apps process events.
 
+## Configuration
+
 ??? "Configuration quick reference"
 
     | Setting | Type | Default | Description |

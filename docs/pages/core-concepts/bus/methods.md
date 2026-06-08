@@ -291,7 +291,7 @@ Cancelling a subscription and registering a new one is deterministic. The old ha
 
 ## See Also
 
-- [Writing Handlers](handlers.md) — handler signature patterns and DI annotation usage
-- [Filtering & Predicates](filtering.md) — `where=`, `P.*` predicates, and `C.*` conditions
-- [Dependency Injection](dependency-injection.md) — full `D.*` annotation reference
-- [Bus Overview](index.md) — bus overview and getting started
+- [Writing Handlers](handlers.md): handler signature patterns and DI annotation usage
+- [Filtering & Predicates](filtering.md): `where=`, `P.*` predicates, and `C.*` conditions
+- [Dependency Injection](dependency-injection.md): full `D.*` annotation reference
+- [Bus Overview](index.md): bus overview and getting started

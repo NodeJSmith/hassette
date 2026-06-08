@@ -30,9 +30,9 @@ Open **Handlers** in the sidebar. The page shows every registered event handler 
 
 Find your handler by searching the name box or filtering by app with the **App** column dropdown. The table shows:
 
-- **Runs** — total invocations in the current time window. Zero means the handler has never fired, or the time window is too narrow.
-- **Failed** — count of invocations that raised an unhandled exception. Shown in red when non-zero.
-- **Error rate** — failed divided by runs, as a percentage.
+- **Runs**: total invocations in the current time window. Zero means the handler has never fired, or the time window is too narrow.
+- **Failed**: count of invocations that raised an unhandled exception. Shown in red when non-zero.
+- **Error rate**: failed divided by runs, as a percentage.
 
 Rows with any failure are highlighted in red. Click the handler name to go straight to the handler detail in the app's Handlers tab.
 
@@ -46,13 +46,13 @@ Open the app from the sidebar, then select the **Handlers** tab. The left panel 
 
 Select your handler. The detail panel shows:
 
-- **Registration source** — the exact `bus.on_state_change()` call Hassette recorded at startup, including the entity pattern and any options.
-- **Modifier chips** — any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, or `duration`. A handler with no modifiers shows no chip row.
-- **Source location** — the file path and line number where the handler is defined. Click **view in code →** to open the Code tab at that line.
-- **Error banner** — appears when the handler has at least one failure. Shows the exception class, the full message, and a **show traceback** toggle that expands the Python traceback inline.
+- **Registration source**: the exact `bus.on_state_change()` call Hassette recorded at startup, including the entity pattern and any options.
+- **Modifier chips**: any behavioral options in effect: `debounce`, `throttle`, `once`, `priority`, `immediate`, or `duration`. A handler with no modifiers shows no chip row.
+- **Source location**: the file path and line number where the handler is defined. Click **view in code →** to open the Code tab at that line.
+- **Error banner**: appears when the handler has at least one failure. Shows the exception class, the full message, and a **show traceback** toggle that expands the Python traceback inline.
 ![Handler error banner](../../_static/web_ui_detail_handler_error.png)
-- **Stats grid** — calls, successful, failed, timed out, and min/avg/max duration for the current time window.
-- **Invocations table** — the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
+- **Stats grid**: calls, successful, failed, timed out, and min/avg/max duration for the current time window.
+- **Invocations table**: the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
 
 A gray status dot on a handler in the left panel means it has never been invoked. A red dot means at least one invocation has failed.
 
@@ -64,8 +64,8 @@ You can also construct the URL manually. Grab the execution ID from a CLI comman
 
 ## Related Pages
 
-- [Web UI overview](index.md) — navigation, layout, and status bar controls
-- [Manage Apps](manage-apps.md) — app health, start/stop/reload, and status badges
-- [Logs](logs.md) — full log view with execution ID filtering
-- [`Bus` handlers](../core-concepts/bus/handlers.md) — handler registration, `name=` requirement, and options
-- [Dependency injection](../core-concepts/bus/dependency-injection.md) — DI annotation reference
+- [Web UI overview](index.md): navigation, layout, and status bar controls
+- [Manage Apps](manage-apps.md): app health, start/stop/reload, and status badges
+- [Logs](logs.md): full log view with execution ID filtering
+- [`Bus` handlers](../core-concepts/bus/handlers.md): handler registration, `name=` requirement, and options
+- [Dependency injection](../core-concepts/bus/dependency-injection.md): DI annotation reference

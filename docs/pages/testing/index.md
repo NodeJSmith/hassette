@@ -27,7 +27,7 @@ Add this to your `pyproject.toml`:
 --8<-- "pages/testing/snippets/testing_asyncio_mode.toml"
 ```
 
-`asyncio_mode = "auto"` tells pytest-asyncio to treat every `async def test_*` function as an async test. Without it, async tests silently pass without running. This is the most common cause of false-green test suites.
+`asyncio_mode = "auto"` tells pytest-asyncio to treat every `async def test_*` as an async test. Without it, async tests silently pass without running. This is the most common cause of false-green test suites.
 
 ## Write the Test
 
@@ -49,7 +49,7 @@ The `async with` block handles the full app lifecycle. Inside it, `on_initialize
 --8<-- "pages/testing/snippets/testing_quick_start.py:simulate"
 ```
 
-**`harness.api_recorder.assert_called()`** checks that your app called the named method at least once with the given kwargs. Extra kwargs in the recorded call are allowed — only the specified kwargs need to match.
+**`harness.api_recorder.assert_called()`** checks that your app called the named method at least once with the given kwargs. Extra kwargs in the recorded call are allowed. Only the specified kwargs need to match.
 
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py:assert_called"
@@ -79,7 +79,7 @@ test_my_app.py::test_light_turns_on_when_motion_detected PASSED
 
 ## Next Steps
 
-- [Test Harness Reference](harness.md) — full API: all simulate methods, all assert methods, error handling
-- [Time Control](time-control.md) — test scheduler-driven behavior
-- [Concurrency & pytest-xdist](concurrency.md) — parallel test execution
-- [Factories](factories.md) — build custom test data
+- [Test Harness Reference](harness.md): full API: all simulate methods, all assert methods, error handling
+- [Time Control](time-control.md): test scheduler-driven behavior
+- [Concurrency & pytest-xdist](concurrency.md): parallel test execution
+- [Factories](factories.md): build custom test data

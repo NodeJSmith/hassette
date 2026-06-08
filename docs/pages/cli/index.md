@@ -67,6 +67,6 @@ Start Hassette with `hassette run`, then retry. See [Configuration](configuratio
 
 ## Next Steps
 
-- [Command Reference](commands.md) — every command with flags and output examples
-- [Workflows](workflows.md) — drill down from "something is wrong" to root cause
-- [Configuration & Scripting](configuration.md) — JSON output, `jq`, shell completion
+- [Command Reference](commands.md): every command with flags and output examples
+- [Workflows](workflows.md): drill down from "something is wrong" to root cause
+- [Configuration & Scripting](configuration.md): JSON output, `jq`, shell completion

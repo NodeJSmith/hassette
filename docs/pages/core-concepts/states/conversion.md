@@ -188,8 +188,8 @@ The decorator accepts keyword arguments for error handling:
 
 ### Simple Registration
 
-`register_simple_type_converter` registers an existing callable — a constructor, a method,
-or a lambda — without wrapping it in a dedicated function.
+`register_simple_type_converter` registers an existing callable (a constructor, a method,
+or a lambda) without wrapping it in a dedicated function.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/type-registry/simple_registration.py"
@@ -302,8 +302,8 @@ is a `TypeConverterEntry` with `func`, `from_type`, `to_type`, `error_types`, an
 
 !!! tip "Unexpected state type at runtime?"
     `STATE_REGISTRY.resolve(domain="the_domain")` confirms which class is registered.
-    If a custom class override does not take effect, import order is the likely cause —
-    the override class must be imported after the module that defines the original.
+    If a custom class override does not take effect, import order is the likely cause.
+    The override class must be imported after the module that defines the original.
 
 ## See Also
 

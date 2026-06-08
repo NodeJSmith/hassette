@@ -112,6 +112,6 @@ Because the bus, scheduler, and API are async internally, `AppSync` exposes `.sy
 
 ## See Also
 
-- [`Bus` & Events](bus.md) — migrating `listen_state` and `listen_event`
-- [API Calls](api.md) — migrating `get_state`, `call_service`, and `set_state`
-- [Dependency Injection](../core-concepts/bus/dependency-injection.md) — full DI reference
+- [`Bus` & Events](bus.md): migrating `listen_state` and `listen_event`
+- [API Calls](api.md): migrating `get_state`, `call_service`, and `set_state`
+- [Dependency Injection](../core-concepts/bus/dependency-injection.md): full DI reference

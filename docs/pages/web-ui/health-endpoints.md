@@ -40,7 +40,7 @@ The readiness endpoint returns HTTP 200 when the WebSocket connection is active 
 
 Response body: `{"status": "<status>", "ready": <bool>}`.
 
-This endpoint serves load-balancer traffic routing — holding traffic until the WebSocket connection is live. It is not suitable for restart automation. It returns 503 during any HA outage, which triggers a restart loop.
+This endpoint serves load-balancer traffic routing, holding traffic until the WebSocket connection is live. It is not suitable for restart automation. It returns 503 during any HA outage, which triggers a restart loop.
 
 ## Aggregate status: `/api/health`
 
@@ -66,6 +66,6 @@ A clean operator shutdown (SIGTERM / `docker stop`) exits with code `0`.
 
 ## Related pages
 
-- [Docker Troubleshooting](../getting-started/docker/troubleshooting.md) — restart loops caused by pointing healthchecks at `/api/health/ready`
-- [Database & Telemetry](../core-concepts/database-telemetry.md) — telemetry health and `/api/telemetry/status`
-- [Web UI Overview](index.md) — the browser-based monitoring dashboard
+- [Docker Troubleshooting](../getting-started/docker/troubleshooting.md): restart loops caused by pointing healthchecks at `/api/health/ready`
+- [Database & Telemetry](../core-concepts/database-telemetry.md): telemetry health and `/api/telemetry/status`
+- [Web UI Overview](index.md): the browser-based monitoring dashboard

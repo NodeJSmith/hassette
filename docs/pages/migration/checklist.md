@@ -90,12 +90,17 @@ See [Testing](testing.md) for the test harness guide.
     - In `AppSync`, use `.sync` facades for bus, scheduler, and API: `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods from sync hooks returns un-awaited coroutines that silently do nothing.
     - Do not use `.sync` facades inside `App` lifecycle methods. Use the async API instead, or switch to `AppSync`.
 
-!!! tip "Configuration access"
+The two APIs you'll use most often after migration are configuration and state access. Both are shorter than their AppDaemon equivalents.
+
+!!! tip "Quick-reference: configuration and state access"
+    ### Configuration
+
     - AppDaemon: `self.args["args"]["key"]`
     - Hassette: `self.app_config.key`
     - Define all config keys in your `AppConfig` model for validation and autocomplete.
 
-!!! tip "State access"
+    ### State
+
     - AppDaemon: `self.get_state()` returns a cached state (string or dict)
     - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state. No `await` needed. The domain prefix is optional.
     - Use `self.api.get_state()` only when you need a fresh read from Home Assistant.

@@ -34,7 +34,7 @@ This is the cheapest state call when the value string is all the code needs.
 ### `get_state(entity_id)`
 
 Looks up the entity in the state registry and returns the domain-specific
-[`BaseState`][hassette.models.states.base.BaseState] subclass — `LightState` for lights,
+[`BaseState`][hassette.models.states.base.BaseState] subclass: `LightState` for lights,
 `SensorState` for sensors, and so on. Each subclass defines its own `.value` type
 (`bool`, `float`, `str`, etc.), along with `.attributes`, `.last_changed`,
 `.last_updated`, and `.context`.
@@ -75,7 +75,7 @@ registry or inspecting the raw HA payload for debugging.
 
 ### `get_state_value_typed(entity_id)`
 
-Equivalent to `(await self.api.get_state(entity_id)).value` — returns just the
+Equivalent to `(await self.api.get_state(entity_id)).value`. Returns just the
 converted value without attributes or timestamps.
 
 ```python
@@ -107,8 +107,8 @@ alone is unreliable because some valid attribute values are falsy (`0`, `False`,
 ### `get_entity(entity_id, model)`
 
 Returns a [`BaseEntity`][hassette.models.entities.base.BaseEntity] subclass with
-domain-specific action methods — `turn_on()`, `turn_off()`, `toggle()`, and
-`refresh()` — along with the entity's current state. The `model` argument
+domain-specific action methods (`turn_on()`, `turn_off()`, `toggle()`, and
+`refresh()`) along with the entity's current state. The `model` argument
 specifies which entity class to return.
 
 | Parameter | Type | Default | Description |
@@ -158,7 +158,7 @@ Same as `get_states`, but returns a list of untyped `HassStateDict` dicts instea
 
 ### `call_service(domain, service, ...)`
 
-The generic service call method. Service data passes as keyword arguments — they become
+The generic service call method. Service data passes as keyword arguments. They become
 `service_data` on the wire.
 
 | Parameter | Type | Default | Description |
@@ -261,7 +261,7 @@ Fetches multiple entities in a single request. `entity_ids` is `list[str]`. Retu
 mapping each entity ID to its list of history entries. Accepts the same payload-reduction flags
 as `get_history`.
 
-`entity_ids` must be a list — passing a comma-separated string to `get_history` raises `ValueError`.
+`entity_ids` must be a list. Passing a comma-separated string to `get_history` raises `ValueError`.
 
 ### `get_logbook(entity_id, start_time, end_time)`
 
@@ -437,7 +437,7 @@ WebSocket API handles that.
 
 ## See Also
 
-- [API Overview](index.md) — when to use `self.api` vs `self.states`, error handling
-- [Managing Helpers](managing-helpers.md) — create and update HA helpers via the API
-- [States](../states/index.md) — synchronous state cache for instant lookups without a network call
-- [Bus](../bus/index.md) — subscribing to state changes and service call events
+- [API Overview](index.md): when to use `self.api` vs `self.states`, error handling
+- [Managing Helpers](managing-helpers.md): create and update HA helpers via the API
+- [States](../states/index.md): synchronous state cache for instant lookups without a network call
+- [Bus](../bus/index.md): subscribing to state changes and service call events

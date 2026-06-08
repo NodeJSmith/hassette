@@ -174,7 +174,7 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
 
 ## See Also
 
-- [API Overview](index.md) — when to use `self.api` vs `self.states`
-- [API Methods](methods.md) — `call_service` for timer actions and other service calls
-- [Testing Your Apps](../../testing/index.md) — full harness documentation
-- [Apps](../apps/index.md) — lifecycle hooks including `on_initialize`
+- [API Overview](index.md): when to use `self.api` vs `self.states`
+- [API Methods](methods.md): `call_service` for timer actions and other service calls
+- [Testing Apps](../../testing/index.md): full harness documentation
+- [Apps](../apps/index.md): lifecycle hooks including `on_initialize`

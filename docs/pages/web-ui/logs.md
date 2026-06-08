@@ -70,6 +70,6 @@ Streaming is active only when the table is sorted by timestamp, the default. Sor
 
 ## Related pages
 
-- [Web UI overview](index.md) — layout, navigation, and how to enable the UI
-- [Debug a Failing Handler](debug-handler.md) — execution history with links to filtered logs for each run
-- [Database and Telemetry](../core-concepts/database-telemetry.md) — how log entries are persisted and retained
+- [Web UI overview](index.md): layout, navigation, and how to enable the UI
+- [Debug a Failing Handler](debug-handler.md): execution history with links to filtered logs for each run
+- [Database and Telemetry](../core-concepts/database-telemetry.md): how log entries are persisted and retained

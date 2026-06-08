@@ -4,9 +4,9 @@ Install Hassette, write a one-file automation, and see it connect to Home Assist
 
 ## Prerequisites
 
-- **Python 3.11 or later** — check with `python --version`.
-- **[uv](https://docs.astral.sh/uv/getting-started/installation/)** — this guide uses `uv` to install Hassette.
-- **A running Home Assistant instance** — you'll need its URL and a long-lived access token.
+- **Python 3.11 or later**: check with `python --version`.
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**: this guide uses `uv` to install Hassette.
+- **A running Home Assistant instance**: you'll need its URL and a long-lived access token.
 
 ## 1. Install Hassette
 
@@ -87,5 +87,5 @@ hassette app
 
 ## Next steps
 
-- [Your First Automation](first-automation.md) — subscribe to events, use dependency injection, and schedule jobs
-- [Docker Setup](docker/index.md) — deploy Hassette in production with Docker Compose
+- [Your First Automation](first-automation.md): subscribe to events, use dependency injection, and schedule jobs
+- [Docker Setup](docker/index.md): deploy Hassette in production with Docker Compose

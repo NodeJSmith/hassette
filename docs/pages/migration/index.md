@@ -4,7 +4,7 @@ This guide covers migrating AppDaemon automations to Hassette.
 
 ## Quick Reference
 
-Four areas change: configuration, app structure, event handlers, and API calls. Hassette splits AppDaemon's flat `self.*` surface into typed handles — `self.bus` (event subscriptions), `self.scheduler` (timed jobs), `self.api` (HA service calls), and `self.states` (entity state cache).
+Four areas change: configuration, app structure, event handlers, and API calls. Hassette splits AppDaemon's flat `self.*` surface into typed handles: `self.bus` (event subscriptions), `self.scheduler` (timed jobs), `self.api` (HA service calls), and `self.states` (entity state cache).
 
 | Action | AppDaemon | Hassette | Guide |
 |--------|-----------|----------|-------|

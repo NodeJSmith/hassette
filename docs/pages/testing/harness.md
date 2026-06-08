@@ -260,7 +260,7 @@ output.
 
 ## Next Steps
 
-- [Time Control](time-control.md) — freeze time and trigger scheduled jobs
-- [Concurrency & pytest-xdist](concurrency.md) — parallel test execution and
+- [Time Control](time-control.md): freeze time and trigger scheduled jobs
+- [Concurrency & pytest-xdist](concurrency.md): parallel test execution and
   drain failure details
-- [Factories](factories.md) — build custom state dicts and event objects
+- [Factories](factories.md): build custom state dicts and event objects

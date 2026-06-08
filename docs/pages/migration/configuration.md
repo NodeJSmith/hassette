@@ -75,5 +75,5 @@ Each block becomes a separate app instance. Both run the same `MotionLights` cla
 
 ## See Also
 
-- [App Configuration](../core-concepts/apps/configuration.md) — app registration, multi-instance config, and TOML syntax
-- [Configuration Overview](../core-concepts/configuration/index.md) — `hassette.toml` structure
+- [App Configuration](../core-concepts/apps/configuration.md): app registration, multi-instance config, and TOML syntax
+- [Configuration Overview](../core-concepts/configuration/index.md): `hassette.toml` structure

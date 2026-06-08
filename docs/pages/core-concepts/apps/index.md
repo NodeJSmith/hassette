@@ -11,7 +11,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 ```
 
 !!! info "What's `D.StateNew[states.LightState]`?"
-    That annotation is [dependency injection](../bus/dependency-injection.md) — the handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
+    That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
 ## Configuration
 
@@ -37,8 +37,8 @@ With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fiel
 
 Every `AppConfig` includes two built-in fields:
 
-- `instance_name` — a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
-- `log_level` — controls the logging verbosity for this app's logger. Inherits the process-level default when not set.
+- `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
+- `log_level`: controls the logging verbosity for this app's logger. Inherits the process-level default when not set.
 
 `AppConfig` allows arbitrary extra fields by default. A subclass can tighten this by setting `extra="forbid"` in its own `model_config`.
 
@@ -105,7 +105,7 @@ See the [States](../states/index.md) page for typed domain access and custom sta
 ```
 
 !!! warning "Forgetting `await` on API calls"
-    Every `self.api.*` method is a coroutine — it must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that `await` is present.
+    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that `await` is present.
 
 See the [API](../api/index.md) page for state access, entity management, and more.
 
@@ -167,5 +167,5 @@ In production mode, the decorator is ignored by default. Set `allow_only_app_in_
 
 ## Next Steps
 
-- **[Lifecycle](lifecycle.md)** — `on_initialize`, `on_shutdown`, and automatic resource cleanup.
-- **[Task Bucket](task-bucket.md)** — background tasks, thread offloading, and cross-thread communication.
+- **[Lifecycle](lifecycle.md)**: `on_initialize`, `on_shutdown`, and automatic resource cleanup.
+- **[Task Bucket](task-bucket.md)**: background tasks, thread offloading, and cross-thread communication.

@@ -62,7 +62,7 @@ Three commands and their API equivalents cover telemetry and system health.
 | `{"degraded": false}` | 200 | Database is healthy |
 | `{"degraded": true}` | 503 | Database is unavailable |
 
-**System-level health.** `hassette status` queries `/api/health`, which reports the overall status of the Hassette process. The endpoint returns HTTP 200 in all states while the process can serve — it never returns 503 from the handler itself:
+**System-level health.** `hassette status` queries `/api/health`, which reports the overall status of the Hassette process. The endpoint returns HTTP 200 in all states while the process can serve. It never returns 503 from the handler itself:
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|

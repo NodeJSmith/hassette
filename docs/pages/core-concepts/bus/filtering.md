@@ -10,7 +10,7 @@ from hassette import P, C, A
 
 ## Filtering State Changes
 
-Filters and predicates compare against **raw Home Assistant state strings**, not typed state models. HA reports state values as strings: `"on"`, `"off"`, `"unavailable"`, `"72.5"`. Filtering runs before type conversion for performance — Hassette avoids deserializing every event into a Pydantic model when most events will be filtered out. This means `changed_to="on"` is correct, not `changed_to=True`, even though `LightState.value` is a `bool` after dependency injection delivers it to the handler.
+Filters and predicates compare against **raw Home Assistant state strings**, not typed state models. HA reports state values as strings: `"on"`, `"off"`, `"unavailable"`, `"72.5"`. Filtering runs before type conversion for performance. Hassette avoids deserializing every event into a Pydantic model when most events will be filtered out. This means `changed_to="on"` is correct, not `changed_to=True`, even though `LightState.value` is a `bool` after dependency injection delivers it to the handler.
 
 `on_state_change` accepts three built-in parameters that handle the majority of state-change filtering without predicates.
 

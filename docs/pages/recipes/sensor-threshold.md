@@ -12,7 +12,7 @@ Temperature spikes, humidity creeps, CO2 builds up. Numeric sensors in Home Assi
 
 `ThresholdConfig` exposes `entity_id`, `threshold`, and `notify_target` as settings. Each instance reads its own values from `hassette.toml`. The same app class watches different sensors in different rooms without code changes.
 
-`C.Comparison("gt", threshold)` passed to `changed_to` acts as a gate. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison functions. The bus evaluates the condition before invoking the handler. Events where the new state value is not greater than the threshold are dropped. The handler fires only on the crossing itself, not on every subsequent reading above the limit.
+`C.Comparison("gt", threshold)` passed to `changed_to` is a gate. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison functions. The bus evaluates the condition before invoking the handler. Events where the new state value is not greater than the threshold are dropped. The handler fires only on the crossing itself, not on every subsequent reading above the limit.
 
 `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. `D.StateNew[states.SensorState]` delivers the new state as a typed object. `D.EntityId` delivers the entity ID as a plain string. Hassette resolves both from the event automatically. The handler declares what it needs, and the framework fills it in.
 

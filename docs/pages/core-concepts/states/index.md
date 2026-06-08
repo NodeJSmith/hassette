@@ -112,7 +112,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
 ```
 
-`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they validate entities on demand. `.keys()`, `.values()`, and `.to_dict()` are eager. Lazy iteration performs better for large domains like `sensor`.
+`.items()`, `.iterkeys()`, and `.itervalues()` are lazy. They validate entities on demand. `.keys()`, `.values()`, and `.to_dict()` are eager. Lazy iteration performs better for large domains like `sensor`.
 
 ## Good to Know
 

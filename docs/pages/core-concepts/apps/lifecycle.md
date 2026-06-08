@@ -67,6 +67,6 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 
 ## See Also
 
-- [Apps overview](index.md) — app structure and configuration
-- [Task Bucket](task-bucket.md) — background task lifecycle and shutdown behavior
-- [`Bus`](../bus/index.md) — handler registration in `on_initialize`
+- [Apps overview](index.md): app structure and configuration
+- [Task Bucket](task-bucket.md): background task lifecycle and shutdown behavior
+- [`Bus`](../bus/index.md): handler registration in `on_initialize`

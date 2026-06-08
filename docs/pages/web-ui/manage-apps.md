@@ -1,6 +1,6 @@
 # Manage Apps
 
-The apps dashboard shows every registered automation at a glance — health status, recent errors, and lifecycle controls, all without leaving the browser.
+The apps dashboard shows every registered automation at a glance: health status, recent errors, and lifecycle controls, all without leaving the browser.
 
 The apps page is the landing page of the web UI. Navigating to `/` redirects to `/apps`.
 

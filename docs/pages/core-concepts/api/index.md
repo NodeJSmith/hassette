@@ -41,5 +41,5 @@ Network errors are retried automatically. Catching [`HassetteError`][hassette.ex
 
 ## Next Steps
 
-- [API Methods](methods.md) — all `self.api` methods organized by task: reading state, calling services, history, templates, and more.
-- [Managing Helpers](managing-helpers.md) — creating and managing input helpers (booleans, counters, timers, and more).
+- [API Methods](methods.md): all `self.api` methods organized by task: reading state, calling services, history, templates, and more.
+- [Managing Helpers](managing-helpers.md): creating and managing input helpers (booleans, counters, timers, and more).

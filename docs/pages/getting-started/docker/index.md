@@ -89,7 +89,7 @@ From here, see [First Automation](../first-automation.md) to subscribe to Home A
 
 ## Next Steps
 
-- [First Automation](../first-automation.md) — subscribe to events, control devices
-- [Managing Dependencies](dependencies.md) — add Python packages to your setup
-- [Image Tags](image-tags.md) — pick a stable tag for production
-- [Troubleshooting](troubleshooting.md) — diagnose connection and startup problems
+- [First Automation](../first-automation.md): subscribe to events, control devices
+- [Managing Dependencies](dependencies.md): add Python packages to your setup
+- [Image Tags](image-tags.md): pick a stable tag for production
+- [Troubleshooting](troubleshooting.md): diagnose connection and startup problems
