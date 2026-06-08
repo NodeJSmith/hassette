@@ -45,7 +45,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.TimeStamper(fmt="iso", utc=False),
         add_execution_id,
     ]
 

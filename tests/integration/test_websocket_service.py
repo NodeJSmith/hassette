@@ -155,8 +155,9 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleaned up"
 
 
-async def test_send_and_wait_times_out(websocket_service: WebsocketService) -> None:
-    """Raise FailedMessageError when the response future times out."""
+async def test_send_and_wait_times_out(websocket_service: WebsocketService, monkeypatch) -> None:
+    """Raise FailedMessageError after exhausting retries on timeout."""
+    monkeypatch.setattr(websocket_module, "MAX_RETRY_ATTEMPTS", 2)
     websocket_service.hassette.config.websocket.response_timeout_seconds = 0
 
     websocket_service.send_json = AsyncMock(return_value=None)
@@ -165,6 +166,44 @@ async def test_send_and_wait_times_out(websocket_service: WebsocketService) -> N
         await websocket_service.send_and_wait(type="no_response")
 
     assert websocket_service._response_futures == {}, "Expected future mapping to be cleared after timeout"
+
+
+async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketService) -> None:
+    """send_and_wait retries transient timeouts and succeeds when HA responds."""
+    websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+    call_count = 0
+
+    async def send_side_effect(**data: object) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 2:
+            websocket_service.hassette.config.websocket.response_timeout_seconds = 5
+            msg_id = data["id"]
+            fut = websocket_service._response_futures[msg_id]
+            fut.set_result({"ok": True})
+
+    websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
+
+    result = await websocket_service.send_and_wait(type="get_states")
+
+    assert result == {"ok": True}
+    assert call_count == 2
+
+
+async def test_send_and_wait_no_retry_on_ha_error(websocket_service: WebsocketService) -> None:
+    """send_and_wait does not retry HA application errors (non-None code)."""
+
+    async def send_side_effect(**data: object) -> None:
+        msg_id = data["id"]
+        fut = websocket_service._response_futures[msg_id]
+        fut.set_exception(FailedMessageError("not found", code="not_found"))
+
+    websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
+
+    with pytest.raises(FailedMessageError, match="not found"):
+        await websocket_service.send_and_wait(type="get_entity_source")
+
+    assert websocket_service.send_json.call_count == 1
 
 
 async def test_respond_if_necessary_sets_result(websocket_service: WebsocketService) -> None:

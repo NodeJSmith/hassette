@@ -16,6 +16,7 @@ from aiohttp.client_exceptions import ClientConnectionResetError
 from tenacity import (
     before_sleep_log,
     retry,
+    retry_if_exception,
     retry_if_exception_type,
     retry_if_not_exception_type,
     stop_after_attempt,
@@ -68,6 +69,7 @@ RETRYABLE = (
 # Excludes ClientConnectorError and CouldNotFindHomeAssistantError — those indicate
 # the server is unreachable, not that it dropped a post-auth connection.
 EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
+MAX_RETRY_ATTEMPTS = 5
 _CLEANUP_TIMEOUT = 2.0
 
 
@@ -453,6 +455,9 @@ class WebsocketService(Service):
     async def send_and_wait(self, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.
 
+        Retries on transient failures (timeouts) with exponential backoff,
+        matching the retry behavior of the REST API layer.
+
         Args:
             **data: The data to send as a JSON payload.
 
@@ -460,23 +465,32 @@ class WebsocketService(Service):
             The response data from the WebSocket.
 
         Raises:
-            FailedMessageError: If sending the message fails or times out.
+            FailedMessageError: If sending the message fails after all retries.
         """
 
-        if "id" not in data:
+        @retry(
+            retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+            wait=wait_exponential_jitter(),
+            before_sleep=before_sleep_log(self.logger, logging.WARNING),
+            reraise=True,
+        )
+        async def send_once() -> dict[str, Any]:
             data["id"] = msg_id = self.get_next_message_id()
-        else:
-            msg_id = data["id"]
 
-        fut = self.hassette.loop.create_future()
-        self._response_futures[msg_id] = fut
-        try:
-            await self.send_json(**data)
-            return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
-        except TimeoutError:
-            raise FailedMessageError(f"Response timed out after {self.resp_timeout_seconds}s (data: {data})") from None
-        finally:
-            self._response_futures.pop(msg_id, None)
+            fut = self.hassette.loop.create_future()
+            self._response_futures[msg_id] = fut
+            try:
+                await self.send_json(**data)
+                return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
+            except TimeoutError:
+                raise FailedMessageError(
+                    f"Response timed out after {self.resp_timeout_seconds}s (data: {data})"
+                ) from None
+            finally:
+                self._response_futures.pop(msg_id, None)
+
+        return await send_once()
 
     def _respond_if_necessary(self, message: dict) -> None:
         if message.get("type") != "result":
