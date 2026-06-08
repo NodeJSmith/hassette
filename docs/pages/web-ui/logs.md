@@ -6,23 +6,23 @@ The Logs page streams log entries from every app and framework component in real
 
 ## Filtering and Search
 
-The filter controls narrow the table to the entries you care about.
+The filter controls narrow the table to specific entries.
 
 **Level** sets the minimum severity shown. It defaults to INFO. Options are: All levels, DEBUG+, INFO+, WARNING+, ERROR+, and CRITICAL only.
 
 **App** limits entries by source. Toggle between All, Apps, and Framework. The default is Apps. When All or Apps is selected, a dropdown narrows to a specific app key.
 
-**Function** filters the function name column by substring. Type any part of a function name to match.
+**Function** filters the function name column by substring. Any part of a function name matches.
 
 **Search** matches against both message content and logger name.
 
-The footer shows how many entries match. When the result exceeds 500, the footer reads "showing 500 of N". Narrow the filters to see the specific entries you need.
+The footer shows how many entries match. When the result exceeds 500, the footer reads "showing 500 of N". Narrowing the filters surfaces specific entries.
 
 ## Trace a Single Execution
 
-Append `?execution_id=<id>` to the URL to filter the table to entries from one handler or job execution. The [Debug Handler](debug-handler.md) page links here automatically from execution history. You can also construct the URL manually if you have an execution ID from logs or the CLI.
+Appending `?execution_id=<id>` to the URL filters the table to entries from one handler or job execution. The [Debug Handler](debug-handler.md) page links here automatically from execution history. The URL can also be constructed manually from an execution ID found in logs or the CLI.
 
-When an execution ID filter is active, the other filters use local state. They do not modify the URL, so the execution ID stays intact as you refine your view.
+When an execution ID filter is active, the other filters use local state. They do not modify the URL, so the execution ID stays intact as the view is refined.
 
 ## Log Table Columns
 
@@ -41,16 +41,16 @@ The table is sorted by timestamp descending by default. Sortable columns toggle 
 
 ## Column Picker
 
-Click the grid icon in the table footer to choose which columns are visible. Check or uncheck any column to toggle it. Level and Message are required and cannot be hidden.
+The grid icon in the table footer opens a column picker. Each column has a checkbox to toggle visibility. Level and Message are required and cannot be hidden.
 
-Some columns auto-hide at narrow viewport widths. Those columns appear disabled in the popover with a "Hidden at this screen size" tooltip. They cannot be toggled until the viewport widens. Click **Reset to defaults** to restore the default column set.
+Some columns auto-hide at narrow viewport widths. Those columns appear disabled in the popover with a "Hidden at this screen size" tooltip. They cannot be toggled until the viewport widens. **Reset to defaults** restores the default column set.
 
 !!! note
     The column picker does not appear on mobile viewports. The table uses a compact layout there instead.
 
 ## Log Detail Drawer
 
-Click any row to open the detail drawer with the complete entry.
+Clicking any row opens the detail drawer with the complete entry.
 
 ![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)
 
@@ -58,7 +58,7 @@ The drawer shows a severity badge, full timestamp, and a metadata grid. The grid
 
 Below the grid, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message.
 
-Press the arrow keys to move between entries without closing the drawer. Press Escape to close.
+The arrow keys move between entries without closing the drawer. Escape closes it.
 
 On desktop the drawer opens as a side panel. On mobile and tablet it appears as a bottom sheet.
 
@@ -66,7 +66,7 @@ On desktop the drawer opens as a side panel. On mobile and tablet it appears as 
 
 New entries appear as they arrive. No refresh needed.
 
-Streaming is active only when the table is sorted by timestamp, the default. Sorting by any other column pauses streaming so incoming entries do not disrupt the sort order. A "paused" button appears in the footer. Click it to reset the sort to timestamp-descending and resume live updates.
+Streaming is active only when the table is sorted by timestamp, the default. Sorting by any other column pauses streaming so incoming entries do not disrupt the sort order. A "paused" button appears in the footer. It resets the sort to timestamp-descending and resumes live updates.
 
 ## Related pages
 

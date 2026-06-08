@@ -62,12 +62,7 @@ For more complex filtering, pass a predicate via `where=`. See [`Bus` filtering]
 AppDaemon uses `self.listen_state(..., attribute="battery")` to watch a specific attribute. Hassette has a dedicated method for this: `on_attribute_change()`.
 
 ```python
-await self.bus.on_attribute_change(
-    "sensor.phone",
-    "battery_level",
-    handler=self.on_battery,
-    name="phone_battery",
-)
+--8<-- "pages/migration/snippets/bus_attribute_change.py:attribute_change"
 ```
 
 The method signature is `on_attribute_change(entity_id, attr, *, handler, name, ...)`. The `attribute=` argument on `listen_state()` maps directly to the second positional argument here.

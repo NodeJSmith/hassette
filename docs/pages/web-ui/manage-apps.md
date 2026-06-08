@@ -1,6 +1,6 @@
 # Manage Apps
 
-The apps dashboard shows every registered automation at a glance. Check health, find problems, and control apps without leaving the browser.
+The apps dashboard shows every registered automation at a glance — health status, recent errors, and lifecycle controls, all without leaving the browser.
 
 The apps page is the landing page of the web UI. Navigating to `/` redirects to `/apps`.
 
@@ -46,10 +46,10 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 | Button | Available when | What it does |
 |--------|---------------|-------------|
 | **Start** | `STOPPED`, `FAILED`, or `DISABLED` | Initializes the app and begins processing events. |
-| **Stop** | `RUNNING` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until you start it again. |
+| **Stop** | `RUNNING` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
 | **Reload** | `RUNNING` | Stops then starts the app, picking up code and config changes without restarting the Hassette process. |
 
-Use **Reload** after changing an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. Restart the Hassette process only for global settings, new integrations, or Hassette updates.
+**Reload** picks up changes to an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. A full Hassette process restart is only needed for global settings, new integrations, or Hassette updates.
 
 These actions call the REST API (`POST /apps/{key}/start`, `/stop`, `/reload`). The CLI does not expose start/stop/reload subcommands. See [CLI Commands](../cli/commands.md) for what the CLI offers.
 
@@ -64,7 +64,7 @@ The **STATUS** badge on each row reflects the app's current lifecycle state.
 | `STOPPED` | The app was stopped via the UI or REST API. It will not process events until started again. |
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
 | `CRASHED` | The app crashed and cannot recover. Check the error details and restart manually. |
-| `DISABLED` | The app has `enabled = false` in `hassette.toml`. Use **Start** to enable it for this session. Set `enabled = true` in config for a permanent change. |
+| `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Another app has the `@only_app` decorator, excluding this app from running. The block resolves automatically when the blocking app is removed or reloaded. |
 
 For the full lifecycle state machine and transition rules, see [Apps lifecycle](../core-concepts/apps/lifecycle.md).

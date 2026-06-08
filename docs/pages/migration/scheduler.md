@@ -64,19 +64,13 @@ In AppDaemon, every callback runs in its own thread, so blocking IO is safe anyw
 In Hassette, sync callables passed to the scheduler run in a thread pool automatically. Write a plain `def` callback and Hassette detects it is not a coroutine. No extra configuration needed.
 
 ```python
-def periodic_sync_task(self):
-    # Runs in a thread pool. Blocking IO is safe here.
-    data = requests.get("http://example.com/api").json()
-    ...
+--8<-- "pages/migration/snippets/scheduler_blocking.py:sync"
 ```
 
 Async callbacks run in the event loop directly. For blocking IO inside an `async def` callback, offload with `asyncio.to_thread()` or `self.task_bucket.run_in_thread()`:
 
 ```python
-async def periodic_async_task(self):
-    # Must offload blocking work explicitly
-    data = await asyncio.to_thread(requests.get, "http://example.com/api")
-    ...
+--8<-- "pages/migration/snippets/scheduler_blocking.py:async"
 ```
 
 [`AppSync`][hassette.app.app.AppSync] is for sync lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). Sync scheduler callbacks already run in a thread pool regardless of base class.
