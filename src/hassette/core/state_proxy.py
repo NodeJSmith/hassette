@@ -120,7 +120,8 @@ class StateProxy(Resource):
             The number of states in the specified domain.
 
         Raises:
-            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+            ResourceNotReadyError: If not ready and cache is empty (cold start).
+                When disconnected but cache is populated, stale data is returned.
         """
         return sum(1 for _ in self.yield_domain_states(domain))
 
@@ -140,7 +141,8 @@ class StateProxy(Resource):
             The typed state object if found, None otherwise.
 
         Raises:
-            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+            ResourceNotReadyError: If not ready and cache is empty (cold start).
+                When disconnected but cache is populated, stale data is returned.
         """
 
         # Lock-free read is safe because dict assignment is atomic in CPython
@@ -149,7 +151,8 @@ class StateProxy(Resource):
         return self._get_state_once(entity_id)
 
     def _get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        if not self.is_ready():
+        # Stale reads allowed when cache is populated; only raise during cold start
+        if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         return self.states.get(entity_id)
@@ -164,7 +167,8 @@ class StateProxy(Resource):
             A dictionary of entity_id to state for the specified domain.
 
         Raises:
-            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+            ResourceNotReadyError: If not ready and cache is empty (cold start).
+                When disconnected but cache is populated, stale data is returned.
         """
 
         return {eid: state for eid, state in self.yield_domain_states(domain)}
@@ -185,9 +189,10 @@ class StateProxy(Resource):
             Tuples of (entity_id, state) for the specified domain.
 
         Raises:
-            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+            ResourceNotReadyError: If not ready and cache is empty (cold start).
+                When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready():
+        if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
         # Lock-free read is safe because dict assignment is atomic in CPython
@@ -216,9 +221,10 @@ class StateProxy(Resource):
             True if the entity exists, False otherwise.
 
         Raises:
-            ResourceNotReadyError: If the proxy hasn't completed initial sync.
+            ResourceNotReadyError: If not ready and cache is empty (cold start).
+                When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready():
+        if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
         return entity_id in self.states
 
@@ -271,24 +277,20 @@ class StateProxy(Resource):
                 self.logger.debug("Updated state for %s", entity_id)
 
     async def on_disconnect(self) -> None:
-        """Handle Home Assistant stop events.
+        """Handle WebSocket disconnection.
 
-        Clears the cache when Home Assistant stops. The cache will be rebuilt when
-        Home Assistant starts and we receive state_changed events again, or when
-        we detect a reconnection.
+        Retains the state cache so consumers can read stale data while disconnected
+        instead of hitting ResourceNotReadyError. Callers can check ``is_ready()`` to
+        distinguish fresh from stale data. The cache is replaced with fresh data on
+        reconnect via ``_load_cache()``.
 
-        This method is idempotent: if StateProxy is already not-ready (cache already
-        cleared from a previous disconnect), subsequent calls are no-ops. This prevents
-        redundant cache-clear and REST API fetch cycles during early-drop retry loops.
+        This method is idempotent: if StateProxy is already not-ready, subsequent
+        calls are no-ops. This prevents redundant work during early-drop retry loops.
         """
         if not self.is_ready():
             return
 
-        self.logger.info("WebSocket disconnected, clearing state cache")
-
-        # clear the state cache
-        async with self.lock:
-            self.states.clear()
+        self.logger.info("WebSocket disconnected, retaining stale state cache (%d entities)", len(self.states))
 
         # cancel the state change subscription (WS events won't arrive while disconnected)
         if self.state_change_sub is not None:
@@ -298,7 +300,6 @@ class StateProxy(Resource):
         # poll job stays alive so the cache can self-heal between
         # disconnect and the next on_reconnect call
 
-        # mark the proxy as not ready
         self.mark_not_ready(reason="Disconnected")
         await self._emit_readiness_event()
 

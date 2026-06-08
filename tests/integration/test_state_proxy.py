@@ -158,15 +158,53 @@ class TestStateProxyGetState:
         result = state_proxy.get_state("light.nonexistent")
         assert result is None
 
-    async def test_raises_when_not_ready(self, state_proxy: "StateProxy") -> None:
-        """get_state raises ResourceNotReadyError when proxy is not ready."""
-
-        # Mark proxy as not ready
+    async def test_raises_when_not_ready_and_cache_empty(self, state_proxy: "StateProxy") -> None:
+        """get_state raises ResourceNotReadyError when proxy is not ready and cache is empty."""
+        state_proxy.states.clear()
         state_proxy.mark_not_ready(reason="Test")
 
         with pytest.raises(ResourceNotReadyError, match="StateProxy is not ready"):
-            state_proxy._get_state_once("light.test")
-        state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            state_proxy.get_state("light.test")
+        state_proxy.mark_ready(reason="Test complete")
+
+    async def test_returns_stale_data_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
+        """get_state returns stale cached data when proxy is not ready but cache has entries."""
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on", brightness=150)
+        state_proxy.mark_not_ready(reason="Disconnected")
+
+        result = state_proxy.get_state("light.test")
+        assert result is not None
+        assert result["entity_id"] == "light.test"
+        assert result["attributes"]["brightness"] == 150
+
+        missing = state_proxy.get_state("light.nonexistent")
+        assert missing is None
+
+        state_proxy.mark_ready(reason="Test complete")
+
+    async def test_returns_stale_domain_states_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
+        """yield_domain_states returns stale data when not ready but cache has entries."""
+        state_proxy.states["light.kitchen"] = make_light_state_dict("light.kitchen", "on")
+        state_proxy.states["light.bedroom"] = make_light_state_dict("light.bedroom", "off")
+        state_proxy.states["sensor.temp"] = make_sensor_state_dict("sensor.temp", "22")
+        state_proxy.mark_not_ready(reason="Disconnected")
+
+        domain_states = state_proxy.get_domain_states("light")
+        assert len(domain_states) == 2
+        assert "light.kitchen" in domain_states
+        assert "light.bedroom" in domain_states
+
+        state_proxy.mark_ready(reason="Test complete")
+
+    async def test_returns_stale_contains_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
+        """__contains__ returns stale results when not ready but cache has entries."""
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+        state_proxy.mark_not_ready(reason="Disconnected")
+
+        assert "light.test" in state_proxy
+        assert "light.nonexistent" not in state_proxy
+
+        state_proxy.mark_ready(reason="Test complete")
 
     async def test_lockfree_read_access(self, state_proxy: "StateProxy") -> None:
         """get_state does not acquire lock (lock-free read)."""
@@ -328,20 +366,20 @@ class TestStateProxyStateChanged:
 class TestStateProxyWebsocketListeners:
     """Tests for websocket events that trigger clear/sync states."""
 
-    async def test_clears_cache_on_stop(self, state_proxy: "StateProxy") -> None:
-        """on_disconnect clears the state cache."""
+    async def test_retains_cache_on_disconnect(self, state_proxy: "StateProxy") -> None:
+        """on_disconnect retains the stale state cache."""
 
         # Add some states
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
         state_proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
         assert len(state_proxy.states) >= 2
 
-        # Trigger HA stop
         with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
             await state_proxy.on_disconnect()
 
-        # Cache should be cleared
-        assert len(state_proxy.states) == 0
+        # Cache retained for stale reads
+        assert len(state_proxy.states) == 2
+        assert state_proxy.states["light.test"]["entity_id"] == "light.test"
         mock_mark_not_ready.assert_called_once()
 
     async def test_marks_not_ready_on_stop(self, state_proxy: "StateProxy") -> None:
@@ -361,7 +399,7 @@ class TestStateProxyWebsocketListeners:
             state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
     async def test_subscribes_to_start_on_stop(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """on_disconnect clears cache but does not add new subscriptions (they're already registered)."""
+        """on_disconnect retains cache and does not add new subscriptions (they're already registered)."""
 
         proxy = hassette_with_state_proxy.state_proxy
 
@@ -470,9 +508,8 @@ class TestStateProxyWebsocketListeners:
         assert not proxy.is_ready()
         assert proxy.poll_job is poll_job_before
 
-    async def test_on_disconnect_first_call_clears_cache(self, state_proxy: "StateProxy") -> None:
-        """on_disconnect clears the cache on the first call when proxy is ready."""
-        # Add some states to verify they get cleared
+    async def test_on_disconnect_first_call_retains_cache(self, state_proxy: "StateProxy") -> None:
+        """on_disconnect retains the cache on the first call when proxy is ready."""
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
         state_proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
         assert len(state_proxy.states) == 2
@@ -480,36 +517,30 @@ class TestStateProxyWebsocketListeners:
 
         await state_proxy.on_disconnect()
 
-        # Cache cleared and proxy not ready
-        assert len(state_proxy.states) == 0
+        # Cache retained, proxy not ready
+        assert len(state_proxy.states) == 2
         assert not state_proxy.is_ready()
 
     async def test_on_disconnect_idempotent(self, state_proxy: "StateProxy") -> None:
         """on_disconnect is a no-op when StateProxy is already not-ready.
 
         During early-drop retry cycles, StateProxy may receive multiple DISCONNECTED
-        events. After the first call clears the cache and marks not-ready, all
-        subsequent calls must be no-ops to prevent redundant cache-clear and REST
-        API fetch cycles.
+        events. After the first call marks not-ready, all subsequent calls must be
+        no-ops to prevent redundant work.
         """
-        # Set up: proxy is ready, states populated
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
 
-        # First call: clears cache and marks not-ready
+        # First call: marks not-ready, retains cache
         await state_proxy.on_disconnect()
         assert not state_proxy.is_ready()
-        assert len(state_proxy.states) == 0
+        assert len(state_proxy.states) == 1
 
-        # Add a sentinel to the states dict to detect a second cache clear
-        state_proxy.states["sentinel.entity"] = make_light_state_dict("sentinel.entity", "on")
-
-        # Second call: must be a no-op — sentinel must survive
+        # Second call: must be a no-op
         with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
             await state_proxy.on_disconnect()
 
-        # Sentinel untouched — cache was NOT cleared again
-        assert "sentinel.entity" in state_proxy.states
-        # mark_not_ready was NOT called again
+        # Cache untouched, mark_not_ready not called again
+        assert "light.test" in state_proxy.states
         mock_mark_not_ready.assert_not_called()
 
     async def test_subscribes_to_events_even_when_load_cache_fails(self, state_proxy: "StateProxy") -> None:
