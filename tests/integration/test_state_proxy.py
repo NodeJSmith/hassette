@@ -382,7 +382,7 @@ class TestStateProxyWebsocketListeners:
         assert state_proxy.states["light.test"]["entity_id"] == "light.test"
         mock_mark_not_ready.assert_called_once()
 
-    async def test_marks_not_ready_on_stop(self, state_proxy: "StateProxy") -> None:
+    async def test_marks_not_ready_on_disconnect(self, state_proxy: "StateProxy") -> None:
         """on_disconnect marks proxy as not ready."""
 
         orig_state = state_proxy.is_ready()
@@ -398,7 +398,7 @@ class TestStateProxyWebsocketListeners:
         if orig_state:
             state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
-    async def test_subscribes_to_start_on_stop(self, hassette_with_state_proxy: "HassetteHarness") -> None:
+    async def test_subscription_count_stable_on_disconnect(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_disconnect retains cache and does not add new subscriptions (they're already registered)."""
 
         proxy = hassette_with_state_proxy.state_proxy
