@@ -328,8 +328,10 @@ class StateProxy(Resource):
 
             if load_cache_succeeded and subscribe_succeeded:
                 self.mark_ready(reason="Connected")
-            else:
+            elif not load_cache_succeeded:
                 self.mark_not_ready(reason="Failed to resync states after HA restart")
+            else:
+                self.mark_not_ready(reason="Failed to subscribe to events after reconnect")
 
             await self._emit_readiness_event()
 

@@ -404,6 +404,35 @@ class TestStateProxyWebsocketListeners:
         assert state_proxy.is_ready()
         assert len(state_proxy.states) >= 2
 
+    async def test_events_processed_after_reconnect_with_failed_cache(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
+        """State events are processed via subscription even when cache load fails on reconnect (#992)."""
+        hassette = hassette_with_state_proxy
+        proxy = hassette.state_proxy
+
+        with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
+            mock_get_states.side_effect = Exception("API error during resync")
+            proxy.states.clear()
+            proxy.mark_not_ready(reason="HA stopped")
+
+            await proxy.on_reconnect()
+
+        # Proxy is not ready (cache failed), but subscription should be live
+        assert not proxy.is_ready()
+        assert proxy.state_change_sub is not None
+
+        # Send a real state change event through the harness
+        light_dict = make_light_state_dict("light.kitchen", "on", brightness=100)
+        event = make_full_state_change_event("light.kitchen", None, light_dict)
+        await hassette.send_event(event)
+        await wait_for(
+            lambda: "light.kitchen" in proxy.states,
+            desc="state event processed after failed-cache reconnect",
+        )
+
+        assert proxy.states["light.kitchen"]["entity_id"] == "light.kitchen"
+
     async def test_handles_resync_failure(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_reconnect handles API failure gracefully."""
         proxy = hassette_with_state_proxy.state_proxy
