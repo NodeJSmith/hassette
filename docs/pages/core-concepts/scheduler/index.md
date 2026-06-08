@@ -40,7 +40,7 @@ The `delay` parameter accepts seconds as a `float`. The job fires once and does 
 
 The `at` parameter accepts `"HH:MM"` strings. `run_daily` is DST-safe. It uses a cron expression internally and fires at the local wall-clock time regardless of clock changes.
 
-## Schedule from a sync app
+## Synchronous Usage
 
 An [`AppSync`][hassette.app.app.AppSync] app runs its lifecycle hooks outside the async event loop. `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls for those hooks. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
