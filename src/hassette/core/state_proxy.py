@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -30,6 +31,7 @@ class StateProxy(Resource):
 
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
+    _reconnect_lock: asyncio.Lock
     bus: Bus
     scheduler: Scheduler
     state_change_sub: "Subscription | None"
@@ -39,6 +41,7 @@ class StateProxy(Resource):
         super().__init__(hassette, parent=parent)
         self.states = {}
         self.lock = FairAsyncRLock()
+        self._reconnect_lock = asyncio.Lock()
         self.bus = self.add_child(Bus, priority=100)
         self.scheduler = self.add_child(Scheduler)
         self.state_change_sub = None
@@ -303,18 +306,31 @@ class StateProxy(Resource):
         """Handle Home Assistant start events to trigger state resync.
 
         This runs after Home Assistant restart to rebuild the state cache.
+        Serialized via _reconnect_lock to prevent duplicate subscriptions
+        when WebSocket flaps rapidly (#993).
         """
-        self.logger.info("WebSocket reconnected, performing state resync")
+        async with self._reconnect_lock:
+            self.logger.info("WebSocket reconnected, performing state resync")
 
-        try:
-            await self._load_cache()
+            load_cache_succeeded = False
+            try:
+                await self._load_cache()
+                load_cache_succeeded = True
+            except Exception as e:
+                self.logger.exception("Failed to resync states after HA restart: %s", e)
 
-            await self.subscribe_to_events()
-            self.mark_ready(reason="Connected")
-            await self._emit_readiness_event()
-        except Exception as e:
-            self.logger.exception("Failed to resync states after HA restart: %s", e)
-            self.mark_not_ready(reason="Failed to resync states after HA restart")
+            subscribe_succeeded = False
+            try:
+                await self.subscribe_to_events()
+                subscribe_succeeded = True
+            except Exception as e:
+                self.logger.exception("Failed to subscribe to events after reconnect: %s", e)
+
+            if load_cache_succeeded and subscribe_succeeded:
+                self.mark_ready(reason="Connected")
+            else:
+                self.mark_not_ready(reason="Failed to resync states after HA restart")
+
             await self._emit_readiness_event()
 
     async def _load_cache(self) -> None:

@@ -475,6 +475,123 @@ class TestStateProxyWebsocketListeners:
         # mark_not_ready was NOT called again
         mock_mark_not_ready.assert_not_called()
 
+    async def test_subscribes_to_events_even_when_load_cache_fails(self, state_proxy: "StateProxy") -> None:
+        """subscribe_to_events runs regardless of _load_cache failure (#992)."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+        state_proxy.state_change_sub = None
+
+        state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=Exception("API unavailable"))
+
+        await state_proxy.on_reconnect()
+
+        assert state_proxy.state_change_sub is not None
+
+    async def test_stays_not_ready_when_load_cache_fails_but_subscribes(self, state_proxy: "StateProxy") -> None:
+        """Proxy remains not-ready when cache fails, but subscription is still established (#992)."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+        state_proxy.state_change_sub = None
+
+        state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=Exception("API unavailable"))
+
+        with patch.object(state_proxy, "_emit_readiness_event", new_callable=AsyncMock) as mock_emit:
+            await state_proxy.on_reconnect()
+
+        assert not state_proxy.is_ready()
+        assert state_proxy.state_change_sub is not None
+        mock_emit.assert_called_once()
+
+    async def test_not_ready_when_subscribe_to_events_fails(self, state_proxy: "StateProxy") -> None:
+        """Proxy stays not-ready when cache loads but subscribe_to_events raises."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+
+        state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
+
+        with patch.object(state_proxy, "subscribe_to_events", new_callable=AsyncMock) as mock_sub:
+            mock_sub.side_effect = Exception("Bus not ready")
+            await state_proxy.on_reconnect()
+
+        assert not state_proxy.is_ready()
+        assert len(state_proxy.states) > 0
+
+
+class TestStateProxyReconnectConcurrency:
+    """Tests for concurrent on_reconnect() serialization (#993)."""
+
+    async def test_concurrent_reconnect_calls_are_serialized(self, state_proxy: "StateProxy") -> None:
+        """Second on_reconnect waits for first; subscribe_to_events called exactly twice."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+
+        gate = asyncio.Event()
+        call_count = 0
+
+        async def gated_load_cache():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                await gate.wait()
+            state_proxy.states["light.kitchen"] = make_light_state_dict("light.kitchen", "on")
+
+        state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
+
+        with (
+            patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache),
+            patch.object(state_proxy, "subscribe_to_events", wraps=state_proxy.subscribe_to_events) as mock_subscribe,
+        ):
+            task1 = asyncio.create_task(state_proxy.on_reconnect())
+            task2 = asyncio.create_task(state_proxy.on_reconnect())
+            await asyncio.sleep(0)
+
+            # First call is blocked on the gate; second should be waiting on the lock
+            assert not task1.done()
+            assert not task2.done()
+
+            gate.set()
+            await asyncio.gather(task1, task2)
+
+        # Both calls ran to completion sequentially
+        assert call_count == 2
+        assert mock_subscribe.call_count == 2
+        assert state_proxy.state_change_sub is not None
+        assert state_proxy.is_ready()
+
+    async def test_reconnect_lock_does_not_block_state_writes(self, state_proxy: "StateProxy") -> None:
+        """_on_state_change completes while on_reconnect is held mid-flight."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+
+        gate = asyncio.Event()
+
+        async def gated_load_cache():
+            await gate.wait()
+            state_proxy.states["light.kitchen"] = make_light_state_dict("light.kitchen", "on")
+
+        state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
+
+        with patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache):
+            reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
+            await asyncio.sleep(0)
+
+            # on_reconnect is blocked inside _load_cache
+            assert not reconnect_task.done()
+
+            # _on_state_change uses self.lock (FairAsyncRLock), not _reconnect_lock
+            event = make_full_state_change_event(
+                "sensor.temp",
+                make_sensor_state_dict("sensor.temp", "20"),
+                make_sensor_state_dict("sensor.temp", "21"),
+            )
+            # This must complete without deadlock
+            await asyncio.wait_for(state_proxy._on_state_change(event), timeout=1.0)
+
+            gate.set()
+            await reconnect_task
+
+        assert "sensor.temp" in state_proxy.states
+
 
 class TestStateProxyReadinessEvents:
     """Tests that on_disconnect/on_reconnect emit readiness events via _emit_readiness_event()."""
