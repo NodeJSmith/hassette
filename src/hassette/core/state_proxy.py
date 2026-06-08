@@ -287,14 +287,13 @@ class StateProxy(Resource):
         async with self.lock:
             self.states.clear()
 
-        # cancel the state change subscription
+        # cancel the state change subscription (WS events won't arrive while disconnected)
         if self.state_change_sub is not None:
             self.state_change_sub.cancel()
             self.state_change_sub = None
 
-        if self.poll_job is not None:
-            self.scheduler.scheduler_service.dequeue_job(self.poll_job)
-            self.poll_job = None
+        # poll job stays alive so the cache can self-heal between
+        # disconnect and the next on_reconnect call
 
         # mark the proxy as not ready
         self.mark_not_ready(reason="Disconnected")

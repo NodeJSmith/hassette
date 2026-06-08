@@ -414,6 +414,25 @@ class TestStateProxyWebsocketListeners:
 
         await proxy.on_initialize()  # Ensure it can be used in later tests
 
+    async def test_poll_job_survives_disconnect(
+        self, hassette_with_state_proxy: "HassetteHarness", monkeypatch
+    ) -> None:
+        """on_disconnect keeps the poll job alive so the cache self-heals."""
+        monkeypatch.setattr(hassette_with_state_proxy.hassette.config, "disable_state_proxy_polling", False)
+        proxy = hassette_with_state_proxy.state_proxy
+
+        # Re-initialize with polling enabled
+        proxy.bus._registered_handler_names.clear()
+        await proxy.on_initialize()
+
+        assert proxy.poll_job is not None
+        poll_job_before = proxy.poll_job
+
+        await proxy.on_disconnect()
+
+        assert not proxy.is_ready()
+        assert proxy.poll_job is poll_job_before
+
     async def test_on_disconnect_first_call_clears_cache(self, state_proxy: "StateProxy") -> None:
         """on_disconnect clears the cache on the first call when proxy is ready."""
         # Add some states to verify they get cleared
