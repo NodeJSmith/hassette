@@ -468,6 +468,8 @@ class WebsocketService(Service):
             FailedMessageError: If sending the message fails after all retries.
         """
 
+        caller_id = data.pop("id", None)
+
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
@@ -476,7 +478,12 @@ class WebsocketService(Service):
             reraise=True,
         )
         async def send_with_retry() -> dict[str, Any]:
-            data["id"] = msg_id = self.get_next_message_id()
+            nonlocal caller_id
+            if caller_id is not None:
+                data["id"] = msg_id = caller_id
+                caller_id = None
+            else:
+                data["id"] = msg_id = self.get_next_message_id()
 
             fut = self.hassette.loop.create_future()
             self._response_futures[msg_id] = fut
