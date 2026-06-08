@@ -116,7 +116,7 @@ See also: [Custom States](core-concepts/states/custom-states.md#troubleshooting)
 
 ## Web UI Not Accessible
 
-**Running locally.** Open `http://localhost:8126/ui/` after starting Hassette.
+**Running locally.** Open `http://localhost:8126/` after starting Hassette.
 
 **Running in Docker.** Ensure `docker-compose.yml` includes `ports: ["8126:8126"]`.
 

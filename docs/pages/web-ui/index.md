@@ -9,7 +9,7 @@ The web UI shows app health, handler invocation history, structured logs, and sy
 The web UI is enabled by default. Open your browser to:
 
 ```
-http://<host>:8126/ui/
+http://<host>:8126/
 ```
 
 The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `[hassette.web_api]` in `hassette.toml` control the bind address.
