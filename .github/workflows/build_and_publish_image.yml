@@ -44,7 +44,6 @@ jobs:
             REGISTRY: ghcr.io
             OWNER: ${{ github.repository_owner }}
             PYTHON_VERSION: ${{ matrix.python-version }}
-            IS_STABLE_RELEASE: "false"
             IS_RELEASE: ${{ github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch' }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -71,7 +70,7 @@ jobs:
                   activate-environment: true
                   enable-cache: false
 
-            - name: Classify release tag
+            - name: Classify release tag # writes VERSION and IS_STABLE_RELEASE to GITHUB_ENV
               if: env.IS_RELEASE == 'true'
               env:
                   TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
@@ -79,11 +78,15 @@ jobs:
                   PROJECT_VERSION=$(uv version --short)
                   uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
-            - name: Verify VERSION is set for releases
+            - name: Verify VERSION and IS_STABLE_RELEASE are set for releases
               if: env.IS_RELEASE == 'true'
               run: |
                   if [ -z "$VERSION" ]; then
                       echo "::error::VERSION env var not set after tag classification"
+                      exit 1
+                  fi
+                  if [ -z "$IS_STABLE_RELEASE" ]; then
+                      echo "::error::IS_STABLE_RELEASE env var not set after tag classification"
                       exit 1
                   fi
 
@@ -111,8 +114,8 @@ jobs:
                   push: true
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
+                  cache-from: type=gha,scope=${{ matrix.python-version }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.python-version }}
                   platforms: linux/amd64,linux/arm64
                   build-args: |
                       PYTHON_VERSION=${{ matrix.python-version }}

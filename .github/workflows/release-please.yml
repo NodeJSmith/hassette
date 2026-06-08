@@ -204,9 +204,17 @@ jobs:
             packages: write
             id-token: write
 
+    # Verify even when build-pypi is skipped in a release context — a skipped build
+    # during a release is itself the bug (see #998), and verification must catch it.
     release-verify:
         needs: [release-please, build-pypi, publish-pypi, publish-docker]
-        if: always() && needs.build-pypi.result != 'skipped'
+        if: >-
+            always()
+            && (
+              needs.build-pypi.result != 'skipped'
+              || github.event_name == 'workflow_dispatch'
+              || (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true')
+            )
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
