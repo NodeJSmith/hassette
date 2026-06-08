@@ -57,7 +57,7 @@ DEBUG    hassette.WebsocketService -- Connected to WebSocket at ws://...
 INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' in cooldown for 300.0s (cycle 1)
 ```
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. API calls (`.call_service()`, `.get_state()`) will raise `ResourceNotReadyError` while the WebSocket is down because they depend on an active connection. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on the state proxy to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
 ## Event handler exceptions
 
