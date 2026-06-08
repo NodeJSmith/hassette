@@ -159,12 +159,12 @@ class TestStateProxyGetState:
         assert result is None
 
     async def test_raises_when_not_ready_and_cache_empty(self, state_proxy: "StateProxy") -> None:
-        """get_state raises ResourceNotReadyError when proxy is not ready and cache is empty."""
+        """get_state_once raises ResourceNotReadyError when proxy is not ready and cache is empty."""
         state_proxy.states.clear()
         state_proxy.mark_not_ready(reason="Test")
 
         with pytest.raises(ResourceNotReadyError, match="StateProxy is not ready"):
-            state_proxy.get_state("light.test")
+            state_proxy.get_state_once("light.test")
         state_proxy.mark_ready(reason="Test complete")
 
     async def test_returns_stale_data_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:

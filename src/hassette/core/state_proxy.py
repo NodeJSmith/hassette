@@ -148,9 +148,9 @@ class StateProxy(Resource):
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
 
-        return self._get_state_once(entity_id)
+        return self.get_state_once(entity_id)
 
-    def _get_state_once(self, entity_id: str) -> "HassStateDict | None":
+    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
         # Stale reads allowed when cache is populated; only raise during cold start
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
@@ -195,10 +195,8 @@ class StateProxy(Resource):
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
-        # Lock-free read is safe because dict assignment is atomic in CPython
-        # and we replace whole objects rather than mutating them
-
-        for eid, state in self.states.items():
+        # Snapshot to avoid RuntimeError if _load_cache() mutates the dict mid-iteration
+        for eid, state in list(self.states.items()):
             try:
                 if extract_domain(eid) == domain:
                     yield eid, state
