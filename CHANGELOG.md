@@ -11,7 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 * retain last-known state cache on disconnect instead of clearing it ([#996](https://github.com/NodeJSmith/hassette/issues/996)) ([70e4518](https://github.com/NodeJSmith/hassette/commit/70e45182135cfeeff391af8fc5ecb307ac9b87c6))
-* split health endpoint into liveness, readiness, and aggregate status ([#982](https://github.com/NodeJSmith/hassette/issues/982)) ([1853b8f](https://github.com/NodeJSmith/hassette/commit/1853b8f4c4b70e4cff2b9e2028813252487724af))
 
 
 ### Bug Fixes
