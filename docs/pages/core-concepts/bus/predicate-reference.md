@@ -1,16 +1,14 @@
 # Predicate, Condition & Accessor Reference
 
-[`P`][predicates], [`C`][conditions], and [`A`][accessors] are available as top-level imports:
+`P` (predicates) filter events on the bus. `C` (conditions) match individual values. `A` (accessors) extract specific fields from events. All three are top-level imports:
 
 ```python
 from hassette import P, C, A
 ```
 
-This page is a lookup reference. For explanations of how predicates, conditions, and accessors compose, see [Filtering](filtering.md).
+This page is a lookup reference. Read [Filtering](filtering.md) first for explanations of how predicates, conditions, and accessors compose — this page assumes that context.
 
-[predicates]: filtering.md
-[conditions]: filtering.md
-[accessors]: filtering.md
+**Event types:** Tables below reference three event types. [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] fires on entity state changes. [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent] fires on service calls. `HassEvent` is the base type for all Home Assistant events.
 
 ## Predicates (`P`)
 
@@ -76,7 +74,11 @@ Works with: [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEven
 | `P.AttrComparison` | `AttrComparison(attr_name: str, condition: ComparisonCondition)` | Returns `True` when `condition(old_attr, new_attr)` is `True` for the named attribute. |
 | `P.AttrDidChange` | `AttrDidChange(attr_name: str)` | Returns `True` when the named attribute changed. When `old_state` is `None`, returns `True` if the attribute is present on the new state. |
 
-No `StateFromTo` predicate exists. For from-to matching, combine `P.StateFrom` and `P.StateTo` inside `P.AllOf`.
+No `StateFromTo` predicate exists. For from-to matching, combine `P.StateFrom` and `P.StateTo` inside `P.AllOf`:
+
+```python
+P.AllOf((P.StateFrom("off"), P.StateTo("on")))
+```
 
 ## Conditions (`C`)
 
@@ -113,7 +115,7 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 | `C.Present` | `Present()` | Returns `True` when the value is not `MISSING_VALUE`. |
 | `C.Missing` | `Missing()` | Returns `True` when the value is `MISSING_VALUE`. |
 
-`MISSING_VALUE` and `None` are distinct. `C.IsNone` / `C.IsNotNone` test for Python `None`; `C.Present` / `C.Missing` test for Hassette's sentinel that indicates a field does not exist on the event.
+[`MISSING_VALUE`][hassette.const.MISSING_VALUE] and `None` are distinct. `C.IsNone` / `C.IsNotNone` test for Python `None`; `C.Present` / `C.Missing` test for Hassette's falsy sentinel that indicates a field does not exist on the event. See [Identity Extractors](dependency-injection.md#identity-extractors) for more on `MISSING_VALUE`.
 
 ### Numeric Comparison
 
@@ -193,7 +195,7 @@ Works with: `CallServiceEvent`.
 
 | Accessor | Signature | Returns | Description |
 |---|---|---|---|
-| `A.get_path` | `get_path(path: str)` | `Any \| MISSING_VALUE` | Extracts a nested value by dot-separated glom path; `MISSING_VALUE` on any access failure. |
+| `A.get_path` | `get_path(path: str)` | `Any \| MISSING_VALUE` | Extracts a nested value by dot-separated path (e.g., `"new_state.attributes.brightness"`); `MISSING_VALUE` on any access failure. |
 | `A.get_all_changes` | `get_all_changes(exclude: Sequence[str] = DEFAULT_EXCLUDE)` | `dict[str, Any]` | A recursive diff between old and new state, mapping changed keys to `(old_value, new_value)`. Excludes `last_reported`, `last_updated`, `last_changed`, and `context` by default. |
 
 `get_path` works with any event type. `get_all_changes` works with `RawStateChangeEvent`.

@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from hassette import App, AppConfig, D, states
 
 
+# --8<-- [start:sender]
 @dataclass(frozen=True)
 class LightsSyncedData:
     source: str
 
 
-# --8<-- [start:sender]
 class SenderApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         await self.bus.on_state_change(

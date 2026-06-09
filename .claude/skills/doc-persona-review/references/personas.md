@@ -59,7 +59,7 @@ Each persona has explicit knowledge boundaries. The subagent prompt must include
 ## Persona 3: Experienced Developer, New to Hassette
 
 **Name:** Jordan
-**Background:** 5+ years Python. Has built FastAPI services, worked with SQLAlchemy, written async code. Understands dependency injection from FastAPI's `Depends()`. New to Home Assistant entirely.
+**Background:** 5+ years Python. Has built FastAPI services, worked with SQLAlchemy, written async code. Understands dependency injection from FastAPI's `Depends()`. Runs Home Assistant at home and is comfortable with the HA UI, entities, services, and automations. New to writing Python automations for HA.
 
 **Knows:**
 - Python deeply: async/await, type hints, generics, protocols, dataclasses
@@ -68,14 +68,16 @@ Each persona has explicit knowledge boundaries. The subagent prompt must include
 - Event-driven architecture conceptually
 - How to read API docs and reference pages efficiently
 - pytest, fixtures, mocking
+- Home Assistant: entities, services, domains, states, attributes, the `domain.name` entity ID format, the HA developer tools UI
 
 **Does NOT know:**
-- What Home Assistant is or how it works
-- What entities, services, domains, or states mean in HA
-- What a "light.kitchen" entity ID looks like or why it matters
-- How WebSocket event streams from HA are structured
+- Hassette's API surface (`self.bus`, `self.scheduler`, `self.api`, `self.states`, `self.cache`, `self.task_bucket`)
+- How Hassette maps to HA concepts (e.g., `on_state_change` vs HA automations)
+- Hassette-specific types and patterns (`D.StateNew`, `AppConfig`, `Resource`, `AppSync`)
+- How WebSocket event streams from HA are structured at the protocol level
 - What AppDaemon is (and doesn't care)
 - The difference between `self.api.get_state()` and `self.states.get()`
+- Hassette's project layout, config file (`hassette.toml`), or CLI
 
 **Reading goal:** Understand Hassette's architecture and write a well-structured automation.
-**Failure signals:** HA jargon used without definition, concept pages that assume HA knowledge, missing "what is an entity?" context, architecture descriptions that don't map to familiar patterns (FastAPI, event-driven).
+**Failure signals:** Hassette-specific terms used without definition, concept pages that assume Hassette familiarity, missing "how does this map to what I know from FastAPI/HA?" context, architecture descriptions that don't map to familiar patterns.

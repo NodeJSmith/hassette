@@ -33,20 +33,20 @@ Three hooks fire in order:
 2. `on_shutdown`
 3. `after_shutdown`
 
-`on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. `Bus` subscriptions, scheduled jobs, and task bucket tasks are cleaned up automatically.
+`on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. `Bus` subscriptions, scheduled jobs, and [`task_bucket`](task-bucket.md) tasks are cleaned up automatically.
 
 ## Automatic Cleanup
 
 After the shutdown hooks complete, Hassette cancels all bus subscriptions created via `self.bus`, all scheduled jobs created via `self.scheduler`, and all background tasks tracked by `self.task_bucket`. Manual unsubscription or job cancellation in `on_shutdown` is unnecessary.
 
 !!! warning
-    `initialize` and `shutdown` are marked `@final` on [Resource][hassette.resources.base.Resource]. `cleanup` is marked `@final` on `App`. Attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
+    `initialize`, `shutdown`, and `cleanup` are marked `@final` — attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
 
 ## Synchronous Lifecycle
 
 ??? note "`AppSync` lifecycle hooks"
 
-    [`AppSync`][hassette.app.app.AppSync] provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`. The `_sync` hooks are synchronous and cannot use `await`.
+    [`AppSync`][hassette.app.app.AppSync] is for apps that wrap blocking (non-async) third-party libraries. It provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`, so blocking calls do not stall the event loop. The `_sync` hooks are synchronous and cannot use `await`.
 
     | `App` (async) | `AppSync` (sync) |
     |---|---|

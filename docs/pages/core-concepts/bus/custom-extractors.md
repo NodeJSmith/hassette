@@ -6,7 +6,7 @@ The built-in [`D.*`](dependency-injection.md) annotations cover state values, en
 
 [`A`][hassette.event_handling.accessors] (`from hassette import A`) provides accessor functions that target non-standard event fields. Accessors are the simplest form of custom extraction. They work directly as `Annotated` type metadata, with no additional wrapping.
 
-`A.get_attr_new("brightness")` returns a callable that extracts `brightness` from the new state's attributes. `A.get_service_data_key("entity_id")` extracts a key from `service_data` on a service call event. `A.get_path("payload.data.new_state.attributes.geolocation.locality")` traverses a dotted path. It returns `MISSING_VALUE` if any segment is absent.
+`A.get_attr_new("brightness")` returns a callable that extracts `brightness` from the new state's attributes. `A.get_service_data_key("entity_id")` extracts a key from `service_data` (the dict of parameters passed to a service call). `A.get_path("payload.data.new_state.attributes.geolocation.locality")` traverses a dotted path. It returns [`MISSING_VALUE`](dependency-injection.md#identity-extractors) — a falsy sentinel — if any segment is absent.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering/custom_accessors.py"
@@ -25,13 +25,13 @@ A custom extractor is a plain callable that receives the raw event and returns a
 | `extractor` | `Callable[[T], Any]` | Yes | Extracts the value from the event |
 | `converter` | `Callable[[Any, Any], Any] \| None` | No | Converts the extracted value to the declared type |
 
-Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(...)]` completes the setup. `extract_from_signature` in `hassette.bus.extraction` scans handler parameters at registration time. It finds `Annotated` types carrying `AnnotationDetails` and builds the resolution plan automatically.
+Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(...)]` completes the setup. Hassette discovers `AnnotationDetails` in `Annotated` metadata automatically at registration time — no explicit registration step needed.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
-`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand. `extract_from_annotated` wraps it in `AnnotationDetails` automatically.
+`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand — Hassette wraps it in `AnnotationDetails` automatically.
 
 ## Adding Type Conversion
 
@@ -43,7 +43,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 
 `extract_timestamp` returns an ISO string. `convert_to_datetime` converts that string to a `datetime`. The `LastChanged` type alias bundles both into a reusable annotation. Any handler parameter typed as `LastChanged` receives a `datetime` with no inline parsing.
 
-The [State Conversion](../states/conversion.md) pipeline provides built-in converters for standard scalar types. `AnnotationDetails.converter` handles conversions specific to a single extractor. It covers types the registry does not handle, or conversions that need context from the extractor itself.
+Hassette converts standard scalar types (`int`, `float`, `bool`, `str`) automatically — no converter needed for those. `AnnotationDetails.converter` handles conversions specific to a single extractor, covering types the built-in registry does not handle. See [State Conversion](../states/conversion.md) for the full type registry.
 
 ## See Also
 

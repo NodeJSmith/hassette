@@ -4,12 +4,12 @@ from hassette import App, AppConfig, D
 from hassette.models import states
 
 
+# --8<-- [start:sender]
 @dataclass(frozen=True, slots=True)
 class LightsSyncedData:
     source: str
 
 
-# --8<-- [start:sender]
 class LightManagerApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         await self.bus.on_state_change(

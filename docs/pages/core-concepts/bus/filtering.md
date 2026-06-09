@@ -8,6 +8,8 @@ All three are importable from `hassette`.
 from hassette import P, C, A
 ```
 
+`P` contains predicates for filtering events. `C` contains conditions for matching values. `A` contains accessors for extracting specific fields from events — covered at the [end of this page](#custom-accessors).
+
 ## Filtering State Changes
 
 Filters and predicates compare against **raw Home Assistant state strings**, not typed state models. HA reports state values as strings: `"on"`, `"off"`, `"unavailable"`, `"72.5"`. Filtering runs before type conversion for performance. Hassette avoids deserializing every event into a Pydantic model when most events will be filtered out. This means `changed_to="on"` is correct, not `changed_to=True`, even though `LightState.value` is a `bool` after dependency injection delivers it to the handler.
@@ -94,7 +96,7 @@ The handler fires only when the light moves from an off-like state into `"on"`. 
 
 ### Logical AND
 
-A list passed to `where=` applies all predicates as logical AND.
+`P.AttrTo` tests that a specific attribute's new value matches a condition — the attribute equivalent of `P.StateTo`. A list passed to `where=` applies all predicates as logical AND.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_combined_and.py"
@@ -110,7 +112,7 @@ Both `P.AttrTo` predicates must match. The `changed=False` parameter is also req
 --8<-- "pages/core-concepts/bus/snippets/filtering_combined_or.py"
 ```
 
-`P.AllOf` and `P.AnyOf` compose freely. `P.Not` negates any predicate.
+`P.AllOf` is an explicit AND combinator — it does the same thing as passing a list to `where=`, but can be nested inside `P.AnyOf` or `P.Not` where a plain list is not accepted. `P.Not` negates any predicate. All three compose freely.
 
 ## Filtering Service Calls
 
@@ -148,7 +150,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 ### `P.ServiceMatches`
 
-`P.ServiceMatches` filters on the service name (e.g., `"scene.turn_on"`). It works on raw `call_service` events via `on()`, where `domain=` and `service=` are not available.
+`P.ServiceMatches` filters on the service name (e.g., `"scene.turn_on"`). `on_call_service` has `domain=` and `service=` built in. When subscribing via `on(topic="call_service")` instead — for raw event-level access — those parameters are not available, so `P.ServiceMatches` fills that role.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_matches.py"

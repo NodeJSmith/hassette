@@ -1,6 +1,6 @@
 # Apps Overview
 
-An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of handles for interacting with HA.
+An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of typed accessors — `self.bus`, `self.scheduler`, `self.api`, `self.states` — for interacting with HA.
 
 ## Defining an App
 
@@ -62,7 +62,7 @@ The `hassette.toml` file registers each app and supplies its config values. See 
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:usage"
 ```
 
-`whenever` is always timezone-aware and immutable. Mixing naive and aware times is a compile-time error rather than a silent runtime bug. Python's stdlib `datetime` permits that class of mistake; `whenever` does not.
+`whenever` is always timezone-aware and immutable. Mixing naive and aware times is a type error that Pyright catches before the code runs. Python's stdlib `datetime` permits that class of mistake; `whenever` does not.
 
 ## What an App Can Do
 
@@ -139,13 +139,13 @@ The [`@only_app`][hassette.app.app.only_app] decorator prevents all other apps f
 
 Only one class in the project may carry `@only_app` at a time. Hassette raises an error at startup if more than one is found.
 
-In production mode, the decorator is ignored by default. Set `allow_only_app_in_prod = true` in `hassette.toml` to override this.
+In production mode, the decorator is ignored by default. `allow_only_app_in_prod = true` in `hassette.toml` overrides this behavior.
 
 ## Broadcasting Between Apps
 
 [`self.bus.emit()`](../bus/index.md) broadcasts an in-process event to all apps subscribed to a given topic. The event never reaches Home Assistant and is not persisted across restarts.
 
-`self.bus.on(topic=...)` subscribes to a named topic. The [`D.EventData[T]`](../bus/dependency-injection.md) annotation extracts and types the payload automatically.
+`self.bus.on(topic=...)` subscribes to a named topic. [`D.EventData[T]`](../bus/dependency-injection.md) follows the same dependency injection pattern as `D.StateNew` — Hassette extracts and types the payload automatically.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:sender"

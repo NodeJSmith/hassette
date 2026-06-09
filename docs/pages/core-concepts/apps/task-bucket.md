@@ -32,7 +32,7 @@ The polling loop runs indefinitely without blocking the handler that started it.
     --8<-- "pages/core-concepts/apps/snippets/apps_task_bucket_advanced.py:make_async_adapter"
     ```
 
-    Apps that accept user-provided callbacks benefit from this. The adapter normalizes sync and async callables into one interface.
+    Apps that wrap third-party integrations often receive callables of unknown type — a config-provided callback, a plugin hook, or a library method that may or may not be async. The adapter normalizes them into one interface.
 
 ## Cross-Thread Communication
 

@@ -6,7 +6,7 @@ This page covers the TOML side of app configuration. [Apps](../apps/index.md) co
 
 ## Registering an App
 
-An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to `apps.directory`. `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
+An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
@@ -43,7 +43,7 @@ lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    [`AppManifest`][hassette.config.classes.AppManifest] fields (`filename`, `class_name`, `enabled`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a deprecation warning.
+    App registration fields (`filename`, `class_name`, `enabled`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a deprecation warning in the startup logs.
 
 Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
@@ -61,7 +61,7 @@ Single-instance apps are the default. Most apps never need `[[...]]` blocks. Mul
 
 ## Typed Configuration
 
-The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a configuration error before any app starts. [Apps](../apps/index.md) covers defining the model.
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model.
 
 ## Next Steps
 

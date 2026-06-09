@@ -17,9 +17,7 @@ This pattern works with all [subscription methods](methods.md).
 
 ### Extracted data (recommended)
 
-[`D` annotations](dependency-injection.md) tell Hassette which fields to
-extract from the event and pass as individual parameters. The handler receives
-only the requested data, not the event object.
+[`D`](dependency-injection.md) (`hassette.dependencies`) is a module of type annotations that tell Hassette what to extract from each event — similar to FastAPI's `Depends()`, but using type annotations instead of wrapper calls. The handler receives only the requested data, not the event object.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_extract_data.py"
@@ -36,13 +34,7 @@ entity the service call targeted.
 --8<-- "pages/core-concepts/bus/snippets/handlers_service_extract.py"
 ```
 
-[`D`][hassette.event_handling.dependencies] is `hassette.event_handling.dependencies`, a module of type annotations
-that tell Hassette what to extract from each event.
-[`states`][hassette.models.states] is `hassette.models.states`, typed state
-classes for each Home Assistant domain. The
-[Dependency Injection](dependency-injection.md) page covers the full
-annotation table, `D.StateOld`, `D.EventContext`, union types, and custom
-extractors.
+[`states`][hassette.models.states] is `hassette.models.states`, typed state classes for each Home Assistant domain. The [Dependency Injection](dependency-injection.md) page covers the full annotation table, `D.StateOld`, `D.EventContext`, union types, and custom extractors.
 
 ### Raw event
 
@@ -98,8 +90,7 @@ payload pre-extracted and typed.
 --8<-- "pages/core-concepts/bus/snippets/handlers_cross_app.py:receiver"
 ```
 
-A frozen dataclass works well for `T`. Any type passed as `data` to `emit()`
-can be received via `D.EventData[T]`.
+A frozen dataclass works well for `T`. Any type passed as `data` to `emit()` can be received via `D.EventData[T]`. `self.instance_name` is the app's instance identifier, set in `hassette.toml`.
 
 ## See Also
 

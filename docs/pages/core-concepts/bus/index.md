@@ -12,9 +12,11 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
 ```
 
-[`D.StateNew`][hassette.event_handling.dependencies] tells Hassette to extract the new state from the event and pass it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
+[`D`](dependency-injection.md) is `hassette.dependencies`, a module of type annotations that tell Hassette what to extract from each event. [`states`][hassette.models.states] is `hassette.models.states`, typed state classes for each Home Assistant domain. `D.StateNew[states.BinarySensorState]` extracts the new state and passes it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
-`Bus` provides typed subscription methods for state changes, attribute changes, service calls, Home Assistant lifecycle events, and Hassette-internal events. [Subscription Methods](methods.md) covers each method, its parameters, and compatible DI annotations.
+`name=` is required on every subscription — it identifies the listener in logs and the monitoring UI.
+
+[Subscription Methods](methods.md) covers each method, its parameters, and compatible DI annotations.
 
 ## Matching Multiple Entities
 
@@ -27,15 +29,19 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 `"light.*"` matches any entity in the `light` domain. `"sensor.bedroom_*"` matches sensors with a `bedroom_` prefix. The same patterns work for `domain` and `service` parameters on `on_call_service`.
 
 !!! warning "Glob patterns match identifiers only"
-    Glob patterns do not match attribute names or data values. [Predicates](filtering.md) handle those cases.
+    Glob patterns do not match attribute names or data values. Predicates (functions that decide whether to run the handler — see [Filtering](filtering.md)) handle those cases.
 
 ## Synchronous Usage
 
-`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a worker thread outside the async event loop. If you subclassed `App` (not `AppSync`), you can skip this section. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+
+## Verify It's Working
+
+Run `hassette listener --app <key>` to see registered listeners and invocation counts. Run `hassette log --app <key> --since 5m` to see handler log output. The monitoring UI's Handlers tab shows invocation history and last-seen timestamps.
 
 ## Next Steps
 
-- [Writing Handlers](handlers.md): handler signature patterns and choosing the right one
+- [Writing Handlers](handlers.md): start here — handler signature patterns and choosing the right one
 - [Subscription Methods](methods.md): full method reference, parameters, error handling, timeouts, and registration
 - [Filtering & Predicates](filtering.md): predicates, conditions, and accessors for complex event matching
 - [Dependency Injection](dependency-injection.md): the full `D.*` annotation reference and how Hassette resolves handler parameters

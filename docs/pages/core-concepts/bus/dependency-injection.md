@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Hassette's dependency injection system extracts typed data from events and passes it to handler parameters. Handlers declare what they need via type annotations; Hassette resolves the values before each invocation.
+Hassette's dependency injection system extracts typed data from events and passes it to handler parameters. Like FastAPI's `Depends()`, Hassette resolves handler parameters at call time — but instead of a dependency function, type annotations from the `D` module declare what to extract. All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
@@ -8,13 +8,11 @@ Hassette's dependency injection system extracts typed data from events and passe
 
 `D.StateNew[states.LightState]` extracts the new state and converts it to a typed [`LightState`][hassette.models.states.light.LightState]. `D.EntityId` extracts the entity ID as a string. The handler receives clean data with no event parsing.
 
-All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
-
 ## Annotation Reference
 
 ### State Extractors
 
-State extractors resolve typed state objects from state change events. `T` is any state class from `hassette.models.states`.
+State extractors resolve typed state objects from state change events. `T` is any state class from `hassette.models.states` — a full list is at [State Conversion](../states/conversion.md).
 
 | Annotation | Returns | If missing |
 |---|---|---|
@@ -44,7 +42,7 @@ Identity extractors resolve entity IDs and domains from events.
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/identity_extractors.py"
 ```
 
-`MISSING_VALUE` is a falsy sentinel. Testing with `if entity_id:` covers both the present and absent cases.
+[`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event. It is not `None` — `None` means the field exists with a null value. Testing with `if entity_id:` covers both the present and absent cases.
 
 ### Other Extractors
 
@@ -76,7 +74,7 @@ State extractors accept union types for handlers that cover multiple entity doma
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
-The [State Conversion](../states/conversion.md) pipeline determines the concrete state class from the entity's domain at dispatch time.
+Hassette determines the concrete state class from the entity's domain at dispatch time — see [State Conversion](../states/conversion.md) for details.
 
 ## Custom Keyword Arguments
 

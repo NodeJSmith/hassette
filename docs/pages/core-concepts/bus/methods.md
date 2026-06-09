@@ -11,9 +11,9 @@ Every subscription method accepts these parameters. Individual method tables bel
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `handler` | `HandlerType` | — | The function called when the event matches. See [Writing Handlers](handlers.md). |
-| `name` | `str \| None` | `None` | Required. Stable string identifier. Forms the natural key `(app_key, instance_index, name, topic)`. Omitting raises `ListenerNameRequiredError`. |
+| `name` | `str \| None` | `None` | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting raises `ListenerNameRequiredError`. |
 | `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. Available on `on_state_change`, `on_attribute_change`, `on_call_service`, `on_service_registered`, `on_component_loaded`, `on_app_state_changed`, and `on()`. |
-| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. `None` inherits `event_handler_timeout_seconds` from config. |
+| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from `hassette.toml`. |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
 | `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
 | `throttle` | `float \| None` | `None` | Limits the handler to one invocation per N seconds. Events during the cooldown are dropped. |
@@ -185,7 +185,7 @@ Subscribes to any raw event topic string.
 
 ### `on_app_state_changed` and shorthands
 
-`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.types.enums.ResourceStatus]. Two shorthands cover the most common cases.
+`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.types.enums.ResourceStatus] (e.g., `RUNNING`, `STOPPING`, `STOPPED`, `FAILED`). Two shorthands cover the most common cases.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:app_state_changed"
@@ -216,7 +216,7 @@ Both methods accept `handler`, `where`, `kwargs`, `name`, and `**opts`. Neither 
 
 ### App-level handler
 
-`bus.on_error(handler)` registers a fallback called when any listener on the bus raises. The handler receives a [`BusErrorContext`][hassette.bus.error_context.BusErrorContext].
+`bus.on_error(handler)` registers a fallback called when any listener on the bus raises. This call is synchronous — no `await` needed. The handler receives a [`BusErrorContext`][hassette.bus.error_context.BusErrorContext].
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_app.py"
@@ -267,7 +267,7 @@ Every registration method requires `name=`. Omitting it raises `ListenerNameRequ
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
 ```
 
-The `name` forms the natural key `(app_key, instance_index, name, topic)`. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert. The existing listener record is updated, not duplicated.
+The `name` forms a natural key together with the app identifier, instance index, and topic. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local database for telemetry, and the existing record is updated, not duplicated.
 
 ### Synchronous completion
 
@@ -287,7 +287,7 @@ Cancelling a subscription and registering a new one is deterministic. The old ha
 
 ## Synchronous Usage
 
-`self.bus.sync` exposes `BusSyncFacade`, which wraps every `Bus` registration method as a blocking synchronous call. `AppSync` lifecycle hooks, which run in a worker thread outside the event loop, register listeners through this facade. Calling methods on `self.bus.sync` from within the event loop raises `RuntimeError`. All `name=` requirements and collision rules apply identically.
+`self.bus.sync` exposes `BusSyncFacade`, which wraps every `Bus` registration method as a blocking synchronous call. [`AppSync`](../apps/index.md) lifecycle hooks, which run in a worker thread outside the event loop, register listeners through this facade. If you subclassed `App` (not `AppSync`), you can skip this section. Calling methods on `self.bus.sync` from within the event loop raises `RuntimeError`. All `name=` requirements and collision rules apply identically.
 
 ## See Also
 
