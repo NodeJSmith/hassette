@@ -27,6 +27,104 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SITE_DIR = REPO_ROOT / "site" / "pages"
 
 
+def emit_code_fence(lines: list[str], text: str, indent: str = "", lang: str = "") -> None:
+    lines.append(f"{indent}```{lang}")
+    lines.append(text)
+    lines.append(f"{indent}```")
+
+
+def extract_element(element: Tag, lines: list[str], indent: str = "") -> None:
+    tag = element.name
+
+    if tag in ("h1", "h2", "h3", "h4"):
+        prefix = "#" * int(tag[1])
+        lines.append(f"{indent}{prefix} {element.get_text(strip=True)}")
+
+    elif tag == "pre":
+        code = element.find("code")
+        classes = set(element.get("class", []))
+        lang = "mermaid" if "mermaid" in classes else ""
+        emit_code_fence(lines, (code or element).get_text(), indent, lang)
+
+    elif tag in ("ul", "ol"):
+        lines.extend(
+            f"{indent}- {li.get_text(separator=' ', strip=True)}" for li in element.find_all("li", recursive=False)
+        )
+
+    elif tag == "details":
+        summary = element.find("summary")
+        summary_text = summary.get_text(strip=True) if summary else ""
+        lines.append(f"{indent}[COLLAPSIBLE: {summary_text}]")
+        child_indent = indent + "  "
+        for child in element.children:
+            if not isinstance(child, Tag) or child.name == "summary":
+                continue
+            extract_element(child, lines, indent=child_indent)
+
+    elif tag == "div":
+        classes = set(element.get("class", []))
+
+        if "admonition" in classes:
+            title_el = element.find(class_="admonition-title")
+            title = title_el.get_text(strip=True) if title_el else ""
+            lines.append(f"{indent}[ADMONITION: {title}]")
+            for child in element.children:
+                if isinstance(child, Tag) and child != title_el:
+                    extract_element(child, lines, indent=indent + "  ")
+
+        elif "highlight" in classes or "codehilite" in classes:
+            filename_el = element.find(class_="filename")
+            if filename_el:
+                lines.append(f"{indent}[FILE: {filename_el.get_text(strip=True)}]")
+            code = element.find("code")
+            if code:
+                emit_code_fence(lines, code.get_text(), indent)
+
+        elif "panzoom-box" in classes:
+            pre = element.find("pre", class_="mermaid")
+            if pre:
+                code = pre.find("code")
+                emit_code_fence(lines, (code or pre).get_text(), indent, "mermaid")
+
+        elif "tabbed-set" in classes:
+            labels_el = element.find(class_="tabbed-labels")
+            labels = [label.get_text(strip=True) for label in labels_el.find_all("label")] if labels_el else []
+            blocks = element.find_all(class_="tabbed-block")
+            for i, block in enumerate(blocks):
+                label = labels[i] if i < len(labels) else f"Tab {i + 1}"
+                lines.append(f"{indent}[TAB: {label}]")
+                code = block.find("code")
+                if code:
+                    emit_code_fence(lines, code.get_text(), indent)
+                else:
+                    text = block.get_text(separator=" ", strip=True)
+                    if text:
+                        lines.append(f"{indent}  {text}")
+
+        else:
+            text = element.get_text(separator=" ", strip=True)
+            if text:
+                lines.append(f"{indent}{text}")
+
+    elif tag == "p":
+        lines.append(f"{indent}{element.get_text(separator=' ', strip=True)}")
+
+    elif tag == "table":
+        for row in element.find_all("tr"):
+            cells = [cell.get_text(strip=True) for cell in row.find_all(["th", "td"])]
+            lines.append(f"{indent}| " + " | ".join(cells) + " |")
+
+    elif tag == "blockquote":
+        text = element.get_text(separator=" ", strip=True)
+        if text:
+            lines.append(f"{indent}> {text}")
+
+    else:
+        text = element.get_text(separator=" ", strip=True)
+        if text:
+            lines.append(f"{indent}{text}")
+
+
 def extract_page(html_path: Path) -> list[str]:
     soup = BeautifulSoup(html_path.read_text(), "html.parser")
 
@@ -35,99 +133,27 @@ def extract_page(html_path: Path) -> list[str]:
         return [f"ERROR: no <article class='md-content__inner'> found in {html_path}"]
 
     lines: list[str] = []
-
     for element in article.children:
         if isinstance(element, NavigableString):
             text = element.strip()
             if text:
                 lines.append(text)
             continue
-
-        if not isinstance(element, Tag):
-            continue
-
-        tag = element.name
-
-        if tag in ("h1", "h2", "h3", "h4"):
-            prefix = "#" * int(tag[1])
-            lines.append(f"{prefix} {element.get_text(strip=True)}")
-
-        elif tag == "pre":
-            code = element.find("code")
-            if code:
-                lines.append("```")
-                lines.append(code.get_text())
-                lines.append("```")
-            else:
-                lines.append("```")
-                lines.append(element.get_text())
-                lines.append("```")
-
-        elif tag == "ul" or tag == "ol":
-            lines.extend(
-                f"- {li.get_text(separator=' ', strip=True)}" for li in element.find_all("li", recursive=False)
-            )
-
-        elif tag == "details":
-            summary = element.find("summary")
-            summary_text = summary.get_text(strip=True) if summary else ""
-            lines.append(f"[COLLAPSIBLE: {summary_text}]")
-            for child in element.children:
-                if isinstance(child, Tag) and child.name != "summary":
-                    text = child.get_text(separator=" ", strip=True)
-                    if text:
-                        lines.append(f"  {text}")
-
-        elif tag == "div":
-            cls = " ".join(element.get("class", []))
-            if "admonition" in cls or "note" in cls or "warning" in cls or "tip" in cls:
-                title_el = element.find(class_="admonition-title")
-                title = title_el.get_text(strip=True) if title_el else ""
-                lines.append(f"[ADMONITION: {title}]")
-                for child in element.children:
-                    if isinstance(child, Tag) and child != title_el:
-                        text = child.get_text(separator=" ", strip=True)
-                        if text:
-                            lines.append(f"  {text}")
-            elif "highlight" in cls or "codehilite" in cls:
-                code = element.find("code")
-                if code:
-                    lines.append("```")
-                    lines.append(code.get_text())
-                    lines.append("```")
-            elif "tabbed-set" in cls:
-                for tab_content in element.find_all(class_="tabbed-content"):
-                    text = tab_content.get_text(separator=" ", strip=True)
-                    if text:
-                        lines.append(text)
-            else:
-                text = element.get_text(separator=" ", strip=True)
-                if text:
-                    lines.append(text)
-
-        elif tag == "p":
-            lines.append(element.get_text(separator=" ", strip=True))
-
-        elif tag == "table":
-            rows = element.find_all("tr")
-            for row in rows:
-                cells = [cell.get_text(strip=True) for cell in row.find_all(["th", "td"])]
-                lines.append("| " + " | ".join(cells) + " |")
-
-        elif tag == "blockquote":
-            text = element.get_text(separator=" ", strip=True)
-            if text:
-                lines.append(f"> {text}")
-
-        else:
-            text = element.get_text(separator=" ", strip=True)
-            if text:
-                lines.append(text)
+        if isinstance(element, Tag):
+            extract_element(element, lines)
 
     return [line for line in lines if line.strip()]
 
 
-def resolve_html_path(page_ref: str) -> Path:
+def print_lines(lines: list[str], *, raw: bool) -> None:
+    for i, line in enumerate(lines, 1):
+        if raw:
+            print(line)
+        else:
+            print(f"LINE {i}: {line}")
+
+
+def resolve_html_path(page_ref: str) -> Path | None:
     if page_ref.endswith(".md"):
         page_ref = page_ref[:-3]
     if page_ref.endswith("/"):
@@ -141,13 +167,7 @@ def resolve_html_path(page_ref: str) -> Path:
     if candidate.exists():
         return candidate
 
-    parent = SITE_DIR / page_ref
-    if parent.is_dir():
-        index = parent / "index.html"
-        if index.exists():
-            return index
-
-    return SITE_DIR / page_ref / "index.html"
+    return None
 
 
 def list_section_pages(section: str) -> list[str]:
@@ -167,8 +187,7 @@ def main() -> int:
     parser.add_argument("page", nargs="?", help="Page path relative to docs/pages/, without .md")
     parser.add_argument("--section", help="Extract all pages in a section")
     parser.add_argument("--list", action="store_true", help="List available pages instead of extracting")
-    parser.add_argument("--numbered", action="store_true", default=True, help="Prefix lines with LINE N: (default)")
-    parser.add_argument("--raw", action="store_true", help="Output without line numbers")
+    parser.add_argument("--raw", action="store_true", help="Output without LINE N: prefixes")
     args = parser.parse_args()
 
     if not SITE_DIR.exists():
@@ -185,18 +204,13 @@ def main() -> int:
         pages = list_section_pages(args.section)
         for page_ref in pages:
             html_path = resolve_html_path(page_ref)
-            if not html_path.exists():
+            if html_path is None:
                 print(f"# SKIP: {page_ref} (not found)", file=sys.stderr)
                 continue
             print(f"\n{'=' * 60}")
             print(f"PAGE: {page_ref}")
             print(f"{'=' * 60}")
-            lines = extract_page(html_path)
-            for i, line in enumerate(lines, 1):
-                if args.raw:
-                    print(line)
-                else:
-                    print(f"LINE {i}: {line}")
+            print_lines(extract_page(html_path), raw=args.raw)
         return 0
 
     if not args.page:
@@ -204,19 +218,12 @@ def main() -> int:
         return 1
 
     html_path = resolve_html_path(args.page)
-    if not html_path.exists():
-        print(f"ERROR: page not found: {html_path}", file=sys.stderr)
-        print(f"  (looked for: {html_path})", file=sys.stderr)
+    if html_path is None:
+        print(f"ERROR: page not found (resolved from: {args.page!r})", file=sys.stderr)
         print("  Run `uv run mkdocs build` to rebuild, or check the page path.", file=sys.stderr)
         return 1
 
-    lines = extract_page(html_path)
-    for i, line in enumerate(lines, 1):
-        if args.raw:
-            print(line)
-        else:
-            print(f"LINE {i}: {line}")
-
+    print_lines(extract_page(html_path), raw=args.raw)
     return 0
 
 
