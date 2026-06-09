@@ -210,6 +210,8 @@ def test_comparison_non_numeric_string_returns_false(value: str) -> None:
         ("==", "on", "off", False),
         ("!=", "off", "on", True),
         ("!=", "on", "on", False),
+        ("eq", "unavailable", "unavailable", True),
+        ("ne", "unavailable", "unavailable", False),
     ],
 )
 def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: str, expected: bool) -> None:
@@ -299,3 +301,35 @@ def test_condition_summarize_increased() -> None:
 
 def test_condition_summarize_decreased() -> None:
     assert Decreased().summarize() == "decreased"
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("10", "20", True),
+        ("20", "10", False),
+        ("10", "10", False),
+        ("10.5", "11.0", True),
+        (10, 20, True),
+        ("unavailable", "20", False),
+        ("10", "unavailable", False),
+    ],
+)
+def test_increased_behavior(old: str | int, new: str | int, expected: bool) -> None:
+    assert Increased()(old, new) is expected
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("20", "10", True),
+        ("10", "20", False),
+        ("10", "10", False),
+        ("11.0", "10.5", True),
+        (20, 10, True),
+        ("unavailable", "20", False),
+        ("10", "unavailable", False),
+    ],
+)
+def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> None:
+    assert Decreased()(old, new) is expected
