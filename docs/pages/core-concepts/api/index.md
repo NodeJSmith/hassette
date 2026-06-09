@@ -23,7 +23,7 @@ The two most common operations are reading state and calling a service.
 | Latency | Instant | Network round-trip |
 | Best for | Reading state in handlers | Writes, fresh data, helpers |
 
-`self.states` is faster and simpler for reads. `self.api` is the right choice when fresh-from-HA data is needed, or for any write operation: service calls, `set_state()`, helper management.
+`self.states` is faster and simpler for reads. `self.api` is the right choice when fresh-from-HA data is needed, or for any write operation: service calls, `set_state()`, and [managing HA helpers](managing-helpers.md) (`input_boolean`, `counter`, `timer`, etc.).
 
 ## Error Handling
 

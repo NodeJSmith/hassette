@@ -66,8 +66,7 @@ Returns `True` if the entity exists, `False` otherwise.
 
 ### `get_state_raw(entity_id)`
 
-Returns the untyped `HassStateDict` from the REST response. Use this when working outside the type
-registry or inspecting the raw HA payload for debugging.
+Returns the raw Home Assistant state payload as an untyped dict (`HassStateDict`). Use this when working outside the type registry or inspecting the raw HA payload for debugging.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state_raw.py"
@@ -89,8 +88,7 @@ converted value without attributes or timestamps.
 ### `get_attribute(entity_id, attribute)`
 
 Returns a single attribute value. `attribute` supports dot-path notation for nested fields
-(`"color_modes.0"`). Returns the `MISSING_VALUE` sentinel when the attribute is absent rather than
-raising.
+(`"color_modes.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -101,8 +99,7 @@ raising.
 --8<-- "pages/core-concepts/api/snippets/api_get_attribute.py"
 ```
 
-The return value should be compared against `MISSING_VALUE` before use. A truthiness check
-alone is unreliable because some valid attribute values are falsy (`0`, `False`, `""`).
+Compare against `MISSING_VALUE` with `is`, not truthiness — some valid attribute values are falsy (`0`, `False`, `""`).
 
 ### `get_entity(entity_id, model)`
 
@@ -242,7 +239,7 @@ Omitting `end_time` returns changes from `start_time` to the present.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str` | — | Single entity ID. Comma-separated strings raise `ValueError`. |
-| `start_time` | `PlainDateTime \| ZonedDateTime \| Date \| str` | — | Start of the time window. |
+| `start_time` | `PlainDateTime \| ZonedDateTime \| Date \| str` | — | Start of the time window. Accepts [`whenever`](https://whenever.readthedocs.io/) types or an ISO 8601 string. |
 | `end_time` | `PlainDateTime \| ZonedDateTime \| Date \| str \| None` | `None` | End of the time window. `None` means now. |
 | `significant_changes_only` | `bool` | `False` | Skips attribute-only updates; returns state-string transitions only. |
 | `minimal_response` | `bool` | `False` | Omits attributes from all but the last entry per entity. |

@@ -8,16 +8,15 @@ shortcuts.
 
 ## Creating a Helper on Startup
 
-The most common pattern provisions a helper once during `on_initialize`, then holds the
-returned record for the app's lifetime. Because helpers persist across restarts, the
+The most common pattern provisions a helper once during [`on_initialize`](../apps/lifecycle.md) (the app startup hook), then holds the
+returned record — a Pydantic model with the helper's `id`, `name`, and configuration — for the app's lifetime. Because helpers persist across restarts, the
 idempotent approach checks for an existing record before creating:
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:bootstrap"
 ```
 
-`list_input_booleans()` returns all stored `input_boolean` records. The loop exits early
-if a matching id is found, so `create_input_boolean` only runs on first startup.
+`list_input_booleans()` fetches all `input_boolean` records from Home Assistant. The loop exits early if a matching id is found, so `create_input_boolean` only runs on first startup.
 
 !!! warning "Concurrent provisioning"
     When two apps run the same list-then-create sequence simultaneously, both may pass
