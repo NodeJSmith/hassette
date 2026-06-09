@@ -1,4 +1,4 @@
-"""Unit tests for tools/generate_constraints.py."""
+"""Unit tests for scripts/generate_constraints.py."""
 
 import textwrap
 from pathlib import Path
