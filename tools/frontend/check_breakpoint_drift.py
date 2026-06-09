@@ -16,8 +16,8 @@ declared for programmatic use via `useMediaQuery(BREAKPOINT_X)` before any CSS
 rule needs it. The reverse — a CSS breakpoint with no constant — is the bug.
 
 Usage:
-    python tools/check_breakpoint_drift.py
-    python tools/check_breakpoint_drift.py --smoke-test
+    python tools/frontend/check_breakpoint_drift.py
+    python tools/frontend/check_breakpoint_drift.py --smoke-test
 """
 
 import argparse
@@ -25,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 MEDIA_QUERY_TS = FRONTEND_SRC / "hooks" / "use-media-query.ts"
 

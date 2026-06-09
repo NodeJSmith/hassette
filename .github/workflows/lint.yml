@@ -157,7 +157,7 @@ jobs:
               run: uv run python tools/frontend/check_undefined_css_refs.py
 
             - name: Check breakpoint drift (JS constants vs CSS media queries)
-              run: uv run python tools/check_breakpoint_drift.py
+              run: uv run python tools/frontend/check_breakpoint_drift.py
 
     codegen-freshness:
         needs: changes
