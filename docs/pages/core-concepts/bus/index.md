@@ -31,9 +31,8 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 !!! warning "Glob patterns match identifiers only"
     Glob patterns do not match attribute names or data values. Predicates (functions that decide whether to run the handler — see [Filtering](filtering.md)) handle those cases.
 
-## Synchronous Usage
-
-`self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a worker thread outside the async event loop. If you subclassed `App` (not `AppSync`), you can skip this section. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+??? note "Synchronous usage (AppSync only)"
+    `self.bus.sync` exposes a [`BusSyncFacade`][hassette.bus.sync.BusSyncFacade] that mirrors all subscription methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run in a worker thread outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Verify It's Working
 

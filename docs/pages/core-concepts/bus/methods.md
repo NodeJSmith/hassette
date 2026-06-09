@@ -285,9 +285,8 @@ Cancelling a subscription and registering a new one is deterministic. The old ha
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:resubscribe"
 ```
 
-## Synchronous Usage
-
-`self.bus.sync` exposes `BusSyncFacade`, which wraps every `Bus` registration method as a blocking synchronous call. [`AppSync`](../apps/index.md) lifecycle hooks, which run in a worker thread outside the event loop, register listeners through this facade. If you subclassed `App` (not `AppSync`), you can skip this section. Calling methods on `self.bus.sync` from within the event loop raises `RuntimeError`. All `name=` requirements and collision rules apply identically.
+??? note "Synchronous usage (AppSync only)"
+    `self.bus.sync` exposes `BusSyncFacade`, which wraps every `Bus` registration method as a blocking synchronous call. [`AppSync`](../apps/index.md) lifecycle hooks, which run in a worker thread outside the event loop, register listeners through this facade. Calling methods on `self.bus.sync` from within the event loop raises `RuntimeError`. All `name=` requirements and collision rules apply identically.
 
 ## See Also
 
