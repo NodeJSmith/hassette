@@ -172,6 +172,43 @@ def test_comparison_condition() -> None:
     assert equal_to(10) is False
 
 
+def test_comparison_numeric_string_coercion() -> None:
+    """Comparison coerces string values to float when compare_to is numeric."""
+    assert Comparison("gt", 75)("80.5") is True
+    assert Comparison("gt", 75)("70.0") is False
+    assert Comparison("lt", 100)("99.9") is True
+    assert Comparison("lt", 100)("200") is False
+    assert Comparison("ge", 75)("75.0") is True
+    assert Comparison("ge", 75)("74.9") is False
+    assert Comparison("le", 75)("75.0") is True
+    assert Comparison("le", 75)("75.1") is False
+    assert Comparison("eq", 0)("0") is True
+    assert Comparison("eq", 0)("1") is False
+    assert Comparison("ne", 0)("1") is True
+    assert Comparison("ne", 0)("0") is False
+    # int compare_to against string value
+    assert Comparison("gt", 75)("80") is True
+    # float compare_to against string value
+    assert Comparison("gt", 20.5)("21.0") is True
+    assert Comparison("gt", 20.5)("20.0") is False
+
+
+def test_comparison_non_numeric_string_returns_false() -> None:
+    """Non-numeric strings return False gracefully, no exceptions raised."""
+    assert Comparison("gt", 75)("unavailable") is False
+    assert Comparison("gt", 75)("unknown") is False
+    assert Comparison("gt", 75)("") is False
+    assert Comparison("lt", 50)("unavailable") is False
+
+
+def test_comparison_string_to_string_unchanged() -> None:
+    """String-to-string comparisons are unaffected by numeric coercion."""
+    assert Comparison("==", "on")("on") is True
+    assert Comparison("==", "on")("off") is False
+    assert Comparison("!=", "off")("on") is True
+    assert Comparison("!=", "on")("on") is False
+
+
 def test_condition_summarize_glob() -> None:
     assert Glob("light.*").summarize() == "matches light.*"
 
