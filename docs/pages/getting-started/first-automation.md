@@ -43,7 +43,7 @@ INFO hassette.MyApp.0 — Heartbeat
 
 The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:
 
-1. In the Home Assistant sidebar, click **Developer Tools** (the wrench icon near the bottom).
+1. In Home Assistant, go to **Settings → Developer Tools**.
 2. Go to the **States** tab and find `sun.sun`.
 3. Change the state value to `below_horizon` and click **Set State**.
 
