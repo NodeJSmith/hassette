@@ -41,7 +41,7 @@ Add this to your `pyproject.toml`:
 --8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"
 ```
 
-The `async with` block handles the full app lifecycle. Inside it, `on_initialize()` has run and the app is ready to receive events. When the block exits, the harness tears everything down.
+The `async with` block handles the full app lifecycle: it calls `on_initialize()`, waits for all listeners to register with the bus, then yields. When the block exits, the harness calls `on_shutdown()` and cancels any running tasks.
 
 **`simulate_state_change()`** publishes a `state_changed` event through the bus and waits for all triggered handlers to finish before returning.
 
@@ -55,7 +55,7 @@ The `async with` block handles the full app lifecycle. Inside it, `on_initialize
 --8<-- "pages/testing/snippets/testing_quick_start.py:assert_called"
 ```
 
-If your handler reads entity state during handling, seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the state proxy without publishing a bus event, so no handlers fire. Seed before you simulate.
+If your handler reads entity state during handling (e.g., checking whether a light is already on before toggling it), seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the state proxy (the in-process state store that app code reads via `self.states`) without publishing a bus event, so no handlers fire. Seed before you simulate.
 
 ```python
 --8<-- "pages/testing/snippets/testing_seed_state.py:seed"
@@ -79,7 +79,7 @@ test_my_app.py::test_light_turns_on_when_motion_detected PASSED
 
 ## Next Steps
 
-- [Test Harness Reference](harness.md): full API: all simulate methods, all assert methods, error handling
-- [Time Control](time-control.md): test scheduler-driven behavior
-- [Concurrency & pytest-xdist](concurrency.md): parallel test execution
-- [Factories](factories.md): build custom test data
+- [Test Harness Reference](harness.md): full `AppTestHarness` API — all simulate methods, all assert methods, error handling
+- [Time Control](time-control.md): freeze or advance the scheduler clock to test delayed and recurring jobs
+- [Concurrency & pytest-xdist](concurrency.md): parallel test execution with `pytest-xdist` and concurrent harness patterns
+- [Factories](factories.md): factory functions for building test state dicts, events, and helper records

@@ -21,8 +21,8 @@ Test](index.md) covers installation and `pyproject.toml` setup.
 
 ## Seeding State
 
-`set_state()` seeds a single entity's state into the state proxy.
-`set_states()` seeds multiple entities at once.
+`set_state()` pre-populates a single entity's state into the state proxy (the in-process state store that app code reads via `self.states`).
+`set_states()` pre-populates multiple entities at once.
 
 ```python
 --8<-- "pages/testing/snippets/testing_state_seeding.py"
