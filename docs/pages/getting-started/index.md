@@ -1,12 +1,12 @@
 # Quickstart
 
-Install Hassette, write a one-file automation, and see it connect to Home Assistant. For a containerized setup, see [Docker Setup](docker/index.md) instead.
+Install Hassette, write a one-file app that logs a greeting on startup, and see it connect to Home Assistant. For a containerized setup, see [Docker Setup](docker/index.md) instead.
 
 ## Prerequisites
 
 - **Python 3.11 or later**: check with `python --version`.
 - **[uv](https://docs.astral.sh/uv/getting-started/installation/)**: this guide uses `uv` to install Hassette.
-- **A running Home Assistant instance**: you'll need its URL and a long-lived access token.
+- **A running Home Assistant instance**: you'll need its URL and a long-lived access token (a token that does not expire, generated in HA).
 
 ## 1. Install Hassette
 
@@ -20,7 +20,7 @@ uv tool install hassette
 
 ## 3. Set up a project directory
 
-Create an empty directory with a `.env` file and an `apps/` folder:
+Create an empty directory with an `apps/` folder, then create a `.env` file inside it:
 
 ```bash
 mkdir -p my-hassette/apps && cd my-hassette
@@ -58,7 +58,7 @@ You see output like:
 --8<-- "pages/getting-started/snippets/run_output.txt"
 ```
 
-Hassette loaded your config and logged the greeting. Open a second terminal to confirm the connection:
+The second line (`Hello from Hassette!`) comes from your `on_initialize` method. If you change the `greeting` field in `MyAppConfig` and restart, you see your new text. Open a second terminal to confirm the connection:
 
 ```bash
 hassette status
@@ -86,7 +86,7 @@ hassette app
 └─────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴────────────┘
 ```
 
-`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`.
+`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invoc/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal here since the app has not subscribed to any events yet.
 
 !!! tip "Having trouble?"
     If Hassette fails to connect, check `HASSETTE__BASE_URL` in your `.env` and confirm the token is correct. See [Troubleshooting](../troubleshooting.md) for common issues.

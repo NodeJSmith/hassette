@@ -11,14 +11,14 @@ This page adds two features to the app from the [Quickstart](index.md):
 --8<-- "pages/getting-started/snippets/first_automation_step3.py"
 ```
 
-[`self.bus.on_state_change()`](../core-concepts/bus/index.md) subscribes to entity state transitions. `"sun.*"` matches any entity in the `sun` domain. In practice, that's `sun.sun`. The `name=` parameter labels this handler in logs and the web UI.
+[`self.bus.on_state_change()`](../core-concepts/bus/index.md) registers a handler that fires whenever an entity's state changes, like a light switching on or a sensor reporting a new reading. `"sun.*"` is a glob pattern that matches any entity in the `sun` domain. In practice, that's `sun.sun`. The `name=` parameter labels this handler in logs and the [web UI](../web-ui/index.md) (a monitoring dashboard Hassette includes).
 
-The handler parameter `new_state: D.StateNew[states.SunState]` tells Hassette what to extract from the event and pass in:
+The handler parameter `new_state: D.StateNew[states.SunState]` is a type annotation that tells Hassette: when this handler fires, pass in the new state as a `SunState` object. The bracket syntax works like `list[str]` in standard Python generics. `D.StateNew[T]` means "a new-state value, typed as `T`." Here is what the two imports do:
 
 - **[`D`](../core-concepts/bus/dependency-injection.md)** is `hassette.dependencies`, a module of type annotations. `D.StateNew[T]` means "give me the new state, converted to type `T`."
 - **[`states`](../core-concepts/states/index.md#built-in-state-types)** is `hassette.models.states`, typed state classes for each HA domain. `states.SunState` has a `.value` attribute holding `"above_horizon"` or `"below_horizon"`.
 
-Hassette reads the annotation from your handler signature and passes in a typed [`SunState`][hassette.models.states.sun.SunState] object. No event dict parsing. Your IDE knows the type, and Pyright catches typos.
+This is a Hassette feature. Standard Python ignores type annotations at runtime, but Hassette inspects them to know what to pass into each handler. No event dict parsing needed. Your IDE knows the type, and Pyright (a Python type checker, optional but useful in VS Code) catches typos.
 
 [`self.api.turn_on()`](../core-concepts/api/index.md) calls the `light.turn_on` service in Home Assistant, the same action as toggling a light from the HA UI. The `domain="light"` parameter tells HA which service domain to use. You can find available services in **Developer Tools → Services** in your Home Assistant instance.
 
