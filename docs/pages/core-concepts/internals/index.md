@@ -12,7 +12,7 @@ Three pages make up the internals section:
 
 An event travels through four stages before reaching a handler.
 
-[`WebsocketService`][hassette.core.websocket_service.WebsocketService] receives raw frames from Home Assistant over a persistent WebSocket connection. It forwards each event to [`EventStreamService`][hassette.core.event_stream_service.EventStreamService], which owns an anyio memory channel that decouples reception from processing. [`BusService`][hassette.core.bus_service.BusService] reads from that channel and expands each event into a set of topics ordered by specificity. It then filters the topics against registered listeners. [`CommandExecutor`][hassette.core.command_executor.CommandExecutor] invokes the matching handler and writes an execution record to SQLite.
+[`WebsocketService`][hassette.core.websocket_service.WebsocketService] receives raw frames from Home Assistant over a persistent WebSocket connection. It forwards each event to [`EventStreamService`][hassette.core.event_stream_service.EventStreamService], which owns an anyio memory channel (an in-process bounded queue) that decouples reception from processing. [`BusService`][hassette.core.bus_service.BusService] reads from that channel and expands each event into a set of topic strings ordered by specificity — for example, a `state_changed` event for `light.office` produces `state_changed.light.office`, `state_changed.light.*`, and `state_changed`. Handlers subscribed to any matching topic fire. [`CommandExecutor`][hassette.core.command_executor.CommandExecutor] invokes the matching handler and writes a telemetry record to SQLite.
 
 ```mermaid
 flowchart TD
@@ -86,7 +86,7 @@ Services declare startup dependencies as a class-level `ClassVar`. The framework
 --8<-- "pages/core-concepts/snippets/index_depends_on.py"
 ```
 
-`depends_on` scoping is intentional: only direct children of the [`Hassette`][hassette.core.core.Hassette] root participate. Per-app resources ([`Bus`][hassette.bus.bus.Bus], [`Scheduler`][hassette.scheduler.scheduler.Scheduler], `Api`, [`StateManager`][hassette.state_manager.state_manager.StateManager]) are not services and do not declare `depends_on`.
+`depends_on` scoping is intentional: only direct children of the [`Hassette`][hassette.core.core.Hassette] root participate. Per-app resources ([`Bus`][hassette.bus.bus.Bus], [`Scheduler`][hassette.scheduler.scheduler.Scheduler], `Api`, [`StateManager`][hassette.state_manager.state_manager.StateManager]) are `Resource` instances managed by `AppHandler`, not `Service` subclasses. They initialize during app startup, after the service graph is fully ready, so they do not declare `depends_on`.
 
 ### Wave-Based Ordering
 

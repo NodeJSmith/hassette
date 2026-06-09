@@ -4,7 +4,7 @@ Each section follows the event pipeline from a Home Assistant WebSocket frame th
 
 ## `Bus` Internals
 
-The [`Bus`][hassette.bus.bus.Bus] handle translates `on_*()` calls into [`Listener`][hassette.bus.listeners.Listener] objects. The shared [`BusService`][hassette.core.bus_service.BusService] indexes those listeners by topic and drives dispatch.
+Each app gets a [`Bus`][hassette.bus.bus.Bus] handle — a lightweight per-app object that delegates to the shared [`BusService`][hassette.core.bus_service.BusService] singleton. The `Bus` translates `on_*()` calls into [`Listener`][hassette.bus.listeners.Listener] objects. `BusService` indexes those listeners by topic and drives dispatch.
 
 ```mermaid
 flowchart TD
@@ -285,7 +285,7 @@ The database has five tables:
 | `executions` | One row per handler invocation or job execution; unified with `kind` discriminator |
 | `log_records` | Captured log lines with `execution_id` linkage |
 
-`executions` unifies what were previously two separate tables. The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.
+`executions` stores one row per handler invocation or job execution. The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.
 
 Six views (`active_listeners`, `active_app_listeners`, `active_framework_listeners`, and their scheduled-job equivalents) pre-filter retired registrations.
 
@@ -301,7 +301,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 |---|---|
 | Matches expected head | No action |
 | Older than expected head | Log warning, delete database, allow migrations to recreate |
-| `0` on existing file | Treat as stale (pre-PRAGMA-era schema), delete and recreate |
+| `0` on existing file | Treat as unversioned legacy schema, delete and recreate |
 | Newer than expected head | Raise [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]; manual intervention required |
 
 `SchemaVersionError` is declared in `DatabaseService.restart_spec.fatal_error_names`, so a version-ahead database stops the process immediately rather than retrying.

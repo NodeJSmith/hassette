@@ -1,6 +1,6 @@
 # Configuration
 
-All Hassette settings live in `hassette.toml`. Environment variables and CLI flags override TOML values. The configuration controls connection, app discovery, the web UI, storage, and runtime behavior.
+All Hassette settings live in `hassette.toml`. Environment variables and CLI flags override TOML values. The configuration controls connection, app discovery (finding and loading your automation classes), the web UI, storage, and runtime behavior.
 
 A minimal `hassette.toml` declares the Home Assistant URL, the apps directory, and one app:
 
@@ -42,7 +42,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 
 ## Configuration Sections
 
-[`HassetteConfig`][hassette.config.HassetteConfig] organizes settings into named subsections. Each maps to a TOML table:
+[`HassetteConfig`][hassette.config.HassetteConfig] is the Pydantic settings model that backs `hassette.toml`. It organizes settings into named subsections, each mapping to a TOML table:
 
 | TOML section | Controls |
 |---|---|
@@ -96,9 +96,19 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 The `StateManager` keeps a local cache of entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
 
+## Verify the Configuration
+
+Run `hassette status` to confirm Hassette can reach Home Assistant with the current config:
+
+```
+hassette status
+```
+
+A successful connection shows `status: ok` and the Home Assistant version. Auth failures show `InvalidAuthError` — check the token value and `verify_ssl` setting.
+
 ## Full Reference
 
-The `HassetteConfig` API reference lists every field with its type, default, and description.
+The [`HassetteConfig`][hassette.config.HassetteConfig] API reference lists every field with its type, default, and description.
 
 ## Next Steps
 

@@ -1,10 +1,10 @@
 # Resource Lifecycle & Supervision
 
-Hassette services recover from failures automatically. Each service declares a restart policy. The policy controls backoff timing, budget limits, and recovery-failure behavior. This page covers the supervision model, the service state machine, and readiness signaling.
+A [`Service`][hassette.resources.service.Service] is a long-running background component that extends the base [`Resource`][hassette.resources.base.Resource] type. Unlike plain resources that initialize once, services can be restarted if they fail. Each service declares a restart policy that controls backoff timing, budget limits, and recovery-failure behavior. This page covers the supervision model, the [service state machine](#resource-state-machine), and readiness signaling.
 
 ## What Happens When a Service Fails
 
-When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] receives that event and consults the service's `restart_spec` to decide what comes next. `restart_spec` is a frozen dataclass attached to the service class as a class attribute.
+When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] — an internal supervisor component with no user-facing API — receives that event and consults the service's `restart_spec` (a policy object declaring retry behavior) to decide what comes next.
 
 The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and either enter a long cooldown period or shut the system down entirely.
 

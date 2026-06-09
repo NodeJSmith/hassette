@@ -31,7 +31,7 @@ All database settings are optional. The defaults work well for most setups.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `path` | path or null | `null` | Location of the SQLite database file. When null, Hassette stores the database at `{data_dir}/hassette.db`. |
+| `path` | path or null | `null` | Location of the SQLite database file. When null, Hassette stores the database at `{data_dir}/hassette.db` (`~/.local/share/hassette/v0/hassette.db` on Linux). |
 | `retention_days` | integer | `7` | Days of execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
 | `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest execution records are deleted in batches. A value of `0` disables the size limit. |
 
@@ -49,7 +49,7 @@ Both routines are non-blocking and do not interrupt automations or telemetry col
 
 Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. The natural key is the explicit `name=` value, or a key derived from handler name, topic, and predicate signature. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
 
-The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window.
+The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window. During development, renaming a handler or changing its topic leaves the old registration visible until it ages out (default 7 days).
 
 ## Checking Telemetry Health
 
