@@ -4,13 +4,13 @@
 
 **Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](getting-started/ha_token.md).
 
-**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme and port explicitly. Bare hostnames raise [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup.
+**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
 
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
 **Invalid token at startup.** Look for [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on the state proxy to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on `self.states` to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
 ## Apps Not Loading
 
@@ -50,7 +50,7 @@ Set the missing field in `hassette.toml` or via an environment variable.
 await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
 ```
 
-**[`DuplicateListenerError`][hassette.exceptions.DuplicateListenerError].** Two listeners registered within the same app instance and session share the same `name` and topic. Use a different name for each listener, or remove the first registration before re-registering. Cross-session duplicates (after a restart) are handled by upsert and don't raise this error.
+**[`DuplicateListenerError`][hassette.exceptions.DuplicateListenerError].** Two listeners registered within the same app instance and session share the same `name` and topic. Use a different name for each listener, or remove the first registration before re-registering. Cross-session duplicates (after a restart) are replaced automatically and don't raise this error.
 
 ## Handler Never Fires
 
@@ -90,7 +90,7 @@ The database file is at `/data/hassette.db` by default.
 
 **Safe to delete.** Deleting `hassette.db` only removes telemetry history. Your automations continue to run. Restart Hassette to recreate the database.
 
-**Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises [`SchemaVersionError`][hassette.exceptions.SchemaVersionError] and halts. Auto-migration is not attempted. Either upgrade Hassette to match the database or delete the database to start fresh.
+**Schema version mismatch.** If the database was created by a newer version of Hassette, startup raises [`SchemaVersionError`][hassette.exceptions.SchemaVersionError] and halts. Hassette will not try to update the old database automatically. Either upgrade Hassette to match the database or delete the database to start fresh.
 
 See also: [Database and Telemetry](core-concepts/database-telemetry.md#degraded-mode).
 

@@ -4,7 +4,7 @@ Hassette runs as a long-lived process. The runtime behaviors that matter in prod
 
 ## WebSocket Reconnection
 
-The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model.
+The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model. All WebSocket settings live under `[hassette.websocket]` in [`hassette.toml`](../core-concepts/configuration/index.md).
 
 ### Layer 1: Initial connection retries
 

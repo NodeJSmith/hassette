@@ -1,6 +1,6 @@
 # Web UI
 
-The web UI shows app health, handler invocation history, structured logs, and system configuration. It runs in the same process as the REST API. Nothing extra starts when the UI is enabled.
+The web UI shows app health, handler invocation history (a handler is a function your app runs when a Home Assistant event occurs), structured logs, and system configuration.
 
 ![Apps page](../../_static/web_ui_apps.png)
 
@@ -31,7 +31,8 @@ The UI can be disabled independently while the REST API stays active:
 
 !!! note "First run"
     A fresh Hassette install shows empty tables and zero counts until automations
-    run and handlers fire. Telemetry accumulates as apps process events.
+    run and handlers fire. As your apps react to Home Assistant activity, the
+    tables fill in with timing data, log entries, and run history.
 
 ## Configuration
 
@@ -44,8 +45,8 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
-    | `[hassette.web_api] event_buffer_size` | int | `500` | Recent events ring buffer size |
-    | `[hassette.web_api] log_buffer_size` | int | `2000` | Log entries ring buffer size |
+    | `[hassette.web_api] event_buffer_size` | int | `500` | How many recent events the UI keeps in memory |
+    | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
     | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
 
@@ -67,7 +68,7 @@ The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, han
 
 ![Command palette](../../_static/web_ui_detail_command_palette.png)
 
-**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners indicate telemetry backpressure, meaning events or log entries are being dropped to stay within configured buffer limits.
+**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean the UI is receiving more data than it can keep — older events or log entries are being discarded. Increase `event_buffer_size` or `log_buffer_size` in `hassette.toml` to keep more history.
 
 ## Pages
 
