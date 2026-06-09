@@ -4,6 +4,8 @@ Tests condition matchers like Contains, EndsWith, StartsWith, Present, Missing,
 Glob, Regex, etc. that are used within predicates to test extracted values.
 """
 
+import pytest
+
 from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
     Comparison,
@@ -172,6 +174,50 @@ def test_comparison_condition() -> None:
     assert equal_to(10) is False
 
 
+@pytest.mark.parametrize(
+    ("op", "threshold", "value", "expected"),
+    [
+        ("gt", 75, "80.5", True),
+        ("gt", 75, "70.0", False),
+        ("gt", 75, "80", True),
+        ("gt", 20.5, "21.0", True),
+        ("gt", 20.5, "20.0", False),
+        ("lt", 100, "99.9", True),
+        ("lt", 100, "200", False),
+        ("ge", 75, "75.0", True),
+        ("ge", 75, "74.9", False),
+        ("le", 75, "75.0", True),
+        ("le", 75, "75.1", False),
+        ("eq", 0, "0", True),
+        ("eq", 0, "1", False),
+        ("ne", 0, "1", True),
+        ("ne", 0, "0", False),
+    ],
+)
+def test_comparison_numeric_string_coercion(op: str, threshold: int | float, value: str, expected: bool) -> None:
+    assert Comparison(op, threshold)(value) is expected
+
+
+@pytest.mark.parametrize("value", ["unavailable", "unknown", ""])
+def test_comparison_non_numeric_string_returns_false(value: str) -> None:
+    assert Comparison("gt", 75)(value) is False
+
+
+@pytest.mark.parametrize(
+    ("op", "threshold", "value", "expected"),
+    [
+        ("==", "on", "on", True),
+        ("==", "on", "off", False),
+        ("!=", "off", "on", True),
+        ("!=", "on", "on", False),
+        ("eq", "unavailable", "unavailable", True),
+        ("ne", "unavailable", "unavailable", False),
+    ],
+)
+def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: str, expected: bool) -> None:
+    assert Comparison(op, threshold)(value) is expected
+
+
 def test_condition_summarize_glob() -> None:
     assert Glob("light.*").summarize() == "matches light.*"
 
@@ -255,3 +301,35 @@ def test_condition_summarize_increased() -> None:
 
 def test_condition_summarize_decreased() -> None:
     assert Decreased().summarize() == "decreased"
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("10", "20", True),
+        ("20", "10", False),
+        ("10", "10", False),
+        ("10.5", "11.0", True),
+        (10, 20, True),
+        ("unavailable", "20", False),
+        ("10", "unavailable", False),
+    ],
+)
+def test_increased_behavior(old: str | int, new: str | int, expected: bool) -> None:
+    assert Increased()(old, new) is expected
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("20", "10", True),
+        ("10", "20", False),
+        ("10", "10", False),
+        ("11.0", "10.5", True),
+        (20, 10, True),
+        ("unavailable", "20", False),
+        ("10", "unavailable", False),
+    ],
+)
+def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> None:
+    assert Decreased()(old, new) is expected
