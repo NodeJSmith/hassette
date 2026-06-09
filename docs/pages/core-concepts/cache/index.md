@@ -1,8 +1,10 @@
 # App Cache
 
-`self.cache` provides persistent key-value storage on every app. Data written to the cache survives restarts and is available at the next startup. The cache is a [`diskcache.Cache`](https://grantjenks.com/docs/diskcache/) instance. The full diskcache API is available directly.
+`self.cache` provides persistent key-value storage on every [`App`](../apps/index.md) instance — no setup required. Data written to the cache survives restarts and is available at the next startup. The cache is a [`diskcache.Cache`](https://grantjenks.com/docs/diskcache/) instance backed by a third-party disk-based storage library. The full diskcache API is available directly.
 
-For real-time Home Assistant entity state, [`self.states`](../states/index.md) is the right tool. The cache is for app data: counters, timestamps, API responses, preferences.
+`self.now()` returns the current time as a [`ZonedDateTime`](https://whenever.readthedocs.io/) from the `whenever` library, which Hassette uses for all date/time operations. It is timezone-aware, picklable, and supports arithmetic like `self.now().subtract(hours=4)`.
+
+For real-time Home Assistant entity state, [`self.states`](../states/index.md) (the local state cache) is the right tool. `self.cache` is for app data: counters, timestamps, API responses, preferences.
 
 ## Basic Usage
 
@@ -18,7 +20,7 @@ Hassette opens the cache at first access and flushes it to disk at shutdown. All
 
 All instances of the same app class share one cache directory, keyed by class name. Two instances of `WeatherApp` with different configurations read from and write to the same cache.
 
-For multi-instance apps, prefixing keys with `self.app_config.instance_name` avoids collisions:
+Hassette can run the same app class multiple times with different configs (see [App Instances](../apps/index.md)). For multi-instance apps, prefixing keys with `self.app_config.instance_name` (automatically set from the `[apps.<key>]` identifier in `hassette.toml`) avoids collisions:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_instance_prefix.py"
@@ -30,11 +32,11 @@ The cache stores any Python object that supports pickling, Python's built-in ser
 
 - Primitives: `str`, `int`, `float`, `bool`, `None`
 - Collections: `list`, `dict`, `tuple`, `set`
-- Timestamps from the `whenever` library: `Instant`, `ZonedDateTime`, `PlainDateTime`, `TimeDelta`
+- Timestamps from the [`whenever`](https://whenever.readthedocs.io/) library (Hassette's date/time library): `Instant`, `ZonedDateTime`, `PlainDateTime`, `TimeDelta`
 - Pydantic models and dataclasses (if picklable)
 
 !!! tip "Storing timestamps"
-    `self.now()` returns the current time as a `ZonedDateTime`. It is timezone-aware, picklable, and supports arithmetic like `self.now().subtract(hours=4)`.
+    `self.now()` and all `whenever` types are picklable — store them directly in the cache without conversion.
 
 ## Configuration
 
@@ -59,7 +61,21 @@ data_dir = "/path/to/data"
 
 **Lifecycle.** The cache is available from first access through shutdown. Hassette closes and flushes it to disk when the app stops.
 
-**Automatic cleanup.** Entries with a TTL expire silently. When the cache reaches `size_limit`, the least-recently-used items are evicted without raising an error.
+**Automatic cleanup.** Entries with a TTL expire silently. When the cache reaches `size_limit`, the least-recently-used items are evicted without raising an error. To set a TTL, use `self.cache.set()` instead of bracket assignment:
+
+```python
+self.cache.set("weather_data", payload, expire=3600)  # expires after 1 hour
+```
+
+## Verify It Works
+
+Check that cache data persists across restarts with `hassette log`:
+
+```
+hassette log --app my_app --since 1h
+```
+
+The log shows cache reads and writes when `log_level = "DEBUG"` is set in `hassette.toml`. The cache directory at `{data_dir}/{ClassName}/cache/` contains data files after the first successful write.
 
 ## See Also
 
