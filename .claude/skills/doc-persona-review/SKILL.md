@@ -41,7 +41,20 @@ Read these files before dispatching subagents (pass relevant excerpts to each su
 - `.claude/rules/voice-guide.md` (rules 10, 15, 17 matter for persona-appropriate voice)
 - `.claude/rules/doc-rules.md` (page type templates define what structure the reader expects)
 
-## Phase 2: Dispatch Persona Walkthroughs
+## Phase 2: Extract Page Content
+
+Before dispatching subagents, extract the rendered page content using the extraction script:
+
+```bash
+uv run mkdocs build --strict   # if not already built
+uv run tools/extract_doc_page.py <page-path>
+```
+
+This produces numbered lines from the built HTML with code snippets inlined, admonitions labeled, and collapsible sections marked. The output is what the reader actually sees. Pass this output (not the raw markdown) to each persona subagent.
+
+For section-wide runs: `uv run tools/extract_doc_page.py --section <section>` extracts all pages.
+
+## Phase 3: Dispatch Persona Walkthroughs
 
 For each (page, persona) pair, dispatch a **Sonnet** subagent with this prompt structure:
 
@@ -99,7 +112,7 @@ Use `schema` on the agent call to enforce the JSON structure.
 - Single page with 3 personas: three subagents in parallel.
 - Multi-page section: batch by page, all personas for each page in parallel. Cap at 5 concurrent subagents.
 
-## Phase 3: Collate and Present
+## Phase 4: Collate and Present
 
 ### Per-page summary
 
