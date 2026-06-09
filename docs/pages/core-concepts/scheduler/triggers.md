@@ -2,7 +2,11 @@
 
 A trigger determines when a scheduled job fires. Each built-in scheduling method creates a trigger internally. `schedule()` accepts a trigger directly for patterns the convenience methods do not cover.
 
-All five built-in trigger types and [`TriggerProtocol`][hassette.types.types.TriggerProtocol] are importable from `hassette.scheduler`.
+All five built-in trigger types and [`TriggerProtocol`][hassette.types.types.TriggerProtocol] are importable from `hassette.scheduler`:
+
+```python
+from hassette.scheduler import After, Once, Every, Daily, Cron, TriggerProtocol
+```
 
 ## Built-in Triggers
 
@@ -28,7 +32,9 @@ Triggers are passed to `schedule()` when the convenience methods do not fit. See
 
 ## Custom Triggers
 
-A custom trigger expresses a timing pattern the built-in types cannot: phase-locked schedules, adaptive intervals, or schedules driven by external state. [`TriggerProtocol`][hassette.types.types.TriggerProtocol] defines the interface. Any class implementing all six methods can be passed to `schedule()`.
+A custom trigger expresses a timing pattern the built-in types cannot: phase-locked schedules, adaptive intervals, or schedules driven by external state. [`TriggerProtocol`][hassette.types.types.TriggerProtocol] defines the interface. Any class implementing all six methods can be passed to `schedule()`. Inheriting `TriggerProtocol` is optional — duck typing works — but it lets Pyright catch missing methods.
+
+Trigger methods use [`ZonedDateTime`](https://whenever.readthedocs.io/) from the `whenever` library (`from whenever import ZonedDateTime`) — Hassette's date/time type for timezone-safe scheduling.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_custom_trigger.py:trigger_class"
@@ -56,7 +62,7 @@ The remaining four methods cover display and deduplication.
 | `trigger_label` | `()` | `str` | Short label for logs and the web UI. |
 | `trigger_detail` | `()` | `str \| None` | Optional human-readable detail string. |
 | `trigger_db_type` | `()` | `str` | Canonical type string for database storage. Application triggers return `"custom"`. |
-| `trigger_id` | `()` | `str` | Stable identifier for deduplication. `if_exists="skip"` and auto-generated job names both rely on this value. |
+| `trigger_id` | `()` | `str` | Stable identifier for deduplication. [`if_exists="skip"`](methods.md#idempotent-registration) and auto-generated job names both rely on this value. |
 
 ## See Also
 

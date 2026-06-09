@@ -58,7 +58,7 @@ A job can cancel itself from inside its own handler. The `ScheduledJob` referenc
 
 ## Prevent overlapping executions
 
-When a handler takes longer than its interval, the scheduler launches a new execution before the previous one finishes. An `asyncio.Lock` prevents concurrent runs:
+The scheduler fires each tick independently — it does not track whether the previous execution has finished. When a handler takes longer than its interval, a new execution starts before the previous one finishes. An `asyncio.Lock` prevents concurrent runs:
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
@@ -75,7 +75,7 @@ On exception, Hassette logs the error, records it for telemetry, and keeps the j
 `scheduler.on_error(handler)` registers a fallback handler for all jobs on this scheduler that lack a per-registration handler. The handler resolves at dispatch time, not at registration time.
 
 !!! warning "Registration order matters"
-    `on_error()` must run before any job is registered in `on_initialize()`. A job that fires before `on_error()` is registered has no handler for that execution.
+    `on_error()` must run before any job is registered in `on_initialize()`. For example, if you call `run_in(handler, delay=1)` before `on_error()`, and the job fires within that 1-second window while `on_initialize()` is still running, no error handler is registered for that execution.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_error_handler_app.py"
@@ -109,7 +109,7 @@ Both levels accept sync or async callables.
 
 The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter]` seconds and applied at enqueue time.
 
-Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged, and the trigger's interval grid is not affected.
+Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged — a job scheduled every 60 seconds targets T+60, T+120, T+180 regardless of jitter. The random offset shifts the actual dispatch within each window but does not compound across runs.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_jitter.py:jitter"

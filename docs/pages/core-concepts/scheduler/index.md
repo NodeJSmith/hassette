@@ -38,11 +38,17 @@ The `delay` parameter accepts seconds as a `float`. The job fires once and does 
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_daily.py"
 ```
 
-The `at` parameter accepts `"HH:MM"` strings. `run_daily` is DST-safe. It uses a cron expression internally and fires at the local wall-clock time regardless of clock changes.
+The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at midnight local time. `run_daily` is DST-safe — it fires at the local wall-clock time regardless of clock changes.
 
 ## Synchronous Usage
 
-An [`AppSync`][hassette.app.app.AppSync] app runs its lifecycle hooks outside the async event loop. `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls for those hooks. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+[`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop, so `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. If you subclassed `App` (not `AppSync`), you can skip this section. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+
+`name=` identifies each job in logs and the monitoring UI. It must be unique within the app instance — see [Scheduling Methods](methods.md) for details.
+
+## Verify It's Working
+
+Run `hassette job` to see all scheduled jobs for your running instance. Run `hassette log --app <key> --since 5m` to see job execution output.
 
 ## Next Steps
 

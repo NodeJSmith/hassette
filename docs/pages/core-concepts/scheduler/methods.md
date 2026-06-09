@@ -113,7 +113,7 @@ The handler runs once at a specific wall-clock time. The [`Once`][hassette.sched
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
-| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A `ZonedDateTime` fires at the exact instant specified. |
+| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
 | `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when a `"HH:MM"` target has already passed today. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` instead. Has no effect on `ZonedDateTime` inputs. |
 
 Shared parameters apply.
@@ -146,7 +146,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `name` | `str` | `""` | Name for the job. Auto-generated from the callable and trigger when empty. Must be unique within the app instance. |
+| `name` | `str` | `""` | Identifies the job in logs and the monitoring UI. Auto-generated from the callable and trigger when empty. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
 | `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
 | `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Job Management](management.md) for jitter. |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler_job_timeout_seconds` setting. |
