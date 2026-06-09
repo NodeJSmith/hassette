@@ -5,7 +5,7 @@ Downloads the wheel for a given version from PyPI and checks for the
 same assets as check_wheel_spa.py. Intended for post-publish verification.
 
 Usage:
-    python tools/check_pypi_wheel.py --version 0.38.0
+    python tools/release/check_pypi_wheel.py --version 0.38.0
 """
 
 import argparse

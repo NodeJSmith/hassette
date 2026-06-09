@@ -5,7 +5,7 @@ Intended to run in CI after `uv build` and before publishing to PyPI.
 Exits non-zero if any wheel in the dist directory is missing the SPA.
 
 Usage:
-    python tools/check_wheel_spa.py [--dist-dir dist]
+    python tools/release/check_wheel_spa.py [--dist-dir dist]
 """
 
 import argparse

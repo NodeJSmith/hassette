@@ -76,7 +76,7 @@ jobs:
                   TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
               run: |
                   PROJECT_VERSION=$(uv version --short)
-                  uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
+                  uv run ./tools/release/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
             - name: Verify VERSION and IS_STABLE_RELEASE are set for releases
               if: env.IS_RELEASE == 'true'
