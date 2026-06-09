@@ -245,7 +245,7 @@ Each consumer file is updated to:
 
 **Files updated (infrastructure):**
 - `frontend/src/global.css` — remove 4 `@import` lines
-- `tools/check_global_css_allowlist.py` — remove deleted prefixes from allowlist
+- `tools/frontend/check_global_css_allowlist.py` — remove deleted prefixes from allowlist
 - `frontend/src/components/app-detail/job-executions.test.tsx` — update badge selectors
 - `frontend/src/components/layout/error-boundary.test.tsx` — update error-card selector
 

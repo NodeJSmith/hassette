@@ -11,7 +11,7 @@ Maintains an annotated exemption list for:
   - Parser false positives (e.g. woff2 from @font-face src)
 
 Usage:
-    python tools/check_dead_global_css.py
+    python tools/frontend/check_dead_global_css.py
 """
 
 import contextlib
@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
 STYLES_DIR = REPO_ROOT / "frontend" / "src" / "styles"
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
@@ -119,7 +119,7 @@ def main() -> int:
         print()
         print("These classes are not referenced in any .ts/.tsx file.")
         print("Either remove them from the style files, or add to EXEMPTIONS in")
-        print("tools/check_dead_global_css.py if the class is dynamically assembled.")
+        print("tools/frontend/check_dead_global_css.py if the class is dynamically assembled.")
     else:
         print(f"OK: all {len(all_classes)} class selectors in global CSS appear to be referenced.")
         print(f"({len(exempted)} class(es) skipped — on exemption list)")

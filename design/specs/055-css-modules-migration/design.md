@@ -151,10 +151,10 @@ import styles from './sidebar.module.css';
 <div class={clsx(styles.appItem, isActive && styles.active, isBlocked && "is-blocked")}>
 ```
 
-**CI lint guard** (`tools/check_global_css_allowlist.py`):
+**CI lint guard** (`tools/frontend/check_global_css_allowlist.py`):
 A Python script that extracts all `.ht-*` selectors from `global.css`, compares against an allowlist of shared class prefixes, and fails if unknown selectors are found. Added to CI pipeline (`lint.yml`). The allowlist is maintained in the script. Includes a smoke test fixture (known-allowed + known-disallowed selectors) that runs in CI.
 
-**`:global()` correctness check** (`tools/check_css_module_globals.py`):
+**`:global()` correctness check** (`tools/frontend/check_css_module_globals.py`):
 A Python script that greps `.module.css` files for bare state modifier patterns (e.g., `.className.is-active` without `:global()`) and exits non-zero on match. Catches the silent failure where state modifier CSS is scoped instead of global.
 
 **CI wiring** (`lint.yml` additions in Batch 1):
@@ -165,15 +165,15 @@ The frontend job in `lint.yml` must be updated to include:
 - name: Type check
   run: npx tsc --noEmit
 - name: Check CSS module :global() correctness
-  run: uv run python tools/check_css_module_globals.py
+  run: uv run python tools/frontend/check_css_module_globals.py
 - name: Check global CSS allowlist
-  run: uv run python tools/check_global_css_allowlist.py
+  run: uv run python tools/frontend/check_global_css_allowlist.py
 - name: Check dead global CSS (warning)
-  run: uv run python tools/check_dead_global_css.py || true
+  run: uv run python tools/frontend/check_dead_global_css.py || true
 ```
 The `npm run build` step must precede `tsc --noEmit` so generated `.d.ts` files exist when type checking runs. The allowlist guard runs in diff-only mode during migration (checks `git diff` against allowlist, not the full file) and upgrades to full-file mode after migration completes.
 
-**Dead CSS detection** (`tools/check_dead_global_css.py`):
+**Dead CSS detection** (`tools/frontend/check_dead_global_css.py`):
 A Python script that extracts all class selectors from `global.css` and checks each against `.tsx` files. Reports any selector not referenced in any component. Maintains an annotated exemption list for known dynamically-assembled class families (`ht-badge--*`, `ht-chip--kind-*`, `ht-detail-stats-row__value--*`, `ht-stats-strip__value--*`) and third-party injected classes (`shiki`, `line`, `line--*`). Runs in CI as a warning during migration, upgraded to blocking after migration completes.
 
 ### Module file pattern
@@ -378,9 +378,9 @@ Running `nox -s e2e` alone will test the previously-built SPA, not the current C
 - `frontend/tsconfig.json` or new `frontend/src/css-modules.d.ts` (ambient type declaration)
 
 **Files created (tooling):**
-- `tools/check_global_css_allowlist.py` (CI lint guard)
-- `tools/check_dead_global_css.py` (dead CSS detection)
-- `tools/check_css_module_globals.py` (`:global()` correctness check)
+- `tools/frontend/check_global_css_allowlist.py` (CI lint guard)
+- `tools/frontend/check_dead_global_css.py` (dead CSS detection)
+- `tools/frontend/check_css_module_globals.py` (`:global()` correctness check)
 
 **Files modified (CI):**
 - `.github/workflows/lint.yml` (add `vite build` before `tsc`, add CSS guard steps)

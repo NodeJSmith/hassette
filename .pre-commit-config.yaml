@@ -72,7 +72,7 @@ repos:
       - id: check-css-refs
         name: Check undefined CSS refs in TSX
         language: system
-        entry: uv run python tools/check_undefined_css_refs.py
+        entry: uv run python tools/frontend/check_undefined_css_refs.py
         types_or: [ts, tsx, css]
         files: ^frontend/src/
         pass_filenames: false

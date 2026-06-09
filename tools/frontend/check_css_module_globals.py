@@ -14,14 +14,14 @@ The correct pattern is:
 Exits non-zero if any match is found.
 
 Usage:
-    python tools/check_css_module_globals.py
+    python tools/frontend/check_css_module_globals.py
 """
 
 import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 
 # State modifier class names that are applied as string literals at runtime

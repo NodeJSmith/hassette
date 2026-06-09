@@ -6,8 +6,8 @@ them against an allowlist of shared class prefixes. Exits non-zero if any
 unknown selector is found.
 
 Usage:
-    python tools/check_global_css_allowlist.py              # check full file
-    python tools/check_global_css_allowlist.py --diff-only  # check only git diff
+    python tools/frontend/check_global_css_allowlist.py              # check full file
+    python tools/frontend/check_global_css_allowlist.py --diff-only  # check only git diff
 """
 
 import argparse
@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
 STYLES_DIR = REPO_ROOT / "frontend" / "src" / "styles"
 
@@ -189,7 +189,7 @@ def main() -> int:
         print()
         print("These selectors are not on the global.css allowlist.")
         print("Move component-specific styles to a co-located .module.css file,")
-        print("or add the prefix to ALLOWLIST in tools/check_global_css_allowlist.py")
+        print("or add the prefix to ALLOWLIST in tools/frontend/check_global_css_allowlist.py")
         print("if the class is genuinely shared (used across 3+ component files).")
         return 1
 

@@ -10,7 +10,7 @@ This is the inverse of check_dead_global_css.py:
   - this check: "are all referenced CSS classes defined?" (TSX → CSS)
 
 Usage:
-    python tools/check_undefined_css_refs.py
+    python tools/frontend/check_undefined_css_refs.py
 """
 
 import contextlib
@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
 STYLES_DIR = REPO_ROOT / "frontend" / "src" / "styles"
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"

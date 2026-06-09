@@ -163,7 +163,7 @@ Each section is evaluated against concrete reader outcomes:
 
 - **mkdocs and plugins** (search, glightbox, panzoom, gen-files, literate-nav, autorefs, mkdocstrings) — all stay as-is; the rewrite is content, not tooling
 - **Pyright CI** — snippet type-checking continues using `docs/pyrightconfig.json`
-- **CSS checker scripts** (`tools/check_global_css_allowlist.py`, etc.) — no interaction with docs content
+- **CSS checker scripts** (`tools/frontend/check_global_css_allowlist.py`, etc.) — no interaction with docs content
 - **Assumption:** Issue #540 ("final docs sweep before v1.0.0") is superseded by this issue and should be closed when work begins
 - **Assumption:** The current 258 snippet files will be largely replaced — the Phase 2 audit determines which survive
 

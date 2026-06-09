@@ -329,10 +329,10 @@ Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped 
 
 Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
 
-- **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
-- **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
-- **`tools/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
-- **`tools/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
+- **`tools/frontend/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
+- **`tools/frontend/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
+- **`tools/frontend/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
+- **`tools/frontend/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/frontend/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
 
 ### Adding a new shared class
 
@@ -340,8 +340,8 @@ For classes that don't warrant a component (layout utilities, typography helpers
 
 1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
 2. Add it to the appropriate file in `frontend/src/styles/`
-3. Add its prefix to `ALLOWLIST` in `tools/check_global_css_allowlist.py`
-4. Run `uv run python tools/check_global_css_allowlist.py` to verify
+3. Add its prefix to `ALLOWLIST` in `tools/frontend/check_global_css_allowlist.py`
+4. Run `uv run python tools/frontend/check_global_css_allowlist.py` to verify
 
 For new reusable visual elements (like buttons, badges), create a shared component with a co-located `.module.css` file in `components/shared/` instead of adding global classes.
 
