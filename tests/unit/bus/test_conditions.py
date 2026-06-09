@@ -4,6 +4,8 @@ Tests condition matchers like Contains, EndsWith, StartsWith, Present, Missing,
 Glob, Regex, etc. that are used within predicates to test extracted values.
 """
 
+import pytest
+
 from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
     Comparison,
@@ -172,39 +174,46 @@ def test_comparison_condition() -> None:
     assert equal_to(10) is False
 
 
-def test_comparison_numeric_string_coercion() -> None:
-    """Comparison coerces string values to float when compare_to is numeric."""
-    assert Comparison("gt", 75)("80.5") is True
-    assert Comparison("gt", 75)("70.0") is False
-    assert Comparison("lt", 100)("99.9") is True
-    assert Comparison("lt", 100)("200") is False
-    assert Comparison("ge", 75)("75.0") is True
-    assert Comparison("ge", 75)("74.9") is False
-    assert Comparison("le", 75)("75.0") is True
-    assert Comparison("le", 75)("75.1") is False
-    assert Comparison("eq", 0)("0") is True
-    assert Comparison("eq", 0)("1") is False
-    assert Comparison("ne", 0)("1") is True
-    assert Comparison("ne", 0)("0") is False
-    assert Comparison("gt", 75)("80") is True
-    assert Comparison("gt", 20.5)("21.0") is True
-    assert Comparison("gt", 20.5)("20.0") is False
+@pytest.mark.parametrize(
+    ("op", "threshold", "value", "expected"),
+    [
+        ("gt", 75, "80.5", True),
+        ("gt", 75, "70.0", False),
+        ("gt", 75, "80", True),
+        ("gt", 20.5, "21.0", True),
+        ("gt", 20.5, "20.0", False),
+        ("lt", 100, "99.9", True),
+        ("lt", 100, "200", False),
+        ("ge", 75, "75.0", True),
+        ("ge", 75, "74.9", False),
+        ("le", 75, "75.0", True),
+        ("le", 75, "75.1", False),
+        ("eq", 0, "0", True),
+        ("eq", 0, "1", False),
+        ("ne", 0, "1", True),
+        ("ne", 0, "0", False),
+    ],
+)
+def test_comparison_numeric_string_coercion(op: str, threshold: int | float, value: str, expected: bool) -> None:
+    assert Comparison(op, threshold)(value) is expected
 
 
-def test_comparison_non_numeric_string_returns_false() -> None:
-    """Non-numeric strings return False gracefully, no exceptions raised."""
-    assert Comparison("gt", 75)("unavailable") is False
-    assert Comparison("gt", 75)("unknown") is False
-    assert Comparison("gt", 75)("") is False
-    assert Comparison("lt", 50)("unavailable") is False
+@pytest.mark.parametrize("value", ["unavailable", "unknown", ""])
+def test_comparison_non_numeric_string_returns_false(value: str) -> None:
+    assert Comparison("gt", 75)(value) is False
 
 
-def test_comparison_string_to_string_unchanged() -> None:
-    """String-to-string comparisons are unaffected by numeric coercion."""
-    assert Comparison("==", "on")("on") is True
-    assert Comparison("==", "on")("off") is False
-    assert Comparison("!=", "off")("on") is True
-    assert Comparison("!=", "on")("on") is False
+@pytest.mark.parametrize(
+    ("op", "threshold", "value", "expected"),
+    [
+        ("==", "on", "on", True),
+        ("==", "on", "off", False),
+        ("!=", "off", "on", True),
+        ("!=", "on", "on", False),
+    ],
+)
+def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: str, expected: bool) -> None:
+    assert Comparison(op, threshold)(value) is expected
 
 
 def test_condition_summarize_glob() -> None:
