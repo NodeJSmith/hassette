@@ -27,6 +27,19 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SITE_DIR = REPO_ROOT / "site" / "pages"
 
 
+def linkify(element: Tag) -> None:
+    """Replace <a> tags with markdown-style [text](href) text nodes."""
+    for a in element.find_all("a"):
+        href = a.get("href", "")
+        text = a.get_text(strip=True)
+        if not text or not href or href.startswith("#"):
+            continue
+        classes = set(a.get("class", []))
+        if classes & {"md-skip", "md-nav__link", "headerlink", "md-source"}:
+            continue
+        a.replace_with(f"[{text}]({href})")
+
+
 def emit_code_fence(lines: list[str], text: str, indent: str = "", lang: str = "") -> None:
     lines.append(f"{indent}```{lang}")
     lines.append(text)
@@ -131,6 +144,8 @@ def extract_page(html_path: Path) -> list[str]:
     article = soup.find("article", class_="md-content__inner")
     if not article:
         return [f"ERROR: no <article class='md-content__inner'> found in {html_path}"]
+
+    linkify(article)
 
     lines: list[str] = []
     for element in article.children:
