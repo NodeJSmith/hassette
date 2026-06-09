@@ -2,6 +2,8 @@
 
 CLI commands chain together. Start broad, narrow to the problem, then read the full trace.
 
+Two terms appear throughout: a **handler** is a Python function in your app that runs in response to a Home Assistant event (e.g., a motion sensor firing). An **invocation** is a single execution of that handler — one time it ran.
+
 ## Quick Health Checks
 
 Four one-liners for fast answers:

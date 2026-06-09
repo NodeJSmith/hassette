@@ -4,7 +4,7 @@ All commands support `--json` for structured output and `--debug` for verbose er
 
 ## `hassette run`
 
-Starts the Hassette framework server, connects to Home Assistant, loads apps, and starts the web API.
+Starts the Hassette framework server, connects to Home Assistant, loads apps, and starts the web API. The process runs in the foreground — keep the terminal open, or use a process manager like systemd or Docker. Press `Ctrl+C` to stop.
 
 ```bash
 hassette run
