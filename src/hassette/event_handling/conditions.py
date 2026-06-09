@@ -441,6 +441,8 @@ class Comparison:
 
     def __call__(self, value: Any) -> bool:
         try:
+            if isinstance(self.compare_to, (int, float)) and isinstance(value, str):
+                return self.op_fn(float(value), float(self.compare_to))
             return self.op_fn(value, self.compare_to)
         except (TypeError, ValueError):
             return False
