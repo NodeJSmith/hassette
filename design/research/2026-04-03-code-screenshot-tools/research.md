@@ -53,7 +53,7 @@ The `mkdocs.yml` already has `pymdownx.superfences` with custom fence support (c
 - `pymdownx.superfences` custom fences could wrap a code-to-image tool
 - `pymdownx.snippets` already supports including code from files -- the same source files could feed both inline code blocks and image generation
 - MkDocs `gen-files` plugin is already installed and could run a pre-build script
-- The `tools/gen_ref_pages.py` pattern shows the project already uses build-time code generation
+- The `tools/docs/gen_ref_pages.py` pattern shows the project already uses build-time code generation
 
 ### What works against this
 

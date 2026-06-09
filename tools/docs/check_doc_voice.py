@@ -8,10 +8,10 @@ Rules are context-sensitive: "you/your" is fine in getting-started and recipe
 procedure sections but flagged in concept and API reference pages.
 
 Usage:
-    python tools/check_doc_voice.py                    # audit all pages
-    python tools/check_doc_voice.py --page bus/index   # audit one page
-    python tools/check_doc_voice.py --section recipes  # audit one section
-    python tools/check_doc_voice.py --rule em-dash      # show only one rule
+    python tools/docs/check_doc_voice.py                    # audit all pages
+    python tools/docs/check_doc_voice.py --page bus/index   # audit one page
+    python tools/docs/check_doc_voice.py --section recipes  # audit one section
+    python tools/docs/check_doc_voice.py --rule em-dash      # show only one rule
 """
 
 import argparse
@@ -22,7 +22,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = REPO_ROOT / "docs" / "pages"
 
 # Minimum number of Python code lines (excluding fences) to flag as missing snippet

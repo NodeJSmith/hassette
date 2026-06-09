@@ -14,7 +14,7 @@ The question is whether LLMs, prompted with a beginner persona, can simulate tha
 
 ## How We Do It Today
 
-Hassette has a comprehensive voice audit tool (`tools/check_doc_voice.py`) that enforces 15+ prose and structural rules across 71 pages in CI. It catches em dashes, copula avoidance, pronoun violations, stacked admonitions, and missing recipe sections. Code snippets are Pyright-tested via `--8<--` includes. What's missing is any evaluation of whether a page is *followable* by someone who doesn't already know the system.
+Hassette has a comprehensive voice audit tool (`tools/docs/check_doc_voice.py`) that enforces 15+ prose and structural rules across 71 pages in CI. It catches em dashes, copula avoidance, pronoun violations, stacked admonitions, and missing recipe sections. Code snippets are Pyright-tested via `--8<--` includes. What's missing is any evaluation of whether a page is *followable* by someone who doesn't already know the system.
 
 ## Patterns Found
 

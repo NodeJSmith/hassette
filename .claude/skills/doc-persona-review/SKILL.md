@@ -51,9 +51,9 @@ This prints a path like `/tmp/claude-doc-persona-review-a8Kx3Q`. Use it as `$TMP
 
 ```bash
 uv run mkdocs build --strict
-uv run tools/extract_doc_page.py --section <section> --output-dir $TMPDIR/pages
+uv run tools/docs/extract_doc_page.py --section <section> --output-dir $TMPDIR/pages
 # or for a single page:
-uv run tools/extract_doc_page.py <page> --output-dir $TMPDIR/pages
+uv run tools/docs/extract_doc_page.py <page> --output-dir $TMPDIR/pages
 ```
 
 This writes one `.txt` file per page to `$TMPDIR/pages/`. The output lists the files created. Note the filenames — you'll need them for the next step.
@@ -63,7 +63,7 @@ This writes one `.txt` file per page to `$TMPDIR/pages/`. The output lists the f
 For each (page, persona) pair, run the assembler:
 
 ```bash
-uv run tools/assemble_persona_briefing.py <Persona> $TMPDIR/pages/<page-slug>.txt $TMPDIR/briefings
+uv run tools/docs/assemble_persona_briefing.py <Persona> $TMPDIR/pages/<page-slug>.txt $TMPDIR/briefings
 ```
 
 This writes a complete briefing file to `$TMPDIR/briefings/<persona>--<page-slug>.md` containing the task instructions, persona definition, voice guide, doc rules, and page content. The assembler pulls all reference files from their known repo paths.
@@ -71,9 +71,9 @@ This writes a complete briefing file to `$TMPDIR/briefings/<persona>--<page-slug
 Run one command per (page, persona) pair. For efficiency, chain them:
 
 ```bash
-uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--index.txt $TMPDIR/briefings && \
-uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--handlers.txt $TMPDIR/briefings && \
-uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--filtering.txt $TMPDIR/briefings
+uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--index.txt $TMPDIR/briefings && \
+uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--handlers.txt $TMPDIR/briefings && \
+uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--filtering.txt $TMPDIR/briefings
 ```
 
 ## Phase 3: Dispatch Persona Walkthroughs
@@ -165,7 +165,7 @@ End with a summary table:
 
 **Why Sonnet for personas?** Haiku finds roughly the same issues but with weaker reasoning and less precise suggestions. Sonnet produces findings that can be trusted without human verification of each one. The 2x cost difference is worth it since the output directly drives editing decisions. Tested on `first-automation.md`: both models returned the same verdict (followable-with-effort) and overlapping findings, but Sonnet caught unexpanded jargon ("DI parameters"), missing starting-state context, and produced actionable suggestions ("Stop Hassette with Ctrl+C, then run `hassette run` again") where Haiku gave vague pointers.
 
-**Why briefing files?** The main agent only needs page names, persona assignments, and returned findings. All heavy content (page HTML, persona definitions, voice rules, doc rules) is assembled into files by `tools/assemble_persona_briefing.py` and read only by the subagents. This keeps the main context small enough to handle large section audits without compaction.
+**Why briefing files?** The main agent only needs page names, persona assignments, and returned findings. All heavy content (page HTML, persona definitions, voice rules, doc rules) is assembled into files by `tools/docs/assemble_persona_briefing.py` and read only by the subagents. This keeps the main context small enough to handle large section audits without compaction.
 
 **Why not a Python script?** The cognitive walkthrough requires genuine language comprehension (is this term defined? would this step confuse someone?). Pattern matching can't do that. The voice audit script handles mechanical rules; this handles semantic ones.
 

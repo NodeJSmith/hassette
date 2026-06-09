@@ -10,14 +10,14 @@ Handles both full-file includes and fragment includes (section markers):
   --8<-- "pages/core-concepts/bus/snippets/file.py:marker"
 
 Usage:
-    python tools/check_snippet_orphans.py
+    python tools/docs/check_snippet_orphans.py
 """
 
 import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = REPO_ROOT / "docs"
 
 INCLUDE_RE = re.compile(r'--8<--\s+"([^"]+)"')

@@ -6,14 +6,14 @@ on:
             - "docs/**"
             - "mkdocs.yml"
             - "pyproject.toml"
-            - "tools/check_snippet_orphans.py"
+            - "tools/docs/check_snippet_orphans.py"
             - ".github/workflows/docs.yml"
     pull_request:
         paths:
             - "docs/**"
             - "mkdocs.yml"
             - "pyproject.toml"
-            - "tools/check_snippet_orphans.py"
+            - "tools/docs/check_snippet_orphans.py"
             - ".github/workflows/docs.yml"
 
     workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
 
             - name: Check snippet orphans
               continue-on-error: true # TODO: remove after Phase 3 writing cleans up pre-existing orphans
-              run: uv run python tools/check_snippet_orphans.py
+              run: uv run python tools/docs/check_snippet_orphans.py
 
             - name: Upload site artifact
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

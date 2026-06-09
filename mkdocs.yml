@@ -129,7 +129,7 @@ plugins:
       key: "ctrl"
   - gen-files:
       scripts:
-        - tools/gen_ref_pages.py
+        - tools/docs/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
   - autorefs

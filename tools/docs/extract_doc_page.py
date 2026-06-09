@@ -12,9 +12,9 @@ for feeding directly to LLM persona subagents.
 Requires `uv run mkdocs build` to have been run first.
 
 Usage:
-    uv run tools/extract_doc_page.py getting-started/first-automation
-    uv run tools/extract_doc_page.py core-concepts/bus/index
-    uv run tools/extract_doc_page.py --section getting-started
+    uv run tools/docs/extract_doc_page.py getting-started/first-automation
+    uv run tools/docs/extract_doc_page.py core-concepts/bus/index
+    uv run tools/docs/extract_doc_page.py --section getting-started
 """
 
 import argparse
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SITE_DIR = REPO_ROOT / "site" / "pages"
 
 

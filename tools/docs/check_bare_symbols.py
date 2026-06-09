@@ -6,15 +6,15 @@ in documentation pages (not wrapped in backticks or markdown links). These
 should be code-formatted for consistency and to distinguish them from prose.
 
 Usage:
-    python tools/check_bare_symbols.py          # report only
-    python tools/check_bare_symbols.py --fix    # fix in place
+    python tools/docs/check_bare_symbols.py          # report only
+    python tools/docs/check_bare_symbols.py --fix    # fix in place
 """
 
 import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = REPO_ROOT / "docs" / "pages"
 
 SYMBOLS = {
@@ -53,7 +53,7 @@ def check_page(path: Path, fix: bool = False) -> list[str]:
             continue
         # Skip code fences (handled above), table rows, and headings. Symbols in
         # headings are titles by convention and are not code-formatted.
-        # NOTE: tools/check_xref_coverage.py applies the same three skips — keep in sync.
+        # NOTE: tools/docs/check_xref_coverage.py applies the same three skips — keep in sync.
         stripped = line.strip()
         if in_code or stripped.startswith("|") or stripped.startswith("#"):
             new_lines.append(line)

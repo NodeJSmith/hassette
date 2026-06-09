@@ -158,12 +158,12 @@ Run mechanical checks scaled to the scope of work.
 
 ### For 3+ pages, also run
 
-- Snippet orphan check: `uv run python tools/check_snippet_orphans.py`
-- Bare symbol check: `uv run python tools/check_bare_symbols.py`
+- Snippet orphan check: `uv run python tools/docs/check_snippet_orphans.py`
+- Bare symbol check: `uv run python tools/docs/check_bare_symbols.py`
 
 ### For 5+ pages, also run
 
-- Cross-reference coverage: `uv run python tools/check_xref_coverage.py`
+- Cross-reference coverage: `uv run python tools/docs/check_xref_coverage.py`
 - Link checker: build site then run muffet
 
 ### Voice spot-check (5+ pages)

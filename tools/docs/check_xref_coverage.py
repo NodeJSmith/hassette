@@ -89,7 +89,7 @@ XREF_MAP = {
 BACKTICK_RE = re.compile(r"(?<!\[)`([A-Z][A-Za-z]+)`(?!\])")
 
 
-# NOTE: tools/check_bare_symbols.py applies the same code/heading/table skips — keep in sync.
+# NOTE: tools/docs/check_bare_symbols.py applies the same code/heading/table skips — keep in sync.
 def is_in_code_block(text: str, pos: int) -> bool:
     """Check if position is inside a fenced code block."""
     before = text[:pos]

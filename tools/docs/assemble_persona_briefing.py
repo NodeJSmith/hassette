@@ -9,8 +9,8 @@ doc rules, and extracted page content into a single file that a subagent
 can read and execute.
 
 Usage:
-    uv run tools/assemble_persona_briefing.py Alex /tmp/pages/core-concepts--bus--index.txt /tmp/briefings/
-    uv run tools/assemble_persona_briefing.py Jordan /tmp/pages/recipes--motion-lights.txt /tmp/briefings/
+    uv run tools/docs/assemble_persona_briefing.py Alex /tmp/pages/core-concepts--bus--index.txt /tmp/briefings/
+    uv run tools/docs/assemble_persona_briefing.py Jordan /tmp/pages/recipes--motion-lights.txt /tmp/briefings/
 
 Output file is named {persona}--{page-slug}.md in the output directory.
 """
@@ -20,7 +20,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "doc-persona-review"
 RULES_DIR = REPO_ROOT / ".claude" / "rules"
 

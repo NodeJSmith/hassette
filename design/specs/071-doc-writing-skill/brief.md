@@ -53,5 +53,5 @@ Replace the single-purpose `hassette.doc-overhaul` skill with a general-purpose 
 - Voice rules: `.claude/rules/voice-guide.md` (22 rules with before/after examples)
 - Doc rules: `.claude/rules/doc-rules.md` (page templates, snippet conventions, layering)
 - Design completeness rule: `.claude/rules/design-completeness.md` (triggers for when docs are needed)
-- Quality gate scripts: `tools/check_snippet_orphans.py`, `tools/check_xref_coverage.py`, `tools/check_bare_symbols.py`
+- Quality gate scripts: `tools/docs/check_snippet_orphans.py`, `tools/docs/check_xref_coverage.py`, `tools/docs/check_bare_symbols.py`
 - Hassette-specific references in writing-prompt-template.md: 17 occurrences (source file paths, import conventions)

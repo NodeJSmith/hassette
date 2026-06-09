@@ -23,7 +23,7 @@ Each section is evaluated against concrete reader outcomes:
 
 ## Non-Goals
 
-- API reference auto-generation (`tools/gen_ref_pages.py`) — Phase 1 reviews which modules are in `PUBLIC_MODULES` but does not rewrite the generator
+- API reference auto-generation (`tools/docs/gen_ref_pages.py`) — Phase 1 reviews which modules are in `PUBLIC_MODULES` but does not rewrite the generator
 - Source code docstrings — separate concern from the docs site
 - Design documents in `design/` — not part of the docs site
 - Frontend/CSS/design system changes

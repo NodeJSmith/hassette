@@ -52,7 +52,7 @@ Each section PR is evaluated against these reader outcomes, not just voice consi
 - Two exemplar pages before bulk writing
 
 **Explicitly out:**
-- API reference auto-generation (`tools/gen_ref_pages.py`) — review in Phase 1 but don't rewrite the generator
+- API reference auto-generation (`tools/docs/gen_ref_pages.py`) — review in Phase 1 but don't rewrite the generator
 - Docstrings in source code — those are a separate concern from the docs site
 - Design documents in `design/` — not part of the docs site
 - `tokens.css`, design system, or frontend changes — docs content only
