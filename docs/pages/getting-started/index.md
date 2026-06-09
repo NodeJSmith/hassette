@@ -34,17 +34,17 @@ Replace the token value with the one you created in step 2. Update `HASSETTE__BA
 
 ## 4. Create your first app
 
+Your app methods use `async def`, and calls to Hassette services need `await` in front of them. The rule: write `async def` for all your app methods, and add `await` before any call to `self.bus`, `self.scheduler`, or `self.api`. Regular calls like `self.logger.info()` do not need `await`. That covers everything in this guide.
+
 ```python
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
 Save this as `apps/main.py`. Hassette scans `apps/` for any class that inherits from `App` and runs all of them.
 
-`MyAppConfig` declares your app's settings as typed class attributes. Hassette loads values from environment variables and `hassette.toml` automatically. `App[MyAppConfig]` ties the config to the app so `self.app_config` is always the right type.
+`MyAppConfig` declares your app's settings as typed class attributes. Hassette loads values from environment variables and [`hassette.toml`](../core-concepts/configuration/index.md) automatically. `App[MyAppConfig]` ties the config to the app so `self.app_config` is always the right type.
 
-The `async def` and `await` keywords appear throughout Hassette. The rule: write `async def` for all your app methods, and add `await` before any call to `self.bus`, `self.scheduler`, or `self.api`. Regular calls like `self.logger.info()` do not need `await`. That covers everything in this guide.
-
-Every app inherits four objects from Hassette: `self.logger` (Python logger), `self.bus` (event subscriptions), `self.scheduler` (timed jobs), and `self.api` (Home Assistant service calls). Hassette creates them at startup. You just use them.
+Every app inherits four objects from Hassette: `self.logger` (Python logger), `self.bus` (listens for things happening in Home Assistant, like a light turning on), `self.scheduler` (runs functions on a timer), and `self.api` (sends commands to Home Assistant). Hassette creates them at startup. You just use them.
 
 ## 5. Run Hassette
 
@@ -86,7 +86,7 @@ hassette app
 └─────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴────────────┘
 ```
 
-`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invoc/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal here since the app has not subscribed to any events yet.
+`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invoc/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
 
 !!! tip "Having trouble?"
     If Hassette fails to connect, check `HASSETTE__BASE_URL` in your `.env` and confirm the token is correct. See [Troubleshooting](../troubleshooting.md) for common issues.

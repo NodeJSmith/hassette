@@ -21,6 +21,10 @@ Four areas change: configuration, app structure, event handlers, and API calls. 
 | Access app config | `self.args["entity"]` | `self.app_config.entity` | [Configuration](configuration.md) |
 | Logging | `self.log("message")` | `self.logger.info("message")` | [Mental Model](concepts.md) |
 
+`name=` in the bus rows above is **required** — it identifies the listener in logs and the monitoring UI. Use a descriptive string like `"kitchen_motion"`. Omitting it raises `ListenerNameRequiredError` at runtime. AppDaemon has no equivalent.
+
+All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppDaemon, `self.listen_state` registers immediately. In Hassette, forgetting `await` means nothing registers — no error, no warning, just silence.
+
 ## Is Migration Worth It?
 
 | Migrate if... | Stay with AppDaemon if... |

@@ -35,13 +35,13 @@ Add this to your `pyproject.toml`:
 --8<-- "pages/testing/snippets/testing_quick_start.py"
 ```
 
-**`AppTestHarness`** runs your app against a test environment. `RecordingApi` replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`.
+[`AppTestHarness`][hassette.test_utils.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`.
 
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"
 ```
 
-The `async with` block handles the full app lifecycle: it calls `on_initialize()`, waits for all listeners to register with the bus, then yields. When the block exits, the harness calls `on_shutdown()` and cancels any running tasks.
+The `async with` block handles the full app lifecycle: it calls `on_initialize()`, waits for all listeners to register with the bus (Hassette's event pub/sub system), then yields. When the block exits, the harness calls `on_shutdown()` and cancels any running tasks.
 
 **`simulate_state_change()`** publishes a `state_changed` event through the bus and waits for all triggered handlers to finish before returning.
 
@@ -55,7 +55,7 @@ The `async with` block handles the full app lifecycle: it calls `on_initialize()
 --8<-- "pages/testing/snippets/testing_quick_start.py:assert_called"
 ```
 
-If your handler reads entity state during handling (e.g., checking whether a light is already on before toggling it), seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the state proxy (the in-process state store that app code reads via `self.states`) without publishing a bus event, so no handlers fire. Seed before you simulate.
+If your handler reads entity state during handling (e.g., checking whether a light is already on before toggling it), seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the in-process entity state cache that `self.states` reads from, without publishing a bus event, so no handlers fire. Seed before you simulate.
 
 ```python
 --8<-- "pages/testing/snippets/testing_seed_state.py:seed"

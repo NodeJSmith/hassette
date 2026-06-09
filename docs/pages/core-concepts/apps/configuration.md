@@ -1,8 +1,8 @@
 # Application Configuration
 
-Apps are registered in `hassette.toml` under `[hassette.apps.<key>]`. Each block tells Hassette which Python file and class to load, and passes configuration values to the app.
+Apps are registered in `hassette.toml` (at the project root — the same directory you run `hassette run` from) under `[hassette.apps.<key>]`. Each block tells Hassette which Python file and class to load, and passes configuration values to the app.
 
-This page covers the TOML side of app configuration. [Apps](../apps/index.md) covers defining typed `AppConfig` models in Python.
+This page covers the TOML side of app configuration. [Apps](../apps/index.md) covers defining typed [`AppConfig`][hassette.app.app_config.AppConfig] models in Python — the class that declares and validates the fields your app accepts.
 
 ## Registering an App
 

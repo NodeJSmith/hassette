@@ -1,10 +1,10 @@
 # Task Bucket
 
-`self.task_bucket` runs background work and offloads blocking calls to threads. The bucket tracks all spawned tasks and cancels them on shutdown.
+`self.task_bucket` is available on every [`App`](../apps/index.md) instance. It runs background work and offloads blocking calls to threads. The task bucket tracks all spawned tasks and cancels them on shutdown.
 
 ## Spawning Background Tasks
 
-`spawn(coro, *, name=None)` creates a tracked background task from a coroutine. The bucket owns the task's lifecycle. The returned `asyncio.Task` is available for inspection or cancellation.
+`self.task_bucket.spawn(coro, *, name=None)` creates a tracked background task from a coroutine. The task bucket owns the task's lifecycle. The returned `asyncio.Task` is available for inspection or cancellation.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:spawn"
