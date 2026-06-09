@@ -6,6 +6,12 @@ Hassette ships `hassette.test_utils` with `AppTestHarness`, an async test harnes
 
 ## Setup
 
+**Install test dependencies:**
+
+```bash
+pip install pytest pytest-asyncio    # or: uv add --dev pytest pytest-asyncio
+```
+
 **Add `asyncio_mode = "auto"` to your `pyproject.toml`:**
 
 ```toml

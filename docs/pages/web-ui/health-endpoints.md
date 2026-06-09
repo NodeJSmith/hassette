@@ -9,6 +9,16 @@ Hassette exposes three HTTP health endpoints and a telemetry-specific status end
 | Human inspection | `/api/health` | Dashboards, `hassette status`, manual checks |
 | Telemetry health | `/api/telemetry/status` | Monitoring whether the telemetry DB is functional |
 
+## Quick Check
+
+Confirm the endpoints are reachable before wiring them into Docker or systemd:
+
+```bash
+curl http://localhost:8126/api/health/live
+```
+
+A running Hassette instance returns `{"status": "live"}`. A connection error means Hassette is not running or the port is wrong.
+
 ## Liveness: `/api/health/live`
 
 The liveness endpoint returns HTTP 200 with `{"status": "live"}` whenever the process is up. It performs no dependency check. Home Assistant being down, the database being unavailable, or the WebSocket being disconnected have no effect on the response.

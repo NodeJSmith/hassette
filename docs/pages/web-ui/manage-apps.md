@@ -65,6 +65,6 @@ The **STATUS** badge on each row reflects the app's current lifecycle state.
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
 | `CRASHED` | The app crashed and cannot recover. Check the error details and restart manually. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
-| `BLOCKED` | Another app has the `@only_app` decorator, excluding this app from running. The block resolves automatically when the blocking app is removed or reloaded. |
+| `BLOCKED` | Another app has the [`@only_app`](../core-concepts/apps/lifecycle.md) decorator (restricts Hassette to running only that app, useful for focused debugging), excluding this app from running. The block resolves automatically when the blocking app is removed or reloaded. |
 
 For the full lifecycle state machine and transition rules, see [Apps lifecycle](../core-concepts/apps/lifecycle.md).

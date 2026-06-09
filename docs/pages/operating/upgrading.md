@@ -18,13 +18,19 @@ uv pip show hassette
 
 How you upgrade depends on how you installed Hassette.
 
-**pip / uv (project install)**
+**pip**
+
+```bash
+pip install --upgrade hassette
+```
+
+**uv (project dependency)**
 
 ```bash
 uv add hassette@latest
 ```
 
-This updates `pyproject.toml` and installs the new version into your project environment.
+This updates `pyproject.toml` and installs the new version into your project environment. If you installed Hassette as a uv tool rather than a project dependency, run `uv tool upgrade hassette` instead.
 
 **Docker**
 
@@ -51,6 +57,9 @@ Entries without either signal are safe to take without changes to your app code.
 ## Major Version Upgrades
 
 Hassette includes the major version in its data directory path. The current data directory is `~/.local/share/hassette/v0/`. A future v1 release will use `~/.local/share/hassette/v1/` and start with an empty database.
+
+!!! warning "Back up before major upgrades"
+    Copy your data directory (`~/.local/share/hassette/v0/` on Linux) to a safe location before upgrading across major versions. The new version starts with an empty database if paths are not explicitly set.
 
 If you want to carry your history forward across a major version bump, set `data_dir` and `config_dir` explicitly in your `hassette.toml` before upgrading:
 

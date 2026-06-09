@@ -73,6 +73,22 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
     --8<-- "pages/migration/snippets/api_hassette_set_state.py"
     ```
 
+## Firing Events
+
+=== "AppDaemon"
+
+    ```python
+    self.fire_event("custom_event", entity_id="sensor.test", value=42)
+    ```
+
+=== "Hassette"
+
+    ```python
+    await self.api.fire_event("custom_event", {"entity_id": "sensor.test", "value": 42})
+    ```
+
+`fire_event` sends an event to Home Assistant's event bus. The event data is a dict in Hassette (AppDaemon accepts kwargs). For broadcasting between apps in the same Hassette process without leaving the framework, use [`self.bus.emit()`](../core-concepts/bus/handlers.md#cross-app-communication) instead.
+
 ## Logging
 
 AppDaemon provides `self.log()` and `self.error()`. Hassette uses Python's standard `logging` module via `self.logger`.
