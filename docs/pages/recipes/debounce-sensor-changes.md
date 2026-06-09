@@ -14,7 +14,9 @@ Your outdoor temperature sensor reports a reading every few seconds. On a warm a
 
 `changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
 
-`D.StateNew[states.SensorState]` is a dependency injection annotation. `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md), a module of type annotations that tell Hassette what to extract from each event. Hassette reads the annotation, extracts the new state from the event, and converts it to a [`SensorState`][hassette.models.states.sensor.SensorState] object. The handler receives the typed state and converts `.value` to a float before comparing it to `THRESHOLD`.
+`D.StateNew[states.SensorState]` is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation. `D` is an alias for `hassette.event_handling.dependencies` — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`SensorState`][hassette.models.states.sensor.SensorState] object. `SensorState.value` is a `str` (HA state values are always strings), so the handler converts it to a `float` before comparing against `THRESHOLD`. The `try`/`except` guards against `"unavailable"` or `"unknown"` values that HA sensors report during startup.
+
+`name=` on `on_state_change` is required — it identifies the listener in the database and in `hassette listener` output.
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 
