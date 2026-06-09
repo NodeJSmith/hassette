@@ -186,9 +186,7 @@ def test_comparison_numeric_string_coercion() -> None:
     assert Comparison("eq", 0)("1") is False
     assert Comparison("ne", 0)("1") is True
     assert Comparison("ne", 0)("0") is False
-    # int compare_to against string value
     assert Comparison("gt", 75)("80") is True
-    # float compare_to against string value
     assert Comparison("gt", 20.5)("21.0") is True
     assert Comparison("gt", 20.5)("20.0") is False
 
