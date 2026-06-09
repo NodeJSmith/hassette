@@ -34,7 +34,7 @@ flowchart TD
 
 ### Domain Access
 
-`self.states.light`, `self.states.sensor`, and similar domain properties return a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection, a typed view of every entity in that domain.
+`self.states.light`, `self.states.sensor`, and similar domain properties return a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection — a dict-like view keyed by entity name, typed to that domain's state class.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_domain_access.py"
@@ -46,7 +46,7 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 
 ### Direct Entity Access
 
-`self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific registered type. [`LightState`][hassette.models.states.light.LightState] for `light.*`, [`SensorState`][hassette.models.states.sensor.SensorState] for `sensor.*`, `BaseState` for anything unregistered.
+`self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific built-in type for that domain. [`LightState`][hassette.models.states.light.LightState] for `light.*`, [`SensorState`][hassette.models.states.sensor.SensorState] for `sensor.*`, `BaseState` for any domain without a built-in class.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_direct_access.py"
@@ -76,7 +76,7 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`extras`** and **`extra(key, default=None)`** access untyped state fields not declared on the `BaseState` model. Typed attributes cover the common cases; these handle the rest.
 
-**`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA. `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
+**`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA (`ZonedDateTime` is from the [`whenever`](https://whenever.readthedocs.io/) library — Hassette's date/time type). `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
 
 **`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
 
@@ -106,7 +106,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 ## Iterating Over States
 
-`DomainStates` supports direct iteration over `(entity_id, state)` pairs, plus `.keys()`, `.values()`, `.to_dict()`, containment checks (`"kitchen" in self.states.light`), and `len()`.
+`DomainStates` supports direct iteration over `(entity_id, state)` pairs — `for entity_id, state in self.states.sensor` yields tuples, unlike a plain `dict` which yields keys. `.keys()`, `.values()`, `.to_dict()`, containment checks (`"kitchen" in self.states.light`), and `len()` also work.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"

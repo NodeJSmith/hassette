@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import Literal
 
 from hassette.models.states import BaseState
 
@@ -10,5 +10,5 @@ class LightAttributes(BaseState):  # simplified for example
 class LightState(BaseState):
     """State model for light entities."""
 
-    domain: ClassVar[str] = "light"
+    domain: Literal["light"]
     attributes: LightAttributes

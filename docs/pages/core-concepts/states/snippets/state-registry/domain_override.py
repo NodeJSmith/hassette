@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import Literal
 
 from hassette.models.states import SensorAttributes, SensorState
 
@@ -10,5 +10,5 @@ class CustomSensorAttributes(SensorAttributes):
 class CustomSensorState(SensorState):
     """Extended sensor state with custom attributes."""
 
-    domain: ClassVar[str] = "sensor"
+    domain: Literal["sensor"]
     attributes: CustomSensorAttributes

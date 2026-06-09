@@ -1,6 +1,6 @@
 # Custom States
 
-Hassette auto-generates typed state classes for standard Home Assistant domains. For custom integrations or third-party add-ons, a custom state class maps an unrecognized domain to a typed Python model. The State Registry picks up the class automatically at definition time.
+Hassette auto-generates typed state classes for standard Home Assistant domains. For custom integrations or third-party add-ons, a custom state class maps an unrecognized domain to a typed Python model. The [State Registry](conversion.md) — Hassette's internal mapping from domain strings to state classes — picks up the class automatically at definition time via `__init_subclass__`.
 
 ## Defining a Custom State
 
@@ -44,7 +44,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `DateTimeBaseState`: `ZonedDateTime`, `PlainDateTime`, or `Date` value
 
-[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] parses the raw state string into a `whenever` datetime type. The exact type depends on the string format from Home Assistant.
+[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). The exact type depends on the string format from Home Assistant.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
@@ -70,7 +70,7 @@ When no built-in base class fits, a class can inherit from `BaseState[T]` direct
 
 ## Adding Typed Attributes
 
-Domain-specific attributes beyond `value` belong in an attributes class that inherits from [`AttributesBase`][hassette.models.states.base.AttributesBase]. The `attributes` field on the state class accepts this class, overriding the default.
+Domain-specific attributes beyond `value` belong in an attributes class that inherits from [`AttributesBase`][hassette.models.states.base.AttributesBase] — a Pydantic model subclass where fields map to HA attribute keys by name. The `attributes` field on the state class accepts this class, overriding the default.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/adding_custom_attributes.py"

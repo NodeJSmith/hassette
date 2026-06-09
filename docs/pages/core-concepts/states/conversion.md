@@ -6,8 +6,7 @@ The registries become relevant when overriding domain mappings, registering cust
 
 ## The Conversion Pipeline
 
-When state data arrives from Home Assistant, `StateRegistry` and `TypeRegistry` work in
-sequence. Given this raw input:
+When state data arrives from Home Assistant, `StateRegistry.try_convert_state()` runs the full pipeline — called automatically by the dependency injection system, or directly when using the registry API. Given this raw input:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
@@ -32,8 +31,7 @@ The pipeline runs five steps:
 ```
 
 `StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?".
-Each class declares its expected `value_type` as a `ClassVar`, which tells `TypeRegistry`
-what to produce:
+Each state class declares a `value_type` class variable — the type (or tuple of types) the `value` field should hold. `TypeRegistry` reads this and selects the right converter:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
@@ -113,7 +111,7 @@ applies it.
 When no registered converter exists, the registry tries the target type's constructor as a
 fallback. A successful constructor call auto-registers the pair for future calls.
 
-For union `value_type` declarations (`value_type = (int, float, str)`), conversion attempts each member in order. The most specific type belongs first. `str` matches everything, so `(int, float, str)` is correct and `(str, int, float)` is not.
+For union `value_type` declarations (`value_type = (int, float, str)`), conversion is attempted in order and the first success wins. `str` succeeds trivially (no conversion needed), so placing it first would always short-circuit before attempting `int` or `float`. The most specific type must come first: `(int, float, str)` is correct; `(str, int, float)` is not.
 
 ### Built-in Converters
 
