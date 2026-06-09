@@ -16,7 +16,7 @@ uv tool install hassette
 
 ## 2. Create a Home Assistant token
 
-[Create a long-lived access token](ha_token.md) from the Home Assistant UI.
+[Create a long-lived access token](ha_token.md) from the Home Assistant UI (Profile → Security → Long-Lived Access Tokens).
 
 ## 3. Set up a project directory
 
@@ -30,7 +30,7 @@ mkdir -p my-hassette/apps && cd my-hassette
 --8<-- "pages/getting-started/snippets/env_file.sh"
 ```
 
-Replace the token value with the one you created in step 2. Update `HASSETTE__BASE_URL` to match your Home Assistant instance.
+Replace the token value with the one you created in step 2. Update `HASSETTE__BASE_URL` to the URL you normally open in your browser, typically `http://homeassistant.local:8123` or `http://<your-ip>:8123`. The double underscores in `HASSETTE__TOKEN` and `HASSETTE__BASE_URL` are required. Hassette uses them to separate configuration namespaces.
 
 ## 4. Create your first app
 
@@ -38,7 +38,13 @@ Replace the token value with the one you created in step 2. Update `HASSETTE__BA
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
-Save this as `apps/main.py`. Hassette discovers app classes in `apps/` automatically.
+Save this as `apps/main.py`. Hassette scans `apps/` for any class that inherits from `App` and runs all of them.
+
+`MyAppConfig` declares your app's settings as typed class attributes. Hassette loads values from environment variables and `hassette.toml` automatically. `App[MyAppConfig]` ties the config to the app so `self.app_config` is always the right type.
+
+The `async def` and `await` keywords appear throughout Hassette. The rule: write `async def` for all your app methods, and add `await` before any call to `self.bus`, `self.scheduler`, or `self.api`. Regular calls like `self.logger.info()` do not need `await`. That covers everything in this guide.
+
+Every app inherits four objects from Hassette: `self.logger` (Python logger), `self.bus` (event subscriptions), `self.scheduler` (timed jobs), and `self.api` (Home Assistant service calls). Hassette creates them at startup. You just use them.
 
 ## 5. Run Hassette
 
@@ -87,5 +93,5 @@ hassette app
 
 ## Next steps
 
-- [Your First Automation](first-automation.md): subscribe to events, use dependency injection, and schedule jobs
+- [Your First Automation](first-automation.md): react to state changes, get typed event data automatically, and schedule recurring jobs
 - [Docker Setup](docker/index.md): deploy Hassette in production with Docker Compose
