@@ -86,7 +86,7 @@ When built-in parameters are not enough, `where=` accepts a predicate or a list 
 
 ### `P.StateFrom` and `P.StateTo`
 
-`P.StateFrom` tests the previous state. `P.StateTo` tests the new state. Both accept any value, callable, or condition object. They take the same types as `changed_from` and `changed_to`, but are usable inside `where=` for composition.
+`P.StateFrom` tests the previous state. `P.StateTo` tests the new state. Both accept any value, callable, or condition object. They take the same types as `changed_from` and `changed_to`, but exist as predicate objects so they can be nested inside `P.AnyOf`, `P.AllOf`, or `P.Not` — something the bare `changed_from`/`changed_to` parameters cannot do.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_state_from_to.py"
@@ -112,7 +112,7 @@ Both `P.AttrTo` predicates must match. The `changed=False` parameter is also req
 --8<-- "pages/core-concepts/bus/snippets/filtering_combined_or.py"
 ```
 
-`P.AllOf` is an explicit AND combinator — it does the same thing as passing a list to `where=`, but can be nested inside `P.AnyOf` or `P.Not` where a plain list is not accepted. `P.Not` negates any predicate. All three compose freely.
+`P.AllOf` is an explicit AND combinator — it does the same thing as passing a list to `where=`, but can be nested inside `P.AnyOf` or `P.Not` where a plain list is not accepted. `P.Not` negates any predicate: `P.Not(P.StateTo("on"))` fires when the new state is anything except `"on"`. All three compose freely.
 
 ## Filtering Service Calls
 
@@ -142,7 +142,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 ### `P.ServiceDataWhere`
 
-`P.ServiceDataWhere` provides structured access to service data fields. `P.ServiceDataWhere.from_kwargs` accepts field names as keyword arguments.
+`P.ServiceDataWhere` provides structured access to service data fields. Two forms: the dict form (`P.ServiceDataWhere({"entity_id": "scene.evening"})`) does literal key matching; `P.ServiceDataWhere.from_kwargs` accepts callables and conditions per field.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_predicates.py"

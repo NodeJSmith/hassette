@@ -1,14 +1,17 @@
 # Predicate, Condition & Accessor Reference
 
-`P` (predicates) filter events on the bus. `C` (conditions) match individual values. `A` (accessors) extract specific fields from events. All three are top-level imports:
+!!! note "Prerequisite"
+    This page is a lookup reference. Read [Filtering](filtering.md) first for explanations of how predicates, conditions, and accessors compose — this page assumes that context.
+
+`P` (predicates) filter events on the [bus](index.md). `C` (conditions) match individual values. `A` (accessors) extract specific fields from events. All three are top-level imports:
 
 ```python
 from hassette import P, C, A
 ```
 
-This page is a lookup reference. Read [Filtering](filtering.md) first for explanations of how predicates, conditions, and accessors compose — this page assumes that context.
+**Event types:** Tables below reference three event types. [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] fires on entity state changes. [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent] fires on service calls. [`HassEvent`][hassette.events.hass.hass.HassEvent] is the base type for all Home Assistant events.
 
-**Event types:** Tables below reference three event types. [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] fires on entity state changes. [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent] fires on service calls. `HassEvent` is the base type for all Home Assistant events.
+**Key types in signatures:** `ChangeType` is a union of literal value, `C.*` condition instance, glob string, or callable `(value) -> bool`. `ComparisonCondition` is a two-argument callable `(old_value, new_value) -> bool` — accepts `C.Increased`, `C.Decreased`, or a custom function. [`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event (distinct from `None`).
 
 ## Predicates (`P`)
 
@@ -133,7 +136,7 @@ No `C.InRange` condition exists. For range checks, combine two `C.Comparison` in
 
 ## Accessors (`A`)
 
-An accessor is a factory function that returns a callable `(event) -> value`. Predicates like `P.ValueIs`, `P.DidChange`, `P.IsPresent`, and `P.IsMissing` accept an accessor as their `source=` argument. `Bus` helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
+An accessor is a factory function that returns a callable `(event) -> value`. Single-value accessors work with `P.ValueIs`, `P.IsPresent`, and `P.IsMissing`. Tuple-returning accessors (the `*_old_new` variants) work with `P.DidChange`. Some accessors are used directly (e.g., `A.get_state_value_new`); others are factories that require a call first (e.g., `A.get_attr_new("brightness")`). `Bus` helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
 
 ### State Value
 
@@ -200,7 +203,7 @@ Works with: `CallServiceEvent`.
 
 `get_path` works with any event type. `get_all_changes` works with `RawStateChangeEvent`.
 
-Single-value accessors work with `P.ValueIs`, `P.IsPresent`, and `P.IsMissing`. Tuple-returning accessors (the `*_old_new` variants) work with `P.DidChange`. For writing custom accessors, see [Custom Extractors](custom-extractors.md).
+For writing custom accessors, see [Custom Extractors](custom-extractors.md).
 
 ## See Also
 

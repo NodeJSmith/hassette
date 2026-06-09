@@ -1,6 +1,6 @@
 # Apps Overview
 
-An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of typed accessors — `self.bus`, `self.scheduler`, `self.api`, `self.states` — for interacting with HA.
+An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of typed accessors — `self.bus`, `self.scheduler`, `self.api`, `self.states`, `self.cache`, and `self.task_bucket` — for interacting with HA.
 
 ## Defining an App
 

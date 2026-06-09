@@ -22,7 +22,7 @@ If the argument is a section, expand to all `.md` files in that directory (exclu
 
 ### Pick personas
 
-Read `references/personas.md` to load all three persona definitions. Then select which personas to run based on page type:
+Select which personas to run based on page type:
 
 | Page type | Personas |
 |-----------|----------|
@@ -33,78 +33,87 @@ Read `references/personas.md` to load all three persona definitions. Then select
 | `testing/*` | Jordan (experienced dev) |
 | `cli/*`, `operating/*`, `web-ui/*` | Alex + Jordan |
 
-For multi-page runs, each page gets its own persona set based on its path.
+Do NOT read `references/personas.md`, `voice-guide.md`, or `doc-rules.md` yourself. The assembler script handles all of that.
 
-### Read voice context
+## Phase 2: Extract and Assemble
 
-Read these files before dispatching subagents (pass relevant excerpts to each subagent):
-- `.claude/rules/voice-guide.md` (rules 10, 15, 17 matter for persona-appropriate voice)
-- `.claude/rules/doc-rules.md` (page type templates define what structure the reader expects)
+Two scripts handle all file preparation. Run them, don't read their output.
 
-## Phase 2: Extract Page Content
-
-Before dispatching subagents, extract the rendered page content using the extraction script:
+### Step 1: Get a tmp directory
 
 ```bash
-uv run mkdocs build --strict   # if not already built
-uv run tools/extract_doc_page.py <page-path>
+get-skill-tmpdir doc-persona-review
 ```
 
-This produces numbered lines from the built HTML with code snippets inlined, admonitions labeled, and collapsible sections marked. The output is what the reader actually sees. Pass this output (not the raw markdown) to each persona subagent.
+This prints a path like `/tmp/claude-doc-persona-review-a8Kx3Q`. Use it as `$TMPDIR` below.
 
-For section-wide runs: `uv run tools/extract_doc_page.py --section <section>` extracts all pages.
+### Step 2: Build docs and extract pages
+
+```bash
+uv run mkdocs build --strict
+uv run tools/extract_doc_page.py --section <section> --output-dir $TMPDIR/pages
+# or for a single page:
+uv run tools/extract_doc_page.py <page> --output-dir $TMPDIR/pages
+```
+
+This writes one `.txt` file per page to `$TMPDIR/pages/`. The output lists the files created. Note the filenames — you'll need them for the next step.
+
+### Step 3: Assemble briefing files
+
+For each (page, persona) pair, run the assembler:
+
+```bash
+uv run tools/assemble_persona_briefing.py <Persona> $TMPDIR/pages/<page-slug>.txt $TMPDIR/briefings
+```
+
+This writes a complete briefing file to `$TMPDIR/briefings/<persona>--<page-slug>.md` containing the task instructions, persona definition, voice guide, doc rules, and page content. The assembler pulls all reference files from their known repo paths.
+
+Run one command per (page, persona) pair. For efficiency, chain them:
+
+```bash
+uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--index.txt $TMPDIR/briefings && \
+uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--handlers.txt $TMPDIR/briefings && \
+uv run tools/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--filtering.txt $TMPDIR/briefings
+```
 
 ## Phase 3: Dispatch Persona Walkthroughs
 
-For each (page, persona) pair, dispatch a **Sonnet** subagent with this prompt structure:
+For each briefing file, dispatch a **Sonnet** subagent with this prompt:
 
 ```
-You are {persona_name}, reading Hassette documentation for the first time.
-
-{full persona definition from personas.md, including Knows / Does NOT know / Reading goal / Failure signals}
-
-IMPORTANT: You must genuinely adopt this persona's knowledge boundaries. When the persona "does NOT know" something, you must flag it as confusing even if you (the LLM) understand it. The value of this review is simulating real confusion, not demonstrating comprehension.
-
----
-
-Read the following documentation page and walk through it as {persona_name} would, step by step. For each section or paragraph:
-
-1. **Can I follow this?** Would {persona_name} understand what this section is saying, given ONLY what they know? Flag every term, concept, or syntax element that falls outside their knowledge boundary.
-
-2. **Do I know what to do next?** At each step or code example, would {persona_name} know what action to take? Flag missing commands, unclear "where do I put this?" moments, and steps that assume setup not covered on this page.
-
-3. **Can I connect this to my goal?** Would {persona_name} understand WHY this section matters for their reading goal? Flag sections that feel like detours or unmotivated technical detail.
-
-4. **Can I tell it worked?** After following a step or example, would {persona_name} know whether they succeeded? Flag missing verification steps, expected output, or "you should now see..." moments.
-
-Return your findings as a JSON object:
-
-{{
-  "persona": "{persona_name}",
-  "page": "{page_path}",
-  "overall_verdict": "followable" | "followable-with-effort" | "stuck-at-step-N" | "lost",
-  "findings": [
-    {{
-      "line": <approximate line number>,
-      "section": "<heading text>",
-      "type": "undefined-term" | "missing-prerequisite" | "unclear-next-step" | "no-verification" | "assumed-knowledge" | "unmotivated-content" | "missing-import" | "jargon",
-      "quote": "<the specific text that caused confusion>",
-      "confusion": "<what {persona_name} would think or feel at this point>",
-      "suggestion": "<what would help — define the term, add a sentence, show expected output, etc.>"
-    }}
-  ],
-  "stopped_at": "<section heading where the persona would give up, or null if they'd finish>",
-  "summary": "<2-3 sentences: would this persona succeed with this page?>"
-}}
-
-Here is the page content:
-
----
-{page content with line numbers}
----
+Read the file at {briefing_path} and follow the instructions inside. Return the JSON result exactly as specified.
 ```
 
-Use `schema` on the agent call to enforce the JSON structure.
+Use `schema` on the agent call to enforce the JSON structure:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "persona": {"type": "string"},
+    "page": {"type": "string"},
+    "overall_verdict": {"type": "string", "pattern": "^(followable|followable-with-effort|stuck-at-step-\\d+|lost)$"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "line": {"type": "integer"},
+          "section": {"type": "string"},
+          "type": {"type": "string", "enum": ["undefined-term", "missing-prerequisite", "unclear-next-step", "no-verification", "assumed-knowledge", "unmotivated-content", "missing-import", "jargon"]},
+          "quote": {"type": "string"},
+          "confusion": {"type": "string"},
+          "suggestion": {"type": "string"}
+        },
+        "required": ["line", "section", "type", "quote", "confusion", "suggestion"]
+      }
+    },
+    "stopped_at": {"type": ["string", "null"]},
+    "summary": {"type": "string"}
+  },
+  "required": ["persona", "page", "overall_verdict", "findings", "stopped_at", "summary"]
+}
+```
 
 ### Parallelism
 
@@ -155,6 +164,8 @@ End with a summary table:
 ## Design Decisions
 
 **Why Sonnet for personas?** Haiku finds roughly the same issues but with weaker reasoning and less precise suggestions. Sonnet produces findings that can be trusted without human verification of each one. The 2x cost difference is worth it since the output directly drives editing decisions. Tested on `first-automation.md`: both models returned the same verdict (followable-with-effort) and overlapping findings, but Sonnet caught unexpanded jargon ("DI parameters"), missing starting-state context, and produced actionable suggestions ("Stop Hassette with Ctrl+C, then run `hassette run` again") where Haiku gave vague pointers.
+
+**Why briefing files?** The main agent only needs page names, persona assignments, and returned findings. All heavy content (page HTML, persona definitions, voice rules, doc rules) is assembled into files by `tools/assemble_persona_briefing.py` and read only by the subagents. This keeps the main context small enough to handle large section audits without compaction.
 
 **Why not a Python script?** The cognitive walkthrough requires genuine language comprehension (is this term defined? would this step confuse someone?). Pattern matching can't do that. The voice audit script handles mechanical rules; this handles semantic ones.
 

@@ -31,7 +31,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
-`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is shorthand — Hassette wraps it in `AnnotationDetails` automatically.
+`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] (which has `event.payload.data.new_state`, `event.payload.data.old_state`, and `event.payload.data.entity_id`) and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is the simplest form — Hassette wraps it in `AnnotationDetails` automatically. The explicit `AnnotationDetails` form above is needed only when adding a type converter.
 
 ## Adding Type Conversion
 

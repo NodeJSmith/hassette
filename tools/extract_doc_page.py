@@ -197,12 +197,20 @@ def list_section_pages(section: str) -> list[str]:
     return pages
 
 
+def write_page_file(output_dir: Path, page_ref: str, lines: list[str]) -> Path:
+    slug = page_ref.replace("/", "--")
+    out_path = output_dir / f"{slug}.txt"
+    out_path.write_text("\n".join(f"LINE {i}: {line}" for i, line in enumerate(lines, 1)) + "\n")
+    return out_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("page", nargs="?", help="Page path relative to docs/pages/, without .md")
     parser.add_argument("--section", help="Extract all pages in a section")
     parser.add_argument("--list", action="store_true", help="List available pages instead of extracting")
     parser.add_argument("--raw", action="store_true", help="Output without LINE N: prefixes")
+    parser.add_argument("--output-dir", help="Write each page to a separate file in this directory instead of stdout")
     args = parser.parse_args()
 
     if not SITE_DIR.exists():
@@ -215,6 +223,10 @@ def main() -> int:
             print(rel)
         return 0
 
+    output_dir = Path(args.output_dir) if args.output_dir else None
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
+
     if args.section:
         pages = list_section_pages(args.section)
         for page_ref in pages:
@@ -222,10 +234,15 @@ def main() -> int:
             if html_path is None:
                 print(f"# SKIP: {page_ref} (not found)", file=sys.stderr)
                 continue
-            print(f"\n{'=' * 60}")
-            print(f"PAGE: {page_ref}")
-            print(f"{'=' * 60}")
-            print_lines(extract_page(html_path), raw=args.raw)
+            lines = extract_page(html_path)
+            if output_dir:
+                out_path = write_page_file(output_dir, page_ref, lines)
+                print(f"{page_ref} -> {out_path}")
+            else:
+                print(f"\n{'=' * 60}")
+                print(f"PAGE: {page_ref}")
+                print(f"{'=' * 60}")
+                print_lines(lines, raw=args.raw)
         return 0
 
     if not args.page:
@@ -238,7 +255,12 @@ def main() -> int:
         print("  Run `uv run mkdocs build` to rebuild, or check the page path.", file=sys.stderr)
         return 1
 
-    print_lines(extract_page(html_path), raw=args.raw)
+    lines = extract_page(html_path)
+    if output_dir:
+        out_path = write_page_file(output_dir, args.page, lines)
+        print(f"{args.page} -> {out_path}")
+    else:
+        print_lines(lines, raw=args.raw)
     return 0
 
 

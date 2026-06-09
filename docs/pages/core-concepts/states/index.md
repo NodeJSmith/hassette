@@ -1,6 +1,6 @@
 # States
 
-The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` provides synchronous, typed access with no `await` and no API calls.
+The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` is a `StateManager` instance available on every [`App`](../apps/index.md) — it provides synchronous, typed access with no `await` and no API calls.
 
 <div style="text-align: center">
 
@@ -72,11 +72,11 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`is_unknown`** and **`is_unavailable`** are `True` when HA reports the entity as `"unknown"` or `"unavailable"`, respectively. Both flags are `False` for normal states.
 
-**`is_group`** is `True` when the entity is a group. The `entity_id` attribute on the entity holds a list of member entity IDs.
+**`is_group`** is `True` when the entity is a group. For group entities, the `entity_id` attribute holds a list of member entity IDs rather than the group's own ID.
 
 **`extras`** and **`extra(key, default=None)`** access untyped state fields not declared on the `BaseState` model. Typed attributes cover the common cases; these handle the rest.
 
-**`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA (`ZonedDateTime` is from the [`whenever`](https://whenever.readthedocs.io/) library — Hassette's date/time type). `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
+**`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA. `ZonedDateTime` is from the [`whenever`](https://whenever.readthedocs.io/) library, which Hassette uses for all date/time operations — it behaves like a timezone-aware `datetime` and converts via `.to_stdlib()` when a library requires it. `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
 
 **`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
 
@@ -112,7 +112,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 --8<-- "pages/core-concepts/states/snippets/states_iteration.py"
 ```
 
-`.items()`, `.iterkeys()`, and `.itervalues()` are lazy. They validate entities on demand. `.keys()`, `.values()`, and `.to_dict()` are eager. Lazy iteration performs better for large domains like `sensor`.
+`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they parse raw HA state dicts into typed objects on demand. `.keys()`, `.values()`, and `.to_dict()` are eager and parse all entities up front. Lazy iteration performs better for large domains like `sensor`.
 
 ## Good to Know
 
@@ -120,7 +120,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 **Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The `StateManager` event handler runs before app handlers, so handlers always see the latest state.
 
-**Reconnection.** During a HA reconnect the cache is temporarily cleared. The [`StateProxy`][hassette.core.state_proxy.StateProxy] marks itself not ready and retries reads automatically.
+**Reconnection.** During a HA reconnect the cache is temporarily cleared — `self.states.get()` returns `None` for all entities until the cache is repopulated from a fresh API fetch.
 
 **Missing entities.** `.get()` returns `None` for absent entities. Bracket access raises `KeyError`. `.get()` with a `None` check is the safe path when entity presence is uncertain.
 

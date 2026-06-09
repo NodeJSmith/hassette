@@ -4,7 +4,7 @@ The scheduler runs functions after a delay, at a specific time, or on a repeatin
 
 ## How It Works
 
-All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object that determines when the job fires. Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
+All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object (a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule). Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
 
 Each call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle. The handle cancels the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
 
@@ -43,11 +43,11 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 ??? note "Synchronous usage (AppSync only)"
     [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop, so `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
-`name=` identifies each job in logs and the monitoring UI. It must be unique within the app instance — see [Scheduling Methods](methods.md) for details.
+`name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `DuplicateJobNameError`. See [Scheduling Methods](methods.md) for details.
 
 ## Verify It's Working
 
-Run `hassette job` to see all scheduled jobs for your running instance. Run `hassette log --app <key> --since 5m` to see job execution output.
+Run `hassette job` to see all scheduled jobs for your running instance, where `<key>` is the app identifier from [`hassette.toml`](../configuration/index.md) (e.g., `delay_app`). Run `hassette log --app <key> --since 5m` to see job execution output.
 
 ## Next Steps
 

@@ -13,7 +13,7 @@ Every subscription method accepts these parameters. Individual method tables bel
 | `handler` | `HandlerType` | — | The function called when the event matches. See [Writing Handlers](handlers.md). |
 | `name` | `str \| None` | `None` | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting raises `ListenerNameRequiredError`. |
 | `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. Available on `on_state_change`, `on_attribute_change`, `on_call_service`, `on_service_registered`, `on_component_loaded`, `on_app_state_changed`, and `on()`. |
-| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from `hassette.toml`. |
+| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
 | `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
 | `throttle` | `float \| None` | `None` | Limits the handler to one invocation per N seconds. Events during the cooldown are dropped. |
@@ -59,13 +59,19 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 | `D.TypedStateChangeEvent[T]` | Full event with new/old states converted to type `T`. |
 | `D.EventContext` | HA event context (user_id, parent_id, etc.). |
 
+Fire with the current value on registration, then on each subsequent change:
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_state_change.py:immediate"
 ```
 
+Fire only after the state has held for a set duration:
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_state_change.py:duration"
 ```
+
+Fire only on a specific state transition:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_state_change.py:changed_to"
@@ -164,7 +170,7 @@ Three shorthands delegate to `on_call_service("homeassistant", ...)`.
 | `on_homeassistant_stop(handler, ...)` | `on_call_service("homeassistant", "stop", ...)` |
 | `on_homeassistant_restart(handler, ...)` | `on_call_service("homeassistant", "restart", ...)` |
 
-All three accept `handler`, `where`, `kwargs`, `name`, and `**opts` (the shared timing parameters). They do not expose `on_error` directly. Per-registration error handling requires `on_call_service` directly.
+All three accept `handler`, `where`, `kwargs`, `name`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`). They do not expose `on_error` directly. Per-registration error handling requires `on_call_service` directly.
 
 ## `on(topic)`
 
@@ -193,7 +199,7 @@ Subscribes to any raw event topic string.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `app_key` | `str \| None` | `None` | Filters to a specific app. `None` matches all apps. |
+| `app_key` | `str \| None` | `None` | Filters to a specific app (the identifier from [`hassette.toml`](../configuration/index.md)). `None` matches all apps. |
 | `status` | `ResourceStatus \| None` | `None` | Filters to a specific status. `None` matches all status transitions. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates. |
 
@@ -267,7 +273,7 @@ Every registration method requires `name=`. Omitting it raises `ListenerNameRequ
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
 ```
 
-The `name` forms a natural key together with the app identifier, instance index, and topic. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local database for telemetry, and the existing record is updated, not duplicated.
+The `name` forms a natural key together with the app identifier, instance index, and topic. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local SQLite [telemetry database](../database-telemetry.md), and the existing record is updated, not duplicated.
 
 ### Synchronous completion
 

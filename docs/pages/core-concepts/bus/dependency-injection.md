@@ -25,7 +25,7 @@ State extractors resolve typed state objects from state change events. `T` is an
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/state_object_extractors.py"
 ```
 
-When a required extractor finds no value, Hassette skips the handler invocation entirely. `MaybeStateOld` returns `None` on the first event for a new entity with no previous state.
+When a required extractor finds no value, Hassette skips the handler invocation silently — no exception is raised and no log entry is produced. `MaybeStateOld` returns `None` on the first event for a new entity with no previous state (typically on startup or when an entity first appears).
 
 ### Identity Extractors
 
@@ -42,7 +42,7 @@ Identity extractors resolve entity IDs and domains from events.
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/identity_extractors.py"
 ```
 
-[`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event. It is not `None` — `None` means the field exists with a null value. Testing with `if entity_id:` covers both the present and absent cases.
+[`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event. It is not `None` — `None` means the field exists with a null value. Testing with `if entity_id:` covers both the present and absent cases. `D.MaybeEntityId` is useful in generic handlers registered via `on()` where the event may not have an `entity_id` field.
 
 ### Other Extractors
 
@@ -52,7 +52,7 @@ Identity extractors resolve entity IDs and domains from events.
 | `D.EventContext` | `HassContext` | `None` | Home Assistant event context (user ID, parent/origin IDs) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
-`D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md). The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
+`D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md) for cross-app communication — one app sends a typed payload, and other apps subscribe to receive it. The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/event_data_extractor.py"
@@ -86,7 +86,9 @@ DI composes with `kwargs=` passed at registration. DI-annotated parameters resol
 
 ## Handler Signature Restrictions
 
-DI handlers do not support positional-only parameters (those before `/`) or `*args`. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
+Any handler with at least one `D.*` annotation is a DI handler. DI handlers do not support positional-only parameters (those before `/`) or `*args`. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
+
+Not all `D.*` annotations work with every subscription method. [Subscription Methods](methods.md) lists the compatible annotations for each method.
 
 ## See Also
 

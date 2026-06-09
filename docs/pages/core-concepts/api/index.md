@@ -10,7 +10,7 @@ The two most common operations are reading state and calling a service.
 --8<-- "pages/core-concepts/api/snippets/api_overview_usage.py"
 ```
 
-`get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object. `call_service()` sends a service call via WebSocket.
+`get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object with `.value` (the state string) and `.attributes` (domain-specific fields). `call_service()` sends a service call via WebSocket.
 
 ## API vs StateManager
 

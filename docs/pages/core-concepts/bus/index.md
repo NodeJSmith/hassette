@@ -6,7 +6,7 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 ## Subscribing to Events
 
-[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
+[`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle — call `sub.cancel()` to unregister the handler.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
@@ -14,7 +14,7 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 [`D`](dependency-injection.md) is `hassette.dependencies`, a module of type annotations that tell Hassette what to extract from each event. [`states`][hassette.models.states] is `hassette.models.states`, typed state classes for each Home Assistant domain. `D.StateNew[states.BinarySensorState]` extracts the new state and passes it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
-`name=` is required on every subscription — it identifies the listener in logs and the monitoring UI.
+`name=` is required on every subscription — it identifies the listener in logs and the monitoring UI. Omitting it raises `ListenerNameRequiredError` at call time.
 
 [Subscription Methods](methods.md) covers each method, its parameters, and compatible DI annotations.
 
@@ -36,7 +36,7 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 ## Verify It's Working
 
-Run `hassette listener --app <key>` to see registered listeners and invocation counts. Run `hassette log --app <key> --since 5m` to see handler log output. The monitoring UI's Handlers tab shows invocation history and last-seen timestamps.
+Run `hassette listener --app <key>` to see registered listeners and invocation counts, where `<key>` is the app identifier from `hassette.toml` (e.g., `motion_lights`). Run `hassette log --app <key> --since 5m` to see handler log output. The [monitoring UI's](../../web-ui/index.md) Handlers tab shows invocation history and last-seen timestamps.
 
 ## Next Steps
 

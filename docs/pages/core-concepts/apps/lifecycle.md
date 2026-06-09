@@ -4,12 +4,12 @@ Hassette manages app initialization and shutdown. The app declares what to do at
 
 ## Initialization
 
-Hassette transitions the app through `STARTING` to `RUNNING` at startup. All core services (API, `Bus`, `Scheduler`, and database) are ready before any hook runs.
+Hassette transitions the app through `STARTING` to `RUNNING` at startup. All core services (API, `Bus`, `Scheduler`, and the internal SQLite [telemetry database](../database-telemetry.md)) are ready before any hook runs.
 
 Three hooks fire in order:
 
 1. `before_initialize`
-2. `on_initialize`, the primary hook for handler registration, job scheduling, and startup logic
+2. `on_initialize`, the primary hook where the app subscribes to HA events and schedules recurring tasks
 3. `after_initialize`
 
 ```python

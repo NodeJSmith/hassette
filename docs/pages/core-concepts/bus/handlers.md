@@ -1,8 +1,8 @@
 # Writing Event Handlers
 
-A handler is an async method that runs when an event matches a subscription.
+A handler is an async method on an [`App`](../apps/index.md) that runs when an event matches a subscription.
 Hassette supports four handler patterns: no parameters, extracted data via
-dependency injection, raw events, and typed events.
+dependency injection, raw events, and typed events. [Choosing a Pattern](#choosing-a-pattern) summarizes when to use each.
 
 ## Handler Patterns
 
@@ -56,8 +56,7 @@ receives the full event object with `event.topic` and `event.payload`.
 ### Typed state event
 
 [`D.TypedStateChangeEvent[T]`][hassette.event_handling.dependencies] converts
-a raw state change event into a typed version. The new and old state values
-are attributes on the payload instead of raw dicts.
+a raw state change event into a typed version with both old and new states as typed objects. `D.StateNew[T]` extracts just the new state; `D.TypedStateChangeEvent[T]` gives the full event — useful when comparing before/after values.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_typed_event.py"
@@ -90,7 +89,7 @@ payload pre-extracted and typed.
 --8<-- "pages/core-concepts/bus/snippets/handlers_cross_app.py:receiver"
 ```
 
-A frozen dataclass works well for `T`. Any type passed as `data` to `emit()` can be received via `D.EventData[T]`. `self.instance_name` is the app's instance identifier, set in `hassette.toml`.
+A frozen dataclass or Pydantic model works well for `T` — the type is passed in-process, not persisted, but keeping it immutable prevents accidental cross-app state mutation. Any type passed as `data` to `emit()` can be received via `D.EventData[T]`. `self.instance_name` is the app's instance identifier, set in [`hassette.toml`](../configuration/index.md).
 
 ## See Also
 
