@@ -12,21 +12,21 @@ The container starts and stops within a few seconds. Check the logs first:
 
 The two most common causes are a missing token and an unreachable Home Assistant instance.
 
-**Missing token.** Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container. If that value is absent, Hassette exits at startup. Open your `config/.env` file and confirm the line is present:
+**Missing token.** Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container — that's the `./config/.env` file on your host. If that value is absent, Hassette exits at startup. Open your `config/.env` file and confirm the line is present:
 
 ```
 HASSETTE__TOKEN=your_long_lived_token_here
 ```
 
-**Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when running on the same Docker network, or your HA instance's IP address otherwise. A trailing slash or `https://` when HA serves plain HTTP will cause a connection failure.
+**Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. A trailing slash, or `https://` when HA serves plain HTTP, causes a connection failure.
 
-**Network not reachable.** If the URL looks correct, test the connection from inside the container:
+**Network not reachable.** If the URL looks correct, test the connection from inside the container (substitute the same token value from your `config/.env`):
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-curl-ha.sh"
 ```
 
-A healthy response returns a JSON object with a `message` key. An empty response or connection error means the container can't reach HA on that address.
+A healthy response looks like `{"message": "API running."}`. An empty response or connection error means the container can't reach HA on that address.
 
 ## "Connected" But Apps Don't Load
 
@@ -46,7 +46,7 @@ If this returns an empty directory or an error, check your `volumes:` block in `
 --8<-- "pages/getting-started/docker/snippets/ts-grep-errors.sh"
 ```
 
-Look for a `SyntaxError` or `ImportError` with a file path. Fix the error in that file, then restart with `docker compose restart hassette`.
+Look for a `SyntaxError` or `ImportError` with a file path. Fix the error in that file, restart with `docker compose restart hassette`, then check the logs again to confirm the error is gone.
 
 ## Dependencies Won't Install
 
@@ -71,7 +71,7 @@ Then check whether the install ran at startup:
 --8<-- "pages/getting-started/docker/snippets/ts-dep-install-logs.sh"
 ```
 
-If you see no install output, `HASSETTE__INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment.
+If you see no install output, `HASSETTE__INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
 
 ## Can't Access the Web UI
 
@@ -86,7 +86,7 @@ services:
       - "8126:8126"
 ```
 
-If the port is listed but you still get connection refused, check the bind address. `"127.0.0.1:8126:8126"` only accepts connections from localhost. Use `"8126:8126"` to accept connections from any interface.
+If the port is listed but you still get connection refused, check the bind address. `"127.0.0.1:8126:8126"` only accepts connections from the host machine itself. Use `"8126:8126"` to accept connections from other devices on your network, like your phone.
 
 After updating `compose.yml`, run `docker compose up -d` to apply the change.
 
@@ -100,21 +100,21 @@ The file watcher is off in production mode by default. Restart the container to 
 docker compose restart hassette
 ```
 
-To apply edits without restarting, set `watch_files = true` and `allow_reload_in_prod = true` in your `hassette.toml`.
+To apply edits without restarting, set `watch_files = true` and `allow_reload_in_prod = true` in your `hassette.toml` (in your `config/` directory).
 
 ## Hassette Restarts Whenever Home Assistant Goes Down
 
 **Symptom:** Hassette keeps restarting in a loop whenever Home Assistant restarts or goes offline, even though Hassette itself is healthy.
 
-**Cause:** A Docker healthcheck or an autoheal tool (e.g. `willfarrell/autoheal`) is pointed at `/api/health/ready`. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage, including routine HA restarts, so autoheal keeps killing and restarting Hassette unnecessarily.
+**Cause:** Your `compose.yml` has a `healthcheck:` section (or an autoheal tool such as `willfarrell/autoheal`) pointed at `/api/health/ready`. If you have no `healthcheck:` configured, this section doesn't apply to you. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage, including routine HA restarts, so autoheal keeps killing and restarting Hassette unnecessarily.
 
-**Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure (wedged event loop, container crash, non-zero exit) makes a liveness probe fail.
+**Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure — Hassette itself crashed or stopped responding — makes a liveness probe fail.
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/ts-healthcheck-live.yml"
 ```
 
-If you need a separate traffic-routing signal, use `/api/health/ready`, but keep it out of any healthcheck that triggers restarts. See [Configure Health Checks](../../web-ui/health-endpoints.md) for the full reference.
+If a reverse proxy or load balancer needs to know when Hassette is fully connected, point it at `/api/health/ready` — but keep that endpoint out of any healthcheck that triggers restarts. See [Configure Health Checks](../../web-ui/health-endpoints.md) for the full reference.
 
 ## Getting Help
 

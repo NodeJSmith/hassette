@@ -23,13 +23,13 @@ Without `HASSETTE__INSTALL_DEPS`, Hassette skips installation entirely.
 The `uv_cache` volume keeps downloaded packages across restarts.
 Only the first startup is slow.
 
-Restart the container. Your packages are available:
+Restart the container — the install runs during startup, and you can watch it with `docker compose logs -f hassette`. Your packages are then available:
 
 ```python
 --8<-- "pages/getting-started/docker/snippets/deps-app-using-package.py"
 ```
 
-The app imports `apprise` directly. No extra configuration needed.
+The app imports `apprise` directly. No extra configuration needed. (The `# pyright: ignore` comment in the example quiets an editor warning when the package isn't installed on your local machine — your own code doesn't need it.)
 
 !!! tip
     After adding new packages to `requirements.txt`, restart the container
@@ -43,14 +43,16 @@ The app imports `apprise` directly. No extra configuration needed.
 ```
 
 If you already have a `pyproject.toml`, place it in your `apps/`
-directory alongside your app files. You also need a `uv.lock` next to it.
-Generate one locally before deploying:
+directory alongside your app files. You also need a `uv.lock` next to it —
+a file recording the exact version of every package, so the container
+installs the same versions you tested locally. Generate one by running
+this in your `apps/` directory before starting the container:
 
 ```bash
 uv lock
 ```
 
-Your compose file stays the same as the Docker Setup page. No extra
+Your compose file stays the same as the [Docker Setup](index.md) page. No extra
 environment variables are needed:
 
 ```yaml
@@ -66,7 +68,9 @@ If your `pyproject.toml` lives somewhere other than `apps/`, set
 your compose environment and mount the directory.
 
 Hassette pins its own dependencies via a constraints file. Your packages
-cannot conflict with packages Hassette depends on.
+cannot conflict with packages Hassette depends on. If a conflict occurs,
+the install fails at startup — see
+[Troubleshooting](troubleshooting.md#dependencies-wont-install).
 
 !!! note
     Commit `uv.lock` to version control. Hassette uses it to reproduce the
@@ -76,9 +80,9 @@ cannot conflict with packages Hassette depends on.
 
 **Local path dependencies don't work inside Docker.** If your `pyproject.toml`
 or `requirements.txt` contains a `file:///...` dependency, installation fails
-because the host path does not exist inside the container. Publish shared
-code as a package instead. Alternatively, mount it as a volume with a
-relative path that matches the container layout.
+because the host path does not exist inside the container. Mount the shared
+code as a volume with a relative path that matches the container layout,
+or publish it as a package.
 
 **First startup is slower with new dependencies.** Hassette runs `uv sync`
 or `uv pip install` on every start when `HASSETTE__INSTALL_DEPS` is set.
