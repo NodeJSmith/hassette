@@ -114,12 +114,12 @@ The handler runs once at a specific wall-clock time. The [`Once`][hassette.sched
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
 | `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
-| `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when a `"HH:MM"` target has already passed today. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` instead. Has no effect on `ZonedDateTime` inputs. |
+| `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when the target is already in the past. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` for both input types. |
 
 Shared parameters apply.
 
 !!! note "Past `ZonedDateTime` inputs fire immediately"
-    When `at` is a `ZonedDateTime` in the past, the job fires at the next scheduler tick regardless of `if_past`. Only `"HH:MM"` strings are affected by `if_past`.
+    When `at` is a `ZonedDateTime` in the past and `if_past="tomorrow"` (the default), the job fires at the next scheduler tick — there is no "tomorrow" for an absolute instant. `if_past="error"` still raises `ValueError`.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_once.py"
@@ -149,7 +149,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 | `name` | `str` | `""` | Identifies the job in logs and the monitoring UI. Auto-generated from the callable and trigger when empty. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
 | `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
 | `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Job Management](management.md) for jitter. |
-| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler_job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
 | `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
@@ -171,7 +171,7 @@ Job names must be unique within an app instance. Registering a second job with a
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `ValueError` when a job with the same name already exists. |
-| `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, and `kwargs`. |
+| `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, and `on_error` handler. |
 | `"replace"` | Cancels the existing job and registers the new one. The new job's configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by config changes or `hassette reload`).
