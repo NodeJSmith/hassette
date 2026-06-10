@@ -8,23 +8,37 @@ Your outdoor temperature sensor reports a reading every few seconds. On a warm a
 --8<-- "pages/recipes/snippets/debounce_sensor.py"
 ```
 
+## Run It
+
+Save the code as `debounce_sensor.py` in your apps directory and register it in `hassette.toml`:
+
+```toml
+[hassette.apps.debounce_sensor]
+filename = "debounce_sensor.py"
+class_name = "DebounceSensorApp"
+```
+
+The section name (`debounce_sensor`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
+
 ## How It Works
+
+The bus (`self.bus`) delivers Home Assistant events to subscribed handlers — every `App` gets one, alongside `self.api` and `self.logger`. Handlers are `async def`; Hassette runs the event loop.
 
 `debounce=10.0` tells the bus to hold the handler until the sensor has been quiet for 10 seconds. Each new event that arrives during that window resets the timer. Rapid fluctuations are silently discarded, and the handler fires exactly once when the readings stop.
 
-`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of value-comparison predicates. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
+`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of ready-made value checks. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never start the timer.
 
 `D.StateNew[states.SensorState]` is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation. `D` is an alias for `hassette.event_handling.dependencies` — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`SensorState`][hassette.models.states.sensor.SensorState] object. `SensorState.value` is a `str` (HA state values are always strings), so the handler converts it to a `float` before comparing against `THRESHOLD`. The `try`/`except` guards against `"unavailable"` or `"unknown"` values that HA sensors report during startup.
 
-`name=` on `on_state_change` is required — it identifies the listener in the database and in `hassette listener` output.
+`name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `ListenerNameRequiredError` at registration time.
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 
-`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Swapping them or promoting them to [`AppConfig`][hassette.app.app_config.AppConfig] fields covers multiple sensors with a single class.
+`THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Promoting them to typed fields on an [`AppConfig`][hassette.app.app_config.AppConfig] subclass — set per instance in `hassette.toml` — covers multiple sensors with a single class.
 
 ## Verify It's Working
 
-Confirm the handler registered after startup:
+Run these from your project directory while Hassette is running. Confirm the handler registered after startup:
 
 ```
 hassette listener --app debounce_sensor
@@ -42,7 +56,7 @@ The log shows one entry per stabilized crossing, not one per raw sensor event. I
 
 ## Variations
 
-**Throttle instead of debounce.** `throttle=30.0` fires on the first matching event and suppresses the rest for 30 seconds. Debounce waits for quiet; throttle fires immediately then goes silent. The two parameters are mutually exclusive: passing both raises a `ValueError` at registration time.
+**Throttle instead of debounce.** Pass `throttle=30.0` to `on_state_change` in place of `debounce=` — it fires on the first matching event and suppresses the rest for 30 seconds. Debounce waits for quiet; throttle fires immediately then goes silent. The two parameters are mutually exclusive: passing both raises a `ValueError` at registration time.
 
 **Different sensor types.** Swap `sensor.outdoor_temperature` for any numeric sensor and adjust `THRESHOLD` to match the units. Humidity (`sensor.living_room_humidity`), CO₂ (`sensor.co2_level`), and power draw (`sensor.solar_inverter_power`) all work the same way.
 

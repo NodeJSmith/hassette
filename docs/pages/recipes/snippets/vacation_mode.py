@@ -16,10 +16,9 @@ class VacationModeConfig(AppConfig):
 
 
 class VacationMode(App[VacationModeConfig]):
-    presence_job: ScheduledJob | None
+    presence_job: ScheduledJob | None = None
 
     async def on_initialize(self) -> None:
-        self.presence_job = None
         await self.bus.on_state_change(
             self.app_config.vacation_toggle,
             changed_to="on",
@@ -51,7 +50,7 @@ class VacationMode(App[VacationModeConfig]):
 
     async def simulate_presence(self) -> None:
         light = random.choice(self.app_config.lights)
-        state = await self.api.get_state(f"{light}")
+        state = await self.api.get_state(light)
         if state.value is True:
             await self.api.turn_off(light, domain="light")
             self.logger.debug("Presence sim: turned off %s", light)

@@ -8,6 +8,18 @@ A motion sensor in the hallway fires every time someone walks past. The light sh
 --8<-- "pages/recipes/snippets/motion_lights.py"
 ```
 
+## Run It
+
+Save the code as `motion_lights.py` in your apps directory and register it in `hassette.toml`:
+
+```toml
+[hassette.apps.motion_lights]
+filename = "motion_lights.py"
+class_name = "MotionLights"
+```
+
+The section name (`motion_lights`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
+
 ## How It Works
 
 `self.bus.on_state_change` subscribes to every state transition on the motion sensor. The `name=` parameter is required on all bus registrations — it identifies the listener in the database and in CLI output.
@@ -49,9 +61,11 @@ The `motion_sensor` listener should show an increasing invocation count each tim
 **Shorter or longer timeout.** Change `off_delay_seconds` in `hassette.toml` without touching the code:
 
 ```toml
-[apps.hallway_motion]
-module = "motion_lights"
-class = "MotionLights"
+[hassette.apps.hallway_motion]
+filename = "motion_lights.py"
+class_name = "MotionLights"
+
+[hassette.apps.hallway_motion.config]
 off_delay_seconds = 60
 ```
 
