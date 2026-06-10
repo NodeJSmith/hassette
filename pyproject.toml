@@ -139,8 +139,11 @@ filterwarnings = [
     "default::ResourceWarning:aiohttp\\.connector",
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
 ]
-# Skip slow Docker tests by default (run with: pytest -m docker)
-addopts = "-m 'not docker and not system and not system_destructive'"
+# Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).
+# e2e must not mix into ad-hoc runs: Playwright breaks the session-scoped asyncio loop for every
+# async test that runs after it in the same process ("Runner.run() cannot be called from a running
+# event loop"). nox and CI pass their own -m, which overrides this.
+addopts = "-m 'not docker and not system and not system_destructive and not e2e'"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "docker: marks tests that require Docker and are slow (run explicitly with '-m docker')",
