@@ -12,12 +12,12 @@ hassette run
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `--token`, `-t` | Home Assistant access token. Overrides config file and environment. |
-| `--base-url`, `-u`, `--url` | Base URL of the Home Assistant instance. |
-| `--verify-ssl` | Whether to verify SSL certificates. |
-| `--dev-mode` | Enables developer mode. |
+| Flag                        | Description                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| `--token`, `-t`             | Home Assistant access token. Overrides config file and environment. |
+| `--base-url`, `-u`, `--url` | Base URL of the Home Assistant instance.                            |
+| `--verify-ssl`              | Whether to verify SSL certificates.                                 |
+| `--dev-mode`                | Enables developer mode.                                             |
 
 All flags are optional. Values resolve from the TOML config file and environment variables when not provided on the command line.
 
@@ -27,7 +27,7 @@ Reports system health: connection state, uptime, app count, entity count, and ve
 
 ```console
 $ hassette status
-╭──────────────────── SystemStatusResponse ────────────────────╮
+╭──────────────────── System Status ───────────────────────────╮
 │  status               ok                                     │
 │  websocket_connected  True                                   │
 │  uptime_seconds       16.57                                  │
@@ -61,13 +61,13 @@ $ hassette app
 
 ### Subcommands
 
-| Subcommand | Description | API endpoint |
-|---|---|---|
-| `hassette app` | Lists all apps. | `GET /api/apps/manifests` |
-| `hassette app health <key>` | Health metrics for one app. | `GET /api/telemetry/app/{key}/health` |
-| `hassette app activity <key>` | Recent activity feed. | `GET /api/telemetry/app/{key}/activity` |
-| `hassette app config <key>` | Resolved configuration. | `GET /api/apps/{key}/config` |
-| `hassette app source <key>` | Source file path. | `GET /api/apps/{key}/source` |
+| Subcommand                    | Description                 | API endpoint                            |
+| ----------------------------- | --------------------------- | --------------------------------------- |
+| `hassette app`                | Lists all apps.             | `GET /api/apps/manifests`               |
+| `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`   |
+| `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity` |
+| `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`            |
+| `hassette app source <key>`   | Source file path.           | `GET /api/apps/{key}/source`            |
 
 ### `hassette app health <key>`
 
@@ -117,13 +117,13 @@ hassette app source my-app
 
 ### Flags
 
-| Flag | Applies to | Description |
-|---|---|---|
-| `--instance` | `health`, `activity` | Filters to a specific app instance (index or name). |
-| `--since` | `health`, `activity` | Time window for metrics. See [formats](#--since-format). |
-| `--source-tier` | `health` | Filters by source tier: `app`, `framework`, or `all`. |
-| `--limit` | `activity` | Maximum records to return. |
-| `--json` | all | Outputs as JSON. |
+| Flag            | Applies to           | Description                                              |
+| --------------- | -------------------- | -------------------------------------------------------- |
+| `--instance`    | `health`, `activity` | Filters to a specific app instance (index or name).      |
+| `--since`       | `health`, `activity` | Time window for metrics. See [formats](#--since-format). |
+| `--source-tier` | `health`             | Filters by source tier: `app`, `framework`, or `all`.    |
+| `--limit`       | `activity`           | Maximum records to return.                               |
+| `--json`        | all                  | Outputs as JSON.                                         |
 
 ## `hassette listener`
 
@@ -150,14 +150,14 @@ The invocation table shows status, duration, error type, error message, timestam
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `--app <key>` | Filters to listeners belonging to this app. |
-| `--instance <n>` | Filters to a specific app instance. Requires `--app`. |
-| `--since <duration>` | Time window for invocation counts and history. |
-| `--source-tier <tier>` | Filters by `app`, `framework`, or `all`. |
-| `--limit <n>` | Maximum invocation records (when viewing a specific listener). |
-| `--json` | Outputs as JSON. |
+| Flag                   | Description                                                    |
+| ---------------------- | -------------------------------------------------------------- |
+| `--app <key>`          | Filters to listeners belonging to this app.                    |
+| `--instance <n>`       | Filters to a specific app instance. Requires `--app`.          |
+| `--since <duration>`   | Time window for invocation counts and history.                 |
+| `--source-tier <tier>` | Filters by `app`, `framework`, or `all`.                       |
+| `--limit <n>`          | Maximum invocation records (when viewing a specific listener). |
+| `--json`               | Outputs as JSON.                                               |
 
 **API endpoints:**
 
@@ -190,14 +190,14 @@ The execution table shows status, duration, error type, error message, timestamp
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `--app <key>` | Filters to jobs belonging to this app. |
-| `--instance <n>` | Filters to a specific app instance. Requires `--app`. |
-| `--since <duration>` | Time window for execution history. |
-| `--source-tier <tier>` | Filters by `app`, `framework`, or `all`. |
-| `--limit <n>` | Maximum execution records (when viewing a specific job). |
-| `--json` | Outputs as JSON. |
+| Flag                   | Description                                              |
+| ---------------------- | -------------------------------------------------------- |
+| `--app <key>`          | Filters to jobs belonging to this app.                   |
+| `--instance <n>`       | Filters to a specific app instance. Requires `--app`.    |
+| `--since <duration>`   | Time window for execution history.                       |
+| `--source-tier <tier>` | Filters by `app`, `framework`, or `all`.                 |
+| `--limit <n>`          | Maximum execution records (when viewing a specific job). |
+| `--json`               | Outputs as JSON.                                         |
 
 **API endpoints:**
 
@@ -230,13 +230,13 @@ $ hassette log --limit 5
 
 ### Flags
 
-| Flag | Description |
-|---|---|
-| `--app <key>` | Filters to log entries from this app. |
-| `--since <duration>` | Time window filter. |
-| `--limit <n>` | Maximum number of entries to return. |
+| Flag                   | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `--app <key>`          | Filters to log entries from this app.    |
+| `--since <duration>`   | Time window filter.                      |
+| `--limit <n>`          | Maximum number of entries to return.     |
 | `--source-tier <tier>` | Filters by `app`, `framework`, or `all`. |
-| `--json` | Outputs as JSON. |
+| `--json`               | Outputs as JSON.                         |
 
 **API endpoint:** `GET /api/logs/recent`
 
@@ -254,10 +254,10 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 ### Flags
 
-| Flag | Description |
-|---|---|
+| Flag          | Description                              |
+| ------------- | ---------------------------------------- |
 | `--limit <n>` | Maximum number of log entries to return. |
-| `--json` | Outputs as JSON. |
+| `--json`      | Outputs as JSON.                         |
 
 **API endpoint:** `GET /api/executions/{execution_id}`
 
@@ -282,10 +282,10 @@ The Entity column is populated for `state_changed` events. Other event types lea
 
 ### Flags
 
-| Flag | Description |
-|---|---|
+| Flag          | Description                         |
+| ------------- | ----------------------------------- |
 | `--limit <n>` | Maximum number of events to return. |
-| `--json` | Outputs as JSON. |
+| `--json`      | Outputs as JSON.                    |
 
 **API endpoint:** `GET /api/events/recent`
 
@@ -339,25 +339,25 @@ All-zero counters indicate the telemetry pipeline is healthy and no records have
 
 These flags appear across multiple commands.
 
-| Flag | Format | Commands | Description |
-|---|---|---|---|
-| `--app <key>` | string | `listener`, `job`, `log` | Filters results to a specific app key. |
-| `--instance <n>` | int or string | `listener`, `job`, `app health`, `app activity` | Filters to a specific app instance. Requires `--app` or a positional `<key>` argument. |
-| `--since <duration>` | relative or absolute | `listener`, `job`, `log`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format). |
-| `--limit <n>` | integer | `log`, `event`, `execution`, `app activity`, per-ID commands | Maximum number of records to return. |
-| `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health` | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
-| `--json` | n/a | all commands | Outputs as JSON. See [Output Modes](configuration.md#output-modes). |
+| Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
+| ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--app <key>`          | string                       | `listener`, `job`, `log`                                     | Filters results to a specific app key.                                                                                                      |
+| `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`              | Filters to a specific app instance. Requires `--app` or a positional `<key>` argument.                                                      |
+| `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `app health`, `app activity`       | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
+| `--limit <n>`          | integer                      | `log`, `event`, `execution`, `app activity`, per-ID commands | Maximum number of records to return.                                                                                                        |
+| `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
+| `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |
 
 ### Global flags
 
 These flags apply to every command and are placed before the subcommand name.
 
-| Flag | Aliases | Description |
-|---|---|---|
-| `--config-file` | `-c` | Path to the TOML configuration file. |
-| `--env-file` | `-e`, `--env` | Path to the `.env` file. |
-| `--json` | n/a | Outputs results as JSON. |
-| `--debug` | n/a | Shows the full HTTP response on CLI errors. |
+| Flag            | Aliases       | Description                                 |
+| --------------- | ------------- | ------------------------------------------- |
+| `--config-file` | `-c`          | Path to the TOML configuration file.        |
+| `--env-file`    | `-e`, `--env` | Path to the `.env` file.                    |
+| `--json`        | n/a           | Outputs results as JSON.                    |
+| `--debug`       | n/a           | Shows the full HTTP response on CLI errors. |
 
 ### --since format { #--since-format }
 
@@ -365,24 +365,24 @@ These flags apply to every command and are placed before the subcommand name.
 
 **Relative durations** use a number followed by a unit suffix:
 
-| Suffix | Unit | Example |
-|---|---|---|
-| `s` | seconds | `30s` |
-| `m` | minutes | `15m` |
-| `h` | hours | `1h` |
-| `d` | days | `7d` |
-| `w` | weeks | `2w` |
+| Suffix | Unit    | Example |
+| ------ | ------- | ------- |
+| `s`    | seconds | `30s`   |
+| `m`    | minutes | `15m`   |
+| `h`    | hours   | `1h`    |
+| `d`    | days    | `7d`    |
+| `w`    | weeks   | `2w`    |
 
 Compound durations such as `1h30m` are not supported. Month and year units are not supported.
 
 **Absolute timestamps** use ISO 8601 format:
 
-| Format | Example | Interpretation |
-|---|---|---|
-| Date only | `2026-05-22` | Midnight in local time. |
-| Date and time (naive) | `2026-05-22T14:00:00` | Local time. |
-| Date and time (UTC) | `2026-05-22T18:00:00Z` | UTC. |
-| Date and time (offset) | `2026-05-22T14:00:00-04:00` | Explicit offset. |
+| Format                 | Example                     | Interpretation          |
+| ---------------------- | --------------------------- | ----------------------- |
+| Date only              | `2026-05-22`                | Midnight in local time. |
+| Date and time (naive)  | `2026-05-22T14:00:00`       | Local time.             |
+| Date and time (UTC)    | `2026-05-22T18:00:00Z`      | UTC.                    |
+| Date and time (offset) | `2026-05-22T14:00:00-04:00` | Explicit offset.        |
 
 Invalid values cause a non-zero exit with an error listing accepted formats.
 

@@ -113,11 +113,11 @@ Omitting `--shell` from either command triggers auto-detection of the current sh
 
 ### Exit Codes
 
-| Code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Server error (4xx/5xx) or usage error (invalid flag, unknown instance name) |
-| `2` | Network error (connection refused or request timed out) |
+| Code | Meaning                                                                     |
+| ---- | --------------------------------------------------------------------------- |
+| `0`  | Success                                                                     |
+| `1`  | Server error (4xx/5xx) or usage error (invalid flag, unknown instance name) |
+| `2`  | Network error (connection refused or request timed out)                     |
 
 ### Common Errors
 
