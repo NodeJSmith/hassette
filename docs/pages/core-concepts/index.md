@@ -6,11 +6,11 @@ Three concepts underpin everything: apps, events, and resources.
 
 - Apps run the automation logic. Each app subscribes to events, schedules tasks, and calls Home Assistant services.
 - Events describe what happened: a state change, a service call, a scheduled trigger, or a lifecycle transition.
-- Resources are the objects apps use to act: the bus, the scheduler, the API client, and the state cache.
+- Resources are the objects apps use to act: the bus, the scheduler, the API client, and the state cache (`States`).
 
 ## Per-App Handles
 
-Every [`App`](apps/index.md) instance carries four handles. These are the objects automation code calls directly.
+Every [`App`](apps/index.md) instance carries four of these resources as handles — the objects automation code calls directly.
 
 - [`Api`](api/index.md) calls Home Assistant services, reads and writes entity states, and sends WebSocket commands.
 - [`Bus`](bus/index.md) delivers Home Assistant events (state changes, service calls, component loads) to subscribed handlers.
@@ -41,14 +41,14 @@ flowchart TD
 
 ## Topics
 
-- [Apps](apps/index.md): the `App` base class, lifecycle hooks, and [`AppConfig`][hassette.app.app_config.AppConfig].
+- [Apps](apps/index.md): the `App` base class, lifecycle hooks (`on_initialize`, `on_shutdown`), and [`AppConfig`][hassette.app.app_config.AppConfig].
 - [Bus](bus/index.md): subscribing to events, filtering, handler options.
 - [Scheduler](scheduler/index.md): triggers, job groups, jitter.
 - [API](api/index.md): service calls, state reads, WebSocket commands.
 - [States](states/index.md): state models, domain access, type conversion.
 - [Configuration](configuration/index.md): Hassette and app configuration.
 - [Web UI](../web-ui/index.md): browser-based monitoring and management.
-- [System Internals](internals/lifecycle.md): service lifecycle, startup sequence, resource hierarchy.
+- [System Internals](internals/lifecycle.md): service lifecycle, startup sequence, and the internal tree of resources that backs the per-app handles.
 - [API Reference](../../reference/index.md): auto-generated reference for all public modules.
 
 ??? note "Advanced Topics"

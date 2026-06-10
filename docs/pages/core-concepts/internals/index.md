@@ -65,7 +65,7 @@ flowchart TD
 
 [`StateProxy`][hassette.core.state_proxy.StateProxy] holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
 
-Outbound calls go through the per-app [Api][hassette.api.api.Api] handle. Single-entity reads use [`ApiResource`][hassette.core.api_resource.ApiResource] over REST. Service calls and bulk state reads use `WebsocketService` over WebSocket.
+Outbound calls go through the per-app [Api][hassette.api.api.Api] handle, which delegates to shared framework services: single-entity reads use [`ApiResource`][hassette.core.api_resource.ApiResource] over REST, while service calls and bulk state reads use `WebsocketService` over WebSocket.
 
 ### Failure behavior
 

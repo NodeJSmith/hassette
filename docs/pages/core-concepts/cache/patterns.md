@@ -36,6 +36,9 @@ External APIs impose rate limits. Storing the response alongside a timestamp let
 
 `get_weather` checks the cache first. The entry holds a tuple of `(timestamp, data)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
 
+!!! note "Why the `# pyright: ignore` comments?"
+    `cache.get()` returns untyped values — the type checker can't know what was stored under a key. The examples suppress the resulting warnings; production code can do the same, or narrow the value with a cast or an `isinstance` check after reading.
+
 ## Expiring Entries
 
 Two approaches exist for expiring cache entries, depending on whether access to the timestamp is needed.
@@ -72,7 +75,7 @@ Cache access involves disk I/O. For values read many times per second, loading i
 --8<-- "pages/core-concepts/cache/snippets/cache_performance.py"
 ```
 
-`on_initialize` reads from disk once. All access during the run uses the in-memory copy. `on_shutdown` writes the final state back to disk. The cache is thread-safe, so concurrent handlers can write to it directly when the load-once pattern is not needed. Within a single async event loop, if two handlers update the same key concurrently, the last write wins — for counters or accumulators, use instance variables as shown in the [Persistent Counters](#persistent-counters) pattern.
+`on_initialize` reads from disk once. All access during the run uses the in-memory copy. `on_shutdown` — the lifecycle hook that mirrors `on_initialize`, called when Hassette stops cleanly — writes the final state back to disk. diskcache is thread-safe for multi-threaded access; within Hassette's single async event loop, two handlers that touch the same key between `await` points cannot interleave, but when an `await` falls between a read and a write, the last write wins — for counters or accumulators, use instance variables as shown in the [Persistent Counters](#persistent-counters) pattern.
 
 ## Troubleshooting
 

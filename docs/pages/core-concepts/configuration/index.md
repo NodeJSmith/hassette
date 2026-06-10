@@ -8,7 +8,7 @@ A minimal `hassette.toml` declares the Home Assistant URL, the apps directory, a
 --8<-- "pages/core-concepts/configuration/snippets/basic_config.toml"
 ```
 
-The token is the only required credential. `HASSETTE__TOKEN` supplies it via environment variable, keeping the credential out of version control. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers token generation.
+The token is the only required credential. `HASSETTE__TOKEN` supplies it via environment variable — put it in a `.env` file next to `hassette.toml` (the recommended setup, covered under Configuration Sources below), keeping the credential out of version control. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers token generation.
 
 ## Configuration Sources
 
@@ -68,7 +68,7 @@ The `HassetteConfig` reference covers every field, its type, and its default. Th
 
 ### App Discovery
 
-`apps.directory` is the root from which Hassette loads app modules. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an `App` subclass.
+`apps.directory` is the root from which Hassette loads app modules. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an [`App`](../apps/index.md) subclass — the base class for all Hassette automations.
 
 `extend_exclude_dirs` adds directories to the built-in exclusion list. `exclude_dirs` replaces it entirely. Setting `exclude_dirs` directly removes the framework defaults and can cause Hassette to scan directories it would normally skip.
 
@@ -76,7 +76,7 @@ The `HassetteConfig` reference covers every field, its type, and its default. Th
 
 ### Event Filtering
 
-`bus_excluded_domains` and `bus_excluded_entities` drop events before any handler sees them. Both accept glob patterns.
+`bus_excluded_domains` and `bus_excluded_entities` drop events before any handler sees them — the [bus](../bus/index.md) is Hassette's event delivery system, and handlers are the app functions subscribed to it. Both settings accept glob patterns.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/bus_filter_example.toml"
@@ -94,7 +94,7 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 ### State Proxy Polling
 
-The `StateManager` keeps a local cache of entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
+The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
 
 ## Verify the Configuration
 

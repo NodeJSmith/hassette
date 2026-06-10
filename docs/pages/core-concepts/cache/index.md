@@ -2,8 +2,6 @@
 
 `self.cache` provides persistent key-value storage on every [`App`](../apps/index.md) instance — no setup required. Data written to the cache survives restarts and is available at the next startup. The cache is a [`diskcache.Cache`](https://grantjenks.com/docs/diskcache/) instance backed by a third-party disk-based storage library. The full diskcache API is available directly.
 
-`self.now()` returns the current time as a [`ZonedDateTime`](https://whenever.readthedocs.io/) from the `whenever` library, which Hassette uses for all date/time operations. It is timezone-aware, picklable, and supports arithmetic like `self.now().subtract(hours=4)`.
-
 For real-time Home Assistant entity state, [`self.states`](../states/index.md) (the local state cache) is the right tool. `self.cache` is for app data: counters, timestamps, API responses, preferences.
 
 ## Basic Usage
@@ -36,7 +34,7 @@ The cache stores any Python object that supports pickling, Python's built-in ser
 - Pydantic models and dataclasses (if picklable)
 
 !!! tip "Storing timestamps"
-    `self.now()` and all `whenever` types are picklable — store them directly in the cache without conversion.
+    `self.now()` — a built-in `App` method returning the current time as a timezone-aware [`ZonedDateTime`](https://whenever.readthedocs.io/) — and all `whenever` types are picklable. Store them directly in the cache without conversion.
 
 ## Configuration
 
@@ -61,7 +59,7 @@ data_dir = "/path/to/data"
 
 **Lifecycle.** The cache is available from first access through shutdown. Hassette closes and flushes it to disk when the app stops.
 
-**Automatic cleanup.** Entries with a TTL expire silently. When the cache reaches `size_limit`, the least-recently-used items are evicted without raising an error. To set a TTL, use `self.cache.set()` instead of bracket assignment:
+**Automatic cleanup.** Entries with a TTL expire silently. When the cache reaches its size limit (the `default_cache_size` setting), the least-recently-used items are evicted without raising an error. To set a TTL, use `self.cache.set()` instead of bracket assignment:
 
 ```python
 self.cache.set("weather_data", payload, expire=3600)  # expires after 1 hour
@@ -75,7 +73,7 @@ Check that cache data persists across restarts with `hassette log`:
 hassette log --app my_app --since 1h
 ```
 
-The log shows cache reads and writes when `log_level = "DEBUG"` is set in `hassette.toml`. The cache directory at `{data_dir}/{ClassName}/cache/` contains data files after the first successful write.
+Set `log_level = "DEBUG"` in `hassette.toml` first — cache reads and writes only appear in the log at that level. The cache directory at `{data_dir}/{ClassName}/cache/` contains SQLite files managed by diskcache after the first successful write; the filenames are internal, not meant for inspection.
 
 ## See Also
 

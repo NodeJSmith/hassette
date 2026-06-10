@@ -153,7 +153,7 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ## `StateManager` and `StateProxy`
 
-`StateProxy` maintains an in-memory cache of all entity states. [`StateManager`][hassette.state_manager.state_manager.StateManager] provides typed per-app access with Pydantic model validation.
+`StateProxy` is a shared singleton maintaining an in-memory cache of all entity states. [`StateManager`][hassette.state_manager.state_manager.StateManager] is the per-app interface over it — the `self.states` handle — providing typed access with Pydantic model validation. App code never touches `StateProxy` directly.
 
 ```mermaid
 flowchart TD

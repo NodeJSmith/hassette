@@ -1,6 +1,6 @@
 # Database & Telemetry
 
-Hassette stores operational telemetry in a local SQLite database. The [web UI](../web-ui/index.md) reads this data to display handler invocations, job executions, app health metrics, and the Apps page stats strip.
+Hassette stores operational telemetry in a local SQLite database: every [bus](bus/index.md) handler invocation, every [scheduled job](scheduler/index.md) execution, and app health metrics. The [web UI](../web-ui/index.md) reads this data for its panels — the stats strip on the Apps page, the Error Spotlight, and the handler health grid all draw from it.
 
 ## What Is Collected
 
@@ -23,7 +23,7 @@ Framework-internal handlers (telemetry workers, WebSocket service, scheduler ser
 
 ## Configuration
 
-All database settings are optional. The defaults work well for most setups.
+All database settings are optional and live in `hassette.toml` (see [Configuration](configuration/index.md)). The defaults work well for most setups.
 
 ```toml
 --8<-- "pages/core-concepts/snippets/database-telemetry/db_config.toml"
@@ -77,7 +77,7 @@ For container restart automation, use `/api/health/live` or rely on the non-zero
 !!! note "Choosing the right endpoint"
     Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
 
-**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution` shows per-execution detail for a specific invocation: trace ID, trigger origin, and error traceback.
+**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows per-execution detail for a specific invocation: trace ID, trigger origin, and error traceback. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
 
 ## Degraded Mode
 
