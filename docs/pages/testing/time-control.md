@@ -1,6 +1,6 @@
 # Time Control
 
-The time control API freezes the harness clock and advances it manually. This makes scheduler-driven behavior deterministic in tests.
+The time control API on [`AppTestHarness`](harness.md) freezes the harness clock and advances it manually. This makes scheduler-driven behavior deterministic in tests — without it, tests that wait on scheduled jobs depend on real wall-clock time. The examples assert with `harness.api_recorder`, the recorder that tracks every HA API call (covered in [Test Harness](harness.md)).
 
 !!! note "`whenever` is installed automatically"
     Code examples on this page import from [`whenever`](https://whenever.readthedocs.io/en/latest/), Hassette's date/time library. It ships as a direct dependency of `hassette`, so no separate install is needed.
@@ -46,7 +46,7 @@ Calling `freeze_time` again replaces the frozen time. The old patchers stop and 
 
 `trigger_due_jobs` operates on a snapshot of due jobs taken at the moment of the call. Jobs re-enqueued during dispatch (repeating jobs) are not included in that snapshot and are not re-triggered in the same call. This prevents infinite loops when the clock is frozen.
 
-If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. `drain_task_bucket` waits for those handler tasks to complete before assertions run.
+If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. `await harness.drain_task_bucket()` waits for those handler tasks to complete before assertions run — see [Test Harness](harness.md) for the full method reference.
 
 ## Next Steps
 

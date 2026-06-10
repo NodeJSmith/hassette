@@ -31,7 +31,7 @@ Setting `log_level = "DEBUG"` at the top level raises verbosity for every servic
 
 ## Debug Flags
 
-Three boolean flags control event bus debug output. They are separate from log levels because event volume can be extreme.
+Three boolean flags in `[hassette.logging]` control event bus debug output. The bus processes every state change and service call from Home Assistant — hundreds of events per minute in an active home — which is why its debug output is gated separately from log levels.
 
 | Field | Default | Effect |
 |-------|---------|--------|
@@ -45,11 +45,11 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 | Value | Effect |
 |-------|--------|
-| `"auto"` | Console format when a TTY is attached, JSON when not (default) |
+| `"auto"` | Console format when running in a terminal, JSON when running as a service or in a container (default) |
 | `"console"` | Human-readable format with colors and alignment |
 | `"json"` | Structured JSON, one object per line |
 
-`log_persistence_level` sets the minimum level for log entries written to the telemetry database. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log`.
+`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command queries. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log`.
 
 ## Per-App Log Levels
 
@@ -59,7 +59,7 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 --8<-- "pages/operating/snippets/per_app_log_level.toml"
 ```
 
-The per-app `log_level` under `[apps.<key>]` takes precedence over `logging.apps`. Apps without an explicit `log_level` fall back to `logging.apps`, which falls back to the global `log_level`.
+The per-app `log_level` under `[hassette.apps.<key>]` takes precedence over `logging.apps` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` fall back to `logging.apps`, which falls back to the global `log_level`.
 
 ## Examples
 

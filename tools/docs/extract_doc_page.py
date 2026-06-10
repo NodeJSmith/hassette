@@ -124,7 +124,7 @@ def extract_element(element: Tag, lines: list[str], indent: str = "") -> None:
 
     elif tag == "table":
         for row in element.find_all("tr"):
-            cells = [cell.get_text(strip=True) for cell in row.find_all(["th", "td"])]
+            cells = [cell.get_text(separator=" ", strip=True) for cell in row.find_all(["th", "td"])]
             lines.append(f"{indent}| " + " | ".join(cells) + " |")
 
     elif tag == "blockquote":

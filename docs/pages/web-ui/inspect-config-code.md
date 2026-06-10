@@ -12,7 +12,7 @@ The Configuration page displays all `hassette.toml` values grouped by section. G
 
 The page is accessible from the sidebar under **Config**.
 
-Values reflect the configuration loaded at the most recent startup or reload. Refresh the browser after a Hassette reload to see updated values.
+Values reflect the configuration loaded at the most recent startup or reload (triggered from the [Manage Apps](manage-apps.md) page or by the file watcher). Refresh the browser after a reload to see updated values.
 
 See [Configuration](../core-concepts/configuration/index.md) for the full settings reference.
 
@@ -20,11 +20,11 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 ![Per-app configuration tab](../../_static/web_ui_app_detail_config.png)
 
-The **Config** tab on an app detail page shows the resolved configuration for that app instance. It merges three sources: `hassette.toml` values, environment variable overrides, and field defaults from the [`AppConfig`](../core-concepts/apps/index.md) class. Pydantic validates the merged result.
+The **Config** tab on an app detail page shows the resolved configuration for that app instance. It merges three sources: `hassette.toml` values, environment variable overrides, and field defaults from the [`AppConfig`](../core-concepts/apps/index.md) class. The merged result is validated — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
 
 The tab is on the app detail page, accessible by selecting an app from the sidebar.
 
-If an environment variable override is not reflected, the env var name does not match the config class field name. The tab shows exactly what the app received, making it the fastest way to confirm an override took effect.
+If an environment variable override is not reflected, the env var name does not match the config class field name — the expected name is the `env_prefix` from the app's `AppConfig` plus the uppercased field name (see [App Configuration](../core-concepts/apps/configuration.md)). The tab shows exactly what the app received, making it the fastest way to confirm an override took effect.
 
 ## Read App Source Code
 
@@ -32,7 +32,7 @@ If an environment variable override is not reflected, the env var name does not 
 
 The **Code** tab on an app detail page displays the Python source of the app as deployed. The view is read-only and syntax-highlighted.
 
-In Docker deployments, the container's app directory may differ from your local copy. The Code tab shows what is on disk inside the running container, without needing a shell.
+If Hassette runs in Docker, the container's app directory may differ from your local copy. The Code tab shows what is on disk inside the running container, without needing a shell.
 
 The tab is on the same app detail page as the Config tab.
 
