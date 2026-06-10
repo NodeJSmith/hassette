@@ -2,9 +2,12 @@
 
 This page covers migrating AppDaemon event listeners and state change listeners to Hassette's event bus (`self.bus`).
 
+!!! note "Coming from synchronous AppDaemon?"
+    All registration methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`) are `async` and must be awaited, and the methods that call them — like `on_initialize` — must be `async def`. This is the biggest mental-model shift from AppDaemon; [Migration Concepts](concepts.md#async-vs-sync) covers it.
+
 ## The `name=` Requirement
 
-Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name for telemetry, log output, and listener deduplication across restarts.
+Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name in log output and the monitoring UI, and to avoid registering the same listener twice after a reload.
 
 === "Missing name (breaks)"
 
@@ -22,7 +25,7 @@ This is the most common cause of breakage when porting AppDaemon apps. Add `name
 
 ## State Change Listeners
 
-AppDaemon uses `self.listen_state()` with a fixed four-argument callback signature. Hassette uses `self.bus.on_state_change()`, which is `async` and must be awaited. Handler signatures are flexible. Annotate parameters and Hassette fills them in.
+AppDaemon uses `self.listen_state()` with a fixed four-argument callback signature. Hassette uses `self.bus.on_state_change()`, which is `async` and must be awaited. Handler signatures are flexible: instead of AppDaemon's fixed `(entity, attribute, old, new, kwargs)`, declare only the parameters the handler needs and give them type hints — Hassette reads the hints and passes the matching values in. This pattern is called dependency injection.
 
 === "AppDaemon"
 
@@ -42,7 +45,7 @@ AppDaemon uses `self.listen_state()` with a fixed four-argument callback signatu
     --8<-- "pages/migration/snippets/bus_hassette_state_change_event.py"
     ```
 
-The dependency injection form is preferred. `D.StateNew[states.InputButtonState]` tells Hassette to extract the new state and convert it to a typed model. Your IDE knows the type; Pyright catches typos.
+The dependency injection form is preferred. `D.StateNew[states.InputButtonState]` tells Hassette to extract the new state and convert it to a typed model — `D` is `hassette.dependencies`, `states` is the module of typed state classes. `AppConfig` in the example replaces AppDaemon's `self.args`; fields declared on it are set in `hassette.toml` (see [Configuration](configuration.md)). If your editor runs a type checker, it knows the state's type and catches typos.
 
 ### Filter argument mapping
 
@@ -54,7 +57,7 @@ The dependency injection form is preferred. `D.StateNew[states.InputButtonState]
 | `old="off"` | `changed_from="off"` |
 | `attribute="battery"` | Use `on_attribute_change()` instead |
 
-For more complex filtering, pass a predicate via `where=`. See [`Bus` filtering](../core-concepts/bus/filtering.md) for the full reference.
+For more complex filtering, pass a predicate via `where=` — a function that receives the event and returns `True` or `False`. See [`Bus` filtering](../core-concepts/bus/filtering.md) for the full reference.
 
 ## Attribute Change Listeners
 
@@ -88,10 +91,10 @@ AppDaemon uses `self.listen_event("call_service", ...)` with a callback that rec
     --8<-- "pages/migration/snippets/bus_hassette_on_call_service_event.py"
     ```
 
-Dependency markers available in service call handlers:
+These are the values Hassette can inject into service-call handler parameters — declare the ones the handler needs. `A` is `hassette.accessors`, field extractors; `Annotated[str, A.get_service]` means "a `str`, extracted by `A.get_service`":
 
 - `D.Domain`, the service domain (e.g., `"light"`)
-- `D.EntityId` / `D.MaybeEntityId`, entity ID from the service data
+- `D.EntityId` / `D.MaybeEntityId`, entity ID from the service data (`Maybe` allows calls where it's absent)
 - `D.EventContext`, the HA event context object
 - `Annotated[str, A.get_service]`, the service name
 - `Annotated[Any, A.get_service_data]`, the full service data dict
@@ -145,6 +148,10 @@ All registration methods (`on_state_change`, `on_attribute_change`, `on_call_ser
     ```python
     --8<-- "pages/migration/snippets/bus_migration_service_calls.py"
     ```
+
+## Verify the Migration
+
+Run `hassette listener --app <key>` to confirm each subscription registered under its `name=`, then trigger the entity and watch `hassette log --app <key>` for the handler's log line.
 
 ## See Also
 

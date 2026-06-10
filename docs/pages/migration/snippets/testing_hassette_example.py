@@ -1,5 +1,3 @@
-from whenever import Instant
-
 from hassette import App, AppConfig, D, states
 from hassette.test_utils import AppTestHarness
 

@@ -1,6 +1,6 @@
 # Configuration
 
-AppDaemon splits configuration across two YAML files: `appdaemon.yaml` for global settings and `apps.yaml` for per-app arguments. Hassette uses a single `hassette.toml` for everything, and replaces raw argument dictionaries with typed [`AppConfig`][hassette.app.app_config.AppConfig] models.
+AppDaemon splits configuration across two YAML files: `appdaemon.yaml` for global settings and `apps.yaml` for per-app arguments. Hassette uses a single `hassette.toml` for everything, and replaces raw argument dictionaries with typed [`AppConfig`][hassette.app.app_config.AppConfig] models — `AppConfig` is a class you define once per app, declaring each setting's name and type; Hassette fills it from `hassette.toml` and hands it to your app as `self.app_config`.
 
 ## Global Configuration
 
@@ -46,32 +46,32 @@ This is the bigger change. In AppDaemon, you declare app arguments in `apps.yaml
     --8<-- "pages/migration/snippets/config_hassette_appconfig.py"
     ```
 
-Missing required fields raise a validation error at startup, before any handler runs. `self.app_config.entity` carries a type your IDE can check.
+Missing required fields raise a validation error at startup, before any handler runs — the error names the missing key, so a failed config migration surfaces immediately rather than as a `KeyError` mid-automation. `self.app_config.entity` carries a type your IDE can check.
 
 !!! note "`[[double brackets]]`: TOML array-of-tables"
-    `[[apps.my_app.config]]` is a TOML array-of-tables. You can repeat the block to run the same app class with multiple independent configurations. Use `[...]` for a single instance; use `[[...]]` when you want a list.
+    `[[hassette.apps.my_app.config]]` is a TOML array-of-tables. You can repeat the block to run the same app class with multiple independent configurations. Use `[...]` for a single instance; use `[[...]]` when you want a list.
 
 ## Multi-Instance Apps
 
-To run the same class in multiple rooms, add another `[[apps.my_app.config]]` block:
+To run the same class in multiple rooms, add another `[[hassette.apps.my_app.config]]` block:
 
 ```toml
-[apps.motion_lights]
+[hassette.apps.motion_lights]
 filename = "motion_lights.py"
 class_name = "MotionLights"
 
-[[apps.motion_lights.config]]
+[[hassette.apps.motion_lights.config]]
 motion_sensor = "binary_sensor.living_room_motion"
 light = "light.living_room"
 off_delay = 300
 
-[[apps.motion_lights.config]]
+[[hassette.apps.motion_lights.config]]
 motion_sensor = "binary_sensor.bedroom_motion"
 light = "light.bedroom"
 off_delay = 120
 ```
 
-Each block becomes a separate app instance. Both run the same `MotionLights` class with different config values. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
+Each block becomes a separate app instance. Both run the same `MotionLights` class with different config values, and each instance's `self.app_config` holds the values from its own block — the Python class needs no changes. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
 
 ## See Also
 

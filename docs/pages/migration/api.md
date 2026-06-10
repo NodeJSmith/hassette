@@ -1,5 +1,8 @@
 # API Calls
 
+!!! note "Coming from synchronous AppDaemon?"
+    Every Hassette lifecycle method and handler is `async def`, and calls to `self.api` need `await` in front — `await` pauses the handler until the network call finishes. Reads from `self.states` (the local cache) are plain synchronous calls. [Migration Concepts](concepts.md#async-vs-sync) covers the model.
+
 ## Getting Entity State
 
 AppDaemon's `self.get_state()` reads from an internal cache and returns raw strings or dicts. Hassette provides two options. `self.states` is a local cache for most reads. `self.api.get_state()` forces a fresh read from Home Assistant when the cache is not enough.
@@ -57,7 +60,9 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
     ```
 
 !!! warning "Don't forget `await`"
-    Calling `self.api.call_service()` without `await` returns a coroutine object and does nothing. If service calls appear to have no effect, check that every call site has `await`.
+    Without `await`, the call appears to succeed but the service never runs — Python just hands back an unexecuted coroutine. If service calls have no effect, check that every call site has `await`.
+
+Two signature differences from AppDaemon: the entity belongs in the `target` dict (`target={"entity_id": "light.kitchen"}`) rather than AppDaemon's bare `entity_id=` keyword, and Hassette handlers don't take `**kwargs` — event data arrives through typed parameters instead (see [Bus & Events](bus.md)).
 
 ## Setting States
 

@@ -45,22 +45,22 @@ AppDaemon is multi-threaded. Each app runs in its own thread, so synchronous cod
 
 Hassette runs all apps in a single asyncio event loop. Two things follow:
 
-1. API calls and bus registrations require `await`.
+1. API calls and bus registrations require `await` — the practical rule: put `await` in front of any call to `self.api`, `self.bus`, or `self.scheduler`, and declare the surrounding method `async def`. Reads from `self.states` are synchronous.
 2. Blocking the event loop (a long `time.sleep`, a slow synchronous database call) blocks all apps, not just yours.
 
 ```python
 --8<-- "pages/migration/snippets/concepts_sync_async.py"
 ```
 
-If you have blocking code that you cannot convert, use [`AppSync`][hassette.app.app.AppSync] (described below).
+The example's `self.task_bucket.run_in_thread(...)` is a helper on every `App` instance that runs blocking code in a thread without stalling other apps. If most of your code is blocking and you cannot convert it, use [`AppSync`][hassette.app.app.AppSync] ([described below](#synchronous-api-appsync)).
 
 ## Typed vs Untyped
 
 AppDaemon returns raw strings and dicts. `self.get_state("light.kitchen")` returns `"on"` or `"off"`. Attribute access returns `Any`. Configuration lives in `self.args`, a plain dict.
 
-Hassette uses Pydantic models throughout.
+Hassette uses typed models throughout — objects with named, validated fields instead of raw dicts (powered by Pydantic).
 
-**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape; Pyright catches typos at development time, not at 2am.
+**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape, and a type checker like Pyright catches typos at development time, not at 2am.
 
 **App configuration** is a validated Pydantic model. You declare fields with types and defaults; Hassette loads and validates them at startup. A missing required field raises an error before any handler fires.
 
@@ -106,7 +106,7 @@ If you have a large synchronous codebase and don't want to convert everything at
 --8<-- "pages/migration/snippets/concepts_appsync.py"
 ```
 
-Because the bus, scheduler, and API are async internally, `AppSync` exposes `.sync` facades: `self.bus.sync`, `self.scheduler.sync`, `self.api.sync`. These block until the async operation completes and return the result to your synchronous code.
+Because the bus, scheduler, and API are async internally, `AppSync` exposes synchronous wrappers: `self.bus.sync`, `self.scheduler.sync`, `self.api.sync`. Each one waits for the async operation to finish and returns the result to your synchronous code.
 
 `AppSync` keeps your existing code working while you migrate. As you convert methods to async, you can move them to `App` incrementally.
 

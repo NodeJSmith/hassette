@@ -19,7 +19,8 @@ See [Configuration](configuration.md) for the full conversion guide.
 
 ## Step 2: App Structure
 
-- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync)
+- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync). Rule of thumb: if your callbacks never block (no `time.sleep`, no `requests.get`), use `App`; if they do and you can't convert them yet, use `AppSync`.
+- [ ] If you chose `AppSync`: use the `.sync` facades everywhere in steps 3–5 — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)` — with no `await`. Calling the async methods from sync hooks silently does nothing.
 - [ ] Rename `initialize()` to the correct hook for your base class:
     - `App`: `async def on_initialize(self)`. Must be `async def`.
     - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`).
@@ -33,11 +34,11 @@ See [Mental Model](concepts.md) for the lifecycle differences.
 ## Step 3: Event Listeners
 
 - [ ] Convert each `self.listen_state(...)` to `await self.bus.on_state_change(...)`
-  - [ ] Add `await`. All `self.bus.on_*()` methods are async.
+  - [ ] Add `await`. All `self.bus.on_*()` methods are async — `await` only works inside `async def` methods, so check the surrounding method too.
   - [ ] Add `name=`. A stable string identifier is required on every registration (e.g. `name="kitchen_light"`).
   - [ ] Move filter arguments: `new=` → `changed_to=`, `old=` → `changed_from=`
   - [ ] Update callback signatures to use dependency injection or accept an event object
-  - [ ] Replace `self.cancel_listen_state(handle)` with `subscription.cancel()`
+  - [ ] Replace `self.cancel_listen_state(handle)` with `subscription.cancel()` — registration returns a `Subscription`; store it (`sub = await self.bus.on_state_change(...)`) to cancel later
 - [ ] Convert each `self.listen_event("call_service", ...)` to `await self.bus.on_call_service(...)`
   - [ ] Add `await` and `name=`
   - [ ] Update callback signatures
@@ -52,22 +53,24 @@ See [`Bus` & Events](bus.md) for side-by-side examples.
 - [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`
 - [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval)`
 - [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM")`
-- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]
+- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` — each scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]; store it (`job = await self.scheduler.run_in(...)`) to cancel later
 - [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
 
 See [`Scheduler`](scheduler.md) for method equivalents.
 
 ## Step 5: API Calls
 
-- [ ] Convert `self.get_state(entity_id)` to `self.states.domain.get(entity_id)` for cached reads
+- [ ] Convert `self.get_state(entity_id)` to domain access on the state cache for cached reads — `self.get_state("light.kitchen")` becomes `self.states.light.get("light.kitchen")`
 - [ ] Replace `self.call_service("domain/service", ...)` with `await self.api.call_service("domain", "service", ...)`
-- [ ] Add `await` to all `self.api.*` calls. Forgetting `await` returns a coroutine without executing the call.
+- [ ] Add `await` to all `self.api.*` calls. Forgetting `await` means the call never runs — no error, just silence. If a service call appears to do nothing, check for a missing `await`.
 - [ ] Replace `self.set_state(...)` with `await self.api.set_state(...)`
 - [ ] Replace `self.log(...)` with `self.logger.info(...)` (and `.warning()`, `.error()` as needed)
 
 See [API Calls](api.md) for the full guide.
 
 ## Step 6: Test
+
+This step is optional for the initial migration but worth it — AppDaemon has no testing story, so this is new ground. The [Testing](testing.md) page walks through it from scratch.
 
 - [ ] Write at least one test using `AppTestHarness`
 - [ ] Seed entity state before simulating events
