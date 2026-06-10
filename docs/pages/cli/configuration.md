@@ -4,13 +4,13 @@
 
 ### Discovery Order
 
-The CLI constructs the server address from the same configuration sources Hassette uses at runtime.
+The CLI is a client that queries a running Hassette server. It constructs the server address from the same configuration sources Hassette uses at runtime — the `__` double underscore in variable names separates nested config sections, so `HASSETTE__WEB_API__HOST` sets `web_api.host`.
 Priority runs highest to lowest:
 
 1. **Global flags**: `--config-file` and `--env-file` override which files are loaded
 2. **Environment variables**: `HASSETTE__WEB_API__HOST` and `HASSETTE__WEB_API__PORT`
 3. **`.env` file**: loaded from the current directory (or the path given to `--env-file`)
-4. **`hassette.toml`**: loaded from the current directory (or the path given to `--config-file`)
+4. **[`hassette.toml`](../core-concepts/configuration/index.md)**: loaded from the current directory (or the path given to `--config-file`)
 5. **Default**: `http://127.0.0.1:8126`
 
 !!! tip "Remote instances"
@@ -29,15 +29,15 @@ Priority runs highest to lowest:
 
 ### Token
 
-The access token (`HASSETTE__TOKEN`) is not required for CLI query commands. Query commands read from the REST API without authentication. Only `hassette run` requires the token to connect to Home Assistant.
+The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead and need no token.
 
 ## Output Modes
 
 ### Human-Readable (Default)
 
-The CLI renders tables for collections and key-value panels for single objects. Colors and formatting apply when stdout is a TTY.
+The CLI renders tables for collections and key-value panels for single objects. Colors and formatting apply when output goes to a terminal.
 
-When output is piped, Rich automatically strips ANSI codes and disables column truncation:
+When output is piped to another command or a file, color codes are stripped and full untruncated values are shown:
 
 ```bash
 hassette listener --app my-app | grep error
@@ -45,7 +45,7 @@ hassette listener --app my-app | grep error
 
 ### JSON (`--json`)
 
-`--json` writes a single JSON document to stdout. The response model is the full server payload, a superset of what the human table displays.
+`--json` writes a single JSON document to stdout — the full data from the server, a superset of what the human table displays.
 
 ```console
 $ hassette status --json
@@ -107,7 +107,7 @@ hassette --generate-completion fish > ~/.config/fish/completions/hassette.fish
 hassette --install-completion --shell zsh
 ```
 
-Omitting `--shell` from either command triggers auto-detection of the current shell. A shell restart or config re-source is needed after installation. Subcommand-specific flags complete alongside top-level commands.
+Omitting `--shell` from either command triggers auto-detection of the current shell. Reload your shell config afterward (`source ~/.zshrc` for Zsh, `source ~/.bashrc` for Bash) or restart the terminal. To confirm it works, type `hassette ` and press Tab — available commands appear. Subcommand-specific flags complete alongside top-level commands.
 
 ## Error Handling
 
@@ -127,7 +127,7 @@ Omitting `--shell` from either command triggers auto-detection of the current sh
 Network error: Connection refused: http://127.0.0.1:8126 ([Errno 111] Connection refused)
 ```
 
-Hassette is not running, or the configured address is wrong. The address comes from environment variables, `.env`, or `hassette.toml`.
+Hassette is not running, or the configured address is wrong. The address comes from environment variables, `.env`, or `hassette.toml` — see [Discovery Order](#discovery-order) for which wins.
 
 **Request timed out:**
 
@@ -143,7 +143,7 @@ The server is reachable but not responding. Server logs may show blocking operat
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-The instance name must match `hassette app` output exactly. The integer index also works.
+The instance name must match `hassette app` output exactly. The integer index also works — `--instance 0` selects the first instance.
 
 ### JSON Error Format
 

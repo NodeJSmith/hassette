@@ -2,6 +2,8 @@
 
 All commands support `--json` for structured output and `--debug` for verbose error details. [Configuration & Scripting](configuration.md#output-modes) covers output modes in detail.
 
+Every command except `run` queries a running instance — start the server with `hassette run` first. Each command wraps a REST endpoint, noted per command for scripting and direct HTTP access.
+
 ## `hassette run`
 
 Starts the Hassette framework server, connects to Home Assistant, loads apps, and starts the web API. The process runs in the foreground — keep the terminal open, or use a process manager like systemd or Docker. Press `Ctrl+C` to stop.
@@ -19,7 +21,7 @@ hassette run
 | `--verify-ssl`              | Whether to verify SSL certificates.                                 |
 | `--dev-mode`                | Enables developer mode.                                             |
 
-All flags are optional. Values resolve from the TOML config file and environment variables when not provided on the command line.
+All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
 ## `hassette status`
 
@@ -39,13 +41,13 @@ $ hassette status
 ╰──────────────────────────────────────────────────────────────╯
 ```
 
-`boot_issues` lists apps that failed to initialize. An empty list means all apps started cleanly.
+`boot_issues` lists apps that failed to initialize. An empty list means all apps started cleanly. When an app appears here, check `hassette log --app <key>` for the error.
 
 **API endpoint:** `GET /api/health`
 
 ## `hassette app`
 
-Lists all loaded apps with key, display name, status, instance count, and recent invocation counts.
+Lists all loaded apps with key, display name, status, instance count, and recent invocation counts. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
 
 ```console
 $ hassette app
@@ -121,13 +123,13 @@ hassette app source my-app
 | --------------- | -------------------- | -------------------------------------------------------- |
 | `--instance`    | `health`, `activity` | Filters to a specific app instance (index or name).      |
 | `--since`       | `health`, `activity` | Time window for metrics. See [formats](#--since-format). |
-| `--source-tier` | `health`             | Filters by source tier: `app`, `framework`, or `all`.    |
+| `--source-tier` | `health`             | Filters by source tier — `app` is your code, `framework` is Hassette internals. See [Shared Flags](#shared-flags). |
 | `--limit`       | `activity`           | Maximum records to return.                               |
 | `--json`        | all                  | Outputs as JSON.                                         |
 
 ## `hassette listener`
 
-Lists all registered event bus listeners, or shows invocation history for a specific listener.
+Lists all registered event bus listeners, or shows invocation history for a specific listener. A listener is the registered subscription that connects a handler (a function in your app) to an event — see [Bus](../core-concepts/bus/index.md).
 
 ```console
 $ hassette listener
@@ -167,7 +169,7 @@ The invocation table shows status, duration, error type, error message, timestam
 
 ## `hassette job`
 
-Lists all scheduled jobs, or shows execution history for a specific job.
+Lists all scheduled jobs, or shows execution history for a specific job. A job is a function registered with the [Scheduler](../core-concepts/scheduler/index.md) to run at a time or interval.
 
 ```console
 $ hassette job
@@ -242,7 +244,7 @@ $ hassette log --limit 5
 
 ## `hassette execution`
 
-Log entries for a specific execution, identified by its UUID.
+Log entries for a specific execution — a single run of a handler or job, identified by its UUID. Get the UUID from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
 
 ```bash
 hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -318,7 +320,7 @@ hassette config
 
 ## `hassette telemetry`
 
-Telemetry database statistics: record counts, drop rates, and error handler failures.
+Hassette records every handler invocation and job execution to an internal database. This command shows its statistics: record counts, whether any records were dropped under load or shutdown, and error handler failures.
 
 ```console
 $ hassette telemetry
@@ -373,7 +375,7 @@ These flags apply to every command and are placed before the subcommand name.
 | `d`    | days    | `7d`    |
 | `w`    | weeks   | `2w`    |
 
-Compound durations such as `1h30m` are not supported. Month and year units are not supported.
+Compound durations such as `1h30m` are not supported — use the closest single unit instead, like `--since 90m`. Month and year units are not supported; use days.
 
 **Absolute timestamps** use ISO 8601 format:
 

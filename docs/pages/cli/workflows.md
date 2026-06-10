@@ -2,7 +2,9 @@
 
 CLI commands chain together. Start broad, narrow to the problem, then read the full trace.
 
-Two terms appear throughout: a **handler** is a Python function in your app that runs in response to a Home Assistant event (e.g., a motion sensor firing). An **invocation** is a single execution of that handler — one time it ran.
+Three terms appear throughout: a **handler** is a Python function in your app that runs in response to a Home Assistant event (e.g., a motion sensor firing). A **listener** is the registered subscription that connects a handler to an event. An **invocation** is a single execution of that handler — one time it ran. The CLI calls each invocation an *execution* and gives it an execution ID; the two words name the same thing.
+
+The examples pipe `--json` output to [`jq`](https://jqlang.org), a command-line JSON filter — install it with `apt install jq` or `brew install jq`, or skip those one-liners.
 
 ## Quick Health Checks
 
@@ -86,7 +88,7 @@ This lists every listener registered by `garage_door` with per-listener invocati
 hassette listener 42 --since 1h
 ```
 
-Replace `42` with the listener ID from step 3. Each row shows status, duration, error info, and execution ID. Find the failed row and copy its execution ID.
+Replace `42` with the listener ID from step 3. Each row shows status, duration, error info, and execution ID. Find the failed row and copy the value in its `Execution ID` column.
 
 **5. Read the execution logs**
 
@@ -110,7 +112,7 @@ hassette listener --app motion_lights
 # Recent invocations across all listeners
 hassette app activity motion_lights --since 1h
 
-# Scheduled jobs
+# Scheduled jobs (functions registered with the scheduler)
 hassette job --app motion_lights
 
 # Recent log output
@@ -119,7 +121,7 @@ hassette log --app motion_lights --limit 30
 
 ### Multi-Instance Apps
 
-When an app runs as multiple instances (one per room, for example), add `--instance` to filter further. Use the instance name or its zero-based index:
+When an app runs as multiple instances (one per room, for example — declared in `hassette.toml`, see [App Configuration](../core-concepts/apps/configuration.md)), add `--instance` to filter further. Use the instance name or its zero-based index:
 
 ```bash
 # By name
@@ -160,7 +162,7 @@ hassette listener 42 --since 24h
 
 ## Scripting with `--json`
 
-Every command accepts `--json` and writes structured JSON to stdout. Pipe it to `jq` for filtering and scripting.
+Every command accepts `--json` and writes structured JSON to stdout. Pipe it to `jq` for filtering and scripting — the JSON contains every field the server returns; see [Commands](commands.md) for each command's output. The scripts below are bash; adapt the pattern to whatever runs your monitoring.
 
 **Extract failing apps:**
 

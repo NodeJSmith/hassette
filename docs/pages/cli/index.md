@@ -1,6 +1,6 @@
 # CLI
 
-The `hassette` CLI queries a running Hassette instance over HTTP. Check system health, inspect apps, read logs, and trace handler executions from the terminal. No HA credentials needed for read commands.
+The `hassette` CLI queries a running Hassette instance over HTTP. Check system health, inspect apps, read logs, and trace handler executions from the terminal. No HA credentials needed — the CLI talks to Hassette's web API, not Home Assistant. Only `hassette run` itself needs your HA token.
 
 The default address is `http://localhost:8126`. See [Configuration](configuration.md) to point the CLI at a remote instance.
 
@@ -21,7 +21,7 @@ $ hassette status
 ╰───────────────────────────────────────────────────────────╯
 ```
 
-`hassette status` shows connection state, uptime, and app count. `boot_issues` lists any apps that failed to initialize.
+`hassette status` shows connection state, uptime, and app count. `websocket_connected` shows whether Hassette has a live connection to Home Assistant — when `false`, no events fire. `services_running` lists Hassette's internal services. `boot_issues` lists any apps that failed to initialize; check `hassette log --app <key>` for the error.
 
 ```console
 $ hassette app
@@ -35,7 +35,7 @@ $ hassette app
 └─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────────────┘
 ```
 
-`hassette app` lists every loaded app with its status and invocation count. `Invoc/1h` shows handler firings in the last hour. A count of 0 is normal for apps that react to infrequent events.
+`hassette app` lists every loaded app. The `App Key` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml`. `Instances` counts running copies of the app; most apps run one. `Invoc/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
 
 ```console
 $ hassette log --limit 5
@@ -54,7 +54,7 @@ $ hassette log --limit 5
 └─────────┴───────┴─────┴──────────┴─────────────────────┴────────────────────────────┘
 ```
 
-`hassette log` shows the most recent log entries. Narrow to a specific app with `--app <key>`, or go back further with `--since 1h`.
+`hassette log` shows the most recent log entries. Rows with blank `App` and `Instance` columns are framework-level logs; app entries fill both. Narrow to a specific app with `--app <key>` (the App Key from the table above), or go back further with `--since 1h`.
 
 If Hassette isn't running, every command gives the same error:
 
@@ -63,7 +63,7 @@ $ hassette status
 Could not connect to Hassette at http://localhost:8126
 ```
 
-Start Hassette with `hassette run`, then retry. See [Configuration](configuration.md) to connect to a remote instance.
+Start Hassette with `hassette run` (covered in [Getting Started](../getting-started/index.md)), then retry. See [Configuration](configuration.md) to connect to a remote instance.
 
 ## Next Steps
 
