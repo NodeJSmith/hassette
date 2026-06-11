@@ -18,7 +18,7 @@ Below the wordmark, a "jump to…" button opens the [command palette](#command-p
 
 ### Navigation items
 
-Four top-level items link to the main pages:
+Five top-level items link to the main pages:
 
 | Item | Page |
 |------|------|
@@ -26,6 +26,7 @@ Four top-level items link to the main pages:
 | handlers | [Handlers](handlers.md) — cross-app handler table |
 | logs | [Logs](logs.md) — global log viewer |
 | config | [Config](config.md) — system configuration |
+| diagnostics | [Diagnostics](diagnostics.md) — framework service health |
 
 ### Apps section
 
@@ -79,7 +80,7 @@ The palette organizes results into sections:
 
 | Section | Contents |
 |---------|----------|
-| pages | The four top-level pages (apps, handlers, logs, config) |
+| pages | The five top-level pages (apps, handlers, logs, config, diagnostics) |
 | apps | All loaded apps, each with a status dot and app key |
 | instances | Individual instances of multi-instance apps |
 | handlers | All registered handlers across all apps |

@@ -88,6 +88,7 @@ nav:
       - Handlers: pages/web-ui/handlers.md
       - Logs: pages/web-ui/logs.md
       - Config: pages/web-ui/config.md
+      - Diagnostics: pages/web-ui/diagnostics.md
       - Health Endpoints: pages/web-ui/health-endpoints.md
   - CLI:
       - Overview: pages/cli/index.md

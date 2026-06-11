@@ -84,6 +84,12 @@
   height: 1656
   wait: 2000
 
+- url: "http://localhost:{port}/diagnostics"
+  output: docs/_static/web_ui_diagnostics.png
+  width: 1400
+  height: 900
+  wait: 2000
+
 # demo_stimulator has active handlers, errors, and timing data — more informative than motion_lights
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
   output: docs/_static/web_ui_app_detail_overview.png
