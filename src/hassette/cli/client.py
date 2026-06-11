@@ -119,7 +119,16 @@ class HassetteCLIClient:
         if not response.is_success and not is_tolerated_503:
             self._handle_http_error(response)
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            # A tolerated 503 can still carry a non-JSON body — a proxy or load
+            # balancer's HTML error page rather than the app's status payload.
+            # Route those to the normal error exit instead of crashing.
+            if is_tolerated_503:
+                self._handle_http_error(response)
+            raise
+
         if model is dict or model is list:
             return data
         return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]

@@ -139,6 +139,18 @@ class TestTolerate503:
             client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
 
+    def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
+        """A tolerated 503 from a proxy/LB (HTML body, not JSON) exits cleanly, not a traceback."""
+        config = _make_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, content=b"<html>503 Service Unavailable</html>")
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
 
 # ---------------------------------------------------------------------------
 # HTTP error handling (human mode)
