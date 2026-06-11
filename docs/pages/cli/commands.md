@@ -339,6 +339,8 @@ $ hassette telemetry
 
 All-zero counters indicate the telemetry pipeline is healthy and no records have been lost.
 
+When the telemetry database is unreachable, the endpoint returns HTTP 503 with `degraded: true`. The command treats that as a valid status — it prints the response and exits 0, so scripts can read the degraded state instead of catching a CLI error.
+
 **API endpoint:** `GET /api/telemetry/status`
 
 ## Shared Flags

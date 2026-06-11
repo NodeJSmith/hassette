@@ -110,6 +110,37 @@ class TestSuccessfulRequests:
 
 
 # ---------------------------------------------------------------------------
+# tolerate_503: 503 with a valid body is deserialized, not treated as an error
+# ---------------------------------------------------------------------------
+
+
+class TestTolerate503:
+    def test_503_deserializes_body_when_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(503, {"value": "degraded"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        result = client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert isinstance(result, SimpleModel)
+        assert result.value == "degraded"
+
+    def test_503_still_exits_when_not_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(503, {"value": "degraded"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_500_still_exits_even_when_503_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
+
+# ---------------------------------------------------------------------------
 # HTTP error handling (human mode)
 # ---------------------------------------------------------------------------
 

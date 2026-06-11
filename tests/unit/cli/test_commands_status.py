@@ -30,9 +30,9 @@ class TestCmdStatus:
         called_paths: list[str] = []
         original_get = client.get
 
-        def tracking_get(path, model, params=None):
+        def tracking_get(path, model, params=None, **kwargs):
             called_paths.append(path)
-            return original_get(path, model, params=params)
+            return original_get(path, model, params=params, **kwargs)
 
         with (
             patch.object(client, "get", side_effect=tracking_get),
@@ -127,9 +127,9 @@ class TestCmdTelemetry:
         called_paths: list[str] = []
         original_get = client.get
 
-        def tracking_get(path, model, params=None):
+        def tracking_get(path, model, params=None, **kwargs):
             called_paths.append(path)
-            return original_get(path, model, params=params)
+            return original_get(path, model, params=params, **kwargs)
 
         with (
             patch.object(client, "get", side_effect=tracking_get),
@@ -167,6 +167,33 @@ class TestCmdTelemetry:
         parsed = json.loads("".join(captured))
         assert parsed["dropped_overflow"] == 5
 
+    def test_503_renders_degraded_status_human_mode(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 503 (degraded DB) prints the status body, not an error, and does not exit."""
+        tel_data = make_telemetry_status_response(degraded=True)
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
+        with (
+            capture_stdout() as buf,
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+        ):
+            cmd_telemetry()
+        assert "degraded" in buf.getvalue()
+
+    def test_503_outputs_status_json_mode_exit_zero(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 503 in json mode emits the deserialized status (no error doc) and exits 0."""
+        tel_data = make_telemetry_status_response(degraded=True)
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
+        captured: list[str] = []
+
+        with (
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+        ):
+            cmd_telemetry(ctx=CLIContext(json_mode=True))
+
+        parsed = json.loads("".join(captured))
+        assert parsed["degraded"] is True
+        assert "error" not in parsed
+
 
 # ---------------------------------------------------------------------------
 # cmd_dashboard
@@ -183,9 +210,9 @@ class TestCmdDashboard:
         called_paths: list[str] = []
         original_get = client.get
 
-        def tracking_get(path, model, params=None):
+        def tracking_get(path, model, params=None, **kwargs):
             called_paths.append(path)
-            return original_get(path, model, params=params)
+            return original_get(path, model, params=params, **kwargs)
 
         with (
             patch.object(client, "get", side_effect=tracking_get),

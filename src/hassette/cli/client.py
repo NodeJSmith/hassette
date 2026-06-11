@@ -71,24 +71,42 @@ class HassetteCLIClient:
     # ---------------------------------------------------------------------------
 
     @overload
-    def get(self, path: str, model: type[dict], params: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def get(
+        self, path: str, model: type[dict], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> dict[str, Any]: ...
 
     @overload
-    def get(self, path: str, model: type[list], params: dict[str, Any] | None = None) -> list[Any]: ...
+    def get(
+        self, path: str, model: type[list], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> list[Any]: ...
 
     @overload
-    def get(self, path: str, model: type[T], params: dict[str, Any] | None = None) -> T: ...
+    def get(
+        self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> T: ...
 
     def get(
         self,
         path: str,
         model: type[T],
         params: dict[str, Any] | None = None,
+        *,
+        tolerate_503: bool = False,
     ) -> T | dict[str, Any] | list[Any]:
         """Perform a GET request, deserialize the response, and handle errors.
 
+        Args:
+            path: API path to request.
+            model: Pydantic model class or ``list``/``dict`` for raw responses.
+            params: Optional query parameters.
+            tolerate_503: When ``True``, a 503 response is deserialized and returned
+                rather than treated as an error. Use for human-inspection commands
+                whose endpoint returns 503 with a valid status body (e.g. a degraded
+                telemetry DB). The body is the source of truth, not the HTTP status.
+
         Raises:
-            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2).
+            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2). A 503 is
+                exempt from the error path when ``tolerate_503=True``.
         """
         try:
             response = self._client.get(path, params=params, timeout=self.timeout)
@@ -99,7 +117,8 @@ class HassetteCLIClient:
         except httpx.RequestError as exc:
             self._handle_network_error(f"Network error: {exc}")
 
-        if not response.is_success:
+        is_tolerated_503 = tolerate_503 and response.status_code == 503
+        if not response.is_success and not is_tolerated_503:
             self._handle_http_error(response)
 
         data = response.json()
