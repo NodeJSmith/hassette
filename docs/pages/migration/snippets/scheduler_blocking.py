@@ -12,13 +12,13 @@ class MyConfig(AppConfig):
 class MyApp(App[MyConfig]):
     # --8<-- [start:sync]
     def periodic_sync_task(self):
-        data = requests.get("http://example.com/api").json()  # pyright: ignore[reportUnusedVariable]
+        data = requests.get("http://example.com/api").json()
         ...
     # --8<-- [end:sync]
 
     # --8<-- [start:async]
     async def periodic_async_task(self):
-        data = await asyncio.to_thread(  # pyright: ignore[reportUnusedVariable]
+        data = await asyncio.to_thread(
             requests.get, "http://example.com/api"
         )
         ...

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic_settings import SettingsConfigDict
 
 from hassette import App, AppConfig, P
@@ -34,7 +36,7 @@ class LightGroupApp(App[LightGroupConfig]):
             color_temp,
         )
 
-        call_data: dict[str, object] = {"entity_id": self.app_config.accent_light}
+        call_data: dict[str, Any] = {"entity_id": self.app_config.accent_light}
         if brightness is not None:
             call_data["brightness"] = brightness
         if color_temp is not None:

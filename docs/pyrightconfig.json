@@ -1,11 +1,6 @@
 {
     "include": ["pages"],
     "exclude": [
-        // Intentional type violations — snippets that show runtime-only patterns
-        // or deliberately wrong inputs to illustrate error conditions
-        "pages/advanced/snippets/custom-states",
-        "pages/advanced/snippets/state-registry",
-        "pages/advanced/snippets/type-registry/base_state_convert_call.py",
         // Migration snippets import appdaemon (not installed) and show pre-migration code
         "pages/migration/snippets"
     ],
@@ -20,20 +15,56 @@
     "reportReturnType": "error",
     "reportUnnecessaryComparison": "error",
 
-    // Per-directory suppressions so new snippet files get strict checking by default
+    // Per-directory suppressions so new snippet files get strict checking by default.
+    // Order matters: pyright uses the first matching root, so subdirectories come
+    // before their parents.
     "executionEnvironments": [
+        {
+            // Fictional .my_states import for reader context; error-demo snippets
+            // deliberately pass invalid data to try_convert_state to show exceptions
+            "root": "pages/core-concepts/states/snippets/state-registry",
+            "reportMissingImports": "none",
+            "reportArgumentType": "none"
+        },
+        {
+            // Fictional .my_states import for reader context
+            "root": "pages/core-concepts/states/snippets/custom-states",
+            "reportMissingImports": "none"
+        },
+        {
+            // Fictional my_app import for reader context
+            "root": "pages/core-concepts/states/snippets",
+            "reportMissingImports": "none"
+        },
+        {
+            // Fictional myapp import for reader context
+            "root": "pages/core-concepts/api/snippets/managing-helpers",
+            "reportMissingImports": "none"
+        },
+        {
+            // apprise demonstrates installing a third-party package in the container
+            "root": "pages/getting-started/docker/snippets",
+            "reportMissingImports": "none"
+        },
         {
             // Fictional my_apps.* imports for reader context
             "root": "pages/testing/snippets",
             "reportMissingImports": "none"
         },
         {
-            // diskcache Cache.__getitem__ returns a complex union type that triggers
-            // false positives on arithmetic and assignment in cache snippet files
+            // diskcache Cache.get/__getitem__ return a broad union type that triggers
+            // false positives on assignment, arithmetic, and returns in cache snippets
             "root": "pages/core-concepts/cache/snippets",
             "reportOperatorIssue": "none",
             "reportAssignmentType": "none",
-            "reportGeneralTypeIssues": "none"
+            "reportGeneralTypeIssues": "none",
+            "reportReturnType": "none",
+            "reportAttributeAccessIssue": "none"
+        },
+        {
+            // apps_cache_counter.py hits the same diskcache Cache.get union false positive
+            "root": "pages/core-concepts/apps/snippets",
+            "reportAttributeAccessIssue": "none"
         }
     ]
 }

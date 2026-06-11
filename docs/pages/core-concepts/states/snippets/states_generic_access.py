@@ -1,4 +1,4 @@
-from my_app import MyCustomState  # pyright: ignore[reportMissingImports]
+from my_app import MyCustomState
 
 from hassette import App
 

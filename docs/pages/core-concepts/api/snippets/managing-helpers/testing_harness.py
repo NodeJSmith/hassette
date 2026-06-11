@@ -1,7 +1,7 @@
 from hassette.models.helpers import InputBooleanRecord
 from hassette.test_utils import AppTestHarness
 
-from myapp import VacationModeApp  # pyright: ignore[reportMissingImports]
+from myapp import VacationModeApp
 
 
 async def test_vacation_mode_creates_helper_on_first_run():

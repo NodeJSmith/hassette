@@ -16,9 +16,9 @@ class ManagementPatternApp(App[AppConfig]):
 
     # --8<-- [start:list_jobs]
     async def show_jobs(self) -> None:
-        all_jobs = self.scheduler.list_jobs()  # pyright: ignore[reportUnusedVariable]
+        all_jobs = self.scheduler.list_jobs()
 
-        morning_jobs = self.scheduler.list_jobs(group="morning")  # pyright: ignore[reportUnusedVariable]
+        morning_jobs = self.scheduler.list_jobs(group="morning")
 
     # --8<-- [end:list_jobs]
 

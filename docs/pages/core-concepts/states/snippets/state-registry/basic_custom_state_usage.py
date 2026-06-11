@@ -2,7 +2,7 @@ from typing import Annotated
 
 from hassette import A, App, D
 
-from .my_states import RedditState  # pyright: ignore[reportMissingImports]
+from .my_states import RedditState
 
 
 class MyApp(App):

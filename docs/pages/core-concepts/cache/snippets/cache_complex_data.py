@@ -15,7 +15,7 @@ class EnergyStats:
 class EnergyTrackerApp(App[AppConfig]):
     async def on_initialize(self):
         # Load previous stats or create new ones
-        self.stats: EnergyStats = self.cache.get(  # pyright: ignore[reportAttributeAccessIssue]
+        self.stats: EnergyStats = self.cache.get(
             "energy_stats",
             EnergyStats(0.0, 0.0, self.now()),
         )

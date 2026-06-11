@@ -1,6 +1,6 @@
 from hassette import App
 
-from .my_states import RedditState  # pyright: ignore[reportMissingImports]
+from .my_states import RedditState
 
 
 class MyApp(App):
