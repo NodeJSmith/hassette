@@ -13,6 +13,8 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 !!! info "What's `D.StateNew[states.LightState]`?"
     That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
+Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` silently does nothing (see [Call Services](#call-services) below). The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
+
 ## Configuration
 
 [`AppConfig`][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
@@ -146,7 +148,7 @@ In production mode, the decorator is ignored by default. `allow_only_app_in_prod
 
 [`self.bus.emit()`](../bus/index.md) broadcasts an in-process event to all apps subscribed to a given topic. The event never reaches Home Assistant and is not persisted across restarts.
 
-`self.bus.on(topic=...)` subscribes to a named topic. [`D.EventData[T]`](../bus/dependency-injection.md) follows the same dependency injection pattern as `D.StateNew` — Hassette extracts and types the payload automatically.
+`self.bus.on(topic=...)` subscribes to a named topic. [`D.EventData[T]`](../bus/dependency-injection.md) follows the same dependency injection pattern as `D.StateNew` — replace `T` with the payload class, so `D.EventData[LightsSyncedData]` delivers the payload as a `LightsSyncedData` object.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:sender"

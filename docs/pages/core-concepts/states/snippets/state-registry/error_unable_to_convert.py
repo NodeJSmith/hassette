@@ -6,4 +6,4 @@ try:
     state = STATE_REGISTRY.try_convert_state(data)
 except UnableToConvertStateError as e:
     print(f"Conversion failed: {e}")
-    # Falls back to BaseState or re-raises depending on context
+    # This exception means both the resolved class and the BaseState fallback failed

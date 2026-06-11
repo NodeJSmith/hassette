@@ -1,12 +1,12 @@
 # State Conversion
 
-Home Assistant sends state data as untyped dicts with string values. Two registries cooperate to produce typed Python objects: the [`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps domains to state classes, and the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts string values to typed Python values. This conversion runs automatically whenever a handler receives state via [dependency injection](../bus/dependency-injection.md). Most apps benefit from it without touching either registry directly.
+Home Assistant sends state data as untyped dicts with string values. Two registries cooperate to produce typed Python objects: the [`StateRegistry`][hassette.conversion.state_registry.StateRegistry] maps domains to state classes, and the [`TypeRegistry`][hassette.conversion.type_registry.TypeRegistry] converts string values to typed Python values. This conversion runs automatically whenever a handler receives state via [dependency injection](../bus/dependency-injection.md) — the mechanism that fills in handler parameters like `D.StateNew[T]` from the event. Most apps benefit from it without touching either registry directly.
 
 The registries become relevant when overriding domain mappings, registering custom converters, or debugging unexpected types.
 
 ## The Conversion Pipeline
 
-When state data arrives from Home Assistant, `StateRegistry.try_convert_state()` runs the full pipeline — called automatically by the dependency injection system, or directly when using the registry API. Given this raw input:
+When state data arrives from Home Assistant, `StateRegistry.try_convert_state()` runs the full pipeline. Dependency injection calls it automatically; direct calls are only needed when converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
@@ -71,14 +71,18 @@ when `resolve` returns `None`.
 ### Overriding a Domain Mapping
 
 A custom class with the same `Literal` domain as a built-in replaces the existing mapping.
-The override takes effect at class definition time.
+Overriding is how custom attributes get typed — for example, a sensor integration that
+reports a calibration field not present on the built-in `SensorState`. The override takes
+effect at class definition time.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/domain_override.py"
 ```
 
-The registry replaces the previous mapping silently. All subsequent state events for
-`sensor` entities produce `CustomSensorState` instances.
+The registry replaces the previous mapping silently and globally — a typo in the `Literal`
+domain overrides a built-in with no warning. `STATE_REGISTRY.resolve(domain="sensor")`
+confirms which class is registered. All subsequent state events for `sensor` entities
+produce `CustomSensorState` instances.
 
 For classes that can't declare a `Literal` domain — built dynamically, or registered conditionally at runtime — [`register_state_converter`][hassette.conversion.register_state_converter] registers a class with the registry explicitly. It is the imperative equivalent of the `Literal`-based auto-registration.
 
@@ -87,8 +91,8 @@ For classes that can't declare a `Literal` domain — built dynamically, or regi
 
 ### Union Type Support
 
-`StateRegistry` resolves union-typed DI annotations by matching each type's domain against
-the incoming entity's domain.
+A handler can accept multiple entity types at once with a union annotation. `StateRegistry`
+resolves the union by matching each type's domain against the incoming entity's domain.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/union_type_support.py"
@@ -142,7 +146,7 @@ The `bool` → `str` converter produces Python's `"True"` or `"False"`, not HA f
 #### DateTime
 
 All datetime conversions use the [`whenever`](https://github.com/ariebovenberg/whenever)
-library.
+library, which ships with Hassette.
 
 **`whenever` types:**
 

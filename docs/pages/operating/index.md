@@ -6,11 +6,11 @@ The defaults cover typical deployments — nothing here is required reading befo
 
 ## WebSocket Reconnection
 
-The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model. All WebSocket settings live under `[hassette.websocket]` in [`hassette.toml`](../core-concepts/configuration/index.md).
+Hassette talks to Home Assistant over a WebSocket — a persistent connection that lets HA push events instantly instead of being polled. That connection can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model; each layer handles a different failure mode — failures while connecting, quick disconnects right after connecting, and sustained outages. All WebSocket settings live under `[hassette.websocket]` in [`hassette.toml`](../core-concepts/configuration/index.md).
 
 ### Layer 1: Initial connection retries
 
-When Hassette first starts (or [`WebsocketService`][hassette.core.websocket_service.WebsocketService] restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added. Tenacity logs a WARNING before each sleep:
+When Hassette first starts (or [`WebsocketService`][hassette.core.websocket_service.WebsocketService] restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added (a small random offset so retries don't fire in lockstep). Tenacity — the retry library Hassette uses internally — logs a WARNING before each sleep, where `...` is the exception that triggered the retry:
 
 ```
 Retrying hassette.core.websocket_service.WebsocketService._make_connection.<locals>._inner_connect in X.Xs as it raised ...
@@ -20,17 +20,17 @@ If all five attempts fail, the error reaches layer 3.
 
 ### Layer 2: Early-drop retries
 
-A connection is considered "early drop" when it falls within `websocket.early_drop_stable_window_seconds` (default: 30s) of becoming connected. This usually means HA accepted the handshake but then immediately disconnected, which often happens during HA restarts. Hassette retries up to `websocket.early_drop_max_retries` times (default: 5), with backoff starting at `websocket.early_drop_backoff_initial_seconds` (default: 2s) and capping at `websocket.early_drop_backoff_max_seconds` (default: 60s). Each early-drop attempt logs:
+An "early drop" is a connection that disconnects within `websocket.early_drop_stable_window_seconds` (default: 30s) of being established. This usually means HA accepted the handshake but then immediately disconnected, which often happens during HA restarts. Hassette retries up to `websocket.early_drop_max_retries` times (default: 5), with backoff starting at `websocket.early_drop_backoff_initial_seconds` (default: 2s) and capping at `websocket.early_drop_backoff_max_seconds` (default: 60s). Each early-drop attempt logs:
 
 ```
 WebSocket early drop detected (elapsed=X.Xs, attempt=N/5) — retrying
 ```
 
-Early-drop retries only apply to genuine post-auth disconnects (`ServerDisconnectedError`, [`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError]). Connection-refused errors bypass this layer entirely and go straight to layer 1's retry loop.
+Early-drop retries only apply to disconnects that happen after the authentication handshake with HA succeeded (`ServerDisconnectedError`, [`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError]). Connection-refused errors bypass this layer entirely and go straight to layer 1's retry loop.
 
 ### Layer 3: ServiceWatcher restart budget
 
-[`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] supervises `WebsocketService` using a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters `EXHAUSTED_COOLING`, a 300-second cooldown, and retries from scratch. The logs show:
+[`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] is Hassette's internal watchdog — when a service keeps failing, it limits how often the service restarts to avoid an infinite crash loop. It supervises `WebsocketService` with a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters a cooldown state (`EXHAUSTED_COOLING` in logs) for 300 seconds, then retries from scratch. The logs show (`retry_at` is a Unix timestamp):
 
 ```
 Service 'WebsocketService' restart budget exhausted (TRANSIENT), entering cooldown for 300.0s (retry_at=1749567890)
@@ -42,12 +42,12 @@ After the cooldown completes, the budget resets and the full retry sequence star
 
 The bus, scheduler, and state manager stay active during a disconnect. Subscriptions remain registered. Handlers resume without re-registration when the connection restores.
 
-[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.StateProxy] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must handle that exception or wait for reconnection.
+[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.StateProxy] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must catch that exception (skip the work, or retry after reconnection) — or subscribe to the connection events below and pause itself while HA is unreachable.
 
-The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability can subscribe to these topics:
+The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
 
 ```python
---8<-- "pages/operating/snippets/ws_reconnect_events.py:subscribe"
+--8<-- "pages/operating/snippets/ws_reconnect_events.py"
 ```
 
 ### When to tune
@@ -68,7 +68,7 @@ All fields live under `[hassette.websocket]` in `hassette.toml`.
 
 ## Handler Exceptions
 
-When a bus handler or scheduler callback raises an unhandled exception, Hassette catches it, logs it at ERROR level, and moves on. The exception does not crash the process, does not affect other handlers running concurrently, and does not prevent future invocations of the same handler.
+When a bus handler or scheduled-job handler raises an unhandled exception, Hassette catches it, logs it at ERROR level, and moves on. The exception does not crash the process, does not affect other handlers running concurrently, and does not prevent future invocations of the same handler.
 
 The telemetry database records the invocation with `status='error'`, including the exception type, message, and traceback. The Handlers tab in the monitoring UI surfaces these records.
 
@@ -93,9 +93,9 @@ Registered error handlers on subscriptions or scheduled jobs fire after Hassette
 Two global timeout defaults apply to all user code:
 
 - **`lifecycle.event_handler_timeout_seconds`** (default: 600s). The maximum wall-clock time for a single bus handler invocation before it is cancelled and recorded as `timed_out`.
-- **`scheduler.job_timeout_seconds`** (default: 600s). The maximum wall-clock time for a scheduled job callback.
+- **`scheduler.job_timeout_seconds`** (default: 600s). The maximum wall-clock time for a scheduled job handler.
 
-Both default to 600 seconds. A handler or job that runs longer than its timeout has its awaitable cancelled; the cancellation is recorded in telemetry and logged at WARNING.
+Both default to 600 seconds. A handler or job that runs longer than its timeout is cancelled; the cancellation is recorded in telemetry and logged at WARNING.
 
 Individual subscriptions and jobs can override the global default:
 
@@ -105,7 +105,7 @@ Individual subscriptions and jobs can override the global default:
 
 ### Limitations
 
-**Synchronous handlers.** Hassette runs synchronous handlers in a thread executor. `asyncio.timeout` cancels the awaitable wrapping the thread, but it cannot stop the thread itself. A sync handler that ignores cancellation may continue running in the background after the timeout fires. Long-running sync work that needs reliable cancellation requires an `async` implementation.
+**Synchronous handlers.** A synchronous (non-`async`) handler may keep running in the background after its timeout fires. Hassette runs sync handlers in a thread, and the timeout cancels the wrapper around the thread — Python cannot stop the thread itself. Long-running sync work that needs reliable cancellation requires an `async` implementation.
 
 **Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
 
