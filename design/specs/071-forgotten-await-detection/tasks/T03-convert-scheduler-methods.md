@@ -3,7 +3,7 @@ task_id: "T03"
 title: "Convert scheduler methods to def -> Coroutine"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#3", "FR#9", "FR#10", "AC#2"]
+implements: ["FR#3", "FR#5", "FR#9", "FR#10", "AC#2"]
 ---
 
 ## Summary
@@ -26,9 +26,23 @@ then:
 ```python
 def add_job(self, job, *, if_exists="error") -> Coroutine[Any, Any, ScheduledJob]:
     # Coroutine supertype annotation is deliberate (see design/071 / context.md).
-    src = capture_registration_source(limit=...)   # capture in the public def
-    return guard_await(self._add_job(job, if_exists=if_exists), owner=self.parent, source_location=src)
+    if not isinstance(job, ScheduledJob):          # pure validation stays sync at call time
+        raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+    # capture in the public def — returns a 2-tuple, UNPACK it
+    source_location, registration_source = capture_registration_source(limit=...)
+    if not job.source_location:                    # backfill telemetry fields when empty
+        job.source_location = source_location
+        job.registration_source = registration_source or ""
+    return guard_await(
+        self._add_job(job, if_exists=if_exists), owner=self.parent, source_location=source_location
+    )
 ```
+
+The `isinstance` `TypeError` is pure validation and stays synchronous in the public `def` (an invalid
+call raises immediately, even when the `await` is forgotten). The duplicate-name handling
+(`if_exists` error/skip/replace logic) reads and mutates the job registries — it moves into
+`_add_job` with the rest of the body, so a never-awaited call does not touch scheduler state
+(mirroring the bus `add_listener` split).
 
 **Shape B delegates — `schedule`, `run_in`, `run_once`, `run_every`, `run_minutely`, `run_hourly`,
 `run_daily`, `run_cron`:** each does synchronous setup (build trigger / build `ScheduledJob`) then
@@ -47,6 +61,14 @@ Move the `capture_registration_source()` call currently inside `schedule` (sched
 single capture happens at `add_job` (the primary). Attribution walks past all `hassette.*` frames to
 the user, so capturing once at `add_job` correctly attributes calls made via `run_in`/`schedule`/
 `add_job` alike. Add `Coroutine` to the `collections.abc` import in `scheduler.py`.
+
+**`ScheduledJob.source_location` must not regress.** Today `schedule` passes the captured
+`source_location` and `registration_source` into the `ScheduledJob` constructor (both fields default
+`""`). After the move: `add_job` captures ONCE at the top of its public `def`, uses the result for
+`guard_await`'s `source_location`, AND backfills `job.source_location` / `job.registration_source`
+on the incoming job when they are empty (preserving values on jobs that already carry them);
+`schedule` stops capturing and stops passing those fields. Without the backfill, every
+`run_*`/`schedule`-originated job would silently lose its telemetry source location.
 
 Update/add unit tests: awaiting each method still schedules a job (db_id set); a forgotten `await` on
 `add_job`, `schedule`, AND a `run_*` method each emit `HassetteForgottenAwaitWarning`; awaited calls
@@ -68,6 +90,8 @@ emit no warning. Run the affected scheduler test files locally and confirm they 
 ## Verify
 
 - [ ] FR#3: `await self.scheduler.run_in(...)` / `schedule(...)` / `add_job(...)` returns a `ScheduledJob` with `db_id` set, exactly as today.
+- [ ] A job scheduled via `run_in`/`schedule` still gets a non-empty `source_location` and `registration_source` pointing at the user's call site (the `add_job` backfill works).
+- [ ] FR#5: a bare (un-awaited) call to a converted scheduler method is flagged by Pyright's `reportUnusedCoroutine` (run `uv run pyright` on a probe call).
 - [ ] FR#9: `add_job`, `schedule`, and all `run_*` methods are converted to `def -> Coroutine[...]`; no public scheduling method remains `async def`; the single `guard_await` is at `add_job`.
 - [ ] FR#10: a forgotten `await` on `run_in` (a two-hop delegate) emits the same `HassetteForgottenAwaitWarning` as `add_job`, attributed to the user's call site.
 - [ ] AC#2: a test awaits a converted scheduler method, asserts the returned `ScheduledJob` and `db_id`, and asserts no `HassetteForgottenAwaitWarning` (nor native inner-coroutine warning) fires.

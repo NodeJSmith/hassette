@@ -28,6 +28,13 @@ Targets`:
    `TypeGuard[ast.FunctionDef | ast.AsyncFunctionDef]`. Update `gen_wrapper`'s parameter type
    (`generic.py:209`) to `ast.FunctionDef | ast.AsyncFunctionDef` (the fields used exist on both).
    The `is_overload` exclusion and lifecycle-method exclusions already apply to both paths.
+   **CRITICAL — also fix the `is_delegatable` overlap:** `generic.py:270-271` runs `is_wrappable`
+   and `is_delegatable` independently over the class body. A converted `def -> Coroutine[...]`
+   matches BOTH after the widening (it is a plain public `def`), so the generated facade would
+   contain two definitions of each registration method — one `run_sync`-wrapped, one bare
+   passthrough — and Python keeps the last one (the passthrough), silently breaking sync
+   registration. Add `and not is_wrappable(node)` to the delegates comprehension (generic.py:271)
+   or to `is_delegatable` itself (ast_utils.py:183).
 2. **RecordingApi codegen** (`recording.py:134-137` and `147-150`) hard-filters on
    `isinstance(node, ast.AsyncFunctionDef)` — apply the same `def -> Coroutine[...]` widening so the
    six converted api write methods stay in the generated facade. Cascading annotation-only fixes
@@ -43,8 +50,10 @@ Targets`:
 4. **Fix the two parity tests** — `tests/unit/test_recording_api_protocol_parity.py:28` and
    `test_recording_api_write_parity.py:73`. Their `public_async_methods` discovers via
    `inspect.iscoroutinefunction`; change to **OR semantics**:
-   `iscoroutinefunction(m) OR (get_type_hints(m).get("return") is not None and
-   get_type_hints(m)["return"].__origin__ is collections.abc.Coroutine)`. (No
+   `iscoroutinefunction(m) or getattr(get_type_hints(m).get("return"), "__origin__", None) is
+   collections.abc.Coroutine`. Use the `getattr(..., "__origin__", None)` form — non-generic return
+   types (`-> SomeClass`) have no `__origin__`, and a bare attribute access would crash the tests
+   with an `AttributeError` when a plain sync method is added later. (No
    `from __future__ import annotations` in the source modules, so `get_type_hints` resolves at
    runtime — verified.)
 5. **Fix cleanup guards** — `tests/integration/test_registration.py:79` and

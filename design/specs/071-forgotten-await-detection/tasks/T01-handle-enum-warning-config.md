@@ -30,9 +30,11 @@ category", "Source-capture correction") and `## Key Constraints`.
      false-positive warning (see `## Edge Cases` → "Driven-but-not-`__await__`ed paths").
    - Expose `__name__` delegating to `self._coro.__name__` (set in `__init__` or as a property) —
      `task_bucket.run_sync` logs `fn.__name__` on error paths.
-   - Constructor takes the inner coroutine, the owning app/owner, the resolved
-     `ForgottenAwaitBehavior` (resolve per-app-then-global), and the **pre-captured**
-     `source_location` (do NOT walk the stack inside the handle).
+   - Constructor takes the inner coroutine, the owning app/owner, the **already-resolved**
+     `ForgottenAwaitBehavior`, and the **pre-captured** `source_location` (do NOT walk the stack
+     inside the handle). The per-app-then-global resolution happens inside `guard_await` (from
+     `owner`), NOT at the T02–T04 call sites — their signature is
+     `guard_await(coro, *, owner, source_location)` with no behavior argument.
    - `__del__`: if `_awaited` is `False`, resolve the offending app by attribution (below), emit per
      the resolved behavior, then call `self._coro.close()` to suppress CPython's native
      "coroutine was never awaited" double-warning. Guard everything so it never raises during
@@ -78,10 +80,12 @@ attribution from a non-`hassette` module frame. Use `pytest.warns`, NOT `caplog`
   *stores* a passed-in `source_location`; the callers (T02–T04) do the capture. Test attribution by
   constructing a handle with a synthetic `source_location` whose frames include a non-`hassette`
   module.
-- **Resolve `ForgottenAwaitBehavior` at construction time, not in `__del__`.** `guard_await`'s caller
-  resolves per-app-then-global and passes the resolved enum value in; the handle stores it as a plain
-  value. `__del__` may run at shutdown when the owning app is already torn down — reading config there
-  could fail. Store the resolved behavior (and the owner identity string for the message) eagerly.
+- **Resolve `ForgottenAwaitBehavior` at construction time, not in `__del__`.** `guard_await` resolves
+  per-app-then-global from `owner` and passes the resolved enum value into the handle constructor;
+  the handle stores it as a plain value. (Callers in T02–T04 do NOT resolve or pass behavior — they
+  call `guard_await(coro, owner=..., source_location=...)`.) `__del__` may run at shutdown when the
+  owning app is already torn down — reading config there could fail. Store the resolved behavior
+  (and the owner identity string for the message) eagerly.
 - Do NOT raise from `__del__`. Wrap emission and `close()` in guards.
 
 ## Verify

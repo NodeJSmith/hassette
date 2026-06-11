@@ -271,6 +271,11 @@ gap (assignment) for type-checker users.
   single capture relocates to the call site. Bound it with `inspect.stack(limit=…)` /
   `traceback.extract_stack(sys._getframe(n), limit=…)` (a few frames suffice; measured ~12× cheaper
   than the unbounded walk). Add a `limit` to `source_capture.py`'s `inspect.stack()` call.
+  **Scheduler specifics:** today `schedule` captures and passes `source_location`/
+  `registration_source` into the `ScheduledJob` constructor (both fields default `""`). After the
+  move, `add_job` does the single capture in its public `def`, uses it for `guard_await`, and
+  backfills `job.source_location`/`job.registration_source` when they are empty (preserving values
+  on jobs that already carry them); `schedule` stops capturing and stops passing those fields.
 - **No log-capture tests.** Per the project invariant, assert behavior via `pytest.warns`, not
   `caplog`. Primary reason the mechanism is `warnings.warn`, not the logger.
 - **`__del__` must never raise during interpreter shutdown.** Guard all emission and `close()`
@@ -348,15 +353,28 @@ mechanical shapes, applied uniformly across **bus, scheduler, and api**:
       if immediate and is_glob(entity_id):       # synchronous validation stays at call time
           raise ValueError(...)
       ...
-      src = capture_registration_source(limit=…) # eager capture, in the public def (user frame live)
-      return guard_await(self._subscribe(...), owner=self.parent, source_location=src)
+      # eager capture, in the public def (user frame live). Returns a 2-tuple — UNPACK it.
+      source_location, registration_source = capture_registration_source(limit=…)
+      # The capture has TWO destinations: guard_await (warning attribution, needs source_location)
+      # AND _subscribe/_on_internal (populates ListenerIdentity.source_location /
+      # registration_source on the DB record — dropping that threading would silently empty
+      # every listener's stored source location)
+      return guard_await(
+          self._subscribe(..., source_location=source_location, registration_source=registration_source),
+          owner=self.parent,
+          source_location=source_location,
+      )
   ```
 
 - Methods that do their async work **inline** (api `call_service` awaits `ws_send_json` directly;
-  `fire_event`, `set_state`; scheduler `add_job`) have **no** private coroutine to wrap yet. Extract
-  the body into a private `async def _call_service(...)` first, then the public method becomes the
-  one-line `guard_await(self._call_service(...), …)`. This extraction is the only structural change
-  beyond the signature flip.
+  `fire_event`, `set_state`; scheduler `add_job`; bus `add_listener`, which awaits
+  `self.bus_service.add_listener(listener)` directly) have **no** private coroutine to wrap yet.
+  Extract the body into a private `async def _call_service(...)` first, then the public method becomes
+  the one-line `guard_await(self._call_service(...), …)`. This extraction is the only structural change
+  beyond the signature flip. For `add_listener`, the `ListenerNameRequiredError` name check stays
+  synchronous at call time; `register_and_check_collision` (a registry mutation) moves into the
+  private `_add_listener` with the await, matching the `on()` path where it lives in `_on_internal` —
+  a never-awaited call must not pollute the duplicate-name registry.
 
 **Shape B — delegate (returns the callee's handle directly, no new `guard_await`).** Delegates do
 *synchronous* setup then `return await self.<callee>(...)` — and "synchronous setup" includes
@@ -425,8 +443,13 @@ same wave:
    type changes the design must include: `is_wrappable`'s return becomes
    `TypeGuard[ast.FunctionDef | ast.AsyncFunctionDef]` (ast_utils.py:169) and `gen_wrapper`'s param
    becomes `ast.FunctionDef | ast.AsyncFunctionDef` (generic.py:209) — both fields are common to the
-   two node types, so only the annotations change. Then regenerate `bus/sync.py`, `scheduler/sync.py`,
-   `api/sync.py`.
+   two node types, so only the annotations change. **The widening also creates an overlap with
+   `is_delegatable`** (generic.py:270-271 runs both predicates independently over the class body): a
+   converted `def -> Coroutine[...]` matches the widened `is_wrappable` AND `is_delegatable` (plain
+   public `def`), so the generated facade would contain *two* definitions of each registration
+   method — and the bare passthrough delegate, emitted last, silently wins. Exclude wrappable nodes
+   from delegation (`and not is_wrappable(node)` in the delegates comprehension or inside
+   `is_delegatable`). Then regenerate `bus/sync.py`, `scheduler/sync.py`, `api/sync.py`.
 2. **RecordingApi codegen** (`recording.py:134-137,147-150`) — confirmed, **not conditional**: it
    hard-filters on `isinstance(node, ast.AsyncFunctionDef)`, so the six converted api write methods
    would vanish from `api_methods` and the generated `sync_facade.py` (committed, CI-freshness-gated)
@@ -438,9 +461,12 @@ same wave:
    `test_recording_api_write_parity.py:73`). Both compute `public_async_methods` via
    `inspect.iscoroutinefunction`; the six converted api write methods would vanish and the tests
    would pass vacuously. Fix with **OR semantics** —
-   `iscoroutinefunction(m) or (get_type_hints(m).get("return") and get_type_hints(m)["return"].__origin__ is collections.abc.Coroutine)`
+   `iscoroutinefunction(m) or getattr(get_type_hints(m).get("return"), "__origin__", None) is collections.abc.Coroutine`
    — which is robust across the mixed-async migration state (a pure annotation-only replacement would
-   instead miss every still-`async def` method). Verified: no `from __future__ import annotations` in
+   instead miss every still-`async def` method). The `getattr(..., "__origin__", None)` form is
+   required: non-generic return types (`-> SomeClass`) have no `__origin__`, and a bare attribute
+   access would crash the parity tests with an `AttributeError` the moment a plain sync helper is
+   added to `Api`. Verified: no `from __future__ import annotations` in
    `api.py`/`bus.py`/`scheduler.py`, so `get_type_hints` resolves the annotations at runtime. Ships
    in the same commit as the conversion.
 4. **Overloaded `call_service`** — Pyright resolves overloaded calls through the `@overload` *stubs*,
@@ -459,15 +485,22 @@ The domain entity classes (`models/entities/*.py` — `LightEntity`, `Humidifier
 `async def {{ method }}(...) -> None: await self.api.call_service(...)` for each domain service. Every
 one is a Shape B delegate to `api.call_service`. Protection is delivered by changing the **template**,
 not 31 files: emit `def {{ method }}(...) -> Coroutine[Any, Any, None]: return self.api.call_service(...)`
-(both the with-params and no-params branches), and add `from collections.abc import Coroutine` (and
-`Any`) to the template's imports. Then regenerate. The handle is created at `call_service` (Shape A
+(both the with-params and no-params branches), and add `from collections.abc import Coroutine` and
+`from typing import Any` as **unconditional** imports in the template. Today the `Any` import is
+gated on `{% if needs_any %}` (computed in `generators/entities.py:78` from *parameter* types only);
+26 of the 31 generated files have no `Any`-typed parameter, so leaving the gate in place produces a
+hard `NameError` on import once every return annotation is `Coroutine[Any, Any, None]`. The return
+annotation always needs both names — drop the conditional (simplify the `needs_any` template logic
+to only gate `Literal`). Then regenerate. The handle is created at `call_service` (Shape A
 primary); attribution walks past the `hassette.models.entities.*` frame to the user.
 
 `BaseEntity.turn_on`/`turn_off`/`toggle` (`models/entities/base.py`) are *hand-written* delegates to
 `api.turn_on`/`turn_off`/`toggle_service` — convert them to Shape B `def -> Coroutine[..., None]` by
 hand. `BaseEntitySyncFacade` (the small runtime sync facade with `turn_on`/`turn_off`/`toggle`) keeps
-working unchanged: it drives the entity method through `run_sync`, and the entity method now returns a
-`RegistrationHandle` which `asyncio.iscoroutine` accepts — verify with a test. Domain-specific entity
+working unchanged — but note *why*: it routes through `self.entity.api.sync.turn_on(...)` (the
+generated api sync facade, regenerated in the codegen wave), bypassing the entity's async method
+entirely. The `entity.sync.turn_on()` test is therefore regression coverage of the `api.sync` path;
+the test that exercises the entity conversion itself is a direct `await entity.turn_on()`. Domain-specific entity
 methods (`set_humidity`, etc.) have no per-entity sync facade today; this design does not add one.
 
 ### Source-capture correction
@@ -499,9 +532,9 @@ the same wave (not left split between old and new):
   module-name check. The path-fragment approach is being intentionally retired, not kept.
 
 The internal implementation methods (`_subscribe`, `_on_internal`, `_add_job`, `_call_service`, …)
-stay `async def` — `_add_job` and `_call_service` are *newly extracted* from the inline-async bodies
-of `add_job`/`call_service`/`fire_event`/`set_state` (Shape A), while `_subscribe`/`_on_internal`
-already exist. The public methods wrap these coroutines instead of awaiting them inline. No parallel old/new public paths are left behind.
+stay `async def` — `_add_job`, `_call_service`, and `_add_listener` are *newly extracted* from the
+inline-async bodies of `add_job`/`call_service`/`fire_event`/`set_state`/`add_listener` (Shape A),
+while `_subscribe`/`_on_internal` already exist. The public methods wrap these coroutines instead of awaiting them inline. No parallel old/new public paths are left behind.
 
 ## Convention Examples
 

@@ -2,7 +2,7 @@
 task_id: "T06"
 title: "Add completeness guard, Pyright fixtures, and documentation"
 status: "planned"
-depends_on: ["T02", "T03", "T04", "T05", "T07"]
+depends_on: ["T01", "T02", "T03", "T04", "T05", "T07"]
 implements: ["FR#5", "FR#9", "FR#12", "AC#3", "AC#6", "AC#8"]
 ---
 
@@ -24,13 +24,23 @@ This task runs after all method conversions (T02–T04) and the codegen wave (T0
    test that (a) iterates the list and confirms each method — primaries and two-hop delegates alike —
    emits `HassetteForgottenAwaitWarning` when its handle is dropped un-awaited (single assertion, no
    warning-type split), and (b) a **completeness/drift guard**: enumerate every public (non-`_`)
-   method on `Bus`, `Scheduler`, and `Api`, assert every registration/scheduling/side-effect method
-   is in the canonical list (so a future un-protected addition fails CI), and assert the documented
-   exclusions (`bus.emit`, `get_state`/`get_states`/`get_entity`/`get_history`) are NOT in it. See the
-   design's FR#9 for the exact membership and exclusion rationale.
+   method on `Bus`, `Scheduler`, and `Api`. **Detection criterion:** a method is "detected" when
+   `iscoroutinefunction(m) or getattr(get_type_hints(m).get("return"), "__origin__", None) is
+   collections.abc.Coroutine` (same OR-semantics as T05's parity tests) — the `iscoroutinefunction`
+   half is what catches a future `async def run_weekly(...)` added without conversion; a
+   Coroutine-annotation-only check would let it slip through. **Two-set structure** (the detected set
+   includes `bus.emit` and every async `get_*` data method, which are deliberately unprotected):
+   define a `DOCUMENTED_EXCLUSIONS` set alongside the canonical list — `bus.emit` plus the async
+   data-returning methods on Api (`get_state`, `get_states`, `get_entity`, `get_history`, and any
+   other detected `get_*` methods such as `get_state_raw`/`get_state_or_none`/`get_panels`; enumerate
+   from the real classes). Assert: (a) every detected method is in
+   `canonical_list | DOCUMENTED_EXCLUSIONS` — no unaccounted-for method, so a future unprotected
+   addition fails CI; (b) `canonical_list` and `DOCUMENTED_EXCLUSIONS` are disjoint. See the design's
+   FR#9 for the membership and exclusion rationale.
 
 2. **Pyright probe fixture (FR#5, AC#3).** Add a fixture file (type-checked in CI, mirroring the
-   verification probes used during design) with bare un-awaited calls to: a simple converted method,
+   verification probes used during design) with bare un-awaited calls to: a simple converted bus
+   method, a converted scheduler method (e.g. `run_in` — so all three surfaces are spot-checked),
    the overloaded `call_service` (both the `ServiceResponse` and `None` overloads), and a bare
    `None`-returning method (`turn_on`). Assert (via `uv run pyright` exit/output, or a captured
    expected-diagnostics snapshot) that each is reported as `reportUnusedCoroutine`.
@@ -84,5 +94,6 @@ Do NOT manually edit `CHANGELOG.md` (release-please owns it).
 - [ ] FR#9: a completeness test enumerates public Bus/Scheduler/Api methods and asserts every registration/scheduling/side-effect method is in the canonical protected list, and the documented exclusions are not — failing if a future method is added unprotected.
 - [ ] FR#12: the troubleshooting docs document the `self.sub = coro()` shutdown-timing limitation and point to Pyright for the earliest signal.
 - [ ] AC#3: the Pyright probe fixture covers simple + overloaded (both overloads) + `None`-returning bare calls and all are reported.
+- [ ] The Pyright probe also includes a bare scheduler method (e.g. `run_in`), so all three surfaces (bus, scheduler, api) are covered.
 - [ ] AC#6: the parametrized test iterates the canonical list (primaries + two-hop delegates), asserts each emits `HassetteForgottenAwaitWarning` on drop, plus the completeness/exclusion drift guard.
 - [ ] AC#8: a CI fixture asserts each protected method's return annotation `__origin__` is `collections.abc.Coroutine`, failing on a narrowed annotation.
