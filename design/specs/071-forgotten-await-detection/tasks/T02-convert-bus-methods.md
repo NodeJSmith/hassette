@@ -78,6 +78,6 @@ before committing).
 
 - [ ] FR#3: `await self.bus.on_state_change(...)` (and every converted method) returns the same type as today and `sub.listener.db_id` is a valid int on return.
 - [ ] FR#5: a bare (un-awaited) call to a converted bus method is flagged by Pyright's `reportUnusedCoroutine` (run `uv run pyright` on a probe call).
-- [ ] FR#9: every public bus registration method listed in the design's FR#9 (primaries + delegates) is converted to `def -> Coroutine[...]` returning a handle; no public bus registration method remains `async def`.
+- [ ] FR#9: every public bus registration method listed in the design's FR#9 (primaries + delegates) is converted to `def -> Coroutine[...]` returning a handle; `grep -n "async def on" src/hassette/bus/bus.py` shows no public (non-`_`) registration method still `async def`.
 - [ ] FR#10: a forgotten `await` on a bus *delegate* (e.g. `on_homeassistant_restart`, `on_app_running`) emits the same `HassetteForgottenAwaitWarning` as a primary.
 - [ ] AC#2: a test awaits a converted bus method, asserts the returned `Subscription` type, `db_id` is an int, and no `HassetteForgottenAwaitWarning` (nor native inner-coroutine warning) is emitted.

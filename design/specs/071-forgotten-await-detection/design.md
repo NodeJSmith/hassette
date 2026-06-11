@@ -151,6 +151,13 @@ gap (assignment) for type-checker users.
 - **FR#12** When the un-awaited handle is reachable for the app's lifetime (stored on `self`),
   the warning fires at app shutdown rather than at registration. (Documented guarantee, weaker
   than the bare-drop case; not a separate mechanism.)
+- **FR#13** The generated entity-wrapper methods (every domain entity's fire-and-forget service
+  method — `LightEntity.turn_on`, `HumidifierEntity.set_humidity`, etc.) and `BaseEntity`'s
+  `turn_on`/`turn_off`/`toggle` are protected the same way: a forgotten `await` on
+  `entity.<method>()` emits a `HassetteForgottenAwaitWarning` attributed to the user's call site, and
+  awaiting behaves as today. Because these are generated, protection is delivered by the codegen
+  template, not per-file edits, and the entity sync facade (`BaseEntitySyncFacade`) continues to
+  register synchronously.
 
 ## Edge Cases
 
@@ -226,6 +233,12 @@ gap (assignment) for type-checker users.
 - **AC#10** (FR#1, RecordingApi) The two `RecordingApi` parity tests still discover all six
   converted api write methods and continue to assert `RecordingApi` parity (they are *not*
   vacuously passing).
+- **AC#11** (FR#13) Tests on representative entities — a no-param method (`LightEntity.turn_on`),
+  a with-params method (`HumidifierEntity.set_humidity`), and `BaseEntity.toggle` — assert: a forgotten
+  `await` emits `HassetteForgottenAwaitWarning` attributed to the caller; awaiting returns/acts as
+  today; and the entity sync facade (`entity.sync.turn_on()`) still registers. A regen check
+  (mirroring AC#9) confirms regenerated `models/entities/*.py` use `def -> Coroutine[...]` and the
+  codegen freshness gate passes.
 
 ## Key Constraints
 
@@ -439,6 +452,24 @@ same wave:
    `collections.abc` import (none import it today); omission is a hard `ImportError`, not a type
    error.
 
+### Entity-wrapper codegen (the highest-traffic user surface)
+
+The domain entity classes (`models/entities/*.py` — `LightEntity`, `HumidifierEntity`, …) are
+**generated** by `codegen/.../pipeline.py` from `templates/entity_wrapper.py.j2`, which emits
+`async def {{ method }}(...) -> None: await self.api.call_service(...)` for each domain service. Every
+one is a Shape B delegate to `api.call_service`. Protection is delivered by changing the **template**,
+not 31 files: emit `def {{ method }}(...) -> Coroutine[Any, Any, None]: return self.api.call_service(...)`
+(both the with-params and no-params branches), and add `from collections.abc import Coroutine` (and
+`Any`) to the template's imports. Then regenerate. The handle is created at `call_service` (Shape A
+primary); attribution walks past the `hassette.models.entities.*` frame to the user.
+
+`BaseEntity.turn_on`/`turn_off`/`toggle` (`models/entities/base.py`) are *hand-written* delegates to
+`api.turn_on`/`turn_off`/`toggle_service` — convert them to Shape B `def -> Coroutine[..., None]` by
+hand. `BaseEntitySyncFacade` (the small runtime sync facade with `turn_on`/`turn_off`/`toggle`) keeps
+working unchanged: it drives the entity method through `run_sync`, and the entity method now returns a
+`RegistrationHandle` which `asyncio.iscoroutine` accepts — verify with a test. Domain-specific entity
+methods (`set_humidity`, etc.) have no per-entity sync facade today; this design does not add one.
+
 ### Source-capture correction
 
 `src/hassette/utils/source_capture.py` uses `INTERNAL_PATH_FRAGMENTS = ("hassette/bus/",
@@ -587,6 +618,10 @@ plain `def` methods returning `Coroutine[...]`.
   registers (exercises `asyncio.iscoroutine(handle)` + `run_sync`).
 - **FR#11/regen (AC#9):** regenerate sync facades; assert `sync.py` files keep `run_sync`-wrapped
   registration methods and codegen freshness passes.
+- **FR#13 (AC#11):** representative entity tests — `LightEntity.turn_on` (no params),
+  `HumidifierEntity.set_humidity` (with params), `BaseEntity.toggle`: forgotten `await` warns
+  (attributed to caller), awaited acts as today, `entity.sync.turn_on()` registers; regen check that
+  `models/entities/*.py` use `def -> Coroutine[...]`.
 - **Edge — shutdown / double-await / propagated errors / sync-validation-precedes-handle:** unit
   tests on the handle and converted methods in isolation.
 
@@ -599,8 +634,9 @@ No tests to remove.
 
 ## Documentation Updates
 
-- **`docs/pages/core-concepts/bus/` (and `scheduler/`, `api/`):** short admonition that these
-  methods must be awaited and that a forgotten `await` now produces a
+- **`docs/pages/core-concepts/bus/` (and `scheduler/`, `api/`, and the states/entities pages):**
+  short admonition that these methods — including entity service methods like `entity.turn_on()` /
+  `entity.set_humidity(...)` — must be awaited, and that a forgotten `await` now produces a
   `HassetteForgottenAwaitWarning` naming the app. Follow `voice-guide.md` (system-as-subject).
 - **New "forgotten await" troubleshooting entry** (extend `docs/pages/troubleshooting.md` or add a
   short page): symptom ("my handler never fires"), cause (missing `await`), fix, the warning's
@@ -648,6 +684,12 @@ await-state is persisted to the DB, so no monitoring-UI/frontend change is requi
   (`ast.AsyncFunctionDef` → `ast.FunctionDef | ast.AsyncFunctionDef` param annotations).
 - `src/hassette/bus/sync.py`, `src/hassette/scheduler/sync.py`, `src/hassette/api/sync.py`,
   and the generated `RecordingApi` sync facade — regenerated output.
+- `codegen/src/hassette_codegen/templates/entity_wrapper.py.j2` (+ `generators/entities.py` if it
+  injects imports/annotations) — emit `def -> Coroutine[Any, Any, None]: return self.api.call_service(...)`
+  instead of `async def ... await ...`; add the `Coroutine`/`Any` imports.
+- `src/hassette/models/entities/base.py` — convert `BaseEntity.turn_on`/`turn_off`/`toggle` to Shape B
+  `def -> Coroutine[..., None]`; verify `BaseEntitySyncFacade` still registers via `run_sync`.
+- `src/hassette/models/entities/*.py` (31 generated files) — regenerated output.
 - `src/hassette/task_bucket/task_bucket.py` — **no change**, but a verified invariant: `run_sync`
   relies on `asyncio.iscoroutine(handle)` (satisfied) and `fn.__name__` (the handle exposes it).
 - Hassette logging setup — optional `logging.captureWarnings(True)`.

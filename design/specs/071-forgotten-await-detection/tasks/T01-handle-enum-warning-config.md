@@ -78,6 +78,10 @@ attribution from a non-`hassette` module frame. Use `pytest.warns`, NOT `caplog`
   *stores* a passed-in `source_location`; the callers (T02–T04) do the capture. Test attribution by
   constructing a handle with a synthetic `source_location` whose frames include a non-`hassette`
   module.
+- **Resolve `ForgottenAwaitBehavior` at construction time, not in `__del__`.** `guard_await`'s caller
+  resolves per-app-then-global and passes the resolved enum value in; the handle stores it as a plain
+  value. `__del__` may run at shutdown when the owning app is already torn down — reading config there
+  could fail. Store the resolved behavior (and the owner identity string for the message) eagerly.
 - Do NOT raise from `__del__`. Wrap emission and `close()` in guards.
 
 ## Verify

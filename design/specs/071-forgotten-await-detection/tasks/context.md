@@ -52,6 +52,12 @@ None.
    `iscoroutinefunction` must switch to OR-semantics. This is mandatory, same-wave work.
 8. **`hassette check` AST-scan CLI is a Non-goal** — Pyright is strictly better; documented as a
    future possibility only.
+9. **Entity service methods are in scope** (the highest-traffic user surface — `entity.turn_on()`,
+   `entity.set_humidity(...)`). The domain entity classes are *generated* from one Jinja template
+   (`codegen/.../templates/entity_wrapper.py.j2`), so protection is delivered by changing the template
+   + regenerating, not 31 hand edits. Entity methods are Shape B delegates to `api.call_service`;
+   `BaseEntity.turn_on/turn_off/toggle` are hand-written Shape B delegates; `BaseEntitySyncFacade`
+   keeps working because entity methods now return a `Coroutine` that `run_sync` accepts.
 
 ## Constraints & Anti-Patterns
 

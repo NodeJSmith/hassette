@@ -2,7 +2,7 @@
 task_id: "T06"
 title: "Add completeness guard, Pyright fixtures, and documentation"
 status: "planned"
-depends_on: ["T02", "T03", "T04", "T05"]
+depends_on: ["T02", "T03", "T04", "T05", "T07"]
 implements: ["FR#5", "FR#9", "FR#12", "AC#3", "AC#6", "AC#8"]
 ---
 
@@ -64,7 +64,8 @@ Do NOT manually edit `CHANGELOG.md` (release-please owns it).
 ## Focus
 
 - The completeness guard is the structural answer to "someone adds a new `on_*`/`run_*` method later
-  and forgets to protect it" — it must enumerate by reflection over the real classes, not a
+  and forgets to protect it" — it must enumerate by reflection over the **real imported classes**
+  (`Bus`, `Scheduler`, `Api` themselves — `inspect.getmembers` / `vars`), not stubs, mocks, or a
   hardcoded duplicate list, or it can drift from the canonical constant it's guarding.
 - The canonical list is also consumed by AC#6's parametrized warning test (this task) — keep it the
   single source of truth.
