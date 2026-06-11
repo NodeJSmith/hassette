@@ -45,7 +45,7 @@ AppDaemon is multi-threaded. Each app runs in its own thread, so synchronous cod
 
 Hassette runs all apps in a single asyncio event loop. Two things follow:
 
-1. API calls and bus registrations require `await` — the practical rule: put `await` in front of any call to `self.api`, `self.bus`, or `self.scheduler`, and declare the surrounding method `async def`. Reads from `self.states` are synchronous.
+1. API calls and bus registrations require `await` — the practical rule: put `await` in front of any call to `self.api`, `self.bus`, or `self.scheduler`, and declare the surrounding method `async def`. Reads from `self.states` are synchronous. Omitting `await` is the most common migration bug: the call silently does nothing — no listener registered, no service called, no error raised.
 2. Blocking the event loop (a long `time.sleep`, a slow synchronous database call) blocks all apps, not just yours.
 
 ```python
