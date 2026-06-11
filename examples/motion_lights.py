@@ -42,6 +42,7 @@ class MotionLights(App[MotionLightsConfig]):
             cfg.motion_entity,
             changed_to="on",
             handler=self.on_motion_detected,
+            name="motion_lights.on_motion_detected",
         )
 
         # Motion cleared → turn light off after a delay
@@ -50,6 +51,7 @@ class MotionLights(App[MotionLightsConfig]):
             changed_to="off",
             handler=self.on_motion_cleared,
             debounce=cfg.off_delay,
+            name="motion_lights.on_motion_cleared",
         )
 
         # Log the current state of the motion sensor

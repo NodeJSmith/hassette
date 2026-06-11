@@ -42,6 +42,7 @@ class PresenceTracker(App[PresenceTrackerConfig]):
         await self.bus.on_state_change(
             cfg.tracker_entity,
             handler=self.on_tracker_change,
+            name="presence_tracker.on_tracker_change",
         )
 
         # Periodic status log — group for easy filtering in the dashboard
