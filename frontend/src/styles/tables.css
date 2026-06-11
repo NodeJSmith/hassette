@@ -74,8 +74,10 @@
   width: 14%;
 }
 
+/* --fixed tables keep fixed layout on mobile: their colgroups define
+   mobile-appropriate widths, and auto layout lets unbreakable mono
+   content push the table past the viewport. */
 @media screen and (max-width: 768px) {
-  .ht-table--fixed,
   .ht-table--compact {
     table-layout: auto;
   }

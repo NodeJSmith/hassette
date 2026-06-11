@@ -220,7 +220,12 @@ def test_log_table_no_horizontal_scroll_at_375px(page: Page, base_url: str) -> N
 
 
 def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> None:
-    """Visible apps table columns should fill the full table width on mobile."""
+    """Visible apps table columns should fill the full table width on mobile.
+
+    The table keeps table-layout: fixed on mobile (auto layout lets long mono
+    names push the table past the viewport); the colgroup reallocates all
+    width to the two visible columns.
+    """
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
 
@@ -228,7 +233,10 @@ def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> N
     expect(table).to_be_visible()
 
     table_layout = table.evaluate("el => getComputedStyle(el).tableLayout")
-    assert table_layout == "auto", f"Apps table should use table-layout: auto on mobile, got: {table_layout}"
+    assert table_layout == "fixed", f"Apps table should use table-layout: fixed on mobile, got: {table_layout}"
+
+    page_scrollable = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
+    assert not page_scrollable, "Page is horizontally scrollable — apps table is breaking out of viewport"
 
 
 # ──────────────────────────────────────────────────────────────────────
