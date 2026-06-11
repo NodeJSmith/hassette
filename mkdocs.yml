@@ -112,6 +112,7 @@ nav:
   - AppDaemon Migration:
       - Overview: pages/migration/index.md
       - Mental Model: pages/migration/concepts.md
+      - Async Basics: pages/migration/async-basics.md
       - Bus & Events: pages/migration/bus.md
       - Scheduler: pages/migration/scheduler.md
       - API Calls: pages/migration/api.md

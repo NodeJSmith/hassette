@@ -13,7 +13,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 !!! info "What's `D.StateNew[states.LightState]`?"
     That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
-Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` silently does nothing (see [Call Services](#call-services) below). The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
+Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` silently does nothing (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
 
 ## Configuration
 

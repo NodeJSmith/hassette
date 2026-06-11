@@ -43,10 +43,12 @@ The upside is discoverability. Typing `self.bus.` in your editor gives you the f
 
 AppDaemon is multi-threaded. Each app runs in its own thread, so synchronous code works fine.
 
-Hassette runs all apps in a single asyncio event loop. Two things follow:
+Hassette runs all apps in a single asyncio event loop. Two rules follow:
 
-1. API calls and bus registrations require `await` — the practical rule: put `await` in front of any call to `self.api`, `self.bus`, or `self.scheduler`, and declare the surrounding method `async def`. Reads from `self.states` are synchronous. Omitting `await` is the most common migration bug: the call silently does nothing — no listener registered, no service called, no error raised.
+1. Put `await` in front of any call to `self.api`, `self.bus`, or `self.scheduler`, and declare the surrounding method `async def`. Reads from `self.states` are synchronous.
 2. Blocking the event loop (a long `time.sleep`, a slow synchronous database call) blocks all apps, not just yours.
+
+[Async Basics](async-basics.md) explains the model behind both rules — what `await` actually does, and how to spot the silent failure when it goes missing.
 
 ```python
 --8<-- "pages/migration/snippets/concepts_sync_async.py"

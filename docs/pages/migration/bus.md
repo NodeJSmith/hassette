@@ -3,7 +3,7 @@
 This page covers migrating AppDaemon event listeners and state change listeners to Hassette's event bus (`self.bus`).
 
 !!! note "Coming from synchronous AppDaemon?"
-    All registration methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`) are `async` and must be awaited, and the methods that call them — like `on_initialize` — must be `async def`. This is the biggest mental-model shift from AppDaemon; [Migration Concepts](concepts.md#async-vs-sync) covers it.
+    All registration methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`) are `async` and must be awaited — see [Async Basics](async-basics.md) if that shift is new to you.
 
 ## The `name=` Requirement
 

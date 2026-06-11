@@ -48,7 +48,8 @@ triggered handlers to complete before returning.
     Every `simulate_*` method is a coroutine. A call without `await` publishes
     no event — handlers never run, and a following `assert_called` fails even
     though the app code is correct. A `RuntimeWarning: coroutine ... was never
-    awaited` in the pytest output is the tell.
+    awaited` in the pytest output is the tell (see
+    [Async Basics](../migration/async-basics.md) for the underlying cause).
 
 ### State Changes
 

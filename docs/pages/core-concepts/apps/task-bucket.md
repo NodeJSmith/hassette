@@ -1,6 +1,6 @@
 # Task Bucket
 
-`self.task_bucket` is available on every [`App`](../apps/index.md) instance. It runs background work and offloads blocking calls to threads. Handlers run on Hassette's event loop, so anything slow that cannot be awaited — an HTTP library without async support, file I/O, heavy computation — goes through the task bucket instead of blocking every other handler. The bucket tracks all spawned tasks and cancels them on shutdown; no manual cleanup is required.
+`self.task_bucket` is available on every [`App`](../apps/index.md) instance. It runs background work and offloads blocking calls to threads. Handlers run on Hassette's event loop ([Async Basics](../../migration/async-basics.md) covers the event loop model), so anything slow that cannot be awaited — an HTTP library without async support, file I/O, heavy computation — goes through the task bucket instead of blocking every other handler. The bucket tracks all spawned tasks and cancels them on shutdown; no manual cleanup is required.
 
 ## Spawning Background Tasks
 
