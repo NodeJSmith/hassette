@@ -96,7 +96,7 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 `web_api.ui_hot_reload` pushes live reloads to the browser when web UI static files change. It serves framework contributors working on the UI itself, not app authors.
 
-`strict_lifecycle` turns three classes of internal warnings into exceptions: invalid resource status transitions and invalid WebSocket connection-state transitions raise `InvalidLifecycleTransitionError`, and startup registry validation issues raise `RegistryValidationError`. The default (`false`) logs WARNING instead. The [test harness](../../testing/harness.md) enables it by default so tests fail loudly. [Troubleshooting](../../troubleshooting.md) covers both exceptions.
+`strict_lifecycle` makes internal lifecycle problems raise exceptions instead of logging warnings. The default (`false`) is right for production; the [test harness](../../testing/harness.md) enables it by default so tests fail loudly. The exceptions it raises (`InvalidLifecycleTransitionError`, `RegistryValidationError`) are covered in [Troubleshooting](../../troubleshooting.md).
 
 `allow_reload_in_prod` enables the file watcher's automatic app reloads outside `dev_mode`. Manual app management (start/stop/reload via the API or web UI) works regardless of this setting.
 

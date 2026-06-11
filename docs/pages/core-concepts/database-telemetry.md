@@ -38,7 +38,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 ??? note "Advanced: queue, interval, and failsafe tuning"
     The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.
 
-    **Write queues.** `write_queue_max` (default 2000) bounds the pending write queue; when full, fire-and-forget writes are dropped and blocking callers wait for space. `telemetry_write_queue_max` (default 1000) bounds the telemetry record queue — records past it are dropped. `max_flush_interval_seconds` (default 5.0) forces a batch flush even when the batch-size threshold has not been reached. Raise the queue bounds when sustained event bursts log dropped-record warnings and memory headroom exists.
+    **Write queues.** `write_queue_max` (default 2000) bounds the pending write queue; when full, some telemetry writes are silently dropped — automations are not affected. `telemetry_write_queue_max` (default 1000) bounds the telemetry record queue the same way. `max_flush_interval_seconds` (default 5.0) forces a batch flush even when the batch-size threshold has not been reached. Raise the queue bounds when sustained event bursts log dropped-record warnings and memory headroom exists.
 
     **Health and reads.** `heartbeat_interval_seconds` (default 300) is the gap between database health checks; `max_consecutive_heartbeat_failures` (default 3) failures put the service in [degraded mode](#degraded-mode). `read_timeout_seconds` (default 10.0) caps telemetry read queries before `TimeoutError`. `migration_timeout_seconds` (default 120) caps schema migrations at startup — raise it on slow storage with a large database.
 

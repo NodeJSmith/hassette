@@ -56,11 +56,11 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 
 **Low downtime tolerance.** Reduce `websocket.connect_retry_initial_wait_seconds` to shorten the backoff floor. The jitter is proportional to the initial wait, so a smaller initial value also tightens the jitter band.
 
-**Recovery ceiling.** `websocket.max_recovery_seconds` (default: 300s) caps the total wall-clock time spent across all recovery attempts before the service gives up and the failure escalates to layer 3. Raise it when extended HA outages should be ridden out at this layer instead.
+**Recovery ceiling.** `websocket.max_recovery_seconds` (default: 300s) caps the total wall-clock time layer 2 spends on early-drop retries. When the ceiling is hit, the failure stops being treated as an early drop and escalates to layer 3's restart budget. Raise it when extended HA outages should be ridden out by early-drop retries instead.
 
 ### Per-operation timeouts
 
-Four further `[hassette.websocket]` fields cap individual operations rather than retry behavior: `connection_timeout_seconds` (default: 5s) for establishing the TCP/WebSocket connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the aiohttp overall operation ceiling. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
+Four further `[hassette.websocket]` fields cap individual operations rather than retry behavior: `connection_timeout_seconds` (default: 5s) for establishing the connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the overall ceiling for a single operation. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
 
 All fields live under `[hassette.websocket]` in `hassette.toml`.
 
@@ -111,7 +111,7 @@ Individual subscriptions and jobs can override the global default:
 
 ## Startup and Shutdown Timeouts
 
-Hassette starts resources in dependency-ordered waves and shuts them down in reverse. Each phase has its own `[hassette.lifecycle]` ceiling:
+Hassette starts its internal components — database, WebSocket connection, bus, scheduler, then apps — in dependency order, so each one is ready before anything that depends on it. Shutdown runs in reverse. Each phase has its own `[hassette.lifecycle]` ceiling:
 
 | Field | Default | Caps |
 |---|---|---|
@@ -127,7 +127,11 @@ Apps that fetch external data or open slow connections in `on_initialize` are th
 
 ## Scheduler Cadence
 
-The scheduler loop sleeps between runs: until the next due job, clamped between `scheduler.min_delay_seconds` (default 1) and `scheduler.max_delay_seconds` (default 30), or `scheduler.default_delay_seconds` (default 15) when no jobs are queued. A job dispatched more than `scheduler.behind_schedule_threshold_seconds` (default 5) after its scheduled time logs a "behind schedule" WARNING — the signal that handlers are saturating the loop or the host is overloaded. Lower `max_delay_seconds` only when sub-30-second scheduling reactivity to newly added jobs matters; the clamp does not affect job accuracy, only how often the loop re-checks.
+The scheduler checks for due jobs on a sleep-wake loop. It sleeps until the next due job, bounded between `scheduler.min_delay_seconds` (default 1) and `scheduler.max_delay_seconds` (default 30), and sleeps `scheduler.default_delay_seconds` (default 15) when no jobs are queued.
+
+A job that fires more than `scheduler.behind_schedule_threshold_seconds` (default 5) after its scheduled time logs a "behind schedule" WARNING. That warning means too many handlers are running at once or the host is overloaded.
+
+These bounds do not affect timing accuracy for already-queued jobs — only how often the loop re-checks. Lowering `max_delay_seconds` only matters when a newly registered job needs to start within 30 seconds of registration.
 
 ## Database Degraded Mode
 

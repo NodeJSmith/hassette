@@ -51,7 +51,9 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command queries. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log`.
 
-Two more `[hassette.logging]` fields shape persistence: `log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them, and must be ≤ `database.retention_days`. `log_queue_max` (default 2000) bounds the inter-thread queue between loggers and the persistence pipeline — records are dropped when it is full, so raise it only if sustained DEBUG persistence reports drops.
+`log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them. It must be ≤ `retention_days` under `[hassette.database]` (see [Database & Telemetry](../core-concepts/database-telemetry.md)).
+
+`log_queue_max` (default 2000) caps how many records can wait for persistence at once. When the queue is full, new records are dropped rather than blocking the app. Raise it only if sustained `DEBUG` persistence reports drops.
 
 ## Per-App Log Levels
 

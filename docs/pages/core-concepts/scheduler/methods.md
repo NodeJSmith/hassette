@@ -140,7 +140,8 @@ Shared parameters apply.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_schedule_examples.py"
 ```
 
-Below `schedule` sits `add_job(job, if_exists="error")`, which registers a pre-built [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] directly. It is the entry point for advanced callers that construct job objects programmatically; `if_exists` accepts the same `"error"` / `"skip"` / `"replace"` values described under [Idempotent registration](#idempotent-registration).
+??? note "Advanced: `add_job`"
+    Below `schedule` sits `add_job(job, if_exists="error")`, which registers a pre-built [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] directly — for code that constructs job objects programmatically, such as a job factory or framework extension. Most apps never call it. `if_exists` accepts the same `"error"` / `"skip"` / `"replace"` values described under [Idempotent registration](#idempotent-registration).
 
 ## Parameters every method accepts
 

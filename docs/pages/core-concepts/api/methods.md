@@ -438,7 +438,14 @@ WebSocket API handles that.
 
 ### Low-level access
 
-For HA endpoints without a typed method — the device registry, area registry, or custom integration APIs — three escape hatches send raw requests. `ws_send_and_wait(**data)` sends a WebSocket command (e.g., `type="config/device_registry/list"`) and returns the result. `ws_send_json(**data)` sends without waiting for a response. `rest_request(method, url, ...)` hits any REST path and returns the raw `aiohttp` response; `get_rest_request`, `post_rest_request`, and `delete_rest_request` are method-specific wrappers. Prefer the typed methods when one exists — the escape hatches skip Hassette's model conversion entirely.
+For HA endpoints without a typed method — the device registry, area registry, or custom integration APIs — the escape hatches below send raw requests. Prefer the typed methods when one exists; the escape hatches skip Hassette's model conversion entirely.
+
+| Method | Sends | Returns |
+|---|---|---|
+| `ws_send_and_wait(**data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
+| `ws_send_json(**data)` | A WebSocket command, without waiting | Nothing |
+| `rest_request(method, url, ...)` | A request to any REST path | The raw `aiohttp` response |
+| `get_rest_request` / `post_rest_request` / `delete_rest_request` | Method-specific wrappers around `rest_request` | The raw `aiohttp` response |
 
 ---
 

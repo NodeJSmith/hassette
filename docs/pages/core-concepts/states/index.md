@@ -80,7 +80,7 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
 
-**`context`** holds the HA event context that produced this state: `context.id`, `context.parent_id`, and `context.user_id`. Use it to trace which automation or user triggered a change.
+**`context`** holds the HA event context that produced this state: `context.id`, `context.parent_id`, and `context.user_id`. It traces which automation or user triggered the change.
 
 ### Attribute Helpers
 
