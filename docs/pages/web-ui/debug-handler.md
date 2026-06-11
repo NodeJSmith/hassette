@@ -54,7 +54,7 @@ Select your handler. The detail panel shows:
 - **Stats grid**: calls, successful, failed, timed out, and min/avg/max duration for the current time window.
 - **Invocations table**: the 50 most recent invocations, each with a status indicator, timestamp, duration, and execution ID. The table updates in real time.
 
-A gray status dot on a handler in the left panel means it has never been invoked. A red dot means at least one invocation has failed.
+A gray ring on a handler in the left panel means it has never been invoked. A red square means at least one invocation has failed or timed out.
 
 ## Tracing a Single Execution
 

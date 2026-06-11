@@ -60,7 +60,7 @@ Below the grid, the full message appears in a scrollable block with a copy butto
 
 The arrow keys move between entries without closing the drawer. Escape closes it.
 
-On desktop the drawer opens as a side panel. On mobile and tablet it appears as a bottom sheet.
+On desktop and tablet the drawer opens as a side panel. On mobile it appears as a bottom sheet.
 
 ## Live Streaming
 

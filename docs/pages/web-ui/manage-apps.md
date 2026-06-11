@@ -21,7 +21,7 @@ Below the strip, the app table shows one row per app with the following columns:
 | **LAST FIRED** | Relative timestamp of the most recent handler or job execution, for example "3 min ago". Shows `—` if the app has never fired. |
 | **ACTIONS** | Context-sensitive buttons based on current status. See [Start, Stop, and Reload](#start-stop-and-reload) below. |
 
-Clicking a **LAST ERROR** cell expands the full error message and traceback inline:
+Clicking a **LAST ERROR** cell expands the full error message inline:
 
 ![Error spotlight](../../_static/web_ui_detail_error_spotlight.png)
 

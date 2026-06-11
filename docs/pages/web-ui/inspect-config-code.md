@@ -8,7 +8,7 @@ The web UI shows what configuration Hassette is running with and what the app co
 
 ![Global configuration page](../../_static/web_ui_config.png)
 
-The Configuration page displays all `hassette.toml` values grouped by section. Groups include `web_api`, `logging`, `lifecycle`, `apps`, `scheduler`, and `file_watcher`. Top-level fields like `dev_mode`, `base_url`, and `config_dir` appear outside any group. Each section renders as a key-value card. Booleans appear as `true`/`false`, paths as strings, arrays as comma-separated lists.
+The Configuration page displays all `hassette.toml` values in functional groups: `general`, `connection`, `buffers`, `timeouts`, `scheduler`, `file_watcher`, and `paths`. Each group renders as a key-value card. Booleans appear as `true`/`false`, paths as strings, arrays as comma-separated lists.
 
 The page is accessible from the sidebar under **Config**.
 
@@ -20,7 +20,7 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 ![Per-app configuration tab](../../_static/web_ui_app_detail_config.png)
 
-The **Config** tab on an app detail page shows the resolved configuration for that app instance. It merges three sources: `hassette.toml` values, environment variable overrides, and field defaults from the [`AppConfig`](../core-concepts/apps/index.md) class. The merged result is validated — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
+The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance (with secrets redacted). Environment variable overrides and [`AppConfig`](../core-concepts/apps/index.md) field defaults are applied when the app is instantiated, but the tab shows the raw TOML values, not the merged result. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
 
 The tab is on the app detail page, accessible by selecting an app from the sidebar.
 
