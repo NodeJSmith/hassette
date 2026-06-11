@@ -121,17 +121,17 @@ class HassetteCLIClient:
 
         try:
             data = response.json()
+            if model is dict or model is list:
+                return data
+            return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
         except ValueError:
-            # A tolerated 503 can still carry a non-JSON body — a proxy or load
-            # balancer's HTML error page rather than the app's status payload.
-            # Route those to the normal error exit instead of crashing.
+            # A tolerated 503 can carry a body that isn't the expected status
+            # payload — a proxy/LB HTML error page (non-JSON) or JSON of the wrong
+            # shape. pydantic.ValidationError is a ValueError, so both land here.
+            # Route them to the normal error exit instead of crashing.
             if is_tolerated_503:
                 self._handle_http_error(response)
             raise
-
-        if model is dict or model is list:
-            return data
-        return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
 
     # ---------------------------------------------------------------------------
     # App routing & instance resolution

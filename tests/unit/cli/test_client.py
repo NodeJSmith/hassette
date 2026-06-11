@@ -151,6 +151,15 @@ class TestTolerate503:
             client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
 
+    def test_503_with_wrong_shape_json_exits_instead_of_crashing(self) -> None:
+        """A tolerated 503 whose JSON doesn't match the model exits cleanly, not a traceback."""
+        config = _make_config()
+        transport = make_transport(503, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
 
 # ---------------------------------------------------------------------------
 # HTTP error handling (human mode)
