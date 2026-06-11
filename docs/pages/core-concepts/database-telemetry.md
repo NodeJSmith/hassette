@@ -35,6 +35,15 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | `retention_days` | integer | `7` | Days of execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
 | `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest execution records are deleted in batches. A value of `0` disables the size limit. |
 
+??? note "Advanced: queue, interval, and failsafe tuning"
+    The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.
+
+    **Write queues.** `write_queue_max` (default 2000) bounds the pending write queue; when full, fire-and-forget writes are dropped and blocking callers wait for space. `telemetry_write_queue_max` (default 1000) bounds the telemetry record queue — records past it are dropped. `max_flush_interval_seconds` (default 5.0) forces a batch flush even when the batch-size threshold has not been reached. Raise the queue bounds when sustained event bursts log dropped-record warnings and memory headroom exists.
+
+    **Health and reads.** `heartbeat_interval_seconds` (default 300) is the gap between database health checks; `max_consecutive_heartbeat_failures` (default 3) failures put the service in [degraded mode](#degraded-mode). `read_timeout_seconds` (default 10.0) caps telemetry read queries before `TimeoutError`. `migration_timeout_seconds` (default 120) caps schema migrations at startup — raise it on slow storage with a large database.
+
+    **Retention cadence.** `retention_interval_seconds` (default 3600) and `size_failsafe_interval_seconds` (default 3600) set how often the two maintenance routines run. The size failsafe deletes `size_failsafe_delete_batch` rows per batch (default 1000), up to `size_failsafe_max_iterations` batches per run (default 10), then vacuums `size_failsafe_vacuum_pages` pages (default 100). Lower the intervals when the database overshoots `max_size_mb` between runs.
+
 ### How Retention Works
 
 Two maintenance routines run every hour in the background.

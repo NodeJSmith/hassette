@@ -124,6 +124,34 @@ lifecycle event. Convenience wrappers cover the common cases:
 `simulate_hassette_service_status()` accepts `previous_status`, `exception`,
 and `role` for cases the convenience wrappers do not cover.
 
+### Other Framework Events
+
+The harness simulates every event type the bus can deliver, so handlers
+registered for connection, app-lifecycle, and HA-lifecycle events are testable
+without a live instance:
+
+| Method | Fires the event for |
+|---|---|
+| `simulate_websocket_connected()` / `simulate_websocket_disconnected()` | `on_websocket_connected` / `on_websocket_disconnected` — reconnection logic |
+| `simulate_app_state_changed(app_key, status, ...)` | `on_app_state_changed` — inter-app coordination |
+| `simulate_app_running(app_key)` / `simulate_app_stopping(app_key)` | the matching shorthands |
+| `simulate_homeassistant_restart()` / `_start()` / `_stop()` | `on_homeassistant_restart` / `_start` / `_stop` |
+| `simulate_component_loaded(component)` | `on_component_loaded` |
+| `simulate_service_registered(domain, service)` | `on_service_registered` |
+
+All drain triggered handlers before returning, like the other `simulate_*`
+methods.
+
+### Draining Manually
+
+`drain_task_bucket(timeout=2.0)` waits for the bus dispatch queue and the
+app's task bucket to go quiescent without firing an event. Call it after
+[`trigger_due_jobs()`](time-control.md) when dispatched jobs emit bus events —
+the job trigger does not drain the downstream handler tasks itself. Raises the
+same `DrainTimeout`/`DrainError` exceptions as the `simulate_*` methods; when
+debounced handlers are involved, pass a `timeout=` larger than the debounce
+window.
+
 ### Timeouts
 
 All `simulate_*` methods default to a 2-second drain timeout. The `timeout=`
@@ -168,6 +196,12 @@ under `call_service`:
 ```python
 --8<-- "pages/testing/snippets/testing_assert_turn_on_off.py"
 ```
+
+For strict assertions, `assert_called_exact(method, **kwargs)` requires the
+recorded kwargs to match exactly — extra recorded kwargs fail the assertion.
+Use it to prove no unexpected arguments were forwarded.
+`assert_called_partial` is an explicit-name alias for `assert_called` when the
+partial-match intent should be visible in the test.
 
 ### assert_not_called
 

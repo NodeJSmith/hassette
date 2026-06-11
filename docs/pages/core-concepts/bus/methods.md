@@ -218,6 +218,16 @@ Fire when the Hassette WebSocket connection to Home Assistant opens or closes.
 
 Both methods accept `handler`, `where`, `kwargs`, `name`, and `**opts`. Neither exposes `on_error`. Both delegate to `on()` internally.
 
+### `on_hassette_service_status` and shorthands
+
+`on_hassette_service_status` fires when a Hassette background service (WebSocket, database, bus, scheduler) transitions to a new [`ResourceStatus`][hassette.types.enums.ResourceStatus]. Three shorthands cover the common cases: `on_hassette_service_failed` (status `FAILED`), `on_hassette_service_crashed` (status `CRASHED`), and `on_hassette_service_started` (status `RUNNING`). An app that depends on a service being up can pause work or alert when it goes down.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/on_service_events.py:service"
+```
+
+All four accept `handler`, `where`, `kwargs`, `name`, and `**opts`. [Service supervision](../internals/lifecycle.md) explains when each status fires.
+
 ## Error Handling
 
 ### App-level handler

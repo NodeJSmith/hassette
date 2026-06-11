@@ -56,6 +56,12 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 
 **Low downtime tolerance.** Reduce `websocket.connect_retry_initial_wait_seconds` to shorten the backoff floor. The jitter is proportional to the initial wait, so a smaller initial value also tightens the jitter band.
 
+**Recovery ceiling.** `websocket.max_recovery_seconds` (default: 300s) caps the total wall-clock time spent across all recovery attempts before the service gives up and the failure escalates to layer 3. Raise it when extended HA outages should be ridden out at this layer instead.
+
+### Per-operation timeouts
+
+Four further `[hassette.websocket]` fields cap individual operations rather than retry behavior: `connection_timeout_seconds` (default: 5s) for establishing the TCP/WebSocket connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the aiohttp overall operation ceiling. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
+
 All fields live under `[hassette.websocket]` in `hassette.toml`.
 
 ## Handler Exceptions
@@ -102,6 +108,26 @@ Individual subscriptions and jobs can override the global default:
 **Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
 
 **`lifecycle.run_sync_timeout_seconds`** (default: 6s) is a separate timeout that applies to calls made from synchronous (non-async) contexts into Hassette's event loop via `task_bucket.run_sync()`. This timeout is not related to handler execution. It governs blocking calls made from threads outside the event loop.
+
+## Startup and Shutdown Timeouts
+
+Hassette starts resources in dependency-ordered waves and shuts them down in reverse. Each phase has its own `[hassette.lifecycle]` ceiling:
+
+| Field | Default | Caps |
+|---|---|---|
+| `startup_timeout_seconds` | 30s | Each startup wave. Must be ≥ `app_startup_timeout_seconds`, since app readiness is part of a wave. |
+| `app_startup_timeout_seconds` | 20s | A single app's `on_initialize`. A slow app times out individually without failing the whole wave budget. |
+| `app_shutdown_timeout_seconds` | 10s | A single app's `on_shutdown`. |
+| `resource_shutdown_timeout_seconds` | = app shutdown | Each non-app resource's shutdown phase. |
+| `total_shutdown_timeout_seconds` | 30s | The entire shutdown, hooks and propagation included. |
+| `registration_await_timeout` | 30s | Waiting for pending listener/job database registrations to flush before post-ready reconciliation. |
+| `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
+
+Apps that fetch external data or open slow connections in `on_initialize` are the common reason to raise `app_startup_timeout_seconds` — and `startup_timeout_seconds` with it. The shutdown ceilings matter on constrained hardware where cleanup runs slowly; raising them trades slower restarts for cleaner teardown.
+
+## Scheduler Cadence
+
+The scheduler loop sleeps between runs: until the next due job, clamped between `scheduler.min_delay_seconds` (default 1) and `scheduler.max_delay_seconds` (default 30), or `scheduler.default_delay_seconds` (default 15) when no jobs are queued. A job dispatched more than `scheduler.behind_schedule_threshold_seconds` (default 5) after its scheduled time logs a "behind schedule" WARNING — the signal that handlers are saturating the loop or the host is overloaded. Lower `max_delay_seconds` only when sub-30-second scheduling reactivity to newly added jobs matters; the clamp does not affect job accuracy, only how often the loop re-checks.
 
 ## Database Degraded Mode
 

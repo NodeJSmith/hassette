@@ -148,6 +148,8 @@ For container startup failures, dependency installation, health check failures, 
 
 **`SchemeRequiredInBaseUrlError`** `base_url` is set but has no scheme. Use `http://` or `https://`.
 
+**`IPV6NotSupportedError`** `base_url` contains an IPv6 address, which Hassette does not support. Use a hostname or IPv4 address instead.
+
 **[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
 
 **`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
@@ -184,6 +186,8 @@ For container startup failures, dependency installation, health check failures, 
 
 **`InvalidLifecycleTransitionError`** A resource attempted an invalid status transition. Only raised when `strict_lifecycle = true` in `hassette.toml`. In non-strict mode, the same condition logs a WARNING. Disable strict mode or investigate the resource initialization order.
 
+**`RegistryValidationError`** Startup registry validation found error-level issues (for example, a malformed custom state class). Only raised when `strict_lifecycle = true`; the exception message lists each issue found. In non-strict mode, the same issues log as warnings.
+
 **`AppPrecheckFailedError`** One or more apps failed the precheck. Check the log for the specific app and error. Set `allow_startup_if_app_precheck_fails = true` to let other apps run while you diagnose.
 
 ### Configuration
@@ -198,4 +202,4 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
-**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `CouldNotFindHomeAssistantError`, `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`.
+**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `CouldNotFindHomeAssistantError`, `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`.

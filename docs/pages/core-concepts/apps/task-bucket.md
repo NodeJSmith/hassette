@@ -73,6 +73,13 @@ The bucket cancels all tracked tasks when the app shuts down. Hassette cancels e
 
 Manual cleanup is not required.
 
+## Inspecting and Cancelling Tasks
+
+`pending_tasks()` returns the set of tasks the bucket currently tracks — the accessor drain helpers and test infrastructure use to wait for quiescence. `cancel_all()` cancels every tracked task and awaits their completion; `cancel_all_sync()` is the fire-and-forget variant for sync contexts. Apps rarely need these directly — shutdown calls them for you — but custom teardown sequences and test helpers do.
+
+??? note "Advanced: collecting task exceptions in test infrastructure"
+    `install_exception_recorder(fn)` registers a callback that receives every exception raised by a bucket task; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`. Custom harnesses can do the same.
+
 ## See Also
 
 - [Apps Overview](index.md) for core capabilities and common patterns

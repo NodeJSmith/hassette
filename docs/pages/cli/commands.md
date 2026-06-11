@@ -1,6 +1,6 @@
 # Command Reference
 
-All commands support `--json` for structured output and `--debug` for verbose error details. [Configuration & Scripting](configuration.md#output-modes) covers output modes in detail.
+All commands support `--json` for structured output and `--debug` for verbose error details. `hassette --version` (or `-v`) prints the installed version. [Configuration & Scripting](configuration.md#output-modes) covers output modes in detail.
 
 Every command except `run` queries a running instance — start the server with `hassette run` first. Each command wraps a REST endpoint, noted per command for scripting and direct HTTP access.
 
@@ -23,6 +23,8 @@ hassette run
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
+`run` exits with code 1 when startup fails: an app fails its precheck (`AppPrecheckFailedError`), a fatal error fires (bad token, unreachable HA — see [Troubleshooting](../troubleshooting.md)), or the web API port is already taken (`Port 8126 is already in use — is another hassette instance running?`). Process managers can treat exit 1 as a startup error rather than a crash.
+
 ## `hassette status`
 
 Reports system health: connection state, uptime, app count, entity count, and version.
@@ -31,7 +33,7 @@ Reports system health: connection state, uptime, app count, entity count, and ve
 $ hassette status
 ╭──────────────────── System Status ───────────────────────────╮
 │  status               ok                                     │
-│  websocket_connected  True                                   │
+│  websocket_connected  true                                   │
 │  uptime_seconds       16.57                                  │
 │  entity_count         103                                    │
 │  app_count            3                                      │

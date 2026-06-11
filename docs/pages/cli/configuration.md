@@ -13,6 +13,8 @@ Priority runs highest to lowest:
 4. **[`hassette.toml`](../core-concepts/configuration/index.md)**: loaded from the current directory (or the path given to `--config-file`)
 5. **Default**: `http://127.0.0.1:8126`
 
+Bind-all addresses are rewritten for the client connection: when `web_api.host` resolves to `0.0.0.0` the CLI connects to `127.0.0.1`, and `::` becomes `::1`. The server listens on all interfaces; the CLI talks to it over loopback.
+
 !!! tip "Remote instances"
     To query a remote Hassette instance, set the host in the environment:
 
@@ -135,7 +137,15 @@ Hassette is not running, or the configured address is wrong. The address comes f
 Network error: Request timed out after 10.0s connecting to http://127.0.0.1:8126
 ```
 
-The server is reachable but not responding. Server logs may show blocking operations.
+The server is reachable but not responding. Server logs may show blocking operations. The 10-second request timeout is fixed; it is not configurable.
+
+**Port already in use (on `hassette run`):**
+
+```
+Port 8126 is already in use — is another hassette instance running?
+```
+
+Another process — usually a second Hassette instance — holds the web API port. Stop it, or change `port` under `[hassette.web_api]`. `run` exits with code 1.
 
 **Unknown instance name:**
 

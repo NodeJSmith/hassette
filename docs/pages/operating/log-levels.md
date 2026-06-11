@@ -51,6 +51,8 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command queries. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log`.
 
+Two more `[hassette.logging]` fields shape persistence: `log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them, and must be ≤ `database.retention_days`. `log_queue_max` (default 2000) bounds the inter-thread queue between loggers and the persistence pipeline — records are dropped when it is full, so raise it only if sustained DEBUG persistence reports drops.
+
 ## Per-App Log Levels
 
 Each app sets its own log level with `log_level` in that app's config section.
@@ -60,6 +62,20 @@ Each app sets its own log level with `log_level` in that app's config section.
 ```
 
 The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` default to `INFO` (or the `HASSETTE__LOG_LEVEL` environment variable when set).
+
+## Runtime Log Level Changes
+
+`PUT /api/logs/level` changes a logger's effective level on a running instance — no restart, no `hassette.toml` edit. The change applies immediately to both structlog and stdlib callers on that logger:
+
+```bash
+curl -X PUT http://127.0.0.1:8126/api/logs/level \
+  -H "Content-Type: application/json" \
+  -d '{"logger": "hassette.scheduler", "level": "DEBUG"}'
+```
+
+The response reports the logger's new effective level: `{"logger": "hassette.scheduler", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422`.
+
+The change lives in process memory only — a restart reverts to the configured levels. Use it to capture debug output from a live issue, then turn the level back down the same way.
 
 ## Examples
 

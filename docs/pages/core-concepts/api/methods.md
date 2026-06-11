@@ -113,6 +113,8 @@ specifies which entity class to return.
 | `entity_id` | `str` | — | Entity ID. |
 | `model` | `type[EntityT]` | — | A `BaseEntity` subclass (e.g., `entities.LightEntity`). |
 
+Entity classes live in [`hassette.models.entities`][hassette.models.entities] — one per domain, named `{Domain}Entity`: `LightEntity`, `SwitchEntity`, `ClimateEntity`, `MediaPlayerEntity`, `VacuumEntity`, `CoverEntity`, `FanEntity`, `LockEntity`, and so on for 30 domains. The API reference lists them all.
+
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
@@ -227,6 +229,8 @@ returns a reply. Set `return_response=True` to include the response payload. Wit
 --8<-- "pages/core-concepts/api/snippets/api_response.py"
 ```
 
+With `return_response=True`, `call_service` returns a [`ServiceResponse`][hassette.models.services.ServiceResponse] with two fields: `response` (the service's payload as a dict, empty when the service returned nothing) and `context` (the HA event context for the call).
+
 ---
 
 ## History & Logbook
@@ -251,6 +255,8 @@ Omitting `end_time` returns changes from `start_time` to the present.
 
 The three payload flags (`significant_changes_only`, `minimal_response`, `no_attributes`) reduce
 response size for long time windows or large attribute sets.
+
+Both `get_history` and `get_histories` return [`HistoryEntry`][hassette.models.history.HistoryEntry] objects. Each carries `entity_id`, `state` (the raw value at that point), `attributes` (a dict, or `None` when stripped by a payload flag), and `last_changed`/`last_updated` timestamps as `whenever.Instant`.
 
 ### `get_histories(entity_ids, start_time, end_time=None, ...)`
 
@@ -429,6 +435,10 @@ Removes an entity from the Home Assistant state machine. Raises `RuntimeError` w
 `delete_entity` removes the entity from the HA REST state machine. It does not remove a
 device or integration-backed entity from the HA entity registry. The HA UI or the registry
 WebSocket API handles that.
+
+### Low-level access
+
+For HA endpoints without a typed method — the device registry, area registry, or custom integration APIs — three escape hatches send raw requests. `ws_send_and_wait(**data)` sends a WebSocket command (e.g., `type="config/device_registry/list"`) and returns the result. `ws_send_json(**data)` sends without waiting for a response. `rest_request(method, url, ...)` hits any REST path and returns the raw `aiohttp` response; `get_rest_request`, `post_rest_request`, and `delete_rest_request` are method-specific wrappers. Prefer the typed methods when one exists — the escape hatches skip Hassette's model conversion entirely.
 
 ---
 

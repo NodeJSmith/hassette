@@ -80,6 +80,8 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
 
+**`context`** holds the HA event context that produced this state: `context.id`, `context.parent_id`, and `context.user_id`. Use it to trace which automation or user triggered a change.
+
 ### Attribute Helpers
 
 `AttributesBase` exposes two helpers for attributes not declared on the typed model.
@@ -113,6 +115,8 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 ```
 
 `.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they parse raw HA state dicts into typed objects on demand. `.keys()`, `.values()`, and `.to_dict()` are eager and parse all entities up front. Lazy iteration performs better for large domains like `sensor`.
+
+`StateManager` itself is also iterable: `self.states.items()` yields `(key, DomainStates)` pairs for every registered state class, and `MyState in self.states` checks whether a class is registered. Useful for diagnostics and generic helpers that sweep all domains.
 
 ## Good to Know
 

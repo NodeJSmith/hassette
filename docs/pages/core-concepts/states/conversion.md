@@ -80,6 +80,8 @@ The override takes effect at class definition time.
 The registry replaces the previous mapping silently. All subsequent state events for
 `sensor` entities produce `CustomSensorState` instances.
 
+For classes that can't declare a `Literal` domain — built dynamically, or registered conditionally at runtime — [`register_state_converter`][hassette.conversion.register_state_converter] registers a class with the registry explicitly. It is the imperative equivalent of the `Literal`-based auto-registration.
+
 `STATE_REGISTRY` is available as a top-level import for direct access outside an app:
 `from hassette import STATE_REGISTRY`.
 

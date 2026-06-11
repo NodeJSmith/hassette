@@ -27,6 +27,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.const",  # ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
         "hassette.conversion",  # STATE_REGISTRY, TYPE_REGISTRY, TypeConverterEntry, register_*
         "hassette.events",  # RawStateChangeEvent
+        "hassette.models.history",  # HistoryEntry
         "hassette.models.services",  # ServiceResponse
         "hassette.models.entities",  # entities module
         "hassette.models.states",  # states module
