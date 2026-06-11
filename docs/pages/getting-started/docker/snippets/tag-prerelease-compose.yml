@@ -1,3 +1,0 @@
-services:
-  hassette:
-    image: ghcr.io/nodejsmith/hassette:0.25.0.dev1-py3.13

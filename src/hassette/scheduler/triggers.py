@@ -136,8 +136,8 @@ class Once:
                 if if_past == "error":
                     raise ValueError(f"Once(at=<ZonedDateTime {at.format_iso()!r}>) is in the past and if_past='error'")
                 LOGGER.warning(
-                    "Once received ZonedDateTime in the past; `if_past` does not apply to absolute instants; "
-                    "firing immediately. (at=%r)",
+                    "Once received ZonedDateTime in the past; firing immediately — "
+                    "if_past='tomorrow' cannot defer an absolute instant. (at=%r)",
                     at.format_iso(),
                 )
             self._fire_at = at

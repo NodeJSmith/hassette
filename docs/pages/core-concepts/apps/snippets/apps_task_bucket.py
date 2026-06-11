@@ -16,9 +16,12 @@ class TaskBucketApp(App[AppConfig]):
         self.logger.info("Got: %s", data)
         # --8<-- [end:run_in_thread]
 
+    # --8<-- [start:poll]
     async def poll_sensor(self):
         while True:
             await asyncio.sleep(60)
+            # ... read the sensor, update state, etc.
+    # --8<-- [end:poll]
 
     def expensive_sync_call(self) -> str:
         return "result"

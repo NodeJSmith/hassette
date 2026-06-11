@@ -2,17 +2,21 @@
 
 ## Configuration
 
-The CLI reads the same configuration files Hassette uses to find the server address. You don't need to pass the address on every command.
+### Discovery Order
 
-### Discovery order
+The CLI is a client that queries a running Hassette server. It constructs the server address from the same configuration sources Hassette uses at runtime — the `__` double underscore in variable names separates nested config sections, so `HASSETTE__WEB_API__HOST` sets `web_api.host`.
+Priority runs highest to lowest:
 
-1. **Environment variable** — `HASSETTE__WEB_API__HOST` and `HASSETTE__WEB_API__PORT`
-2. **`.env` file** — loaded from the current directory or the path in `--env-file`
-3. **`hassette.toml`** — loaded from the current directory or the path in `--config-file`
-4. **Default** — `http://127.0.0.1:8126`
+1. **Global flags**: `--config-file` and `--env-file` override which files are loaded
+2. **Environment variables**: `HASSETTE__WEB_API__HOST` and `HASSETTE__WEB_API__PORT`
+3. **`.env` file**: loaded from the current directory (or the path given to `--env-file`)
+4. **[`hassette.toml`](../core-concepts/configuration/index.md)** (the server's main config file): loaded from the current directory (or the path given to `--config-file`)
+5. **Default**: `http://127.0.0.1:8126`
+
+Bind-all addresses are rewritten for the client connection: when `web_api.host` resolves to `0.0.0.0` the CLI connects to `127.0.0.1`, and `::` becomes `::1`. The server listens on all interfaces; the CLI talks to it over loopback.
 
 !!! tip "Remote instances"
-    To query a remote Hassette instance, set the host in your environment:
+    To query a remote Hassette instance, set the host in the environment:
 
     ```bash
     HASSETTE__WEB_API__HOST=192.168.1.100 hassette status
@@ -27,24 +31,23 @@ The CLI reads the same configuration files Hassette uses to find the server addr
 
 ### Token
 
-The access token (`HASSETTE__TOKEN`) is **not required** for CLI query commands. Query commands read from the REST API without a token. The token is only required when starting the server.
+The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette run` uses to connect to Home Assistant. Query commands (`status`, `app`, `listener`, and the rest) talk to Hassette's own web API instead and need no token.
 
 ## Output Modes
 
-### Human-readable (default)
+### Human-Readable (Default)
 
-Tables for collections, key-value panels for single objects. Colors and formatting are applied when stdout is a TTY.
+The CLI renders tables for collections and key-value panels for single objects. Colors and formatting apply when output goes to a terminal.
 
-When piped, Rich automatically strips ANSI codes and disables column truncation so the full values are preserved:
+When output is piped to another command or a file, color codes are stripped and full untruncated values are shown:
 
 ```bash
-# Piped output shows full values, no truncation
 hassette listener --app my-app | grep error
 ```
 
 ### JSON (`--json`)
 
-Structured output on stdout. The full response model is serialized — a superset of what the human table shows.
+`--json` writes a single JSON document to stdout — the full data from the server, a superset of what the human table displays.
 
 ```console
 $ hassette status --json
@@ -65,81 +68,27 @@ $ hassette status --json
 }
 ```
 
-When `--json` is active:
+In `--json` mode:
 
-- stdout contains exactly one JSON document — either the success result or an error object
-- The exit code distinguishes success (0) from failure (1 for HTTP errors, 2 for network errors)
-- No Rich formatting or human-readable text is written to stdout
+- stdout contains exactly one JSON document, either the success result or an error object
+- Exit code distinguishes success (`0`) from failure (`1` for HTTP errors, `2` for network errors)
+- No Rich formatting or human-readable text appears on stdout
 
 ### `NO_COLOR`
 
-Set `NO_COLOR=1` to disable all ANSI color output regardless of TTY detection:
+`NO_COLOR=1` disables all ANSI color output regardless of TTY detection:
 
 ```bash
 NO_COLOR=1 hassette status
 ```
 
-## Scripting with `jq`
-
-Combine `--json` with `jq` for monitoring scripts and automation:
-
-```bash
-# Extract the status field
-hassette status --json | jq -r '.status'
-
-# List all app keys
-hassette app --json | jq -r '.[].app_key'
-
-# Find listeners with errors
-hassette listener --json | jq '.[] | select(.failed > 0)'
-
-# Get the error rate class for a specific app
-hassette app health my-app --json | jq -r '.error_rate_class'
-
-# Count failed invocations in the last hour
-hassette listener 42 --since 1h --json | jq '[.[] | select(.status == "error")] | length'
-```
-
-### Health check script
-
-This script checks whether Hassette is reachable. For restart automation, point your container healthcheck at `/api/health/live` instead — a live probe returns 200 whenever the process is up, regardless of whether Home Assistant is connected. A fatal exit sets a non-zero exit code, which `Restart=on-failure` (systemd) and `restart: unless-stopped` (Docker) pick up directly.
-
-```bash
-#!/usr/bin/env bash
-set -uo pipefail
-
-# Liveness: the process is up and the event loop can respond.
-# Use /api/health/live for container healthchecks and restart automation.
-# Use /api/health/ready to gate traffic routing.
-if ! curl -sf http://127.0.0.1:8126/api/health/live > /dev/null 2>&1; then
-  echo "Hassette is not responding" >&2
-  exit 1
-fi
-
-# Optional: check aggregate status from /api/health (always 200, even when starting or degraded)
-OUTPUT=$(hassette status --json 2>/dev/null) || true
-STATUS=$(echo "$OUTPUT" | jq -r '.status // empty')
-echo "Hassette is up (status: ${STATUS:-unknown})"
-```
-
-### Alerting on error rate
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-hassette dashboard --json | jq -r '.[] | select(.health_status != "excellent") | "\(.app_key): \(.health_status)"' | while read -r line; do
-  echo "ALERT: $line" >&2
-done
-```
-
 ## Shell Completion
 
-Hassette supports tab completion for commands and subcommand names via [cyclopts](https://github.com/BrianPugh/cyclopts). Two commands are available:
+Hassette provides tab completion for commands and flags via [cyclopts](https://github.com/BrianPugh/cyclopts).
 
 ### Generate to stdout
 
-`--generate-completion` prints the completion script to stdout so you can pipe it wherever you want:
+`--generate-completion` prints the completion script to stdout:
 
 ```bash
 # Zsh
@@ -154,25 +103,25 @@ hassette --generate-completion fish > ~/.config/fish/completions/hassette.fish
 
 ### Install to default location
 
-`--install-completion` writes the completion script to the shell's default completion directory and prints instructions for adding it to your path:
+`--install-completion` writes the completion script to the shell's default completion directory:
 
 ```bash
 hassette --install-completion --shell zsh
 ```
 
-If `--shell` is omitted, both commands auto-detect the current shell. After installation, restart your shell or source the relevant config file. Pressing Tab after `hassette ` then shows available subcommands. Subcommand-specific flags are also completed.
+Omitting `--shell` from either command triggers auto-detection of the current shell. Reload your shell config afterward (`source ~/.zshrc` for Zsh, `source ~/.bashrc` for Bash) or restart the terminal. To confirm it works, type `hassette ` and press Tab — available commands appear. Subcommand-specific flags complete alongside top-level commands.
 
 ## Error Handling
 
-### Exit codes
+### Exit Codes
 
-| Code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Server error (4xx/5xx) or usage error (invalid flag combination, bad `--since` format) |
-| `2` | Network error — connection refused or request timed out |
+| Code | Meaning                                                                     |
+| ---- | --------------------------------------------------------------------------- |
+| `0`  | Success                                                                     |
+| `1`  | Server error (4xx/5xx) or usage error (invalid flag, unknown instance name) |
+| `2`  | Network error (connection refused or request timed out)                     |
 
-### Common errors
+### Common Errors
 
 **Connection refused:**
 
@@ -180,15 +129,23 @@ If `--shell` is omitted, both commands auto-detect the current shell. After inst
 Network error: Connection refused: http://127.0.0.1:8126 ([Errno 111] Connection refused)
 ```
 
-Hassette is not running, or the configured address is wrong. Start the server or check the address via environment variables or config files.
+Hassette is not running, or the configured address is wrong. The address comes from environment variables, `.env`, or `hassette.toml` — see [Discovery Order](#discovery-order) for which wins.
 
 **Request timed out:**
 
 ```
-Network error: Request timed out after 10s: http://127.0.0.1:8126/api/health
+Network error: Request timed out after 10.0s connecting to http://127.0.0.1:8126
 ```
 
-The server is reachable but not responding. Check server logs for blocking operations.
+The server is reachable but not responding. Server logs may show blocking operations. The 10-second request timeout is fixed; it is not configurable.
+
+**Port already in use (on `hassette run`):**
+
+```
+Port 8126 is already in use — is another hassette instance running?
+```
+
+Another process — usually a second Hassette instance — holds the web API port. Stop it, or change `port` under `[hassette.web_api]`. `run` exits with code 1.
 
 **Unknown instance name:**
 
@@ -196,27 +153,29 @@ The server is reachable but not responding. Check server logs for blocking opera
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-Pass the instance name exactly as it appears in `hassette app`, or use the integer index.
+The instance name must match `hassette app` output exactly. The integer index also works — `--instance 0` selects the first instance.
 
-### JSON error format
+### JSON Error Format
 
-When `--json` is active, errors are written to stdout as a JSON object so scripts can detect them without parsing stderr:
+When `--json` is active, errors are written to stdout as a JSON object. Scripts can detect failures without parsing stderr.
+
+Network error:
 
 ```json
 {"error": true, "status": null, "detail": "Connection refused: http://127.0.0.1:8126 ([Errno 111] Connection refused)"}
 ```
 
-For server errors with an HTTP status:
+Server error with HTTP status:
 
 ```json
 {"error": true, "status": 503, "detail": "Service unavailable"}
 ```
 
-### Debug mode (`--debug`)
+### Debug Mode (`--debug`)
 
-Add `--debug` to any command to see the full HTTP response when an error occurs. This is useful for diagnosing 500s or unexpected API responses without checking server logs.
+`--debug` appends the full HTTP response to error output. It applies to any command and affects only error responses. Successful responses are unchanged.
 
-In human mode, the request method, URL, and full response body are printed below the error:
+Human mode prints the request method, URL, and response body below the error message:
 
 ```
 Error 500: Internal Server Error
@@ -224,16 +183,16 @@ Error 500: Internal Server Error
   Body:   {"detail":"Internal Server Error","traceback":"..."}
 ```
 
-In JSON mode, a `debug` key is added to the error object:
+JSON mode adds a `debug` key to the error object:
 
 ```json
 {"error": true, "status": 500, "detail": "Internal Server Error", "debug": {"url": "http://127.0.0.1:8126/api/health", "method": "GET", "body": "{\"detail\":\"Internal Server Error\"}"}}
 ```
 
-`--debug` only affects HTTP error responses. Network errors (connection refused, timeout) already include the target address in the default output.
+Network errors always include the target address in the default output. `--debug` does not change their format.
 
 ## Related Pages
 
-- [Web UI](../web-ui/index.md) — the browser interface covering the same data
-- [Database & Telemetry](../core-concepts/database-telemetry.md) — what telemetry is collected and how it is stored
-- [Configuration Overview](../core-concepts/configuration/index.md) — config file locations and precedence
+- [CLI Overview](index.md): installation and quick start
+- [Commands](commands.md): all commands and flags
+- [Workflows](workflows.md): scripting patterns and `jq` recipes

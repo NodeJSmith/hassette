@@ -3,7 +3,7 @@ from hassette.scheduler.classes import ScheduledJob
 
 
 class ManagementPatternApp(App[AppConfig]):
-    my_job: ScheduledJob | None = None
+    my_job: ScheduledJob | None
 
     async def on_initialize(self) -> None:
         self.my_job = await self.scheduler.run_every(self.check_sensors, minutes=5, group="morning")
@@ -16,9 +16,9 @@ class ManagementPatternApp(App[AppConfig]):
 
     # --8<-- [start:list_jobs]
     async def show_jobs(self) -> None:
-        all_jobs = self.scheduler.list_jobs()  # pyright: ignore[reportUnusedVariable]
+        all_jobs = self.scheduler.list_jobs()
 
-        morning_jobs = self.scheduler.list_jobs(group="morning")  # pyright: ignore[reportUnusedVariable]
+        morning_jobs = self.scheduler.list_jobs(group="morning")
 
     # --8<-- [end:list_jobs]
 

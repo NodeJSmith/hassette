@@ -1,6 +1,6 @@
 """SimulationMixin — event simulation helpers for AppTestHarness.
 
-Contains all ``simulate_*`` methods and the internal ``_drain_task_bucket``
+Contains all ``simulate_*`` methods and the ``drain_task_bucket``
 machinery extracted from ``app_harness.py``.
 """
 
@@ -113,7 +113,7 @@ class SimulationMixin:
             new_attrs=new_attrs,
         )
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_attribute_change(
         self,
@@ -196,7 +196,7 @@ class SimulationMixin:
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_component_loaded(
         self,
@@ -217,7 +217,7 @@ class SimulationMixin:
 
         event = create_component_loaded_event(component)
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_service_registered(
         self,
@@ -240,7 +240,7 @@ class SimulationMixin:
 
         event = create_service_registered_event(domain, service)
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_hassette_service_status(
         self,
@@ -273,7 +273,7 @@ class SimulationMixin:
         Note:
             Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
-            See :meth:`_drain_task_bucket` for details.
+            See :meth:`drain_task_bucket` for details.
         """
         harness = self.require_harness()
 
@@ -287,7 +287,7 @@ class SimulationMixin:
             ready_phase=ready_phase,
         )
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_hassette_service_ready(
         self,
@@ -375,13 +375,13 @@ class SimulationMixin:
         Note:
             Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
-            See :meth:`_drain_task_bucket` for details.
+            See :meth:`drain_task_bucket` for details.
         """
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_websocket_disconnected(
         self,
@@ -399,13 +399,13 @@ class SimulationMixin:
         Note:
             Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
-            See :meth:`_drain_task_bucket` for details.
+            See :meth:`drain_task_bucket` for details.
         """
         harness = self.require_harness()
 
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_app_state_changed(
         self,
@@ -434,7 +434,7 @@ class SimulationMixin:
         Note:
             Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
-            See :meth:`_drain_task_bucket` for details.
+            See :meth:`drain_task_bucket` for details.
         """
         harness = self.require_harness()
         app = self._app
@@ -448,7 +448,7 @@ class SimulationMixin:
             exception=exception,
         )
         await harness.hassette.send_event(event)
-        await self._drain_task_bucket(timeout=timeout)
+        await self.drain_task_bucket(timeout=timeout)
 
     async def simulate_app_running(
         self,
@@ -502,7 +502,7 @@ class SimulationMixin:
         """
         await self.simulate_call_service("homeassistant", "stop", timeout=timeout)
 
-    async def _drain_task_bucket(self, *, timeout: float = DEFAULT_SIMULATE_TIMEOUT) -> None:
+    async def drain_task_bucket(self, *, timeout: float = DEFAULT_SIMULATE_TIMEOUT) -> None:
         """Wait until bus dispatch queue AND app task_bucket are jointly quiescent.
 
         Iterates: wait for bus dispatch idle, wait for task_bucket pending tasks, re-check.
@@ -620,7 +620,7 @@ class SimulationMixin:
                         bus_pending = bus_service.task_bucket.pending_tasks()
                         if bus_pending:
                             LOGGER.warning(
-                                "_drain_task_bucket: drain is quiescent for app.task_bucket, "
+                                "drain_task_bucket: drain is quiescent for app.task_bucket, "
                                 "but %d bus-level task(s) are still pending and were NOT drained: %s. "
                                 "Register listeners through App.bus to include them in the drain.",
                                 len(bus_pending),

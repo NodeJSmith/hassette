@@ -2,7 +2,7 @@ from pathlib import Path
 
 from hassette.test_utils import make_mock_hassette
 
-tmp_path = Path("/tmp/test")  # pyright: ignore[reportUnusedVariable]
+tmp_path = Path("/tmp/test")
 
 # Minimal — real config defaults, sealed against phantom attributes
 hassette = make_mock_hassette()

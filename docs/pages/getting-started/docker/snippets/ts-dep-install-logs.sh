@@ -1,1 +1,1 @@
-docker compose logs hassette | grep -i "installing\|error\|failed"
+docker compose logs hassette | grep -i "install\|pip\|uv"

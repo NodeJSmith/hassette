@@ -41,7 +41,7 @@ def format_via_ruff(content: str) -> str:
             tmp_path = tmp.name
 
         run_ruff_step(["ruff", "format", tmp_path], "format")
-        run_ruff_step(["ruff", "check", "--fix", tmp_path], "fix")
+        run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", tmp_path], "fix")
 
         return Path(tmp_path).read_text(encoding="utf-8")
     finally:
@@ -53,7 +53,7 @@ def format_via_ruff(content: str) -> str:
 def run_ruff(path: Path) -> None:
     """Run ruff format + fix all auto-fixable violations, then validate."""
     run_ruff_step(["ruff", "format", str(path)], "format")
-    run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
+    run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", str(path)], "fix")
 
 
 def atomic_write(out_path: Path, content: str) -> bool:

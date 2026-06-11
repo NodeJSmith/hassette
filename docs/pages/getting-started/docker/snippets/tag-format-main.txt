@@ -1,1 +1,0 @@
-ghcr.io/nodejsmith/hassette:main-py3.13

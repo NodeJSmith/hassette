@@ -49,7 +49,7 @@ def test_wheel_contains_spa_assets(tmp_path: Path) -> None:
     assert build.returncode == 0, f"uv build failed:\n{build.stderr}"
 
     check = subprocess.run(
-        ["uv", "run", "./tools/check_wheel_spa.py", "--dist-dir", str(tmp_path)],
+        ["uv", "run", "./tools/release/check_wheel_spa.py", "--dist-dir", str(tmp_path)],
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         text=True,

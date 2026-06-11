@@ -7,7 +7,7 @@ class LightApp(App):
         await self.bus.on_call_service(
             domain="light",
             service="turn_on",
-            where={"brightness": lambda v: v and v > 200},
+            where={"brightness": lambda v: isinstance(v, int) and v > 200},
             handler=self.on_bright_lights,
             name="bright_lights",
         )

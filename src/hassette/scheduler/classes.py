@@ -268,7 +268,8 @@ class ScheduledJob:
     def matches(self, other: "ScheduledJob") -> bool:
         """Check whether two jobs represent the same logical configuration.
 
-        Compares callable, trigger (by trigger_id()), group, args, and kwargs.
+        Compares callable, trigger (by trigger_id()), group, jitter, timeout,
+        timeout_disabled, args, kwargs, and error_handler (by identity).
         Does not compare runtime state (db_id, next_run, sort_index, _scheduler,
         _dequeued, owner, or any other mutable runtime field).
 
@@ -295,7 +296,7 @@ class ScheduledJob:
         """Return a list of configuration field names that differ between two jobs.
 
         Compares the same fields as ``matches()`` — callable, trigger, group,
-        jitter, timeout, timeout_disabled, args, kwargs.
+        jitter, timeout, timeout_disabled, args, kwargs, error_handler.
         """
         changed: list[str] = []
         if self.job != other.job:

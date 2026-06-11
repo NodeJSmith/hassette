@@ -3,11 +3,10 @@ from hassette.scheduler.classes import ScheduledJob
 
 
 class PollApp(App[AppConfig]):
-    _poll_job: ScheduledJob | None = None
+    poll_job: ScheduledJob | None = None
 
     async def on_initialize(self):
-        # Store a reference so the handler can cancel itself.
-        self._poll_job = await self.scheduler.run_every(
+        self.poll_job = await self.scheduler.run_every(
             self.wait_for_device,
             seconds=10,
             name="device_poll",
@@ -16,7 +15,7 @@ class PollApp(App[AppConfig]):
     async def wait_for_device(self):
         state = await self.api.get_state_or_none("sensor.device_status")
         if state is not None and not state.is_unavailable and state.value == "online":
-            self.logger.info("Device is online — stopping poll")
-            if self._poll_job is not None:
-                self._poll_job.cancel()
-                self._poll_job = None
+            self.logger.info("Device is online, stopping poll")
+            if self.poll_job is not None:
+                self.poll_job.cancel()
+                self.poll_job = None

@@ -15,7 +15,7 @@ class MySyncApp(AppSync):
         self.bus.sync.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
         self.scheduler.sync.run_in(self.cleanup, 60, name="cleanup")
 
-    def on_change(self, event): ...  # pyright: ignore[reportUnusedParameter]
+    def on_change(self, event): ...
 
     def cleanup(self): ...
 
@@ -28,4 +28,4 @@ class MyMixedApp(App):
 
     def blocking_work(self):
         # This runs in a thread pool
-        return expensive_computation()  # pyright: ignore[reportUndefinedVariable]
+        return expensive_computation()

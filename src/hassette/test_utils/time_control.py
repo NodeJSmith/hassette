@@ -215,7 +215,7 @@ class TimeControlMixin:
 
             If scheduled jobs send events through the bus, downstream handler
             tasks are spawned but not drained by this method. Call a
-            ``simulate_*`` method or ``_drain_task_bucket`` afterward to ensure
+            ``simulate_*`` method or ``drain_task_bucket`` afterward to ensure
             handler tasks complete before asserting on side effects.
 
         Returns:

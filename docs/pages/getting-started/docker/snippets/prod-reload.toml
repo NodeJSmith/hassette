@@ -1,3 +1,0 @@
-[hassette]
-allow_reload_in_prod = true  # Enable file watching in production
-watch_files = true
