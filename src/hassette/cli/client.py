@@ -71,24 +71,40 @@ class HassetteCLIClient:
     # ---------------------------------------------------------------------------
 
     @overload
-    def get(self, path: str, model: type[dict], params: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def get(
+        self, path: str, model: type[dict], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> dict[str, Any]: ...
 
     @overload
-    def get(self, path: str, model: type[list], params: dict[str, Any] | None = None) -> list[Any]: ...
+    def get(
+        self, path: str, model: type[list], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> list[Any]: ...
 
     @overload
-    def get(self, path: str, model: type[T], params: dict[str, Any] | None = None) -> T: ...
+    def get(
+        self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
+    ) -> T: ...
 
     def get(
         self,
         path: str,
         model: type[T],
         params: dict[str, Any] | None = None,
+        *,
+        tolerate_503: bool = False,
     ) -> T | dict[str, Any] | list[Any]:
         """Perform a GET request, deserialize the response, and handle errors.
 
+        Args:
+            model: Pydantic model class or ``list``/``dict`` for raw responses.
+            tolerate_503: When ``True``, a 503 response is deserialized and returned
+                rather than treated as an error. Use for human-inspection commands
+                whose endpoint returns 503 with a valid status body (e.g. a degraded
+                telemetry DB). The body is the source of truth, not the HTTP status.
+
         Raises:
-            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2).
+            SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2). A 503 is
+                exempt from the error path when ``tolerate_503=True``.
         """
         try:
             response = self._client.get(path, params=params, timeout=self.timeout)
@@ -99,13 +115,23 @@ class HassetteCLIClient:
         except httpx.RequestError as exc:
             self._handle_network_error(f"Network error: {exc}")
 
-        if not response.is_success:
+        is_tolerated_503 = tolerate_503 and response.status_code == 503
+        if not response.is_success and not is_tolerated_503:
             self._handle_http_error(response)
 
-        data = response.json()
-        if model is dict or model is list:
-            return data
-        return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
+        try:
+            data = response.json()
+            if model is dict or model is list:
+                return data
+            return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
+        except ValueError:
+            # A tolerated 503 can carry a body that isn't the expected status
+            # payload — a proxy/LB HTML error page (non-JSON) or JSON of the wrong
+            # shape. pydantic.ValidationError is a ValueError, so both land here.
+            # Route them to the normal error exit instead of crashing.
+            if is_tolerated_503:
+                self._handle_http_error(response)
+            raise
 
     # ---------------------------------------------------------------------------
     # App routing & instance resolution

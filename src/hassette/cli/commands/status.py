@@ -16,7 +16,7 @@ def cmd_status(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
 def cmd_telemetry(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show telemetry database status (GET /api/telemetry/status)."""
     client = make_client(ctx)
-    result = client.get("/api/telemetry/status", TelemetryStatusResponse)
+    result = client.get("/api/telemetry/status", TelemetryStatusResponse, tolerate_503=True)
     render_detail(result, json_mode=ctx.json_mode)
 
 
