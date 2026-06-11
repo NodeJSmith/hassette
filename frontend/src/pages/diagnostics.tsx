@@ -93,7 +93,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
       class={clsx(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
       data-testid={`diag-service-row-${service.resource_name}`}
     >
-      <div class={styles.serviceMain} title={service.ready_phase ?? undefined}>
+      <div class={styles.serviceMain}>
         <StatusShape kind={kind} size={8} />
         <span class={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
         {!isRunning && (
