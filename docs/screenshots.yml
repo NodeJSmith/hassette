@@ -84,6 +84,12 @@
   height: 1656
   wait: 2000
 
+- url: "http://localhost:{port}/diagnostics"
+  output: docs/_static/web_ui_diagnostics.png
+  width: 1400
+  height: 900
+  wait: 2000
+
 # demo_stimulator has active handlers, errors, and timing data — more informative than motion_lights
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
   output: docs/_static/web_ui_app_detail_overview.png
@@ -139,17 +145,6 @@
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"cmd-palette\"]')"
   javascript: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', ctrlKey: true, bubbles: true}))"
-
-# Taller viewport so the popover (anchored to the bottom-right grid button) has room
-- url: "http://localhost:{port}/logs"
-  output: docs/_static/web_ui_detail_column_picker.png
-  selector: "[data-testid='column-picker-popover']"
-  padding: 8
-  width: 1400
-  height: 1100
-  wait: 2000
-  wait_for: "document.querySelector('[data-testid=\"column-picker-popover\"]')"
-  javascript: "document.querySelector('[data-testid=\"column-picker\"]')?.click()"
 
 - url: "http://localhost:{port}/apps/demo_stimulator/overview"
   output: docs/_static/web_ui_detail_error_spotlight.png

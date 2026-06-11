@@ -32,6 +32,32 @@
   letter-spacing: var(--tr-label-wide);
 }
 
+/* Column widths — reshaped per breakpoint to match the visible column set */
+
+.colName {
+  width: 35%;
+}
+
+.colStatus {
+  width: 12%;
+}
+
+.colError {
+  width: 22%;
+}
+
+.colRuns {
+  width: 10%;
+}
+
+.colLast {
+  width: 11%;
+}
+
+.colActions {
+  width: 10%;
+}
+
 /* Table rows */
 
 .row {
@@ -61,6 +87,13 @@
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
+}
+
+.nameCellInner a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .expandGutter {
@@ -167,10 +200,25 @@
     justify-content: center;
   }
 
-  .appsTable {
-    table-layout: auto;
+  /* Reallocate all width to the two visible columns; the hidden columns'
+     cols get 0 so fixed layout doesn't reserve space for them. */
+  .colName {
+    width: 68%;
   }
 
+  .colStatus {
+    width: 32%;
+  }
+
+  .colError,
+  .colRuns,
+  .colLast,
+  .colActions {
+    width: 0;
+  }
+
+  /* Hide everything except name + status (including actions — rows
+     navigate to the detail page on mobile). */
   .appsTable thead th:nth-child(n + 3),
   .appsTable tbody td:nth-child(n + 3) {
     display: none;
@@ -182,11 +230,6 @@
 @media (max-width: 768px) {
   .className,
   .appsTable [data-variant="muted"] {
-    display: none;
-  }
-
-  .appsTable th:nth-child(n + 3):not(:last-child),
-  .appsTable td:nth-child(n + 3):not(:last-child) {
     display: none;
   }
 

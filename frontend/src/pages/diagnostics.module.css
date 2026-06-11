@@ -34,36 +34,41 @@
   padding: 1px var(--sp-2);
 }
 
-/* Services list */
+/* Services grid — compact tiles; anomalous services span the full row */
 
-.serviceList {
+.serviceGrid {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-1) var(--sp-5);
 }
 
 .serviceRow {
-  border-bottom: 1px solid var(--line-2);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-1) 0;
+  min-width: 0;
 }
 
-.serviceRow:last-child {
-  border-bottom: none;
+.serviceRowDetailed {
+  grid-column: 1 / -1;
 }
 
 .serviceMain {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .serviceName {
-  font-size: var(--fs-mono-md);
+  font-size: var(--fs-mono-sm);
   color: var(--ink-1);
   font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .serviceStatus {

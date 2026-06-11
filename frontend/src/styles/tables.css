@@ -74,8 +74,13 @@
   width: 14%;
 }
 
+/* Compact tables flip to auto layout on mobile. This is safe only when
+   every column visible at this breakpoint holds short bounded values —
+   execution tables qualify because status/time/duration are bounded and
+   the wide trace column is hidden below. --fixed tables stay fixed at
+   every breakpoint and reallocate colgroup widths instead — see
+   DESIGN_RULES.md, "Table Behavior at 768px". */
 @media screen and (max-width: 768px) {
-  .ht-table--fixed,
   .ht-table--compact {
     table-layout: auto;
   }

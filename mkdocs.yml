@@ -85,6 +85,7 @@ nav:
       - Read and Filter Logs: pages/web-ui/logs.md
       - Manage Apps: pages/web-ui/manage-apps.md
       - Inspect Configuration and Code: pages/web-ui/inspect-config-code.md
+      - Check Framework Health: pages/web-ui/diagnostics.md
       - Configure Health Checks: pages/web-ui/health-endpoints.md
   - CLI:
       - Overview: pages/cli/index.md

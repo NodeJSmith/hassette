@@ -54,6 +54,13 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
       sub: "/config",
       action: () => navigate("/config"),
     },
+    {
+      id: "page-diagnostics",
+      kind: "page",
+      label: "diagnostics",
+      sub: "/diagnostics",
+      action: () => navigate("/diagnostics"),
+    },
   ];
 }
 

@@ -71,11 +71,12 @@ describe("DiagnosticsPage", () => {
     expect(alert.textContent).toBeTruthy();
   });
 
-  it("renders all three sections after load", async () => {
-    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
+  it("renders stats strip and services panel after load; clean boot/telemetry panels stay hidden", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    expect(await findByTestId("diag-stats-strip")).toBeDefined();
     expect(await findByTestId("diag-services-panel")).toBeDefined();
-    expect(await findByTestId("diag-boot-panel")).toBeDefined();
-    expect(await findByTestId("diag-telemetry-panel")).toBeDefined();
+    expect(queryByTestId("diag-boot-panel")).toBeNull();
+    expect(queryByTestId("diag-telemetry-panel")).toBeNull();
   });
 
   it("shows empty state when no services returned from HTTP seed", async () => {
@@ -158,10 +159,11 @@ describe("DiagnosticsPage", () => {
     expect(queryByTestId("diag-services-stale")).toBeNull();
   });
 
-  it("shows clean startup when no boot issues", async () => {
+  it("hides the boot issues panel when startup was clean", async () => {
     server.use(http.get("/api/health", () => HttpResponse.json(makeSystemStatus({ boot_issues: [] }))));
-    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
-    expect(await findByTestId("diag-boot-clean")).toBeDefined();
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-services-panel");
+    expect(queryByTestId("diag-boot-panel")).toBeNull();
   });
 
   it("renders boot issues sorted by severity (errors first)", async () => {
@@ -199,13 +201,14 @@ describe("DiagnosticsPage", () => {
     expect((await findByTestId("diag-boot-detail-0")).textContent).toBe("The full detail text");
   });
 
-  it("shows 'No telemetry drops.' when all counters are zero", async () => {
-    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
-    expect(await findByTestId("diag-no-drops")).toBeDefined();
+  it("hides the telemetry panel when all counters are zero", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-services-panel");
+    expect(queryByTestId("diag-telemetry-panel")).toBeNull();
   });
 
   it("renders per-category drop counters when non-zero", async () => {
-    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, {
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
       stateOverrides: {
         droppedOverflow: signal(5),
         droppedExhausted: signal(3),
@@ -214,8 +217,6 @@ describe("DiagnosticsPage", () => {
       },
     });
     await findByTestId("diag-telemetry-panel");
-    // No-drops message should be gone
-    expect(queryByTestId("diag-no-drops")).toBeNull();
     // Each row should be present
     expect(await findByTestId("diag-drop-overflow")).toBeDefined();
     expect(await findByTestId("diag-drop-exhausted")).toBeDefined();
@@ -236,13 +237,21 @@ describe("DiagnosticsPage", () => {
     expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
   });
 
-  it("service row shows ready_phase text", async () => {
+  it("shows degraded banner without drop rows when all counters are zero", async () => {
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, {
+      stateOverrides: { telemetryDegraded: signal(true) },
+    });
+    expect(await findByTestId("diag-telemetry-degraded")).toBeDefined();
+    expect(queryByTestId("diag-drop-overflow")).toBeNull();
+  });
+
+  it("service row shows ready_phase text for a non-running service", async () => {
     server.use(
       http.get("/api/health", () =>
         HttpResponse.json(
           makeSystemStatus({
             services: [
-              makeServiceInfo({ name: "db", status: "running", role: "storage", ready_phase: "migrating schema" }),
+              makeServiceInfo({ name: "db", status: "starting", role: "storage", ready_phase: "migrating schema" }),
             ],
           }),
         ),
@@ -251,5 +260,21 @@ describe("DiagnosticsPage", () => {
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     const phaseEl = await findByTestId("diag-service-phase-db");
     expect(phaseEl.textContent).toBe("migrating schema");
+  });
+
+  it("hides status text and phase for running services (the dot carries the signal)", async () => {
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            services: [makeServiceInfo({ name: "bus", status: "running", ready_phase: "Bus initialized" })],
+          }),
+        ),
+      ),
+    );
+    const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />);
+    await findByTestId("diag-service-row-bus");
+    expect(queryByTestId("diag-service-status-bus")).toBeNull();
+    expect(queryByTestId("diag-service-phase-bus")).toBeNull();
   });
 });

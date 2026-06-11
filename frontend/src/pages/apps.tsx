@@ -262,12 +262,12 @@ export function AppsPage() {
           ) : (
             <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
               <colgroup>
-                <col style="width: 35%" />
-                <col style="width: 12%" />
-                <col style="width: 22%" />
-                <col style="width: 10%" />
-                <col style="width: 11%" />
-                <col style="width: 10%" />
+                <col class={styles.colName} />
+                <col class={styles.colStatus} />
+                <col class={styles.colError} />
+                <col class={styles.colRuns} />
+                <col class={styles.colLast} />
+                <col class={styles.colActions} />
               </colgroup>
               <thead>
                 <tr>

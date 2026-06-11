@@ -76,4 +76,5 @@ The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, han
 - **[Debug a Failing Handler](debug-handler.md)**: find why a handler is not firing or is throwing errors
 - **[Read and Filter Logs](logs.md)**: search, filter, and stream logs in real time
 - **[Inspect Configuration and Code](inspect-config-code.md)**: view global and per-app config, read app source
+- **[Check Framework Health](diagnostics.md)**: confirm internal services are running, see boot issues and telemetry drops
 - **[Configure Health Checks](health-endpoints.md)**: choose the right endpoint for restart automation, traffic routing, or monitoring
