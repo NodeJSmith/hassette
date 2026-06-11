@@ -8,6 +8,7 @@ import type { components } from "../api/generated-types";
 import cardStyles from "../components/shared/card.module.css";
 import { EmptyState } from "../components/shared/empty-state";
 import { Spinner } from "../components/shared/spinner";
+import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { StatusShape } from "../components/shared/status-shape";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useRelativeTime } from "../hooks/use-relative-time";
@@ -25,8 +26,6 @@ interface MergedService {
   ready_phase: string | null;
   retry_at: number | null;
   exception: string | null;
-  /** True when this entry came from a WS update (not just the HTTP seed). */
-  from_ws: boolean;
 }
 
 function mergeServices(
@@ -44,7 +43,6 @@ function mergeServices(
       ready_phase: svc.ready_phase ?? null,
       retry_at: svc.retry_at ?? null,
       exception: null,
-      from_ws: false,
     });
   }
 
@@ -57,11 +55,24 @@ function mergeServices(
       ready_phase: entry.ready_phase ?? null,
       retry_at: entry.retry_at ?? null,
       exception: entry.exception ?? null,
-      from_ws: true,
     });
   }
 
-  return [...merged.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
+  // Anomalies first, then alphabetical — a failed service should never hide below the fold.
+  return [...merged.values()].sort((a, b) => {
+    const anomalyFirst = Number(a.status === "running") - Number(b.status === "running");
+    return anomalyFirst || a.resource_name.localeCompare(b.resource_name);
+  });
+}
+
+function buildDiagCells(services: MergedService[], bootIssueCount: number, totalDrops: number): StatsStripCell[] {
+  const running = services.filter((s) => s.status === "running").length;
+  return [
+    { label: "services", value: services.length },
+    { label: "running", value: running, tone: running === services.length ? "ok" : "warn" },
+    { label: "boot issues", value: bootIssueCount, tone: bootIssueCount > 0 ? "err" : undefined },
+    { label: "drops", value: totalDrops, tone: totalDrops > 0 ? "warn" : undefined },
+  ];
 }
 
 interface DiagServiceRowProps {
@@ -72,20 +83,28 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const retryAtLabel = useRelativeTime(service.retry_at);
   const isCooling = service.status === "exhausted_cooling";
+  const isRunning = service.status === "running";
   const kind = statusToKind(service.status);
+  // Rows with extra content (status text, phase, exception toggle) span the full grid width.
+  const spansFullRow = !isRunning || !!service.exception;
 
   return (
-    <li class={styles.serviceRow} data-testid={`diag-service-row-${service.resource_name}`}>
-      <div class={styles.serviceMain}>
-        <StatusShape kind={kind} size={10} />
+    <li
+      class={clsx(styles.serviceRow, spansFullRow && styles.serviceRowDetailed)}
+      data-testid={`diag-service-row-${service.resource_name}`}
+    >
+      <div class={styles.serviceMain} title={service.ready_phase ?? undefined}>
+        <StatusShape kind={kind} size={8} />
         <span class={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
-        <span
-          class={`${styles.serviceStatus} ht-text-mono`}
-          data-testid={`diag-service-status-${service.resource_name}`}
-        >
-          {service.status}
-        </span>
-        {service.ready_phase && (
+        {!isRunning && (
+          <span
+            class={`${styles.serviceStatus} ht-text-mono`}
+            data-testid={`diag-service-status-${service.resource_name}`}
+          >
+            {service.status}
+          </span>
+        )}
+        {!isRunning && service.ready_phase && (
           <span class={styles.servicePhase} data-testid={`diag-service-phase-${service.resource_name}`}>
             {service.ready_phase}
           </span>
@@ -137,7 +156,7 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
       {services.length === 0 ? (
         <EmptyState title="no services registered." data-testid="diag-services-empty" />
       ) : (
-        <ul class={styles.serviceList} aria-label="Service list">
+        <ul class={styles.serviceGrid} aria-label="Service list">
           {services.map((svc) => (
             <DiagServiceRow key={svc.resource_name} service={svc} />
           ))}
@@ -164,32 +183,28 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   return (
     <section class={clsx(cardStyles.card, styles.section)} aria-label="Boot issues" data-testid="diag-boot-panel">
       <h2 class={styles.sectionHeading}>boot issues</h2>
-      {sorted.length === 0 ? (
-        <EmptyState icon="✓" title="clean startup — no issues." data-testid="diag-boot-clean" />
-      ) : (
-        <ul class={styles.bootList} aria-label="Boot issues">
-          {sorted.map((issue, i) => {
-            const kind = issue.severity === "err" ? "err" : "warn";
-            return (
-              <li
-                key={`${i}-${issue.severity}-${issue.label}`}
-                class={styles.bootRow}
-                data-testid={`diag-boot-issue-${i}`}
-              >
-                <StatusShape kind={kind} size={10} />
-                <div class={styles.bootContent}>
-                  <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
-                    {issue.label}
-                  </span>
-                  <span class={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
-                    {issue.detail}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul class={styles.bootList} aria-label="Boot issues">
+        {sorted.map((issue, i) => {
+          const kind = issue.severity === "err" ? "err" : "warn";
+          return (
+            <li
+              key={`${i}-${issue.severity}-${issue.label}`}
+              class={styles.bootRow}
+              data-testid={`diag-boot-issue-${i}`}
+            >
+              <StatusShape kind={kind} size={10} />
+              <div class={styles.bootContent}>
+                <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
+                  {issue.label}
+                </span>
+                <span class={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
+                  {issue.detail}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -224,13 +239,6 @@ function TelemetryPanel({
   errorHandlerFailures,
   telemetryDegraded,
 }: TelemetryPanelProps) {
-  const allZero =
-    !telemetryDegraded &&
-    droppedOverflow === 0 &&
-    droppedExhausted === 0 &&
-    droppedShutdown === 0 &&
-    errorHandlerFailures === 0;
-
   return (
     <section
       class={clsx(cardStyles.card, styles.section)}
@@ -243,11 +251,7 @@ function TelemetryPanel({
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
-      {allZero ? (
-        <p class="ht-text-muted" data-testid="diag-no-drops">
-          No telemetry drops.
-        </p>
-      ) : (
+      {droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures > 0 && (
         <ul class={styles.dropList} aria-label="Drop counters">
           <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
           <DropCounterRow label="Write failed" value={droppedExhausted} testId="diag-drop-exhausted" />
@@ -293,6 +297,10 @@ export function DiagnosticsPage() {
 
   const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
 
+  const totalDrops =
+    droppedOverflow.value + droppedExhausted.value + droppedShutdown.value + errorHandlerFailures.value;
+  const showTelemetry = telemetryDegraded.value || totalDrops > 0;
+
   if (loading) return <Spinner />;
 
   return (
@@ -307,19 +315,28 @@ export function DiagnosticsPage() {
         </div>
       ) : (
         <>
+          <StatsStrip
+            cells={buildDiagCells(mergedServices, bootIssues.length, totalDrops)}
+            data-testid="diag-stats-strip"
+          />
+
           <ServicesPanel services={mergedServices} wsConnected={wsConnected} />
 
-          <BootIssuesPanel bootIssues={bootIssues} />
+          {bootIssues.length > 0 && <BootIssuesPanel bootIssues={bootIssues} />}
         </>
       )}
 
-      <TelemetryPanel
-        droppedOverflow={droppedOverflow.value}
-        droppedExhausted={droppedExhausted.value}
-        droppedShutdown={droppedShutdown.value}
-        errorHandlerFailures={errorHandlerFailures.value}
-        telemetryDegraded={telemetryDegraded.value}
-      />
+      {/* Telemetry counters come from the WS stream, not the HTTP seed,
+          so they render even when the HTTP load failed. */}
+      {showTelemetry && (
+        <TelemetryPanel
+          droppedOverflow={droppedOverflow.value}
+          droppedExhausted={droppedExhausted.value}
+          droppedShutdown={droppedShutdown.value}
+          errorHandlerFailures={errorHandlerFailures.value}
+          telemetryDegraded={telemetryDegraded.value}
+        />
+      )}
     </div>
   );
 }

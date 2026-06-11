@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { path: "/handlers", label: "handlers", testId: "nav-handlers" },
   { path: "/logs", label: "logs", testId: "nav-logs" },
   { path: "/config", label: "config", testId: "nav-config" },
+  { path: "/diagnostics", label: "diagnostics", testId: "nav-diagnostics" },
 ] as const;
 
 interface AppEntryProps {
