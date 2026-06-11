@@ -1,28 +1,29 @@
 # Migration Checklist
 
-Use this checklist when migrating each app from AppDaemon to Hassette. Work through one app at a time — verify it works before moving to the next.
+Use this checklist when migrating each app from AppDaemon to Hassette. Work through one app at a time. Verify it works before moving to the next.
 
 The [Migration Guide overview](index.md) covers pre-migration setup (installing Hassette, reviewing the mental model). This checklist picks up from there.
 
 ## Before You Start
 
-- [ ] **Requires Python 3.11 or later** — check with `python --version` or `python3 --version`. Hassette will not install on Python 3.10 or earlier. See [python.org/downloads](https://www.python.org/downloads/) to upgrade.
+- [ ] **Requires Python 3.11 or later.** Check with `python --version` or `python3 --version`. Hassette will not install on 3.10 or earlier. See [python.org/downloads](https://www.python.org/downloads/) to upgrade.
 
 ## Step 1: Configuration
 
 - [ ] Convert `appdaemon.yaml` connection settings to `hassette.toml` `[hassette]` section
 - [ ] Convert each app entry in `apps.yaml` to an `[apps.your_app]` table in `hassette.toml`
-- [ ] Create a typed `AppConfig` subclass for each app — move all `self.args["args"]["key"]` accesses to `self.app_config.key`
+- [ ] Create a typed [`AppConfig`][hassette.app.app_config.AppConfig] subclass for each app. Move all `self.args["args"]["key"]` accesses to `self.app_config.key`
 - [ ] Verify required fields raise a clear error if missing (run the app without a required config key)
 
 See [Configuration](configuration.md) for the full conversion guide.
 
 ## Step 2: App Structure
 
-- [ ] Change base class from `Hass` (or `ADAPI`) to `App` (async) or `AppSync` (sync)
+- [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync). Rule of thumb: if your callbacks never block (no `time.sleep`, no `requests.get`), use `App`; if they do and you can't convert them yet, use `AppSync`.
+- [ ] If you chose `AppSync`: use the `.sync` facades everywhere in steps 3–5 — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)` — with no `await`. Calling the async methods from sync hooks silently does nothing.
 - [ ] Rename `initialize()` to the correct hook for your base class:
-    - `App`: `async def on_initialize(self)` — must be `async def`
-    - `AppSync`: `def on_initialize_sync(self)` — must be a plain synchronous method; do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`)
+    - `App`: `async def on_initialize(self)`. Must be `async def`.
+    - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final`; overriding raises `CannotOverrideFinalError` at class definition time).
 - [ ] If you have `terminate()`, rename it:
     - `App`: `async def on_shutdown(self)`
     - `AppSync`: `def on_shutdown_sync(self)`
@@ -33,41 +34,43 @@ See [Mental Model](concepts.md) for the lifecycle differences.
 ## Step 3: Event Listeners
 
 - [ ] Convert each `self.listen_state(...)` to `await self.bus.on_state_change(...)`
-  - [ ] Add `await` — all `self.bus.on_*()` methods are async and must be awaited
-  - [ ] Add `name=` — a stable string identifier is required on every registration (e.g. `name="kitchen_light"`)
+  - [ ] Add `await`. All `self.bus.on_*()` methods are async — `await` only works inside `async def` methods, so check the surrounding method too.
+  - [ ] Add `name=`. A stable string identifier is required on every registration (e.g. `name="kitchen_light"`).
   - [ ] Move filter arguments: `new=` → `changed_to=`, `old=` → `changed_from=`
   - [ ] Update callback signatures to use dependency injection or accept an event object
-  - [ ] Replace `self.cancel_listen_state(handle)` with `subscription.cancel()`
+  - [ ] Replace `self.cancel_listen_state(handle)` with `subscription.cancel()` — registration returns a `Subscription`; store it (`sub = await self.bus.on_state_change(...)`) to cancel later
 - [ ] Convert each `self.listen_event("call_service", ...)` to `await self.bus.on_call_service(...)`
   - [ ] Add `await` and `name=`
   - [ ] Update callback signatures
   - [ ] Replace `self.cancel_listen_event(handle)` with `subscription.cancel()`
 - [ ] For attribute-level subscriptions, switch to `await self.bus.on_attribute_change(...)`
 
-See [Bus & Events](bus.md) for side-by-side examples.
+See [`Bus` & Events](bus.md) for side-by-side examples.
 
 ## Step 4: Scheduler
 
-- [ ] Convert each `self.run_in(cb, seconds)` to `self.scheduler.run_in(cb, delay=seconds)`
-- [ ] Convert each `self.run_once(cb, time(H, M))` to `self.scheduler.run_once(cb, at="HH:MM")`
-- [ ] Convert each `self.run_every(cb, "now", interval)` to `self.scheduler.run_every(cb, seconds=interval)`
-- [ ] Convert each `self.run_daily(cb, time(H, M))` to `self.scheduler.run_daily(cb, at="HH:MM")`
-- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned `ScheduledJob`
-- [ ] Check any blocking work inside callbacks — for apps with heavy sync logic, switch to `AppSync`; for isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`
+- [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds)`
+- [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`
+- [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval)`
+- [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM")`
+- [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` — each scheduling call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]; store it (`job = await self.scheduler.run_in(...)`) to cancel later
+- [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
 
-See [Scheduler](scheduler.md) for method equivalents.
+See [`Scheduler`](scheduler.md) for method equivalents.
 
 ## Step 5: API Calls
 
-- [ ] Convert `self.get_state(entity_id)` to `self.states.domain.get(entity_id)` for cached reads
+- [ ] Convert `self.get_state(entity_id)` to domain access on the state cache for cached reads — `self.get_state("light.kitchen")` becomes `self.states.light.get("light.kitchen")`
 - [ ] Replace `self.call_service("domain/service", ...)` with `await self.api.call_service("domain", "service", ...)`
-- [ ] Add `await` to all `self.api.*` calls — forgetting `await` returns a coroutine without executing the call
+- [ ] Add `await` to all `self.api.*` calls. Forgetting `await` means the call never runs — no error, just silence. If a service call appears to do nothing, check for a missing `await`.
 - [ ] Replace `self.set_state(...)` with `await self.api.set_state(...)`
 - [ ] Replace `self.log(...)` with `self.logger.info(...)` (and `.warning()`, `.error()` as needed)
 
 See [API Calls](api.md) for the full guide.
 
 ## Step 6: Test
+
+This step is optional for the initial migration but worth it — AppDaemon has no testing story, so this is new ground. The [Testing](testing.md) page walks through it from scratch.
 
 - [ ] Write at least one test using `AppTestHarness`
 - [ ] Seed entity state before simulating events
@@ -86,24 +89,30 @@ See [Testing](testing.md) for the test harness guide.
 ## Common Pitfalls
 
 !!! warning "Async gotchas"
-    - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and silently does nothing.
-    - In `AppSync`, use `.sync` facades for bus, scheduler, and API — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods directly from sync hooks returns un-awaited coroutines that silently do nothing.
-    - Do not use `.sync` facades inside `App` lifecycle methods — use the async API instead, or switch to `AppSync`.
+    - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and silently does nothing — see [Async Basics](async-basics.md) for the full explanation.
+    - Every `self.bus.on_*()` call requires `name=`. Omitting it raises `ListenerNameRequiredError` at runtime.
+    - In `AppSync`, use `.sync` facades for bus, scheduler, and API: `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods from sync hooks returns un-awaited coroutines that silently do nothing.
+    - Do not use `.sync` facades inside `App` lifecycle methods. Use the async API instead, or switch to `AppSync`.
 
-!!! tip "Configuration access"
+The two APIs you'll use most often after migration are configuration and state access. Both are shorter than their AppDaemon equivalents.
+
+!!! tip "Quick-reference: configuration and state access"
+    ### Configuration
+
     - AppDaemon: `self.args["args"]["key"]`
     - Hassette: `self.app_config.key`
     - Define all config keys in your `AppConfig` model for validation and autocomplete.
 
-!!! tip "State access"
+    ### State
+
     - AppDaemon: `self.get_state()` returns a cached state (string or dict)
-    - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state (no `await` needed) (the domain prefix is optional).
-    - Use `self.api.get_state()` only when you need to force a fresh read from Home Assistant.
+    - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state. No `await` needed. The domain prefix is optional.
+    - Use `self.api.get_state()` only when you need a fresh read from Home Assistant.
 
 ## Next Steps
 
 After migrating all your apps:
 
 - Review the [Core Concepts](../core-concepts/index.md) to learn the full Hassette feature set
-- Explore [Dependency Injection](../core-concepts/bus/dependency-injection.md), [Custom States](../advanced/custom-states.md), and [Type Registries](../advanced/type-registry.md)
+- Explore [Dependency Injection](../core-concepts/bus/dependency-injection.md), [Custom States](../core-concepts/states/custom-states.md), and [State Conversion](../core-concepts/states/conversion.md)
 - Set up the [Web UI](../web-ui/index.md) for live monitoring of your automations

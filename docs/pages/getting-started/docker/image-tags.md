@@ -1,151 +1,35 @@
-# Docker Image Tags
+# Image Tags
 
-Hassette publishes Docker images for multiple Python versions. All tags explicitly include the Python version to avoid ambiguity.
+Hassette ships as a Docker image hosted at `ghcr.io/nodejsmith/hassette` (GitHub Container Registry). Each tag combines a Hassette version and a Python version — for example, `v0.39.0-py3.13`.
 
-## Tag Format
+The tag goes on the `image:` line of your `docker-compose.yml` from [Docker Setup](index.md).
 
-### Recommended: Pin Both Version and Python
+## Which Tag to Use
 
-For reproducible production builds, pin both the Hassette version and Python version:
-
-```
---8<-- "pages/getting-started/docker/snippets/tag-format-versioned.txt"
-```
-
-**Examples:**
-
-- `ghcr.io/nodejsmith/hassette:0.24.0-py3.13`
-- `ghcr.io/nodejsmith/hassette:0.24.0-py3.12`
-- `ghcr.io/nodejsmith/hassette:0.24.0-py3.11`
-
-This is the **recommended tag format** for production.
-
-### Track Latest Stable Release
-
-If you want automatic upgrades within a Python line:
-
-```
---8<-- "pages/getting-started/docker/snippets/tag-format-latest.txt"
-```
-
-**Examples:**
-
-- `ghcr.io/nodejsmith/hassette:latest-py3.13`
-- `ghcr.io/nodejsmith/hassette:latest-py3.12`
-- `ghcr.io/nodejsmith/hassette:latest-py3.11`
-
-!!! note "Stable Releases Only"
-    These tags only point to stable releases. Pre-releases (`.dev`, `a`, `b`, `rc`, etc.) are never published to `latest-py*` tags.
-
-!!! warning "Upgrade Risk"
-    `latest-py*` tags update automatically on every stable release. If a new Hassette release includes breaking changes to configuration or app APIs, your container will silently upgrade on the next `docker pull`. Pin to a specific version if you need to control when upgrades happen.
-
-### Testing Open Pull Requests
-
-Pull requests opened from branches **in this repository** get a stable, mutable tag pointing at the latest build of that PR:
-
-```
---8<-- "pages/getting-started/docker/snippets/tag-format-pr.txt"
-```
-
-**Example:**
-
-- `ghcr.io/nodejsmith/hassette:pr-497-py3.13`
-
-The tag is updated on every push to the PR branch, so `docker pull` always fetches the most recent build. Use these to try out changes before they land in `main`.
-
-!!! note "Python 3.13 Only"
-    PR images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
-
-!!! note "Fork PRs Not Published"
-    PRs opened from forks do **not** publish images — fork-PR workflows do not have the credentials or write permissions needed to push to this repository's GHCR package. To test a fork PR, pull the contributor's branch locally and build the image yourself, or ask a maintainer to rebase the PR into the main repository.
-
-!!! warning "Mutable Tag"
-    `pr-<N>-py3.13` tags are mutable and will change as the PR evolves. Do not use them for reproducible builds — pin a version tag instead.
-
-### Bleeding-Edge Main Branch
-
-Every merge to `main` publishes a `main` tag for testing the latest unreleased code:
-
-```
---8<-- "pages/getting-started/docker/snippets/tag-format-main.txt"
-```
-
-**Example:**
-
-- `ghcr.io/nodejsmith/hassette:main-py3.13`
-
-!!! note "Python 3.13 Only"
-    `main` images are only built for Python 3.13 to keep CI fast. Releases still build all supported Python versions.
-
-!!! warning "Mutable Tag"
-    `main-py3.13` is mutable and updates on every merge to `main`. It may contain unreleased, unvetted changes. Do not use in production — pin a version tag instead.
-
-## Tags NOT Published
-
-The following tag patterns are **not** published:
-
-| Pattern                            | Reason                                     |
-| ---------------------------------- | ------------------------------------------ |
-| `latest` (without Python version)  | Ambiguous — always specify Python version  |
-| Version tags without `-py<python>` | Ambiguous — always specify Python version  |
-| Floating tags for pre-releases     | Explicit version required for pre-releases |
-
-If you want a pre-release, you must explicitly request it by version:
-
-```
---8<-- "pages/getting-started/docker/snippets/tag-prerelease-explicit.txt"
-```
-
-## Supported Python Versions
-
-Each release is built for multiple Python versions:
-
-| Python Version | Status      |
-| -------------- | ----------- |
-| 3.13           | Supported |
-| 3.12           | Supported |
-| 3.11           | Supported |
-
-!!! note "Version Support"
-    Python versions are dropped when they reach end-of-life. Check the release notes when upgrading.
-
-## Choosing a Tag
-
-### For Production
-
-Use a pinned version with your preferred Python:
+For production, use a tag with a specific version number:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/tag-pinned-compose.yml"
 ```
 
-### For Development
+A version-specific tag never changes — Docker downloads the same code every time.
 
-Use the latest stable release:
+For development, use `latest-py3.13`:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/tag-latest-compose.yml"
 ```
 
-### For Testing Pre-release Features
+`latest-py3.*` tags track the most recent stable release. New features arrive on the next pull.
 
-Use a specific pre-release version:
+Python 3.11, 3.12, 3.13, and 3.14 are all supported. Replace `py3.13` in the tag with your preferred version.
 
-```yaml
---8<-- "pages/getting-started/docker/snippets/tag-prerelease-compose.yml"
-```
+## Updating
 
-## Updating Images
+Run this in the directory containing your `docker-compose.yml`:
 
-### Pull Latest
-
-```bash
+```sh
 --8<-- "pages/getting-started/docker/snippets/docker-pull-update.sh"
 ```
 
-### Check Current Version
-
-```bash
---8<-- "pages/getting-started/docker/snippets/docker-version-check.sh"
-```
+`pull` fetches the new image. `up -d` restarts the container with it. Docker prints the download progress, then a `Started` line — check the logs afterward to confirm Hassette reconnected.

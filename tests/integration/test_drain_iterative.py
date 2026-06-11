@@ -317,19 +317,19 @@ def test_drain_error_message_multiple_exceptions() -> None:
 def test_drain_uses_public_accessors_not_private_attributes() -> None:
     """Drain implementation uses only public accessors from WP03, not private fields.
 
-    Introspects the source of _drain_task_bucket to confirm no direct access to
+    Introspects the source of drain_task_bucket to confirm no direct access to
     private BusService or TaskBucket internals. This acts as a regression guard
     against future refactoring that re-introduces private attribute access.
     """
-    source = inspect.getsource(AppTestHarness._drain_task_bucket)
+    source = inspect.getsource(AppTestHarness.drain_task_bucket)
     assert "_dispatch_pending" not in source, (
-        "_drain_task_bucket must not access bus_service._dispatch_pending directly; "
+        "drain_task_bucket must not access bus_service._dispatch_pending directly; "
         "use bus_service.dispatch_pending_count"
     )
     assert "_dispatch_idle_event" not in source, (
-        "_drain_task_bucket must not access bus_service._dispatch_idle_event directly; "
+        "drain_task_bucket must not access bus_service._dispatch_idle_event directly; "
         "use bus_service.is_dispatch_idle or await_dispatch_idle()"
     )
     assert "task_bucket._tasks" not in source, (
-        "_drain_task_bucket must not access app.task_bucket._tasks directly; use app.task_bucket.pending_tasks()"
+        "drain_task_bucket must not access app.task_bucket._tasks directly; use app.task_bucket.pending_tasks()"
     )

@@ -14,6 +14,7 @@ class SensorThresholdApp(App[ThresholdConfig]):
         await self.bus.on_state_change(
             self.app_config.entity_id,
             handler=self.on_threshold_exceeded,
+            changed_from=C.Comparison("le", self.app_config.threshold),
             changed_to=C.Comparison("gt", self.app_config.threshold),
             name="threshold_monitor",
         )

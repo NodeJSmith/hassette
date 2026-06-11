@@ -11,8 +11,7 @@ async def test_reminder_fires_after_one_hour():
         start = Instant.from_utc(2024, 1, 15, 9, 0, 0)  # 2024-01-15 09:00 UTC
         harness.freeze_time(start)
 
-        # 2. Schedule the job (app registers it in on_initialize, but you
-        #    can also trigger registration logic via simulate_* here)
+        # 2. The app registered its job in on_initialize when the harness started
 
         # 3. Advance the frozen clock
         harness.advance_time(hours=1)

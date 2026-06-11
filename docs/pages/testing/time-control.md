@@ -1,48 +1,54 @@
 # Time Control
 
-Test scheduler-driven behavior by freezing time and advancing it manually.
+The time control API on [`AppTestHarness`](harness.md) freezes the harness clock and advances it manually. This makes scheduler-driven behavior deterministic in tests — without it, tests that wait on scheduled jobs depend on real wall-clock time. The examples assert with `harness.api_recorder`, the recorder that tracks every HA API call (covered in [Test Harness](harness.md)).
 
-The canonical sequence for any time-control test is:
+!!! note "`whenever` is installed automatically"
+    Code examples on this page import from [`whenever`](https://whenever.readthedocs.io/en/latest/), Hassette's date/time library. It ships as a direct dependency of `hassette`, so no separate install is needed.
+
+The canonical sequence is: freeze, advance, trigger.
 
 ```python
 --8<-- "pages/testing/snippets/testing_time_control_sequence.py"
 ```
 
-!!! note "`whenever` is installed automatically"
-    Time control examples on this page import from [`whenever`](https://whenever.readthedocs.io/en/latest/) — Hassette's date/time library. It's a direct dependency of `hassette`, so it's installed automatically. No separate install needed.
+`freeze_time` pins the clock at a known point. `advance_time` moves it forward. `trigger_due_jobs` fires every job whose scheduled time is at or before the frozen clock.
+
+The three steps are separate because advancing time and dispatching jobs are distinct operations. A test that advances the clock by 30 minutes may only care about the first job. Remaining due jobs stay untriggered until an explicit `trigger_due_jobs` call. This separation gives each test precise control over which jobs fire and when.
 
 ## `freeze_time(instant)`
 
-Freezes `hassette.utils.date_utils.now` at the given time. Accepts an `Instant` or `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library. No stdlib `datetime` — the scheduler uses `whenever` types throughout.
+`freeze_time` patches `hassette.utils.date_utils.now` to return a fixed time. The `instant` parameter accepts an `Instant` or `ZonedDateTime` from [`whenever`](https://whenever.readthedocs.io/en/latest/).
 
 ```python
 --8<-- "pages/testing/snippets/testing_freeze_time.py"
 ```
 
-`freeze_time` is idempotent — calling it again replaces the frozen time. The clock is automatically unfrozen when the `async with` block exits.
+Calling `freeze_time` again replaces the frozen time. The old patchers stop and new ones start. The clock unfreezes automatically when the harness `async with` block exits.
 
-## `advance_time`
+## `advance_time(*, seconds, minutes, hours)`
 
-Advances the frozen clock by the given delta.
+`advance_time` moves the frozen clock forward by the given delta. The `seconds`, `minutes`, and `hours` keywords combine in a single call.
 
 ```python
 --8<-- "pages/testing/snippets/testing_advance_time.py"
 ```
 
-!!! warning "`advance_time` alone has no effect on scheduled jobs"
-    Moving the clock forward does not trigger any jobs. You must call `trigger_due_jobs()` explicitly after advancing time — otherwise jobs accumulate silently and your assertions will fail.
+!!! warning "`advance_time` does not trigger jobs"
+    Advancing the clock does not dispatch any scheduled jobs. `trigger_due_jobs()` must be called explicitly afterward. Without it, jobs accumulate silently and side-effect assertions fail.
 
-## `trigger_due_jobs`
+## `trigger_due_jobs()`
 
-Fires all jobs whose scheduled time is at or before the current frozen time. Returns the number of jobs dispatched.
+`trigger_due_jobs` fires all jobs whose scheduled time is at or before the current frozen clock. It returns the number of jobs dispatched and completed.
 
 ```python
 --8<-- "pages/testing/snippets/testing_trigger_due_jobs.py"
 ```
 
-Jobs re-enqueued during dispatch (repeating jobs) are not re-triggered in the same call — only the snapshot of due jobs at the moment of the call is processed. This prevents infinite loops when the clock is frozen.
+`trigger_due_jobs` operates on a snapshot of due jobs taken at the moment of the call. Jobs re-enqueued during dispatch (repeating jobs) are not included in that snapshot and are not re-triggered in the same call. This prevents infinite loops when the clock is frozen.
+
+If dispatched jobs send events through the bus, downstream handler tasks are spawned but not drained by `trigger_due_jobs`. `await harness.drain_task_bucket()` waits for those handler tasks to complete before assertions run — see [Test Harness](harness.md) for the full method reference.
 
 ## Next Steps
 
-- **[Concurrency & pytest-xdist](concurrency.md)**: Understand how the time-control lock interacts with parallel test runners
-- **[Quick Start](index.md)**: Back to the harness basics
+- **[Concurrency & pytest-xdist](concurrency.md)**: time-control lock interaction with parallel test workers
+- **[Testing index](index.md)**: harness overview and setup

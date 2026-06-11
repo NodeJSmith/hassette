@@ -1,2 +1,0 @@
-volumes:
-  - ./apps:/apps  # Mounted - changes reflected

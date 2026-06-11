@@ -72,7 +72,7 @@ Dead snippet files to delete during the inline-to-snippet WPs:
 
 ### API reference scoping
 
-`tools/gen_ref_pages.py` currently walks all of `src/` with no public/internal filter. After WP10, it is rewritten to emit `::: module.path` stubs only for modules in the nav audit's allowlist. The allowlist is seeded from `hassette.__all__` and `hassette.test_utils.__all__` (Tier 1 only), then extended by the nav audit WP with curated additions for types users commonly reference via mkdocstrings autorefs. Any `[Symbol][module.path]` autoref in the narrative docs that points to a non-allowlisted module is either updated to point to an allowlisted equivalent or converted to plain text.
+`tools/docs/gen_ref_pages.py` currently walks all of `src/` with no public/internal filter. After WP10, it is rewritten to emit `::: module.path` stubs only for modules in the nav audit's allowlist. The allowlist is seeded from `hassette.__all__` and `hassette.test_utils.__all__` (Tier 1 only), then extended by the nav audit WP with curated additions for types users commonly reference via mkdocstrings autorefs. Any `[Symbol][module.path]` autoref in the narrative docs that points to a non-allowlisted module is either updated to point to an allowlisted equivalent or converted to plain text.
 
 ### CSS and theme
 
@@ -146,7 +146,7 @@ This is a documentation project — there is no application code to unit test. V
 **Files directly modified:**
 - `mkdocs.yml` — nav restructure, `extra_css:` removal (dead CSS), possibly new extensions
 - `docs/_static/style.css` — deleted
-- `tools/gen_ref_pages.py` — public-API filter added
+- `tools/docs/gen_ref_pages.py` — public-API filter added
 - `docs/pages/appdaemon-comparison.md` — deleted; replaced by `docs/pages/migration/` section (~6–8 files)
 - `docs/pages/testing/index.md` — restructured; 3–4 subpages added under `docs/pages/testing/`
 - ~30 Markdown pages with inline code blocks — inline blocks extracted to snippet files

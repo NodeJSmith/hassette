@@ -1,8 +1,8 @@
-# Diagnostics
+# Check Framework Health
 
-The Diagnostics page answers one question: is the framework itself healthy? It covers
-Hassette's internal services, startup issues, and telemetry pipeline health — the layer
-below your apps.
+The Diagnostics page (sidebar > diagnostics) answers one question: is the framework
+itself healthy? It covers Hassette's internal services, startup issues, and telemetry
+pipeline health — the layer below your apps.
 
 ![Diagnostics page](../../_static/web_ui_diagnostics.png)
 
@@ -47,5 +47,5 @@ failing or the database is unavailable — some historical data may be missing.
 
 ## Related pages
 
-- [Layout & Navigation](layout.md) — sidebar, status bar, and command palette
-- [Health Endpoints](health-endpoints.md) — the REST endpoints behind this page
+- [Web UI Overview](index.md) — layout, navigation, and alert banners
+- [Configure Health Checks](health-endpoints.md) — the REST endpoints behind this page

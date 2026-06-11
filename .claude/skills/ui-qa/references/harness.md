@@ -46,7 +46,7 @@ Use `DEMO_FRONTEND_URL` for all browser work. `DEMO_HASSETTE_URL` is the REST AP
 ## Screenshot matrix
 
 ```bash
-uv run python tools/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots
+uv run python tools/frontend/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots
 ```
 
 Captures pages × viewports (320/375/768/900/1280) × themes. Filter with `--pages`,
@@ -72,10 +72,10 @@ Feed analysis subagents these sources rather than letting them invent design opi
 
 ```bash
 cd frontend && npx tsc --noEmit && npm run lint && npx prettier --check 'src/**/*.{ts,tsx,css}' && npx vitest run
-uv run python tools/check_global_css_allowlist.py
-uv run python tools/check_dead_global_css.py
-uv run python tools/check_css_module_globals.py
-uv run python tools/check_undefined_css_refs.py
+uv run python tools/frontend/check_global_css_allowlist.py
+uv run python tools/frontend/check_dead_global_css.py
+uv run python tools/frontend/check_css_module_globals.py
+uv run python tools/frontend/check_undefined_css_refs.py
 timeout 580 uv run pytest -m e2e -n auto
 ```
 

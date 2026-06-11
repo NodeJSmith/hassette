@@ -1,9 +1,8 @@
 # States
 
-Hassette maintains a local, real-time cache of all Home Assistant states. This is available as an instance of [StateManager][hassette.state_manager.state_manager.StateManager], accessible via `self.states` in your apps
+The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` is a `StateManager` instance available on every [`App`](../apps/index.md) — it provides synchronous, typed access with no `await` and no API calls.
 
-
-## Diagram
+<div style="text-align: center">
 
 ```mermaid
 flowchart TD
@@ -17,7 +16,7 @@ flowchart TD
         WS --> SP
     end
 
-    subgraph app["Your App"]
+    subgraph app["App"]
         SM["self.states<br/><i>typed, sync access</i>"]
     end
 
@@ -29,32 +28,25 @@ flowchart TD
     style app fill:#e8f0ff,stroke:#6688cc
 ```
 
-## Using the StateManager
+</div>
 
-Use `self.states` instead of API calls to read entity states. It gives you:
-
-- **Speed**: Instant access from local memory.
-- **Simplicity**: Synchronous access without `await`.
-- **Efficiency**: No network overhead or rate limiting concerns.
-- **Consistency**: Event-driven updates ensure your app sees the latest state changes.
-    - The StateManager event handler is prioritized over app event handlers to ensure you always have a consistent view of the latest states.
+## Reading State
 
 ### Domain Access
 
-The easiest way to access states is via domain properties.
+`self.states.light`, `self.states.sensor`, and similar domain properties return a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection — a dict-like view keyed by entity name, typed to that domain's state class.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_domain_access.py"
 ```
 
-Notice how you do not need to use the domain in the entity ID - since you're already accessing the domain via `self.states.sensor`, you only need to provide the entity name.
+The short entity name omits the domain prefix. `self.states.light.get("kitchen")` and `self.states.light.get("light.kitchen")` resolve to the same entity.
 
-!!! note "Bracket access raises `KeyError` for missing entities"
-    `self.states.light["bedroom"]` raises `KeyError` — not `EntityNotFoundError` — if the entity does not exist. Use `.get("bedroom")` for safe access that returns `None` when the entity is absent.
+`.get()` returns `None` for missing entities. Bracket access raises `KeyError`.
 
 ### Direct Entity Access
 
-Use `self.states.get(entity_id)` when you have a full entity ID and don't need to specify the domain or state class. It automatically resolves to the correct domain-specific type (e.g., `LightState` for `light.*`), or falls back to `BaseState` for unregistered domains.
+`self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific built-in type for that domain. [`LightState`][hassette.models.states.light.LightState] for `light.*`, [`SensorState`][hassette.models.states.sensor.SensorState] for `sensor.*`, `BaseState` for any domain without a built-in class.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_direct_access.py"
@@ -62,118 +54,87 @@ Use `self.states.get(entity_id)` when you have a full entity ID and don't need t
 
 ### Generic Access
 
-For domains that don't have a dedicated helper, or for dynamic access, provide the state class to the `self.states` dictionary-like interface:
+`self.states[CustomState]` returns a `DomainStates` collection typed to a custom state class. This pattern covers custom integrations and third-party add-ons whose domain has no built-in class.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/states_generic_access.py"
 ```
 
-### Iteration
+Custom state class definition and registration are covered in [Custom States](custom-states.md).
 
-You can iterate over domains to find entities.
+## What a State Object Contains
 
-```python
---8<-- "pages/core-concepts/states/snippets/states_iteration.py"
-```
+Every state object is a [`BaseState`][hassette.models.states.base.BaseState] subclass. The following fields and properties are available on all of them.
 
-## DomainStates Collection Interface
+**`value`** is the entity's current state, typed for the domain. `SwitchState.value` is `bool | None`, `SensorState.value` is `str | None`, `SelectState.value` is `str | None`. When HA reports `"unknown"` or `"unavailable"`, `value` is `None`. `is_unknown` and `is_unavailable` identify which case applies.
 
-Every domain accessor (e.g., `self.states.light`) returns a `DomainStates` object. Beyond iteration, it supports the following operations:
+!!! warning "`value` is typed Python, not the raw HA string"
+    Home Assistant stores `"on"`/`"off"` strings; [state conversion](conversion.md) turns them into `True`/`False` for toggle domains like `light`, `switch`, and `binary_sensor`. `state.value == "on"` is always `False` — compare against `True` instead. Code ported from AppDaemon or HA templates that compares against `"on"` silently never matches. The `changed_to=`/`changed_from=` filters on [`on_state_change()`](../bus/methods.md#on_state_changeentity_id) are the exception: they compare raw HA strings.
 
-| Operation | Example | Notes |
-|---|---|---|
-| Bracket access | `self.states.light["bedroom"]` | Raises `KeyError` if absent |
-| Safe access | `self.states.light.get("bedroom")` | Returns `None` if absent |
-| Containment | `"bedroom" in self.states.light` | |
-| Length | `len(self.states.light)` | Number of entities in domain |
-| Iteration (items) | `for entity_id, state in self.states.light` | Lazy; same as `.items()` |
-| `.items()` | `self.states.light.items()` | Iterator of `(entity_id, state)` pairs |
-| `.keys()` | `self.states.light.keys()` | Eager list of entity IDs |
-| `.iterkeys()` | `self.states.light.iterkeys()` | Lazy iterator of entity IDs |
-| `.values()` | `self.states.light.values()` | Eager list of states |
-| `.itervalues()` | `self.states.light.itervalues()` | Lazy iterator of states |
-| `.to_dict()` | `self.states.light.to_dict()` | Eager `dict[entity_id, state]` |
+**`attributes`** is a typed [`AttributesBase`][hassette.models.states.base.AttributesBase] subclass with domain-specific fields. `LightState.attributes.brightness` is an integer. `ClimateState.attributes.current_temperature` is a float. Pyright knows the types.
 
-!!! tip "Prefer lazy iteration for large domains"
-    `.items()`, `.iterkeys()`, and `.itervalues()` are lazy and avoid validating every entity up front. `.keys()`, `.values()`, and `.to_dict()` are eager — they walk the entire domain immediately.
+**`is_unknown`** and **`is_unavailable`** are `True` when HA reports the entity as `"unknown"` or `"unavailable"`, respectively. Both flags are `False` for normal states.
+
+**`is_group`** is `True` when the entity is a group. For group entities, the `entity_id` attribute holds a list of member entity IDs rather than the group's own ID.
+
+**`extras`** and **`extra(key, default=None)`** access untyped state fields not declared on the `BaseState` model. Typed attributes cover the common cases; these handle the rest.
+
+**`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA. `ZonedDateTime` is from the [`whenever`](https://whenever.readthedocs.io/) library, which Hassette uses for all date/time operations — it behaves like a timezone-aware `datetime` and converts via `.to_stdlib()` when a library requires it. `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
+
+**`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
+
+**`context`** holds the HA event context that produced this state: `context.id`, `context.parent_id`, and `context.user_id`. It traces which automation or user triggered the change.
+
+### Attribute Helpers
+
+`AttributesBase` exposes two helpers for attributes not declared on the typed model.
+
+`attributes.extras` returns a `dict[str, Any]` of undeclared fields. `attributes.extra(key, default=None)` fetches a single undeclared field with a fallback.
+
+`attributes.has_feature(flag)` tests a bit in `supported_features`. Each domain defines its own `IntFlag` enum for feature constants. `LightEntityFeature` has `EFFECT`, `FLASH`, and `TRANSITION`.
 
 ## Built-in State Types
 
-Hassette ships typed state classes for every standard Home Assistant domain. Import them from `hassette.models.states` (or via the `states` alias imported from `hassette`):
+Hassette auto-generates typed state classes for 55 Home Assistant domains from HA core source. All classes are available from the `states` module:
 
 ```python
 --8<-- "pages/core-concepts/snippets/states_import.py"
 ```
 
-??? info "Full list of built-in state classes"
-    | Domain | Class |
-    |---|---|
-    | `ai_task` | `AiTaskState` |
-    | `air_quality` | `AirQualityState` |
-    | `alarm_control_panel` | `AlarmControlPanelState` |
-    | `assist_satellite` | `AssistSatelliteState` |
-    | `automation` | `AutomationState` |
-    | `binary_sensor` | `BinarySensorState` |
-    | `button` | `ButtonState` |
-    | `calendar` | `CalendarState` |
-    | `camera` | `CameraState` |
-    | `climate` | `ClimateState` |
-    | `conversation` | `ConversationState` |
-    | `counter` | `CounterState` |
-    | `cover` | `CoverState` |
-    | `date` | `DateState` |
-    | `datetime` | `DateTimeState` |
-    | `device_tracker` | `DeviceTrackerState` |
-    | `event` | `EventState` |
-    | `fan` | `FanState` |
-    | `humidifier` | `HumidifierState` |
-    | `image_processing` | `ImageProcessingState` |
-    | `input_boolean` | `InputBooleanState` |
-    | `input_button` | `InputButtonState` |
-    | `input_datetime` | `InputDatetimeState` |
-    | `input_number` | `InputNumberState` |
-    | `input_select` | `InputSelectState` |
-    | `input_text` | `InputTextState` |
-    | `light` | `LightState` |
-    | `lock` | `LockState` |
-    | `media_player` | `MediaPlayerState` |
-    | `notify` | `NotifyState` |
-    | `number` | `NumberState` |
-    | `person` | `PersonState` |
-    | `remote` | `RemoteState` |
-    | `scene` | `SceneState` |
-    | `script` | `ScriptState` |
-    | `select` | `SelectState` |
-    | `sensor` | `SensorState` |
-    | `siren` | `SirenState` |
-    | `stt` | `SttState` |
-    | `sun` | `SunState` |
-    | `switch` | `SwitchState` |
-    | `text` | `TextState` |
-    | `time` | `TimeState` |
-    | `timer` | `TimerState` |
-    | `todo` | `TodoState` |
-    | `tts` | `TtsState` |
-    | `update` | `UpdateState` |
-    | `vacuum` | `VacuumState` |
-    | `valve` | `ValveState` |
-    | `water_heater` | `WaterHeaterState` |
-    | `weather` | `WeatherState` |
-    | `zone` | `ZoneState` |
+Three common examples:
 
-    For domains not in this list (custom integrations, third-party add-ons), see [Custom State Classes](../../advanced/custom-states.md).
+- **`states.LightState`** has `value: bool | None`, `attributes.brightness: int | None`, `attributes.color_temp_kelvin: int | None`
+- **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: str | None`
+- **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: str | None`
+
+The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
+
+## Iterating Over States
+
+`DomainStates` supports direct iteration over `(entity_id, state)` pairs — `for entity_id, state in self.states.sensor` yields tuples, unlike a plain `dict` which yields keys. `.keys()`, `.values()`, `.to_dict()`, containment checks (`"kitchen" in self.states.light`), and `len()` also work.
+
+```python
+--8<-- "pages/core-concepts/states/snippets/states_iteration.py"
+```
+
+`.items()`, `.iterkeys()`, and `.itervalues()` are lazy — they parse raw HA state dicts into typed objects on demand. `.keys()`, `.values()`, and `.to_dict()` are eager and parse all entities up front. Lazy iteration performs better for large domains like `sensor`.
+
+`StateManager` itself is also iterable: `self.states.items()` yields `(key, DomainStates)` pairs for every registered state class, and `MyState in self.states` checks whether a class is registered. Useful for diagnostics and generic helpers that sweep all domains.
 
 ## Good to Know
 
-!!! note "Startup and staleness"
-    The cache is populated once at startup via a full API fetch, then kept current by WebSocket `state_changed` events — so states are available as soon as your app's `on_ready` hook runs. A periodic background poll (default every 30 seconds) guards against any events that were missed. During a HA reconnect the cache is temporarily cleared; the StateProxy marks itself not-ready and retries reads automatically, so your code does not need to handle this case.
+**Startup.** The cache is populated at startup via a full API fetch before `on_initialize` runs. Apps can read current state immediately.
 
-!!! note "Missing entities"
-    `self.states.light.get("bedroom")` returns `None` when the entity is absent. `self.states.light["bedroom"]` raises `KeyError`. If you are not certain an entity exists, prefer `.get()` and check the result before use.
+**Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The `StateManager` event handler runs before app handlers, so handlers always see the latest state.
+
+**Reconnection.** During a HA disconnect the cache is retained — `self.states.get()` returns the last known (stale) values while Hassette reconnects. Once the reconnect completes, a fresh API fetch replaces the cache atomically.
+
+**Missing entities.** `.get()` returns `None` for absent entities. Bracket access raises `KeyError`. `.get()` with a `None` check is the safe path when entity presence is uncertain.
 
 ## See Also
 
-- [API - Entities & States](../api/entities.md) - Retrieve states via API
-- [Bus](../bus/index.md) - Subscribe to state change events
-- [App Cache](../cache/index.md) - Cache data locally across restarts
-- [Custom States](../../advanced/custom-states.md) - Define custom state models
+- [Subscription Methods](../bus/methods.md): `on_state_change`, `on_attribute_change`, and their parameters
+- [Custom States](custom-states.md): define typed models for custom integrations
+- [State Conversion](conversion.md): how raw HA dicts become typed Python objects
+- [API Methods](../api/methods.md): retrieve states via the REST/WebSocket API
+- [App Cache](../cache/index.md): persist data locally across restarts

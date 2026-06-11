@@ -1,155 +1,156 @@
 # Job Management
 
-When you schedule a task, you receive a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object. You can use this to manage the job's lifecycle.
+`schedule()` and all convenience methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob]. This page covers cancellation, groups, jitter, error handling, and job metadata for jobs already scheduled.
 
-## The ScheduledJob Object
+## Cancel a job
 
-| Attribute | Type | Description |
-|---|---|---|
-| `name` | `str` | Human-readable name. Auto-generated from the callable and trigger if not provided. Used in logs and for idempotent re-registration. |
-| `next_run` | `ZonedDateTime` | Timestamp of the next scheduled execution (unjittered). |
-| `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. `None` should not occur for jobs created via the public API. |
-| `group` | `str \| None` | Group name, if the job was registered with `group=`. Used for bulk cancellation via `cancel_group()`. |
-| `jitter` | `float \| None` | Seconds of random offset applied at enqueue time, if specified. |
-| `job_id` | `int` | Unique integer identifier assigned at creation. Stable for the lifetime of the job object. |
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_metadata.py"
-```
-
-## Cancelling Jobs
-
-To stop a job from running, call `cancel()`.
+`job.cancel()` removes the job from the scheduler queue immediately. The job does not fire again.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_cancel_job.py"
 ```
 
-### Cancelling Job Groups
+Calling `cancel()` on an already-cancelled job is a silent no-op. The scheduler checks dequeue state at entry and returns immediately if the job is already gone.
 
-Cancel all jobs in a named group at once with `cancel_group()`:
+## Check whether a job is active
 
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:cancel_group"
-```
-
-This cancels each job in the group — removing it from the scheduler queue and recording it as cancelled in the database — then clears the group entry. No-op if the group does not exist.
-
-### Listing Jobs
-
-Query registered jobs with `list_jobs()`:
-
-```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:list_jobs"
-```
-
-### Checking Cancellation State
-
-`ScheduledJob` does not expose a `cancelled` attribute. Once a job is cancelled it is removed from the scheduler's queue, so the canonical way to check whether a job is still active is to query `list_jobs()`:
+`ScheduledJob` has no `cancelled` attribute. Cancellation removes the job from the scheduler's internal index. The canonical check is membership in `list_jobs()`:
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:is_running"
 ```
 
-For the common case of guarding against a double-cancel (for example, when multiple code paths may both call `cancel()`), store the reference as `None` after cancelling and check before calling:
+For the common case of guarding against a double-cancel, storing `None` after cancellation is simpler and avoids the `list_jobs()` scan:
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:cancel_null"
 ```
 
-Calling `cancel()` on an already-cancelled job is a silent no-op — Hassette checks the job's internal state at entry and returns immediately if it has already been dequeued. The null-reference pattern above is still recommended when you need to know locally whether you've already cancelled the job.
+## Jobs stop automatically when the app stops
 
-### Automatic Cleanup
+Hassette cancels all jobs created by an app when that app stops or reloads. Manual cancellation is only necessary to stop a job while the app is still running.
 
-Hassette automatically cancels **all** jobs created by an app when that app stops or reloads. You only need to manually cancel jobs if you want to stop them *while the app is running* (e.g., a one-off timeout that is no longer needed).
+## Group related jobs
 
-## Best Practices
+The `group=` parameter assigns a job to a named group at registration time. A named group can be cancelled or listed as a unit.
 
-1. **Name your jobs**: Use the `name` parameter for better logs and safe reloads.
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_groups.py"
+```
 
-   Names serve two purposes beyond readability. First, they appear in every log line that mentions the job — making it easy to correlate scheduler activity with a specific task. Second, names are the key used for idempotent re-registration: using `run_every(..., name="sensor_check", if_exists="skip")` ensures the same logical job is never duplicated even if the scheduling code runs more than once within the same app lifecycle. Use `if_exists="skip"` when the job configuration is stable across reloads. Use `if_exists="replace"` when the callable, trigger, or parameters may change — the old job is cancelled and the new configuration takes effect immediately.
+`list_jobs(group=group)` returns all active jobs in the group. `list_jobs()` without `group=` returns all jobs for the app instance.
 
-   ```python
-   --8<-- "pages/core-concepts/scheduler/snippets/scheduler_naming.py"
-   ```
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:list_jobs"
+```
 
-2. **Avoid Overlapping Jobs**: If a job takes longer than its interval, multiple instances will run concurrently. Use an `asyncio.Lock` to guard the handler body:
-   ```python
-   --8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
-   ```
+`cancel_group(group)` cancels every job in a named group. Each member is individually dequeued and recorded as cancelled in the database. The call is a no-op when the group does not exist.
 
-## Self-Cancelling Job Pattern
+## Stop a job from inside its handler
 
-A common pattern for "poll until condition met" automations is a job that cancels itself from inside the handler. Store the `ScheduledJob` reference on the app instance so the handler can reach it:
+A job can cancel itself from inside its own handler. The `ScheduledJob` reference is stored on the app instance so the handler can reach it:
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_self_cancel.py"
 ```
 
-Once `cancel()` is called, the job is immediately removed from the scheduler queue. If the dispatch loop has already picked up the job for execution, it checks for dequeue after acquiring the job and skips the handler — so double-execution cannot occur. No external coordination needed.
+`cancel()` removes the job from the queue immediately. If the dispatch loop has already picked up the job for execution, it checks dequeue state after acquiring the job and skips the handler. Double-execution cannot occur.
 
-## Troubleshooting
+## Prevent overlapping executions
 
-### Job Not Running?
+The scheduler fires each tick independently — it does not track whether the previous execution has finished. When a handler takes longer than its interval, a new execution starts before the previous one finishes. An `asyncio.Lock` prevents concurrent runs:
 
-1. **Check the schedule**: Did you specify the wrong time string or interval? `run_daily(at="07:00")` fires at 7 AM; `run_once(at="07:00")` fires at 7 AM today or tomorrow if 7 AM has already passed.
-2. **Exception in task**: If the task raises an unhandled exception, the scheduler catches it, logs it at `ERROR` level, and continues running — the job is not removed. Look for lines like:
-   ```
-   ERROR hassette.core.command_executor - Job error (job_db_id=42)
-   Traceback (most recent call last):
-     ...
-   ValueError: unexpected sensor value
-   ```
-   The job will keep firing on its normal schedule until you fix the underlying error or cancel the job manually.
-3. **Reference Lost**: Losing the `ScheduledJob` variable doesn't stop the job (the scheduler holds a strong reference), but it prevents you from cancelling it later.
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
+```
 
-### Runs Too Often?
+The locked check at entry skips the tick rather than queuing behind it.
 
-- Check units: `run_every(seconds=5)` is 5 seconds, not minutes. Use `run_every(minutes=5)` for a 5-minute interval.
-- Check cron expressions: `run_cron("5 * * * *")` is "at minute 5 of every hour", not "every 5 minutes". Use `run_cron("*/5 * * * *")` for every-5-minutes.
+## Handle errors
 
-## Error Handling
+On exception, Hassette logs the error, records it for telemetry, and keeps the job on its normal schedule. An optional error handler receives a typed [`SchedulerErrorContext`][hassette.scheduler.error_context.SchedulerErrorContext] with full exception details.
 
-When a scheduled job raises an exception, Hassette logs the error and records it for telemetry. The job continues to run on its normal schedule — it is not cancelled. You can also register an error handler to receive a typed [`SchedulerErrorContext`][hassette.scheduler.error_context.SchedulerErrorContext] with full exception details.
+### App-level handler
 
-There are two levels of error handlers:
+`scheduler.on_error(handler)` registers a fallback handler for all jobs on this scheduler that lack a per-registration handler. The handler resolves at dispatch time, not at registration time.
 
-- **App-level**: `scheduler.on_error(handler)` — applies to all jobs on this scheduler that don't have a per-registration handler.
-- **Per-registration**: `on_error=` parameter on any scheduling method — takes precedence over the app-level handler.
-
-Both levels can be sync or async.
-
-!!! warning "Register early — the reload gap"
-    The app-level handler is resolved at dispatch time, not at job registration time. To avoid a window where a job fires before `on_error()` is called, **register `on_error()` as the first statement in `on_initialize()`**.
-
-### App-level error handler
+!!! warning "Registration order matters"
+    `on_error()` must run before any job is registered in `on_initialize()`. For example, if you call `run_in(handler, delay=1)` before `on_error()`, and the job fires within that 1-second window while `on_initialize()` is still running, no error handler is registered for that execution.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_error_handler_app.py"
 ```
 
-### Per-registration error handler
+### Per-job handler
+
+The `on_error=` parameter on any scheduling method takes precedence over the app-level handler.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_error_handler_per_job.py"
 ```
 
-### What `SchedulerErrorContext` contains
+Both levels accept sync or async callables.
+
+### Fields in the error handler
 
 | Field | Type | Description |
-|-------|------|-------------|
-| `exception` | `BaseException` | The raised exception |
-| `traceback` | `str` | Full formatted traceback |
-| `job_name` | `str` | Human-readable job identity |
-| `job_group` | `str \| None` | Group name if the job was registered with `group=` |
-| `args` | `tuple[Any, ...]` | Positional arguments the job was scheduled with |
-| `kwargs` | `dict[str, Any]` | Keyword arguments the job was scheduled with |
+|---|---|---|
+| `exception` | `BaseException` | The raised exception. |
+| `traceback` | `str` | Full formatted traceback string. |
+| `job_name` | `str` | Human-readable job name. |
+| `job_group` | `str \| None` | Group name if the job was registered with `group=`. |
+| `args` | `tuple[Any, ...]` | Positional arguments the job was scheduled with. |
+| `kwargs` | `dict[str, Any]` | Keyword arguments the job was scheduled with. |
 
 !!! note "Error handler failures"
-    If the error handler itself raises or times out, the failure is logged at ERROR/WARNING and counted in the executor's error handler failure counter. The original job's telemetry record is unaffected.
+    When an error handler itself raises or times out, Hassette logs the failure and counts it against the executor's error handler failure counter. The original job's telemetry record is unaffected.
+
+## Tune dispatch with jitter
+
+The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and applied at enqueue time.
+
+Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged — a job scheduled every 60 seconds targets T+60, T+120, T+180 regardless of jitter. The random offset shifts the actual dispatch within each window but does not compound across runs.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_jitter.py:jitter"
+```
+
+Jitter is useful when several apps schedule work at the same wall-clock time and concurrent execution would cause contention.
+
+## Inspect a job's metadata
+
+`ScheduledJob` exposes read-only metadata set at registration time and updated by the scheduler as the job runs.
+
+| Attribute | Type | Description |
+|---|---|---|
+| `name` | `str` | Human-readable name. Auto-generated from the callable and trigger when not provided. Appears in logs; idempotent re-registration matches on this name. |
+| `next_run` | `ZonedDateTime` | Unjittered logical fire time. Subsequent trigger calculations use this as `previous_run`. |
+| `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. |
+| `group` | `str \| None` | Group name, set when the job was registered with `group=`. `cancel_group()` uses this for bulk cancellation. |
+| `jitter` | `float \| None` | Seconds of random offset applied at enqueue time, if configured. |
+| `fire_at` | `ZonedDateTime` | Actual dispatch time including the jitter offset. Equals `next_run` when `jitter` is not set. |
+| `db_id` | `int \| None` | Database row ID assigned after registration. Valid immediately when the scheduling call returns. |
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_metadata.py"
+```
+
+## Troubleshooting
+
+??? note "Troubleshooting scheduled jobs"
+    ### Job not running?
+
+    - **Wrong schedule.** A wrong time string or interval is the most common cause. `run_daily(at="07:00")` fires at 7 AM. `run_once(at="07:00")` fires at 7 AM today, or tomorrow if 7 AM has already passed.
+    - **Unhandled exception.** When a job raises, the scheduler catches it, logs at `ERROR`, and keeps the job on schedule. The job is not removed. Look for `ERROR hassette.CommandExecutor` lines followed by a traceback.
+    - **Lost reference.** Losing the `ScheduledJob` variable does not stop the job. The scheduler holds a strong reference. Losing the reference only prevents manual cancellation.
+
+    ### Job runs too often?
+
+    - **Wrong units.** `run_every(seconds=5)` is 5 seconds. `run_every(minutes=5)` is 5 minutes.
+    - **Wrong cron expression.** `run_cron("5 * * * *")` fires at minute 5 of every hour. `run_cron("*/5 * * * *")` fires every 5 minutes.
 
 ## See Also
 
-- [Scheduling Methods](methods.md) - All available scheduling methods
-- [Apps Lifecycle](../apps/lifecycle.md) - Initialize and shutdown jobs properly
-- [App Cache](../cache/index.md) - Remember job state across restarts
+- [Scheduling Methods](methods.md) for registration options, `if_exists`, and per-job parameters
+- [Triggers](triggers.md) for built-in trigger types and writing custom triggers
+- [Apps Lifecycle](../apps/lifecycle.md) for how shutdown triggers automatic job cleanup

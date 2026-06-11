@@ -1,7 +1,0 @@
-services:
-  hassette:
-    # ... other config ...
-    deploy:
-      resources:
-        limits:
-          memory: 512M

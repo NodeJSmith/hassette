@@ -1,2 +1,14 @@
-environment:
-  - HASSETTE__INSTALL_DEPS=1
+services:
+  hassette:
+    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    environment:
+      HASSETTE__INSTALL_DEPS: "1"
+    volumes:
+      - ./config:/config
+      - ./apps:/apps
+      - data:/data
+      - uv_cache:/uv_cache
+
+volumes:
+  uv_cache:
+  data:

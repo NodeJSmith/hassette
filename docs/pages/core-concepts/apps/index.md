@@ -1,46 +1,61 @@
 # Apps Overview
 
-Apps are the code you write to respond to events and control your home. Each app has its own behavior, configuration, and internal state.
-
-Apps can be **asynchronous** (preferred) or **synchronous**. Sync apps are automatically run in threads to prevent blocking the event loop.
-
-## Structure
-
-```mermaid
-flowchart TD
-    subgraph app["Your App"]
-        A["App"]
-    end
-
-    subgraph resources["Resources"]
-        direction LR
-        Api
-        Bus
-        Scheduler
-        States
-        Cache
-    end
-
-    A --> Api & Bus & Scheduler & States & Cache
-
-    style app fill:#e8f0ff,stroke:#6688cc
-    style resources fill:#fff0e8,stroke:#cc8844
-```
+An app is a Python class that reacts to Home Assistant events and controls devices. Each app has its own config, state, and a set of typed accessors — `self.bus`, `self.scheduler`, `self.api`, `self.states`, `self.cache`, and `self.task_bucket` — for interacting with HA.
 
 ## Defining an App
 
-Every app is a Python class that inherits from [`App`][hassette.app.app.App] or [`AppSync`][hassette.app.app.AppSync].
+Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `App` manages handlers, scheduling, and the connection to Home Assistant. The `on_initialize` lifecycle hook runs at startup, before any events arrive.
 
-```python title="example_app.py"
+```python
 --8<-- "pages/core-concepts/apps/snippets/example_app.py"
 ```
 
 !!! info "What's `D.StateNew[states.LightState]`?"
-    That annotation is [dependency injection](../bus/handlers.md) — you declare what data you need, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
+    That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
+
+Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` silently does nothing (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
+
+## Configuration
+
+[`AppConfig`][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
+```
+
+`self.app_config` on the app instance is typed as the declared subclass, so the IDE and Pyright know the exact shape.
+
+### Environment Variables
+
+`SettingsConfigDict(env_prefix="...")` scopes environment variable injection to a prefix, preventing collisions between multiple apps running in the same process.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/app_config_env_prefix.py"
+```
+
+With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fields without a matching environment variable fall back to their declared defaults. Required fields (no default) raise a validation error at startup if absent.
+
+### Base Fields
+
+Every `AppConfig` includes three built-in fields:
+
+- `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
+- `log_level`: controls the logging verbosity for this app's logger. Inherits the process-level default when not set.
+- `app_key`: the app's key from `hassette.toml`, set by the framework. Don't set it directly; framework-reserved values are rejected with a validation error. Read it at runtime via `self.app_key` — useful for logging or cross-app messaging.
+
+`AppConfig` allows arbitrary extra fields by default. A subclass can tighten this by setting `extra="forbid"` in its own `model_config`.
+
+### TOML Registration
+
+The `hassette.toml` file registers each app and supplies its config values. See [App Configuration](configuration.md) for the full reference.
+
+```toml
+--8<-- "pages/core-concepts/apps/snippets/app_config.toml"
+```
 
 ## Dates and Times
 
-Hassette uses the [`whenever`](https://whenever.readthedocs.io/en/latest/) library for timezone-aware date/time handling instead of Python's stdlib `datetime`. Python's `datetime` has a mutable API and makes it easy to accidentally create "naive" (timezone-unaware) objects — a common source of bugs in time-sensitive automations. `whenever` is always timezone-aware and immutable, so incorrect comparisons between naive and aware times become type errors rather than silent failures. Every app provides `self.now()`, which returns a `ZonedDateTime` in your system timezone.
+`self.now()` returns the current time as a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library, which ships with Hassette — no separate install needed. All scheduler parameters, persistent storage examples, and custom state definitions use `whenever` types.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:imports"
@@ -50,137 +65,109 @@ Hassette uses the [`whenever`](https://whenever.readthedocs.io/en/latest/) libra
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:usage"
 ```
 
-You'll see `ZonedDateTime` in scheduler parameters, persistent storage examples, and custom state definitions. If you're familiar with `datetime.datetime`, the API is similar but always timezone-aware.
+`whenever` is always timezone-aware and immutable. Mixing naive and aware times is a type error that Pyright catches before the code runs. Python's stdlib `datetime` permits that class of mistake; `whenever` does not.
 
-## Core Capabilities
+## What an App Can Do
 
-Each app receives pre-configured helpers:
+### React to Events
 
-- **[`self.api`](../api/index.md)** - Interact with Home Assistant.
-- **[`self.bus`](../bus/index.md)** - Subscribe to events.
-- **[`self.scheduler`](../scheduler/index.md)** - Schedule jobs.
-- **[`self.states`](../states/index.md)** - Access entity states.
-- **[`self.cache`](../cache/index.md)** - Persistent disk-based storage.
-- **`self.logger`** - Dedicated logger instance.
-- **[`self.app_config`](configuration.md)** - Typed configuration.
-- **[`self.task_bucket`](task-bucket.md)** - Spawn background tasks and offload blocking work to a thread pool.
-
-## Common Use Cases
-
-### Reacting to Events
-
-Subscribe to events using [`self.bus`](../bus/index.md) to react to changes in Home Assistant.
+[`self.bus`](../bus/index.md) subscribes to Home Assistant state changes, attribute changes, and service calls. The bus delivers each matching event to every registered handler.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_subscribe_state_change.py:subscribe_state_change"
 ```
 
-### Run Recurring Jobs
+See the [`Bus`](../bus/index.md) page for filtering, predicates, debounce, and throttle options.
 
-Use [`self.scheduler`](../scheduler/index.md) to schedule recurring tasks.
+### Schedule Jobs
+
+[`self.scheduler`](../scheduler/index.md) runs functions on a schedule.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_run_hourly.py:run_hourly"
 ```
 
-### Check Entity States
+See the [`Scheduler`](../scheduler/index.md) page for triggers, job groups, and jitter.
 
-Use [`self.states`](../states/index.md) to check the current state of entities.
+### Read Entity States
+
+[`self.states`](../states/index.md) provides instant access to the current state of any entity, without an API call.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_check_state.py:check_state"
 ```
 
+See the [States](../states/index.md) page for typed domain access and custom state models.
+
 ### Call Services
 
-Use [`self.api`](../api/index.md) to call Home Assistant services.
+[`self.api`](../api/index.md) calls Home Assistant REST and WebSocket services.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_call_service.py:call_service"
 ```
 
 !!! warning "Forgetting `await` on API calls"
-    Every `self.api.*` method is a coroutine — it **must** be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that you haven't dropped the `await`.
+    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that `await` is present.
 
-### Persist Data Between Restarts
+See the [API](../api/index.md) page for state access, entity management, and more.
 
-Use [`self.cache`](../cache/index.md) to store data that should survive app restarts.
+### Persist Data
+
+[`self.cache`](../cache/index.md) stores values that survive app restarts. Reads and writes go through a disk-backed store scoped to the app instance.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_cache_counter.py:cache_counter"
 ```
 
-### Run Background Tasks and Blocking Code
+See the [Cache](../cache/index.md) page for typed access, TTL, and cache invalidation.
 
-Use [`self.task_bucket`](task-bucket.md) to spawn fire-and-forget coroutines or offload blocking calls to a thread pool. All tracked tasks are cancelled automatically on shutdown.
+### Run Background Work
+
+[`self.task_bucket`](task-bucket.md) spawns fire-and-forget coroutines and offloads blocking calls to a thread pool. All tracked tasks cancel automatically on shutdown.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_task_bucket.py:spawn"
 ```
 
-See the [Task Bucket](task-bucket.md) page for the full API: `spawn()`, `run_in_thread()`, `make_async_adapter()`, and cross-thread communication.
+See the [Task Bucket](task-bucket.md) page for `run_in_thread`, `make_async_adapter`, and cross-thread communication.
 
-## Restricting to a Single App During Development
+## Restricting to a Single App
 
-The `@only_app` decorator prevents multiple instances of the same app class from running. Apply it during development or testing when you want to isolate one app without editing your configuration files:
+The [`@only_app`][hassette.app.app.only_app] decorator prevents all other apps from loading while the decorated class is present. It is intended for development isolation: one app runs while the rest are silenced, without editing `hassette.toml`.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_only_app.py"
 ```
 
-If more than one class in your project is decorated with `@only_app`, Hassette raises an error at startup. Remove the decorator before deploying.
+Only one class in the project may carry `@only_app` at a time. Hassette raises an error at startup if more than one is found.
 
-## Broadcasting Events Between Apps
+In production mode, the decorator is ignored by default. `allow_only_app_in_prod = true` in `hassette.toml` overrides this behavior.
 
-`Bus.emit` broadcasts an event to all apps subscribed to a given topic. The event stays in-process — it never reaches Home Assistant. All apps that called `self.bus.on(topic=...)` for that topic receive it.
+## Broadcasting Between Apps
 
-This is the on/emit symmetry: subscribe with `self.bus.on`, broadcast with `self.bus.emit`. Both live on the same `Bus` instance.
+[`self.bus.emit()`](../bus/index.md) broadcasts an in-process event to all apps subscribed to a given topic. The event never reaches Home Assistant and is not persisted across restarts.
+
+`self.bus.on(topic=...)` subscribes to a named topic. [`D.EventData[T]`](../bus/dependency-injection.md) follows the same dependency injection pattern as `D.StateNew` — replace `T` with the payload class, so `D.EventData[LightsSyncedData]` delivers the payload as a `LightsSyncedData` object.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:sender"
 ```
 
-The receiving app subscribes to the same topic and extracts the typed data via `D.EventData[T]` — a [dependency injection](../bus/dependency-injection.md) annotation that Hassette resolves from the event envelope automatically.
-
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_bus_emit.py:receiver"
 ```
 
-Broadcast is local and ephemeral — events are not persisted across restarts and do not leave the framework process.
-
 !!! note "Self-delivery"
-    An app that both subscribes to and emits on the same topic receives its own event. To filter self-emitted events, include a `source` field on the emitted dataclass (as `LightsSyncedData` does above) and guard in the handler: `if data.source == self.instance_name: return`.
+    An app that both emits and subscribes on the same topic receives its own events. To filter self-emitted events, include a `source` field on the emitted dataclass (as `LightsSyncedData` does above) and guard in the handler: `if data.source == self.instance_name: return`.
 
 ## Synchronous Apps
 
-??? note "AppSync — for blocking code"
-    [`AppSync`][hassette.app.app.AppSync] is a subclass of `App` for automations that must call blocking (non-async) libraries. Instead of overriding `on_initialize` and `on_shutdown`, you override their `_sync`-suffixed counterparts (`on_initialize_sync`, `on_shutdown_sync`, etc.). Hassette runs these methods in a thread pool so they do not block the event loop.
+[`AppSync`][hassette.app.app.AppSync] runs automations written without `async`/`await`. Hassette executes the app's lifecycle hooks in a thread pool so blocking code does not stall the event loop. The bus, scheduler, and API expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`), so registrations and calls work without `await`.
 
-    The bus, scheduler, and API are async. From a `_sync` hook, reach their synchronous facades through `.sync` — `self.bus.sync`, `self.scheduler.sync`, and `self.api.sync`. Each facade method blocks until the underlying async call completes. Calling one from inside the event loop raises `RuntimeError` instead of deadlocking.
-
-    ```python
-    from hassette import AppSync
-
-    class MyApp(AppSync[MyConfig]):
-        def on_initialize_sync(self) -> None:
-            # registration runs through the .sync facades from sync code
-            self.bus.sync.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
-            self.scheduler.sync.run_in(self.cleanup, 60, name="cleanup")
-            self.api.sync.call_service("light", "turn_on", target={"entity_id": "light.kitchen"})
-
-        def on_change(self, event) -> None:
-            ...
-
-        def cleanup(self) -> None:
-            ...
-
-        def on_shutdown_sync(self) -> None:
-            ...
-    ```
-
-    Prefer async `App` whenever possible. Use `AppSync` only when a third-party library provides no async interface and wrapping it yourself is impractical.
+`AppSync` fits apps built on blocking libraries and migrations from synchronous frameworks. Prefer async `App` for new code. See [Lifecycle](lifecycle.md#synchronous-lifecycle) for the sync hook details and a full example.
 
 ## Next Steps
 
-- **[Lifecycle](lifecycle.md)**: Understand `on_initialize` and `on_shutdown`.
-- **[Configuration](configuration.md)**: Learn how to use typed configuration and secrets.
+- **[Lifecycle](lifecycle.md)**: `on_initialize`, `on_shutdown`, and automatic resource cleanup.
+- **[Task Bucket](task-bucket.md)**: background tasks, thread offloading, and cross-thread communication.

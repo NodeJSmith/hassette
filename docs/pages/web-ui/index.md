@@ -1,38 +1,40 @@
 # Web UI
 
-The hassette web UI gives you a real-time window into your running automations — app health at a glance, per-handler invocation history, structured logs, and full system configuration. It runs as part of the same process as the REST API, so there's nothing extra to start.
+The web UI shows app health, handler invocation history (a handler is a function your app runs when a Home Assistant event occurs), structured logs, and system configuration.
 
 ![Apps page](../../_static/web_ui_apps.png)
 
-## Enabling and accessing
+## Enabling and Accessing
 
-The web UI is **enabled by default**. Once Hassette starts, open your browser to:
+The web UI is enabled by default. Open your browser to:
 
 ```
-http://<host>:8126/ui/
+http://<host>:8126/
 ```
 
-The default bind address is `0.0.0.0:8126`. To change the host or port, set `host` and `port` under `[hassette.web_api]` in your `hassette.toml`.
+The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `[hassette.web_api]` in `hassette.toml` control the bind address.
 
 !!! warning "No authentication"
-    The web UI has no built-in authentication. By default, the server binds to
-    `0.0.0.0`, making it accessible to anyone on your network — including
-    endpoints that can start, stop, and reload your automations.
+    The web UI has no built-in authentication. The default bind address `0.0.0.0`
+    makes it reachable by anyone on the local network, including endpoints that
+    start, stop, and reload automations.
 
     For local-only access, set `host = "127.0.0.1"` under `[hassette.web_api]`.
     For remote access, place Hassette behind a reverse proxy with authentication
-    (e.g., Caddy, nginx, or Traefik with basic auth or SSO).
+    (Caddy, nginx, and Traefik all work).
 
-To disable the UI while keeping the REST API:
+The UI can be disabled independently while the REST API stays active:
 
 ```toml title="hassette.toml"
 --8<-- "pages/web-ui/snippets/disable-ui.toml"
 ```
 
 !!! note "First run"
-    A fresh installation shows empty tables and zero counts until automations
-    run and handlers fire. This is expected — telemetry accumulates as your
-    apps process events.
+    A fresh Hassette install shows empty tables and zero counts until automations
+    run and handlers fire. As your apps react to Home Assistant activity, the
+    tables fill in with timing data, log entries, and run history.
+
+## Configuration
 
 ??? "Configuration quick reference"
 
@@ -43,14 +45,36 @@ To disable the UI while keeping the REST API:
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
-    | `[hassette.web_api] event_buffer_size` | int | `500` | Recent events ring buffer size |
-    | `[hassette.web_api] log_buffer_size` | int | `2000` | Log entries ring buffer size |
+    | `[hassette.web_api] event_buffer_size` | int | `500` | How many recent events the UI keeps in memory |
+    | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
     | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
 
-    See [Global Settings](../core-concepts/configuration/global.md#web-ui-settings) for the full configuration reference.
+    See [Global Settings](../core-concepts/configuration/index.md) for the full reference.
 
-## Related pages
+## Layout
 
-- [Layout & Navigation](layout.md) — sidebar, status bar, command palette, and cross-cutting chrome
-- [Apps](apps.md) — monitor and manage your automations
+The UI has three persistent navigation elements.
+
+The **sidebar** lists every app grouped by lifecycle status: `FAILING`, `BLOCKED`, `SLOW`, `RUNNING`, `STOPPED`, and `DISABLED`. A search field filters the list by app name. The command palette opens from the search area or with Ctrl+K (Cmd+K on macOS).
+
+![Sidebar](../../_static/web_ui_detail_sidebar.png)
+
+The **status bar** runs across the top. It holds a time-preset selector (Since restart, 1h, 24h, 7d) that scopes all history views. A connection indicator, uptime counter, and theme toggle sit alongside it.
+
+![Status bar](../../_static/web_ui_detail_status_bar.png)
+
+The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, handlers, and actions without navigating through the sidebar.
+
+![Command palette](../../_static/web_ui_detail_command_palette.png)
+
+**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean telemetry is degraded — the database is dropping writes (queue overflow, backpressure, or an unreachable file), so some execution history may be missing. Check the database service logs for the cause.
+
+## Pages
+
+- **[Manage Apps](manage-apps.md)**: start, stop, and reload apps; check health and status
+- **[Debug a Failing Handler](debug-handler.md)**: find why a handler is not firing or is throwing errors
+- **[Read and Filter Logs](logs.md)**: search, filter, and stream logs in real time
+- **[Inspect Configuration and Code](inspect-config-code.md)**: view global and per-app config, read app source
+- **[Check Framework Health](diagnostics.md)**: confirm internal services are running, see boot issues and telemetry drops
+- **[Configure Health Checks](health-endpoints.md)**: choose the right endpoint for restart automation, traffic routing, or monitoring

@@ -35,7 +35,7 @@ Hassette includes a web UI for monitoring and managing your automations: **Apps*
   <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_apps.png" alt="Hassette Web UI — Apps page" />
 </p>
 
-The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
+The web UI is enabled by default at `http://<host>:8126/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
 
 ## Terminal CLI
 

@@ -448,7 +448,7 @@ One file per user-visible subsystem:
 | `test_scheduler.py` | Scheduler: run_in, run_every, run_daily, cron triggers, job groups, jitter |
 | `test_state_proxy.py` | State proxy: initial cache, live updates, typed StateManager access |
 | `test_api.py` | HA REST/WebSocket API: get_state, call_service, fire_event |
-| `test_app_lifecycle.py` | App lifecycle hooks: on_initialize, on_ready, on_shutdown |
+| `test_app_lifecycle.py` | App lifecycle hooks: on_initialize, on_shutdown |
 | `test_reconnection.py` | WebSocket reconnection: disconnect detection, reconnect with subscriptions, state proxy refresh |
 | `test_shutdown.py` | Graceful shutdown: session status, resource teardown |
 | `test_web_api.py` | Web API endpoints: health, apps, config, telemetry, WebSocket events |

@@ -608,10 +608,8 @@ class Api(Resource):
         """
         try:
             return await self.get_entity(entity_id, model)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+        except EntityNotFoundError:
+            return None
 
     async def get_state(self, entity_id: str) -> "BaseState":
         """Get the state of a specific entity.
@@ -637,10 +635,8 @@ class Api(Resource):
         """
         try:
             return await self.get_state(entity_id)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+        except EntityNotFoundError:
+            return None
 
     async def get_state_value(self, entity_id: str) -> Any:
         """Get the state of a specific entity without converting it to a state object.

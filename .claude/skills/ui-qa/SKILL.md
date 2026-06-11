@@ -35,7 +35,7 @@ Skip the wait only when the stack is already running from earlier in the session
 1. Capture the matrix (scoped — full matrix only for explicit full audits):
 
    ```bash
-   uv run python tools/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots [--pages ...] [--viewports ...]
+   uv run python tools/frontend/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots [--pages ...] [--viewports ...]
    ```
 
 2. Dispatch one **Sonnet** analysis subagent per page (all viewports/themes of that page

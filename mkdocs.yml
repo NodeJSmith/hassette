@@ -32,7 +32,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started:
-      - Is Hassette Right for You?: pages/getting-started/hassette-vs-ha-yaml.md
+      - Is Hassette Right for You?: pages/getting-started/is-hassette-right-for-you.md
       - Quickstart: pages/getting-started/index.md
       - Home Assistant Token: pages/getting-started/ha_token.md
       - Your First Automation: pages/getting-started/first-automation.md
@@ -45,61 +45,59 @@ nav:
       - Architecture: pages/core-concepts/index.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
-          - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Configuration: pages/core-concepts/apps/configuration.md
+          - Lifecycle: pages/core-concepts/apps/lifecycle.md
           - Task Bucket: pages/core-concepts/apps/task-bucket.md
       - Bus:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
-          - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
+          - Subscription Methods: pages/core-concepts/bus/methods.md
           - Filtering & Predicates: pages/core-concepts/bus/filtering.md
+          - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
+          - Custom Extractors: pages/core-concepts/bus/custom-extractors.md
+          - Predicate & Condition Reference: pages/core-concepts/bus/predicate-reference.md
       - Scheduler:
           - Overview: pages/core-concepts/scheduler/index.md
           - Scheduling Methods: pages/core-concepts/scheduler/methods.md
+          - Triggers: pages/core-concepts/scheduler/triggers.md
           - Job Management: pages/core-concepts/scheduler/management.md
-      - States: pages/core-concepts/states/index.md
+      - States:
+          - Overview: pages/core-concepts/states/index.md
+          - Custom States: pages/core-concepts/states/custom-states.md
+          - State Conversion: pages/core-concepts/states/conversion.md
       - API:
           - Overview: pages/core-concepts/api/index.md
-          - Entities & States: pages/core-concepts/api/entities.md
-          - Services: pages/core-concepts/api/services.md
-          - Managing Helpers: pages/advanced/managing-helpers.md
-          - Utilities: pages/core-concepts/api/utilities.md
+          - API Methods: pages/core-concepts/api/methods.md
+          - Managing Helpers: pages/core-concepts/api/managing-helpers.md
       - App Cache:
           - Overview: pages/core-concepts/cache/index.md
           - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
-          - Authentication: pages/core-concepts/configuration/auth.md
-          - Global Settings: pages/core-concepts/configuration/global.md
-          - Applications: pages/core-concepts/configuration/applications.md
-      - System Internals: pages/core-concepts/internals.md
+      - System Internals:
+          - Architecture & Data Flow: pages/core-concepts/internals/index.md
+          - Per-Service Internals: pages/core-concepts/internals/service-details.md
+          - Resource Lifecycle & Supervision: pages/core-concepts/internals/lifecycle.md
   - Web UI:
       - Overview: pages/web-ui/index.md
-      - Layout & Navigation: pages/web-ui/layout.md
-      - Apps: pages/web-ui/apps.md
-      - App Detail:
-          - Overview: pages/web-ui/app-detail/index.md
-          - Overview Tab: pages/web-ui/app-detail/overview.md
-          - Handlers Tab: pages/web-ui/app-detail/handlers.md
-          - Code Tab: pages/web-ui/app-detail/code.md
-          - Logs Tab: pages/web-ui/app-detail/logs.md
-          - Config Tab: pages/web-ui/app-detail/config.md
-      - Handlers: pages/web-ui/handlers.md
-      - Logs: pages/web-ui/logs.md
-      - Config: pages/web-ui/config.md
-      - Diagnostics: pages/web-ui/diagnostics.md
-      - Health Endpoints: pages/web-ui/health-endpoints.md
+      - Debug a Failing Handler: pages/web-ui/debug-handler.md
+      - Read and Filter Logs: pages/web-ui/logs.md
+      - Manage Apps: pages/web-ui/manage-apps.md
+      - Inspect Configuration and Code: pages/web-ui/inspect-config-code.md
+      - Check Framework Health: pages/web-ui/diagnostics.md
+      - Configure Health Checks: pages/web-ui/health-endpoints.md
   - CLI:
       - Overview: pages/cli/index.md
       - Command Reference: pages/cli/commands.md
       - Workflows: pages/cli/workflows.md
       - Configuration & Scripting: pages/cli/configuration.md
   - Testing:
-      - Testing Your Apps: pages/testing/index.md
+      - Write Your First Test: pages/testing/index.md
+      - Test Harness Reference: pages/testing/harness.md
       - Time Control: pages/testing/time-control.md
       - Concurrency & pytest-xdist: pages/testing/concurrency.md
-      - Factories & Internals: pages/testing/factories.md
+      - Factories: pages/testing/factories.md
   - Recipes:
       - Overview: pages/recipes/index.md
       - Motion-Activated Lights: pages/recipes/motion-lights.md
@@ -108,21 +106,20 @@ nav:
       - React to a Service Call: pages/recipes/service-call-reaction.md
       - Monitor Sensor Thresholds: pages/recipes/sensor-threshold.md
       - Vacation Mode Toggle: pages/recipes/vacation-mode-toggle.md
-  - Advanced:
-      - Overview: pages/advanced/index.md
-      - Custom States: pages/advanced/custom-states.md
-      - State Registry: pages/advanced/state-registry.md
-      - Type Registry: pages/advanced/type-registry.md
-      - Log Level Tuning: pages/advanced/log-level-tuning.md
+  - Operating Hassette:
+      - Overview: pages/operating/index.md
+      - Log Level Tuning: pages/operating/log-levels.md
+      - Upgrading: pages/operating/upgrading.md
   - AppDaemon Migration:
       - Overview: pages/migration/index.md
       - Mental Model: pages/migration/concepts.md
+      - Async Basics: pages/migration/async-basics.md
       - Bus & Events: pages/migration/bus.md
       - Scheduler: pages/migration/scheduler.md
       - API Calls: pages/migration/api.md
       - Configuration: pages/migration/configuration.md
       - Testing: pages/migration/testing.md
-      - Migration Checklist: pages/migration/checklist.md
+      - Checklist: pages/migration/checklist.md
   - Troubleshooting: pages/troubleshooting.md
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
@@ -134,7 +131,7 @@ plugins:
       key: "ctrl"
   - gen-files:
       scripts:
-        - tools/gen_ref_pages.py
+        - tools/docs/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
   - autorefs
