@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from typing import Any
 from unittest.mock import patch
 
 from hassette.cli.client import HassetteCLIClient
@@ -25,7 +26,12 @@ def spy_on_get(client: HassetteCLIClient) -> tuple[list[str], Callable[..., obje
     called_paths: list[str] = []
     original_get = client.get
 
-    def tracking_get(path, model, params=None, **kwargs):
+    def tracking_get(
+        path: str,
+        model: type[object],
+        params: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> object:
         called_paths.append(path)
         return original_get(path, model, params=params, **kwargs)
 
