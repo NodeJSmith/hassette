@@ -1,6 +1,3 @@
 # hassette.toml
-[hassette.logging]
-apps = "INFO"
-
 [hassette.apps.my_noisy_app]
 log_level = "WARNING"

@@ -30,7 +30,7 @@ In your project directory, open (or create) a file named `.env` and add the toke
 
 If you have not started the [Quickstart](index.md) yet, head there next for the full `.env` setup and first run. The [Docker Setup](docker/index.md) covers container-specific configuration.
 
-To verify the token works, complete the Quickstart and run `hassette status`. If the token is valid, you see `websocket_connected: True`. An authentication error means the token was not copied in full or has been revoked.
+To verify the token works, complete the Quickstart and run `hassette status`. If the token is valid, you see `websocket_connected: true`. An authentication error means the token was not copied in full or has been revoked.
 
 !!! warning "Token security"
     A long-lived access token has the same permissions as your Home Assistant user account. Never commit it to version control or share it publicly. If a token is exposed, revoke it immediately from the Security tab and generate a new one.

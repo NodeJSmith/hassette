@@ -15,7 +15,7 @@ This page adds two features to the app from the [Quickstart](index.md):
 
 The handler parameter `new_state: D.StateNew[states.SunState]` is a type annotation that tells Hassette: when this handler fires, pass in the new state as a `SunState` object. The bracket syntax works like `list[str]` in standard Python generics. `D.StateNew[T]` means "a new-state value, typed as `T`." Here is what the two imports do:
 
-- **[`D`](../core-concepts/bus/dependency-injection.md)** is `hassette.dependencies`, a module of type annotations. `D.StateNew[T]` means "give me the new state, converted to type `T`."
+- **[`D`](../core-concepts/bus/dependency-injection.md)** is `hassette.event_handling.dependencies`, a module of type annotations. `D.StateNew[T]` means "give me the new state, converted to type `T`."
 - **[`states`](../core-concepts/states/index.md#built-in-state-types)** is `hassette.models.states`, typed state classes for each HA domain. `states.SunState` has a `.value` attribute holding `"above_horizon"` or `"below_horizon"`.
 
 This is a Hassette feature. Standard Python ignores type annotations at runtime, but Hassette inspects them to know what to pass into each handler. No event dict parsing needed. Your IDE knows the type, and Pyright (a Python type checker, optional but useful in VS Code) catches typos.

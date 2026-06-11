@@ -17,7 +17,7 @@ This pattern works with all [subscription methods](methods.md).
 
 ### Extracted data (recommended)
 
-[`D`](dependency-injection.md) (`hassette.dependencies`) is a module of type annotations that tell Hassette what to extract from each event — similar to FastAPI's `Depends()`, but using type annotations instead of wrapper calls. The handler receives only the requested data, not the event object.
+[`D`](dependency-injection.md) (`hassette.event_handling.dependencies`) is a module of type annotations that tell Hassette what to extract from each event — similar to FastAPI's `Depends()`, but using type annotations instead of wrapper calls. The handler receives only the requested data, not the event object.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_extract_data.py"

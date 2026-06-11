@@ -48,7 +48,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 **Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `_handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
 
-**Fatal errors.** The exception name is in `fatal_error_names`, or the exception is a [`FatalError`][hassette.exceptions.FatalError] subclass. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted.
+**Fatal errors.** The exception name is in `fatal_error_names`. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path: the service catches them itself in `_serve_wrapper()` and calls `handle_crash()` directly, going to `CRASHED` without ever emitting the `FAILED` event that this routing reads.
 
 ## RestartSpec Reference
 
@@ -101,13 +101,13 @@ stateDiagram-v2
 
 `RUNNING` status and readiness are separate signals. `handle_running()` sets `status = ResourceStatus.RUNNING` and emits a status event. `mark_ready()` sets a readiness `asyncio.Event` that dependents wait on via `_auto_wait_dependencies()`.
 
-A service enters `RUNNING` at the end of `initialize()`, after all lifecycle hooks complete. It signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` after the first successful authentication with Home Assistant. `BusService` calls it after the internal event stream is open.
+A service enters `RUNNING` when its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`; the spawned `_serve_wrapper()` task calls `handle_running()` once `serve()` starts executing. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` after the first successful connection, authentication, and event subscription with Home Assistant. `BusService` calls it after the internal event stream is open.
 
 `depends_on` lists the resource types a service waits for before running its own `on_initialize()`. The wait is on readiness, not on `RUNNING` status. A dependent service does not proceed until all declared dependencies have called `mark_ready()`.
 
 | Signal | Set by | Waited on by |
 |---|---|---|
-| `status = RUNNING` | `handle_running()` at end of `initialize()` | Nothing (informational only) |
+| `status = RUNNING` | `handle_running()` when `serve()` begins | Nothing (informational only) |
 | `ready_event` | `mark_ready()` at service-defined readiness point | Dependents via `depends_on` auto-wait |
 
 ## Wave Startup and Shutdown

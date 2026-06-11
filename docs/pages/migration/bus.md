@@ -45,7 +45,7 @@ AppDaemon uses `self.listen_state()` with a fixed four-argument callback signatu
     --8<-- "pages/migration/snippets/bus_hassette_state_change_event.py"
     ```
 
-The dependency injection form is preferred. `D.StateNew[states.InputButtonState]` tells Hassette to extract the new state and convert it to a typed model — `D` is `hassette.dependencies`, `states` is the module of typed state classes. `AppConfig` in the example replaces AppDaemon's `self.args`; fields declared on it are set in `hassette.toml` (see [Configuration](configuration.md)). If your editor runs a type checker, it knows the state's type and catches typos.
+The dependency injection form is preferred. `D.StateNew[states.InputButtonState]` tells Hassette to extract the new state and convert it to a typed model — `D` is `hassette.event_handling.dependencies`, `states` is the module of typed state classes. `AppConfig` in the example replaces AppDaemon's `self.args`; fields declared on it are set in `hassette.toml` (see [Configuration](configuration.md)). If your editor runs a type checker, it knows the state's type and catches typos.
 
 ### Filter argument mapping
 
@@ -91,7 +91,7 @@ AppDaemon uses `self.listen_event("call_service", ...)` with a callback that rec
     --8<-- "pages/migration/snippets/bus_hassette_on_call_service_event.py"
     ```
 
-These are the values Hassette can inject into service-call handler parameters — declare the ones the handler needs. `A` is `hassette.accessors`, field extractors; `Annotated[str, A.get_service]` means "a `str`, extracted by `A.get_service`":
+These are the values Hassette can inject into service-call handler parameters — declare the ones the handler needs. `A` is `hassette.event_handling.accessors`, field extractors; `Annotated[str, A.get_service]` means "a `str`, extracted by `A.get_service`":
 
 - `D.Domain`, the service domain (e.g., `"light"`)
 - `D.EntityId` / `D.MaybeEntityId`, entity ID from the service data (`Maybe` allows calls where it's absent)

@@ -53,13 +53,13 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 ## Per-App Log Levels
 
-`logging.apps` sets the default log level for all your automation apps. Override it for a specific app in that app's config section.
+Each app sets its own log level with `log_level` in that app's config section.
 
 ```toml
 --8<-- "pages/operating/snippets/per_app_log_level.toml"
 ```
 
-The per-app `log_level` under `[hassette.apps.<key>]` takes precedence over `logging.apps` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` fall back to `logging.apps`, which falls back to the global `log_level`.
+The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` default to `INFO` (or the `HASSETTE__LOG_LEVEL` environment variable when set).
 
 ## Examples
 

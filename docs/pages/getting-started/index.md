@@ -44,7 +44,7 @@ Save this as `apps/main.py`. Hassette scans `apps/` for any class that inherits 
 
 `MyAppConfig` declares your app's settings as typed class attributes. Hassette loads values from environment variables and [`hassette.toml`](../core-concepts/configuration/index.md) automatically. `App[MyAppConfig]` ties the config to the app so `self.app_config` is always the right type.
 
-Every app inherits four objects from Hassette: `self.logger` (Python logger), `self.bus` (listens for things happening in Home Assistant, like a light turning on), `self.scheduler` (runs functions on a timer), and `self.api` (sends commands to Home Assistant). Hassette creates them at startup. You just use them.
+Every app inherits five objects from Hassette: `self.logger` (Python logger), `self.bus` (listens for things happening in Home Assistant, like a light turning on), `self.scheduler` (runs functions on a timer), `self.api` (sends commands to Home Assistant), and `self.states` (reads current entity states from a local cache). Hassette creates them at startup. You just use them.
 
 ## 5. Run Hassette
 

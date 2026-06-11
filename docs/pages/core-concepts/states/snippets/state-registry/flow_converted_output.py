@@ -1,8 +1,8 @@
 from hassette import STATE_REGISTRY
 
 state_dict = {
-    "entity_id": "time.current",
-    "state": "12:01:01",
+    "entity_id": "binary_sensor.front_door",
+    "state": "on",
 }
-time_state = STATE_REGISTRY.try_convert_state(state_dict)  # pyright: ignore[reportArgumentType]
-# Result: TimeState with state=whenever.Time
+door_state = STATE_REGISTRY.try_convert_state(state_dict)  # pyright: ignore[reportArgumentType]
+# Result: BinarySensorState with value=True

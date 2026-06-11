@@ -85,7 +85,7 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 | `throttle=N` | The handler fires immediately, then further calls are suppressed for N seconds |
 | `duration=N` | The handler fires only if the predicate still matches after N seconds |
 | `once=True` | The listener auto-cancels after the first successful invocation |
-| `priority=N` | Lower values dispatch first; [`StateProxy`][hassette.core.state_proxy.StateProxy] uses priority 100 |
+| `priority=N` | Higher values dispatch first; [`StateProxy`][hassette.core.state_proxy.StateProxy] uses priority 100 |
 
 ## `Scheduler` Internals
 
@@ -134,14 +134,14 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 | Convenience method | Trigger object | Behavior |
 |---|---|---|
-| `run_in(fn, seconds=N)` | [`After`][hassette.scheduler.triggers.After] | One-shot after N seconds |
+| `run_in(fn, delay=N)` | [`After`][hassette.scheduler.triggers.After] | One-shot after N seconds |
 | `run_once(fn, at=T)` | [`Once`][hassette.scheduler.triggers.Once] | One-shot at a specific time |
 | `run_every(fn, seconds=N)` | [`Every`][hassette.scheduler.triggers.Every] | Recurring every N seconds |
 | `run_daily(fn, at="HH:MM")` | [`Daily`][hassette.scheduler.triggers.Daily] | Wall-clock daily at HH:MM |
 | `run_cron(fn, expression=E)` | [`Cron`][hassette.scheduler.triggers.Cron] | Croniter expression |
 | `schedule(fn, trigger=T)` | Custom `T` | Implements [`TriggerProtocol`][hassette.types.types.TriggerProtocol] |
 
-`Daily` uses `CronTrigger` internally rather than a 24-hour interval. A naive fixed interval would drift across DST transitions. `CronTrigger` computes `next_run` in the configured timezone and handles fall-back ambiguity by selecting the first occurrence.
+`Daily` uses `CronTrigger` internally rather than a 24-hour interval. A naive fixed interval would drift across DST transitions. `CronTrigger` computes `next_run` in the configured timezone and handles fall-back ambiguity by selecting the second (post-transition) occurrence.
 
 ### Missed-Job Handling
 

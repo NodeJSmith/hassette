@@ -26,9 +26,9 @@ Each base class determines the Python type of `value` on the resulting state obj
 --8<-- "pages/core-concepts/states/snippets/custom-states/string_base_state.py"
 ```
 
-### `NumericBaseState`: `Decimal` value
+### `NumericBaseState`: numeric value
 
-[`NumericBaseState`][hassette.models.states.base.NumericBaseState] converts the raw state string to `Decimal`. It accepts integer, float, and `Decimal` inputs.
+[`NumericBaseState`][hassette.models.states.base.NumericBaseState] converts the raw state string to a numeric type — whole-number strings become `int`, decimal strings become `float`. It accepts `int`, `float`, and `Decimal` inputs directly.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/numeric_base_state.py"

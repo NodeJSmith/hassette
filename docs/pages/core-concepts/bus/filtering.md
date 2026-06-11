@@ -68,7 +68,7 @@ The handler runs only when `app_name` becomes `"Home Assistant Lovelace"` or `"N
 --8<-- "pages/core-concepts/bus/snippets/filtering_predicate_lambda.py"
 ```
 
-Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their named forms (`"gt"`, `"lt"`, `"gte"`, `"lte"`, `"eq"`, `"ne"`).
+Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their named forms (`"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`).
 
 ### Numeric direction: `C.Increased` and `C.Decreased`
 
@@ -150,7 +150,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 ### `P.ServiceMatches`
 
-`P.ServiceMatches` filters on the service name (e.g., `"scene.turn_on"`). `on_call_service` has `domain=` and `service=` built in. When subscribing via `on(topic="call_service")` instead — for raw event-level access — those parameters are not available, so `P.ServiceMatches` fills that role.
+`P.ServiceMatches` filters on the bare service name (e.g., `"turn_on"`); the domain is a separate field, matched by `P.DomainMatches`. `on_call_service` has `domain=` and `service=` built in. When subscribing via `on(topic="hass.event.call_service")` instead — for raw event-level access — those parameters are not available, so `P.DomainMatches` and `P.ServiceMatches` fill that role.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_matches.py"

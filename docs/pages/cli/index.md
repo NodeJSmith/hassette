@@ -60,7 +60,7 @@ If Hassette isn't running, every command gives the same error:
 
 ```console
 $ hassette status
-Could not connect to Hassette at http://localhost:8126
+Network error: Connection refused: http://127.0.0.1:8126 (All connection attempts failed)
 ```
 
 Start Hassette with `hassette run` (covered in [Getting Started](../getting-started/index.md)), then retry. See [Configuration](configuration.md) to connect to a remote instance.

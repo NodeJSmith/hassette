@@ -50,14 +50,14 @@ The polling loop runs indefinitely without blocking the handler that started it.
 
     ### Running Async from Sync Code
 
-    `run_sync(coro)` submits a coroutine to the event loop and blocks the calling thread until it completes. It accepts a coroutine object, not a callable.
+    `run_sync(fn)` submits a coroutine to the event loop and blocks the calling thread until it completes. It accepts a coroutine object, not a callable.
 
     ```python
     --8<-- "pages/core-concepts/apps/snippets/apps_task_bucket_advanced.py:run_sync"
     ```
 
     !!! warning
-        `run_sync()` blocks the calling thread. Calling it from the event loop thread causes a deadlock. It is safe inside `run_in_thread()` callbacks and [`AppSync`][hassette.app.app.AppSync] lifecycle methods only.
+        `run_sync()` blocks the calling thread. Calling it from the event loop thread raises `RuntimeError` — use the async method directly there instead. It is safe inside `run_in_thread()` callbacks and [`AppSync`][hassette.app.app.AppSync] lifecycle methods only.
 
     ### Running on the Loop Thread
 

@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Hassette's dependency injection system extracts typed data from events and passes it to handler parameters. Like FastAPI's `Depends()`, Hassette resolves handler parameters at call time — but instead of a dependency function, type annotations from the `D` module declare what to extract. All annotations live in `hassette.dependencies`, imported as `D`: `from hassette import D`.
+Hassette's dependency injection system extracts typed data from events and passes it to handler parameters. Like FastAPI's `Depends()`, Hassette resolves handler parameters at call time — but instead of a dependency function, type annotations from the `D` module declare what to extract. All annotations live in `hassette.event_handling.dependencies`, imported as `D`: `from hassette import D`.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/quick_example.py"
@@ -25,7 +25,7 @@ State extractors resolve typed state objects from state change events. `T` is an
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/state_object_extractors.py"
 ```
 
-When a required extractor finds no value, Hassette skips the handler invocation silently — no exception is raised and no log entry is produced. `MaybeStateOld` returns `None` on the first event for a new entity with no previous state (typically on startup or when an entity first appears).
+When a required extractor finds no value, Hassette skips the handler invocation and logs the failure at ERROR level — no exception propagates to your app. `MaybeStateOld` returns `None` on the first event for a new entity with no previous state (typically on startup or when an entity first appears).
 
 ### Identity Extractors
 
@@ -49,7 +49,7 @@ Identity extractors resolve entity IDs and domains from events.
 | Annotation | Returns | If missing | Use case |
 |---|---|---|---|
 | `D.EventData[T]` | `T` | Handler skipped | Typed payload from `Bus.emit` broadcast events |
-| `D.EventContext` | `HassContext` | `None` | Home Assistant event context (user ID, parent/origin IDs) |
+| `D.EventContext` | `HassContext` | Handler skipped | Home Assistant event context (user ID, parent/origin IDs) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
 `D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md) for cross-app communication — one app sends a typed payload, and other apps subscribe to receive it. The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:

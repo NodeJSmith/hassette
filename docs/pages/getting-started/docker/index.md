@@ -55,10 +55,10 @@ Check the logs:
 You see output like:
 
 ```
-INFO hassette ... ─ Connected to Home Assistant
+INFO hassette ... ─ Hassette is running.
 ```
 
-Hassette is running, and the web UI is available at `http://localhost:8126`. If you see an error instead of the connected line, head to [Troubleshooting](troubleshooting.md).
+Hassette is running, and the web UI is available at `http://localhost:8126`. If you see an error instead of this line, head to [Troubleshooting](troubleshooting.md).
 
 ## Write Your First App
 

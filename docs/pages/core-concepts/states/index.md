@@ -120,7 +120,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 **Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The `StateManager` event handler runs before app handlers, so handlers always see the latest state.
 
-**Reconnection.** During a HA reconnect the cache is temporarily cleared — `self.states.get()` returns `None` for all entities until the cache is repopulated from a fresh API fetch.
+**Reconnection.** During a HA disconnect the cache is retained — `self.states.get()` returns the last known (stale) values while Hassette reconnects. Once the reconnect completes, a fresh API fetch replaces the cache atomically.
 
 **Missing entities.** `.get()` returns `None` for absent entities. Bracket access raises `KeyError`. `.get()` with a `None` check is the safe path when entity presence is uncertain.
 

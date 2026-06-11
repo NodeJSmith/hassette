@@ -132,7 +132,7 @@ Hassette is not running, or the configured address is wrong. The address comes f
 **Request timed out:**
 
 ```
-Network error: Request timed out after 10s connecting to http://127.0.0.1:8126
+Network error: Request timed out after 10.0s connecting to http://127.0.0.1:8126
 ```
 
 The server is reachable but not responding. Server logs may show blocking operations.

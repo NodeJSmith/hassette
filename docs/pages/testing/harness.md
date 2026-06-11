@@ -54,7 +54,7 @@ handlers.
 ```
 
 Typed dependency injection via `D.StateNew[T]`
-([`hassette.dependencies`](../core-concepts/bus/dependency-injection.md)) delivers the new
+([`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md)) delivers the new
 state as a typed object:
 
 ```python
@@ -97,7 +97,7 @@ handlers.
 --8<-- "pages/testing/snippets/testing_simulate_call_service.py"
 ```
 
-`D.Domain` ([`hassette.dependencies`](../core-concepts/bus/dependency-injection.md))
+`D.Domain` ([`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md))
 injects the service domain into handlers the same way `D.StateNew` works for
 state changes:
 

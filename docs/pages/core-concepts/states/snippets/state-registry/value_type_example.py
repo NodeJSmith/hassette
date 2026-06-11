@@ -1,23 +1,22 @@
 from typing import Any, ClassVar, Literal
 
-from whenever import Time
-
 from hassette.models.states import BaseState
 
 
-class TimeBaseState(BaseState[Time | None]):
-    """Base class for Time states.
+class BoolBaseState(BaseState[bool | None]):
+    """Base class for boolean states.
 
-    Valid state values are Time or None.
+    Valid state values are True, False, or None.
+    Converts the strings "on" and "off" to True and False.
     """
 
-    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (Time, type(None))
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (bool, type(None))
 
 
-class TimeState(TimeBaseState):
-    """Representation of a Home Assistant time state.
+class BinarySensorState(BoolBaseState):
+    """Representation of a Home Assistant binary_sensor state.
 
-    See: https://www.home-assistant.io/integrations/time/
+    See: https://www.home-assistant.io/integrations/binary_sensor/
     """
 
-    domain: Literal["time"]
+    domain: Literal["binary_sensor"]

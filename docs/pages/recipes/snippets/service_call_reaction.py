@@ -40,4 +40,4 @@ class LightGroupApp(App[LightGroupConfig]):
         if color_temp is not None:
             call_data["color_temp"] = color_temp
 
-        await self.api.call_service("light", "turn_on", service_data=call_data)
+        await self.api.call_service("light", "turn_on", **call_data)

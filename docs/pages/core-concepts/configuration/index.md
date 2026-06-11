@@ -104,7 +104,7 @@ Run `hassette status` to confirm Hassette can reach Home Assistant with the curr
 hassette status
 ```
 
-A successful connection shows `status: ok` and the Home Assistant version. Auth failures show `InvalidAuthError` — check the token value and `verify_ssl` setting.
+A successful connection shows `status: ok` and the installed Hassette version. Auth failures show `websocket_connected: false` with a `degraded` or `starting` status — check the token value and `verify_ssl` setting.
 
 ## Full Reference
 

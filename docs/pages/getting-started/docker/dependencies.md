@@ -84,8 +84,8 @@ because the host path does not exist inside the container. Mount the shared
 code as a volume with a relative path that matches the container layout,
 or publish it as a package.
 
-**First startup is slower with new dependencies.** Hassette runs `uv sync`
-or `uv pip install` on every start when `HASSETTE__INSTALL_DEPS` is set.
+**First startup is slower with new dependencies.** Hassette runs
+`uv pip install` on every start when `HASSETTE__INSTALL_DEPS` is set.
 New packages download on the first run. The `uv_cache` volume persists
 the cache, so subsequent starts skip the download. If your cache volume
 is missing or was pruned, the next startup downloads everything again.

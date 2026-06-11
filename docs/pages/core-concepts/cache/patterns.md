@@ -12,7 +12,7 @@ A leak or alarm sensor can fire repeatedly during a single incident. Storing a t
 --8<-- "pages/core-concepts/cache/snippets/cache_rate_limit.py"
 ```
 
-`P` is `hassette.predicates` — helper functions that filter which events trigger a handler (see [Predicates](../bus/filtering.md)). `P.StateTo("on")` fires the handler only when the entity transitions to `"on"`.
+`P` is `hassette.event_handling.predicates` — helper functions that filter which events trigger a handler (see [Predicates](../bus/filtering.md)). `P.StateTo("on")` fires the handler only when the entity transitions to `"on"`.
 
 `self.cache.get(cache_key)` returns `None` on the first call, so the notification goes out immediately. The timestamp is written after sending. On subsequent triggers, the handler compares the stored timestamp against the cooldown threshold — `last_sent > self.now().subtract(hours=4)` is true when the last notification was sent less than 4 hours ago. For per-entity rate limiting, include the entity ID in the key: `f"last_notification:{entity_id}"`.
 
@@ -86,13 +86,13 @@ If values do not survive a restart, check four common causes:
 - **Write targets a local variable instead of `self.cache`.** Verify the assignment uses `self.cache["key"]`, not a local dict.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
 - **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{ClassName}/cache/` — the Hassette process must own the directory.
-- **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time. Enable `log_level = "DEBUG"` in `hassette.toml` to see the error.
+- **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time. Enable `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to see the error.
 
 ### Cache Size Exceeded
 
-When the cache reaches `default_cache_size`, diskcache silently evicts the least recently used entries. A larger `default_cache_size` in [Global Settings](../configuration/index.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
+When the cache reaches `default_cache_size`, diskcache silently evicts the least recently stored entries (oldest writes first — its default policy). A larger `default_cache_size` in [Global Settings](../configuration/index.md) raises the ceiling. TTL expiry removes stale entries proactively, and storing large objects externally while caching only their identifiers reduces pressure.
 
-Set `log_level = "DEBUG"` in `hassette.toml` to enable cache operation logging. The cache directory at `~/.local/share/hassette/v0/{ClassName}/cache/` (where `{ClassName}` matches the app's class name, e.g. `WaterLeakAlertApp`) should contain data files after the first successful write.
+Set `log_level = "DEBUG"` under `[hassette.logging]` in `hassette.toml` to enable cache operation logging. The cache directory at `~/.local/share/hassette/v0/{ClassName}/cache/` (where `{ClassName}` matches the app's class name, e.g. `WaterLeakAlertApp`) should contain data files after the first successful write.
 
 ## See Also
 

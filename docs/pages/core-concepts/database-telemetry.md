@@ -39,7 +39,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 
 Two maintenance routines run every hour in the background.
 
-Time-based retention deletes execution records older than `retention_days` from the `executions` table. Internal bookkeeping records (session tracking) are not affected.
+Time-based retention runs two deletes: execution records older than `retention_days` (default: 7) from the `executions` table, and log records older than `logging.log_retention_days` (default: 3) from the `log_records` table. Internal bookkeeping records (session tracking) are not affected.
 
 Size-based retention runs after time-based retention. When the total database size (including WAL files) exceeds `max_size_mb`, the oldest execution records are deleted in batches. Deletion continues until the database is back under the limit.
 
@@ -47,7 +47,7 @@ Both routines are non-blocking and do not interrupt automations or telemetry col
 
 ## Registration Persistence
 
-Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. The natural key is the explicit `name=` value, or a key derived from handler name, topic, and predicate signature. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
+Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. The natural key combines the app key, instance index, `name=` value, and topic. Predicate configuration is stored as display metadata and does not affect matching. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
 
 The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window. During development, renaming a handler or changing its topic leaves the old registration visible until it ages out (default 7 days).
 
@@ -77,7 +77,7 @@ For container restart automation, use `/api/health/live` or rely on the non-zero
 !!! note "Choosing the right endpoint"
     Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
 
-**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows per-execution detail for a specific invocation: trace ID, trigger origin, and error traceback. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
+**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows the log lines emitted during a specific invocation. Execution metadata (trigger origin, error traceback) appears in `hassette listener <id>` and `hassette job <id>` output. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
 
 ## Degraded Mode
 

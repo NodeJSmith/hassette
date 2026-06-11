@@ -43,7 +43,7 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 ??? note "Synchronous usage (AppSync only)"
     [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop, so `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
-`name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `DuplicateJobNameError`. See [Scheduling Methods](methods.md) for details.
+`name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `ValueError`. See [Scheduling Methods](methods.md) for details.
 
 ## Verify It's Working
 

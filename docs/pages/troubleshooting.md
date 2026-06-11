@@ -10,7 +10,7 @@
 
 **Invalid token at startup.** Look for [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ResourceNotReadyError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. Call `is_ready()` on `self.states` to check whether data is fresh. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ConnectionClosedError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. To react to connection loss, subscribe to `on_websocket_disconnected` / `on_websocket_connected` on the bus. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
 ## Apps Not Loading
 
@@ -176,7 +176,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Dependency Injection
 
-**`DependencyInjectionError`** The handler signature is invalid. A parameter uses `*args`, is positional-only, or is missing a type annotation. Fix the handler signature.
+**`DependencyInjectionError`** The handler signature is invalid. A parameter uses `*args` or is positional-only. Fix the handler signature. (Parameters without type annotations are skipped by injection, not rejected.)
 
 **[`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError]** Injection succeeded at inspection time but failed at runtime while extracting or converting a value. Check the event data and the type annotations in the handler.
 

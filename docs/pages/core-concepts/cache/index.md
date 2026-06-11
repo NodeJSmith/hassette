@@ -18,7 +18,7 @@ Hassette opens the cache at first access and flushes it to disk at shutdown. All
 
 All instances of the same app class share one cache directory, keyed by class name. Two instances of `WeatherApp` with different configurations read from and write to the same cache.
 
-Hassette can run the same app class multiple times with different configs (see [App Instances](../apps/index.md)). For multi-instance apps, prefixing keys with `self.app_config.instance_name` (automatically set from the `[apps.<key>]` identifier in `hassette.toml`) avoids collisions:
+Hassette can run the same app class multiple times with different configs (see [App Instances](../apps/index.md)). For multi-instance apps, prefixing keys with `self.app_config.instance_name` (set per `[[hassette.apps.<key>.config]]` block in `hassette.toml`; defaults to `ClassName.0`, `ClassName.1`, ... when omitted) avoids collisions:
 
 ```python
 --8<-- "pages/core-concepts/cache/snippets/cache_instance_prefix.py"

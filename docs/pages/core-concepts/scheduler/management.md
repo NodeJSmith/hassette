@@ -107,7 +107,7 @@ Both levels accept sync or async callables.
 
 ## Tune dispatch with jitter
 
-The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter]` seconds and applied at enqueue time.
+The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and applied at enqueue time.
 
 Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged — a job scheduled every 60 seconds targets T+60, T+120, T+180 regardless of jitter. The random offset shifts the actual dispatch within each window but does not compound across runs.
 
@@ -140,7 +140,7 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
     ### Job not running?
 
     - **Wrong schedule.** A wrong time string or interval is the most common cause. `run_daily(at="07:00")` fires at 7 AM. `run_once(at="07:00")` fires at 7 AM today, or tomorrow if 7 AM has already passed.
-    - **Unhandled exception.** When a job raises, the scheduler catches it, logs at `ERROR`, and keeps the job on schedule. The job is not removed. Look for `ERROR hassette.core.command_executor` lines followed by a traceback.
+    - **Unhandled exception.** When a job raises, the scheduler catches it, logs at `ERROR`, and keeps the job on schedule. The job is not removed. Look for `ERROR hassette.CommandExecutor` lines followed by a traceback.
     - **Lost reference.** Losing the `ScheduledJob` variable does not stop the job. The scheduler holds a strong reference. Losing the reference only prevents manual cancellation.
 
     ### Job runs too often?

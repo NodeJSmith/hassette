@@ -100,7 +100,7 @@ The file watcher is off in production mode by default. Restart the container to 
 docker compose restart hassette
 ```
 
-To apply edits without restarting, set `watch_files = true` and `allow_reload_in_prod = true` in your `hassette.toml` (in your `config/` directory).
+To apply edits without restarting, set `allow_reload_in_prod = true` under `[hassette]` in your `hassette.toml` (in your `config/` directory). File watching itself is already on by default.
 
 ## Hassette Restarts Whenever Home Assistant Goes Down
 

@@ -14,15 +14,15 @@ When state data arrives from Home Assistant, `StateRegistry.try_convert_state()`
 
 The pipeline runs five steps:
 
-1. `StateRegistry.resolve(domain="time")` looks up the registered class for the domain.
-   It returns [`TimeState`][hassette.models.states.time.TimeState].
+1. `StateRegistry.resolve(domain="binary_sensor")` looks up the registered class for the domain.
+   It returns [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState].
 
-2. Pydantic validation begins on `TimeState`.
+2. Pydantic validation begins on `BinarySensorState`.
 
 3. The `_validate_domain_and_state` model validator reads `value_type` from the class and
    delegates to `TypeRegistry`.
 
-4. `TypeRegistry` looks up the `(str, whenever.Time)` converter and converts `"12:01:01"`.
+4. `TypeRegistry` looks up the `(str, bool)` converter and converts `"on"` to `True`.
 
 5. Validation completes. The result is a fully typed state object:
 

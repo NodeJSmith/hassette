@@ -31,7 +31,7 @@ Early-drop retries only apply to genuine post-auth disconnects (`ServerDisconnec
 [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] supervises `WebsocketService` using a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters `EXHAUSTED_COOLING`, a 300-second cooldown, and retries from scratch. The logs show:
 
 ```
-Service 'WebsocketService' restart budget exhausted (TRANSIENT), entering cooldown for 300.0s
+Service 'WebsocketService' restart budget exhausted (TRANSIENT), entering cooldown for 300.0s (retry_at=1749567890)
 ```
 
 After the cooldown completes, the budget resets and the full retry sequence starts over. This layer ensures Hassette keeps trying through prolonged HA unavailability without spinning.

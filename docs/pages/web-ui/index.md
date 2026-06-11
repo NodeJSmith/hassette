@@ -68,7 +68,7 @@ The **command palette** opens with Ctrl+K or Cmd+K. It jumps to pages, apps, han
 
 ![Command palette](../../_static/web_ui_detail_command_palette.png)
 
-**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean the UI is receiving more data than it can keep — older events or log entries are being discarded. Increase `event_buffer_size` or `log_buffer_size` in `hassette.toml` to keep more history.
+**Alert banners** appear below the status bar when something needs attention. Red banners indicate failed apps. Amber banners mean telemetry is degraded — the database is dropping writes (queue overflow, backpressure, or an unreachable file), so some execution history may be missing. Check the database service logs for the cause.
 
 ## Pages
 

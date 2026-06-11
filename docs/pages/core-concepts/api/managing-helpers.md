@@ -167,7 +167,7 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     | `Create{Domain}Params` | Required and optional fields for a create call | `"forbid"`: typos raise `ValidationError` at construction |
     | `Update{Domain}Params` | Partial update payload with all fields optional | `"ignore"`: extra fields from round-tripped records are silently dropped |
 
-    All three CRUD methods that accept a params object serialize it with
+    The two CRUD methods that accept a params object (`create_*` and `update_*`) serialize it with
     `model_dump(exclude_unset=True)`, not `exclude_none`. Omitting a field and explicitly
     setting it to `None` produce different wire payloads.
 

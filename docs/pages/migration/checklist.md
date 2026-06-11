@@ -23,7 +23,7 @@ See [Configuration](configuration.md) for the full conversion guide.
 - [ ] If you chose `AppSync`: use the `.sync` facades everywhere in steps 3–5 — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)` — with no `await`. Calling the async methods from sync hooks silently does nothing.
 - [ ] Rename `initialize()` to the correct hook for your base class:
     - `App`: `async def on_initialize(self)`. Must be `async def`.
-    - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final` and raises `NotImplementedError`).
+    - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final`; overriding raises `CannotOverrideFinalError` at class definition time).
 - [ ] If you have `terminate()`, rename it:
     - `App`: `async def on_shutdown(self)`
     - `AppSync`: `def on_shutdown_sync(self)`
