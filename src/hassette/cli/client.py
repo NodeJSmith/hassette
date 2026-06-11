@@ -96,9 +96,7 @@ class HassetteCLIClient:
         """Perform a GET request, deserialize the response, and handle errors.
 
         Args:
-            path: API path to request.
             model: Pydantic model class or ``list``/``dict`` for raw responses.
-            params: Optional query parameters.
             tolerate_503: When ``True``, a 503 response is deserialized and returned
                 rather than treated as an error. Use for human-inspection commands
                 whose endpoint returns 503 with a valid status body (e.g. a degraded
