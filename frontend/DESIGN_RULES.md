@@ -450,7 +450,7 @@ The existing breakpoints are correct:
 
 ### Table Behavior at 768px
 
-Tables should switch to `table-layout: auto` and hide non-essential columns rather than allowing horizontal scroll or header truncation. Any table whose headers truncate or wrap at a breakpoint needs column hiding at that breakpoint.
+Tables keep `table-layout: fixed` at every breakpoint and hide non-essential columns rather than allowing horizontal scroll or header truncation. Switching to `table-layout: auto` on mobile lets unbreakable mono content (entity IDs, app keys, log messages) push the table past the viewport and crop columns mid-word — the colgroup must instead reallocate widths to the columns that remain visible at that breakpoint (see `apps.module.css` for the pattern). Any table whose headers truncate or wrap at a breakpoint needs column hiding at that breakpoint.
 
 ### Mobile Detail Pages (<768px)
 
