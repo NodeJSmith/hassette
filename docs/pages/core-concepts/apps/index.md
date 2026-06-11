@@ -53,7 +53,7 @@ The `hassette.toml` file registers each app and supplies its config values. See 
 
 ## Dates and Times
 
-`self.now()` returns the current time as a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library. All scheduler parameters, persistent storage examples, and custom state definitions use `whenever` types.
+`self.now()` returns the current time as a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library, which ships with Hassette — no separate install needed. All scheduler parameters, persistent storage examples, and custom state definitions use `whenever` types.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_whenever_dates.py:imports"
@@ -161,10 +161,9 @@ In production mode, the decorator is ignored by default. `allow_only_app_in_prod
 
 ## Synchronous Apps
 
-??? note "`AppSync` — for blocking code"
-    [`AppSync`][hassette.app.app.AppSync] runs automations that depend on blocking (non-async) libraries. Hassette executes the app's lifecycle hooks in a thread pool so they do not block the event loop. The bus, scheduler, and API remain async but expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`).
+[`AppSync`][hassette.app.app.AppSync] runs automations written without `async`/`await`. Hassette executes the app's lifecycle hooks in a thread pool so blocking code does not stall the event loop. The bus, scheduler, and API expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`), so registrations and calls work without `await`.
 
-    Prefer async `App` whenever possible. See [Lifecycle](lifecycle.md#synchronous-lifecycle) for the sync hook details and a full example.
+`AppSync` fits apps built on blocking libraries and migrations from synchronous frameworks. Prefer async `App` for new code. See [Lifecycle](lifecycle.md#synchronous-lifecycle) for the sync hook details and a full example.
 
 ## Next Steps
 

@@ -10,7 +10,7 @@ Priority runs highest to lowest:
 1. **Global flags**: `--config-file` and `--env-file` override which files are loaded
 2. **Environment variables**: `HASSETTE__WEB_API__HOST` and `HASSETTE__WEB_API__PORT`
 3. **`.env` file**: loaded from the current directory (or the path given to `--env-file`)
-4. **[`hassette.toml`](../core-concepts/configuration/index.md)**: loaded from the current directory (or the path given to `--config-file`)
+4. **[`hassette.toml`](../core-concepts/configuration/index.md)** (the server's main config file): loaded from the current directory (or the path given to `--config-file`)
 5. **Default**: `http://127.0.0.1:8126`
 
 Bind-all addresses are rewritten for the client connection: when `web_api.host` resolves to `0.0.0.0` the CLI connects to `127.0.0.1`, and `::` becomes `::1`. The server listens on all interfaces; the CLI talks to it over loopback.

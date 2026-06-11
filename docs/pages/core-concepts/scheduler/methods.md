@@ -2,6 +2,9 @@
 
 The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Every method is `async`, requires `await`, and returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
 
+!!! warning "Forgetting `await` schedules nothing"
+    A scheduling call without `await` returns a coroutine object and schedules no job — the handler never runs, and no error is raised at the call site. Python logs a `RuntimeWarning: coroutine ... was never awaited` when the coroutine is garbage-collected, but the message is easy to miss. When a job never fires, check the registration is awaited, then confirm the job exists with `hassette job`.
+
 ## Which method should I use?
 
 | Timing need | Method |
@@ -113,7 +116,7 @@ The handler runs once at a specific wall-clock time. The [`Once`][hassette.sched
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
-| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
+| `at` | `str \| ZonedDateTime` | *(required)* | Target time. A `"HH:MM"` string is interpreted as today in the system timezone. A [`ZonedDateTime`](https://whenever.readthedocs.io/) (from the `whenever` library, which ships with Hassette — `from whenever import ZonedDateTime`) fires at the exact instant specified. |
 | `if_past` | `"tomorrow"` \| `"error"` | `"tomorrow"` | Behavior when the target is already in the past. `"tomorrow"` defers by one day and logs a WARNING. `"error"` raises `ValueError` for both input types. |
 
 Shared parameters apply.

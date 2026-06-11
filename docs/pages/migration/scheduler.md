@@ -10,7 +10,7 @@ Hassette scheduling lives on `self.scheduler`. All methods are `async` and retur
 | AppDaemon | Hassette | Notes |
 |-----------|----------|-------|
 | `self.run_in(cb, 60)` | `await self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
-| `self.run_once(cb, time(7, 30))` | `await self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` (from the [`whenever`](https://whenever.readthedocs.io/) library) |
+| `self.run_once(cb, time(7, 30))` | `await self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` (from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette) |
 | `self.run_every(cb, "now", 300)` | `await self.scheduler.run_every(cb, seconds=300)` | Use `hours=`, `minutes=`, or `seconds=` |
 | `self.run_minutely(cb)` | `await self.scheduler.run_minutely(cb)` | Every 1 minute |
 | `self.run_hourly(cb, time(0, 30))` | `await self.scheduler.run_hourly(cb)` | Every 1 hour |

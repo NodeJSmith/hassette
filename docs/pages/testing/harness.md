@@ -44,6 +44,12 @@ entity.
 Every `simulate_*` method sends an event through the bus and waits for all
 triggered handlers to complete before returning.
 
+!!! warning "Forgetting `await` fires nothing"
+    Every `simulate_*` method is a coroutine. A call without `await` publishes
+    no event — handlers never run, and a following `assert_called` fails even
+    though the app code is correct. A `RuntimeWarning: coroutine ... was never
+    awaited` in the pytest output is the tell.
+
 ### State Changes
 
 `simulate_state_change()` publishes a `state_changed` event and drains all
@@ -54,8 +60,9 @@ handlers.
 ```
 
 Typed dependency injection via `D.StateNew[T]`
-([`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md)) delivers the new
-state as a typed object:
+(`from hassette import D` — see
+[Dependency Injection](../core-concepts/bus/dependency-injection.md)) delivers
+the new state as a typed object:
 
 ```python
 --8<-- "pages/testing/snippets/testing_di_state_change.py"

@@ -4,6 +4,9 @@
 
 All registration methods are `async` and must be awaited. See [Registration](#registration) for what that guarantees.
 
+!!! warning "Forgetting `await` registers nothing"
+    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. Python logs `RuntimeWarning: coroutine 'Bus.on_state_change' was never awaited` when the coroutine is garbage-collected, but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
+
 ## Shared Parameters
 
 Every subscription method accepts these parameters. Individual method tables below list only method-specific parameters.
@@ -45,6 +48,8 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 `immediate=True` and `duration` both raise `ValueError` when `entity_id` contains glob characters.
 
 **Compatible [DI annotations](dependency-injection.md)**
+
+`D` is the dependency-injection module (`from hassette import D`). Annotating a handler parameter with one of these types makes Hassette extract and convert that piece of the event automatically. Each method section below lists the annotations its events support.
 
 | Annotation | Provides |
 |---|---|

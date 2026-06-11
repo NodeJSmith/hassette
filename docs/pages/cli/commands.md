@@ -4,6 +4,8 @@ All commands support `--json` for structured output and `--debug` for verbose er
 
 Every command except `run` queries a running instance — start the server with `hassette run` first. Each command wraps a REST endpoint, noted per command for scripting and direct HTTP access.
 
+Several commands take `--app <key>`. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and an instance is one running copy of an app class — [`hassette app`](#hassette-app) lists both.
+
 ## `hassette run`
 
 Starts the Hassette framework server, connects to Home Assistant, loads apps, and starts the web API. The process runs in the foreground — keep the terminal open, or use a process manager like systemd or Docker. Press `Ctrl+C` to stop.

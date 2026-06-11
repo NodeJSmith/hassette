@@ -2,6 +2,8 @@
 
 Hassette runs as a long-lived process. The runtime behaviors that matter in production: how it survives a Home Assistant restart, what happens when a handler raises, how timeouts work, and what degraded-database mode looks like.
 
+The defaults cover typical deployments — nothing here is required reading before deploying. This page works best as a reference: jump to the section that matches a symptom rather than reading top to bottom.
+
 ## WebSocket Reconnection
 
 The WebSocket connection between Hassette and Home Assistant can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model. All WebSocket settings live under `[hassette.websocket]` in [`hassette.toml`](../core-concepts/configuration/index.md).
