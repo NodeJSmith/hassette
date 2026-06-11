@@ -450,7 +450,9 @@ The existing breakpoints are correct:
 
 ### Table Behavior at 768px
 
-Tables keep `table-layout: fixed` at every breakpoint and hide non-essential columns rather than allowing horizontal scroll or header truncation. Switching to `table-layout: auto` on mobile lets unbreakable mono content (entity IDs, app keys, log messages) push the table past the viewport and crop columns mid-word — the colgroup must instead reallocate widths to the columns that remain visible at that breakpoint (see `apps.module.css` for the pattern). Any table whose headers truncate or wrap at a breakpoint needs column hiding at that breakpoint.
+Fixed-layout tables (`.ht-table--fixed`) keep `table-layout: fixed` at every breakpoint and hide non-essential columns rather than allowing horizontal scroll or header truncation. Switching to `table-layout: auto` on mobile lets unbreakable mono content (entity IDs, app keys, log messages) push the table past the viewport and crop columns mid-word — the colgroup must instead reallocate widths to the columns that remain visible at that breakpoint (see `apps.module.css` for the pattern). Any table whose headers truncate or wrap at a breakpoint needs column hiding at that breakpoint.
+
+The exception is `.ht-table--compact`, which switches to `auto` at 768px. **A table may only use this class when every column visible on mobile is bounded** — short values, hidden at the breakpoint, or wrappable via `word-break` — because auto layout has nothing to keep an unbounded column from pushing past the viewport. The execution history table qualifies because status/time/duration are short and its one wide column (trace) hides at that breakpoint; the config key/value tables qualify because their value cells use `word-break: break-all`.
 
 ### Mobile Detail Pages (<768px)
 

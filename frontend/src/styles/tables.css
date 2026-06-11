@@ -74,9 +74,12 @@
   width: 14%;
 }
 
-/* --fixed tables keep fixed layout on mobile: their colgroups define
-   mobile-appropriate widths, and auto layout lets unbreakable mono
-   content push the table past the viewport. */
+/* Compact tables flip to auto layout on mobile. This is safe only when
+   every column visible at this breakpoint holds short bounded values —
+   execution tables qualify because status/time/duration are bounded and
+   the wide trace column is hidden below. --fixed tables stay fixed at
+   every breakpoint and reallocate colgroup widths instead — see
+   DESIGN_RULES.md, "Table Behavior at 768px". */
 @media screen and (max-width: 768px) {
   .ht-table--compact {
     table-layout: auto;

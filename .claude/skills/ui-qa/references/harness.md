@@ -15,7 +15,7 @@ uv run python scripts/hassette_demo.py
 Run it in the background and poll its output for readiness. It prints machine-parseable
 lines when up:
 
-```
+```text
 DEMO_HA_URL=http://localhost:NNNNN
 DEMO_HASSETTE_URL=http://localhost:NNNNN
 DEMO_FRONTEND_URL=http://localhost:NNNNN

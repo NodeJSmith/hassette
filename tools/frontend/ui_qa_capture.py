@@ -2,7 +2,7 @@
 """Capture the UI QA screenshot matrix against a running demo stack.
 
 Usage:
-    uv run python tools/ui_qa_capture.py --base-url http://localhost:PORT --output-dir /tmp/ui-qa
+    uv run python tools/frontend/ui_qa_capture.py --base-url http://localhost:PORT --output-dir /tmp/ui-qa
 
 Captures every page at every viewport in both themes by default. Filter with
 --pages/--viewports/--themes. Output files are named {page}--{width}--{theme}.png.
@@ -49,6 +49,18 @@ ANIMATION_KILL_CSS = (
 
 
 def capture_matrix(base_url: str, output_dir: Path, pages: list[str], viewports: list[str], themes: list[str]) -> int:
+    """Capture screenshots of the given pages at every viewport/theme combination.
+
+    Args:
+        base_url: Frontend base URL (the demo stack's DEMO_FRONTEND_URL).
+        output_dir: Directory to write screenshots into (created if missing).
+        pages: Page keys from PAGES.
+        viewports: Viewport keys from VIEWPORTS.
+        themes: Theme names ("light"/"dark").
+
+    Returns:
+        Number of screenshots captured.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     count = 0
     with sync_playwright() as pw:
@@ -60,7 +72,7 @@ def capture_matrix(base_url: str, output_dir: Path, pages: list[str], viewports:
                 context.add_init_script(f"localStorage.setItem('hassette:theme', '\"{theme}\"');")
                 page = context.new_page()
                 for page_name in pages:
-                    page.goto(base_url + PAGES[page_name], wait_until="networkidle")
+                    page.goto(base_url + PAGES[page_name], wait_until="networkidle", timeout=30_000)
                     page.evaluate(ANIMATION_KILL_CSS)
                     page.wait_for_timeout(SETTLE_MS)
                     out = output_dir / f"{page_name}--{vp_name}--{theme}.png"
@@ -73,6 +85,7 @@ def capture_matrix(base_url: str, output_dir: Path, pages: list[str], viewports:
 
 
 def main() -> None:
+    """Parse CLI arguments and run the screenshot capture matrix."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base-url", required=True, help="Frontend URL from the demo stack (DEMO_FRONTEND_URL)")
     parser.add_argument("--output-dir", required=True, type=Path)
