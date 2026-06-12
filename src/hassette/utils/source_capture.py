@@ -56,6 +56,64 @@ def find_call_source(filename: str, lineno: int) -> str | None:
         return None
 
 
+def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = 8) -> tuple[str, int]:
+    """Walk the stack and return ``(filename, lineno)`` of the first non-hassette frame.
+
+    The shared stack-walk half of source capture — no file read, no AST parse.
+    Internal hassette frames (including this module's own callers) are skipped
+    via the module-name filter, so wrapper depth does not affect attribution.
+
+    Returns ``("<unknown>", 0)`` when stack walking fails entirely.
+    """
+    try:
+        # Always walk with context=0 (zero source lines per frame) — cheapest possible.
+        # inspect.stack's only parameter is `context` (source lines per frame), not a
+        # frame-count limit; slicing here gives the real frame-count bound.
+        raw_stack = inspect.stack(context=0)
+    except Exception:
+        return ("<unknown>", 0)
+
+    # Skip our own frame plus any caller-requested frames FIRST, then bound the
+    # window. Applying the limit before the skip would let internal frames consume
+    # the whole window and silently misattribute to a hassette frame.
+    frames = raw_stack[1 + frames_to_skip :]
+    if limit is not None:
+        frames = frames[:limit]
+
+    # Look for the first non-internal frame
+    chosen: Any = None
+    for frame_info in frames:
+        # FrameInfo from inspect.stack() has a .frame attribute with f_globals.
+        # In tests we also pass SimpleNamespace objects directly — handle both.
+        raw_frame = getattr(frame_info, "frame", frame_info)
+        if not is_internal_frame(raw_frame):
+            chosen = frame_info
+            break
+
+    # Fall back to the last frame if everything is internal (unlikely but safe)
+    if chosen is None and frames:
+        chosen = frames[-1]
+
+    if chosen is None:
+        return ("<unknown>", 0)
+
+    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
+    lineno: int = getattr(chosen, "lineno", 0) or 0
+    return (filename, lineno)
+
+
+def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = 8) -> str:
+    """Capture only the ``"<file>:<lineno>"`` of the calling frame — no AST read or walk.
+
+    The cheap path for api fire-and-forget methods (``fire_event``,
+    ``call_service``, ``set_state``): they have no DB-record telemetry, need
+    only warning attribution, and would discard the ``registration_source``
+    snippet that ``capture_registration_source`` computes.
+    """
+    filename, lineno = find_caller_frame(frames_to_skip=frames_to_skip, limit=limit)
+    return f"{filename}:{lineno}"
+
+
 def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 8) -> tuple[str, str | None]:
     """Capture the source location and code of the calling registration.
 
@@ -91,40 +149,7 @@ def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 
         - ``registration_source`` is the source snippet of the Call node, or
           ``None`` if unavailable.
     """
-    try:
-        # Always walk with context=0 (zero source lines per frame) — cheapest possible.
-        # inspect.stack's only parameter is `context` (source lines per frame), not a
-        # frame-count limit; slicing here gives the real frame-count bound.
-        raw_stack = inspect.stack(context=0)
-    except Exception:
-        return ("<unknown>:0", None)
-
-    # Skip our own frame plus any caller-requested frames FIRST, then bound the
-    # window. Applying the limit before the skip would let internal frames consume
-    # the whole window and silently misattribute to a hassette frame.
-    frames = raw_stack[1 + frames_to_skip :]
-    if limit is not None:
-        frames = frames[:limit]
-
-    # Look for the first non-internal frame
-    chosen: Any = None
-    for frame_info in frames:
-        # FrameInfo from inspect.stack() has a .frame attribute with f_globals.
-        # In tests we also pass SimpleNamespace objects directly — handle both.
-        raw_frame = getattr(frame_info, "frame", frame_info)
-        if not is_internal_frame(raw_frame):
-            chosen = frame_info
-            break
-
-    # Fall back to the last frame if everything is internal (unlikely but safe)
-    if chosen is None and frames:
-        chosen = frames[-1]
-
-    if chosen is None:
-        return ("<unknown>:0", None)
-
-    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
-    lineno: int = getattr(chosen, "lineno", 0) or 0
+    filename, lineno = find_caller_frame(frames_to_skip=frames_to_skip, limit=limit)
     source_location = f"{filename}:{lineno}"
 
     # Only try AST lookup for real files (not REPL or frozen modules)

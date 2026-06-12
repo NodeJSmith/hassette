@@ -204,7 +204,7 @@ from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import format_time_param
-from hassette.utils.source_capture import capture_registration_source
+from hassette.utils.source_capture import capture_source_location
 
 from .sync import ApiSyncFacade
 
@@ -439,9 +439,9 @@ class Api(Resource):
         Returns:
             The response from Home Assistant.
         """
-        source_location, _registration_source = capture_registration_source()
-        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # Cheap path: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._fire_event(event_type, event_data),
@@ -506,9 +506,8 @@ class Api(Resource):
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        source_location, _registration_source = capture_registration_source()
-        # _registration_source discarded — see fire_event (same rationale for all api methods)
-        # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        # Cheap path — see fire_event (same rationale for all api methods)
+        source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._call_service(domain, service, target, return_response, **data),
@@ -890,9 +889,8 @@ class Api(Resource):
         Returns:
             The response from Home Assistant after setting the state.
         """
-        source_location, _registration_source = capture_registration_source()
-        # _registration_source discarded — see fire_event (same rationale for all api methods)
-        # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        # Cheap path — see fire_event (same rationale for all api methods)
+        source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._set_state(entity_id, state, attributes),
