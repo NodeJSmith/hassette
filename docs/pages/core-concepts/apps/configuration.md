@@ -39,10 +39,10 @@ Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values 
     --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
     ```
 
-    Import `ForgottenAwaitBehavior` from `hassette.types.enums`:
+    Import `ForgottenAwaitBehavior` from `hassette`:
 
     ```python
-    from hassette.types.enums import ForgottenAwaitBehavior
+    from hassette import ForgottenAwaitBehavior
     ```
 
     Use `"error"` for apps under active development to catch forgotten `await` calls at runtime. Use `"warn"` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/global.md#developer-settings) for the global default.

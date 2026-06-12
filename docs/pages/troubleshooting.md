@@ -55,7 +55,7 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="ki
 **Importing the warning class:** To use `HassetteForgottenAwaitWarning` in `pytest.warns` or `warnings.filterwarnings`, import it from:
 
 ```python
-from hassette.exceptions import HassetteForgottenAwaitWarning
+from hassette import HassetteForgottenAwaitWarning
 ```
 
 ---

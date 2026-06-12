@@ -15,10 +15,12 @@ from .conversion import (
 from .core.core import Hassette
 from .event_handling import accessors, conditions, dependencies, predicates
 from .events import RawStateChangeEvent
+from .exceptions import HassetteForgottenAwaitWarning
 from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
+from .types.enums import ForgottenAwaitBehavior
 
 A = accessors
 C = conditions
@@ -41,8 +43,10 @@ __all__ = [
     "Bus",
     "C",
     "D",
+    "ForgottenAwaitBehavior",
     "Hassette",
     "HassetteConfig",
+    "HassetteForgottenAwaitWarning",
     "P",
     "RawStateChangeEvent",
     "Scheduler",

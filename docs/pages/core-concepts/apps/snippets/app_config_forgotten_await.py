@@ -1,5 +1,4 @@
-from hassette import App, AppConfig
-from hassette.types.enums import ForgottenAwaitBehavior
+from hassette import App, AppConfig, ForgottenAwaitBehavior
 from pydantic_settings import SettingsConfigDict
 
 
