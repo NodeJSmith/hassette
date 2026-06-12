@@ -50,6 +50,8 @@ Entities wrap the state object. Currently `BaseEntity` and `LightEntity` are ava
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
 
+Entity service methods (`entity.turn_on()`, `entity.set_humidity(...)`, etc.) must be awaited. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] — see [Forgotten `await`](../../troubleshooting.md#forgotten-await).
+
 ## API vs StateManager
 
 The API methods above fetch states directly from Home Assistant over the network. Prefer `self.states` instead — it gives you instant, synchronous access from a local cache:

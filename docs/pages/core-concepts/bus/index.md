@@ -34,6 +34,9 @@ flowchart TD
 
 The `Bus` provides helper methods for common subscriptions. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle.
 
+!!! warning "All registration methods must be awaited"
+    Every `on_*` and `add_listener` call returns a coroutine. Without `await`, the listener is never registered and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
+
 ### Common Methods
 
 - `on_state_change` - Listen for entity state changes.

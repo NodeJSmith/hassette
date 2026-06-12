@@ -19,6 +19,62 @@ This page organizes common problems by symptom. Click through to the relevant se
 
     To diagnose without blocking startup, set `allow_startup_if_app_precheck_fails = true` in `hassette.toml` temporarily. This logs the same errors but lets other apps run. Remove it once the problem is fixed — a failing precheck means the broken app won't be loaded either way.
 
+## Forgotten `await` {#forgotten-await}
+
+### Handler or job never runs; `HassetteForgottenAwaitWarning` in logs
+
+**Symptom:** A handler never fires, or a scheduled job never runs, even though the registration call looks correct. Shortly after the call, a warning appears:
+
+```
+HassetteForgottenAwaitWarning: <app> forgot to await bus.on_state_change (called at my_app.py:12)
+```
+
+**Cause:** The registration call was made without `await`. Every `bus.on_*`, `scheduler.run_*`, `scheduler.schedule()`, `api.call_service()`, `api.fire_event()`, `api.set_state()`, `api.turn_on()`, `api.turn_off()`, `api.toggle_service()`, and entity service method (e.g. `entity.turn_on()`) returns a coroutine. Without `await`, the coroutine is created and immediately dropped — the listener never registers, the job never schedules, and the service call never fires.
+
+**Fix:** Add `await` to the call:
+
+```python
+# wrong — handler never registers
+self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
+
+# correct
+await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
+```
+
+**The assignment blind spot:** If you store the result in a variable (`sub = self.bus.on_state_change(...)`) without awaiting it, Pyright does not flag the call as unused. The warning will still fire when the variable goes out of scope — but that may be much later. The fix is the same: `sub = await self.bus.on_state_change(...)`.
+
+**Stored-on-self limitation:** When the un-awaited handle is stored on `self` (e.g. `self.sub = self.bus.on_state_change(...)`), it lives for the app's lifetime. The warning fires at app *shutdown*, not at registration. This is a weaker guarantee than the bare-drop case. [Enable Pyright](#enabling-pyright) for the earliest possible signal.
+
+**`ERROR` mode cannot crash the process:** Setting `forgotten_await_behavior = "ERROR"` makes the warning escalate to a raised exception — but because detection happens in Python's garbage collector finalizer (`__del__`), the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
+
+---
+
+### Enabling Pyright {#enabling-pyright}
+
+Pyright's `reportUnusedCoroutine` catches forgotten `await` calls at edit or CI time, before the app runs. It fires on bare calls, `if coroutine:` conditionals, and `None`-returning methods. It does **not** catch the `_ = coro()` / `self.sub = coro()` assignment pattern — the runtime warning closes that gap.
+
+The Hassette project's own `pyrightconfig.json` already sets `reportUnusedCoroutine: error`. For your app project, add a `pyrightconfig.json` alongside your app files:
+
+```json
+{
+    "include": ["."],
+    "venvPath": ".",
+    "venv": ".venv",
+    "typeCheckingMode": "basic",
+    "reportUnusedCoroutine": "error"
+}
+```
+
+`basic` mode already enables `reportUnusedCoroutine`, so the last line is redundant if you use `basic` mode — but making it explicit ensures the rule stays active even if the mode changes later.
+
+Run Pyright with:
+
+```bash
+uv run pyright
+# or, if installed globally:
+pyright
+```
+
 ## Event handler never runs
 
 - **Entity ID typo**: Double-check the entity ID string — `"binary_sensor.motion"` vs `"binary_sensor.motoin"`. Hassette won't error on a non-existent entity; the handler simply never fires.

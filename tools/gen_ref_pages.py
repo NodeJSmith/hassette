@@ -40,7 +40,8 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.scheduler.classes",  # ScheduledJob
         "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
         # --- Tier C: autoref targets in narrative docs ---
-        "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, CannotOverrideFinalError
+        "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
+        "hassette.types.enums",  # ForgottenAwaitBehavior, RestartType, and other framework enums
         "hassette.state_manager.state_manager",  # StateManager, DomainStates
         "hassette.bus.extraction",  # BusExtraction type used in dependency injection docs
     }

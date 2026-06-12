@@ -29,6 +29,24 @@ The base `AppConfig` includes standard fields available to all apps:
 
 Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values and environment variables are merged; environment variables take precedence.
 
+## Developer Settings {#developer-settings}
+
+`AppConfig` includes one developer-facing field:
+
+- **`forgotten_await_behavior`** (`"IGNORE"` / `"WARN"` / `"ERROR"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+
+    ```python
+    class MyAppConfig(AppConfig):
+        model_config = SettingsConfigDict(env_prefix="my_")
+        forgotten_await_behavior: ForgottenAwaitBehavior | None = ForgottenAwaitBehavior.ERROR
+    ```
+
+    Use `ERROR` for apps under active development to catch forgotten `await` calls at runtime. Use `WARN` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/global.md#developer-settings) for the global default.
+
+## Sync Apps (`AppSync`)
+
+`AppSync` subclasses `App` and provides synchronous lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). The sync facades (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`) call each registration method synchronously — there is no forgotten-await footgun on the sync path, because the sync facade drives the coroutine to completion before returning.
+
 ## See Also
 
 - [Application Configuration](../configuration/applications.md) - Registering apps and supplying config values in `hassette.toml`

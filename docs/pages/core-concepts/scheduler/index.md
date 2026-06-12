@@ -22,6 +22,9 @@ flowchart TD
     style framework fill:#fff0e8,stroke:#cc8844
 ```
 
+!!! warning "All scheduling methods must be awaited"
+    Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
+
 ## Trigger Types
 
 All triggers live in `hassette.scheduler.triggers` and are importable from `hassette.scheduler`:

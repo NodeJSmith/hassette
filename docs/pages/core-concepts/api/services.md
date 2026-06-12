@@ -2,6 +2,9 @@
 
 The API provides methods to invoke Home Assistant services.
 
+!!! warning "Service methods must be awaited"
+    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, and `toggle_service` all return coroutines. Without `await`, the call is never sent and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
+
 ## Basic Service Calls
 
 Use `call_service` for generic service invocations.

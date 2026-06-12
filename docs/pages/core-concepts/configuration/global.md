@@ -300,6 +300,27 @@ Filter out noisy events at the bus level before they reach your apps.
 | `scheduler_behind_schedule_threshold_seconds` | integer | `5` | Threshold before a "behind schedule" warning is logged. |
 | `run_sync_timeout_seconds` | integer | `6` | Default timeout for synchronous function calls. |
 
+## Developer Settings
+
+- **`forgotten_await_behavior`** (string): Controls what happens when a protected method (`bus.on_*`, `scheduler.run_*`, `api.call_service`, etc.) is called without `await`. Valid values: `"IGNORE"`, `"WARN"`, `"ERROR"`.
+    - Default: `"WARN"`
+    - `IGNORE` — suppresses the warning entirely.
+    - `WARN` — emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site.
+    - `ERROR` — emits the warning in a form that `filterwarnings("error")` / `-W error` escalates to a raised exception. The raised exception occurs inside `__del__` and is visible as `Exception ignored in: ...`; the process does not stop.
+
+    The global value is the default for all apps. Each app can override it with its own `forgotten_await_behavior` field — see [App Configuration](../apps/configuration.md#developer-settings). Use `ERROR` for apps under active development and `WARN` for stable ones.
+
+    ```toml
+    [hassette]
+    forgotten_await_behavior = "WARN"   # default
+
+    # Override for a specific app:
+    [hassette.apps.my_dev_app]
+    forgotten_await_behavior = "ERROR"
+    ```
+
+    See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis and [Pyright](../../troubleshooting.md#enabling-pyright) for the earliest static signal.
+
 ## Basic Example
 
 ```toml
