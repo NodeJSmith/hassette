@@ -89,6 +89,31 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
     },
 }
 
+#: Inherited Resource/Service lifecycle methods that are detected but not protected.
+#: These are framework plumbing, not user registration API — apps never call them.
+#: The inherited-surface guard below fails when a NEW detected method appears on a
+#: base class without being added here, to CANONICAL_PROTECTED, or to
+#: DOCUMENTED_EXCLUSIONS — closing the vars(cls) blind spot for inherited methods.
+INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
+    "after_initialize",
+    "after_shutdown",
+    "before_initialize",
+    "before_shutdown",
+    "cleanup",
+    "handle_crash",
+    "handle_failed",
+    "handle_running",
+    "handle_starting",
+    "handle_stop",
+    "initialize",
+    "on_initialize",
+    "on_shutdown",
+    "restart",
+    "shutdown",
+    "start_children_and_wait",
+    "wait_ready",
+}
+
 #: Methods that are *detected* by the completeness criterion (iscoroutinefunction
 #: OR Coroutine[...] return annotation) but are intentionally *not* protected.
 #:
@@ -257,6 +282,30 @@ class TestCompletenessGuard:
             f"protection.\nUnaccounted: {sorted(unaccounted)}\n"
             f"Add each to CANONICAL_PROTECTED (with guard_await conversion) or "
             f"DOCUMENTED_EXCLUSIONS (with a rationale comment) in "
+            f"tests/unit/test_forgotten_await_completeness.py."
+        )
+
+    @pytest.mark.parametrize("cls", [Bus, Scheduler, Api], ids=lambda c: c.__name__)
+    def test_inherited_detected_methods_are_accounted_for(self, cls: type) -> None:
+        """Companion to the vars(cls) check above: cover the INHERITED surface.
+
+        vars(cls) enumerates only directly-defined methods, so a registration-shaped
+        ``async def`` added to the Resource/Service base classes would bypass the
+        primary guard entirely.  This check walks dir(cls) minus vars(cls) and
+        requires every detected inherited method to be a documented lifecycle
+        exclusion (or explicitly canonical/excluded).
+        """
+        inherited_names = {n for n in dir(cls) if not n.startswith("_") and n not in vars(cls)}
+        detected = {n for n in inherited_names if _is_detected(cls, n)}
+
+        accounted = INHERITED_LIFECYCLE_EXCLUSIONS | CANONICAL_PROTECTED[cls] | DOCUMENTED_EXCLUSIONS[cls]
+        unaccounted = detected - accounted
+        assert not unaccounted, (
+            f"{cls.__name__} inherits detected methods not accounted for — a new "
+            f"registration-shaped async method was added to a base class without "
+            f"forgotten-await protection.\nUnaccounted: {sorted(unaccounted)}\n"
+            f"Add each to CANONICAL_PROTECTED (with guard_await conversion) or "
+            f"INHERITED_LIFECYCLE_EXCLUSIONS (with a rationale) in "
             f"tests/unit/test_forgotten_await_completeness.py."
         )
 
