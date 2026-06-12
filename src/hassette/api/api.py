@@ -462,6 +462,13 @@ class Api(Resource):
 
         return await self.ws_send_and_wait(**data)
 
+    # Overload order is load-bearing — Pyright matches top-to-bottom, first hit wins.
+    # The None-returning (return_response not True) overload MUST come first so a call
+    # that omits return_response resolves to it. The True overload needs a default
+    # (target already has one, and a non-default arg can't follow a default arg), but
+    # that default never makes it the chosen overload for an omitted return_response,
+    # because the None overload above matches first. Reordering or dropping the default
+    # silently flips the inferred return type — covered by tests/pyright_probes.
     @overload
     def call_service(
         self,

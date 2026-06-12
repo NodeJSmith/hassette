@@ -93,7 +93,8 @@ def public_async_methods(cls: type) -> set[str]:
         # Inspect the raw return annotation, not get_type_hints(member): get_type_hints
         # evaluates EVERY annotation, so one TYPE_CHECKING-only parameter name (e.g.
         # HandlerType) raises NameError and would silently drop a valid coroutine method
-        # from the parity comparison. Mirror test_forgotten_await_completeness._is_detected.
+        # from the parity comparison. Follows the same approach as
+        # tests/unit/test_forgotten_await_completeness.py::_is_detected — keep them in sync.
         ann = getattr(member, "__annotations__", {})
         ret = ann.get("return")
         if ret is None:
