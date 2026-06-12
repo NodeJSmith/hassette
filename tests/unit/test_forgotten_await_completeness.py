@@ -18,7 +18,6 @@ import collections.abc
 import gc
 import inspect
 import sys
-import warnings
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -535,15 +534,5 @@ def test_scheduler_add_job_warns_on_forgotten_await() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _suppress_teardown_warnings():
-    """Suppress HassetteForgottenAwaitWarning that fires from gc.collect() at teardown.
-
-    The test body runs with no blanket ignore filter so pytest.warns assertions
-    work correctly.  After yield, a gc.collect() is run inside a suppression
-    context to drain any handles that were dropped during the test — without
-    this, teardown gc cycles can emit stray warnings that fail unrelated tests.
-    """
-    yield
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", HassetteForgottenAwaitWarning)
-        gc.collect()
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""

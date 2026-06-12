@@ -25,6 +25,11 @@ from hassette.exceptions import HassetteForgottenAwaitWarning, ListenerNameRequi
 from .conftest import mock_add_listener
 
 
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+
+
 async def handler(event: object) -> None:
     pass
 

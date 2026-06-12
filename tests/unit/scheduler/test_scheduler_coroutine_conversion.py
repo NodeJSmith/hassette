@@ -24,6 +24,12 @@ from hassette.scheduler.triggers import Every
 
 from .conftest import make_scheduler, noop
 
+
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+
+
 # ---------------------------------------------------------------------------
 # FR#9 — public scheduling methods are plain def, not async def
 # ---------------------------------------------------------------------------

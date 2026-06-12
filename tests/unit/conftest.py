@@ -1,10 +1,12 @@
 """Shared fixtures for tests/unit/."""
 
 import collections.abc
+import gc
 import inspect
 import logging
 import logging.handlers
 import queue
+import warnings
 from dataclasses import dataclass
 from io import StringIO
 from typing import get_type_hints
@@ -16,6 +18,7 @@ import structlog.processors
 import structlog.stdlib
 
 from hassette.api.api import Api
+from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
@@ -200,3 +203,21 @@ def persistence_handler() -> PersistenceFixture:
         db_service=mock_db_service,
         enqueued_batches=enqueued_batches,
     )
+
+
+@pytest.fixture
+def drain_forgotten_await_handles():
+    """Drain handles dropped during a test so stray warnings cannot fail unrelated tests.
+
+    With ``filterwarnings = ["error"]`` active globally, a ``RegistrationHandle`` GC'd
+    after its test ends would raise ``HassetteForgottenAwaitWarning`` inside whatever
+    test happens to trigger the collection. The test body runs with no blanket ignore
+    filter (so ``pytest.warns`` assertions work); after the yield, a ``gc.collect()``
+    inside a suppression context drains any dropped handles.
+
+    Warning-heavy test modules opt in with a one-line module-level autouse wrapper.
+    """
+    yield
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", HassetteForgottenAwaitWarning)
+        gc.collect()

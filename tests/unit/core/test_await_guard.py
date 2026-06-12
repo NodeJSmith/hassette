@@ -33,6 +33,12 @@ from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.utils import source_capture as source_capture_module
 from hassette.utils.source_capture import capture_registration_source, is_internal_frame
 
+
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

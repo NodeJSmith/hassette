@@ -502,7 +502,7 @@ class Api(Resource):
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
         source_location, _registration_source = capture_registration_source()
-        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # _registration_source discarded — see fire_event (same rationale for all api methods)
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
@@ -885,7 +885,7 @@ class Api(Resource):
             The response from Home Assistant after setting the state.
         """
         source_location, _registration_source = capture_registration_source()
-        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # _registration_source discarded — see fire_event (same rationale for all api methods)
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
