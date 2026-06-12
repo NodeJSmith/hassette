@@ -33,7 +33,7 @@ Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values 
 
 `AppConfig` includes one developer-facing field:
 
-- **`forgotten_await_behavior`** (`"IGNORE"` / `"WARN"` / `"ERROR"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
 
     ```python
     --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
@@ -45,7 +45,7 @@ Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values 
     from hassette.types.enums import ForgottenAwaitBehavior
     ```
 
-    Use `ERROR` for apps under active development to catch forgotten `await` calls at runtime. Use `WARN` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/global.md#developer-settings) for the global default.
+    Use `"error"` for apps under active development to catch forgotten `await` calls at runtime. Use `"warn"` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/global.md#developer-settings) for the global default.
 
 ## Sync Apps (`AppSync`)
 

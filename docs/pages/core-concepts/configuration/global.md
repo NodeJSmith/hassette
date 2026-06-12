@@ -302,21 +302,21 @@ Filter out noisy events at the bus level before they reach your apps.
 
 ## Developer Settings
 
-- **`forgotten_await_behavior`** (string): Controls what happens when a protected method is called without `await`. Valid values: `"IGNORE"`, `"WARN"`, `"ERROR"`. See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for the full list of protected methods.
-    - Default: not set (effective behavior: `"WARN"`)
-    - `IGNORE` — suppresses the warning entirely.
-    - `WARN` — emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site.
-    - `ERROR` — emits the warning in a form that `filterwarnings("error")` / `-W error` escalates to a raised exception. The raised exception occurs inside `__del__` and is visible as `Exception ignored in: ...`; the process does not stop.
+- **`forgotten_await_behavior`** (string): Controls what happens when a protected method is called without `await`. Valid values: `"ignore"`, `"warn"`, `"error"`. See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for the full list of protected methods.
+    - Default: not set (effective behavior: `"warn"`)
+    - `"ignore"` — suppresses the warning entirely.
+    - `"warn"` — emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site.
+    - `"error"` — emits the warning in a form that `filterwarnings("error")` / `-W error` escalates to a raised exception. The raised exception occurs inside `__del__` and is visible as `Exception ignored in: ...`; the process does not stop.
 
-    The global value is the default for all apps. Each app can override it with its own `forgotten_await_behavior` field — see [App Configuration](../apps/configuration.md#developer-settings). Use `ERROR` for apps under active development and `WARN` for stable ones.
+    The global value is the default for all apps. Each app can override it with its own `forgotten_await_behavior` field — see [App Configuration](../apps/configuration.md#developer-settings). Use `"error"` for apps under active development and `"warn"` for stable ones.
 
     ```toml
     [hassette]
-    forgotten_await_behavior = "WARN"   # explicit; unset behaves the same
+    forgotten_await_behavior = "warn"   # explicit; unset behaves the same
 
     # Override for a specific app:
     [hassette.apps.my_dev_app]
-    forgotten_await_behavior = "ERROR"
+    forgotten_await_behavior = "error"
     ```
 
     See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis and [Pyright](../../troubleshooting.md#enabling-pyright) for the earliest static signal.
