@@ -45,10 +45,12 @@ class TestEntityWrapperGenerator:
         output = generate_entity_wrapper(domain)
         assert output is not None
         assert "class FanEntity(BaseEntity[FanState, str]):" in output
-        assert "async def turn_on(" in output
-        assert "async def turn_off(" in output
-        assert "async def set_percentage(" in output
+        assert "def turn_on(" in output
+        assert "def turn_off(" in output
+        assert "def set_percentage(" in output
+        assert "-> Coroutine[Any, Any, None]" in output
         assert "self.api.call_service(" in output
+        assert "async def" not in output
 
     def test_all_params_keyword_only(self) -> None:
         domain = ExtractedDomain(

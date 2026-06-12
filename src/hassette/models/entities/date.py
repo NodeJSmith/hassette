@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from hassette.models.states import DateState
 from hassette.models.states.date import DateAttributes
 
@@ -9,12 +12,14 @@ class DateEntity(BaseEntity[DateState, str]):
     def attributes(self) -> DateAttributes:
         return self.state.attributes
 
-    async def set_value(
+    def set_value(
         self,
         *,
         date: str,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="set_value",
             target={"entity_id": self.entity_id},

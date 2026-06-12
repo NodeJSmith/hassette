@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 from typing import Any, Literal
 
 from hassette.const.colors import Color
@@ -14,7 +15,7 @@ class LightEntity(BaseEntity[LightState, str]):
     def attributes(self) -> LightAttributes:
         return self.state.attributes
 
-    async def turn_on(
+    def turn_on(
         self,
         *,
         brightness: int | None = None,
@@ -33,8 +34,10 @@ class LightEntity(BaseEntity[LightState, str]):
         transition: int | None = None,
         white: Any | None = None,
         xy_color: Any | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="turn_on",
             target={"entity_id": self.entity_id},
@@ -56,13 +59,15 @@ class LightEntity(BaseEntity[LightState, str]):
             xy_color=xy_color,
         )
 
-    async def turn_off(
+    def turn_off(
         self,
         *,
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="turn_off",
             target={"entity_id": self.entity_id},
@@ -70,7 +75,7 @@ class LightEntity(BaseEntity[LightState, str]):
             transition=transition,
         )
 
-    async def toggle(
+    def toggle(
         self,
         *,
         brightness: int | None = None,
@@ -87,8 +92,10 @@ class LightEntity(BaseEntity[LightState, str]):
         transition: int | None = None,
         white: Any | None = None,
         xy_color: Any | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="toggle",
             target={"entity_id": self.entity_id},

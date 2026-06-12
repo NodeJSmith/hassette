@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from hassette.models.states import UpdateState
 from hassette.models.states.update import UpdateAttributes
 
@@ -9,13 +12,15 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
     def attributes(self) -> UpdateAttributes:
         return self.state.attributes
 
-    async def install(
+    def install(
         self,
         *,
         backup: bool | None = None,
         version: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="install",
             target={"entity_id": self.entity_id},
@@ -23,15 +28,19 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
             version=version,
         )
 
-    async def skip(self) -> None:
-        await self.api.call_service(
+    def skip(self) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="skip",
             target={"entity_id": self.entity_id},
         )
 
-    async def clear_skipped(self) -> None:
-        await self.api.call_service(
+    def clear_skipped(self) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="clear_skipped",
             target={"entity_id": self.entity_id},

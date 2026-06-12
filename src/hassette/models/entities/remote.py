@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 from typing import Any, Literal
 
 from hassette.models.states import RemoteState
@@ -13,33 +14,39 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
     def attributes(self) -> RemoteAttributes:
         return self.state.attributes
 
-    async def turn_on(
+    def turn_on(
         self,
         *,
         activity: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="turn_on",
             target={"entity_id": self.entity_id},
             activity=activity,
         )
 
-    async def toggle(self) -> None:
-        await self.api.call_service(
+    def toggle(self) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="toggle",
             target={"entity_id": self.entity_id},
         )
 
-    async def turn_off(self) -> None:
-        await self.api.call_service(
+    def turn_off(self) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="turn_off",
             target={"entity_id": self.entity_id},
         )
 
-    async def send_command(
+    def send_command(
         self,
         *,
         command: Any,
@@ -47,8 +54,10 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         device: str | None = None,
         hold_secs: float | None = None,
         num_repeats: int | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="send_command",
             target={"entity_id": self.entity_id},
@@ -59,7 +68,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
             num_repeats=num_repeats,
         )
 
-    async def learn_command(
+    def learn_command(
         self,
         *,
         alternative: bool | None = None,
@@ -67,8 +76,10 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         command_type: CommandType | None = None,
         device: str | None = None,
         timeout: int | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="learn_command",
             target={"entity_id": self.entity_id},
@@ -79,13 +90,15 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
             timeout=timeout,
         )
 
-    async def delete_command(
+    def delete_command(
         self,
         *,
         command: Any,
         device: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="delete_command",
             target={"entity_id": self.entity_id},

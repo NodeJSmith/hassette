@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from hassette.models.states import LockState
 from hassette.models.states.lock import LockAttributes
 
@@ -9,36 +12,42 @@ class LockEntity(BaseEntity[LockState, str]):
     def attributes(self) -> LockAttributes:
         return self.state.attributes
 
-    async def lock(
+    def lock(
         self,
         *,
         code: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="lock",
             target={"entity_id": self.entity_id},
             code=code,
         )
 
-    async def open(
+    def open(
         self,
         *,
         code: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="open",
             target={"entity_id": self.entity_id},
             code=code,
         )
 
-    async def unlock(
+    def unlock(
         self,
         *,
         code: str | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="unlock",
             target={"entity_id": self.entity_id},

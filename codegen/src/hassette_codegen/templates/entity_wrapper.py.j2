@@ -1,10 +1,5 @@
-{% if needs_any and type_aliases %}
-from typing import Any, Literal
-{% elif needs_any %}
-from typing import Any
-{% elif type_aliases %}
-from typing import Literal
-{% endif %}
+from collections.abc import Coroutine
+from typing import Any{% if type_aliases %}, Literal{% endif %}
 
 from hassette.models.states import {{ domain_title }}State
 from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
@@ -26,7 +21,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% for service in services %}
 {% if service.params %}
 
-    async def {{ service.method_name }}(
+    def {{ service.method_name }}(
         self,
         *,
 {% for param in service.params %}
@@ -36,8 +31,10 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
         {{ param.name }}: {{ param.python_type }} = None,
 {% endif %}
 {% endfor %}
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="{{ service.name }}",
             target={"entity_id": self.entity_id},
@@ -47,8 +44,10 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
         )
 {% else %}
 
-    async def {{ service.method_name }}(self) -> None:
-        await self.api.call_service(
+    def {{ service.method_name }}(self) -> Coroutine[Any, Any, None]:
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="{{ service.name }}",
             target={"entity_id": self.entity_id},

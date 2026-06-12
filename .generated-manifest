@@ -22,7 +22,6 @@ src/hassette/models/entities/script.py
 src/hassette/models/entities/select.py
 src/hassette/models/entities/siren.py
 src/hassette/models/entities/switch.py
-src/hassette/models/entities/text.py
 src/hassette/models/entities/time.py
 src/hassette/models/entities/timer.py
 src/hassette/models/entities/todo.py
@@ -57,7 +56,6 @@ src/hassette/models/states/sensor.py
 src/hassette/models/states/siren.py
 src/hassette/models/states/sun.py
 src/hassette/models/states/switch.py
-src/hassette/models/states/text.py
 src/hassette/models/states/time.py
 src/hassette/models/states/timer.py
 src/hassette/models/states/todo.py
