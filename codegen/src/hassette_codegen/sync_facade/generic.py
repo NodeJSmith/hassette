@@ -6,11 +6,11 @@ from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
     desync_docstring,
+    format_return_annotation,
     format_signature_and_call,
     is_delegatable,
     is_wrappable,
     safe_parse,
-    unwrap_coroutine_return,
 )
 
 HEADER = '''"""Auto-generated synchronous facade for `Api`.
@@ -217,15 +217,7 @@ def gen_wrapper(func: ast.FunctionDef | ast.AsyncFunctionDef, wrapped_attr: str 
     """
     sig, call = format_signature_and_call(func)
     name = func.name
-    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods so the generated
-    # sync wrapper carries the correct return type and avoids an undefined-name ruff error.
-    unwrapped = unwrap_coroutine_return(func)
-    if unwrapped is not None:
-        returns = f" -> {ast.unparse(unwrapped)}"
-    elif func.returns:
-        returns = f" -> {ast.unparse(func.returns)}"
-    else:
-        returns = ""
+    returns = format_return_annotation(func)
 
     doc = ast.get_docstring(func)
     if doc:

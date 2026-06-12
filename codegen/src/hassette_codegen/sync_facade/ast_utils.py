@@ -245,7 +245,23 @@ def unwrap_coroutine_return(node: ast.FunctionDef | ast.AsyncFunctionDef) -> ast
     return inner_type
 
 
-def _has_coroutine_return_annotation(node: ast.FunctionDef) -> bool:
+def format_return_annotation(func: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """Build the ``" -> T"`` suffix for a generated sync method, or ``""`` if unannotated.
+
+    For de-asynced plain-def methods whose return annotation is ``Coroutine[Any, Any, T]``,
+    emits ``" -> T"`` (the unwrapped inner type) — the sync wrapper returns the resolved value,
+    not the coroutine, and ``Coroutine`` is not imported in the generated file's header.
+    Otherwise emits the annotation as written.
+    """
+    unwrapped = unwrap_coroutine_return(func)
+    if unwrapped is not None:
+        return f" -> {ast.unparse(unwrapped)}"
+    if func.returns:
+        return f" -> {ast.unparse(func.returns)}"
+    return ""
+
+
+def has_coroutine_return_annotation(node: ast.FunctionDef) -> bool:
     """Return True if the function's return annotation is a ``Coroutine[...]`` subscript.
 
     Detects the ``def foo(...) -> Coroutine[Any, Any, T]`` pattern produced by the
@@ -283,7 +299,7 @@ def is_wrappable(node: ast.stmt) -> TypeGuard[ast.FunctionDef | ast.AsyncFunctio
             not is_overload(node)
             and node.name not in LIFECYCLE_METHODS
             and not node.name.startswith("_")
-            and _has_coroutine_return_annotation(node)
+            and has_coroutine_return_annotation(node)
         )
     return False
 

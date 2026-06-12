@@ -52,12 +52,11 @@ def _make_handle(
     *,
     behavior: ForgottenAwaitBehavior = ForgottenAwaitBehavior.WARN,
     owner_identity: str = "TestApp.test_instance",
-    source_location: str = "/app/my_app.py:42",
-):
+    source_location: str = "/app/my_app.py:1",
+) -> RegistrationHandle[str]:
     """Construct a RegistrationHandle directly, bypassing guard_await."""
-    coro = _make_inner_coro()
     return RegistrationHandle(
-        coro=coro,
+        coro=_make_inner_coro(),
         owner_identity=owner_identity,
         behavior=behavior,
         source_location=source_location,
@@ -71,13 +70,7 @@ def _make_handle(
 
 def test_drop_unawaited_emits_warning():
     """Dropping a RegistrationHandle without awaiting emits HassetteForgottenAwaitWarning."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:42",
-    )
+    h = _make_handle(source_location="/app/my_app.py:42")
     with pytest.warns(HassetteForgottenAwaitWarning):
         del h
         gc.collect()
@@ -90,13 +83,7 @@ def test_drop_unawaited_emits_warning():
 
 def test_warning_message_contains_app_identity():
     """Warning message contains the owning app identifier."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.my_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/home/user/apps/my_app.py:99",
-    )
+    h = _make_handle(owner_identity="TestApp.my_instance", source_location="/home/user/apps/my_app.py:99")
     with pytest.warns(HassetteForgottenAwaitWarning, match="TestApp.my_instance"):
         del h
         gc.collect()
@@ -104,13 +91,7 @@ def test_warning_message_contains_app_identity():
 
 def test_warning_message_contains_source_location():
     """Warning message contains the file:line source location."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/home/user/apps/my_app.py:99",
-    )
+    h = _make_handle(source_location="/home/user/apps/my_app.py:99")
     with pytest.warns(HassetteForgottenAwaitWarning, match="/home/user/apps/my_app.py:99"):
         del h
         gc.collect()
@@ -123,13 +104,7 @@ def test_warning_message_contains_source_location():
 
 async def test_awaited_handle_does_not_warn():
     """Awaiting a handle emits no HassetteForgottenAwaitWarning."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     with warnings.catch_warnings():
         warnings.simplefilter("error", HassetteForgottenAwaitWarning)
         result = await h
@@ -141,13 +116,7 @@ async def test_awaited_handle_does_not_warn():
 
 async def test_awaited_handle_no_native_double_warning():
     """After awaiting, no native 'coroutine was never awaited' RuntimeWarning fires."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     result = await h
     assert result == "ok"
     with warnings.catch_warnings(record=True) as caught:
@@ -164,13 +133,7 @@ async def test_unawaited_no_native_double_warning():
     May emit a HassetteForgottenAwaitWarning (expected), but must NOT emit a raw
     RuntimeWarning about the inner coroutine being never awaited.
     """
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         del h
@@ -193,13 +156,7 @@ async def test_unawaited_no_native_double_warning():
 
 async def test_send_sets_awaited():
     """Driving via send() sets _awaited, suppressing the warning."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     with contextlib.suppress(StopIteration):
         h.send(None)  # first send drives the coroutine
     assert h._awaited is True
@@ -211,13 +168,7 @@ async def test_send_sets_awaited():
 
 def test_throw_sets_awaited():
     """Driving via throw() sets _awaited, suppressing the warning."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     with contextlib.suppress(ValueError, StopIteration):
         h.throw(ValueError("test"))
     assert h._awaited is True
@@ -229,13 +180,7 @@ def test_throw_sets_awaited():
 
 def test_close_sets_awaited():
     """Calling close() sets _awaited, suppressing the warning."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     h.close()
     assert h._awaited is True
     with warnings.catch_warnings():
@@ -246,13 +191,7 @@ def test_close_sets_awaited():
 
 async def test_await_sets_awaited():
     """Using __await__ (await expr) sets _awaited."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     await h
     assert h._awaited is True
 
@@ -264,39 +203,21 @@ async def test_await_sets_awaited():
 
 def test_handle_name_delegates_to_inner_coro():
     """Handle exposes __name__ from the inner coroutine."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     assert h.__name__ == "_noop_coro"
     h.close()
 
 
 def test_handle_satisfies_asyncio_iscoroutine():
     """asyncio.iscoroutine(handle) is True (required by run_sync path)."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     assert asyncio.iscoroutine(h) is True
     h.close()
 
 
 def test_handle_is_instantiable_all_abc_methods():
     """RegistrationHandle is concrete (no abstract methods raise TypeError)."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle()
     # Just instantiation proves no ABC TypeError
     assert h is not None
     h.close()
@@ -316,13 +237,7 @@ def test_handle_is_instantiable_all_abc_methods():
 )
 def test_behavior_warn_and_ignore(behavior: ForgottenAwaitBehavior, expect_warns: bool):
     """WARN emits; IGNORE suppresses."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=behavior,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle(behavior=behavior)
     if expect_warns:
         with pytest.warns(HassetteForgottenAwaitWarning):
             del h
@@ -338,13 +253,7 @@ def test_behavior_warn_and_ignore(behavior: ForgottenAwaitBehavior, expect_warns
 
 def test_behavior_error_emits_warning():
     """ERROR behavior emits a HassetteForgottenAwaitWarning (same category as WARN)."""
-    coro = _make_inner_coro()
-    h = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.ERROR,
-        source_location="/app/my_app.py:1",
-    )
+    h = _make_handle(behavior=ForgottenAwaitBehavior.ERROR)
     with pytest.warns(HassetteForgottenAwaitWarning):
         del h
         gc.collect()
@@ -557,14 +466,8 @@ def test_handle_held_alive_does_not_warn_immediately():
     class _Holder:
         pass
 
-    coro = _make_inner_coro()
     holder = _Holder()
-    holder.sub = RegistrationHandle(
-        coro=coro,
-        owner_identity="TestApp.test_instance",
-        behavior=ForgottenAwaitBehavior.WARN,
-        source_location="/app/my_app.py:1",
-    )
+    holder.sub = _make_handle()
 
     # While holder is alive, no warning yet
     with warnings.catch_warnings(record=True) as caught:

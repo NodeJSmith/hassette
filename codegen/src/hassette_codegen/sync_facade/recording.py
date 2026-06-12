@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
-    _has_coroutine_return_annotation,
+    has_coroutine_return_annotation,
     is_wrappable,
     safe_parse,
 )
@@ -146,7 +146,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     for node in recording_class.body:
         if isinstance(node, ast.AsyncFunctionDef):
             recording_async_map[node.name] = node
-        elif isinstance(node, ast.FunctionDef) and _has_coroutine_return_annotation(node):
+        elif isinstance(node, ast.FunctionDef) and has_coroutine_return_annotation(node):
             recording_async_map[node.name] = node
 
     # Collect ALL async method names (for the peer-call static check)

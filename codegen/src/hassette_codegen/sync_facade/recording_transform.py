@@ -6,8 +6,8 @@ import textwrap
 
 from hassette_codegen.sync_facade.ast_utils import (
     STATE_CONVERSION_METHODS,
+    format_return_annotation,
     format_signature_and_call,
-    unwrap_coroutine_return,
 )
 
 
@@ -141,14 +141,7 @@ def gen_recording_method(
 
     # Build the sync def source
     name = func.name
-    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods.
-    unwrapped = unwrap_coroutine_return(func)
-    if unwrapped is not None:
-        returns = f" -> {ast.unparse(unwrapped)}"
-    elif func.returns:
-        returns = f" -> {ast.unparse(func.returns)}"
-    else:
-        returns = ""
+    returns = format_return_annotation(func)
 
     # Build signature from the original (pre-copy) func so defaults stay as-is
     sig, _ = format_signature_and_call(func)
@@ -190,14 +183,7 @@ def gen_recording_stub(func: ast.AsyncFunctionDef | ast.FunctionDef) -> str:
         statements that the import-derivation pass needs to inspect.
     """
     name = func.name
-    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods.
-    unwrapped = unwrap_coroutine_return(func)
-    if unwrapped is not None:
-        returns = f" -> {ast.unparse(unwrapped)}"
-    elif func.returns:
-        returns = f" -> {ast.unparse(func.returns)}"
-    else:
-        returns = ""
+    returns = format_return_annotation(func)
     sig, _ = format_signature_and_call(func)
 
     # Emit a NotImplementedError using the module-level _STUB_MSG_* constant name.
