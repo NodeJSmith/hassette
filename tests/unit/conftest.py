@@ -6,10 +6,10 @@ import inspect
 import logging
 import logging.handlers
 import queue
+import sys
 import warnings
 from dataclasses import dataclass
 from io import StringIO
-from typing import get_type_hints
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -90,11 +90,23 @@ def public_async_methods(cls: type) -> set[str]:
     def _is_async_or_coroutine(member: object) -> bool:
         if inspect.iscoroutinefunction(member):
             return True
-        try:
-            hints = get_type_hints(member)
-        except Exception:
+        # Inspect the raw return annotation, not get_type_hints(member): get_type_hints
+        # evaluates EVERY annotation, so one TYPE_CHECKING-only parameter name (e.g.
+        # HandlerType) raises NameError and would silently drop a valid coroutine method
+        # from the parity comparison. Mirror test_forgotten_await_completeness._is_detected.
+        ann = getattr(member, "__annotations__", {})
+        ret = ann.get("return")
+        if ret is None:
             return False
-        return getattr(hints.get("return"), "__origin__", None) is collections.abc.Coroutine
+        if isinstance(ret, str):
+            mod = sys.modules.get(getattr(member, "__module__", ""))
+            if mod is None:
+                return False
+            try:
+                ret = eval(ret, vars(mod))  # noqa: S307 — resolving module annotation
+            except Exception:
+                return False
+        return getattr(ret, "__origin__", None) is collections.abc.Coroutine
 
     return {name for name, member in vars(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)}
 

@@ -51,6 +51,11 @@ class TestEntityWrapperGenerator:
         assert "-> Coroutine[Any, Any, None]" in output
         assert "self.api.call_service(" in output
         assert "async def" not in output
+        # The Coroutine[Any, Any, None] return annotation is evaluated at runtime (no future
+        # annotations in this repo), so the names must be imported or the generated module
+        # fails on import — which the substring checks above and py_compile would both miss.
+        assert "from collections.abc import Coroutine" in output
+        assert "from typing import Any" in output
 
     def test_all_params_keyword_only(self) -> None:
         domain = ExtractedDomain(
