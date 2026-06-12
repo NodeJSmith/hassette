@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add completeness guard, Pyright fixtures, and documentation"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T07"]
 implements: ["FR#5", "FR#9", "FR#12", "AC#3", "AC#6", "AC#8"]
 ---

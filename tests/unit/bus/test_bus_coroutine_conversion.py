@@ -7,7 +7,6 @@ Covers:
     FR#10 — forgotten await on a delegate emits HassetteForgottenAwaitWarning
     AC#2  — awaited method returns Subscription; no warning
             (db_id coverage: test_bus_contract.py::test_db_id_set_immediately_after_on_returns)
-    AC#8  — return annotation resolves to collections.abc.Coroutine (fragment, pre-full-set)
     Source threading — ListenerIdentity.source_location populated after conversion
     Fix 1 — name=None raises ListenerNameRequiredError at call time, before awaiting
 """
@@ -67,44 +66,7 @@ def test_registration_method_is_plain_def(method_name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("method_name", _PUBLIC_REGISTRATION_METHODS)
-def test_registration_method_return_annotation_is_coroutine(method_name: str) -> None:
-    """AC#8 fragment: return annotation's __origin__ must be collections.abc.Coroutine.
-
-    Uses get_type_hints with include_extras=False and the Bus module's globals so
-    TYPE_CHECKING-guarded param annotations (HandlerType, etc.) don't block resolution
-    of the *return* annotation. We only need to resolve 'return'.
-    """
-    import collections.abc
-    import sys
-
-    method = getattr(Bus, method_name)
-
-    # Resolve only the return annotation — avoid resolving TYPE_CHECKING-guarded
-    # param annotations that aren't available at test collection time.
-    raw_annotations = getattr(method, "__annotations__", {})
-    return_annotation = raw_annotations.get("return")
-    assert return_annotation is not None, f"Bus.{method_name} has no return annotation"
-
-    # If it's a string (forward ref), evaluate it in the bus module's namespace.
-    if isinstance(return_annotation, str):
-        bus_module = sys.modules[Bus.__module__]
-        module_globals = vars(bus_module)
-        try:
-            return_hint = eval(return_annotation, module_globals)  # noqa: S307 — resolving module annotation
-        except Exception as exc:
-            raise AssertionError(
-                f"Bus.{method_name} return annotation {return_annotation!r} could not be resolved: {exc}"
-            ) from exc
-    else:
-        return_hint = return_annotation
-
-    origin = getattr(return_hint, "__origin__", None)
-    assert origin is collections.abc.Coroutine, (
-        f"Bus.{method_name} return annotation __origin__ must be collections.abc.Coroutine, "
-        f"got {origin!r}. Narrowing to Awaitable or a concrete type silently kills Pyright's "
-        f"reportUnusedCoroutine. See design/071 AC#8."
-    )
+# Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
 # ---------------------------------------------------------------------------

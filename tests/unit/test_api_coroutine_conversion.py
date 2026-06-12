@@ -6,13 +6,10 @@ Covers:
     FR#9  — every converted public fire-and-forget method is a plain def (not async def)
     FR#10 — forgotten await on a delegate (turn_on) emits HassetteForgottenAwaitWarning
     AC#2  — awaited method returns expected type; no warning
-    AC#8  — return annotation resolves to collections.abc.Coroutine (fragment, pre-full-set)
 """
 
-import collections.abc
 import gc
 import inspect
-import sys
 import warnings
 from unittest.mock import AsyncMock
 
@@ -53,33 +50,7 @@ def test_converted_method_is_plain_def(method_name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("method_name", _CONVERTED_METHODS)
-def test_converted_method_return_annotation_is_coroutine(method_name: str) -> None:
-    """AC#8 fragment: return annotation's __origin__ must be collections.abc.Coroutine."""
-    method = getattr(Api, method_name)
-
-    raw_annotations = getattr(method, "__annotations__", {})
-    return_annotation = raw_annotations.get("return")
-    assert return_annotation is not None, f"Api.{method_name} has no return annotation"
-
-    if isinstance(return_annotation, str):
-        api_module = sys.modules[Api.__module__]
-        module_globals = vars(api_module)
-        try:
-            return_hint = eval(return_annotation, module_globals)  # noqa: S307 — resolving module annotation
-        except Exception as exc:
-            raise AssertionError(
-                f"Api.{method_name} return annotation {return_annotation!r} could not be resolved: {exc}"
-            ) from exc
-    else:
-        return_hint = return_annotation
-
-    origin = getattr(return_hint, "__origin__", None)
-    assert origin is collections.abc.Coroutine, (
-        f"Api.{method_name} return annotation __origin__ must be collections.abc.Coroutine, "
-        f"got {origin!r}. Narrowing to Awaitable or a concrete type silently kills Pyright's "
-        f"reportUnusedCoroutine. See design/071 AC#8."
-    )
+# Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
 # ---------------------------------------------------------------------------

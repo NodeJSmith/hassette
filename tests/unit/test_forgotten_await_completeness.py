@@ -26,7 +26,10 @@ import pytest
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.exceptions import HassetteForgottenAwaitWarning
+from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
+from hassette.scheduler.triggers import Every as _Every
+from tests.unit.conftest import make_api
 
 # ---------------------------------------------------------------------------
 # Canonical protected-method list (FR#9, AC#6)
@@ -188,8 +191,11 @@ def _is_detected(cls: type, name: str) -> bool:
     survive TYPE_CHECKING-guarded parameter annotations (HandlerType etc.) that
     are not available at test collection time.  Forward-ref string annotations
     are evaluated in the class module's globals.
+
+    Uses inspect.getattr_static to resolve inherited methods that are not in
+    vars(cls) directly, avoiding false negatives for subclassed methods.
     """
-    m = vars(cls).get(name)
+    m = inspect.getattr_static(cls, name, None)
     if m is None or not callable(m):
         return False
     if inspect.iscoroutinefunction(m):
@@ -233,7 +239,16 @@ class TestCompletenessGuard:
         exclusions = DOCUMENTED_EXCLUSIONS[cls]
         accounted = canonical | exclusions
 
-        all_public_names = {n for n in vars(cls) if not n.startswith("_") and callable(getattr(cls, n))}
+        def _is_callable_non_property(n: str) -> bool:
+            raw = inspect.getattr_static(cls, n, None)
+            # Exclude properties and other descriptors that aren't plain callables.
+            if isinstance(raw, (property, classmethod, staticmethod)):
+                return False
+            return callable(raw)
+
+        # Use vars(cls) to enumerate only methods defined directly on this class,
+        # not inherited lifecycle hooks from Resource/Service parent classes.
+        all_public_names = {n for n in vars(cls) if not n.startswith("_") and _is_callable_non_property(n)}
         detected = {n for n in all_public_names if _is_detected(cls, n)}
 
         unaccounted = detected - accounted
@@ -316,6 +331,10 @@ class TestAnnotationOriginGuard:
 # test_scheduler_coroutine_conversion.py, test_api_coroutine_conversion.py)
 # test individual methods in depth.  This parametrized guard tests the
 # *complete* canonical set end-to-end to catch future gaps.
+# The overlap between per-class warning tests and this parametrized guard is
+# deliberate dual-path coverage: per-class tests exercise real fixtures
+# (mock_add_listener/conftest bus), while this guard exercises lean stubs
+# across the full canonical list — catching drift that per-class tests miss.
 # ---------------------------------------------------------------------------
 
 
@@ -379,8 +398,6 @@ _BUS_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Bus] if m != "add_li
 
 # --- Scheduler fixtures ---
 
-from hassette.scheduler.classes import ScheduledJob  # noqa: E402
-
 
 def _make_scheduler() -> Scheduler:
     """Minimal Scheduler with mocked scheduler_service.add_job."""
@@ -414,9 +431,6 @@ async def _sched_noop() -> None:
     pass
 
 
-from hassette.scheduler.triggers import Every as _Every  # noqa: E402
-
-
 def _sched_call(method_name: str):
     """Return a callable that invokes scheduler.<method_name> with minimal valid args."""
     _noop = _sched_noop
@@ -438,8 +452,6 @@ def _sched_call(method_name: str):
 _SCHED_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job"]
 
 # --- Api fixtures ---
-
-from tests.unit.conftest import make_api  # noqa: E402
 
 _API_METHOD_CALLS: dict[str, object] = {
     "call_service": lambda api: api.call_service("light", "turn_on"),
@@ -524,7 +536,14 @@ def test_scheduler_add_job_warns_on_forgotten_await() -> None:
 
 @pytest.fixture(autouse=True)
 def _suppress_teardown_warnings():
-    """Suppress HassetteForgottenAwaitWarning that may fire outside pytest.warns context."""
+    """Suppress HassetteForgottenAwaitWarning that fires from gc.collect() at teardown.
+
+    The test body runs with no blanket ignore filter so pytest.warns assertions
+    work correctly.  After yield, a gc.collect() is run inside a suppression
+    context to drain any handles that were dropped during the test — without
+    this, teardown gc cycles can emit stray warnings that fail unrelated tests.
+    """
+    yield
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", HassetteForgottenAwaitWarning)
-        yield
+        gc.collect()

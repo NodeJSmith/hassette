@@ -21,6 +21,7 @@ See design/071 FR#5, AC#3.
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
+from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from unittest.mock import MagicMock, AsyncMock
 
@@ -47,8 +48,6 @@ def _make_bus() -> Bus:
 
 
 def _make_scheduler() -> Scheduler:
-    from hassette.scheduler.classes import ScheduledJob
-
     hassette_mock = MagicMock()
     hassette_mock.config.logging.scheduler_service = "INFO"
     sched = Scheduler.__new__(Scheduler)
@@ -111,18 +110,18 @@ async def probe_cases() -> None:
     api = _make_api()
 
     # --- Simple bus method (bare call, no await) ---
-    bus.on_state_change(  # reportUnusedCoroutine
+    bus.on_state_change(  # PROBE: bus_on_state_change
         "light.kitchen", handler=_handler, name="probe_bus"
     )
 
     # --- Scheduler method (bare call, no await) ---
-    sched.run_in(_handler, 30, name="probe_scheduler")  # reportUnusedCoroutine
+    sched.run_in(_handler, 30, name="probe_scheduler")  # PROBE: scheduler_run_in
 
     # --- Overloaded call_service: ServiceResponse overload (target=None, return_response=True) ---
-    api.call_service("light", "turn_on", None, True)  # reportUnusedCoroutine
+    api.call_service("light", "turn_on", None, True)  # PROBE: api_call_service_response_overload
 
     # --- Overloaded call_service: None overload (no return_response) ---
-    api.call_service("light", "turn_on")  # reportUnusedCoroutine
+    api.call_service("light", "turn_on")  # PROBE: api_call_service_none_overload
 
     # --- None-returning method: turn_on ---
-    api.turn_on("light.kitchen")  # reportUnusedCoroutine
+    api.turn_on("light.kitchen")  # PROBE: api_turn_on

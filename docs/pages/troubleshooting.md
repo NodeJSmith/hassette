@@ -47,6 +47,12 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="ki
 
 **`ERROR` mode cannot crash the process:** Setting `forgotten_await_behavior = "ERROR"` makes the warning escalate to a raised exception — but because detection happens in Python's garbage collector finalizer (`__del__`), the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
 
+**Importing the warning class:** To use `HassetteForgottenAwaitWarning` in `pytest.warns` or `warnings.filterwarnings`, import it from:
+
+```python
+from hassette.exceptions import HassetteForgottenAwaitWarning
+```
+
 ---
 
 ### Enabling Pyright {#enabling-pyright}
