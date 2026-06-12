@@ -16,6 +16,7 @@ import inspect
 import sys
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,8 +29,14 @@ from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState, LightState
 from tests.unit.conftest import make_api
 
+if TYPE_CHECKING:
+    from contextvars import Token
 
-def make_light_entity(api: MagicMock) -> LightEntity:
+    from hassette import Hassette
+    from hassette.api.api import Api
+
+
+def make_light_entity(api: "Api") -> tuple[LightEntity, "Token[Hassette]"]:
     """Create a LightEntity wired to the given api via HASSETTE_INSTANCE context."""
     hassette_mock = MagicMock()
     hassette_mock.api = api
@@ -42,7 +49,7 @@ def make_light_entity(api: MagicMock) -> LightEntity:
     return entity, token
 
 
-def make_humidifier_entity(api: MagicMock) -> HumidifierEntity:
+def make_humidifier_entity(api: "Api") -> tuple[HumidifierEntity, "Token[Hassette]"]:
     """Create a HumidifierEntity wired to the given api via HASSETTE_INSTANCE context."""
     hassette_mock = MagicMock()
     hassette_mock.api = api
@@ -75,6 +82,9 @@ def _manifest_entity_files() -> list[str]:
 
 
 _GENERATED_ENTITY_FILES = _manifest_entity_files()
+# An empty list would make the parametrized checks below vacuously pass — exactly the
+# silent-skip failure mode this manifest-driven guard exists to catch.
+assert _GENERATED_ENTITY_FILES, ".generated-manifest lists no entity files — regen guard cannot run"
 
 
 @pytest.mark.parametrize("filename", _GENERATED_ENTITY_FILES)

@@ -77,13 +77,16 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
         except subprocess.TimeoutExpired as exc:
             raise SystemExit("ruff fix timed out after 30s — check for filesystem stall") from exc
         if result.returncode not in (0, 1):
-            # returncode 1 = unfixable violations; we treat those as failure below
             sys.stderr.buffer.write(result.stderr)
             raise SystemExit(f"ruff fix failed with exit code {result.returncode}.")
+        # Stdin mode emits the (possibly partially) fixed source on stdout even when
+        # unfixable violations remain (returncode 1). Persist it before deciding the
+        # verdict so no applied fix is ever discarded by a future caller; the current
+        # caller (atomic_write) discards the temp file on SystemExit regardless.
+        path.write_bytes(result.stdout)
         if result.returncode == 1:
             sys.stderr.buffer.write(result.stderr)
-            raise SystemExit("ruff fix failed with exit code 1.")
-        path.write_bytes(result.stdout)
+            raise SystemExit("ruff fix failed with exit code 1 (unfixable violations).")
     else:
         run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Protect entity service methods via the codegen template"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T05"]
 implements: ["FR#13", "AC#11"]
 ---

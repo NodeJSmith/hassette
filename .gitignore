@@ -245,3 +245,6 @@ frontend/src/**/*.module.css.d.ts
 # Demo environment data directory
 .demo-data/
 coverage.system.xml
+
+# codegen atomic-write temp files (leaked only if a run is interrupted)
+.*.py.*.tmp
