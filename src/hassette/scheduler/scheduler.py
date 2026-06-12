@@ -219,6 +219,7 @@ class Scheduler(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="add_job",
         )
 
     async def _add_job(

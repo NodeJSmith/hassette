@@ -37,7 +37,7 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
     would silently kill the static layer.  AC#8 guards that constraint.
     """
 
-    __slots__ = ("__name__", "_awaited", "_behavior", "_coro", "_owner_identity", "_source_location")
+    __slots__ = ("__name__", "_awaited", "_behavior", "_coro", "_display_name", "_owner_identity", "_source_location")
 
     def __init__(
         self,
@@ -46,6 +46,7 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
         owner_identity: str,
         behavior: ForgottenAwaitBehavior,
         source_location: str,
+        method_name: str | None = None,
     ) -> None:
         self._coro = coro
         self._awaited = False
@@ -54,6 +55,9 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
         self._source_location = source_location
         # Expose the inner coroutine's name so run_sync error paths can log fn.__name__.
         self.__name__: str = getattr(coro, "__name__", "<unknown>")
+        # Public method name for the warning message — users search for what they
+        # called (e.g. 'on_state_change'), not the inner private coroutine name.
+        self._display_name = method_name or self.__name__
 
     # ------------------------------------------------------------------
     # Coroutine protocol — all four entry points set _awaited = True
@@ -110,7 +114,7 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
         try:
             if self._behavior in (ForgottenAwaitBehavior.WARN, ForgottenAwaitBehavior.ERROR):
                 msg = (
-                    f"Coroutine from '{self.__name__}' was never awaited "
+                    f"Coroutine from '{self._display_name}' was never awaited "
                     f"(app: {self._owner_identity}, call site: {self._source_location}). "
                     f"Did you forget 'await'?"
                 )
@@ -132,6 +136,7 @@ def guard_await(
     *,
     owner: Any,
     source_location: str,
+    method_name: str | None = None,
 ) -> "RegistrationHandle[T]":
     """Wrap *coro* in a ``RegistrationHandle`` with eager behavior resolution.
 
@@ -152,6 +157,9 @@ def guard_await(
             ``hassette.config.forgotten_await_behavior``.
         source_location: Pre-captured ``"<file>:<lineno>"`` string from the
             public ``def`` call site (user frame live at that point).
+        method_name: The public method name shown in the warning message
+            (e.g. ``"on_state_change"``).  Falls back to the inner coroutine's
+            ``__name__`` when omitted.
 
     Returns:
         A ``RegistrationHandle`` that is a ``collections.abc.Coroutine`` subclass
@@ -179,4 +187,5 @@ def guard_await(
         owner_identity=owner_identity,
         behavior=behavior,
         source_location=source_location,
+        method_name=method_name,
     )

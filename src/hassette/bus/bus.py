@@ -203,6 +203,7 @@ class Bus(Resource):
             self._add_listener(listener),
             owner=self.parent,
             source_location=source_location,
+            method_name="add_listener",
         )
 
     async def _add_listener(self, listener: "Listener") -> None:
@@ -344,6 +345,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on",
         )
 
     async def _on_internal(
@@ -618,6 +620,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_state_change",
         )
 
     def on_attribute_change(
@@ -718,6 +721,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_attribute_change",
         )
 
     def on_call_service(
@@ -787,6 +791,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_call_service",
         )
 
     def on_component_loaded(
@@ -845,6 +850,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_component_loaded",
         )
 
     def on_service_registered(
@@ -908,6 +914,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_service_registered",
         )
 
     def on_homeassistant_restart(
@@ -1047,6 +1054,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_hassette_service_status",
         )
 
     def on_hassette_service_failed(
@@ -1258,6 +1266,7 @@ class Bus(Resource):
             ),
             owner=self.parent,
             source_location=source_location,
+            method_name="on_app_state_changed",
         )
 
     def on_app_running(

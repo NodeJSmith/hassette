@@ -164,7 +164,7 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
 
 def test_forgotten_await_on_primary_warns(bus: "Bus") -> None:
     """FR#1 / FR#10: dropping un-awaited Bus.on() handle emits HassetteForgottenAwaitWarning."""
-    with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning):
+    with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning, match="Coroutine from 'on' was"):
         _ = bus.on(topic="test.topic", handler=handler, name="forgot_primary")
         del _
         gc.collect()

@@ -443,7 +443,12 @@ class Api(Resource):
         # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
-        return guard_await(self._fire_event(event_type, event_data), owner=self.parent, source_location=source_location)
+        return guard_await(
+            self._fire_event(event_type, event_data),
+            owner=self.parent,
+            source_location=source_location,
+            method_name="fire_event",
+        )
 
     async def _fire_event(
         self,
@@ -509,6 +514,7 @@ class Api(Resource):
             self._call_service(domain, service, target, return_response, **data),
             owner=self.parent,
             source_location=source_location,
+            method_name="call_service",
         )
 
     async def _call_service(
@@ -889,7 +895,10 @@ class Api(Resource):
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
-            self._set_state(entity_id, state, attributes), owner=self.parent, source_location=source_location
+            self._set_state(entity_id, state, attributes),
+            owner=self.parent,
+            source_location=source_location,
+            method_name="set_state",
         )
 
     async def _set_state(

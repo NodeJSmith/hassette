@@ -59,6 +59,7 @@ def _make_handle(
     behavior: ForgottenAwaitBehavior = ForgottenAwaitBehavior.WARN,
     owner_identity: str = "TestApp.test_instance",
     source_location: str = "/app/my_app.py:1",
+    method_name: str | None = None,
 ) -> RegistrationHandle[str]:
     """Construct a RegistrationHandle directly, bypassing guard_await."""
     return RegistrationHandle(
@@ -66,6 +67,7 @@ def _make_handle(
         owner_identity=owner_identity,
         behavior=behavior,
         source_location=source_location,
+        method_name=method_name,
     )
 
 
@@ -99,6 +101,22 @@ def test_warning_message_contains_source_location():
     """Warning message contains the file:line source location."""
     h = _make_handle(source_location="/home/user/apps/my_app.py:99")
     with pytest.warns(HassetteForgottenAwaitWarning, match="/home/user/apps/my_app.py:99"):
+        del h
+        gc.collect()
+
+
+def test_warning_message_uses_public_method_name():
+    """Warning names the public method the user called, not the inner private coroutine."""
+    h = _make_handle(method_name="on_state_change")
+    with pytest.warns(HassetteForgottenAwaitWarning, match="Coroutine from 'on_state_change' was never awaited"):
+        del h
+        gc.collect()
+
+
+def test_warning_message_falls_back_to_inner_coro_name():
+    """Without method_name, the warning falls back to the inner coroutine's __name__."""
+    h = _make_handle()
+    with pytest.warns(HassetteForgottenAwaitWarning, match="Coroutine from '_noop_coro' was never awaited"):
         del h
         gc.collect()
 
