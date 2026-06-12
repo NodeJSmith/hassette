@@ -166,31 +166,112 @@ def desync_docstring(doc: str) -> str:
     return _AWAITED_INLINE_PHRASE.sub("completes inline", doc)
 
 
-def is_wrappable(node: ast.stmt) -> TypeGuard[ast.AsyncFunctionDef]:
-    """Return True if a class-body node is a public async method that should be wrapped.
+def unwrap_coroutine_return(node: ast.FunctionDef | ast.AsyncFunctionDef) -> ast.expr | None:
+    """Return the inner ``T`` expression from a ``Coroutine[Any, Any, T]`` return annotation.
 
-    Excludes overloads, Resource lifecycle hooks, and underscore-prefixed methods
-    (private registration helpers like ``Bus._on_internal`` must not leak onto the facade).
+    For ``def foo() -> Coroutine[Any, Any, SomeType]`` (de-asynced form), returns the
+    ``SomeType`` node so sync wrappers can emit ``-> SomeType`` rather than the raw
+    ``Coroutine[...]`` annotation (which would reference an undefined name in the
+    generated file's header). For ``async def`` or any other annotation returns ``None``,
+    meaning the caller should use the annotation as-is.
+
+    Also handles quoted (string-literal) annotations: ``-> "Coroutine[Any, Any, T]"`` is
+    unwrapped to the string ``"T"`` so the generated file stays valid under
+    ``from __future__ import annotations`` environments.
     """
-    return (
-        isinstance(node, ast.AsyncFunctionDef)
-        and not is_overload(node)
-        and node.name not in LIFECYCLE_METHODS
-        and not node.name.startswith("_")
-    )
+    if isinstance(node, ast.AsyncFunctionDef) or node.returns is None:
+        return None
+    ret = node.returns
+    # Detect quoted annotation and re-parse it
+    if isinstance(ret, ast.Constant) and isinstance(ret.value, str):
+        try:
+            parsed = ast.parse(ret.value, mode="eval")
+            inner: ast.expr = parsed.body
+        except SyntaxError:
+            return None
+        quoted = True
+    else:
+        inner = ret
+        quoted = False
+    # Must be Coroutine[..., ..., T]
+    if not (isinstance(inner, ast.Subscript) and isinstance(inner.value, ast.Name) and inner.value.id == "Coroutine"):
+        return None
+    # The slice must be a 3-element Tuple: Any, Any, T
+    slice_node = inner.slice
+    if not (isinstance(slice_node, ast.Tuple) and len(slice_node.elts) == 3):
+        return None
+    inner_type = slice_node.elts[2]
+    if quoted:
+        # The original annotation was a quoted string (e.g. -> "Coroutine[Any, Any, Subscription]").
+        # Re-parse the inner type string as a real AST expression so the generated sync wrapper
+        # emits it as an unquoted runtime annotation (e.g. -> Subscription).  Unquoted annotations
+        # keep the import at runtime scope and avoid triggering ruff TC001.
+        inner_str = ast.unparse(inner_type)
+        try:
+            return ast.parse(inner_str, mode="eval").body
+        except SyntaxError:
+            return inner_type
+    return inner_type
+
+
+def _has_coroutine_return_annotation(node: ast.FunctionDef) -> bool:
+    """Return True if the function's return annotation is a ``Coroutine[...]`` subscript.
+
+    Detects the ``def foo(...) -> Coroutine[Any, Any, T]`` pattern produced by the
+    de-asyncing conversion (design/071). The AST shape is ``ast.Subscript`` whose
+    ``.value`` is an ``ast.Name`` with ``.id == "Coroutine"``.
+    """
+    if node.returns is None:
+        return False
+    ret = node.returns
+    # Strip a string annotation — these show up when the return is quoted, e.g.
+    # -> "Coroutine[Any, Any, T]".  ast.unparse gives back the inner expression
+    # only when we re-parse the constant.
+    if isinstance(ret, ast.Constant) and isinstance(ret.value, str):
+        try:
+            parsed = ast.parse(ret.value, mode="eval")
+            ret = parsed.body
+        except SyntaxError:
+            return False
+    return isinstance(ret, ast.Subscript) and isinstance(ret.value, ast.Name) and ret.value.id == "Coroutine"
+
+
+def is_wrappable(node: ast.stmt) -> TypeGuard[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Return True if a class-body node is a public method that should be wrapped.
+
+    Matches both classic ``async def`` methods and plain ``def`` methods whose return
+    annotation is a ``Coroutine[...]`` subscript (the de-asynced form introduced in
+    design/071). Excludes overloads, Resource lifecycle hooks, and underscore-prefixed
+    methods (private registration helpers like ``Bus._on_internal`` must not leak onto
+    the facade).
+    """
+    if isinstance(node, ast.AsyncFunctionDef):
+        return not is_overload(node) and node.name not in LIFECYCLE_METHODS and not node.name.startswith("_")
+    if isinstance(node, ast.FunctionDef):
+        return (
+            not is_overload(node)
+            and node.name not in LIFECYCLE_METHODS
+            and not node.name.startswith("_")
+            and _has_coroutine_return_annotation(node)
+        )
+    return False
 
 
 def is_delegatable(node: ast.stmt) -> TypeGuard[ast.FunctionDef]:
     """Return True if a class-body node is a public sync method that should be delegated.
 
     Matches plain ``def`` methods that are not properties, lifecycle hooks, overloads,
-    private, or internal plumbing. These get simple pass-through delegation on the facade.
+    private, internal plumbing, or wrappable (a ``def -> Coroutine[...]`` method is
+    wrappable, not delegatable — including it in both lists would emit two definitions,
+    and the bare passthrough emitted last would silently win).
     """
     if not isinstance(node, ast.FunctionDef):
         return False
     if node.name.startswith("_") or node.name in LIFECYCLE_METHODS or node.name in INTERNAL_METHODS:
         return False
     if is_overload(node):
+        return False
+    if is_wrappable(node):
         return False
     for deco in node.decorator_list:
         if isinstance(deco, ast.Name) and deco.id == "property":

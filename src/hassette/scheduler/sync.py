@@ -12,11 +12,11 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
+from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, Scheduler
-    from hassette.scheduler.classes import ScheduledJob
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType
 
@@ -45,10 +45,11 @@ class SchedulerSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.scheduler_service
 
-    def add_job(
-        self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"
-    ) -> "ScheduledJob":
+    def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error") -> ScheduledJob:
         """Add a job to the scheduler.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         DB registration completes inline — ``job.db_id`` is set before this
         method returns, eliminating the window where a job fires with
@@ -66,7 +67,7 @@ class SchedulerSyncFacade(Resource):
         Returns:
             The added job, or the existing job when ``if_exists="skip"`` and a
             matching job is already registered. ``job.db_id`` is a valid
-            integer on return.
+            integer immediately on return.
 
         Raises:
             TypeError: If job is not a ScheduledJob.
@@ -89,8 +90,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job using a trigger object.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         This is the primary entry point for scheduling. All convenience methods
         (``run_in``, ``run_every``, ``run_daily``, etc.) delegate here.
@@ -119,7 +123,7 @@ class SchedulerSyncFacade(Resource):
             kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            The scheduled job. ``job.db_id`` is a valid integer on return."""
+            The scheduled job. ``job.db_id`` is a valid integer immediately on return."""
 
         return self.task_bucket.run_sync(
             self._scheduler.schedule(
@@ -151,8 +155,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run after a fixed delay (one-shot).
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -202,8 +209,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run once at a specific wall-clock time (one-shot).
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -260,8 +270,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run at a fixed interval.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -314,8 +327,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run every N minutes.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -364,8 +380,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run every N hours.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -414,8 +433,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job to run once per day at a fixed wall-clock time.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Uses a cron-based trigger internally to ensure DST-correct, wall-clock-aligned
         scheduling. This avoids the 24-hour drift bug of interval-based daily scheduling.
@@ -467,8 +489,11 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> ScheduledJob:
         """Schedule a job using a cron expression.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Accepts both 5-field (standard Unix cron: ``minute hour dom month dow``)
         and 6-field expressions (seconds appended as a 6th field per croniter

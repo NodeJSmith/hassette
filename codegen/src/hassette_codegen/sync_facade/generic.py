@@ -10,6 +10,7 @@ from hassette_codegen.sync_facade.ast_utils import (
     is_delegatable,
     is_wrappable,
     safe_parse,
+    unwrap_coroutine_return,
 )
 
 HEADER = '''"""Auto-generated synchronous facade for `Api`.
@@ -167,11 +168,11 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
+from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette, Scheduler
-    from hassette.scheduler.classes import ScheduledJob
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType
 
@@ -206,11 +207,25 @@ class SchedulerSyncFacade(Resource):
 '''
 
 
-def gen_wrapper(func: ast.AsyncFunctionDef, wrapped_attr: str = "_api") -> str:
-    """Emit a sync wrapper method that delegates to ``self.<wrapped_attr>`` via run_sync."""
+def gen_wrapper(func: ast.FunctionDef | ast.AsyncFunctionDef, wrapped_attr: str = "_api") -> str:
+    """Emit a sync wrapper method that delegates to ``self.<wrapped_attr>`` via run_sync.
+
+    For de-asynced plain-def methods whose return annotation is ``Coroutine[Any, Any, T]``,
+    the generated wrapper emits ``-> T`` (the unwrapped inner type) rather than the raw
+    ``Coroutine[...]`` annotation — the sync wrapper returns the resolved value, not the
+    coroutine, and ``Coroutine`` is not imported in the generated file's header.
+    """
     sig, call = format_signature_and_call(func)
     name = func.name
-    returns = f" -> {ast.unparse(func.returns)}" if func.returns else ""
+    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods so the generated
+    # sync wrapper carries the correct return type and avoids an undefined-name ruff error.
+    unwrapped = unwrap_coroutine_return(func)
+    if unwrapped is not None:
+        returns = f" -> {ast.unparse(unwrapped)}"
+    elif func.returns:
+        returns = f" -> {ast.unparse(func.returns)}"
+    else:
+        returns = ""
 
     doc = ast.get_docstring(func)
     if doc:

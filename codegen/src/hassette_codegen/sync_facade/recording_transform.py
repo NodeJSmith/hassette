@@ -7,6 +7,7 @@ import textwrap
 from hassette_codegen.sync_facade.ast_utils import (
     STATE_CONVERSION_METHODS,
     format_signature_and_call,
+    unwrap_coroutine_return,
 )
 
 
@@ -94,7 +95,9 @@ def _check_no_async_peer_calls(
                 )
 
 
-def gen_recording_method(func: ast.AsyncFunctionDef, async_method_names: set[str]) -> tuple[str, list[ast.stmt]]:
+def gen_recording_method(
+    func: ast.AsyncFunctionDef | ast.FunctionDef, async_method_names: set[str]
+) -> tuple[str, list[ast.stmt]]:
     """Generate a sync method by body-copying and rewriting a RecordingApi async method.
 
     The function:
@@ -138,7 +141,14 @@ def gen_recording_method(func: ast.AsyncFunctionDef, async_method_names: set[str
 
     # Build the sync def source
     name = func.name
-    returns = f" -> {ast.unparse(func.returns)}" if func.returns else ""
+    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods.
+    unwrapped = unwrap_coroutine_return(func)
+    if unwrapped is not None:
+        returns = f" -> {ast.unparse(unwrapped)}"
+    elif func.returns:
+        returns = f" -> {ast.unparse(func.returns)}"
+    else:
+        returns = ""
 
     # Build signature from the original (pre-copy) func so defaults stay as-is
     sig, _ = format_signature_and_call(func)
@@ -168,7 +178,7 @@ def gen_recording_method(func: ast.AsyncFunctionDef, async_method_names: set[str
     return method_src, rewritten_body
 
 
-def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
+def gen_recording_stub(func: ast.AsyncFunctionDef | ast.FunctionDef) -> str:
     """Emit a sync stub method raising NotImplementedError with tiered message.
 
     Args:
@@ -180,7 +190,14 @@ def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
         statements that the import-derivation pass needs to inspect.
     """
     name = func.name
-    returns = f" -> {ast.unparse(func.returns)}" if func.returns else ""
+    # Unwrap Coroutine[Any, Any, T] → T for de-asynced plain-def methods.
+    unwrapped = unwrap_coroutine_return(func)
+    if unwrapped is not None:
+        returns = f" -> {ast.unparse(unwrapped)}"
+    elif func.returns:
+        returns = f" -> {ast.unparse(func.returns)}"
+    else:
+        returns = ""
     sig, _ = format_signature_and_call(func)
 
     # Emit a NotImplementedError using the module-level _STUB_MSG_* constant name.
@@ -191,7 +208,7 @@ def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
     return f'    def {name}({sig}){returns}:\n        raise NotImplementedError({msg_const}.format(name="{name}"))\n'
 
 
-def is_not_implemented_only(func: ast.AsyncFunctionDef) -> bool:
+def is_not_implemented_only(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:
     """Return True if the function body only calls not_implemented (plus optional docstring/raise).
 
     Such methods in RecordingApi exist solely to satisfy the async protocol —
