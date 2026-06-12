@@ -467,10 +467,10 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None,
-        return_response: Literal[True],
+        target: dict[str, str] | dict[str, list[str]] | None = None,
+        return_response: typing.Literal[False] | None = None,
         **data: Any,
-    ) -> "Coroutine[Any, Any, ServiceResponse]": ...
+    ) -> "Coroutine[Any, Any, None]": ...
 
     @overload
     def call_service(
@@ -478,9 +478,9 @@ class Api(Resource):
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
-        return_response: typing.Literal[False] | None = None,
+        return_response: Literal[True] = True,
         **data: Any,
-    ) -> "Coroutine[Any, Any, None]": ...
+    ) -> "Coroutine[Any, Any, ServiceResponse]": ...
 
     def call_service(
         self,

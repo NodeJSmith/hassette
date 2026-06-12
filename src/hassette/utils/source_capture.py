@@ -24,13 +24,15 @@ def is_internal_frame(frame: Any) -> bool:
 
 
 @functools.lru_cache(maxsize=SOURCE_CACHE_MAX_SIZE)
-def get_source_and_ast(filename: str, mtime: float | None) -> tuple[str, ast.Module] | None:  # noqa: ARG001 — mtime is cache-key only
+def get_source_and_ast(filename: str, mtime: int | None) -> tuple[str, ast.Module] | None:  # noqa: ARG001 — mtime is cache-key only
     """Return a cached (source, AST) pair for *filename*.
 
     Uses ``functools.lru_cache`` (``SOURCE_CACHE_MAX_SIZE`` entries) so each file is read and parsed
-    at most once per modification.  ``mtime`` is part of the cache key only —
-    when a file changes (e.g. hot-reload after an app edit), the new mtime
-    misses the cache and the stale entry falls out of the LRU naturally.
+    at most once per modification.  ``mtime`` is the nanosecond ``st_mtime_ns``
+    and is part of the cache key only — when a file changes (e.g. hot-reload
+    after an app edit), the new mtime misses the cache and the stale entry falls
+    out of the LRU naturally.  Nanosecond resolution avoids reusing a stale entry
+    for two edits that land within the same coarse ``st_mtime`` tick.
     Thread-safe via the lru_cache internal lock.
 
     Returns None if the file cannot be read or parsed.
@@ -50,7 +52,7 @@ def find_call_source(filename: str, lineno: int) -> str | None:
     Returns the source segment string, or None if unavailable.
     """
     try:
-        mtime: float | None = Path(filename).stat().st_mtime
+        mtime: int | None = Path(filename).stat().st_mtime_ns
     except OSError:
         mtime = None
     cached = get_source_and_ast(filename, mtime)

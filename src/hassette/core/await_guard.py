@@ -68,10 +68,15 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
         self._awaited = True
         return self._coro.send(value)
 
-    def throw(self, exc: BaseException) -> Any:
-        """Inject an exception (PEP 706 single-arg form); marks the handle awaited."""
+    def throw(self, *args: Any, **kwargs: Any) -> Any:
+        """Inject an exception; marks the handle awaited.
+
+        Forwards the full ``Coroutine.throw`` protocol — both the single-arg
+        ``throw(exc)`` form and the legacy ``throw(type, value, tb)`` form — so
+        callers using either signature reach the wrapped coroutine unchanged.
+        """
         self._awaited = True
-        return self._coro.throw(exc)
+        return self._coro.throw(*args, **kwargs)
 
     def close(self) -> None:
         """Close the inner coroutine; marks the handle awaited so ``__del__`` stays silent."""
@@ -158,8 +163,11 @@ def guard_await(
         and satisfies ``asyncio.iscoroutine(handle) is True``.
     """
     # Resolve behavior — eagerly, before the user frame is gone.
+    # Config fields are Pydantic-validated at load time, so per_app/global_val are
+    # already valid enum members or None here; the narrow suppress only guards the
+    # enum constructor (ValueError/TypeError) and defensive attribute access.
     behavior: ForgottenAwaitBehavior = DEFAULT_FORGOTTEN_AWAIT_BEHAVIOR
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(AttributeError, ValueError, TypeError):
         per_app = getattr(getattr(owner, "app_config", None), "forgotten_await_behavior", None)
         if per_app is not None:
             behavior = ForgottenAwaitBehavior(per_app)
@@ -169,9 +177,11 @@ def guard_await(
             if global_val is not None:
                 behavior = ForgottenAwaitBehavior(global_val)
 
-    # Resolve identity string — eagerly.
+    # Resolve identity string — eagerly. Broad suppress is intentional: this value
+    # is a cosmetic display string, and identity capture must never break a
+    # registration call (a pathological __str__ should not crash guard_await).
     owner_identity: str = "<unknown>"
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(Exception):  # noqa: BLE001 — cosmetic capture, see comment
         owner_identity = str(getattr(owner, "unique_name", "<unknown>"))
 
     return RegistrationHandle(
