@@ -13,7 +13,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         return self.state.attributes
 
     def open_cover(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -23,7 +23,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def close_cover(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -33,7 +33,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -47,7 +47,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         *,
         position: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,7 +58,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def stop_cover(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -68,7 +68,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def open_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -78,7 +78,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def close_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -88,7 +88,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def toggle_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -102,7 +102,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         *,
         tilt_position: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -113,7 +113,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def stop_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

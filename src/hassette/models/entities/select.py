@@ -13,7 +13,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         return self.state.attributes
 
     def select_first(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -23,7 +23,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         )
 
     def select_last(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -37,7 +37,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,7 +52,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         option: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +67,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

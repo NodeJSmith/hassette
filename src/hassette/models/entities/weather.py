@@ -19,7 +19,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Type,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -34,7 +34,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

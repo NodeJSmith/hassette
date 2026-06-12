@@ -19,7 +19,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -34,7 +34,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -50,7 +50,7 @@ class FanEntity(BaseEntity[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -62,7 +62,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -76,7 +76,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         oscillating: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -87,7 +87,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -101,7 +101,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         direction: Direction,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -116,7 +116,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -131,7 +131,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

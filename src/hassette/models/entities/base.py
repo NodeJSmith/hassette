@@ -63,7 +63,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turn off the entity.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
@@ -72,7 +72,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
         """Turn on the entity.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
@@ -81,7 +81,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggle the entity.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.

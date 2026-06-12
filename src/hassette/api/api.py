@@ -428,7 +428,7 @@ class Api(Resource):
     ) -> "Coroutine[Any, Any, dict[str, Any]]":
         """Fire a custom event in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             event_type: The type of the event to fire (e.g., "custom_event").
@@ -492,7 +492,7 @@ class Api(Resource):
     ) -> "Coroutine[Any, Any, ServiceResponse | None]":
         """Call a Home Assistant service.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             domain: The domain of the service (e.g., "light").
@@ -550,7 +550,7 @@ class Api(Resource):
     ) -> "Coroutine[Any, Any, None]":
         """Turn on a specific entity in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
@@ -569,7 +569,7 @@ class Api(Resource):
     def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
         """Turn off a specific entity in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
@@ -588,7 +588,7 @@ class Api(Resource):
     def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
         """Toggle a specific entity in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
@@ -873,7 +873,7 @@ class Api(Resource):
     ) -> "Coroutine[Any, Any, dict]":
         """Set the state of a specific entity.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
 
         Args:
             entity_id: The ID of the entity to set the state for.

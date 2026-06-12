@@ -32,13 +32,14 @@ CASES = [
         id="awaited-inline-phrase-mutation",
     ),
     pytest.param(
-        "Fire an event.\n\nMust be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.\n\n"
-        "Returns the response.",
+        "Fire an event.\n\nMust be awaited — a forgotten ``await`` is reported per "
+        "``forgotten_await_behavior`` (default: warn).\n\nReturns the response.",
         "Fire an event.\n\nReturns the response.",
         id="api-forgotten-await-paragraph",
     ),
     pytest.param(
-        "Fire an event.\n\nMust be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.",
+        "Fire an event.\n\nMust be awaited — a forgotten ``await`` is reported per "
+        "``forgotten_await_behavior`` (default: warn).",
         "Fire an event.",
         id="api-forgotten-await-paragraph-at-end",
     ),

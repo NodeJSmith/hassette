@@ -162,11 +162,12 @@ _AWAITED_INLINE_PHRASE = re.compile(r"is awaited inline")
 # T02/T03/T04 added new "Must be awaited" sentences to Bus/Scheduler/Api docstrings.
 # Three distinct phrasings require three patterns; order in desync_docstring is load-bearing.
 
-# Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` emits
-# ``HassetteForgottenAwaitWarning``." Consume the surrounding blank lines so no extra blank
-# line is left behind; the trailing group handles the case where it is the last paragraph.
+# Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` is
+# reported per ``forgotten_await_behavior`` (default: warn)." Consume the surrounding blank
+# lines so no extra blank line is left behind; the trailing group handles the last-paragraph case.
 _MUST_BE_AWAITED_FORGOTTEN_AWAIT = re.compile(
-    r"\n\n\s*Must be awaited — a forgotten\s+``await``\s+emits\s+``HassetteForgottenAwaitWarning``\."
+    r"\n\n\s*Must be awaited — a forgotten\s+``await``\s+is reported per\s+"
+    r"``forgotten_await_behavior``\s+\(default: warn\)\."
     r"(?:\s*\n\n|\s*$)"
 )
 # Bus/Scheduler variant: "Must be awaited. Registration/Scheduling completes …" — strip only
