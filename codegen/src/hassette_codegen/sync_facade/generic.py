@@ -238,7 +238,7 @@ def gen_delegate(func: ast.FunctionDef, wrapped_attr: str) -> str:
     """Emit a sync delegate method that passes through to ``self.<wrapped_attr>``."""
     sig, call = format_signature_and_call(func)
     name = func.name
-    returns = f" -> {ast.unparse(func.returns)}" if func.returns else ""
+    returns = format_return_annotation(func)
 
     doc = ast.get_docstring(func)
     if doc:

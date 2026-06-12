@@ -29,6 +29,12 @@ from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState, LightState
 from tests.unit.conftest import make_api
 
+
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+
+
 if TYPE_CHECKING:
     from contextvars import Token
 

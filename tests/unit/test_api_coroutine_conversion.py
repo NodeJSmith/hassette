@@ -21,6 +21,12 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.services import ServiceResponse
 from tests.unit.conftest import make_api
 
+
+@pytest.fixture(autouse=True)
+def _drain(drain_forgotten_await_handles: None) -> None:
+    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+
+
 # ---------------------------------------------------------------------------
 # Helpers — build a minimal Api with mocked ws layer
 # ---------------------------------------------------------------------------
