@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from hassette.models.states import LawnMowerState
 from hassette.models.states.lawn_mower import LawnMowerAttributes
 
@@ -9,22 +12,31 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
     def attributes(self) -> LawnMowerAttributes:
         return self.state.attributes
 
-    async def start_mowing(self) -> None:
-        await self.api.call_service(
+    def start_mowing(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="start_mowing",
             target={"entity_id": self.entity_id},
         )
 
-    async def dock(self) -> None:
-        await self.api.call_service(
+    def dock(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="dock",
             target={"entity_id": self.entity_id},
         )
 
-    async def pause(self) -> None:
-        await self.api.call_service(
+    def pause(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="pause",
             target={"entity_id": self.entity_id},

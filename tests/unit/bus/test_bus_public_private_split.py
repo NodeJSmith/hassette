@@ -81,7 +81,7 @@ async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
 
     with mock_add_listener(bus):
         await bus._subscribe(
-            method_name="test",
+            log_label="test",
             topic="event.state_changed.light.test",
             handler=handler,
             preds=[original_pred],
@@ -98,7 +98,7 @@ async def test_hold_preds_none_no_mutation(bus: "Bus") -> None:
     """When hold_preds is None, no mutation attempt occurs."""
     with mock_add_listener(bus):
         await bus._subscribe(
-            method_name="test",
+            log_label="test",
             topic="event.state_changed.light.test",
             handler=handler,
             preds=[P.EntityMatches("light.test")],

@@ -1,10 +1,12 @@
 """Unit tests for capture_registration_source in hassette.utils.source_capture."""
 
 import ast
+import os
 import types
+from pathlib import Path
 from unittest.mock import patch
 
-from hassette.utils.source_capture import capture_registration_source
+from hassette.utils.source_capture import capture_registration_source, find_call_source
 
 
 def test_capture_from_real_call() -> None:
@@ -30,6 +32,19 @@ def test_cache_reuse() -> None:
     # If the file was already cached after the first call, the second call
     # should not increase the parse count (file is the same test file)
     assert second_count == first_count
+
+
+def test_cache_refreshes_after_file_edit(tmp_path: Path) -> None:
+    """Editing a file (hot-reload scenario) yields the new snippet, not a stale cached one."""
+    f = tmp_path / "my_app.py"
+    f.write_text("x = old_call(1)\n")
+    assert find_call_source(str(f), 1) == "old_call(1)"
+
+    f.write_text("x = new_call(2)\n")
+    # Force a different mtime even on filesystems with coarse timestamp resolution.
+    stat = f.stat()
+    os.utime(f, (stat.st_atime, stat.st_mtime + 10))
+    assert find_call_source(str(f), 1) == "new_call(2)"
 
 
 def test_graceful_on_no_source() -> None:

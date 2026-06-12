@@ -193,7 +193,7 @@ def _derive_recording_imports_strict(  # pyright: ignore[reportUnusedFunction] â
     return "\n".join(sorted(import_lines))
 
 
-def collect_annotation_symbols(func: ast.AsyncFunctionDef) -> tuple[set[str], set[str]]:
+def collect_annotation_symbols(func: ast.AsyncFunctionDef | ast.FunctionDef) -> tuple[set[str], set[str]]:
     """Collect Name ids from all type annotations in a function's signature and return type.
 
     Returns:

@@ -74,16 +74,12 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
 
     domain_title = domain_to_title(domain.name)
 
-    all_param_types = [p.python_type for s in services_for_template for p in s.params]
-    needs_any = any("Any" in t for t in all_param_types)
-
     return template.render(
         domain=domain.name,
         domain_title=domain_title,
         services=services_for_template,
         extra_imports=extra_imports,
         type_aliases=type_aliases,
-        needs_any=needs_any,
     )
 
 

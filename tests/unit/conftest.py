@@ -1,8 +1,13 @@
 """Shared fixtures for tests/unit/."""
 
+import collections.abc
+import gc
+import inspect
 import logging
 import logging.handlers
 import queue
+import sys
+import warnings
 from dataclasses import dataclass
 from io import StringIO
 from unittest.mock import AsyncMock, MagicMock
@@ -12,6 +17,8 @@ import structlog
 import structlog.processors
 import structlog.stdlib
 
+from hassette.api.api import Api
+from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
@@ -20,6 +27,89 @@ from hassette.logging_ import (
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
 )
+
+
+def make_mock_parent() -> MagicMock:
+    """Mock owning App resource with the attributes guard_await and telemetry read."""
+    parent = MagicMock()
+    parent.app_key = "test_app"
+    parent.index = 0
+    parent.unique_name = "test_app.0"
+    parent.source_tier = "app"
+    parent.class_name = "TestApp"
+    parent.app_config = MagicMock()
+    parent.app_config.forgotten_await_behavior = None
+    return parent
+
+
+def make_api() -> Api:
+    """Create an Api instance with mocked WebSocket and REST layers.
+
+    Shared factory used by test_api_coroutine_conversion and
+    test_entity_coroutine_conversion. Stubs out:
+    - ws_send_and_wait → returns {} (enough for call_service/fire_event)
+    - ws_send_json     → returns None
+    - post_rest_request → returns a mock response (for set_state)
+    - entity_exists    → returns False (simplifies set_state test)
+    """
+    hassette_mock = MagicMock()
+    hassette_mock.config.logging.api = "INFO"
+    hassette_mock.config.forgotten_await_behavior = None
+
+    api = Api.__new__(Api)
+    api.hassette = hassette_mock
+    api._unique_name = "test_api"
+    api._error_handler = None
+    api.logger = logging.getLogger("hassette.test")
+
+    api.parent = make_mock_parent()
+
+    api.ws_send_and_wait = AsyncMock(return_value={})
+    api.ws_send_json = AsyncMock(return_value=None)
+
+    mock_resp = AsyncMock()
+    mock_resp.json = AsyncMock(return_value={"state": "on", "entity_id": "light.test"})
+    api.post_rest_request = AsyncMock(return_value=mock_resp)
+    api.entity_exists = AsyncMock(return_value=False)
+
+    return api
+
+
+def public_async_methods(cls: type) -> set[str]:
+    """Return public async/Coroutine-returning method names defined directly on cls (not inherited).
+
+    Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource`` lifecycle methods
+    inherited by both ``Api`` and ``RecordingApi`` do NOT appear in the comparison.
+
+    Uses OR semantics: matches both classic ``async def`` methods and plain ``def`` methods
+    whose ``-> Coroutine[...]`` return annotation identifies them as de-asynced (design/071).
+    ``getattr(..., "__origin__", None)`` is required — non-generic return types have no
+    ``__origin__``, and a bare attribute access would raise AttributeError.
+    """
+
+    def _is_async_or_coroutine(member: object) -> bool:
+        if inspect.iscoroutinefunction(member):
+            return True
+        # Inspect the raw return annotation, not get_type_hints(member): get_type_hints
+        # evaluates EVERY annotation, so one TYPE_CHECKING-only parameter name (e.g.
+        # HandlerType) raises NameError and would silently drop a valid coroutine method
+        # from the parity comparison. Follows the same approach as
+        # tests/unit/test_forgotten_await_completeness.py::_is_detected — keep them in sync.
+        ann = getattr(member, "__annotations__", {})
+        ret = ann.get("return")
+        if ret is None:
+            return False
+        if isinstance(ret, str):
+            mod = sys.modules.get(getattr(member, "__module__", ""))
+            if mod is None:
+                return False
+            try:
+                ret = eval(ret, vars(mod))  # noqa: S307 — resolving module annotation
+            except Exception:
+                return False
+        return getattr(ret, "__origin__", None) is collections.abc.Coroutine
+
+    return {name for name, member in vars(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)}
 
 
 @dataclass
@@ -131,3 +221,21 @@ def persistence_handler() -> PersistenceFixture:
         db_service=mock_db_service,
         enqueued_batches=enqueued_batches,
     )
+
+
+@pytest.fixture
+def drain_forgotten_await_handles():
+    """Drain handles dropped during a test so stray warnings cannot fail unrelated tests.
+
+    With ``filterwarnings = ["error"]`` active globally, a ``RegistrationHandle`` GC'd
+    after its test ends would raise ``HassetteForgottenAwaitWarning`` inside whatever
+    test happens to trigger the collection. The test body runs with no blanket ignore
+    filter (so ``pytest.warns`` assertions work); after the yield, a ``gc.collect()``
+    inside a suppression context drains any dropped handles.
+
+    Warning-heavy test modules opt in with a one-line module-level autouse wrapper.
+    """
+    yield
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", HassetteForgottenAwaitWarning)
+        gc.collect()

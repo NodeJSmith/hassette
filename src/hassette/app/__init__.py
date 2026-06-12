@@ -4,6 +4,8 @@ This module provides clean access to the app framework for creating both async a
 applications with typed configuration.
 """
 
+from hassette.types.enums import ForgottenAwaitBehavior
+
 from .app import App, AppSync, only_app
 from .app_config import AppConfig
 
@@ -11,5 +13,6 @@ __all__ = [
     "App",
     "AppConfig",
     "AppSync",
+    "ForgottenAwaitBehavior",
     "only_app",
 ]

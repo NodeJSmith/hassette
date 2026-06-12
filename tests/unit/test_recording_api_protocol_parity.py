@@ -14,19 +14,11 @@ the dict is empty for pure-method Protocols. A test built on annotation
 inspection would always pass vacuously.
 """
 
-import inspect
-
 from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
 from hassette.test_utils.recording_api import ApiProtocol
-
-
-def public_async_methods(cls: type) -> set[str]:
-    """Return public async method names defined directly on cls (not inherited)."""
-    return {
-        name for name, member in vars(cls).items() if not name.startswith("_") and inspect.iscoroutinefunction(member)
-    }
+from tests.unit.conftest import public_async_methods
 
 
 def test_api_protocol_matches_api_methods() -> None:

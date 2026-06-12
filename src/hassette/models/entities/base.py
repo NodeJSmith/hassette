@@ -1,5 +1,6 @@
 import typing
-from typing import Generic, cast
+from collections.abc import Coroutine
+from typing import Any, Generic, cast
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
@@ -59,17 +60,32 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
             self._sync = BaseEntitySyncFacade(entity=self)
         return self._sync
 
-    async def turn_off(self):
-        """Turn off the entity."""
-        return await self.api.turn_off(self.entity_id, self.domain)
+    def turn_off(self) -> Coroutine[Any, Any, None]:
+        """Turn off the entity.
 
-    async def turn_on(self, **data):
-        """Turn on the entity."""
-        return await self.api.turn_on(self.entity_id, self.domain, **data)
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
+        """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.turn_off(self.entity_id, self.domain)
 
-    async def toggle(self):
-        """Toggle the entity."""
-        return await self.api.toggle_service(self.entity_id, self.domain)
+    def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
+        """Turn on the entity.
+
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
+        """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.turn_on(self.entity_id, self.domain, **data)
+
+    def toggle(self) -> Coroutine[Any, Any, None]:
+        """Toggle the entity.
+
+        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
+        """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.toggle_service(self.entity_id, self.domain)
 
 
 class BaseEntitySyncFacade(Generic[StateT, StateValueT]):

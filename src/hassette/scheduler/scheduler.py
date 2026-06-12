@@ -5,6 +5,10 @@ The Scheduler provides intuitive methods for scheduling one-time and recurring t
 trigger objects, simple time delays, cron expressions, or daily wall-clock times. Jobs are
 automatically cleaned up when the app shuts down, and support both async and sync callables.
 
+Scheduling methods (``add_job``, ``schedule``, ``run_in``, ``run_every``, ``run_daily``, etc.)
+return a ``Coroutine`` and must be awaited. Registration completes inline: ``job.db_id`` is a
+valid integer immediately when the awaited call returns.
+
 Examples:
     One-time delayed execution::
 
@@ -61,12 +65,13 @@ Examples:
 
 import asyncio
 import typing
-from collections.abc import Mapping
+from collections.abc import Coroutine, Mapping
 from typing import Any, Literal
 
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.core.await_guard import guard_await
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
 from hassette.types import TriggerProtocol
@@ -166,10 +171,13 @@ class Scheduler(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
-    async def add_job(
+    def add_job(
         self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Add a job to the scheduler.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         DB registration is awaited inline — ``job.db_id`` is set before this
         method returns, eliminating the window where a job fires with
@@ -187,17 +195,54 @@ class Scheduler(Resource):
         Returns:
             The added job, or the existing job when ``if_exists="skip"`` and a
             matching job is already registered. ``job.db_id`` is a valid
-            integer on return.
+            integer immediately on return.
 
         Raises:
             TypeError: If job is not a ScheduledJob.
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
         """
-
+        # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+        # Eager capture in the public def — user frame is live here (not inside the async body).
+        # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
+        # _add_job (backfills job.source_location / registration_source for telemetry when empty).
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
+        return guard_await(
+            self._add_job(
+                job,
+                if_exists=if_exists,
+                source_location=source_location,
+                registration_source=registration_source or "",
+            ),
+            owner=self.parent,
+            source_location=source_location,
+            method_name="add_job",
+        )
 
+    async def _add_job(
+        self,
+        job: "ScheduledJob",
+        *,
+        if_exists: Literal["error", "skip", "replace"] = "error",
+        source_location: str = "",
+        registration_source: str = "",
+    ) -> "ScheduledJob":
+        """Async body for add_job: duplicate-name check + registry mutations + DB registration.
+
+        Duplicate-name handling and registry mutations must not run for a never-awaited
+        call — they would pollute _jobs_by_name/_jobs_by_group. Matches the bus
+        _add_listener split where collision check lives in the private coroutine.
+
+        source_location and registration_source are captured in the public def (user
+        frame is live there) and threaded here for telemetry backfill.
+        """
+        # Empty string is the "not set" sentinel (ScheduledJob fields default to "").
+        if not job.source_location:
+            job.source_location = source_location
+            job.registration_source = registration_source
         existing = self._jobs_by_name.get(job.name)
         if existing is not None:
             if if_exists == "replace":
@@ -313,7 +358,7 @@ class Scheduler(Resource):
         """
         return [job.db_id for job in self._jobs_by_name.values() if job.db_id is not None]
 
-    async def schedule(
+    def schedule(
         self,
         func: "JobCallable",
         trigger: "TriggerProtocol",
@@ -327,8 +372,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a trigger object.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         This is the primary entry point for scheduling. All convenience methods
         (``run_in``, ``run_every``, ``run_daily``, etc.) delegate here.
@@ -357,9 +405,8 @@ class Scheduler(Resource):
             kwargs: Keyword arguments to pass to the callable when it executes.
 
         Returns:
-            The scheduled job. ``job.db_id`` is a valid integer on return.
+            The scheduled job. ``job.db_id`` is a valid integer immediately on return.
         """
-
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
 
@@ -375,9 +422,6 @@ class Scheduler(Resource):
         instance_index = parent.index
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
-
-        # Capture source while user code is still on the stack (before async spawn boundary)
-        source_location, registration_source = capture_registration_source()
 
         run_at = trigger.first_run_time(date_utils.now())
 
@@ -396,13 +440,14 @@ class Scheduler(Resource):
             error_handler=on_error,
             app_key=app_key,
             instance_index=instance_index,
-            source_location=source_location,
-            registration_source=registration_source or "",
             source_tier=source_tier,
         )
-        return await self.add_job(job, if_exists=if_exists)
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        # source_location/registration_source are NOT passed here; add_job backfills them.
+        return self.add_job(job, if_exists=if_exists)
 
-    async def run_in(
+    def run_in(
         self,
         func: "JobCallable",
         delay: float,
@@ -416,8 +461,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run after a fixed delay (one-shot).
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -437,7 +485,9 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = After(seconds=float(delay))
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -451,7 +501,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_once(
+    def run_once(
         self,
         func: "JobCallable",
         at: str | ZonedDateTime,
@@ -466,8 +516,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once at a specific wall-clock time (one-shot).
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -492,7 +545,9 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Once(at=at, if_past=if_past)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -506,7 +561,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_every(
+    def run_every(
         self,
         func: "JobCallable",
         hours: float = 0,
@@ -522,8 +577,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run at a fixed interval.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -545,7 +603,9 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Every(hours=hours, minutes=minutes, seconds=seconds)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -559,7 +619,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_minutely(
+    def run_minutely(
         self,
         func: "JobCallable",
         minutes: int = 1,
@@ -573,8 +633,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N minutes.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -596,7 +659,9 @@ class Scheduler(Resource):
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
         trigger = Every(minutes=minutes)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -610,7 +675,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_hourly(
+    def run_hourly(
         self,
         func: "JobCallable",
         hours: int = 1,
@@ -624,8 +689,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N hours.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Args:
             func: The function to run.
@@ -647,7 +715,9 @@ class Scheduler(Resource):
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
         trigger = Every(hours=hours)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -661,7 +731,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_daily(
+    def run_daily(
         self,
         func: "JobCallable",
         at: str = "00:00",
@@ -675,8 +745,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once per day at a fixed wall-clock time.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Uses a cron-based trigger internally to ensure DST-correct, wall-clock-aligned
         scheduling. This avoids the 24-hour drift bug of interval-based daily scheduling.
@@ -699,7 +772,9 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Daily(at=at)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,
@@ -713,7 +788,7 @@ class Scheduler(Resource):
             kwargs=kwargs,
         )
 
-    async def run_cron(
+    def run_cron(
         self,
         func: "JobCallable",
         expression: str,
@@ -727,8 +802,11 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
-    ) -> "ScheduledJob":
+    ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a cron expression.
+
+        Must be awaited. Scheduling completes before the call returns.
+        ``job.db_id`` is a valid integer immediately on return.
 
         Accepts both 5-field (standard Unix cron: ``minute hour dom month dow``)
         and 6-field expressions (seconds appended as a 6th field per croniter
@@ -755,7 +833,9 @@ class Scheduler(Resource):
             ValueError: If the cron expression is syntactically invalid.
         """
         trigger = Cron(expression)
-        return await self.schedule(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at add_job (the true primary). See design/071.
+        return self.schedule(
             func,
             trigger,
             name=name,

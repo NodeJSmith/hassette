@@ -1,4 +1,5 @@
-from typing import Literal
+from collections.abc import Coroutine
+from typing import Any, Literal
 
 from hassette.models.states import WeatherState
 from hassette.models.states.weather import WeatherAttributes
@@ -13,24 +14,30 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
     def attributes(self) -> WeatherAttributes:
         return self.state.attributes
 
-    async def get_forecast(
+    def get_forecast(
         self,
         *,
         type: Type,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="get_forecast",
             target={"entity_id": self.entity_id},
             type=type,
         )
 
-    async def get_forecasts(
+    def get_forecasts(
         self,
         *,
         type: Literal["daily", "hourly", "twice_daily"],
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="get_forecasts",
             target={"entity_id": self.entity_id},

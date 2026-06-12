@@ -90,8 +90,8 @@ class BusSyncFacade(Resource):
         """Subscribe to an event topic with optional filtering and modifiers.
 
         This is the public registration method for raw topic subscriptions.
-        Registration completes before the call returns —
-        ``sub.listener.db_id`` is a valid integer immediately on return.
+        Registration completes before the call returns — ``sub.listener.db_id`` is a valid
+        integer immediately on return.
 
         Args:
             topic: The event topic to listen to.
@@ -152,9 +152,8 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
 
-        Registration — routing and database
-        persistence — completes before the call returns. ``sub.listener.db_id`` is a valid
-        integer immediately on return.
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
@@ -216,8 +215,8 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
 
-        Registration completes before the call
-        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
@@ -271,8 +270,8 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to service call events.
 
-        Registration completes before the call
-        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             domain: The domain to filter service calls (e.g., "light").
@@ -310,6 +309,9 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to component loaded events.
 
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
+
         Args:
             component: The component to filter load events (e.g., "light").
             handler: The function to call when the event matches.
@@ -340,6 +342,9 @@ class BusSyncFacade(Resource):
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to service registered events.
+
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             domain: The domain to filter service registrations (e.g., "light").
@@ -437,6 +442,9 @@ class BusSyncFacade(Resource):
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service status events.
+
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             status: The status to filter events (e.g., ResourceStatus.STARTED).
@@ -599,6 +607,9 @@ class BusSyncFacade(Resource):
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instance state change events.
+
+        Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             handler: The function to call when the event matches.

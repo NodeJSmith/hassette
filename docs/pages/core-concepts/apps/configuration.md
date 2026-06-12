@@ -63,6 +63,18 @@ Single-instance apps are the default. Most apps never need `[[...]]` blocks. Mul
 
 The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model.
 
+## Developer Settings {#developer-settings}
+
+`AppConfig` includes one developer-facing field:
+
+- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+
+    ```python
+    --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
+    ```
+
+    `ForgottenAwaitBehavior` is imported from `hassette` — the snippet above shows the full import. Use `"error"` for apps under active development to surface forgotten `await` calls at runtime. Use `"warn"` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/index.md#developer-settings) for the global default.
+
 ## Next Steps
 
 - [Apps overview](index.md): defining `AppConfig` models, accessing config values, and app structure

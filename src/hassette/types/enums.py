@@ -1,6 +1,20 @@
 from enum import StrEnum, auto
 
 
+class ForgottenAwaitBehavior(StrEnum):
+    """Controls what happens when a protected method is called without ``await``."""
+
+    IGNORE = auto()
+    """Suppress the warning entirely — the forgotten await is silently ignored."""
+
+    WARN = auto()
+    """Emit a ``HassetteForgottenAwaitWarning`` (default). Integrates with ``-W error``."""
+
+    ERROR = auto()
+    """Emit ``HassetteForgottenAwaitWarning`` in a form that ``filterwarnings("error")`` escalates
+    to a raised exception. Under normal filters, behaves identically to ``WARN``."""
+
+
 class RestartType(StrEnum):
     """Enumeration for service restart strategies."""
 

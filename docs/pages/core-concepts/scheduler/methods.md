@@ -1,9 +1,9 @@
 # Scheduling Methods
 
-The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Every method is `async`, requires `await`, and returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
+The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Awaiting any of these methods returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
 
-!!! warning "Forgetting `await` schedules nothing"
-    A scheduling call without `await` returns a coroutine object and schedules no job — the handler never runs, and no error is raised at the call site. Python logs a `RuntimeWarning: coroutine ... was never awaited` when the coroutine is garbage-collected, but the message is easy to miss. When a job never fires, check the registration is awaited, then confirm the job exists with `hassette job`.
+!!! warning "All scheduling methods must be awaited"
+    Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
 
 ## Which method should I use?
 

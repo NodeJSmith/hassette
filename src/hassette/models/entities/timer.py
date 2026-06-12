@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from hassette.models.states import TimerState
 from hassette.models.states.timer import TimerAttributes
 
@@ -9,45 +12,60 @@ class TimerEntity(BaseEntity[TimerState, str]):
     def attributes(self) -> TimerAttributes:
         return self.state.attributes
 
-    async def start(
+    def start(
         self,
         *,
         duration: dict[str, int] | None = None,
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="start",
             target={"entity_id": self.entity_id},
             duration=duration,
         )
 
-    async def pause(self) -> None:
-        await self.api.call_service(
+    def pause(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="pause",
             target={"entity_id": self.entity_id},
         )
 
-    async def cancel(self) -> None:
-        await self.api.call_service(
+    def cancel(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="cancel",
             target={"entity_id": self.entity_id},
         )
 
-    async def finish(self) -> None:
-        await self.api.call_service(
+    def finish(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="finish",
             target={"entity_id": self.entity_id},
         )
 
-    async def change(
+    def change(
         self,
         *,
         duration: dict[str, int],
-    ) -> None:
-        await self.api.call_service(
+    ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at api.call_service (the true primary). See design/071.
+        return self.api.call_service(
             domain=self.domain,
             service="change",
             target={"entity_id": self.entity_id},

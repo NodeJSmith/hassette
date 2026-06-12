@@ -42,6 +42,73 @@ Set the missing field in `hassette.toml` or via an environment variable.
 
 **Diagnosing without blocking startup.** Set `allow_startup_if_app_precheck_fails = true` in `hassette.toml`. This logs the same errors but lets healthy apps start. The broken app still won't run. Remove this setting once the problem is fixed.
 
+## Forgotten `await` {#forgotten-await}
+
+### Handler or job never runs; `HassetteForgottenAwaitWarning` in logs
+
+**Symptom:** A handler never fires, or a scheduled job never runs, even though the registration call looks correct. Shortly after the call, a warning appears:
+
+```
+Coroutine from 'on_state_change' was never awaited (app: Hassette.LightingApp.0, call site: /apps/lighting.py:42). Did you forget 'await'?
+```
+
+**Cause:** The registration call was made without `await`. The following methods all return a coroutine — without `await`, the coroutine is created and immediately dropped, so the listener never registers, the job never schedules, and the service call never fires:
+
+- **Bus:** `on_*` methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`, `on_service_registered`, `on_component_loaded`, `on_hassette_service_status`, `on_app_state_changed`, and all event-specific convenience methods like `on_homeassistant_start`, `on_websocket_connected`, etc.), `add_listener`
+- **Scheduler:** `schedule()`, `add_job()`, `run_in()`, `run_once()`, `run_every()`, `run_minutely()`, `run_hourly()`, `run_daily()`, `run_cron()`
+- **Api:** `call_service()`, `fire_event()`, `set_state()`, `turn_on()`, `turn_off()`, `toggle_service()`
+- **Entity methods:** `entity.turn_on()`, `entity.turn_off()`, and other entity service methods
+
+**Fix:** Add `await` to the call:
+
+```python
+# wrong — handler never registers
+self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
+
+# correct
+await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="kitchen")
+```
+
+**The assignment blind spot:** If you store the result in a variable (`sub = self.bus.on_state_change(...)`) without awaiting it, Pyright does not flag the call as unused. The warning will still fire when the variable goes out of scope — but that may be much later. The fix is the same: `sub = await self.bus.on_state_change(...)`.
+
+**Stored-on-self limitation:** When the un-awaited handle is stored on `self` (e.g. `self.sub = self.bus.on_state_change(...)`), it lives for the app's lifetime. The warning fires at app *shutdown*, not at registration. This is a weaker guarantee than the bare-drop case. [Enable Pyright](#enabling-pyright) for the earliest possible signal.
+
+**`"error"` mode cannot crash the process:** Setting `forgotten_await_behavior = "error"` makes the warning escalate to a raised exception — but because detection happens in Python's garbage collector finalizer (`__del__`), the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
+
+**Importing the warning class:** To use `HassetteForgottenAwaitWarning` in `pytest.warns` or `warnings.filterwarnings`, import it from:
+
+```python
+from hassette import HassetteForgottenAwaitWarning
+```
+
+---
+
+### Enabling Pyright {#enabling-pyright}
+
+Pyright's `reportUnusedCoroutine` catches forgotten `await` calls at edit or CI time, before the app runs. It fires on bare calls, `if coroutine:` conditionals, and `None`-returning methods. It does **not** catch the `_ = coro()` / `self.sub = coro()` assignment pattern — the runtime warning closes that gap.
+
+The Hassette project's own `pyrightconfig.json` already sets `reportUnusedCoroutine: error`. For your app project, add a `pyrightconfig.json` alongside your app files:
+
+```json
+{
+    "include": ["."],
+    "venvPath": ".",
+    "venv": ".venv",
+    "typeCheckingMode": "basic",
+    "reportUnusedCoroutine": "error"
+}
+```
+
+`basic` mode already enables `reportUnusedCoroutine`, so the last line is redundant if you use `basic` mode — but making it explicit ensures the rule stays active even if the mode changes later.
+
+Run Pyright with:
+
+```bash
+uv run pyright
+# or, if installed globally:
+pyright
+```
+
 ## Handler Registration Fails
 
 **[`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError].** All bus registration methods require a `name=` parameter. Omitting it raises this error immediately at registration time. Add a stable, descriptive name:

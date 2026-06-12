@@ -1,0 +1,22 @@
+{
+    "include": ["."],
+    "venvPath": "../..",
+    "venv": ".venv",
+    "pythonVersion": "3.11",
+    "typeCheckingMode": "basic",
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportUnusedCoroutine": "error",
+    "reportPrivateUsage": "none",
+    "reportUnusedVariable": "none",
+    "reportUnusedImport": "none",
+    "reportUnusedFunction": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportOperatorIssue": "none",
+    "reportAssignmentType": "none",
+    "reportArgumentType": "none",
+    "reportReturnType": "none",
+    "reportIndexIssue": "none",
+    "reportCallIssue": "none"
+}

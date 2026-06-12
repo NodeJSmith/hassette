@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
-    LIFECYCLE_METHODS,
-    is_overload,
+    has_coroutine_return_annotation,
+    is_wrappable,
     safe_parse,
 )
 from hassette_codegen.sync_facade.recording_imports import (
@@ -130,12 +130,9 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     api_class = _find_class(api_module, "Api", str(api_path))
 
-    # Collect all public async methods on Api (ordered, no overloads, no lifecycle)
-    api_methods: list[ast.AsyncFunctionDef] = [
-        node
-        for node in api_class.body
-        if isinstance(node, ast.AsyncFunctionDef) and not is_overload(node) and node.name not in LIFECYCLE_METHODS
-    ]
+    # Collect all public async-or-Coroutine methods on Api (ordered, no overloads, no lifecycle).
+    # Includes plain ``def -> Coroutine[...]`` methods introduced by design/071 de-asyncing.
+    api_methods: list[ast.AsyncFunctionDef | ast.FunctionDef] = [node for node in api_class.body if is_wrappable(node)]
 
     # Parse RecordingApi
     recording_source = recording_api_path.read_text(encoding="utf8")
@@ -143,10 +140,13 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     recording_class = _find_class(recording_module, "RecordingApi", str(recording_api_path))
 
-    # Build map of async method name → AST node for RecordingApi
-    recording_async_map: dict[str, ast.AsyncFunctionDef] = {}
+    # Build map of async method name → AST node for RecordingApi.
+    # Includes plain ``def -> Coroutine[...]`` methods (design/071 de-asynced form).
+    recording_async_map: dict[str, ast.AsyncFunctionDef | ast.FunctionDef] = {}
     for node in recording_class.body:
         if isinstance(node, ast.AsyncFunctionDef):
+            recording_async_map[node.name] = node
+        elif isinstance(node, ast.FunctionDef) and has_coroutine_return_annotation(node):
             recording_async_map[node.name] = node
 
     # Collect ALL async method names (for the peer-call static check)
