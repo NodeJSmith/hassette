@@ -5,10 +5,17 @@ The Bus provides a clean interface for listening to state changes, service calls
 from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions
 and cleanup. Use predicates and conditions to filter events precisely.
 
-All registration methods (``on_state_change``, ``on_attribute_change``, ``on_call_service``,
-``on``) are ``async`` and must be awaited. The ``name=`` parameter is required on every call —
-omitting it raises ``ListenerNameRequiredError`` at call time. Registration completes inline:
-``sub.listener.db_id`` is a valid integer immediately when the awaited call returns.
+Registration methods (``on_state_change``, ``on_attribute_change``, ``on_call_service``,
+``on``, etc.) return a ``Coroutine`` and must be awaited. The ``name=`` parameter is required on
+every call — omitting it raises ``ListenerNameRequiredError`` synchronously at call time, before
+any handle is constructed. Registration completes inline: ``sub.listener.db_id`` is a valid
+integer immediately when the awaited call returns.
+
+Coroutine return annotations: converted registration methods return a ``RegistrationHandle``, a
+``collections.abc.Coroutine`` subclass, so ``-> Coroutine[Any, Any, T]`` is the honest supertype.
+The supertype is load-bearing: Pyright's ``reportUnusedCoroutine`` fires only for the Coroutine
+ABC — narrowing to ``RegistrationHandle`` or ``Awaitable`` silently kills the static layer.
+AC#8 guards this. See design/071.
 
 Examples:
     Basic state change subscription
@@ -90,13 +97,14 @@ Examples:
 
 import logging
 import typing
-from collections.abc import Mapping
+from collections.abc import Coroutine, Mapping
 from functools import partial
 from typing import Any, Unpack
 
 from typing_extensions import Sentinel
 
 from hassette.const import NOT_PROVIDED
+from hassette.core.await_guard import guard_await
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events.base import Event, HassettePayload
@@ -178,7 +186,7 @@ class Bus(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 
-    async def add_listener(self, listener: "Listener") -> None:
+    def add_listener(self, listener: "Listener") -> "Coroutine[Any, Any, None]":
         """Add a pre-built listener to the bus.
 
         This is the direct entry point for callers that construct a ``Listener``
@@ -190,8 +198,26 @@ class Bus(Resource):
                 listeners, including once-listeners; cancel-listeners bypass this path entirely).
             DuplicateListenerError: If the listener's natural key is already registered on this bus instance.
         """
+        # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if listener.identity.name is None:
             raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
+        # _registration_source discarded: the pre-built Listener already carries identity.source_location /
+        # registration_source; only warning attribution needs the location here.
+        source_location, _registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._add_listener(listener),
+            owner=self.parent,
+            source_location=source_location,
+        )
+
+    async def _add_listener(self, listener: "Listener") -> None:
+        """Async body for add_listener: collision check + DB registration.
+
+        register_and_check_collision is a registry mutation — it must not run for a
+        never-awaited call (would pollute the duplicate-name registry). Matches the
+        on() path where collision check lives in _on_internal.
+        """
         self.register_and_check_collision(listener)
         await self.bus_service.add_listener(listener)
 
@@ -252,7 +278,7 @@ class Bus(Resource):
         event = Event(topic=topic, payload=payload)
         await self.hassette.send_event(event)
 
-    async def on(
+    def on(
         self,
         *,
         topic: str,
@@ -266,12 +292,12 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to an event topic with optional filtering and modifiers.
 
-        This is the public registration method for raw topic subscriptions. This method is
-        ``async`` and must be awaited. Registration completes before the call returns —
-        ``sub.listener.db_id`` is a valid integer immediately on return.
+        This is the public registration method for raw topic subscriptions. Must be awaited.
+        Registration completes before the call returns — ``sub.listener.db_id`` is a valid
+        integer immediately on return.
 
         Args:
             topic: The event topic to listen to.
@@ -298,19 +324,32 @@ class Bus(Resource):
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
-        return await self._on_internal(
-            topic=topic,
-            handler=handler,
-            where=where,
-            kwargs=kwargs,
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            name=name,
-            on_error=on_error,
-            duration_config=None,
+        if name is None:
+            raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
+        # Eager capture in the public def — user frame is live here (not inside the async body).
+        # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
+        # _on_internal (populates ListenerIdentity.source_location / registration_source on the DB record).
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._on_internal(
+                topic=topic,
+                handler=handler,
+                where=where,
+                kwargs=kwargs,
+                once=once,
+                debounce=debounce,
+                throttle=throttle,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
+                name=name,
+                on_error=on_error,
+                duration_config=None,
+                source_location=source_location,
+                registration_source=registration_source,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
     async def _on_internal(
@@ -328,15 +367,20 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         duration_config: "DurationConfig | None" = None,
+        source_location: str = "",
+        registration_source: str | None = None,
     ) -> Subscription:
         """Private registration method carrying the full parameter set.
 
         Called by on() (with duration_config=None) and by _subscribe() (which
         builds DurationConfig from duration/entity_id when provided).
 
+        source_location and registration_source are captured in the public def (user
+        frame live there) and threaded down here to populate ListenerIdentity — the
+        capture must NOT be duplicated here or the user frame will be gone by then.
+
         Builds all sub-structs (ListenerIdentity, ListenerOptions, HandlerInvoker)
-        here and calls Listener.create() via the sub-struct path. Source location is
-        captured before construction (while user code is still on the stack).
+        here and calls Listener.create() via the sub-struct path.
 
         DB registration is awaited inline — the listener's db_id is set and the
         listener is routable before this method returns.
@@ -347,9 +391,6 @@ class Bus(Resource):
         instance_index = parent.index
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
-
-        # Capture source while user code is still on the stack (before async boundary)
-        source_location, registration_source = capture_registration_source()
 
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)
@@ -422,6 +463,8 @@ class Bus(Resource):
         hold_preds: list["Predicate"] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
+        source_location: str = "",
+        registration_source: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to _on_internal()."""
@@ -465,6 +508,8 @@ class Bus(Resource):
             duration_config=duration_config,
             name=name,
             on_error=on_error,
+            source_location=source_location,
+            registration_source=registration_source,
             **opts,
         )
 
@@ -490,7 +535,7 @@ class Bus(Resource):
             if other:
                 preds.append(P.AllOf.ensure_iterable(other))
 
-    async def on_state_change(
+    def on_state_change(
         self,
         entity_id: str,
         *,
@@ -505,12 +550,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to state changes for a specific entity.
 
-        This method is ``async`` and must be awaited. Registration — routing and database
-        persistence — completes before the call returns. ``sub.listener.db_id`` is a valid
-        integer immediately on return.
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
@@ -536,6 +580,12 @@ class Bus(Resource):
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered on this bus in the current session.
         """
+        # Synchronous validation runs before the handle is constructed (design Edge Cases).
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+            )
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -550,24 +600,33 @@ class Bus(Resource):
             entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
-        return await self._subscribe(
-            method_name=f"entity '{entity_id}'",
-            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
-            immediate=immediate,
-            duration=duration,
-            entity_id=entity_id,
-            hold_preds=hold_preds if duration is not None else None,
-            name=name,
-            on_error=on_error,
-            **opts,
+        # Eager capture in the public def — user frame is live here.
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name=f"entity '{entity_id}'",
+                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
+                immediate=immediate,
+                duration=duration,
+                entity_id=entity_id,
+                hold_preds=hold_preds if duration is not None else None,
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_attribute_change(
+    def on_attribute_change(
         self,
         entity_id: str,
         attr: str,
@@ -583,11 +642,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to state change events for a specific entity's attribute.
 
-        This method is ``async`` and must be awaited. Registration completes before the call
-        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
@@ -609,6 +668,13 @@ class Bus(Resource):
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
+        # Synchronous validation runs before the handle is constructed (design Edge Cases).
+        if name is None:
+            # [{attr}] suffix distinguishes this error from on_state_change's (same wire topic).
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]",
+            )
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -634,25 +700,33 @@ class Bus(Resource):
             entity_id, attr, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
-        return await self._subscribe(
-            method_name=f"entity '{entity_id}' attribute '{attr}'",
-            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"changed_from": changed_from, "changed_to": changed_to, "where": where},
-            immediate=immediate,
-            duration=duration,
-            entity_id=entity_id,
-            hold_preds=hold_preds if duration is not None else None,
-            is_attribute_listener=True,
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name=f"entity '{entity_id}' attribute '{attr}'",
+                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"changed_from": changed_from, "changed_to": changed_to, "where": where},
+                immediate=immediate,
+                duration=duration,
+                entity_id=entity_id,
+                hold_preds=hold_preds if duration is not None else None,
+                is_attribute_listener=True,
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_call_service(
+    def on_call_service(
         self,
         domain: str | None = None,
         service: str | None = None,
@@ -663,11 +737,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to service call events.
 
-        This method is ``async`` and must be awaited. Registration completes before the call
-        returns. ``sub.listener.db_id`` is a valid integer immediately on return.
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             domain: The domain to filter service calls (e.g., "light").
@@ -686,7 +760,11 @@ class Bus(Resource):
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
         """
-
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=str(Topic.HASS_EVENT_CALL_SERVICE),
+            )
         preds: list[Predicate] = []
         if domain is not None:
             preds.append(P.DomainMatches(domain))
@@ -696,20 +774,28 @@ class Bus(Resource):
 
         self._normalize_service_where(preds, where)
 
-        return await self._subscribe(
-            method_name="call_service",
-            topic=Topic.HASS_EVENT_CALL_SERVICE,
-            handler=handler,
-            preds=preds,
-            where=None,
-            kwargs=kwargs,
-            log_params={"domain": domain, "service": service, "where": where},
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name="call_service",
+                topic=Topic.HASS_EVENT_CALL_SERVICE,
+                handler=handler,
+                preds=preds,
+                where=None,
+                kwargs=kwargs,
+                log_params={"domain": domain, "service": service, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_component_loaded(
+    def on_component_loaded(
         self,
         component: str | None = None,
         *,
@@ -719,8 +805,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to component loaded events.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             component: The component to filter load events (e.g., "light").
@@ -733,26 +822,38 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=str(Topic.HASS_EVENT_COMPONENT_LOADED),
+            )
         preds: list[Predicate] = []
 
         if component is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
-        return await self._subscribe(
-            method_name="component_loaded",
-            topic=Topic.HASS_EVENT_COMPONENT_LOADED,
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"component": component, "where": where},
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name="component_loaded",
+                topic=Topic.HASS_EVENT_COMPONENT_LOADED,
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"component": component, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_service_registered(
+    def on_service_registered(
         self,
         domain: str | None = None,
         service: str | None = None,
@@ -763,8 +864,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to service registered events.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             domain: The domain to filter service registrations (e.g., "light").
@@ -778,7 +882,11 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=str(Topic.HASS_EVENT_SERVICE_REGISTERED),
+            )
         preds: list[Predicate] = []
 
         if domain is not None:
@@ -787,27 +895,35 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        return await self._subscribe(
-            method_name="service_registered",
-            topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"domain": domain, "service": service, "where": where},
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name="service_registered",
+                topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"domain": domain, "service": service, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_homeassistant_restart(
+    def on_homeassistant_restart(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant restart events.
 
         Args:
@@ -820,18 +936,20 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return await self.on_call_service(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_call_service (the true primary). See design/071.
+        return self.on_call_service(
             domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_homeassistant_start(
+    def on_homeassistant_start(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant start events.
 
         Args:
@@ -844,18 +962,20 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return await self.on_call_service(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_call_service (the true primary). See design/071.
+        return self.on_call_service(
             domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_homeassistant_stop(
+    def on_homeassistant_stop(
         self,
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant stop events.
 
         Args:
@@ -868,11 +988,13 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return await self.on_call_service(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_call_service (the true primary). See design/071.
+        return self.on_call_service(
             domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_hassette_service_status(
+    def on_hassette_service_status(
         self,
         status: ResourceStatus | None = None,
         *,
@@ -882,8 +1004,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service status events.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             status: The status to filter events (e.g., ResourceStatus.STARTED).
@@ -899,26 +1024,38 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
+            )
         preds: list[Predicate] = []
 
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        return await self._subscribe(
-            method_name="hassette.service_status",
-            topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"status": status, "where": where},
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name="hassette.service_status",
+                topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"status": status, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_hassette_service_failed(
+    def on_hassette_service_failed(
         self,
         *,
         handler: "HandlerType",
@@ -926,7 +1063,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service failed events.
 
         Args:
@@ -942,12 +1079,13 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on_hassette_service_status(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
+        return self.on_hassette_service_status(
             status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_hassette_service_crashed(
+    def on_hassette_service_crashed(
         self,
         *,
         handler: "HandlerType",
@@ -955,7 +1093,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service crashed events.
 
         Args:
@@ -968,12 +1106,13 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on_hassette_service_status(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
+        return self.on_hassette_service_status(
             status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_hassette_service_started(
+    def on_hassette_service_started(
         self,
         *,
         handler: "HandlerType",
@@ -981,7 +1120,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service started events.
 
         Args:
@@ -994,12 +1133,13 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on_hassette_service_status(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
+        return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, name=name, **opts
         )
 
-    async def on_websocket_connected(
+    def on_websocket_connected(
         self,
         *,
         handler: "HandlerType",
@@ -1007,7 +1147,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to websocket connected events.
 
         Args:
@@ -1020,8 +1160,9 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on() (the true primary). See design/071.
+        return self.on(
             topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED,
             handler=handler,
             where=where,
@@ -1030,7 +1171,7 @@ class Bus(Resource):
             **opts,
         )
 
-    async def on_websocket_disconnected(
+    def on_websocket_disconnected(
         self,
         *,
         handler: "HandlerType",
@@ -1038,7 +1179,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to websocket disconnected events.
 
         Args:
@@ -1051,8 +1192,9 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on() (the true primary). See design/071.
+        return self.on(
             topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED,
             handler=handler,
             where=where,
@@ -1061,7 +1203,7 @@ class Bus(Resource):
             **opts,
         )
 
-    async def on_app_state_changed(
+    def on_app_state_changed(
         self,
         *,
         handler: "HandlerType",
@@ -1072,8 +1214,11 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to app instance state change events.
+
+        Must be awaited. Registration completes before the call returns.
+        ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             handler: The function to call when the event matches.
@@ -1087,7 +1232,11 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
+        if name is None:
+            raise ListenerNameRequiredError(
+                handler_method=callable_name(handler),
+                topic=str(Topic.HASSETTE_EVENT_APP_STATE_CHANGED),
+            )
         preds: list[Predicate] = []
 
         if app_key is not None:
@@ -1096,20 +1245,28 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        return await self._subscribe(
-            method_name="app_state_changed",
-            topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
-            handler=handler,
-            preds=preds,
-            where=where,
-            kwargs=kwargs,
-            log_params={"app_key": app_key, "status": status, "where": where},
-            name=name,
-            on_error=on_error,
-            **opts,
+        source_location, registration_source = capture_registration_source(limit=8)
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._subscribe(
+                method_name="app_state_changed",
+                topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
+                handler=handler,
+                preds=preds,
+                where=where,
+                kwargs=kwargs,
+                log_params={"app_key": app_key, "status": status, "where": where},
+                name=name,
+                on_error=on_error,
+                source_location=source_location,
+                registration_source=registration_source,
+                **opts,
+            ),
+            owner=self.parent,
+            source_location=source_location,
         )
 
-    async def on_app_running(
+    def on_app_running(
         self,
         *,
         handler: "HandlerType",
@@ -1118,7 +1275,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to app instances reaching RUNNING status.
 
         Args:
@@ -1132,8 +1289,9 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on_app_state_changed(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_app_state_changed (the true primary). See design/071.
+        return self.on_app_state_changed(
             handler=handler,
             app_key=app_key,
             status=ResourceStatus.RUNNING,
@@ -1143,7 +1301,7 @@ class Bus(Resource):
             **opts,
         )
 
-    async def on_app_stopping(
+    def on_app_stopping(
         self,
         *,
         handler: "HandlerType",
@@ -1152,7 +1310,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
-    ) -> Subscription:
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to app instances entering STOPPING status.
 
         Args:
@@ -1166,8 +1324,9 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
-        return await self.on_app_state_changed(
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at on_app_state_changed (the true primary). See design/071.
+        return self.on_app_state_changed(
             handler=handler,
             app_key=app_key,
             status=ResourceStatus.STOPPING,

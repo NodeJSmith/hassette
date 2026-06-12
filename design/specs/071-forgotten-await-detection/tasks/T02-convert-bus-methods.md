@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Convert bus registration methods to def -> Coroutine"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#5", "FR#9", "FR#10", "AC#2"]
 ---
