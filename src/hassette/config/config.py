@@ -31,6 +31,7 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
+from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
@@ -188,6 +189,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     allow_only_app_in_prod: bool = Field(default=False)
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
+
+    forgotten_await_behavior: ForgottenAwaitBehavior | None = Field(default=None)
+    """Global default for forgotten-await detection behavior.
+
+    When ``None`` (default), the effective behavior is ``WARN``.  Per-app
+    ``AppConfig.forgotten_await_behavior`` overrides this when set.  Set to ``IGNORE``
+    to suppress warnings globally, or ``ERROR`` to escalate via ``filterwarnings("error")``."""
 
     @property
     def env_files(self) -> set[Path]:

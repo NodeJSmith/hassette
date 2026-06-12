@@ -8,6 +8,17 @@ if TYPE_CHECKING:
 MAX_ISSUES_IN_SUMMARY = 5
 
 
+class HassetteForgottenAwaitWarning(RuntimeWarning):
+    """Warning emitted when a protected registration/scheduling method is called without ``await``.
+
+    Fired from ``RegistrationHandle.__del__`` when the handle is garbage-collected without
+    ever being awaited, sent to, thrown into, or closed. The message names the owning app
+    and the source location of the forgotten call site.
+
+    Integrates with ``-W error``/``pytest.warns``/``filterwarnings`` like any ``RuntimeWarning``.
+    """
+
+
 class HassetteError(Exception):
     """Base exception for all Hassette errors."""
 

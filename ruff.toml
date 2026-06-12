@@ -111,6 +111,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "S610",   # false positive: not Django .extra()
     "S102",   # exec usage (API surface test)
     "ASYNC221", # blocking subprocess in async test functions (docker management)
+    "PT031",  # GC-triggered warning tests require del + gc.collect() (two statements)
 ]
 "tests/integration/telemetry/test_telemetry_query_service_misc.py" = ["ASYNC251"]
 "tools/*.py" = ["S603", "S607"]

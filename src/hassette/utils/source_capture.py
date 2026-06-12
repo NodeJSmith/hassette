@@ -5,13 +5,15 @@ import functools
 import inspect
 from typing import Any
 
-# Path fragments that identify internal hassette frames to skip
-INTERNAL_PATH_FRAGMENTS = ("hassette/bus/", "hassette/scheduler/", "hassette/core/")
 
+def is_internal_frame(frame: Any) -> bool:
+    """Return True if the frame belongs to an internal hassette module.
 
-def is_internal_frame(filename: str) -> bool:
-    """Return True if the frame belongs to an internal hassette module."""
-    return any(fragment in filename for fragment in INTERNAL_PATH_FRAGMENTS)
+    Uses ``f_globals["__name__"]`` for the check — works from site-packages and
+    on any OS without relying on filesystem path separators or path fragments.
+    """
+    name: str = frame.f_globals.get("__name__", "") if hasattr(frame, "f_globals") else ""
+    return name == "hassette" or name.startswith("hassette.")
 
 
 @functools.lru_cache(maxsize=256)
@@ -54,12 +56,15 @@ def find_call_source(filename: str, lineno: int) -> str | None:
         return None
 
 
-def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | None]:
+def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = None) -> tuple[str, str | None]:
     """Capture the source location and code of the calling registration.
 
-    Walks the call stack, skips internal hassette frames (from
-    ``hassette/bus/``, ``hassette/scheduler/``, or ``hassette/core/``), and
-    returns information about the first app-level frame.
+    Walks the call stack, skips internal hassette frames (identified by
+    ``f_globals["__name__"]`` starting with ``"hassette."``), and returns
+    information about the first app-level (non-hassette) frame.
+
+    Attribution uses the module-name check, not filesystem path fragments, so
+    it works from site-packages, on Windows, and with any directory layout.
 
     The per-file AST and source are cached (LRU, maxsize=256) so repeated
     calls from the same file only read and parse the file once.
@@ -71,6 +76,11 @@ def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | 
     Args:
         frames_to_skip: Additional frames at the top of the stack to skip
             before applying the hassette-internal filter.  Defaults to 0.
+        limit: Maximum number of stack frames to inspect, counted *after*
+            skipping our own frame and ``frames_to_skip``.  When ``None`` the
+            full stack is examined.  Note: ``inspect.stack``'s ``context``
+            parameter controls source lines per frame, not frame count; this
+            limit is applied by slicing the result.
 
     Returns:
         A tuple of ``(source_location, registration_source)`` where:
@@ -80,18 +90,27 @@ def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | 
           ``None`` if unavailable.
     """
     try:
-        stack = inspect.stack()
+        # Always walk with context=0 (zero source lines per frame) — cheapest possible.
+        # inspect.stack's only parameter is `context` (source lines per frame), not a
+        # frame-count limit; slicing here gives the real frame-count bound.
+        raw_stack = inspect.stack(context=0)
     except Exception:
         return ("<unknown>:0", None)
 
-    # Skip our own frame plus any caller-requested frames
-    frames = stack[1 + frames_to_skip :]
+    # Skip our own frame plus any caller-requested frames FIRST, then bound the
+    # window. Applying the limit before the skip would let internal frames consume
+    # the whole window and silently misattribute to a hassette frame.
+    frames = raw_stack[1 + frames_to_skip :]
+    if limit is not None:
+        frames = frames[:limit]
 
     # Look for the first non-internal frame
     chosen: Any = None
     for frame_info in frames:
-        filename: str = getattr(frame_info, "filename", "") or ""
-        if not is_internal_frame(filename):
+        # FrameInfo from inspect.stack() has a .frame attribute with f_globals.
+        # In tests we also pass SimpleNamespace objects directly — handle both.
+        raw_frame = getattr(frame_info, "frame", frame_info)
+        if not is_internal_frame(raw_frame):
             chosen = frame_info
             break
 

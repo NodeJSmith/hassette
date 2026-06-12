@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
+from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
 
 
@@ -27,6 +28,13 @@ class AppConfig(BaseSettings):
 
     app_key: str = ""
     """Configuration-level app key. Reserved: '__hassette__' and '__hassette__.*' prefixes are rejected."""
+
+    forgotten_await_behavior: ForgottenAwaitBehavior | None = None
+    """Per-app control for forgotten-await detection behavior.
+
+    When ``None`` (default), the global ``HassetteConfig.forgotten_await_behavior`` is used,
+    which itself defaults to ``WARN``.  Set to ``IGNORE`` to suppress warnings for this app,
+    or ``ERROR`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
 
     @field_validator("app_key")
     @classmethod
