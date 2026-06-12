@@ -302,8 +302,8 @@ Filter out noisy events at the bus level before they reach your apps.
 
 ## Developer Settings
 
-- **`forgotten_await_behavior`** (string): Controls what happens when a protected method (`bus.on_*`, `scheduler.run_*`, `api.call_service`, etc.) is called without `await`. Valid values: `"IGNORE"`, `"WARN"`, `"ERROR"`.
-    - Default: `"WARN"`
+- **`forgotten_await_behavior`** (string): Controls what happens when a protected method is called without `await`. Valid values: `"IGNORE"`, `"WARN"`, `"ERROR"`. See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for the full list of protected methods.
+    - Default: not set (effective behavior: `"WARN"`)
     - `IGNORE` — suppresses the warning entirely.
     - `WARN` — emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site.
     - `ERROR` — emits the warning in a form that `filterwarnings("error")` / `-W error` escalates to a raised exception. The raised exception occurs inside `__del__` and is visible as `Exception ignored in: ...`; the process does not stop.
@@ -312,7 +312,7 @@ Filter out noisy events at the bus level before they reach your apps.
 
     ```toml
     [hassette]
-    forgotten_await_behavior = "WARN"   # default
+    forgotten_await_behavior = "WARN"   # explicit; unset behaves the same
 
     # Override for a specific app:
     [hassette.apps.my_dev_app]

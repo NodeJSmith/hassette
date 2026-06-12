@@ -11,12 +11,6 @@ every call — omitting it raises ``ListenerNameRequiredError`` synchronously at
 any handle is constructed. Registration completes inline: ``sub.listener.db_id`` is a valid
 integer immediately when the awaited call returns.
 
-Coroutine return annotations: converted registration methods return a ``RegistrationHandle``, a
-``collections.abc.Coroutine`` subclass, so ``-> Coroutine[Any, Any, T]`` is the honest supertype.
-The supertype is load-bearing: Pyright's ``reportUnusedCoroutine`` fires only for the Coroutine
-ABC — narrowing to ``RegistrationHandle`` or ``Awaitable`` silently kills the static layer.
-AC#8 guards this. See design/071.
-
 Examples:
     Basic state change subscription
 
@@ -203,8 +197,8 @@ class Bus(Resource):
             raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
         # _registration_source discarded: the pre-built Listener already carries identity.source_location /
         # registration_source; only warning attribution needs the location here.
-        source_location, _registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, _registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._add_listener(listener),
             owner=self.parent,
@@ -329,8 +323,8 @@ class Bus(Resource):
         # Eager capture in the public def — user frame is live here (not inside the async body).
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _on_internal (populates ListenerIdentity.source_location / registration_source on the DB record).
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._on_internal(
                 topic=topic,
@@ -601,8 +595,8 @@ class Bus(Resource):
         )
 
         # Eager capture in the public def — user frame is live here.
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name=f"entity '{entity_id}'",
@@ -700,8 +694,8 @@ class Bus(Resource):
             entity_id, attr, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name=f"entity '{entity_id}' attribute '{attr}'",
@@ -774,8 +768,8 @@ class Bus(Resource):
 
         self._normalize_service_where(preds, where)
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name="call_service",
@@ -832,8 +826,8 @@ class Bus(Resource):
         if component is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.component"), condition=component))
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name="component_loaded",
@@ -895,8 +889,8 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name="service_registered",
@@ -1034,8 +1028,8 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name="hassette.service_status",
@@ -1245,8 +1239,8 @@ class Bus(Resource):
         if status is not None:
             preds.append(P.ValueIs(source=get_path("payload.data.status"), condition=status))
 
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
                 method_name="app_state_changed",

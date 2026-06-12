@@ -9,12 +9,6 @@ Scheduling methods (``add_job``, ``schedule``, ``run_in``, ``run_every``, ``run_
 return a ``Coroutine`` and must be awaited. Registration completes inline: ``job.db_id`` is a
 valid integer immediately when the awaited call returns.
 
-Coroutine return annotations: converted scheduling methods return a ``RegistrationHandle``, a
-``collections.abc.Coroutine`` subclass, so ``-> Coroutine[Any, Any, ScheduledJob]`` is the
-honest supertype. The supertype is load-bearing: Pyright's ``reportUnusedCoroutine`` fires only
-for the Coroutine ABC — narrowing to ``RegistrationHandle`` or ``Awaitable`` silently kills the
-static layer. AC#8 guards this. See design/071.
-
 Examples:
     One-time delayed execution::
 
@@ -214,8 +208,8 @@ class Scheduler(Resource):
         # Eager capture in the public def — user frame is live here (not inside the async body).
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _add_job (backfills job.source_location / registration_source for telemetry when empty).
-        source_location, registration_source = capture_registration_source(limit=8)
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        source_location, registration_source = capture_registration_source()
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._add_job(
                 job,

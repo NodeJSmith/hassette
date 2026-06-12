@@ -1,6 +1,9 @@
 # Scheduling Methods
 
-The scheduler provides several methods to run tasks at different times. All methods return a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
+The scheduler provides several methods to run tasks at different times. Awaiting any of these methods returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob].
+
+!!! warning "All scheduling methods must be awaited"
+    Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
 
 ## Primary Entry Point
 

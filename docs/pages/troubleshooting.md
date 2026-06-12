@@ -26,10 +26,15 @@ This page organizes common problems by symptom. Click through to the relevant se
 **Symptom:** A handler never fires, or a scheduled job never runs, even though the registration call looks correct. Shortly after the call, a warning appears:
 
 ```
-HassetteForgottenAwaitWarning: <app> forgot to await bus.on_state_change (called at my_app.py:12)
+Coroutine from 'on_state_change' was never awaited (app: Hassette.LightingApp.0, call site: /apps/lighting.py:42). Did you forget 'await'?
 ```
 
-**Cause:** The registration call was made without `await`. Every `bus.on_*`, `scheduler.run_*`, `scheduler.schedule()`, `api.call_service()`, `api.fire_event()`, `api.set_state()`, `api.turn_on()`, `api.turn_off()`, `api.toggle_service()`, and entity service method (e.g. `entity.turn_on()`) returns a coroutine. Without `await`, the coroutine is created and immediately dropped — the listener never registers, the job never schedules, and the service call never fires.
+**Cause:** The registration call was made without `await`. The following methods all return a coroutine — without `await`, the coroutine is created and immediately dropped, so the listener never registers, the job never schedules, and the service call never fires:
+
+- **Bus:** `on_*` methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`, `on_service_registered`, `on_component_loaded`, `on_hassette_service_status`, `on_app_state_changed`, and all event-specific convenience methods like `on_homeassistant_start`, `on_websocket_connected`, etc.), `add_listener`
+- **Scheduler:** `schedule()`, `add_job()`, `run_in()`, `run_once()`, `run_every()`, `run_minutely()`, `run_hourly()`, `run_daily()`, `run_cron()`
+- **Api:** `call_service()`, `fire_event()`, `set_state()`, `turn_on()`, `turn_off()`, `toggle_service()`
+- **Entity methods:** `entity.turn_on()`, `entity.turn_off()`, and other entity service methods
 
 **Fix:** Add `await` to the call:
 

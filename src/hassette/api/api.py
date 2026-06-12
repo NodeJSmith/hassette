@@ -8,13 +8,6 @@ authentication, retries, and type conversion for a seamless developer experience
 Fire-and-forget methods (``call_service``, ``fire_event``, ``set_state``, ``turn_on``,
 ``turn_off``, ``toggle_service``) return a ``Coroutine`` and must be awaited.
 
-Coroutine return annotations: converted fire-and-forget methods return a
-``RegistrationHandle``, a ``collections.abc.Coroutine`` subclass, so
-``-> Coroutine[Any, Any, T]`` is the honest supertype. The supertype is load-bearing:
-Pyright's ``reportUnusedCoroutine`` fires only for the Coroutine ABC — narrowing to
-``RegistrationHandle`` or ``Awaitable`` silently kills the static layer.  AC#8 guards
-this. See design/071.
-
 Examples:
     Getting entity states
 
@@ -446,10 +439,10 @@ class Api(Resource):
         Returns:
             The response from Home Assistant.
         """
-        source_location, _registration_source = capture_registration_source(limit=8)
+        source_location, _registration_source = capture_registration_source()
         # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(self._fire_event(event_type, event_data), owner=self.parent, source_location=source_location)
 
     async def _fire_event(
@@ -508,10 +501,10 @@ class Api(Resource):
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        source_location, _registration_source = capture_registration_source(limit=8)
+        source_location, _registration_source = capture_registration_source()
         # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._call_service(domain, service, target, return_response, **data),
             owner=self.parent,
@@ -891,10 +884,10 @@ class Api(Resource):
         Returns:
             The response from Home Assistant after setting the state.
         """
-        source_location, _registration_source = capture_registration_source(limit=8)
+        source_location, _registration_source = capture_registration_source()
         # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
-        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._set_state(entity_id, state, attributes), owner=self.parent, source_location=source_location
         )

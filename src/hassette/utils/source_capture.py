@@ -56,7 +56,7 @@ def find_call_source(filename: str, lineno: int) -> str | None:
         return None
 
 
-def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = None) -> tuple[str, str | None]:
+def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 8) -> tuple[str, str | None]:
     """Capture the source location and code of the calling registration.
 
     Walks the call stack, skips internal hassette frames (identified by
@@ -77,10 +77,12 @@ def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 
         frames_to_skip: Additional frames at the top of the stack to skip
             before applying the hassette-internal filter.  Defaults to 0.
         limit: Maximum number of stack frames to inspect, counted *after*
-            skipping our own frame and ``frames_to_skip``.  When ``None`` the
-            full stack is examined.  Note: ``inspect.stack``'s ``context``
-            parameter controls source lines per frame, not frame count; this
-            limit is applied by slicing the result.
+            skipping our own frame and ``frames_to_skip``.  Defaults to 8,
+            which is sufficient for all public registration/scheduling/fire
+            methods (user code is 1-3 frames from the public def).  Pass
+            ``None`` for an unbounded walk.  Note: ``inspect.stack``'s
+            ``context`` parameter controls source lines per frame, not frame
+            count; this limit is applied by slicing the result.
 
     Returns:
         A tuple of ``(source_location, registration_source)`` where:

@@ -50,7 +50,8 @@ Entities wrap the state object. Currently `BaseEntity` and `LightEntity` are ava
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
 
-Entity service methods (`entity.turn_on()`, `entity.set_humidity(...)`, etc.) must be awaited. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] — see [Forgotten `await`](../../troubleshooting.md#forgotten-await).
+!!! warning "Entity service methods must be awaited"
+    Every entity service method (`entity.turn_on()`, `entity.set_humidity()`, etc.) returns a coroutine. Without `await`, the call is never sent and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
 
 ## API vs StateManager
 
