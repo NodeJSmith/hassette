@@ -1,2 +1,0 @@
-volumes:
-  - uv_cache:/uv_cache

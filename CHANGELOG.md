@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0](https://github.com/NodeJSmith/hassette/compare/v0.41.0...v0.42.0) (2026-06-11)
+
+
+### Features
+
+* **ui:** redesign diagnostics page and fix mobile table cropping ([#1013](https://github.com/NodeJSmith/hassette/issues/1013)) ([3fee929](https://github.com/NodeJSmith/hassette/commit/3fee92957e4882302883f8b90fa388740dcf6d80))
+
+
+### Bug Fixes
+
+* coerce numeric strings in Comparison condition ([#1003](https://github.com/NodeJSmith/hassette/issues/1003)) ([ae751a6](https://github.com/NodeJSmith/hassette/commit/ae751a680b721c14045b8de197a3c9d2cefcfd53))
+* Docker semver images not published since v0.39.0 ([#999](https://github.com/NodeJSmith/hassette/issues/999)) ([ee1d804](https://github.com/NodeJSmith/hassette/commit/ee1d804ef264eaad076795ba471470879533a954))
+
+
+### Documentation
+
+* rewrite documentation site ([#970](https://github.com/NodeJSmith/hassette/issues/970)) ([32d945e](https://github.com/NodeJSmith/hassette/commit/32d945ece917e2278eed200afdc762b4d253cd69))
+
 ## [0.41.0](https://github.com/NodeJSmith/hassette/compare/v0.40.0...v0.41.0) (2026-06-08)
 
 

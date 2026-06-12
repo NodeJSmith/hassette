@@ -54,7 +54,7 @@ hassette app health <key> --instance office
 
 **Hassette** (`src/hassette/core/core.py`) - Main coordinator that connects to Home Assistant via WebSocket, manages app lifecycle, and coordinates all services.
 
-**App** (`src/hassette/app/app.py`) - Base class for user automations. Generic over `AppConfig` type. Each app gets its own Bus, Scheduler, Api, and StateManager. Lifecycle hooks: `on_initialize`, `on_ready`, `on_shutdown`.
+**App** (`src/hassette/app/app.py`) - Base class for user automations. Generic over `AppConfig` type. Each app gets its own Bus, Scheduler, Api, and StateManager. Lifecycle hooks: `on_initialize`, `on_shutdown`.
 
 **Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. All registration methods are `async` and must be awaited. `name=` is required on every DB-registered listener — omitting it raises `ListenerNameRequiredError` at call time. Supports glob patterns, predicates, conditions, debounce, throttle. The internal `Listener` dataclass composes four sub-structs: `ListenerIdentity` (ownership/telemetry fields), `ListenerOptions` (behavioral timing parameters), `HandlerInvoker` (handler invocation, dispatch, rate limiting), and `DurationConfig` (duration-hold configuration and timer lifecycle). Registration is synchronous with the DB — `sub.listener.db_id` is a valid integer immediately when the awaited call returns. `Subscription` no longer has a `registration_task` field.
 
@@ -329,10 +329,10 @@ Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped 
 
 Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
 
-- **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
-- **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
-- **`tools/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
-- **`tools/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
+- **`tools/frontend/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
+- **`tools/frontend/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/frontend/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
+- **`tools/frontend/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
+- **`tools/frontend/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/frontend/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
 
 ### Adding a new shared class
 
@@ -340,8 +340,8 @@ For classes that don't warrant a component (layout utilities, typography helpers
 
 1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
 2. Add it to the appropriate file in `frontend/src/styles/`
-3. Add its prefix to `ALLOWLIST` in `tools/check_global_css_allowlist.py`
-4. Run `uv run python tools/check_global_css_allowlist.py` to verify
+3. Add its prefix to `ALLOWLIST` in `tools/frontend/check_global_css_allowlist.py`
+4. Run `uv run python tools/frontend/check_global_css_allowlist.py` to verify
 
 For new reusable visual elements (like buttons, badges), create a shared component with a co-located `.module.css` file in `components/shared/` instead of adding global classes.
 

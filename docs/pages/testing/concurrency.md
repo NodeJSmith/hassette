@@ -1,52 +1,57 @@
 # Concurrency & pytest-xdist
 
-The harness has two independent isolation mechanisms. Understanding which applies when prevents confusing deadlocks.
+Two isolation mechanisms protect test state. Each targets a different scope.
 
-## Same-Class Concurrency (always applies)
+## DrainFailure Exception Hierarchy
 
-`AppTestHarness` uses a **per-App-class `asyncio.Lock`** as a narrow critical section around the `app_manifest` read-modify-write and hermetic config validation. The lock is held only during these synchronous operations — not during app startup or teardown.
+`DrainFailure` catches any drain-related failure from a `simulate_*` call that does not settle cleanly. Two concrete subclasses distinguish the failure mode.
 
-- Two harnesses for the **same App class** can run concurrently in the same event loop. Using `asyncio.gather()` with multiple harnesses that share a class is safe — a reference counter ensures `app_manifest` is set on the first entry and restored only when the last harness exits.
-- Two harnesses for **different App classes** can also run concurrently without conflict.
+`DrainError` fires when handler tasks raise non-cancellation exceptions during drain. Its `task_exceptions` attribute is a `list[tuple[str, BaseException]]`, one entry per failed task.
 
-## Time-Control Concurrency (`freeze_time` only)
+`DrainTimeout` fires when the drain does not reach quiescence within the deadline. The exception message includes pending task names and a debounce hint when applicable.
 
-`freeze_time` additionally uses a **process-global non-reentrant lock**. Only one harness at a time may hold the time lock in a process, regardless of which App class it tests.
+`DrainTimeout` does not inherit from `TimeoutError`. Test code catches `DrainTimeout` or `DrainFailure` around `simulate_*` calls, not `TimeoutError`.
 
-- Sequential tests in the same worker are safe — the lock is released when the `async with` block exits cleanly.
-- If two harnesses compete for the time lock, the second one raises `RuntimeError: freeze_time is already held by another harness`.
+```python
+--8<-- "pages/testing/snippets/testing_drain_exceptions.py"
+```
+
+Harness startup timeouts raise `TimeoutError`, not a `DrainFailure` subclass. A startup timeout fires when `on_initialize()` exceeds its deadline. [Test Harness Reference](harness.md) covers startup lifecycle.
+
+## Same-Class Concurrency (Always Applies)
+
+`AppTestHarness` acquires a per-App-class `asyncio.Lock` around the `app_manifest` read-modify-write. A reference counter sets `app_manifest` on the first entry and restores it only when the last harness exits. Multiple harnesses for the same [App][hassette.app.app.App] class can run concurrently via `asyncio.gather()`. Harnesses for different `App` classes never share a lock.
+
+## Time-Control Concurrency (freeze_time Only)
+
+`freeze_time` acquires a process-global `threading.Lock` (non-reentrant). Only one harness may hold the time lock at a time, regardless of `App` class. The lock releases when the `AppTestHarness` context manager exits.
+
+A second harness that attempts to acquire the time lock raises `RuntimeError: freeze_time is already held by another harness`. Running `freeze_time` tests serially avoids this, either by avoiding concurrency or by grouping them with `xdist_group` (see below).
 
 ## Parallel Test Suites (pytest-xdist)
 
-Each xdist worker runs in its own process with its own time lock — workers cannot interfere with each other's frozen clock. The actual concern is within a single worker: `freeze_time` tests that are not grouped may interleave if the worker runs multiple async tests concurrently. Mark all `freeze_time` tests with the same `xdist_group` to serialize them within one worker:
+Install `pytest-xdist` to enable parallel test execution:
 
+```bash
+pip install pytest-xdist   # or: uv add --dev pytest-xdist
+```
 
+Each xdist worker runs in its own process with its own `threading.Lock`. Workers cannot interfere with each other's frozen clock. The risk is within a single worker: `freeze_time` tests assigned to the same worker may interleave during concurrent async execution.
+
+`@pytest.mark.xdist_group("time_control")` routes all marked tests to the same worker and serializes them. Tests that do not call `freeze_time` do not need this marker.
 
 ```python
 --8<-- "pages/testing/snippets/testing_xdist_group.py"
 ```
 
-If you run pytest sequentially (no `-n` flag), you do not need this marker.
+Without `-n`, pytest runs sequentially in a single process. The marker has no effect there.
 
 ## pytest-asyncio Mode
 
-The `asyncio_mode = "auto"` setting is required — without it, async tests silently pass without running. See [Installation](index.md#installation) for setup and the false-green warning.
-
-## `DrainFailure` Exception Hierarchy
-
-The drain exception hierarchy is rooted at `DrainFailure` so callers can catch any drain-related failure uniformly.
-
-`DrainFailure` has two concrete subclasses:
-
-- **`DrainError`** — one or more spawned handler tasks raised a non-cancellation exception. `e.task_exceptions` is a list of `(task_name, exception)` pairs.
-- **`DrainTimeout`** — the drain did not reach quiescence within the configured timeout. The diagnostic message includes pending task names and a hint to check for debounced handlers.
-
-`DrainTimeout` deliberately does **not** inherit from `TimeoutError`. Callers should catch `DrainTimeout` or `DrainFailure` — not `TimeoutError` — around `simulate_*` calls.
-
-Harness startup timeouts (raised if `on_initialize()` takes more than 5 seconds) are a separate `TimeoutError` and are not `DrainFailure` subclasses. See [Harness Startup Failures](index.md#harness-startup-failures) on the Quick Start page.
+`asyncio_mode = "auto"` is required. Without it, async tests silently pass without executing. The [Testing index](index.md#install) covers setup and the false-green warning.
 
 ## Next Steps
 
-- **[Factories & Internals](factories.md)**: Event factories and `RecordingApi` coverage boundary
-- **[Time Control](time-control.md)**: How to freeze and advance time
-- **[Quick Start](index.md)**: Back to the harness basics
+- **[Time Control](time-control.md)**: Freezing and advancing time in tests
+- **[Factories](factories.md)**: Event factories and `RecordingApi` coverage boundary
+- **[Testing index](index.md)**: Harness setup and quick start

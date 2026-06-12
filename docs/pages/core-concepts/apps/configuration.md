@@ -1,56 +1,70 @@
-# App Configuration
+# Application Configuration
 
-This page covers the **Python side** of app configuration: defining `AppConfig` subclasses, typed fields, defaults, and environment variable injection. For how to register apps and supply config values in `hassette.toml`, see [Application Configuration](../configuration/applications.md).
+Apps are registered in `hassette.toml` (at the project root — the same directory you run `hassette run` from) under `[hassette.apps.<key>]`. Each block tells Hassette which Python file and class to load, and passes configuration values to the app.
 
-## Defining Config Models
+This page covers the TOML side of app configuration. [Apps](../apps/index.md) covers defining typed [`AppConfig`][hassette.app.app_config.AppConfig] models in Python — the class that declares and validates the fields your app accepts.
 
-Inherit from [`AppConfig`][hassette.app.app_config.AppConfig] to define your configuration schema. `AppConfig` extends Pydantic's [`BaseSettings`](https://pydantic.dev/docs/validation/latest/concepts/pydantic_settings/) (from the `pydantic-settings` package), which adds environment variable injection on top of standard Pydantic validation. If you've used Pydantic's `BaseModel`, the syntax is the same — `BaseSettings` just adds env var support.
+## Registering an App
 
-```python
---8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
+An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
+
+```toml
+--8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
 ```
 
-The `App` generic parameter (`App[MyAppConfig]`) tells Hassette which config class to instantiate. Inside your app, `self.app_config` is typed as `MyAppConfig`, giving you full IDE completion and type checking.
+`enabled` disables the app without removing the config block when set to `false`. `display_name` sets a friendly label for logs; it defaults to the class name.
 
-## Base Fields
+!!! note "Alternative field names"
+    `filename` also accepts `file_name`. `class_name` also accepts `class`, `module`, and `module_name`. `filename` and `class_name` are the recommended names; the alternatives exist for compatibility.
 
-The base `AppConfig` includes standard fields available to all apps:
+## Passing Configuration
 
-- `instance_name: str = ""` - Used for logging and identification.
-- `log_level: LOG_LEVEL_TYPE` - Log-level override for this app instance; defaults to `INFO` or the global `log_level` setting.
+The `config` field supplies values to the app's `AppConfig` model. Two TOML forms are equivalent for single-instance apps.
 
-## Secrets & Environment Variables
+Inline form:
 
-`AppConfig` inherits from Pydantic's `BaseSettings`, so it supports environment variable injection out of the box. Define a custom `env_prefix` on your config class to control which environment variables it reads:
-
-```python
---8<-- "pages/core-concepts/apps/snippets/app_config_env_prefix.py"
+```toml
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "PresenceApp"
+config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
 ```
 
-Now you can set `MYAPP_API_KEY` in your environment or `.env` file. TOML values and environment variables are merged; environment variables take precedence.
+Table form:
 
-## Developer Settings {#developer-settings}
+```toml
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "PresenceApp"
 
-`AppConfig` includes one developer-facing field:
+[hassette.apps.presence.config]
+motion_sensor = "binary_sensor.hall"
+lights = ["light.entry"]
+```
 
-- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+!!! note "Two TOML paths, two purposes"
+    App registration fields (`filename`, `class_name`, `enabled`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
-    ```python
-    --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
-    ```
+Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
-    Import `ForgottenAwaitBehavior` from `hassette`:
+## Multiple Instances
 
-    ```python
-    from hassette import ForgottenAwaitBehavior
-    ```
+The same app class runs as separate instances by replacing `config = ...` with `[[hassette.apps.<key>.config]]` blocks (TOML's array-of-tables syntax). Each block produces one independent app instance with its own state, handlers, and scheduler.
 
-    Use `"error"` for apps under active development to catch forgotten `await` calls at runtime. Use `"warn"` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/global.md#developer-settings) for the global default.
+```toml
+--8<-- "pages/core-concepts/configuration/snippets/multiple_instances.toml"
+```
 
-## Sync Apps (`AppSync`)
+The `name` field distinguishes instances in logs and the web UI. Without it, Hassette generates a name from the class name and index (e.g., `PresenceApp.0`).
 
-`AppSync` subclasses `App` and provides synchronous lifecycle hooks (`on_initialize_sync`, `on_shutdown_sync`). The sync facades (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`) call each registration method synchronously — there is no forgotten-await risk on the sync path, because the sync facade drives the coroutine to completion before returning.
+Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
-## See Also
+## Typed Configuration
 
-- [Application Configuration](../configuration/applications.md) - Registering apps and supplying config values in `hassette.toml`
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model.
+
+## Next Steps
+
+- [Apps overview](index.md): defining `AppConfig` models, accessing config values, and app structure
+- [Global Configuration](../configuration/index.md): `hassette.toml` settings outside the `[apps]` section
+- [Lifecycle](lifecycle.md): what happens after Hassette loads and validates the app config

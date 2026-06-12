@@ -1,41 +1,43 @@
 # Testing
 
-This page covers the key differences in the testing approach when migrating from AppDaemon to Hassette.
+AppDaemon has no official test harness. Testing AppDaemon apps means patching the `Hass` runtime, which is fragile and usually tests the mock rather than your code.
 
-## The Mental Model Shift
+Hassette ships `hassette.test_utils` with `AppTestHarness`, a test harness that wires your app into a real Hassette environment. Because Hassette apps are async, tests are async too — test functions are declared `async def`, and that's the main difference from testing synchronous code. `RecordingApi` replaces the live Home Assistant connection, recording every API call your app makes so you can assert against it — it's available in tests as `harness.api_recorder`.
 
-AppDaemon has no official test harness. Testing AppDaemon apps typically means patching the `Hass` runtime, which is fragile and often ends up testing the mock rather than your code.
+## Setup
 
-Hassette ships with `hassette.test_utils` — a first-class async test harness. Instead of patching a runtime, you open an `AppTestHarness` context manager: it wires your app class into a real (but test-grade) Hassette environment with a `RecordingApi` instead of a live Home Assistant connection.
+**Install test dependencies:**
 
-The other shift is from synchronous to asynchronous tests. AppDaemon apps and tests are synchronous. Hassette apps are async, so your tests are async too. This is handled automatically by `pytest-asyncio`.
+```bash
+pip install pytest pytest-asyncio    # or: uv add --dev pytest pytest-asyncio
+```
 
-## asyncio_mode = "auto" (Required)
-
-Add this to your `pyproject.toml`:
+**Add `asyncio_mode = "auto"` to your `pyproject.toml`:**
 
 ```toml
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 ```
 
-!!! warning "Don't skip this config"
-    If you omit `asyncio_mode = "auto"`, async tests will silently succeed **without actually running** — a false-green failure mode that is especially hard to diagnose after migration. This is the most common setup mistake when migrating from AppDaemon.
+!!! warning "Don't skip this"
+    `asyncio_mode = "auto"` tells pytest to actually run `async def` test functions. Without it, pytest skips the test body and reports a false pass. This is the most common setup mistake when migrating from AppDaemon.
 
-## set_state() Order Matters
-
-Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward will overwrite the simulated state with the seeded value, silently corrupting subsequent reads.
+**Seed state before simulating events.** `set_state()` and `simulate_state_change()` are harness methods — the full example below shows them in context. Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward overwrites the simulated state with the seeded value, silently corrupting subsequent reads.
 
 ```python
 --8<-- "pages/migration/snippets/testing_seed_order.py"
 ```
 
+## What a Test Looks Like
+
+Open the harness in an `async with` block, seed your state, fire an event, assert the API call.
+
+```python
+--8<-- "pages/migration/snippets/testing_hassette_example.py"
+```
+
+Run it with `pytest -v`. A passing test prints `PASSED`; if pytest reports 0 tests or skips the body, check that `asyncio_mode = "auto"` made it into `pyproject.toml`.
+
 ## Full Reference
 
-For the complete harness API — seeding state, simulating events, asserting API calls, scheduler time control, and more — see [Testing Your Apps](../testing/index.md).
-
-## See Also
-
-- [Testing Your Apps](../testing/index.md) — full test harness reference
-- [Time Control](../testing/time-control.md) — freezing and advancing time in tests
-- [Concurrency & pytest-xdist](../testing/concurrency.md) — parallel test execution
+The [Testing Your Apps](../testing/index.md) section covers the complete harness API: state seeding, event simulation, API call assertions, scheduler time control, and concurrency helpers.

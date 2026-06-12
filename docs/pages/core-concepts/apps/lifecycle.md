@@ -1,80 +1,72 @@
-# App Lifecycle
+# Apps — Lifecycle
 
-Every app goes through startup and shutdown phases. You don't need to manage resources yourself — Hassette handles that, so you can focus on your automation logic.
+Hassette manages app initialization and shutdown. The app declares what to do at each stage through lifecycle hooks.
 
 ## Initialization
 
-During startup, Hassette transitions the app through `STARTING → RUNNING`.
+Hassette transitions the app through `STARTING` to `RUNNING` at startup. All core services (API, `Bus`, `Scheduler`, and the internal SQLite [telemetry database](../database-telemetry.md)) are ready before any hook runs.
 
-All core services (API, Bus, Scheduler) are fully ready before your initialization hooks run.
-
-The initialization hooks are called in this order:
+Three hooks fire in order:
 
 1. `before_initialize`
-2. `on_initialize`
+2. `on_initialize`, the primary hook where the app subscribes to HA events and schedules recurring tasks
 3. `after_initialize`
-
-Use these to register event handlers, schedule jobs, or perform any startup logic.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/lifecycle_hooks.py"
 ```
 
+`on_initialize` is where most apps do their setup. `self.bus.on_state_change` registers a handler that fires on entity state changes. `self.scheduler.run_in` schedules a one-shot job after a fixed delay. Both calls are `async` and must be awaited. By the time `on_initialize` runs, the bus, scheduler, API, and database are all ready.
+
+`before_initialize` and `after_initialize` exist for setup that must happen strictly before or after the main registration. Most apps only need `on_initialize`.
+
 !!! note
-    You do not need to call `super()` in these hooks as the base implementations are empty.
+    The base implementations of these hooks are empty. No `super()` call is necessary.
 
 ## Shutdown
 
-When shutting down or reloading, Hassette transitions the app through `STOPPING → STOPPED`.
+Hassette transitions the app through `STOPPING` to `STOPPED` during shutdown or reload.
 
-The shutdown hooks are called in this order:
+Three hooks fire in order:
 
 1. `before_shutdown`
 2. `on_shutdown`
 3. `after_shutdown`
 
+`on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. `Bus` subscriptions, scheduled jobs, and [`task_bucket`](task-bucket.md) tasks are cleaned up automatically.
+
 ## Automatic Cleanup
 
-After the shutdown hooks run, Hassette automatically performs cleanup:
-
-- Cancels all active subscriptions created by `self.bus`.
-- Cancels all scheduled jobs created by `self.scheduler`.
-- Cancels any background tasks tracked by the app.
-
-This means you do **not** need to manually unsubscribe or cancel jobs in `on_shutdown`. Only implement shutdown logic if you have allocated external resources (like opening a file or a raw socket).
+After the shutdown hooks complete, Hassette cancels all bus subscriptions created via `self.bus`, all scheduled jobs created via `self.scheduler`, and all background tasks tracked by `self.task_bucket`. Manual unsubscription or job cancellation in `on_shutdown` is unnecessary.
 
 !!! warning
-    **Do not override** `initialize`, `shutdown`, or `cleanup` methods directly. These are internal methods that manage resource setup, lifecycle ordering, and teardown — they are marked final to prevent accidental overrides that could break the resource contract.
+    `initialize`, `shutdown`, and `cleanup` are marked `@final` — attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
 
-    Use the `on_initialize` and `on_shutdown` hooks instead — they are called at the correct point within these methods. Attempting to override a final method will raise a [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] when your app class is loaded.
+## Synchronous Lifecycle
 
-## AppSync Lifecycle Hooks
+??? note "`AppSync` lifecycle hooks"
 
-If you use `AppSync` instead of `App`, use the `_sync` variants of each lifecycle hook:
+    [`AppSync`][hassette.app.app.AppSync] is for apps that wrap blocking (non-async) third-party libraries. It provides `_sync`-suffixed variants of each hook. Hassette runs each variant in a thread pool via `task_bucket.run_in_thread`, so blocking calls do not stall the event loop. The `_sync` hooks are synchronous and cannot use `await`.
 
-| `App` (async) | `AppSync` (sync) |
-|---|---|
-| `on_initialize` | `on_initialize_sync` |
-| `on_shutdown` | `on_shutdown_sync` |
-| `before_initialize` | `before_initialize_sync` |
-| `before_shutdown` | `before_shutdown_sync` |
-| `after_initialize` | `after_initialize_sync` |
-| `after_shutdown` | `after_shutdown_sync` |
+    | `App` (async) | `AppSync` (sync) |
+    |---|---|
+    | `before_initialize` | `before_initialize_sync` |
+    | `on_initialize` | `on_initialize_sync` |
+    | `after_initialize` | `after_initialize_sync` |
+    | `before_shutdown` | `before_shutdown_sync` |
+    | `on_shutdown` | `on_shutdown_sync` |
+    | `after_shutdown` | `after_shutdown_sync` |
 
-`AppSync` runs each lifecycle hook in a thread pool via `run_in_thread`, so the hooks must be synchronous — they cannot use `await`. The async hooks (`on_initialize`, `on_shutdown`, etc.) are marked `@final` on `AppSync` and will raise `NotImplementedError` if you try to override them directly.
+    The async hooks (`on_initialize`, `on_shutdown`, etc.) are marked `@final` on `AppSync` and delegate to the `_sync` variants via the thread pool. Overriding them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time.
 
-!!! warning "Use `on_initialize_sync`, not `on_initialize`, in AppSync"
-    In `AppSync`, overriding `on_initialize` will raise `NotImplementedError` at startup. Override `on_initialize_sync` instead. The bus, scheduler, and API are async — reach them through their `.sync` facades:
+    The bus, scheduler, and API are async. The `.sync` facades provide synchronous access from `_sync` hooks: `self.bus.sync`, `self.scheduler.sync`, and `self.api.sync`.
 
     ```python
-    class MyApp(AppSync):
-        def on_initialize_sync(self) -> None:
-            self.bus.sync.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen")
-            self.scheduler.sync.run_in(self.cleanup, 60, name="cleanup")
-
-        def on_light_change(self):
-            pass
-
-        def cleanup(self):
-            pass
+    --8<-- "pages/core-concepts/apps/snippets/lifecycle_sync.py"
     ```
+
+## See Also
+
+- [Apps overview](index.md): app structure and configuration
+- [Task Bucket](task-bucket.md): background task lifecycle and shutdown behavior
+- [`Bus`](../bus/index.md): handler registration in `on_initialize`

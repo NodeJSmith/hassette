@@ -42,6 +42,7 @@ class ClimateController(App[ClimateControllerConfig]):
             "sensor.*temperature*",
             changed=C.Increased(),
             handler=self.on_temp_increased,
+            name="climate_controller.on_temp_increased",
         )
 
         await self.bus.on_state_change(
@@ -49,6 +50,7 @@ class ClimateController(App[ClimateControllerConfig]):
             changed=C.Decreased(),
             changed_from=C.Present(),
             handler=self.on_temp_decreased,
+            name="climate_controller.on_temp_decreased",
         )
 
         # Watch HVAC current_temperature attribute
@@ -56,6 +58,7 @@ class ClimateController(App[ClimateControllerConfig]):
             cfg.climate_entity,
             "current_temperature",
             handler=self.on_hvac_temp_change,
+            name="climate_controller.on_hvac_temp_change",
         )
 
         # Periodic climate summary — group for easy filtering in the dashboard

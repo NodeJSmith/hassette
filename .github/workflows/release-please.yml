@@ -127,13 +127,13 @@ jobs:
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
                   PROJECT_VERSION=$(uv version --short)
-                  uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
+                  uv run ./tools/release/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
             - name: Build a binary wheel and a source tarball
               run: uv build
 
             - name: Verify SPA assets in wheel
-              run: uv run ./tools/check_wheel_spa.py
+              run: uv run ./tools/release/check_wheel_spa.py
 
             - name: Publish build artifacts
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -253,11 +253,11 @@ jobs:
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
-                  sparse-checkout: tools/check_pypi_wheel.py
+                  sparse-checkout: tools/release/check_pypi_wheel.py
                   persist-credentials: false
 
             - name: Run PyPI smoke test
               if: needs.publish-pypi.result == 'success'
               env:
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
-              run: python3 ./tools/check_pypi_wheel.py --version "${TAG_NAME#v}"
+              run: python3 ./tools/release/check_pypi_wheel.py --version "${TAG_NAME#v}"

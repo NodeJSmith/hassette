@@ -41,7 +41,7 @@ def format_via_ruff(content: str) -> str:
             tmp_path = tmp.name
 
         run_ruff_step(["ruff", "format", tmp_path], "format")
-        run_ruff_step(["ruff", "check", "--fix", tmp_path], "fix")
+        run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", tmp_path], "fix")
 
         return Path(tmp_path).read_text(encoding="utf-8")
     finally:
@@ -64,10 +64,11 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
     run_ruff_step(["ruff", "format", str(path)], "format")
     if logical_path is not None:
         # Pipe through stdin so --stdin-filename controls per-file-ignores lookup.
+        # S105 stays ignored for generated code (test-token-like string literals).
         content = path.read_bytes()
         try:
             result = subprocess.run(
-                ["ruff", "check", "--fix", "--stdin-filename", str(logical_path), "-"],
+                ["ruff", "check", "--fix", "--ignore", "S105", "--stdin-filename", str(logical_path), "-"],
                 input=content,
                 capture_output=True,
                 timeout=30,
@@ -88,7 +89,7 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
             sys.stderr.buffer.write(result.stderr)
             raise SystemExit("ruff fix failed with exit code 1 (unfixable violations).")
     else:
-        run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
+        run_ruff_step(["ruff", "check", "--fix", "--ignore", "S105", str(path)], "fix")
 
 
 def atomic_write(out_path: Path, content: str) -> bool:

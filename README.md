@@ -35,7 +35,7 @@ Hassette includes a web UI for monitoring and managing your automations: **Apps*
   <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_apps.png" alt="Hassette Web UI — Apps page" />
 </p>
 
-The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
+The web UI is enabled by default at `http://<host>:8126/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
 
 ## Terminal CLI
 
@@ -62,7 +62,7 @@ See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/
 ## 🤔 Is Hassette Right for You?
 
 **New to automation frameworks?**
-- [Hassette vs. Home Assistant YAML](https://hassette.readthedocs.io/en/stable/pages/getting-started/hassette-vs-ha-yaml/) - Decide if Hassette is right for your needs
+- [Is Hassette Right for You?](https://hassette.readthedocs.io/en/stable/pages/getting-started/is-hassette-right-for-you/) - Decide if Hassette is right for your needs
 
 **Coming from AppDaemon?**
 - [AppDaemon Migration Guide](https://hassette.readthedocs.io/en/stable/pages/migration/) - See what's different and how to migrate

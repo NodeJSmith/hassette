@@ -1,3 +1,0 @@
-[hassette]
-watch_files = true
-allow_reload_in_prod = true  # Only if dev_mode = false

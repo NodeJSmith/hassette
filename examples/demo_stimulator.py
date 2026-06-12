@@ -39,6 +39,7 @@ class DemoStimulator(App[DemoStimulatorConfig]):
         await self.bus.on_state_change(
             "input_boolean.test_toggle",
             handler=self.on_toggle_changed,
+            name="demo_stimulator.on_toggle_changed",
         )
 
         await self.scheduler.run_in(self.trigger_activity_burst, BURST_DELAY_SECONDS, name="initial_burst")

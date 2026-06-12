@@ -10,4 +10,4 @@ Hassette searches for `hassette.toml` in:
 2. `./.env` (current working directory)
 3. `./config/.env`
 
-Override either with `--config-file / -c` or `--env-file / -e`.
+`--config-file / -c` and `--env-file / -e` override either path.

@@ -110,6 +110,58 @@ class TestSuccessfulRequests:
 
 
 # ---------------------------------------------------------------------------
+# tolerate_503: 503 with a valid body is deserialized, not treated as an error
+# ---------------------------------------------------------------------------
+
+
+class TestTolerate503:
+    def test_503_deserializes_body_when_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(503, {"value": "degraded"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        result = client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert isinstance(result, SimpleModel)
+        assert result.value == "degraded"
+
+    def test_503_still_exits_when_not_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(503, {"value": "degraded"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel)
+        assert exc_info.value.code == 1
+
+    def test_500_still_exits_even_when_503_tolerated(self) -> None:
+        config = _make_config()
+        transport = make_transport(500, {"detail": "boom"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
+    def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
+        """A tolerated 503 from a proxy/LB (HTML body, not JSON) exits cleanly, not a traceback."""
+        config = _make_config()
+
+        def handler(_req: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, content=b"<html>503 Service Unavailable</html>")
+
+        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
+    def test_503_with_wrong_shape_json_exits_instead_of_crashing(self) -> None:
+        """A tolerated 503 whose JSON doesn't match the model exits cleanly, not a traceback."""
+        config = _make_config()
+        transport = make_transport(503, {"unexpected": "shape"})
+        client = HassetteCLIClient(config, json_mode=False, transport=transport)
+        with pytest.raises(SystemExit) as exc_info:
+            client.get("/api/telemetry/status", SimpleModel, tolerate_503=True)
+        assert exc_info.value.code == 1
+
+
+# ---------------------------------------------------------------------------
 # HTTP error handling (human mode)
 # ---------------------------------------------------------------------------
 

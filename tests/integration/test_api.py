@@ -2,6 +2,7 @@ from typing import Any
 
 from hassette import STATE_REGISTRY
 from hassette.api import Api
+from hassette.models.entities.light import LightEntity
 from hassette.test_utils import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 
@@ -61,3 +62,34 @@ async def test_get_state_return_type(
         domain = entity_id.split(".")[0]
         expected_class = STATE_REGISTRY.resolve(domain=domain)
         assert isinstance(state, expected_class), f"Expected {expected_class}, got {type(state)}"
+
+
+async def test_get_state_or_none_returns_none_for_missing_entity(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer],
+):
+    """get_state_or_none returns None when the entity does not exist.
+
+    Regression test: the REST layer converts 404 responses to EntityNotFoundError,
+    but get_state_or_none caught aiohttp.ClientResponseError, so the error escaped
+    instead of returning None as documented.
+    """
+    api_client, mock_server = hassette_with_mock_api
+
+    mock_server.expect("GET", "/api/states/light.nonexistent", "", json={"message": "not found"}, status=404)
+
+    result = await api_client.get_state_or_none("light.nonexistent")
+
+    assert result is None, f"Expected None for missing entity, got {result!r}"
+
+
+async def test_get_entity_or_none_returns_none_for_missing_entity(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer],
+):
+    """get_entity_or_none returns None when the entity does not exist (same root cause as above)."""
+    api_client, mock_server = hassette_with_mock_api
+
+    mock_server.expect("GET", "/api/states/light.nonexistent", "", json={"message": "not found"}, status=404)
+
+    result = await api_client.get_entity_or_none("light.nonexistent", LightEntity)
+
+    assert result is None, f"Expected None for missing entity, got {result!r}"

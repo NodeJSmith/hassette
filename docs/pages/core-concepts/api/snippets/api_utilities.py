@@ -4,14 +4,21 @@ from hassette import App, AppConfig
 class UtilitiesApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:fire_event]
-        await self.api.fire_event("custom_event", {"source": "my_app", "value": 42})
+        await self.api.fire_event(
+            "custom_event",
+            {"source": "my_app", "value": 42},
+        )
 
         # event_data is optional
         await self.api.fire_event("hassette_ready")
         # --8<-- [end:fire_event]
 
         # --8<-- [start:set_state]
-        await self.api.set_state("sensor.custom_score", "87", {"unit_of_measurement": "%"})
+        await self.api.set_state(
+            "sensor.custom_score",
+            "87",
+            {"unit_of_measurement": "%"},
+        )
         # --8<-- [end:set_state]
 
         # --8<-- [start:get_calendars]

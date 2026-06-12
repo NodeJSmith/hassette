@@ -1,49 +1,56 @@
-# Scheduler Overview
+# Scheduler
 
-The scheduler lets you run functions at specific times, after a delay, or on a repeating interval. It is available as `self.scheduler` in every app and runs all jobs safely inside Hassette's async event loop. Scheduled handlers can be async or sync — the scheduler wraps sync callables automatically.
+The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 
-Every scheduling method is backed by a **trigger object** that encapsulates when and how often a job fires. The convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`) create the appropriate trigger for you. For advanced use cases, pass a trigger directly to `schedule()`.
+## How It Works
 
-```mermaid
-flowchart TD
-    subgraph app["Your App"]
-        methods["run_*() / schedule()"]
-    end
+All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object (a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule). Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
 
-    subgraph framework["Scheduler"]
-        SCHED["SchedulerService"]
-        JOB["ScheduledJob"]
-        SCHED -- "manages" --> JOB
-    end
+Each call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle. The handle cancels the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
 
-    methods --> SCHED
+## Common Patterns
 
-    style app fill:#e8f0ff,stroke:#6688cc
-    style framework fill:#fff0e8,stroke:#cc8844
-```
+### Run after a delay
 
-!!! warning "All scheduling methods must be awaited"
-    Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app — see [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis. To catch this at edit time, [enable Pyright](../../troubleshooting.md#enabling-pyright).
-
-## Trigger Types
-
-All triggers live in `hassette.scheduler.triggers` and are importable from `hassette.scheduler`:
-
-| Trigger | Description | One-shot? |
-|---------|-------------|-----------|
-| `After(seconds=N)` | Fixed delay from now | Yes |
-| `Once(at="HH:MM")` | Specific wall-clock time | Yes |
-| `Every(seconds=N)` | Fixed interval, drift-resistant | No |
-| `Daily(at="HH:MM")` | Once per day, DST-safe (cron-backed) | No |
-| `Cron("expr")` | Arbitrary cron expression (5- or 6-field) | No |
-
-### Examples
+`run_in` schedules a one-shot job that fires after a fixed number of seconds.
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_start_examples.py:start_examples"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
 ```
+
+The `delay` parameter accepts seconds as a `float`. The job fires once and does not repeat.
+
+### Run on a repeating interval
+
+`run_every` schedules a job that fires repeatedly on a fixed interval.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_every.py"
+```
+
+`seconds`, `minutes`, and `hours` are all accepted. The scheduler is drift-resistant. Each run fires relative to the previous scheduled time, not the previous actual time.
+
+### Run daily at a fixed time
+
+`run_daily` schedules a job that fires once per day at a wall-clock time.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_daily.py"
+```
+
+The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at midnight local time. `run_daily` is DST-safe — it fires at the local wall-clock time regardless of clock changes.
+
+??? note "Synchronous usage (AppSync only)"
+    [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop, so `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+
+`name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `ValueError`. See [Scheduling Methods](methods.md) for details.
+
+## Verify It's Working
+
+Run `hassette job` to see all scheduled jobs for your running instance, where `<key>` is the app identifier from [`hassette.toml`](../configuration/index.md) (e.g., `delay_app`). Run `hassette log --app <key> --since 5m` to see job execution output.
 
 ## Next Steps
 
-- **[Scheduling Methods](methods.md)**: Explore `run_in`, `run_every`, `run_cron`, `schedule()`, and convenience helpers.
-- **[Job Management](management.md)**: Learn how to name, track, cancel, and group jobs.
+- [Scheduling Methods](methods.md): full method reference, cron expressions, and per-job options including `group`, `jitter`, and `if_exists`
+- [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
+- [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object

@@ -230,7 +230,7 @@ nav:
 
 ### Tier C Amendments (API reference)
 
-The following modules were added to `PUBLIC_MODULES` Tier C in `tools/gen_ref_pages.py` beyond the nav audit's explicit allowlist. These are autoref targets in narrative docs that require generated reference pages.
+The following modules were added to `PUBLIC_MODULES` Tier C in `tools/docs/gen_ref_pages.py` beyond the nav audit's explicit allowlist. These are autoref targets in narrative docs that require generated reference pages.
 
 | Module | Reason |
 |--------|--------|
@@ -426,7 +426,7 @@ These pages need all inline fenced code blocks converted to `--8<--` snippet fil
 
 ### Current gen-files behavior
 
-`tools/gen_ref_pages.py` walks `src/` with no public/internal filter, emitting `::: module.path` stubs for all discovered modules. After the rewrite (WP10), it should emit stubs only for modules on the allowlist below.
+`tools/docs/gen_ref_pages.py` walks `src/` with no public/internal filter, emitting `::: module.path` stubs for all discovered modules. After the rewrite (WP10), it should emit stubs only for modules on the allowlist below.
 
 ### Public reference allowlist
 

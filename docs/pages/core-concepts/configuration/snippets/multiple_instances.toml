@@ -1,13 +1,13 @@
-[apps.presence]
+[hassette.apps.presence]
 filename = "presence.py"
 class_name = "PresenceApp"
 
-[[apps.presence.config]]
+[[hassette.apps.presence.config]]
 name = "upstairs"
 motion_sensor = "binary_sensor.upstairs_motion"
 lights = ["light.bedroom", "light.hallway"]
 
-[[apps.presence.config]]
+[[hassette.apps.presence.config]]
 name = "downstairs"
 motion_sensor = "binary_sensor.downstairs_motion"
 lights = ["light.living_room", "light.kitchen"]

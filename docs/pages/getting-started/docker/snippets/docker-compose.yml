@@ -3,7 +3,7 @@ services:
     image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
-    stop_grace_period: 45s
+    stop_grace_period: 45s # time for Hassette to shut down apps cleanly before Docker force-kills it
     volumes:
       - ./config:/config
       - ./apps:/apps
@@ -15,9 +15,8 @@ services:
       - HASSETTE__LOG_LEVEL=info
       - TZ=America/New_York # Set your timezone
     healthcheck:
-      # Liveness, not readiness: /api/health/live ignores Home Assistant connectivity, so an HA
-      # outage does not mark the container unhealthy. Pointing a restart-triggering healthcheck at
-      # /api/health (or /api/health/ready) causes a restart loop whenever HA restarts.
+      # Keep this pointed at /api/health/live — it stays healthy during HA outages.
+      # Using /api/health/ready here causes a restart loop whenever HA restarts.
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8126/api/health/live"]
       interval: 30s
       timeout: 5s

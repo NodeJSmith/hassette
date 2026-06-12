@@ -1,193 +1,94 @@
 # Managing Dependencies
 
-This guide explains how to install Python packages for your Hassette apps when running in Docker.
-
-## Overview
-
-Hassette's Docker startup script installs project dependencies automatically and optionally discovers `requirements.txt` files when enabled. Two methods are available:
-
-1. **Project-based** — using `pyproject.toml` and `uv.lock` (recommended for complex projects)
-2. **Requirements files** — using `requirements.txt` (simple approach, opt-in)
-
-### How Constraints Work
-
-Hassette's Docker image includes a constraints file (`/app/constraints.txt`) that records the compatible version ranges for all framework dependencies. When you install your own packages, the startup script passes this file to `uv`, so any dependency that would conflict with hassette's requirements causes a clear error message rather than a silent downgrade. If you see a conflict error, it usually means your `uv.lock` was generated against a different hassette version than the image — running `uv lock` locally and committing the result fixes it. See [Dependency Conflicts](troubleshooting.md#dependency-conflicts) for details.
-
-## How the Startup Script Works
-
-When the container starts, the [startup script](https://github.com/NodeJSmith/hassette/blob/main/scripts/docker_start.sh) performs these steps in order:
-
-```mermaid
---8<-- "pages/getting-started/docker/snippets/deps-startup-flow.mmd"
-```
-
-### Key Behaviors
-
-1. **Export-then-install**: When a `uv.lock` is found, the startup script exports your resolved dependencies to a temporary requirements file and installs them through the constraints file. This routes all dependency resolution through the constraints file rather than bypassing it.
-2. **Opt-in requirements discovery**: `requirements.txt` files are only discovered when `HASSETTE__INSTALL_DEPS=1` is set. By default, no requirements files are scanned.
-3. **Exact filename match**: Only files named exactly `requirements.txt` are discovered — not `requirements-dev.txt`, `requirements_test.txt`, or other variants. This prevents dev and test dependencies from being silently installed in the production container.
-4. **Constraints protection for all installs**: Every `uv pip install` — whether from a project lockfile or a `requirements.txt` — passes `-c /app/constraints.txt`. Conflicts produce a clear error message before the container exits.
-5. **Fail-fast**: A failing dependency install exits the container immediately with an actionable message. With `restart: unless-stopped`, Docker retries automatically, giving transient network issues a chance to resolve.
-6. **Timeouts**: All network calls are wrapped with `timeout` (300 s for project export/install, 120 s per requirements file).
-7. **Cache pruning**: After dependency installation, stale uv cache entries are pruned by default. Disable with `HASSETTE__PRUNE_UV_CACHE=0` if startup time is critical and you prefer to manage cache size manually.
-
-## Understanding APP_DIR vs PROJECT_DIR
-
-These two environment variables serve different purposes:
-
-| Variable                | Purpose                                                                               | Used By          |
-| ----------------------- | ------------------------------------------------------------------------------------- | ---------------- |
-| `HASSETTE__APPS__DIRECTORY` | Where Hassette looks for `.py` files containing `App`/`AppSync` classes           | Hassette runtime |
-| `HASSETTE__PROJECT_DIR` | Where the startup script looks for `pyproject.toml`/`uv.lock` to install dependencies | Startup script   |
-
-!!! important "Key Distinction"
-    `HASSETTE__APPS__DIRECTORY` tells Hassette where your code lives. `HASSETTE__PROJECT_DIR` tells the startup script where your package definition lives. These can be the same directory or different directories depending on your project structure.
-
-## Project Structures
-
-### Simple Flat Structure
-
-For basic apps where you do not need to import sibling files, use a simple flat structure:
-
-```
---8<-- "pages/getting-started/docker/snippets/deps-flat-dir-structure.txt"
-```
-
-**docker-compose.yml:**
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-flat-compose.yml"
-```
-
-In this setup:
-
-- `HASSETTE__APPS__DIRECTORY` defaults to `/apps` ✓
-- `HASSETTE__PROJECT_DIR` defaults to `/apps` ✓
-
-!!! note "Opt-in required for requirements.txt"
-    A `requirements.txt` in `/apps` is **not** installed automatically. You must set `HASSETTE__INSTALL_DEPS=1` for the startup script to discover and install it. See [Using requirements.txt](#using-requirementstxt) below.
-
-### Traditional src/ Layout
-
-For projects using the standard Python `src/` layout:
-
-```
---8<-- "pages/getting-started/docker/snippets/deps-src-dir-structure.txt"
-```
-
-**docker-compose.yml:**
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-src-compose.yml"
-```
-
-In this setup:
-
-- The project root (containing `pyproject.toml`) is mounted to `/apps`
-- `HASSETTE__PROJECT_DIR=/apps` tells the startup script where to find dependencies
-- `HASSETTE__APPS__DIRECTORY=/apps/src/my_apps` tells Hassette where to find your app files
-- Your app files can import from the `my_apps` package normally
-
-## Using pyproject.toml
-
-Create a `pyproject.toml` in your project:
-
-```toml
---8<-- "pages/getting-started/docker/snippets/pyproject-example.toml"
-```
-
-### With a Lock File (Required)
-
-Generate a lock file before deploying:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/uv-lock.sh"
-```
-
-If a `uv.lock` file exists alongside your `pyproject.toml`, the startup script uses the export-then-install pattern: it exports your resolved dependencies as a flat requirements list and installs them through the constraints file.
-
-!!! note "Lock file is required for project-based installs"
-    If your `pyproject.toml` is present but no `uv.lock` exists, the startup script logs a message directing you to run `uv lock` and skips the project install. If you can't run `uv` locally, use the `requirements.txt` path with `HASSETTE__INSTALL_DEPS=1` instead.
+Your apps can use any Python package. Hassette installs them at startup
+when you tell it to. `requirements.txt` works for most projects.
+`pyproject.toml` works when your project already has one.
 
 ## Using requirements.txt
 
-For simpler setups, place a `requirements.txt` file in `/config` or `/apps`:
-
-```
---8<-- "pages/getting-started/docker/snippets/deps-requirements-dir-structure.txt"
-```
-
-**apps/requirements.txt:**
-
-```
+```txt
 --8<-- "pages/getting-started/docker/snippets/requirements-example.txt"
 ```
 
-!!! warning "Opt-in required"
-    Requirements file discovery is disabled by default. Set `HASSETTE__INSTALL_DEPS=1` in your compose environment to enable it.
+Place this file at `config/requirements.txt` on your host. That maps to
+`/config/requirements.txt` inside the container.
+
+Add `HASSETTE__INSTALL_DEPS: "1"` to your compose file:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
 ```
 
-The startup script uses `fd` to find files named exactly `requirements.txt` in both `/config` and `/apps` (up to 5 directory levels deep), then installs them in sorted path order with constraints applied.
+Without `HASSETTE__INSTALL_DEPS`, Hassette skips installation entirely.
+The `uv_cache` volume keeps downloaded packages across restarts.
+Only the first startup is slow.
 
-!!! note "Exact filename match only"
-    Only files named exactly `requirements.txt` are discovered. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored. If you need multiple files, use the project-based install with `pyproject.toml` + `uv.lock`.
+Restart the container — the install runs during startup, and you can watch it with `docker compose logs -f hassette`. Your packages are then available:
 
-## Startup Performance
-
-### Using uv.lock for Faster Starts
-
-The `uv_cache` Docker volume caches downloaded packages. Combined with `uv.lock`, this makes subsequent container starts very fast because packages that are already cached don't need to be re-downloaded:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/uv-cache-volume.yml"
+```python
+--8<-- "pages/getting-started/docker/snippets/deps-app-using-package.py"
 ```
 
-### Pre-building a Custom Image
+The app imports `apprise` directly. No extra configuration needed. (The `# pyright: ignore` comment in the example quiets an editor warning when the package isn't installed on your local machine — your own code doesn't need it.)
 
-For the fastest startup times, build a custom image with your dependencies pre-installed. Use the export-then-install pattern so the constraints file is still enforced:
+!!! tip
+    After adding new packages to `requirements.txt`, restart the container
+    with `docker compose restart hassette`. Hassette re-runs the install on
+    every startup when `HASSETTE__INSTALL_DEPS` is set.
 
-```dockerfile
---8<-- "pages/getting-started/docker/snippets/custom-image.dockerfile"
-```
-
-Then in `docker-compose.yml`:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/custom-image-compose.yml"
-```
-
-### Known Limitations
-
-#### Local Path Dependencies
-
-User projects with local path dependencies (e.g., `foo = { path = "../shared-lib" }`) will fail during the export step because `uv export` emits `file:///absolute/path` references that don't resolve inside the container. If your project uses monorepo-style local deps, use the custom image build pattern above — copy all relevant packages into the image at build time and install them before deploying.
-
-## Complete Examples
-
-### Example 1: Simple Flat Structure
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-example1-compose.yml"
-```
-
-```
---8<-- "pages/getting-started/docker/snippets/deps-example1-requirements.txt"
-```
-
-### Example 2: src/ Layout with Lock File
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-example2-compose.yml"
-```
+## Using pyproject.toml
 
 ```toml
---8<-- "pages/getting-started/docker/snippets/deps-example2-pyproject.toml"
+--8<-- "pages/getting-started/docker/snippets/pyproject-example.toml"
 ```
 
-## See Also
+If you already have a `pyproject.toml`, place it in your `apps/`
+directory alongside your app files. You also need a `uv.lock` next to it —
+a file recording the exact version of every package, so the container
+installs the same versions you tested locally. Generate one by running
+this in your `apps/` directory before starting the container:
 
-- [Docker Overview](index.md) — Quick start guide
-- [Troubleshooting](troubleshooting.md) — Common issues and solutions
+```bash
+uv lock
+```
+
+Your compose file stays the same as the [Docker Setup](index.md) page. No extra
+environment variables are needed:
+
+```yaml
+--8<-- "pages/getting-started/docker/snippets/deps-pyproject-compose.yml"
+```
+
+Hassette checks `/apps` for a `uv.lock` on startup. If it finds one,
+it installs the locked dependencies automatically.
+`HASSETTE__INSTALL_DEPS` is not needed.
+
+If your `pyproject.toml` lives somewhere other than `apps/`, set
+`HASSETTE__PROJECT_DIR` to point Hassette at it. Add the variable to
+your compose environment and mount the directory.
+
+Hassette pins its own dependencies via a constraints file. Your packages
+cannot conflict with packages Hassette depends on. If a conflict occurs,
+the install fails at startup — see
+[Troubleshooting](troubleshooting.md#dependencies-wont-install).
+
+!!! note
+    Commit `uv.lock` to version control. Hassette uses it to reproduce the
+    exact package versions you tested locally.
+
+## Known Limitations
+
+**Local path dependencies don't work inside Docker.** If your `pyproject.toml`
+or `requirements.txt` contains a `file:///...` dependency, installation fails
+because the host path does not exist inside the container. Mount the shared
+code as a volume with a relative path that matches the container layout,
+or publish it as a package.
+
+**First startup is slower with new dependencies.** Hassette runs
+`uv pip install` on every start when `HASSETTE__INSTALL_DEPS` is set.
+New packages download on the first run. The `uv_cache` volume persists
+the cache, so subsequent starts skip the download. If your cache volume
+is missing or was pruned, the next startup downloads everything again.
+
+If installation fails at startup, see [Troubleshooting](troubleshooting.md#dependencies-wont-install)
+for common causes and fixes.

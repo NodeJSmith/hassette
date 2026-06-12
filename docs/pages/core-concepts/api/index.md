@@ -1,70 +1,44 @@
-# API Overview
+# API
 
-The `Api` resource lets your apps interact with Home Assistant. It wraps the REST and WebSocket APIs with typed Python interfaces and handles authentication, retries, and type conversion automatically.
+`self.api` sends commands to Home Assistant and retrieves data from it. It wraps the REST and WebSocket APIs with automatic authentication, retries, and type conversion. Every [`App`](../apps/index.md) instance has one.
 
-```mermaid
-flowchart TD
-    subgraph app["Your App"]
-        APP["self.api"]
-    end
+## Quick Example
 
-    subgraph framework["Api Client"]
-        REST["REST<br/><i>get_state()</i>"]
-        WS["WebSocket<br/><i>call_service()</i>"]
-    end
-
-    subgraph ha["Home Assistant"]
-        HA["HA API"]
-    end
-
-    APP --> REST & WS
-    REST & WS --> HA
-
-    style app fill:#e8f0ff,stroke:#6688cc
-    style framework fill:#fff0e8,stroke:#cc8844
-    style ha fill:#f0f0f0,stroke:#999
-```
-
-## Usage
-
-`self.api` is pre-configured and ready to use in any app:
+The two most common operations are reading state and calling a service.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_overview_usage.py"
 ```
 
+`get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object with `.value` (the state string) and `.attributes` (domain-specific fields). `call_service()` sends a service call via WebSocket.
+
+## API vs StateManager
+
+[`self.states`](../states/index.md) covers most state-reading needs. It returns typed state objects from a local cache, with no network call and no `await`.
+
+| | `self.states` | `self.api` |
+|---|---|---|
+| Access pattern | Synchronous | `async` / `await` |
+| Data source | Local cache, updated from HA events | Direct from Home Assistant |
+| Latency | Instant | Network round-trip |
+| Best for | Reading state in handlers | Writes, fresh data, helpers |
+
+`self.states` is faster and simpler for reads. `self.api` is the right choice when fresh-from-HA data is needed, or for any write operation: service calls, `set_state()`, and [managing HA helpers](managing-helpers.md) (`input_boolean`, `counter`, `timer`, etc.).
+
 ## Error Handling
 
-The API raises typed exceptions for common failures:
+[Api][hassette.api.api.Api] raises typed exceptions for common failures.
 
-- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] — entity does not exist in Home Assistant
-- [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] — authentication failed; check your token
-- [`HassetteError`][hassette.exceptions.HassetteError] — generic upstream error
+- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if the entity does not exist in Home Assistant.
+- [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] if authentication failed (invalid or expired token).
+- [`HassetteError`][hassette.exceptions.HassetteError] for any other upstream error from Home Assistant.
 
-Network errors are automatically retried. Catch `HassetteError` to handle all API failures in one place.
+Network errors are retried automatically. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles all API failures in one place.
 
-## Synchronous Usage
-
-If you are writing a synchronous app, subclass `AppSync` and override `on_initialize_sync` instead of `on_initialize`. Hassette runs your sync method in a thread, where `self.api.sync` provides blocking versions of all API methods:
-
-!!! note
-    `self.api.sync` is only safe to call from **outside the event loop** — specifically from `AppSync` lifecycle methods (`on_initialize_sync`, `on_shutdown_sync`). Calling it from inside an `async def` method will deadlock.
-
-```python
---8<-- "pages/core-concepts/api/snippets/api_sync_usage.py"
-```
-
-## API vs. StateManager
-
-The API fetches state directly from Home Assistant over the network. For reading entity state in most situations, prefer `self.states` — it provides instant synchronous access from a local cache with no network overhead:
-
-- `self.states.light["kitchen"]` — domain-specific typed access, no `await`
-- `self.states.get("light.kitchen")` — direct lookup by entity ID, no `await`
-
-Use `self.api` when you specifically need guaranteed fresh data directly from Home Assistant.
+??? note "Synchronous usage (AppSync only)"
+    `self.api.sync` exposes an [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 ## Next Steps
 
-- **[Entities & States](entities.md)** — retrieve state data from Home Assistant
-- **[Services](services.md)** — invoke Home Assistant services
-- **[Utilities](utilities.md)** — history, logbook, templates, and more
+- [API Methods](methods.md): all `self.api` methods organized by task: reading state, calling services, history, templates, and more.
+- [Managing Helpers](managing-helpers.md): creating and managing input helpers (booleans, counters, timers, and more).

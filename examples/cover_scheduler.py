@@ -70,10 +70,12 @@ class CoverScheduler(App[CoverSchedulerConfig]):
         await self.scheduler.run_in(self.report_sun_state, 10, name="startup_sun_report")
 
         # Listen for any cover state changes
-        await self.bus.on_state_change("cover.*", handler=self.on_cover_change)
+        await self.bus.on_state_change("cover.*", handler=self.on_cover_change, name="cover_scheduler.on_cover_change")
 
         # One-time listener: log when sun state first changes
-        await self.bus.on_state_change("sun.sun", handler=self.on_sun_first_change, once=True)
+        await self.bus.on_state_change(
+            "sun.sun", handler=self.on_sun_first_change, once=True, name="cover_scheduler.on_sun_first_change"
+        )
 
     async def on_shutdown(self) -> None:
         """Persist cover positions to cache before stopping."""

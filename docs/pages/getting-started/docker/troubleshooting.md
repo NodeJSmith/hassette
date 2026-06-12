@@ -1,364 +1,126 @@
-# Troubleshooting
+# Docker Troubleshooting
 
-This guide covers common issues when running Hassette in Docker and how to resolve them.
+Each section below covers one symptom. Jump to the one that matches your situation.
 
-## Container Won't Start
+## Container Exits Immediately
 
-### Check the Logs
-
-Always start by checking the logs:
+The container starts and stops within a few seconds. Check the logs first:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-check-logs.sh"
 ```
 
-For more detail:
+The two most common causes are a missing token and an unreachable Home Assistant instance.
 
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-check-logs-tail.sh"
+**Missing token.** Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container — that's the `./config/.env` file on your host. If that value is absent, Hassette exits at startup. Open your `config/.env` file and confirm the line is present:
+
+```
+HASSETTE__TOKEN=your_long_lived_token_here
 ```
 
-### Common Startup Issues
+**Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. A trailing slash, or `https://` when HA serves plain HTTP, causes a connection failure.
 
-#### Token Not Set
-
-**Symptom:** Error about missing or invalid token
-
-**Solution:** Ensure `HASSETTE__TOKEN` is set in `config/.env`:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/env-file.sh"
-```
-
-#### Can't Reach Home Assistant
-
-**Symptom:** Connection refused or timeout errors
-
-**Solutions:**
-
-1. Verify `base_url` in `hassette.toml` is correct
-2. Check network configuration
-3. Test connectivity from the container:
+**Network not reachable.** If the URL looks correct, test the connection from inside the container (substitute the same token value from your `config/.env`):
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-curl-ha.sh"
 ```
 
-#### Permission Errors
+A healthy response looks like `{"message": "API running."}`. An empty response or connection error means the container can't reach HA on that address.
 
-**Symptom:** Permission denied when reading files
+## "Connected" But Apps Don't Load
 
-**Solution:** The container runs as user `hassette`. Ensure mounted files are readable:
+Hassette reports a successful connection in the logs, but your apps never initialize.
 
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-chmod.sh"
-```
-
-## Apps Not Loading
-
-### 1. Check App Discovery
-
-Verify Hassette can see your app files:
+**Apps directory not mounted.** Hassette looks for apps at `/apps` inside the container. Verify the mount is working:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-ls-apps.sh"
 ```
 
-### 2. Verify App Directory Configuration
+If this returns an empty directory or an error, check your `volumes:` block in `compose.yml`. It should include a line like `./apps:/apps`.
 
-Ensure `apps.directory` in `hassette.toml` matches the container path:
-
-```toml
---8<-- "pages/getting-started/docker/snippets/ts-app-dir-toml.toml"
-```
-
-If using `src/` layout:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/ts-app-dir-src-env.yml"
-```
-
-### 3. Check for Python Errors
-
-Look for syntax or import errors in the logs:
+**Syntax error in an app file.** A Python syntax error prevents that app from loading. Scan the logs for errors:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-grep-errors.sh"
 ```
 
-### 4. Verify App Configuration
+Look for a `SyntaxError` or `ImportError` with a file path. Fix the error in that file, restart with `docker compose restart hassette`, then check the logs again to confirm the error is gone.
 
-Ensure your app is configured in `hassette.toml`:
+## Dependencies Won't Install
 
-```toml
---8<-- "pages/getting-started/docker/snippets/ts-app-config.toml"
+Your app imports a third-party package, but Hassette reports an `ImportError` at startup.
+
+Hassette only installs from `requirements.txt` when `HASSETTE__INSTALL_DEPS=1` is set in the compose `environment:` block. Check your `compose.yml`:
+
+```yaml
+environment:
+  HASSETTE__INSTALL_DEPS: "1"
 ```
 
-## Dependency Installation Fails
+If the variable is set, confirm `requirements.txt` is mounted and readable at `/config/requirements.txt` inside the container:
 
-### Check Installation Output
+```bash
+docker compose exec hassette ls /config/requirements.txt
+```
 
-Look for installation errors in the logs:
+Then check whether the install ran at startup:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-dep-install-logs.sh"
 ```
 
-### Dependency Conflicts
+If you see no install output, `HASSETTE__INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
 
-**Symptom:** Container exits at startup with a `DEPENDENCY CONFLICT` banner followed by a uv resolver error like:
+## Can't Access the Web UI
 
-```
---8<-- "pages/getting-started/docker/snippets/ts-dep-conflict.txt"
-```
+You navigate to `http://your-host:8126` and get a connection refused error.
 
-**Why it happens:** Your project's `uv.lock` was resolved against a different version of Hassette than the Docker image you're running. When the startup script installs your dependencies through Hassette's constraints file, it detects the version mismatch and exits rather than silently downgrading a framework package.
-
-**How to fix it:**
-
-For project-based installs (`pyproject.toml` + `uv.lock`):
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-uv-relock.sh"
-```
-
-Then restart the container.
-
-For `requirements.txt`-based installs: relax any pinned versions that conflict, or check which version range hassette requires:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-check-constraints.sh"
-```
-
-**How to prevent it:** Pin hassette in your project dependencies to match the image tag you're deploying. For example, if you're using the `0.24.0-py3.13` image:
-
-```toml
---8<-- "pages/getting-started/docker/snippets/ts-pin-hassette-pyproject.toml"
-```
-
-Re-run `uv lock` after changing the pin, then commit both files.
-
-### pyproject.toml Not Found
-
-**Symptom:** "No pyproject.toml found" or dependencies not installing
-
-**Solution:** Check `HASSETTE__PROJECT_DIR` points to the right location:
+The port is not published unless your `compose.yml` includes a `ports:` mapping for the Hassette service:
 
 ```yaml
---8<-- "pages/getting-started/docker/snippets/ts-project-dir-env.yml"
+services:
+  hassette:
+    ports:
+      - "8126:8126"
 ```
 
-Verify the file exists:
+If the port is listed but you still get connection refused, check the bind address. `"127.0.0.1:8126:8126"` only accepts connections from the host machine itself. Use `"8126:8126"` to accept connections from other devices on your network, like your phone.
+
+After updating `compose.yml`, run `docker compose up -d` to apply the change.
+
+## Changes to Apps Don't Take Effect
+
+You edit an app file on disk, but Hassette continues running the old version.
+
+The file watcher is off in production mode by default. Restart the container to pick up your changes:
 
 ```bash
---8<-- "pages/getting-started/docker/snippets/ts-cat-pyproject.sh"
+docker compose restart hassette
 ```
 
-### Project Has pyproject.toml But Dependencies Don't Install
-
-**Symptom:** You have a `pyproject.toml` but no `uv.lock`, and the startup log says "run 'uv lock' to generate a lockfile"
-
-**Solution:** Generate a lockfile locally and commit it:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/uv-lock.sh"
-```
-
-If you cannot run `uv` locally, use the `requirements.txt` approach with `HASSETTE__INSTALL_DEPS=1` instead.
-
-### requirements.txt Not Found
-
-**Symptom:** `requirements.txt` files are not being installed
-
-**Solution:** Check these in order:
-
-1. **Confirm `HASSETTE__INSTALL_DEPS=1` is set** — requirements discovery is disabled by default. Without this variable, no requirements files are scanned.
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
-```
-
-2. **Verify the filename is exactly `requirements.txt`** — the startup script only discovers files named exactly `requirements.txt`. Files named `requirements-dev.txt`, `requirements_test.txt`, or any other variant are ignored.
-
-3. **Verify the file is under `/config` or `/apps`** and is not empty.
-
-Check what the container sees:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-find-requirements.sh"
-```
-
-### Version Conflicts
-
-**Symptom:** Package version conflicts during installation
-
-**Solutions:**
-
-1. Use `uv.lock` for consistent, reproducible resolution
-2. For `requirements.txt`, relax overly tight version pins
-3. Check the constraints file to see what versions hassette requires:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-check-constraints.sh"
-```
-
-### Import Errors at Runtime
-
-If apps fail to import installed packages:
-
-1. Verify the package is listed in your dependencies
-2. Check logs for installation errors at startup
-3. Ensure `HASSETTE__APPS__DIRECTORY` points to the correct location
+To apply edits without restarting, set `allow_reload_in_prod = true` under `[hassette]` in your `hassette.toml` (in your `config/` directory). File watching itself is already on by default.
 
 ## Hassette Restarts Whenever Home Assistant Goes Down
 
 **Symptom:** Hassette keeps restarting in a loop whenever Home Assistant restarts or goes offline, even though Hassette itself is healthy.
 
-**Cause:** A Docker healthcheck or an autoheal tool (e.g. `willfarrell/autoheal`) is pointed at `/api/health/ready`. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage — including routine HA restarts — so autoheal keeps killing and restarting Hassette unnecessarily.
+**Cause:** Your `compose.yml` has a `healthcheck:` section (or an autoheal tool such as `willfarrell/autoheal`) pointed at `/api/health/ready`. If you have no `healthcheck:` configured, this section doesn't apply to you. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage, including routine HA restarts, so autoheal keeps killing and restarting Hassette unnecessarily.
 
-**Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure (wedged event loop, container crash, non-zero exit) makes a liveness probe fail.
+**Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure — Hassette itself crashed or stopped responding — makes a liveness probe fail.
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/ts-healthcheck-live.yml"
 ```
 
-If you need a separate traffic-routing signal, use `/api/health/ready` — but keep it out of any healthcheck that triggers restarts. See [Health Endpoints](../../web-ui/health-endpoints.md) for the full reference.
-
-## Health Check Failing
-
-The liveness check queries `http://127.0.0.1:8126/api/health/live`. This endpoint returns 200 whenever the Hassette process is up and the event loop can respond. It does not check Home Assistant connectivity — HA being down never makes the liveness probe return a non-200 response.
-
-### Symptoms
-
-- Container marked as unhealthy
-- Container keeps restarting
-
-### Solutions
-
-1. **Check if Hassette is starting successfully:**
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-check-logs.sh"
-```
-
-2. **Verify the health service is running:**
-
-The health service is enabled by default. Check if it's accessible:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-health-check.sh"
-```
-
-3. **Check for port conflicts:**
-
-Ensure no other service uses port 8126 inside the container.
-
-4. **Increase start period:**
-
-If the container installs dependencies at startup, it may take more than a few seconds before Hassette is ready to respond to health checks. Increase `start_period` to give it time:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/ts-health-check-long-start.yml"
-```
-
-## Hot Reload Not Working
-
-### Requirements
-
-For hot reload to work:
-
-1. `watch_files = true` in `hassette.toml`
-2. Files are mounted as volumes (not copied into image)
-3. If not in dev mode: `allow_reload_in_prod = true`
-
-### Configuration
-
-```toml
---8<-- "pages/getting-started/docker/snippets/ts-hot-reload.toml"
-```
-
-### Verify Volume Mounts
-
-Ensure files are mounted, not copied:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/ts-vol-mount.yml"
-```
-
-## Import Errors
-
-### Package Not Found
-
-**Symptom:** `ModuleNotFoundError: No module named 'xyz'`
-
-**Solutions:**
-
-1. Verify the package is in your dependencies:
-
-```toml
---8<-- "pages/getting-started/docker/snippets/ts-pyproject-dep.toml"
-```
-
-2. Check installation logs for errors
-
-3. Verify the correct Python environment is active
-
-### Hassette Module Not Found
-
-**Symptom:** `ModuleNotFoundError: No module named 'hassette'`
-
-**Solution:** This usually means the virtual environment isn't activated or the Docker image is corrupt. Check the startup logs — the script validates that hassette is importable before doing anything else, and prints a clear error if that import fails. If you see `"ERROR: Failed to import hassette — the Docker image may be corrupt"`, try pulling the image again:
-
-```bash
---8<-- "pages/getting-started/docker/snippets/docker-pull-update.sh"
-```
-
-## Performance Issues
-
-### Slow Container Startup
-
-**Causes:**
-
-- Installing many dependencies on each start
-- No package cache
-
-**Solutions:**
-
-1. Use `uv.lock` for faster resolution (packages are already pinned, no resolution needed)
-2. Mount a persistent cache volume:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/ts-uv-cache-vol.yml"
-```
-
-3. Pre-build a custom image with dependencies — see [Pre-building a Custom Image](dependencies.md#pre-building-a-custom-image)
-
-### High Memory Usage
-
-**Solutions:**
-
-1. Check for memory leaks in your apps
-2. Limit container memory:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/ts-memory-limit.yml"
-```
+If a reverse proxy or load balancer needs to know when Hassette is fully connected, point it at `/api/health/ready` — but keep that endpoint out of any healthcheck that triggers restarts. See [Configure Health Checks](../../web-ui/health-endpoints.md) for the full reference.
 
 ## Getting Help
 
-If you can't resolve an issue:
+If none of the above resolved your issue:
 
-1. **Search existing issues:** [GitHub Issues](https://github.com/NodeJSmith/hassette/issues)
+- Search [GitHub Issues](https://github.com/NodeJSmith/hassette/issues) for your error message. Someone may have hit the same thing.
+- Open a new issue with your `docker compose logs hassette` output and your `compose.yml` (redact your token).
 
-2. **Collect diagnostic information:**
-
-```bash
---8<-- "pages/getting-started/docker/snippets/ts-diagnostics.sh"
-```
-
-3. **Open a new issue** with the diagnostic information
-
-## See Also
-
-- [Docker Overview](index.md) — Quick start guide
-- [Managing Dependencies](dependencies.md) — Dependency installation details
+For problems not specific to Docker (app logic, bus subscriptions, scheduler behavior), see the main [Troubleshooting](../../troubleshooting.md) page.

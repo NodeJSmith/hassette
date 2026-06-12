@@ -1,1 +1,1 @@
-docker compose logs hassette | grep -i "error\|exception\|traceback"
+docker compose logs hassette | grep -i error

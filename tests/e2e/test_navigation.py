@@ -43,6 +43,7 @@ SIDEBAR_LINKS = [
     ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),
     ("nav-config", "/config", "config"),
+    ("nav-diagnostics", "/diagnostics", "diagnostics"),
 ]
 
 
@@ -73,6 +74,7 @@ SIDEBAR_ACTIVE = [
     ("/apps", "nav-apps"),
     ("/logs", "nav-logs"),
     ("/config", "nav-config"),
+    ("/diagnostics", "nav-diagnostics"),
 ]
 
 
