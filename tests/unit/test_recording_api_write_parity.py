@@ -5,14 +5,11 @@ that WP04's deletion of the old drift test does not accidentally remove this
 parity check as collateral damage.
 """
 
-import collections.abc
-import inspect
-from typing import get_type_hints
-
 from hassette_codegen.sync_facade import LIFECYCLE_METHODS
 
 from hassette.api.api import Api
 from hassette.test_utils.recording_api import RecordingApi
+from tests.unit.conftest import public_async_methods
 
 # Read-method names — these are excluded from the write-method derivation below.
 # Lifecycle hooks are handled separately via LIFECYCLE_METHODS (imported above) so
@@ -60,33 +57,6 @@ KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "list_timers",
     }
 )
-
-
-def public_async_methods(cls: type) -> set[str]:
-    """Return public async/Coroutine-returning method names defined directly on cls (not inherited).
-
-    Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource``
-    lifecycle methods inherited by both ``Api`` and ``RecordingApi`` do NOT
-    appear in the comparison. Otherwise, an override of a lifecycle method on
-    one side but not the other would surface as a confusing "write method
-    missing" failure here.
-
-    Uses OR semantics: matches both classic ``async def`` methods and plain ``def`` methods
-    whose ``-> Coroutine[...]`` return annotation identifies them as de-asynced (design/071).
-    ``getattr(..., "__origin__", None)`` is required — non-generic return types have no
-    ``__origin__``, and a bare attribute access would raise AttributeError.
-    """
-
-    def _is_async_or_coroutine(member: object) -> bool:
-        if inspect.iscoroutinefunction(member):
-            return True
-        try:
-            hints = get_type_hints(member)
-        except Exception:
-            return False
-        return getattr(hints.get("return"), "__origin__", None) is collections.abc.Coroutine
-
-    return {name for name, member in vars(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)}
 
 
 def test_api_write_methods_covered_by_recording_api() -> None:

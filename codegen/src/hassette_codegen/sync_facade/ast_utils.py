@@ -142,7 +142,7 @@ def format_signature_and_call(func: ast.FunctionDef | ast.AsyncFunctionDef) -> t
 # Coverage caveat: these patterns are coupled to the exact source wording. A *new* async
 # phrasing variant (e.g. "must be awaited before returning") would slip through silently —
 # the drift gate only detects changes to generated output, not phrasings the regex misses.
-# When adding such wording to Bus/Scheduler, add a matching pattern here.
+# When adding such wording to Bus/Scheduler/Api, add a matching pattern here.
 
 # The async sentence opens the body paragraph (preceded by a blank line). Replace with the
 # blank line so the one-line summary stays separated from the body.
@@ -154,15 +154,46 @@ _ASYNC_SENTENCE_MID_PARAGRAPH = re.compile(r"\s*This method is\s+``async`` and m
 # A phrase mutation, not a sentence removal: rewrite the scheduler's "awaited inline" wording.
 _AWAITED_INLINE_PHRASE = re.compile(r"is awaited inline")
 
+# T02/T03/T04 added new "Must be awaited" sentences to Bus/Scheduler/Api docstrings.
+# Three distinct phrasings require three patterns; order in desync_docstring is load-bearing.
+
+# Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` emits
+# ``HassetteForgottenAwaitWarning``." Consume the surrounding blank lines so no extra blank
+# line is left behind; the trailing group handles the case where it is the last paragraph.
+_MUST_BE_AWAITED_FORGOTTEN_AWAIT = re.compile(
+    r"\n\n\s*Must be awaited — a forgotten\s+``await``\s+emits\s+``HassetteForgottenAwaitWarning``\."
+    r"(?:\s*\n\n|\s*$)"
+)
+# Bus/Scheduler variant: "Must be awaited. Registration/Scheduling completes …" — strip only
+# the leading "Must be awaited. " so the informative completion sentence is kept (it remains
+# true for sync callers).  The positive lookahead ensures we only strip this prefix when
+# followed immediately by an uppercase continuation word.
+_MUST_BE_AWAITED_PREFIX = re.compile(r"Must be awaited\.\s+(?=[A-Z])")
+# Bus 'on' variant: "...raw topic subscriptions. Must be awaited.\n" — "Must be awaited."
+# is appended to the end of an existing sentence rather than starting a new one.  Replace
+# ". Must be awaited." with "." to leave the host sentence intact.
+_MUST_BE_AWAITED_SENTENCE_SUFFIX = re.compile(r"\. Must be awaited\.")
+
 
 def desync_docstring(doc: str) -> str:
     """Strip async-specific phrasing from a docstring copied onto a synchronous facade.
 
-    Order matters: the paragraph-start pattern must run before the mid-paragraph one, since
-    the latter's leading ``\\s*`` would otherwise consume the blank line the former preserves.
+    Order matters:
+    - ``_ASYNC_SENTENCE_AT_PARAGRAPH_START`` must run before ``_ASYNC_SENTENCE_MID_PARAGRAPH``
+      (the latter's leading ``\\s*`` would otherwise consume the blank line the former preserves).
+    - ``_MUST_BE_AWAITED_FORGOTTEN_AWAIT`` must run before ``_MUST_BE_AWAITED_PREFIX`` so the
+      em-dash variant is consumed in full before the simpler prefix pattern could partially match.
     """
     doc = _ASYNC_SENTENCE_AT_PARAGRAPH_START.sub("\n\n", doc)
     doc = _ASYNC_SENTENCE_MID_PARAGRAPH.sub("\n", doc)
+    # Replacement preserves the paragraph break only when one followed the match —
+    # a match at end-of-string must not append a spurious trailing blank line.
+    doc = _MUST_BE_AWAITED_FORGOTTEN_AWAIT.sub(lambda m: "\n\n" if m.group(0).endswith("\n\n") else "", doc)
+    # Suffix before prefix: the suffix pattern matches ". Must be awaited." mid-sentence
+    # (same line as the preceding sentence). Strip it first so the prefix pattern's \s+
+    # cannot consume the following newline and merge two source lines into one long line.
+    doc = _MUST_BE_AWAITED_SENTENCE_SUFFIX.sub(".", doc)
+    doc = _MUST_BE_AWAITED_PREFIX.sub("", doc)
     return _AWAITED_INLINE_PHRASE.sub("completes inline", doc)
 
 

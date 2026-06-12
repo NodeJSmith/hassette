@@ -89,7 +89,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
-        This is the public registration method for raw topic subscriptions. Must be awaited.
+        This is the public registration method for raw topic subscriptions.
         Registration completes before the call returns — ``sub.listener.db_id`` is a valid
         integer immediately on return.
 
@@ -152,7 +152,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -215,7 +215,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -270,7 +270,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to service call events.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -309,7 +309,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to component loaded events.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -343,7 +343,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to service registered events.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -443,7 +443,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to hassette service status events.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -608,7 +608,7 @@ class BusSyncFacade(Resource):
     ) -> Subscription:
         """Subscribe to app instance state change events.
 
-        Must be awaited. Registration completes before the call returns.
+        Registration completes before the call returns.
         ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:

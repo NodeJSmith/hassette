@@ -1,10 +1,13 @@
 """Shared fixtures for tests/unit/."""
 
+import collections.abc
+import inspect
 import logging
 import logging.handlers
 import queue
 from dataclasses import dataclass
 from io import StringIO
+from typing import get_type_hints
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,6 +23,30 @@ from hassette.logging_ import (
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
 )
+
+
+def public_async_methods(cls: type) -> set[str]:
+    """Return public async/Coroutine-returning method names defined directly on cls (not inherited).
+
+    Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource`` lifecycle methods
+    inherited by both ``Api`` and ``RecordingApi`` do NOT appear in the comparison.
+
+    Uses OR semantics: matches both classic ``async def`` methods and plain ``def`` methods
+    whose ``-> Coroutine[...]`` return annotation identifies them as de-asynced (design/071).
+    ``getattr(..., "__origin__", None)`` is required — non-generic return types have no
+    ``__origin__``, and a bare attribute access would raise AttributeError.
+    """
+
+    def _is_async_or_coroutine(member: object) -> bool:
+        if inspect.iscoroutinefunction(member):
+            return True
+        try:
+            hints = get_type_hints(member)
+        except Exception:
+            return False
+        return getattr(hints.get("return"), "__origin__", None) is collections.abc.Coroutine
+
+    return {name for name, member in vars(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)}
 
 
 @dataclass

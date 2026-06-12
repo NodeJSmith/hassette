@@ -48,7 +48,7 @@ class SchedulerSyncFacade(Resource):
     def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error") -> ScheduledJob:
         """Add a job to the scheduler.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         DB registration completes inline — ``job.db_id`` is set before this
@@ -93,7 +93,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job using a trigger object.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         This is the primary entry point for scheduling. All convenience methods
@@ -158,7 +158,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run after a fixed delay (one-shot).
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -212,7 +212,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -273,7 +273,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run at a fixed interval.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -330,7 +330,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run every N minutes.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -383,7 +383,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run every N hours.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Args:
@@ -436,7 +436,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job to run once per day at a fixed wall-clock time.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Uses a cron-based trigger internally to ensure DST-correct, wall-clock-aligned
@@ -492,7 +492,7 @@ class SchedulerSyncFacade(Resource):
     ) -> ScheduledJob:
         """Schedule a job using a cron expression.
 
-        Must be awaited. Scheduling completes before the call returns.
+        Scheduling completes before the call returns.
         ``job.db_id`` is a valid integer immediately on return.
 
         Accepts both 5-field (standard Unix cron: ``minute hour dom month dow``)

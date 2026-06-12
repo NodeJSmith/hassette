@@ -193,8 +193,6 @@ class ApiSyncFacade(Resource):
     def fire_event(self, event_type: str, event_data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Fire a custom event in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
-
         Args:
             event_type: The type of the event to fire (e.g., "custom_event").
             event_data: Additional data to include with the event.
@@ -214,8 +212,6 @@ class ApiSyncFacade(Resource):
     ) -> ServiceResponse | None:
         """Call a Home Assistant service.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
-
         Args:
             domain: The domain of the service (e.g., "light").
             service: The name of the service to call (e.g., "turn_on").
@@ -231,8 +227,6 @@ class ApiSyncFacade(Resource):
     def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
-
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
             domain: The domain to use for the service call (default: ``"homeassistant"``).
@@ -245,8 +239,6 @@ class ApiSyncFacade(Resource):
     def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
         """Turn off a specific entity in Home Assistant.
 
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
-
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
             domain: The domain to use for the service call (default: ``"homeassistant"``).
@@ -258,8 +250,6 @@ class ApiSyncFacade(Resource):
 
     def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
         """Toggle a specific entity in Home Assistant.
-
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
@@ -464,8 +454,6 @@ class ApiSyncFacade(Resource):
 
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
         """Set the state of a specific entity.
-
-        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to set the state for.

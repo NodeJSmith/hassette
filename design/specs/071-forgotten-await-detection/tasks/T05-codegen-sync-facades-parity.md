@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Update codegen, regenerate sync facades, fix parity and cleanup-guard tests"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#11", "AC#7", "AC#9", "AC#10"]
 ---

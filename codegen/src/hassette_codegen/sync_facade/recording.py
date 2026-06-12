@@ -5,9 +5,8 @@ import sys
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
-    LIFECYCLE_METHODS,
     _has_coroutine_return_annotation,
-    is_overload,
+    is_wrappable,
     safe_parse,
 )
 from hassette_codegen.sync_facade.recording_imports import (
@@ -133,17 +132,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     # Collect all public async-or-Coroutine methods on Api (ordered, no overloads, no lifecycle).
     # Includes plain ``def -> Coroutine[...]`` methods introduced by design/071 de-asyncing.
-    api_methods: list[ast.AsyncFunctionDef | ast.FunctionDef] = [
-        node
-        for node in api_class.body
-        if (
-            isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
-            and not is_overload(node)
-            and node.name not in LIFECYCLE_METHODS
-            and not node.name.startswith("_")
-            and (isinstance(node, ast.AsyncFunctionDef) or _has_coroutine_return_annotation(node))
-        )
-    ]
+    api_methods: list[ast.AsyncFunctionDef | ast.FunctionDef] = [node for node in api_class.body if is_wrappable(node)]
 
     # Parse RecordingApi
     recording_source = recording_api_path.read_text(encoding="utf8")
