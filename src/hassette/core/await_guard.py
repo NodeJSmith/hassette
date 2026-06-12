@@ -181,7 +181,7 @@ def guard_await(
     # is a cosmetic display string, and identity capture must never break a
     # registration call (a pathological __str__ should not crash guard_await).
     owner_identity: str = "<unknown>"
-    with contextlib.suppress(Exception):  # noqa: BLE001 — cosmetic capture, see comment
+    with contextlib.suppress(Exception):  # cosmetic capture — see comment above
         owner_identity = str(getattr(owner, "unique_name", "<unknown>"))
 
     return RegistrationHandle(
