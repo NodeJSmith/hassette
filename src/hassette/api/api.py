@@ -5,6 +5,16 @@ The Api provides both async and sync methods for all Home Assistant interactions
 state management, service calls, event firing, and data retrieval. Automatically handles
 authentication, retries, and type conversion for a seamless developer experience.
 
+Fire-and-forget methods (``call_service``, ``fire_event``, ``set_state``, ``turn_on``,
+``turn_off``, ``toggle_service``) return a ``Coroutine`` and must be awaited.
+
+Coroutine return annotations: converted fire-and-forget methods return a
+``RegistrationHandle``, a ``collections.abc.Coroutine`` subclass, so
+``-> Coroutine[Any, Any, T]`` is the honest supertype. The supertype is load-bearing:
+Pyright's ``reportUnusedCoroutine`` fires only for the Coroutine ABC — narrowing to
+``RegistrationHandle`` or ``Awaitable`` silently kills the static layer.  AC#8 guards
+this. See design/071.
+
 Examples:
     Getting entity states
 
@@ -157,6 +167,7 @@ Examples:
 """
 
 import typing
+from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for AC#8 annotation inspection
 from contextlib import suppress
 from enum import StrEnum
 from typing import Any, Literal, overload
@@ -165,6 +176,7 @@ import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
+from hassette.core.await_guard import guard_await
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError, FailedMessageError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
@@ -199,6 +211,7 @@ from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import format_time_param
+from hassette.utils.source_capture import capture_registration_source
 
 from .sync import ApiSyncFacade
 
@@ -417,12 +430,14 @@ class Api(Resource):
         val = await self.ws_send_and_wait(type="get_panels")
         return _expect_dict(val, "get_panels")
 
-    async def fire_event(
+    def fire_event(
         self,
         event_type: str,
         event_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> "Coroutine[Any, Any, dict[str, Any]]":
         """Fire a custom event in Home Assistant.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             event_type: The type of the event to fire (e.g., "custom_event").
@@ -431,6 +446,18 @@ class Api(Resource):
         Returns:
             The response from Home Assistant.
         """
+        source_location, _registration_source = capture_registration_source(limit=8)
+        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(self._fire_event(event_type, event_data), owner=self.parent, source_location=source_location)
+
+    async def _fire_event(
+        self,
+        event_type: str,
+        event_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Async body for fire_event."""
         event_data = event_data or {}
 
         data = {"type": "fire_event", "event_type": event_type, "event_data": event_data}
@@ -440,34 +467,36 @@ class Api(Resource):
         return await self.ws_send_and_wait(**data)
 
     @overload
-    async def call_service(
+    def call_service(
         self,
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None,
         return_response: Literal[True],
         **data: Any,
-    ) -> ServiceResponse: ...
+    ) -> "Coroutine[Any, Any, ServiceResponse]": ...
 
     @overload
-    async def call_service(
+    def call_service(
         self,
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: typing.Literal[False] | None = None,
         **data: Any,
-    ) -> None: ...
+    ) -> "Coroutine[Any, Any, None]": ...
 
-    async def call_service(
+    def call_service(
         self,
         domain: str,
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
         **data: Any,
-    ) -> ServiceResponse | None:
+    ) -> "Coroutine[Any, Any, ServiceResponse | None]":
         """Call a Home Assistant service.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             domain: The domain of the service (e.g., "light").
@@ -479,6 +508,25 @@ class Api(Resource):
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
+        source_location, _registration_source = capture_registration_source(limit=8)
+        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._call_service(domain, service, target, return_response, **data),
+            owner=self.parent,
+            source_location=source_location,
+        )
+
+    async def _call_service(
+        self,
+        domain: str,
+        service: str,
+        target: dict[str, str] | dict[str, list[str]] | None = None,
+        return_response: bool | None = False,
+        **data: Any,
+    ) -> ServiceResponse | None:
+        """Async body for call_service."""
         payload = {
             "type": "call_service",
             "domain": domain,
@@ -501,8 +549,12 @@ class Api(Resource):
         await self.ws_send_json(**payload)
         return None
 
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
+    def turn_on(
+        self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any
+    ) -> "Coroutine[Any, Any, None]":
         """Turn on a specific entity in Home Assistant.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
@@ -512,13 +564,16 @@ class Api(Resource):
                 pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-
         self.logger.debug("Turning on entity %s", entity_id)
-        return await self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
+        return self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
-    async def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
+    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
         """Turn off a specific entity in Home Assistant.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
@@ -528,12 +583,16 @@ class Api(Resource):
                 pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
         self.logger.debug("Turning off entity %s", entity_id)
-        return await self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
+        return self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
-    async def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant"):
+    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
         """Toggle a specific entity in Home Assistant.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
@@ -543,9 +602,11 @@ class Api(Resource):
                 pass ``domain="light"``; for switches, pass ``domain="switch"``.
 
         """
+        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
+        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
         self.logger.debug("Toggling entity %s", entity_id)
-        return await self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
+        return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.
@@ -812,13 +873,15 @@ class Api(Resource):
 
         return await response.json()
 
-    async def set_state(
+    def set_state(
         self,
         entity_id: str | StrEnum,
         state: Any,
         attributes: dict[str, Any] | None = None,
-    ) -> dict:
+    ) -> "Coroutine[Any, Any, dict]":
         """Set the state of a specific entity.
+
+        Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
 
         Args:
             entity_id: The ID of the entity to set the state for.
@@ -828,7 +891,21 @@ class Api(Resource):
         Returns:
             The response from Home Assistant after setting the state.
         """
+        source_location, _registration_source = capture_registration_source(limit=8)
+        # _registration_source discarded: no DB-record telemetry on api fire-and-forget methods
+        # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
+        # Coroutine[...] supertype annotation is load-bearing — see module docstring / design/071.
+        return guard_await(
+            self._set_state(entity_id, state, attributes), owner=self.parent, source_location=source_location
+        )
 
+    async def _set_state(
+        self,
+        entity_id: str | StrEnum,
+        state: Any,
+        attributes: dict[str, Any] | None = None,
+    ) -> dict:
+        """Async body for set_state."""
         entity_id = str(entity_id)
 
         attributes = attributes or {}
