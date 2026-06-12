@@ -67,8 +67,9 @@ class TestFanFullPipeline:
         output = generate_entity_wrapper(domain)
         assert output is not None
         assert "class FanEntity(BaseEntity[FanState, str]):" in output
-        assert "async def turn_on(" in output
-        assert "async def turn_off(" in output
+        assert "def turn_on(" in output
+        assert "def turn_off(" in output
+        assert "-> Coroutine[Any, Any, None]:" in output
 
     def test_state_model_compiles(self) -> None:
         domain = _extract_full_domain("fan")
@@ -100,7 +101,8 @@ class TestLightFullPipeline:
         domain = _extract_full_domain("light")
         output = generate_entity_wrapper(domain)
         assert output is not None
-        assert "async def turn_on(" in output
+        assert "def turn_on(" in output
+        assert "-> Coroutine[Any, Any, None]:" in output
         field_count = output.count("None,") + output.count("None)")
         assert field_count >= 5
 

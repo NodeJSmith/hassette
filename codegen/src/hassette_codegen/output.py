@@ -50,10 +50,42 @@ def format_via_ruff(content: str) -> str:
                 Path(tmp_path).unlink()
 
 
-def run_ruff(path: Path) -> None:
-    """Run ruff format + fix all auto-fixable violations, then validate."""
+def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
+    """Run ruff format + fix all auto-fixable violations, then validate.
+
+    Pass logical_path when the file lives in a temp location but should be
+    validated as if it were at logical_path — this ensures per-file-ignores
+    in ruff.toml match on the final filename, not the temp name.
+
+    The check step uses ruff's stdin mode (pipe content in, receive fixed
+    content out) so --stdin-filename applies correctly. The format step
+    operates on the file directly (it has no stdin mode equivalent).
+    """
     run_ruff_step(["ruff", "format", str(path)], "format")
-    run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
+    if logical_path is not None:
+        # Pipe through stdin so --stdin-filename controls per-file-ignores lookup.
+        content = path.read_bytes()
+        try:
+            result = subprocess.run(
+                ["ruff", "check", "--fix", "--stdin-filename", str(logical_path), "-"],
+                input=content,
+                capture_output=True,
+                timeout=30,
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise SystemExit("ruff fix timed out after 30s — check for filesystem stall") from exc
+        if result.returncode not in (0, 1):
+            # returncode 1 = unfixable violations; we treat those as failure below
+            sys.stderr.buffer.write(result.stderr)
+            raise SystemExit(f"ruff fix failed with exit code {result.returncode}.")
+        if result.returncode == 1:
+            sys.stderr.buffer.write(result.stderr)
+            raise SystemExit("ruff fix failed with exit code 1.")
+        path.write_bytes(result.stdout)
+    else:
+        run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
 
 
 def atomic_write(out_path: Path, content: str) -> bool:
@@ -77,7 +109,7 @@ def atomic_write(out_path: Path, content: str) -> bool:
             tmp_path = Path(fp.name)
 
         try:
-            run_ruff(tmp_path)
+            run_ruff(tmp_path, logical_path=out_path)
         except SystemExit:
             print(f"WARNING: {out_path} failed ruff validation — skipping (previous version retained)", file=sys.stderr)
             return False

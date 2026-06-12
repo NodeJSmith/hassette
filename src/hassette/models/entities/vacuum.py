@@ -13,6 +13,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         return self.state.attributes
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -22,6 +23,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -31,6 +33,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -40,6 +43,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def stop(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -49,6 +53,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def locate(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,6 +63,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def start_pause(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,6 +73,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def start(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -76,6 +83,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def pause(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -85,6 +93,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def return_to_base(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -94,6 +103,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def clean_spot(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -107,6 +117,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         *,
         cleaning_area_id: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -122,6 +133,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         command: str,
         params: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -137,6 +149,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         *,
         fan_speed: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

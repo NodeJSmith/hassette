@@ -19,6 +19,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         *,
         status: Status | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -36,6 +37,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,6 +60,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         rename: str | None = None,
         status: Literal["needs_action", "completed"] | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -77,6 +80,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         *,
         item: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -87,6 +91,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         )
 
     def remove_completed_items(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

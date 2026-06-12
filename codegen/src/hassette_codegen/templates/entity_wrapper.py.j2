@@ -32,6 +32,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% endif %}
 {% endfor %}
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -45,6 +46,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% else %}
 
     def {{ service.method_name }}(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

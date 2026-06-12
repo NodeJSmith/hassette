@@ -13,11 +13,10 @@ Covers:
 import collections.abc
 import gc
 import inspect
-import logging
 import sys
 import warnings
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,43 +26,7 @@ from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.humidifier import HumidifierEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState, LightState
-
-# ---------------------------------------------------------------------------
-# Helpers — build a minimal entity with mocked api
-# ---------------------------------------------------------------------------
-
-
-def make_api() -> MagicMock:
-    """Create a mock Api whose fire-and-forget methods return RegistrationHandles."""
-    hassette_mock = MagicMock()
-    hassette_mock.config.logging.api = "INFO"
-    hassette_mock.config.forgotten_await_behavior = None
-
-    from hassette.api.api import Api
-
-    api = Api.__new__(Api)
-    api.hassette = hassette_mock
-    api._unique_name = "test_api"
-    api._error_handler = None
-    api.logger = logging.getLogger("hassette.test.entity")
-
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    mock_parent.app_config = MagicMock()
-    mock_parent.app_config.forgotten_await_behavior = None
-    api.parent = mock_parent
-
-    api.ws_send_and_wait = AsyncMock(return_value={})
-    api.ws_send_json = AsyncMock(return_value=None)
-    mock_resp = AsyncMock()
-    mock_resp.json = AsyncMock(return_value={"state": "on", "entity_id": "light.test"})
-    api.post_rest_request = AsyncMock(return_value=mock_resp)
-    api.entity_exists = AsyncMock(return_value=False)
-    return api
+from tests.unit.conftest import make_api
 
 
 def make_light_entity(api: MagicMock) -> LightEntity:
@@ -96,21 +59,31 @@ def make_humidifier_entity(api: MagicMock) -> HumidifierEntity:
 # FR#13 / AC#11 regen check — generated files use def -> Coroutine[...], not async def
 # ---------------------------------------------------------------------------
 
-_ENTITIES_DIR = Path(__file__).resolve().parents[2] / "src" / "hassette" / "models" / "entities"
-
-# Spot-check a selection: no-param method file, with-param method file, and base
-_SPOT_CHECK_FILES = [
-    "light.py",  # has Any-typed params
-    "humidifier.py",  # simple required int param
-    "fan.py",  # has both param and no-param methods
-    "button.py",  # likely no-param only
-    "lock.py",  # simple no-param methods
-]
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
+_MANIFEST = _REPO_ROOT / ".generated-manifest"
 
 
-@pytest.mark.parametrize("filename", _SPOT_CHECK_FILES)
+def _manifest_entity_files() -> list[str]:
+    """Read .generated-manifest and return basenames of generated entity files (excluding __init__)."""
+    lines = _MANIFEST.read_text().splitlines()
+    return [
+        Path(line).name
+        for line in lines
+        if line.startswith("src/hassette/models/entities/") and not line.endswith("__init__.py")
+    ]
+
+
+_GENERATED_ENTITY_FILES = _manifest_entity_files()
+
+
+@pytest.mark.parametrize("filename", _GENERATED_ENTITY_FILES)
 def test_generated_entity_file_uses_def_not_async_def(filename: str) -> None:
-    """FR#13 regen check: generated entity files must use 'def' not 'async def' for service methods."""
+    """FR#13 regen check: every manifest-listed entity file must not contain 'async def' for service methods.
+
+    Parametrized over the full .generated-manifest so any domain silently dropped from
+    regeneration causes this test to fail rather than go undetected.
+    """
     entity_path = _ENTITIES_DIR / filename
     assert entity_path.exists(), f"{entity_path} does not exist"
     source = entity_path.read_text()
@@ -120,9 +93,9 @@ def test_generated_entity_file_uses_def_not_async_def(filename: str) -> None:
     )
 
 
-@pytest.mark.parametrize("filename", _SPOT_CHECK_FILES)
+@pytest.mark.parametrize("filename", _GENERATED_ENTITY_FILES)
 def test_generated_entity_file_imports_coroutine_and_any(filename: str) -> None:
-    """FR#13 regen check: generated entity files must import Coroutine and Any unconditionally."""
+    """FR#13 regen check: every manifest-listed entity file must import Coroutine and Any unconditionally."""
     entity_path = _ENTITIES_DIR / filename
     source = entity_path.read_text()
     assert "from collections.abc import Coroutine" in source, (

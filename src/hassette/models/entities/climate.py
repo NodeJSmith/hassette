@@ -17,6 +17,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -34,6 +35,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         target_temp_low: float | None = None,
         temperature: float | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -51,6 +53,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         humidity: int,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -65,6 +68,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         fan_mode: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -79,6 +83,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         hvac_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -93,6 +98,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_mode: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -107,6 +113,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_horizontal_mode: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -117,6 +124,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -126,6 +134,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -135,6 +144,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

@@ -15,6 +15,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         return self.state.attributes
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -24,6 +25,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -33,6 +35,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def enable_motion_detection(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -42,6 +45,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def disable_motion_detection(self) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -55,6 +59,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         *,
         filename: str,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -70,6 +75,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         media_player: str,
         format: Format | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -87,6 +93,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         duration: int | None = None,
         lookback: int | None = None,
     ) -> Coroutine[Any, Any, None]:
+        """Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(

@@ -15,6 +15,7 @@ import structlog
 import structlog.processors
 import structlog.stdlib
 
+from hassette.api.api import Api
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
@@ -23,6 +24,47 @@ from hassette.logging_ import (
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
 )
+
+
+def make_api() -> Api:
+    """Create an Api instance with mocked WebSocket and REST layers.
+
+    Shared factory used by test_api_coroutine_conversion and
+    test_entity_coroutine_conversion. Stubs out:
+    - ws_send_and_wait → returns {} (enough for call_service/fire_event)
+    - ws_send_json     → returns None
+    - post_rest_request → returns a mock response (for set_state)
+    - entity_exists    → returns False (simplifies set_state test)
+    """
+    hassette_mock = MagicMock()
+    hassette_mock.config.logging.api = "INFO"
+    hassette_mock.config.forgotten_await_behavior = None
+
+    api = Api.__new__(Api)
+    api.hassette = hassette_mock
+    api._unique_name = "test_api"
+    api._error_handler = None
+    api.logger = logging.getLogger("hassette.test")
+
+    mock_parent = MagicMock()
+    mock_parent.app_key = "test_app"
+    mock_parent.index = 0
+    mock_parent.unique_name = "test_app.0"
+    mock_parent.source_tier = "app"
+    mock_parent.class_name = "TestApp"
+    mock_parent.app_config = MagicMock()
+    mock_parent.app_config.forgotten_await_behavior = None
+    api.parent = mock_parent
+
+    api.ws_send_and_wait = AsyncMock(return_value={})
+    api.ws_send_json = AsyncMock(return_value=None)
+
+    mock_resp = AsyncMock()
+    mock_resp.json = AsyncMock(return_value={"state": "on", "entity_id": "light.test"})
+    api.post_rest_request = AsyncMock(return_value=mock_resp)
+    api.entity_exists = AsyncMock(return_value=False)
+
+    return api
 
 
 def public_async_methods(cls: type) -> set[str]:

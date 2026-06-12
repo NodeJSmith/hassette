@@ -12,10 +12,9 @@ Covers:
 import collections.abc
 import gc
 import inspect
-import logging
 import sys
 import warnings
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -23,52 +22,11 @@ from hassette.api.api import Api
 from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.services import ServiceResponse
+from tests.unit.conftest import make_api
 
 # ---------------------------------------------------------------------------
 # Helpers — build a minimal Api with mocked ws layer
 # ---------------------------------------------------------------------------
-
-
-def make_api() -> Api:
-    """Create an Api instance with mocked WebSocket and REST services.
-
-    Stubs out:
-    - ws_send_and_wait → returns {} (enough for call_service/fire_event)
-    - ws_send_json     → returns None
-    - post_rest_request → returns a mock response (for set_state)
-    - entity_exists    → returns False (simplifies set_state test)
-    """
-    hassette = MagicMock()
-    hassette.config.logging.api = "INFO"
-    hassette.config.forgotten_await_behavior = None
-
-    api = Api.__new__(Api)
-    api.hassette = hassette
-    api._unique_name = "test_api"
-    api._error_handler = None
-    api.logger = logging.getLogger("hassette.test.api")
-
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    mock_parent.app_config = MagicMock()
-    mock_parent.app_config.forgotten_await_behavior = None
-    api.parent = mock_parent
-
-    # Stub the ws layer
-    api.ws_send_and_wait = AsyncMock(return_value={})
-    api.ws_send_json = AsyncMock(return_value=None)
-
-    # Stub REST layer for set_state
-    mock_response = AsyncMock()
-    mock_response.json = AsyncMock(return_value={"state": "on", "entity_id": "light.test"})
-    api.post_rest_request = AsyncMock(return_value=mock_response)
-    api.entity_exists = AsyncMock(return_value=False)
-
-    return api
 
 
 # ---------------------------------------------------------------------------

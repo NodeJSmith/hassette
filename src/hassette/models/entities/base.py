@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for AC#8 annotation inspection
+from collections.abc import Coroutine
 from typing import Any, Generic, cast
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
@@ -60,7 +60,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
             self._sync = BaseEntitySyncFacade(entity=self)
         return self._sync
 
-    def turn_off(self) -> "Coroutine[Any, Any, None]":
+    def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turn off the entity.
 
         Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
@@ -69,7 +69,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.turn_off(self.entity_id, self.domain)
 
-    def turn_on(self, **data: Any) -> "Coroutine[Any, Any, None]":
+    def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
         """Turn on the entity.
 
         Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.
@@ -78,7 +78,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.turn_on(self.entity_id, self.domain, **data)
 
-    def toggle(self) -> "Coroutine[Any, Any, None]":
+    def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggle the entity.
 
         Must be awaited — a forgotten ``await`` emits ``HassetteForgottenAwaitWarning``.

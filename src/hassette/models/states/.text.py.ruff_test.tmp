@@ -1,0 +1,6 @@
+from enum import StrEnum
+
+
+class TextMode(StrEnum):
+    PASSWORD = "password"
+    TEXT = "text"

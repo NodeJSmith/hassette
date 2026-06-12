@@ -83,6 +83,7 @@ def run_pipeline(
         if check_mode:
             if not check_drift(state_path, state_content, f"{domain_info.name} state model"):
                 any_drift = True
+            generated_files.add(rel_state)
         else:
             if atomic_write(state_path, state_content):
                 generated_files.add(rel_state)
@@ -90,8 +91,6 @@ def run_pipeline(
                 print(f"WARNING: Skipped {rel_state} (validation failed)", file=sys.stderr)
                 skipped_domains.append(domain_info.name)
                 continue
-
-        generated_files.add(rel_state)
 
         entity_content = generate_entity_wrapper(extracted)
         if entity_content is not None:
