@@ -215,8 +215,6 @@ if typing.TYPE_CHECKING:
     from hassette.models.entities import EntityT
     from hassette.models.states import BaseState
 
-# generator does NOT emit them as public sync methods on ApiSyncFacade.
-
 
 def _expect_list(val: Any, context: str) -> list:
     """Assert that *val* is a list, raising TypeError with context if not.

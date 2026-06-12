@@ -22,7 +22,7 @@ from hassette.types.enums import ForgottenAwaitBehavior
 T = TypeVar("T")
 
 # Hardcoded fallback when neither per-app nor global config has a value set.
-_DEFAULT_BEHAVIOR = ForgottenAwaitBehavior.WARN
+DEFAULT_FORGOTTEN_AWAIT_BEHAVIOR = ForgottenAwaitBehavior.WARN
 
 
 class RegistrationHandle(Coroutine[Any, Any, T]):
@@ -59,39 +59,29 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
         # called (e.g. 'on_state_change'), not the inner private coroutine name.
         self._display_name = method_name or self.__name__
 
-    # ------------------------------------------------------------------
-    # Coroutine protocol — all four entry points set _awaited = True
-    # before delegating.  Omitting any one causes a false-positive warning
-    # on cancellation, threadsafe scheduling, or the sync error path.
-    # ------------------------------------------------------------------
+    # Coroutine protocol — all four entry points set _awaited = True before
+    # delegating.  Omitting any one causes a false-positive warning on
+    # cancellation, threadsafe scheduling, or the sync error path.
 
     def send(self, value: Any) -> Any:
-        """Drive the coroutine one step via send()."""
+        """Drive the coroutine one step; marks the handle awaited."""
         self._awaited = True
         return self._coro.send(value)
 
     def throw(self, exc: BaseException) -> Any:
-        """Inject an exception into the coroutine (PEP 706 single-arg form)."""
+        """Inject an exception (PEP 706 single-arg form); marks the handle awaited."""
         self._awaited = True
         return self._coro.throw(exc)
 
     def close(self) -> None:
-        """Close the coroutine.  Sets _awaited so __del__ does not warn."""
+        """Close the inner coroutine; marks the handle awaited so ``__del__`` stays silent."""
         self._awaited = True
         self._coro.close()
 
     def __await__(self) -> Generator[Any, None, T]:
-        """Support the ``await`` expression."""
+        """Delegate ``await``; marks the handle awaited."""
         self._awaited = True
         return self._coro.__await__()
-
-    # ------------------------------------------------------------------
-    # __name__ delegation is set in __init__ via __slots__; no property needed.
-    # ------------------------------------------------------------------
-
-    # ------------------------------------------------------------------
-    # __del__ — emit warning if never driven, suppress inner double-warning
-    # ------------------------------------------------------------------
 
     def __del__(self) -> None:
         """Emit a warning and close the inner coroutine when never awaited."""
@@ -112,7 +102,9 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
             return
 
         try:
-            if self._behavior in (ForgottenAwaitBehavior.WARN, ForgottenAwaitBehavior.ERROR):
+            # WARN and ERROR both emit here; ERROR escalates only via the user's
+            # filterwarnings("error") configuration (see ForgottenAwaitBehavior.ERROR).
+            if self._behavior is not ForgottenAwaitBehavior.IGNORE:
                 msg = (
                     f"Coroutine from '{self._display_name}' was never awaited "
                     f"(app: {self._owner_identity}, call site: {self._source_location}). "
@@ -166,7 +158,7 @@ def guard_await(
         and satisfies ``asyncio.iscoroutine(handle) is True``.
     """
     # Resolve behavior — eagerly, before the user frame is gone.
-    behavior: ForgottenAwaitBehavior = _DEFAULT_BEHAVIOR
+    behavior: ForgottenAwaitBehavior = DEFAULT_FORGOTTEN_AWAIT_BEHAVIOR
     with contextlib.suppress(Exception):
         per_app = getattr(getattr(owner, "app_config", None), "forgotten_await_behavior", None)
         if per_app is not None:

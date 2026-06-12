@@ -28,7 +28,7 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
-from tests.unit.conftest import make_api
+from tests.unit.conftest import make_api, make_mock_parent
 
 # ---------------------------------------------------------------------------
 # Canonical protected-method list (FR#9, AC#6)
@@ -402,15 +402,7 @@ def _make_bus() -> Bus:
     bus.logger = MagicMock()
     bus.bus_service = MagicMock()
     bus.bus_service.add_listener = AsyncMock(return_value=1)
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    mock_parent.app_config = MagicMock()
-    mock_parent.app_config.forgotten_await_behavior = None
-    bus.parent = mock_parent
+    bus.parent = make_mock_parent()
     return bus
 
 
@@ -420,26 +412,25 @@ async def _bus_handler(event: object) -> None:
 
 def _bus_call(method_name: str):
     """Return a callable that invokes bus.<method_name> with minimal valid args."""
-    _h = _bus_handler
     _calls = {
-        "on": lambda b: b.on(topic="t", handler=_h, name="n"),
-        "on_state_change": lambda b: b.on_state_change("light.x", handler=_h, name="n"),
-        "on_attribute_change": lambda b: b.on_attribute_change("light.x", "brightness", handler=_h, name="n"),
-        "on_call_service": lambda b: b.on_call_service(handler=_h, name="n"),
-        "on_service_registered": lambda b: b.on_service_registered(handler=_h, name="n"),
-        "on_component_loaded": lambda b: b.on_component_loaded(handler=_h, name="n"),
-        "on_hassette_service_status": lambda b: b.on_hassette_service_status(handler=_h, name="n"),
-        "on_app_state_changed": lambda b: b.on_app_state_changed(handler=_h, name="n"),
-        "on_homeassistant_restart": lambda b: b.on_homeassistant_restart(handler=_h, name="n"),
-        "on_homeassistant_start": lambda b: b.on_homeassistant_start(handler=_h, name="n"),
-        "on_homeassistant_stop": lambda b: b.on_homeassistant_stop(handler=_h, name="n"),
-        "on_websocket_connected": lambda b: b.on_websocket_connected(handler=_h, name="n"),
-        "on_websocket_disconnected": lambda b: b.on_websocket_disconnected(handler=_h, name="n"),
-        "on_app_running": lambda b: b.on_app_running(handler=_h, name="n"),
-        "on_app_stopping": lambda b: b.on_app_stopping(handler=_h, name="n"),
-        "on_hassette_service_failed": lambda b: b.on_hassette_service_failed(handler=_h, name="n"),
-        "on_hassette_service_crashed": lambda b: b.on_hassette_service_crashed(handler=_h, name="n"),
-        "on_hassette_service_started": lambda b: b.on_hassette_service_started(handler=_h, name="n"),
+        "on": lambda b: b.on(topic="t", handler=_bus_handler, name="n"),
+        "on_state_change": lambda b: b.on_state_change("light.x", handler=_bus_handler, name="n"),
+        "on_attribute_change": lambda b: b.on_attribute_change("light.x", "brightness", handler=_bus_handler, name="n"),
+        "on_call_service": lambda b: b.on_call_service(handler=_bus_handler, name="n"),
+        "on_service_registered": lambda b: b.on_service_registered(handler=_bus_handler, name="n"),
+        "on_component_loaded": lambda b: b.on_component_loaded(handler=_bus_handler, name="n"),
+        "on_hassette_service_status": lambda b: b.on_hassette_service_status(handler=_bus_handler, name="n"),
+        "on_app_state_changed": lambda b: b.on_app_state_changed(handler=_bus_handler, name="n"),
+        "on_homeassistant_restart": lambda b: b.on_homeassistant_restart(handler=_bus_handler, name="n"),
+        "on_homeassistant_start": lambda b: b.on_homeassistant_start(handler=_bus_handler, name="n"),
+        "on_homeassistant_stop": lambda b: b.on_homeassistant_stop(handler=_bus_handler, name="n"),
+        "on_websocket_connected": lambda b: b.on_websocket_connected(handler=_bus_handler, name="n"),
+        "on_websocket_disconnected": lambda b: b.on_websocket_disconnected(handler=_bus_handler, name="n"),
+        "on_app_running": lambda b: b.on_app_running(handler=_bus_handler, name="n"),
+        "on_app_stopping": lambda b: b.on_app_stopping(handler=_bus_handler, name="n"),
+        "on_hassette_service_failed": lambda b: b.on_hassette_service_failed(handler=_bus_handler, name="n"),
+        "on_hassette_service_crashed": lambda b: b.on_hassette_service_crashed(handler=_bus_handler, name="n"),
+        "on_hassette_service_started": lambda b: b.on_hassette_service_started(handler=_bus_handler, name="n"),
     }
     return _calls[method_name]
 
@@ -467,14 +458,7 @@ def _make_scheduler() -> Scheduler:
 
     mock_service.add_job = AsyncMock(side_effect=_add_job)
     sched.scheduler_service = mock_service
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestParent"
-    mock_parent.app_config = MagicMock()
-    mock_parent.app_config.forgotten_await_behavior = None
-    sched.parent = mock_parent
+    sched.parent = make_mock_parent()
     return sched
 
 
@@ -484,17 +468,16 @@ async def _sched_noop() -> None:
 
 def _sched_call(method_name: str):
     """Return a callable that invokes scheduler.<method_name> with minimal valid args."""
-    _noop = _sched_noop
     _every = _Every(hours=1)
     _calls = {
-        "schedule": lambda s: s.schedule(_noop, _every, name="n"),
-        "run_in": lambda s: s.run_in(_noop, 30, name="n"),
-        "run_once": lambda s: s.run_once(_noop, at="23:59", name="n"),
-        "run_every": lambda s: s.run_every(_noop, minutes=5, name="n"),
-        "run_minutely": lambda s: s.run_minutely(_noop, minutes=5, name="n"),
-        "run_hourly": lambda s: s.run_hourly(_noop, hours=1, name="n"),
-        "run_daily": lambda s: s.run_daily(_noop, at="08:00", name="n"),
-        "run_cron": lambda s: s.run_cron(_noop, "0 9 * * 1-5", name="n"),
+        "schedule": lambda s: s.schedule(_sched_noop, _every, name="n"),
+        "run_in": lambda s: s.run_in(_sched_noop, 30, name="n"),
+        "run_once": lambda s: s.run_once(_sched_noop, at="23:59", name="n"),
+        "run_every": lambda s: s.run_every(_sched_noop, minutes=5, name="n"),
+        "run_minutely": lambda s: s.run_minutely(_sched_noop, minutes=5, name="n"),
+        "run_hourly": lambda s: s.run_hourly(_sched_noop, hours=1, name="n"),
+        "run_daily": lambda s: s.run_daily(_sched_noop, at="08:00", name="n"),
+        "run_cron": lambda s: s.run_cron(_sched_noop, "0 9 * * 1-5", name="n"),
     }
     return _calls[method_name]
 

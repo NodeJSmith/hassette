@@ -20,6 +20,7 @@ from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.services import ServiceResponse
 from tests.unit.conftest import make_api
+from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 
 @pytest.fixture(autouse=True)
@@ -28,22 +29,11 @@ def _drain(drain_forgotten_await_handles: None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Helpers — build a minimal Api with mocked ws layer
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # FR#9 — converted public methods are plain def, not async def
 # ---------------------------------------------------------------------------
 
-_CONVERTED_METHODS = [
-    "call_service",
-    "fire_event",
-    "set_state",
-    "turn_on",
-    "turn_off",
-    "toggle_service",
-]
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_CONVERTED_METHODS = sorted(CANONICAL_PROTECTED[Api])
 
 
 @pytest.mark.parametrize("method_name", _CONVERTED_METHODS)

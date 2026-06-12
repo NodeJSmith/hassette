@@ -29,6 +29,19 @@ from hassette.logging_ import (
 )
 
 
+def make_mock_parent() -> MagicMock:
+    """Mock owning App resource with the attributes guard_await and telemetry read."""
+    parent = MagicMock()
+    parent.app_key = "test_app"
+    parent.index = 0
+    parent.unique_name = "test_app.0"
+    parent.source_tier = "app"
+    parent.class_name = "TestApp"
+    parent.app_config = MagicMock()
+    parent.app_config.forgotten_await_behavior = None
+    return parent
+
+
 def make_api() -> Api:
     """Create an Api instance with mocked WebSocket and REST layers.
 
@@ -49,15 +62,7 @@ def make_api() -> Api:
     api._error_handler = None
     api.logger = logging.getLogger("hassette.test")
 
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    mock_parent.app_config = MagicMock()
-    mock_parent.app_config.forgotten_await_behavior = None
-    api.parent = mock_parent
+    api.parent = make_mock_parent()
 
     api.ws_send_and_wait = AsyncMock(return_value={})
     api.ws_send_json = AsyncMock(return_value=None)

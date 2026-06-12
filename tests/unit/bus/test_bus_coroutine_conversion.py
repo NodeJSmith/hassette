@@ -21,6 +21,7 @@ from hassette.bus.bus import Bus
 from hassette.bus.listeners import Subscription
 from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning, ListenerNameRequiredError
+from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import mock_add_listener
 
@@ -38,27 +39,8 @@ async def handler(event: object) -> None:
 # FR#9 — public registration methods are plain def, not async def
 # ---------------------------------------------------------------------------
 
-_PUBLIC_REGISTRATION_METHODS = [
-    "on",
-    "on_state_change",
-    "on_attribute_change",
-    "on_call_service",
-    "add_listener",
-    "on_service_registered",
-    "on_component_loaded",
-    "on_hassette_service_status",
-    "on_app_state_changed",
-    "on_homeassistant_restart",
-    "on_homeassistant_start",
-    "on_homeassistant_stop",
-    "on_websocket_connected",
-    "on_websocket_disconnected",
-    "on_app_running",
-    "on_app_stopping",
-    "on_hassette_service_failed",
-    "on_hassette_service_crashed",
-    "on_hassette_service_started",
-]
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_PUBLIC_REGISTRATION_METHODS = sorted(CANONICAL_PROTECTED[Bus])
 
 
 @pytest.mark.parametrize("method_name", _PUBLIC_REGISTRATION_METHODS)

@@ -21,6 +21,7 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import make_scheduler, noop
 
@@ -34,17 +35,8 @@ def _drain(drain_forgotten_await_handles: None) -> None:
 # FR#9 — public scheduling methods are plain def, not async def
 # ---------------------------------------------------------------------------
 
-_PUBLIC_SCHEDULING_METHODS = [
-    "add_job",
-    "schedule",
-    "run_in",
-    "run_once",
-    "run_every",
-    "run_minutely",
-    "run_hourly",
-    "run_daily",
-    "run_cron",
-]
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
 
 
 @pytest.mark.parametrize("method_name", _PUBLIC_SCHEDULING_METHODS)

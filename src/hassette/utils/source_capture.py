@@ -6,6 +6,12 @@ import inspect
 from pathlib import Path
 from typing import Any
 
+# Per-file source/AST cache entries kept before LRU eviction.
+SOURCE_CACHE_MAX_SIZE = 256
+# Stack frames inspected after skipping internal frames — user code is 1-3 frames
+# from the public def, so 8 leaves generous headroom.
+DEFAULT_FRAME_LIMIT = 8
+
 
 def is_internal_frame(frame: Any) -> bool:
     """Return True if the frame belongs to an internal hassette module.
@@ -17,11 +23,11 @@ def is_internal_frame(frame: Any) -> bool:
     return name == "hassette" or name.startswith("hassette.")
 
 
-@functools.lru_cache(maxsize=256)
+@functools.lru_cache(maxsize=SOURCE_CACHE_MAX_SIZE)
 def get_source_and_ast(filename: str, mtime: float | None) -> tuple[str, ast.Module] | None:  # noqa: ARG001 — mtime is cache-key only
     """Return a cached (source, AST) pair for *filename*.
 
-    Uses ``functools.lru_cache`` (maxsize=256) so each file is read and parsed
+    Uses ``functools.lru_cache`` (``SOURCE_CACHE_MAX_SIZE`` entries) so each file is read and parsed
     at most once per modification.  ``mtime`` is part of the cache key only —
     when a file changes (e.g. hot-reload after an app edit), the new mtime
     misses the cache and the stale entry falls out of the LRU naturally.
@@ -64,7 +70,7 @@ def find_call_source(filename: str, lineno: int) -> str | None:
         return None
 
 
-def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = 8) -> tuple[str, int]:
+def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> tuple[str, int]:
     """Walk the stack and return ``(filename, lineno)`` of the first non-hassette frame.
 
     The shared stack-walk half of source capture — no file read, no AST parse.
@@ -110,7 +116,7 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = 8) -> tupl
     return (filename, lineno)
 
 
-def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = 8) -> str:
+def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> str:
     """Capture only the ``"<file>:<lineno>"`` of the calling frame — no file read, no AST parse.
 
     The cheap path for call sites with no DB-record telemetry (api fire-and-forget
@@ -122,7 +128,9 @@ def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = 8) -
     return f"{filename}:{lineno}"
 
 
-def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 8) -> tuple[str, str | None]:
+def capture_registration_source(
+    *, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT
+) -> tuple[str, str | None]:
     """Capture the source location and code of the calling registration.
 
     Walks the call stack, skips internal hassette frames (identified by
@@ -132,7 +140,7 @@ def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 
     Attribution uses the module-name check, not filesystem path fragments, so
     it works from site-packages, on Windows, and with any directory layout.
 
-    The per-file AST and source are cached (LRU, maxsize=256) so repeated
+    The per-file AST and source are cached (LRU, ``SOURCE_CACHE_MAX_SIZE`` entries) so repeated
     calls from the same file only read and parse the file once.
 
     This function never raises — ``find_caller_frame`` catches stack-walk
@@ -144,7 +152,7 @@ def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 
         frames_to_skip: Additional frames at the top of the stack to skip
             before applying the hassette-internal filter.  Defaults to 0.
         limit: Maximum number of stack frames to inspect, counted *after*
-            skipping our own frame and ``frames_to_skip``.  Defaults to 8,
+            skipping our own frame and ``frames_to_skip``.  Defaults to ``DEFAULT_FRAME_LIMIT``,
             which is sufficient for all public registration/scheduling/fire
             methods (user code is 1-3 frames from the public def).  Pass
             ``None`` for an unbounded walk.  Note: ``inspect.stack``'s
