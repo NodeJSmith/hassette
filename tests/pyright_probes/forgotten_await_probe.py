@@ -8,8 +8,8 @@ from the docs pyrightconfig.json.  It is checked by a dedicated pyrightconfig
 at tests/pyright_probes/pyrightconfig.json that treats
 reportUnusedCoroutine as an error.
 
-The test tests/unit/test_pyright_probe.py runs pyright on this directory
-and asserts that every expected diagnostic is reported.
+The unit test at tests/unit/test_pyright_probe.py runs pyright on this
+directory and asserts that every expected diagnostic is reported.
 
 Empirically verified 2026-06-11: def -> Coroutine[Any, Any, T] fires
 reportUnusedCoroutine for simple, overloaded, and None-returning methods.

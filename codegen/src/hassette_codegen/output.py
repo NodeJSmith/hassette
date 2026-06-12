@@ -59,7 +59,8 @@ def run_ruff(path: Path, *, logical_path: Path | None = None) -> None:
 
     The check step uses ruff's stdin mode (pipe content in, receive fixed
     content out) so --stdin-filename applies correctly. The format step
-    operates on the file directly (it has no stdin mode equivalent).
+    operates on the file directly — ruff format output is independent of the
+    filename, so per-file-ignores routing via --stdin-filename isn't needed there.
     """
     run_ruff_step(["ruff", "format", str(path)], "format")
     if logical_path is not None:

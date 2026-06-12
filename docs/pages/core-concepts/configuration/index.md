@@ -108,6 +108,27 @@ The file watcher reloads apps when their source files change (in `dev_mode`, or 
 
 The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
 
+## Developer Settings {#developer-settings}
+
+- **`forgotten_await_behavior`** (string): Controls what happens when a protected method is called without `await`. Valid values: `"ignore"`, `"warn"`, `"error"`. See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for the full list of protected methods.
+    - Default: not set (effective behavior: `"warn"`)
+    - `"ignore"` — suppresses the warning entirely.
+    - `"warn"` — emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site when the coroutine is GC'd.
+    - `"error"` — emits the warning in a form that `filterwarnings("error")` / `-W error` escalates to a raised exception. The raised exception occurs inside `__del__` and is visible as `Exception ignored in: ...`; the process does not stop.
+
+    The global value is the default for all apps. Each app can override it with its own `forgotten_await_behavior` field — see [App Configuration](../apps/configuration.md#developer-settings). Use `"error"` for apps under active development and `"warn"` for stable ones.
+
+    ```toml
+    [hassette]
+    forgotten_await_behavior = "warn"   # explicit; unset behaves the same
+
+    # Override for a specific app:
+    [hassette.apps.my_dev_app]
+    forgotten_await_behavior = "error"
+    ```
+
+    See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis and [Pyright](../../troubleshooting.md#enabling-pyright) for the earliest static signal.
+
 ## Verify the Configuration
 
 Run `hassette status` to confirm Hassette can reach Home Assistant with the current config:

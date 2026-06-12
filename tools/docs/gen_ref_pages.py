@@ -42,7 +42,8 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
         # --- Tier C: autoref targets in narrative docs ---
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
-        "hassette.types.enums",  # ForgottenAwaitBehavior, RestartType, and other framework enums
+        # ForgottenAwaitBehavior, ResourceStatus, RestartType, and other framework enums
+        "hassette.types.enums",
         "hassette.state_manager.state_manager",  # StateManager, DomainStates
         "hassette.bus.extraction",  # BusExtraction type used in dependency injection docs
         "hassette.resources.base",  # Resource base class referenced in lifecycle/internals docs
@@ -53,7 +54,6 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.config.classes",  # AppManifest referenced in config docs
         "hassette.scheduler.error_context",  # SchedulerErrorContext referenced in scheduler docs
         "hassette.types",  # Public type aliases: HandlerType, Predicate, ChangeType, TriggerProtocol, etc.
-        "hassette.types.enums",  # ResourceStatus, RestartType referenced in lifecycle docs
         "hassette.types.types",  # Type definitions for handler, predicate, trigger, and change types
         "hassette.resources.restart",  # RestartSpec referenced in lifecycle docs
         "hassette.core.service_watcher",  # ServiceWatcher referenced in internals/operating docs
@@ -101,7 +101,8 @@ def main() -> None:
         " · [hassette.state_manager](hassette/state_manager/state_manager.md)"
         " · [hassette.models.states](hassette/models/states/index.md)\n"
         "- **Type system** — [hassette.conversion](hassette/conversion/index.md)"
-        " · [hassette.const](hassette/const/index.md)\n"
+        " · [hassette.const](hassette/const/index.md)"
+        " · [hassette.types.enums](hassette/types/enums.md)\n"
         "- **Testing** — [hassette.test_utils](hassette/test_utils/index.md)\n"
         "- **Utilities** — [hassette.task_bucket](hassette/task_bucket/index.md)"
         " · [hassette.exceptions](hassette/exceptions.md)\n"

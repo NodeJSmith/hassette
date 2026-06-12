@@ -2,6 +2,9 @@
 
 The scheduler runs functions after a delay, at a specific time, or on a repeating interval. `self.scheduler` is available on every [App](../apps/index.md) instance. Hassette creates it at startup and runs all jobs in the async event loop. Sync callables are wrapped automatically.
 
+!!! warning "All scheduling methods must be awaited"
+    Every `run_*`, `schedule()`, and `add_job()` call returns a coroutine. Without `await`, the job is never scheduled and no error is raised. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
+
 ## How It Works
 
 All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object (a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule). Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.

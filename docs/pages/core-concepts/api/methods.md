@@ -133,6 +133,9 @@ Same as `get_entity`, but returns `None` when the entity is not found.
 --8<-- "pages/core-concepts/api/snippets/api_get_entity_or_none.py"
 ```
 
+!!! warning "Entity service methods must be awaited"
+    Every entity service method (`entity.turn_on()`, `entity.set_humidity()`, etc.) returns a coroutine. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
+
 ### `get_states()`
 
 Retrieves all entities in a single call and returns them as a list of typed
@@ -157,6 +160,9 @@ Same as `get_states`, but returns a list of untyped `HassStateDict` dicts instea
 ---
 
 ## Calling Services
+
+!!! warning "Service methods must be awaited"
+    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, and `toggle_service` all return coroutines. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
 
 ### `call_service(domain, service, ...)`
 
