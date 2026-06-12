@@ -3,6 +3,7 @@
 import ast
 import functools
 import inspect
+from pathlib import Path
 from typing import Any
 
 
@@ -17,11 +18,14 @@ def is_internal_frame(frame: Any) -> bool:
 
 
 @functools.lru_cache(maxsize=256)
-def get_source_and_ast(filename: str) -> tuple[str, ast.Module] | None:
+def get_source_and_ast(filename: str, mtime: float | None) -> tuple[str, ast.Module] | None:  # noqa: ARG001 — mtime is cache-key only
     """Return a cached (source, AST) pair for *filename*.
 
     Uses ``functools.lru_cache`` (maxsize=256) so each file is read and parsed
-    at most once.  Thread-safe via the lru_cache internal lock.
+    at most once per modification.  ``mtime`` is part of the cache key only —
+    when a file changes (e.g. hot-reload after an app edit), the new mtime
+    misses the cache and the stale entry falls out of the LRU naturally.
+    Thread-safe via the lru_cache internal lock.
 
     Returns None if the file cannot be read or parsed.
     """
@@ -39,7 +43,11 @@ def find_call_source(filename: str, lineno: int) -> str | None:
 
     Returns the source segment string, or None if unavailable.
     """
-    cached = get_source_and_ast(filename)
+    try:
+        mtime: float | None = Path(filename).stat().st_mtime
+    except OSError:
+        mtime = None
+    cached = get_source_and_ast(filename, mtime)
     if cached is None:
         return None
 
