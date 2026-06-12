@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Convert scheduler methods to def -> Coroutine"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#5", "FR#9", "FR#10", "AC#2"]
 ---
