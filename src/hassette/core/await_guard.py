@@ -177,11 +177,12 @@ def guard_await(
             if global_val is not None:
                 behavior = ForgottenAwaitBehavior(global_val)
 
-    # Resolve identity string — eagerly. Broad suppress is intentional: this value
-    # is a cosmetic display string, and identity capture must never break a
-    # registration call (a pathological __str__ should not crash guard_await).
+    # Resolve identity string — eagerly. This value is a cosmetic display string, so a
+    # missing or non-stringable unique_name falls back to "<unknown>" rather than breaking
+    # the registration call. Narrowed to the same surface as the behavior block above — a
+    # genuinely broken accessor surfaces instead of being silently masked.
     owner_identity: str = "<unknown>"
-    with contextlib.suppress(Exception):  # cosmetic capture — see comment above
+    with contextlib.suppress(AttributeError, TypeError, ValueError):
         owner_identity = str(getattr(owner, "unique_name", "<unknown>"))
 
     return RegistrationHandle(
