@@ -42,7 +42,12 @@ LIFECYCLE_METHODS = frozenset(
         "after_shutdown",
     }
 )
-"""Resource lifecycle hooks that should NOT be wrapped as sync facades."""
+"""Resource lifecycle hooks that should NOT be wrapped as sync facades.
+
+Counterpart: ``INHERITED_LIFECYCLE_EXCLUSIONS`` in
+``tests/unit/test_forgotten_await_completeness.py`` covers the same concept for
+the completeness guard (over a wider inherited surface).  A new lifecycle
+``async def`` on Resource/Service usually needs an entry in both."""
 
 INTERNAL_METHODS = frozenset(
     {

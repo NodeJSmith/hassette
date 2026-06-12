@@ -109,7 +109,7 @@ from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
-from hassette.utils.source_capture import capture_registration_source
+from hassette.utils.source_capture import capture_registration_source, capture_source_location
 
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
@@ -195,9 +195,9 @@ class Bus(Resource):
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if listener.identity.name is None:
             raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
-        # _registration_source discarded: the pre-built Listener already carries identity.source_location /
+        # Cheap path: the pre-built Listener already carries identity.source_location /
         # registration_source; only warning attribution needs the location here.
-        source_location, _registration_source = capture_registration_source()
+        source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._add_listener(listener),
@@ -445,7 +445,7 @@ class Bus(Resource):
     async def _subscribe(
         self,
         *,
-        method_name: str,
+        log_label: str,
         topic: str,
         handler: "HandlerType",
         preds: list["Predicate"],
@@ -474,7 +474,7 @@ class Bus(Resource):
 
             self.logger.debug(
                 "Subscribing to %s with %s - being handled by '%s'",
-                method_name,
+                log_label,
                 params_str,
                 callable_short_name(handler),
             )
@@ -601,7 +601,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name=f"entity '{entity_id}'",
+                log_label=f"entity '{entity_id}'",
                 topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 handler=handler,
                 preds=preds,
@@ -701,7 +701,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name=f"entity '{entity_id}' attribute '{attr}'",
+                log_label=f"entity '{entity_id}' attribute '{attr}'",
                 topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 handler=handler,
                 preds=preds,
@@ -776,7 +776,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name="call_service",
+                log_label="call_service",
                 topic=Topic.HASS_EVENT_CALL_SERVICE,
                 handler=handler,
                 preds=preds,
@@ -835,7 +835,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name="component_loaded",
+                log_label="component_loaded",
                 topic=Topic.HASS_EVENT_COMPONENT_LOADED,
                 handler=handler,
                 preds=preds,
@@ -899,7 +899,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name="service_registered",
+                log_label="service_registered",
                 topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
                 handler=handler,
                 preds=preds,
@@ -1039,7 +1039,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name="hassette.service_status",
+                log_label="hassette.service_status",
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=handler,
                 preds=preds,
@@ -1251,7 +1251,7 @@ class Bus(Resource):
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
             self._subscribe(
-                method_name="app_state_changed",
+                log_label="app_state_changed",
                 topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
                 handler=handler,
                 preds=preds,

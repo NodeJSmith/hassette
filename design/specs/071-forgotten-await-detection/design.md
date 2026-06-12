@@ -1,7 +1,7 @@
 # Design: Forgotten-await Detection for User Apps
 
 **Date:** 2026-06-11
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-10-forgotten-await-detection/research.md (+ HANDOFF.md)
 **Reviewed:** challenged 2026-06-11 round 1 (contract-caller, senior-engineer, systems-architect),

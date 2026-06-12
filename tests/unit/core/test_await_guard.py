@@ -25,11 +25,10 @@ from typing import Any
 
 import pytest
 
+from hassette import ForgottenAwaitBehavior, HassetteForgottenAwaitWarning
 from hassette.app.app_config import AppConfig
 from hassette.config.config import HassetteConfig
 from hassette.core.await_guard import RegistrationHandle, guard_await
-from hassette.exceptions import HassetteForgottenAwaitWarning
-from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.utils import source_capture as source_capture_module
 from hassette.utils.source_capture import capture_registration_source, is_internal_frame
 

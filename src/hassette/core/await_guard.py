@@ -4,9 +4,9 @@
 ``HassetteForgottenAwaitWarning`` in ``__del__`` when it is garbage-collected
 without ever being awaited, sent to, thrown into, or closed.
 
-``guard_await(coro, *, owner, source_location)`` is the single call-site helper
-used by every converted public method (Bus, Scheduler, Api).  It resolves the
-per-app-then-global behavior and constructs the handle.
+``guard_await(coro, *, owner, source_location, method_name)`` is the single
+call-site helper used by every converted public method (Bus, Scheduler, Api).
+It resolves the per-app-then-global behavior and constructs the handle.
 
 Architecture reference: design/specs/071-forgotten-await-detection/design.md
 """

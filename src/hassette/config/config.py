@@ -193,9 +193,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     forgotten_await_behavior: ForgottenAwaitBehavior | None = Field(default=None)
     """Global default for forgotten-await detection behavior.
 
-    When ``None`` (default), the effective behavior is ``WARN``.  Per-app
-    ``AppConfig.forgotten_await_behavior`` overrides this when set.  Set to ``IGNORE``
-    to suppress warnings globally, or ``ERROR`` to escalate via ``filterwarnings("error")``."""
+    When ``None`` (default), the effective behavior is ``"warn"``.  Per-app
+    ``AppConfig.forgotten_await_behavior`` overrides this when set.  Set to ``"ignore"``
+    to suppress warnings globally, or ``"error"`` to escalate via ``filterwarnings("error")``."""
 
     @property
     def env_files(self) -> set[Path]:

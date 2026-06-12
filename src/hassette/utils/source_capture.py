@@ -111,12 +111,12 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = 8) -> tupl
 
 
 def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = 8) -> str:
-    """Capture only the ``"<file>:<lineno>"`` of the calling frame — no AST read or walk.
+    """Capture only the ``"<file>:<lineno>"`` of the calling frame — no file read, no AST parse.
 
-    The cheap path for api fire-and-forget methods (``fire_event``,
-    ``call_service``, ``set_state``): they have no DB-record telemetry, need
-    only warning attribution, and would discard the ``registration_source``
-    snippet that ``capture_registration_source`` computes.
+    The cheap path for call sites with no DB-record telemetry (api fire-and-forget
+    methods, ``add_listener``): they need only warning attribution and would
+    discard the ``registration_source`` snippet that
+    ``capture_registration_source`` computes.
     """
     filename, lineno = find_caller_frame(frames_to_skip=frames_to_skip, limit=limit)
     return f"{filename}:{lineno}"
@@ -135,7 +135,8 @@ def capture_registration_source(*, frames_to_skip: int = 0, limit: int | None = 
     The per-file AST and source are cached (LRU, maxsize=256) so repeated
     calls from the same file only read and parse the file once.
 
-    This function never raises.  Any failure in stack walking or AST parsing
+    This function never raises — ``find_caller_frame`` catches stack-walk
+    failures and ``find_call_source`` catches AST failures.  Any failure
     results in ``registration_source=None`` while ``source_location`` is still
     returned from the best available frame.
 

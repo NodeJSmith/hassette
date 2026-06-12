@@ -33,8 +33,8 @@ class AppConfig(BaseSettings):
     """Per-app control for forgotten-await detection behavior.
 
     When ``None`` (default), the global ``HassetteConfig.forgotten_await_behavior`` is used,
-    which itself defaults to ``WARN``.  Set to ``IGNORE`` to suppress warnings for this app,
-    or ``ERROR`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
+    which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress warnings for this app,
+    or ``"error"`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
 
     @field_validator("app_key")
     @classmethod

@@ -94,6 +94,9 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
 #: The inherited-surface guard below fails when a NEW detected method appears on a
 #: base class without being added here, to CANONICAL_PROTECTED, or to
 #: DOCUMENTED_EXCLUSIONS — closing the vars(cls) blind spot for inherited methods.
+#: Counterpart: ``LIFECYCLE_METHODS`` in codegen/src/hassette_codegen/sync_facade/ast_utils.py
+#: covers the same concept for sync-facade generation; a new lifecycle async def
+#: usually needs an entry in both.
 INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
     "after_initialize",
     "after_shutdown",
