@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Document domain sync facades in the docs site"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#1", "FR#2"]
 ---

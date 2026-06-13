@@ -107,9 +107,8 @@ Compare against `MISSING_VALUE` with `is`, not truthiness — some valid attribu
 ### `get_entity(entity_id, model)`
 
 Returns a [`BaseEntity`][hassette.models.entities.base.BaseEntity] subclass with
-domain-specific action methods (`turn_on()`, `turn_off()`, `toggle()`, and
-`refresh()`) along with the entity's current state. The `model` argument
-specifies which entity class to return.
+domain-specific action methods along with the entity's current state. The `model`
+argument specifies which entity class to return.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -118,12 +117,41 @@ specifies which entity class to return.
 
 Entity classes live in [`hassette.models.entities`][hassette.models.entities] — one per domain, named `{Domain}Entity`: `LightEntity`, `SwitchEntity`, `ClimateEntity`, `MediaPlayerEntity`, `VacuumEntity`, `CoverEntity`, `FanEntity`, `LockEntity`, and so on for 30 domains. The API reference lists them all.
 
+Every entity class defines its domain-specific action methods — `CoverEntity` has
+`open_cover()`, `close_cover()`, `set_cover_position(position=...)`, and more;
+`ClimateEntity` has `set_temperature(temperature=...)`, `set_hvac_mode(hvac_mode=...)`,
+and others. All three base actions (`turn_on()`, `turn_off()`, `toggle()`) and
+`refresh()` are available on every entity.
+
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
 
 `entity.refresh()` re-fetches the entity's state from Home Assistant and replaces `.state`
 with the new snapshot. The updated state is also returned.
+
+#### Entity sync facades (`AppSync` only)
+
+Each domain entity exposes a typed sync facade via `.sync`. `cover.sync` returns a
+`CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. The facade
+mirrors every domain-specific action as a blocking synchronous call — no `await`, no
+`run_sync` boilerplate.
+
+These methods block the calling thread until the call completes, so they belong in
+`AppSync` lifecycle hooks and `run_in_thread` callbacks. Calling one from a regular
+`async` handler blocks the event loop; `await` the entity's async method there instead.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_domain_action"
+```
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_climate"
+```
+
+The facade inherits `turn_on()`, `turn_off()`, and `toggle()` from the base; domain
+actions are typed in the domain-specific subclass so the IDE and Pyright know the
+parameter names and types.
 
 ### `get_entity_or_none(entity_id, model)`
 
