@@ -41,7 +41,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
     def get_forecasts(
         self,
         *,
-        type: Literal["daily", "hourly", "twice_daily"],
+        type: Type,
     ) -> Coroutine[Any, Any, None]:
         """Retrieves the forecasts from one or more weather services.
 
@@ -81,7 +81,7 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
     def get_forecasts(
         self,
         *,
-        type: Literal["daily", "hourly", "twice_daily"],
+        type: Type,
     ) -> None:
         """Retrieves the forecasts from one or more weather services.
 

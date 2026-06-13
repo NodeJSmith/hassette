@@ -92,7 +92,7 @@ class LightEntity(BaseEntity[LightState, str]):
     def turn_off(
         self,
         *,
-        flash: Literal["long", "short"] | None = None,
+        flash: Flash | None = None,
         transition: int | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Turns off one or more lights.
@@ -119,7 +119,7 @@ class LightEntity(BaseEntity[LightState, str]):
         color_name: Color | None = None,
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
-        flash: Literal["long", "short"] | None = None,
+        flash: Flash | None = None,
         hs_color: Any | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
@@ -248,7 +248,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
     def turn_off(
         self,
         *,
-        flash: Literal["long", "short"] | None = None,
+        flash: Flash | None = None,
         transition: int | None = None,
     ) -> None:
         """Turns off one or more lights.
@@ -273,7 +273,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         color_name: Color | None = None,
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
-        flash: Literal["long", "short"] | None = None,
+        flash: Flash | None = None,
         hs_color: Any | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,

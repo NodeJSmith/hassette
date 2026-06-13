@@ -131,6 +131,11 @@ def _extract_descriptions(component_dir: Path) -> tuple[dict[str, str], dict[str
     except (FileNotFoundError, json.JSONDecodeError):
         return {}, {}
 
+    # A valid JSON file can still parse to a non-object (list, string). Skip it rather
+    # than aborting codegen with an AttributeError on the data.get(...) calls below.
+    if not isinstance(data, dict):
+        return {}, {}
+
     # ``component::<domain>`` key refs resolve relative to the components/ root (this dir's parent).
     components_dir = component_dir.parent
     service_descs: dict[str, str] = {}

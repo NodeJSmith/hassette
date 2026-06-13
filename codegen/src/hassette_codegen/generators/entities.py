@@ -55,7 +55,8 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
 
     services_for_template: list[ServiceForTemplate] = []
     type_aliases: list[tuple[str, str]] = []
-    seen_aliases: set[str] = set()
+    literal_shape_to_alias: dict[str, str] = {}
+    used_alias_names: set[str] = set()
 
     for service in domain.services:
         params: list[ServiceParam] = []
@@ -69,11 +70,27 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             else:
                 python_type = map_selector_to_type(field.selector_type, field.selector_data, domain.name)
 
-            if python_type.startswith("Literal[") and python_type not in seen_aliases:
-                alias_name = _make_alias_name(param_name)
-                type_aliases.append((alias_name, python_type))
-                seen_aliases.add(python_type)
-                python_type = alias_name
+            # Promote Literal[...] sets to named aliases for readability — whether the type is
+            # a bare Literal[...] or a list[Literal[...]] (from a multiple: true select). Key the
+            # cache by literal shape, not param name: two services can share a param name (e.g.
+            # "mode") with different Literal sets, so alias names must stay distinct or the second
+            # set would silently overwrite the first.
+            list_wrapped = python_type.startswith("list[Literal[") and python_type.endswith("]")
+            literal_shape = python_type[len("list[") : -1] if list_wrapped else python_type
+            if literal_shape.startswith("Literal["):
+                alias_name = literal_shape_to_alias.get(literal_shape)
+                if alias_name is None:
+                    base_name = _make_alias_name(param_name)
+                    alias_name = base_name
+                    # Disambiguate collisions with a numeric suffix from 2: Mode, Mode2, Mode3.
+                    suffix = 2
+                    while alias_name in used_alias_names:
+                        alias_name = f"{base_name}{suffix}"
+                        suffix += 1
+                    literal_shape_to_alias[literal_shape] = alias_name
+                    used_alias_names.add(alias_name)
+                    type_aliases.append((alias_name, literal_shape))
+                python_type = f"list[{alias_name}]" if list_wrapped else alias_name
 
             if not field.required:
                 if "None" not in python_type:

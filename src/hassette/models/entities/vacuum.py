@@ -120,7 +120,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
     def clean_area(
         self,
         *,
-        cleaning_area_id: str,
+        cleaning_area_id: list[str],
     ) -> Coroutine[Any, Any, None]:
         """Tells a vacuum cleaner to clean one or more areas.
 
@@ -265,7 +265,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
     def clean_area(
         self,
         *,
-        cleaning_area_id: str,
+        cleaning_area_id: list[str],
     ) -> None:
         """Tells a vacuum cleaner to clean one or more areas.
 

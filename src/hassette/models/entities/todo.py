@@ -22,7 +22,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
     def get_items(
         self,
         *,
-        status: Status | None = None,
+        status: list[Status] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Gets items on a to-do list.
 
@@ -74,7 +74,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: Literal["needs_action", "completed"] | None = None,
+        status: Status | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Updates an existing to-do list item based on its name or UID.
 
@@ -138,7 +138,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
     def get_items(
         self,
         *,
-        status: Status | None = None,
+        status: list[Status] | None = None,
     ) -> None:
         """Gets items on a to-do list.
 
@@ -186,7 +186,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: Literal["needs_action", "completed"] | None = None,
+        status: Status | None = None,
     ) -> None:
         """Updates an existing to-do list item based on its name or UID.
 

@@ -241,7 +241,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         search_query: str,
         media_content_id: str | None = None,
-        media_filter_classes: str | None = None,
+        media_filter_classes: list[str] | None = None,
         media_type: str | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Searches the available media.
@@ -354,7 +354,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
     def join(
         self,
         *,
-        group_members: str,
+        group_members: list[str],
     ) -> Coroutine[Any, Any, None]:
         """Groups media players together for synchronous playback. Only works on supported multiroom audio systems.
 
@@ -572,7 +572,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         search_query: str,
         media_content_id: str | None = None,
-        media_filter_classes: str | None = None,
+        media_filter_classes: list[str] | None = None,
         media_type: str | None = None,
     ) -> None:
         """Searches the available media.
@@ -673,7 +673,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
     def join(
         self,
         *,
-        group_members: str,
+        group_members: list[str],
     ) -> None:
         """Groups media players together for synchronous playback. Only works on supported multiroom audio systems.
 

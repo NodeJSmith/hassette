@@ -2,6 +2,7 @@
 
 import ast
 import py_compile
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -100,6 +101,153 @@ class TestEntityWrapperGenerator:
         assert output is not None
         assert "media_type" in output
         assert "media_content_type" not in output.split("call_service")[0]
+
+    def test_same_param_name_different_literals_get_distinct_aliases(self) -> None:
+        # Two services share the param name "mode" but expose different Literal sets.
+        # Keying the alias cache by param name alone would emit two `Mode = ...` lines,
+        # the second overwriting the first and corrupting the earlier method's annotation.
+        domain = ExtractedDomain(
+            name="climate",
+            base_class="StringBaseState",
+            services=[
+                ExtractedService(
+                    name="set_hvac_mode",
+                    method_name="set_hvac_mode",
+                    fields=[
+                        ServiceField(
+                            name="mode",
+                            selector_type="select",
+                            selector_data={"options": ["heat", "cool"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+                ExtractedService(
+                    name="set_fan_mode",
+                    method_name="set_fan_mode",
+                    fields=[
+                        ServiceField(
+                            name="mode",
+                            selector_type="select",
+                            selector_data={"options": ["low", "high"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        # Each Literal set gets its own alias, defined exactly once.
+        assert output.count('Mode = Literal["heat", "cool"]') == 1
+        assert output.count('Mode2 = Literal["low", "high"]') == 1
+        # Both aliases are referenced — the first uses the bare name, the second the suffixed one.
+        assert re.search(r"mode: Mode\b", output)  # \b stops this matching "Mode2"
+        assert "mode: Mode2" in output
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(output)
+            f.flush()
+            py_compile.compile(f.name, doraise=True)
+
+    def test_shared_literal_reuses_single_alias(self) -> None:
+        # The same Literal shape under the same param name should still collapse to one alias.
+        domain = ExtractedDomain(
+            name="climate",
+            base_class="StringBaseState",
+            services=[
+                ExtractedService(
+                    name="set_mode_a",
+                    method_name="set_mode_a",
+                    fields=[
+                        ServiceField(
+                            name="mode",
+                            selector_type="select",
+                            selector_data={"options": ["heat", "cool"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+                ExtractedService(
+                    name="set_mode_b",
+                    method_name="set_mode_b",
+                    fields=[
+                        ServiceField(
+                            name="mode",
+                            selector_type="select",
+                            selector_data={"options": ["heat", "cool"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert output.count('Mode = Literal["heat", "cool"]') == 1
+        assert "Mode2" not in output
+
+    def test_multiple_selector_wraps_in_list(self) -> None:
+        # A selector with multiple: true accepts a list of the base type.
+        domain = ExtractedDomain(
+            name="media_player",
+            base_class="StringBaseState",
+            services=[
+                ExtractedService(
+                    name="join",
+                    method_name="join",
+                    fields=[
+                        ServiceField(
+                            name="group_members",
+                            selector_type="entity",
+                            selector_data={"multiple": True, "domain": "media_player"},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "group_members: list[str]" in output
+
+    def test_multiple_select_aliases_inner_literal(self) -> None:
+        # A multiple: true select yields list[Literal[...]]; the inner Literal should still be
+        # promoted to a named alias and reused, not inlined alongside an aliased bare copy.
+        domain = ExtractedDomain(
+            name="todo",
+            base_class="StringBaseState",
+            services=[
+                ExtractedService(
+                    name="get_items",
+                    method_name="get_items",
+                    fields=[
+                        ServiceField(
+                            name="status",
+                            selector_type="select",
+                            selector_data={"options": ["needs_action", "completed"], "multiple": True},
+                        ),
+                    ],
+                ),
+                ExtractedService(
+                    name="update_item",
+                    method_name="update_item",
+                    fields=[
+                        ServiceField(
+                            name="status",
+                            selector_type="select",
+                            selector_data={"options": ["needs_action", "completed"]},
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        # One alias definition, shared by the bare and the list-wrapped usage.
+        assert output.count('Status = Literal["needs_action", "completed"]') == 1
+        assert "status: list[Status] | None" in output
+        assert "status: Status | None" in output
+        assert "list[Literal[" not in output  # inner literal is aliased, not inlined
 
     def test_output_compiles(self) -> None:
         domain = ExtractedDomain(

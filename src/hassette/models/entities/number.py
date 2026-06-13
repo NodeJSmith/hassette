@@ -20,7 +20,7 @@ class NumberEntity(BaseEntity[NumberState, str]):
     def set_value(
         self,
         *,
-        value: str,
+        value: float,
     ) -> Coroutine[Any, Any, None]:
         """Sets the value of a number.
 
@@ -43,7 +43,7 @@ class NumberEntitySyncFacade(BaseEntitySyncFacade[NumberState, str]):
     def set_value(
         self,
         *,
-        value: str,
+        value: float,
     ) -> None:
         """Sets the value of a number.
 
