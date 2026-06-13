@@ -149,9 +149,12 @@ These methods block the calling thread until the call completes, so they belong 
 --8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_climate"
 ```
 
-The facade inherits `turn_on()`, `turn_off()`, and `toggle()` from the base; domain
-actions are typed in the domain-specific subclass so the IDE and Pyright know the
-parameter names and types.
+Where a domain's Home Assistant services include `turn_on`, `turn_off`, or `toggle`,
+the domain facade overrides those methods with typed parameters — `LightEntitySyncFacade.turn_on`
+accepts `brightness`, `color_temp_kelvin`, and the rest of the light service fields.
+Domains without those services fall back to the base facade's untyped `turn_on(**data)`
+form. Either way the IDE and Pyright know the parameter names and types for the
+domain-specific actions.
 
 ### `get_entity_or_none(entity_id, model)`
 
