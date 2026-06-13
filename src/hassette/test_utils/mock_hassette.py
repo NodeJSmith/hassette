@@ -66,6 +66,8 @@ def make_mock_hassette(
         - ``._scheduler_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``._bus_service.remove_listeners_by_owner``: :class:`~unittest.mock.Mock`
         - ``._bus_service.get_listeners_by_owner``: :class:`~unittest.mock.Mock` returning ``[]``
+        - ``._bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
+        - ``._bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
@@ -126,6 +128,8 @@ def make_mock_hassette(
     # Bus service stubs
     hassette._bus_service.remove_listeners_by_owner = Mock()
     hassette._bus_service.get_listeners_by_owner = Mock(return_value=[])
+    hassette._bus_service.register_removal_callback = Mock()
+    hassette._bus_service.deregister_removal_callback = Mock()
 
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)

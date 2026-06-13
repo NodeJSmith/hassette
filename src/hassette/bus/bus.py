@@ -145,6 +145,16 @@ class Bus(Resource):
         self._error_handler: BusErrorHandlerType | None = None
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
+        # Register removal callback so once-fired listeners release their natural key and
+        # record cancelled_at, mirroring Scheduler's register_removal_callback pattern.
+        # owner_id derives from self.parent; the callback registry key must stay stable across
+        # register/deregister even if a test fixture swaps self.parent after construction
+        # (production never does — a hot-reload builds a fresh Bus). Freezing the key here keeps
+        # on_shutdown's deregister matched to this register; listener removal still uses the live
+        # self.owner_id because listeners register under the live owner too.
+        self._removal_callback_owner_id = self.owner_id
+        self.bus_service.register_removal_callback(self._removal_callback_owner_id, self._on_listener_removed)
+
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.
         self._registered_listeners.clear()
@@ -154,6 +164,31 @@ class Bus(Resource):
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""
         self.remove_all_listeners()
+        self.bus_service.deregister_removal_callback(self._removal_callback_owner_id)
+
+    def _on_listener_removed(self, listener: "Listener") -> None:
+        """Callback invoked by BusService when a listener is removed (including once-fire).
+
+        Closes the once-fire gap: the dispatch finally block calls BusService.remove_listener
+        directly without going through Bus.remove_listener, leaving the natural key stale and
+        cancelled_at unwritten. This callback pops the key and spawns mark_listener_cancelled.
+
+        The spawn guard (key must still be present) prevents a double write when Bus.remove_listener
+        already popped the key and spawned mark_listener_cancelled before calling BusService:
+        in that path the key is gone by the time this callback runs, so we skip the spawn.
+
+        Accepted trade-off: during shutdown, remove_all_listeners clears _registered_listeners
+        before delegating to remove_listeners_by_owner, so a once-listener that fires concurrently
+        with teardown finds was_present=False and skips its cancelled_at write. This loses only a
+        telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
+        """
+        natural_key = self._listener_natural_key(listener)
+        was_present = self._registered_listeners.pop(natural_key, None) is not None
+        if was_present and listener.db_id is not None:
+            self.bus_service.task_bucket.spawn(
+                self.bus_service.mark_listener_cancelled(listener.db_id),
+                name="bus:mark_listener_cancelled",
+            )
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.
@@ -271,11 +306,8 @@ class Bus(Resource):
         - Existing + ``if_exists="skip"`` and configs differ → raise ``ValueError`` listing
           the changed fields (from ``diff_fields``).
 
-        Once-listeners are exempt from collision tracking in this task (T04 removes the
-        exemption and adds once-listener tracking).
+        All listeners — including once-listeners — participate in collision tracking.
         """
-        if listener.options.once:
-            return None
         natural_key = self._listener_natural_key(listener)
         existing = self._registered_listeners.get(natural_key)
         if existing is not None:
@@ -324,6 +356,10 @@ class Bus(Resource):
         (via BusService), and — when ``db_id`` is set — spawns ``mark_listener_cancelled``
         on ``bus_service.task_bucket`` so the write survives resource shutdown, mirroring
         ``Scheduler.cancel_job``.
+
+        BusService.remove_listener also fires _on_listener_removed, but that callback only
+        spawns mark_listener_cancelled when the key is still present (once-fire path). Because
+        this method pops the key first, the callback's spawn is skipped — avoiding a double write.
         """
         natural_key = self._listener_natural_key(listener)
         self._registered_listeners.pop(natural_key, None)

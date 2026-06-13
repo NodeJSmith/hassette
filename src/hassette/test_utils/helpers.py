@@ -429,6 +429,9 @@ async def wire_up_app_state_listener(
         status=status,
         once=True,
         name=f"hassette.test_utils.wire_up_{app_key}_{status}",
+        # Since T04 once-listeners participate in collision tracking, so re-wiring the same
+        # (app_key, status) — e.g. across a hot-reload — would raise without replace.
+        if_exists="replace",
     )
 
 

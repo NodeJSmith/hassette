@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Track once-listeners with fire-time removal callback"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#6", "FR#7", "FR#9", "AC#5", "AC#6", "AC#8"]
 ---
