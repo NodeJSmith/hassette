@@ -341,10 +341,10 @@ class Bus(Resource):
         if the new registration then fails, an ERROR is logged so the now-open gap (no handler
         routed under this key) is observable before the exception propagates.
         """
-        # `replacing` must be captured BEFORE _resolve_collision runs: on the replace path it
+        # `is_replacing` must be captured BEFORE _resolve_collision runs: on the replace path it
         # pops the existing key, so reading _registered_listeners afterward would always be False.
         natural_key = self._listener_natural_key(listener)
-        replacing = if_exists == "replace" and natural_key in self._registered_listeners
+        is_replacing = if_exists == "replace" and natural_key in self._registered_listeners
 
         existing = self._resolve_collision(listener, if_exists=if_exists)
         if existing is not None:
@@ -354,7 +354,7 @@ class Bus(Resource):
         try:
             await self.bus_service.add_listener(listener)
         except Exception:
-            if replacing:
+            if is_replacing:
                 self.logger.error(
                     "Listener '%s' on topic '%s' failed to register after replacing (cancelling) the "
                     "existing listener — no handler is active for this key",
