@@ -361,8 +361,8 @@ class Listener:
         """Check whether two listeners represent the same logical configuration.
 
         Compares handler callable, filter predicate, timing options (once, debounce,
-        throttle, timeout, timeout_disabled), handler kwargs, per-registration error
-        handler (by identity), and duration configuration scalars.
+        throttle, timeout, timeout_disabled, priority), handler kwargs, per-registration
+        error handler (by identity), and duration configuration scalars.
 
         Does not compare runtime state: listener_id, db_id, _cancelled, or the
         attached DurationTimer. Lambda/closure predicates and callable conditions
@@ -377,6 +377,7 @@ class Listener:
             and self.options.throttle == other.options.throttle
             and self.options.timeout == other.options.timeout
             and self.options.timeout_disabled == other.options.timeout_disabled
+            and self.options.priority == other.options.priority
             and self.invoker.kwargs == other.invoker.kwargs
             and self.invoker.error_handler is other.invoker.error_handler
             and _duration_configs_match(self.duration_config, other.duration_config)
@@ -404,6 +405,8 @@ class Listener:
             changed.append("timeout")
         if self.options.timeout_disabled != other.options.timeout_disabled:
             changed.append("timeout_disabled")
+        if self.options.priority != other.options.priority:
+            changed.append("priority")
         if self.invoker.kwargs != other.invoker.kwargs:
             changed.append("kwargs")
         if self.invoker.error_handler is not other.invoker.error_handler:

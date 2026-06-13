@@ -84,6 +84,13 @@ class TestListenerConfigMatches:
         assert a.config_matches(b) is False
         assert "timeout_disabled" in a.diff_fields(b)
 
+    def test_different_priority_not_matching(self) -> None:
+        """Different priority → config_matches=False, 'priority' in diff_fields."""
+        a = create_listener(handler=fn, priority=0)
+        b = create_listener(handler=fn, priority=5)
+        assert a.config_matches(b) is False
+        assert "priority" in a.diff_fields(b)
+
     def test_different_kwargs_not_matching(self) -> None:
         """Different kwargs → 'kwargs' in diff_fields."""
         a = create_listener(handler=fn, kwargs={"key": "a"})

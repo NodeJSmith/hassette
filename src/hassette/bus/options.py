@@ -34,9 +34,14 @@ class Options(TypedDict, total=False):
 
     ``"error"`` (default) raises ``DuplicateListenerError``.
     ``"skip"`` returns the existing listener's subscription when the configuration matches;
-    raises ``ValueError`` listing changed fields if the configuration differs.
+    raises ``ValueError`` listing changed fields if the configuration differs. The returned
+    subscription is the same live handle as the original registrant's — cancelling it removes
+    the listener for all holders (there is no reference counting).
     ``"replace"`` cancels the existing listener (recording ``cancelled_at`` in telemetry)
     and registers the new listener on the same natural-key row.
+
+    Lambda/closure predicates compare by identity, so re-registering under ``"skip"`` with a
+    freshly built lambda reports drift and raises; use a named predicate function or ``"replace"``.
 
     The bus resolves ``if_exists`` per ``(name, topic)`` — the same name on a different
     topic is a different listener and does not collide.

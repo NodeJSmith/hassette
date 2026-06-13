@@ -182,6 +182,11 @@ class Bus(Resource):
         with teardown finds was_present=False and skips its cancelled_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
+        if listener.identity.name is None:
+            # Cancel-listeners (create_cancel_listener) are never tracked in _registered_listeners,
+            # so there is nothing to pop. Returning early also avoids building a natural key whose
+            # name falls back to "" (_listener_natural_key), which could alias a real listener.
+            return
         natural_key = self._listener_natural_key(listener)
         was_present = self._registered_listeners.pop(natural_key, None) is not None
         if was_present and listener.db_id is not None:
@@ -251,34 +256,11 @@ class Bus(Resource):
         source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
-            self._add_listener(listener, if_exists=if_exists),
+            self._resolve_and_register(listener, if_exists=if_exists),
             owner=self.parent,
             source_location=source_location,
             method_name="add_listener",
         )
-
-    async def _add_listener(
-        self,
-        listener: "Listener",
-        *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
-    ) -> Subscription:
-        """Async body for add_listener: collision check + DB registration.
-
-        _resolve_collision is a registry mutation — it must not run for a
-        never-awaited call (would pollute the duplicate-name registry). Matches the
-        on() path where collision check lives in _on_internal.
-        """
-        existing = self._resolve_collision(listener, if_exists=if_exists)
-        if existing is not None:
-            # skip short-circuit: return a subscription wrapping the existing listener.
-            return Subscription(existing, lambda: self.remove_listener(existing))
-
-        def unsubscribe() -> None:
-            self.remove_listener(listener)
-
-        await self.bus_service.add_listener(listener)
-        return Subscription(listener, unsubscribe)
 
     def _resolve_collision(
         self,
@@ -322,10 +304,16 @@ class Bus(Resource):
                 return existing
             elif if_exists == "skip":
                 changed_fields = existing.diff_fields(listener)
-                raise ValueError(
+                msg = (
                     f"A listener named '{listener.identity.name}' on topic '{listener.topic}' already exists "
                     f"but its configuration has changed (changed fields: {', '.join(changed_fields)})"
                 )
+                if "predicate" in changed_fields:
+                    msg += (
+                        ". Note: lambda/closure predicates compare by identity — two fresh lambdas with "
+                        "identical bodies are not equal; use a named predicate function or if_exists='replace'"
+                    )
+                raise ValueError(msg)
             else:
                 raise DuplicateListenerError(
                     name=listener.identity.name or "",
@@ -335,6 +323,46 @@ class Bus(Resource):
                 )
         self._registered_listeners[natural_key] = listener
         return None
+
+    async def _resolve_and_register(
+        self,
+        listener: "Listener",
+        *,
+        if_exists: Literal["error", "skip", "replace"],
+    ) -> Subscription:
+        """Resolve a collision then register the listener, returning its Subscription.
+
+        The async body for both add_listener and _on_internal. _resolve_collision mutates the
+        per-bus key registry, so it must not run for a never-awaited call — keeping it here, in
+        the awaited coroutine, is what prevents that.
+
+        On the skip short-circuit, returns a subscription wrapping the existing listener.
+        On the replace path, _resolve_collision has already cancelled the existing listener;
+        if the new registration then fails, an ERROR is logged so the now-open gap (no handler
+        routed under this key) is observable before the exception propagates.
+        """
+        # `replacing` must be captured BEFORE _resolve_collision runs: on the replace path it
+        # pops the existing key, so reading _registered_listeners afterward would always be False.
+        natural_key = self._listener_natural_key(listener)
+        replacing = if_exists == "replace" and natural_key in self._registered_listeners
+
+        existing = self._resolve_collision(listener, if_exists=if_exists)
+        if existing is not None:
+            # skip short-circuit: return a subscription wrapping the existing listener.
+            return Subscription(existing, lambda: self.remove_listener(existing))
+
+        try:
+            await self.bus_service.add_listener(listener)
+        except Exception:
+            if replacing:
+                self.logger.error(
+                    "Listener '%s' on topic '%s' failed to register after replacing (cancelling) the "
+                    "existing listener — no handler is active for this key",
+                    listener.identity.name,
+                    listener.topic,
+                )
+            raise
+        return Subscription(listener, lambda: self.remove_listener(listener))
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking).
@@ -372,6 +400,9 @@ class Bus(Resource):
 
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
+        # Pre-clear is load-bearing: it must run before remove_listeners_by_owner so that
+        # _on_listener_removed finds was_present=False and skips the cancelled_at spawn for every
+        # listener on clean shutdown (shutdown maps to retired_at via reconciliation, not cancelled_at).
         self._registered_listeners.clear()
         self.bus_service.remove_listeners_by_owner(self.owner_id)
 
@@ -561,16 +592,7 @@ class Bus(Resource):
             logger=self.logger,
         )
 
-        existing = self._resolve_collision(listener, if_exists=if_exists)
-        if existing is not None:
-            # skip short-circuit: return a subscription wrapping the existing listener.
-            return Subscription(existing, lambda: self.remove_listener(existing))
-
-        def unsubscribe() -> None:
-            self.remove_listener(listener)
-
-        await self.bus_service.add_listener(listener)
-        return Subscription(listener, unsubscribe)
+        return await self._resolve_and_register(listener, if_exists=if_exists)
 
     async def _subscribe(
         self,

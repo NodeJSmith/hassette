@@ -58,6 +58,9 @@ await self.bus.on_state_change(
 
 After a once-listener fires, its name+topic key is released. A subsequent registration under the same name and topic is a fresh registration and does not raise.
 
+!!! note "Telemetry: the schema bump recreates the telemetry database"
+    This release adds a `cancelled_at` column to the `listeners` table, which bumps the telemetry schema version. On first run after upgrade, Hassette deletes and recreates the telemetry database — telemetry is disposable and carries no data to preserve, consistent with prior schema bumps. Querying the telemetry DB directly: `cancelled_at` marks listeners torn down mid-session (an explicit `Subscription.cancel()`, an `if_exists="replace"`, or a once-listener firing), while `retired_at` marks listeners that were not re-registered after a restart — set by the startup reconciliation pass, not at cancel time.
+
 ## The `name=` Requirement
 
 Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name in log output and the monitoring UI, and to avoid registering the same listener twice after a reload.

@@ -1,7 +1,7 @@
 # Design: `if_exists` for bus handler registration
 
 **Date:** 2026-06-11
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
@@ -587,7 +587,10 @@ No tests to remove. Tests asserting the old once-exempt behavior are adapted, no
   change breaks a documented, tested contract (test_t03_registration_errors.py:125) and the
   framework's own test utility (test_utils/helpers.py:430), so the breaking flag is required,
   not optional. The footer states: same name+topic `once=True` listeners now raise
-  `DuplicateListenerError` (previously silent); use distinct names or `if_exists`.
+  `DuplicateListenerError` (previously silent); use distinct names or `if_exists`. The footer
+  also notes the `add_listener` return-type widening: `add_listener` now returns a
+  `Subscription` instead of `None` — callers that asserted the return was `None` must update
+  (ignoring the return is unaffected).
 
 ## Impact
 
