@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.43.0](https://github.com/NodeJSmith/hassette/compare/v0.42.0...v0.43.0) (2026-06-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* two `once=True` listeners registered with the same name and topic now raise `DuplicateListenerError` instead of silently coexisting. Use distinct names, or the new `if_exists` parameter, to register more than one once-listener under a shared name+topic.
+
+### Features
+
+* add if_exists to bus handler registration ([#1015](https://github.com/NodeJSmith/hassette/issues/1015)) ([dd1cb28](https://github.com/NodeJSmith/hassette/commit/dd1cb282e8b373dead5d8f156f009e756e585660))
+* runtime detection of forgotten await on registration methods ([#1019](https://github.com/NodeJSmith/hassette/issues/1019)) ([61e36be](https://github.com/NodeJSmith/hassette/commit/61e36be0089159041ffd87a45cdc1d11c9786394))
+
+
+### Bug Fixes
+
+* **cli:** show degraded telemetry status on 503 instead of exiting ([#1016](https://github.com/NodeJSmith/hassette/issues/1016)) ([67b537e](https://github.com/NodeJSmith/hassette/commit/67b537efcba2d1cccdfdc60c2c3788270caafa2b))
+
 ## [0.42.0](https://github.com/NodeJSmith/hassette/compare/v0.41.0...v0.42.0) (2026-06-11)
 
 
