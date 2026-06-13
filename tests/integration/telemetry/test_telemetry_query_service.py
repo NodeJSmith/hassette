@@ -64,6 +64,24 @@ class TestGetListenerSummary:
         assert row.successful == 0
         assert row.failed == 0
 
+    async def test_get_listener_summary_excludes_cancelled(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Listeners with cancelled_at set are excluded from the summary (replace/cancel)."""
+        db_svc, _session_id = db
+        live = await insert_listener(db_svc, handler_method="on_live")
+        cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
+        await db_svc.db.execute("UPDATE listeners SET cancelled_at = ? WHERE id = ?", (BASE_TS, cancelled))
+        await db_svc.db.commit()
+
+        scoped = await query_service.get_listener_summary("test_app", 0)
+        assert {r.listener_id for r in scoped} == {live}
+
+        all_rows = await query_service.get_all_listeners_summary()
+        assert {r.listener_id for r in all_rows} == {live}
+
     async def test_get_listener_summary_since_scoped(
         self,
         query_service: TelemetryQueryService,
