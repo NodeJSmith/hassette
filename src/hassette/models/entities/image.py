@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import ImageState
 from hassette.models.states.image import ImageAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class ImageEntity(BaseEntity[ImageState, str]):
     @property
     def attributes(self) -> ImageAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "ImageEntitySyncFacade":
+        if self._sync is None:
+            self._sync = ImageEntitySyncFacade(entity=self)
+        return cast("ImageEntitySyncFacade", self._sync)
 
     def snapshot(
         self,
@@ -24,5 +30,19 @@ class ImageEntity(BaseEntity[ImageState, str]):
             domain=self.domain,
             service="snapshot",
             target={"entity_id": self.entity_id},
+            filename=filename,
+        )
+
+
+class ImageEntitySyncFacade(BaseEntitySyncFacade[ImageState, str]):
+    def snapshot(
+        self,
+        *,
+        filename: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="snapshot",
+            target={"entity_id": self.entity.entity_id},
             filename=filename,
         )

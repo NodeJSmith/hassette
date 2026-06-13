@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import SwitchState
 from hassette.models.states.switch import SwitchAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class SwitchEntity(BaseEntity[SwitchState, str]):
     @property
     def attributes(self) -> SwitchAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "SwitchEntitySyncFacade":
+        if self._sync is None:
+            self._sync = SwitchEntitySyncFacade(entity=self)
+        return cast("SwitchEntitySyncFacade", self._sync)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -40,4 +46,27 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
             domain=self.domain,
             service="toggle",
             target={"entity_id": self.entity_id},
+        )
+
+
+class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
+    def turn_on(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_off(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def toggle(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="toggle",
+            target={"entity_id": self.entity.entity_id},
         )

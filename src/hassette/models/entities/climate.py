@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import ClimateState
 from hassette.models.states.climate import ClimateAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class ClimateEntity(BaseEntity[ClimateState, str]):
     @property
     def attributes(self) -> ClimateAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "ClimateEntitySyncFacade":
+        if self._sync is None:
+            self._sync = ClimateEntitySyncFacade(entity=self)
+        return cast("ClimateEntitySyncFacade", self._sync)
 
     def set_preset_mode(
         self,
@@ -151,4 +157,117 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
             domain=self.domain,
             service="toggle",
             target={"entity_id": self.entity_id},
+        )
+
+
+class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
+    def set_preset_mode(
+        self,
+        *,
+        preset_mode: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_preset_mode",
+            target={"entity_id": self.entity.entity_id},
+            preset_mode=preset_mode,
+        )
+
+    def set_temperature(
+        self,
+        *,
+        hvac_mode: str | None = None,
+        target_temp_high: float | None = None,
+        target_temp_low: float | None = None,
+        temperature: float | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_temperature",
+            target={"entity_id": self.entity.entity_id},
+            hvac_mode=hvac_mode,
+            target_temp_high=target_temp_high,
+            target_temp_low=target_temp_low,
+            temperature=temperature,
+        )
+
+    def set_humidity(
+        self,
+        *,
+        humidity: int,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_humidity",
+            target={"entity_id": self.entity.entity_id},
+            humidity=humidity,
+        )
+
+    def set_fan_mode(
+        self,
+        *,
+        fan_mode: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_fan_mode",
+            target={"entity_id": self.entity.entity_id},
+            fan_mode=fan_mode,
+        )
+
+    def set_hvac_mode(
+        self,
+        *,
+        hvac_mode: str | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_hvac_mode",
+            target={"entity_id": self.entity.entity_id},
+            hvac_mode=hvac_mode,
+        )
+
+    def set_swing_mode(
+        self,
+        *,
+        swing_mode: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_swing_mode",
+            target={"entity_id": self.entity.entity_id},
+            swing_mode=swing_mode,
+        )
+
+    def set_swing_horizontal_mode(
+        self,
+        *,
+        swing_horizontal_mode: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_swing_horizontal_mode",
+            target={"entity_id": self.entity.entity_id},
+            swing_horizontal_mode=swing_horizontal_mode,
+        )
+
+    def turn_on(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_off(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def toggle(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="toggle",
+            target={"entity_id": self.entity.entity_id},
         )

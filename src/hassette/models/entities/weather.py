@@ -1,10 +1,10 @@
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from hassette.models.states import WeatherState
 from hassette.models.states.weather import WeatherAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 Type = Literal["daily", "hourly", "twice_daily"]
 
@@ -13,6 +13,12 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
     @property
     def attributes(self) -> WeatherAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "WeatherEntitySyncFacade":
+        if self._sync is None:
+            self._sync = WeatherEntitySyncFacade(entity=self)
+        return cast("WeatherEntitySyncFacade", self._sync)
 
     def get_forecast(
         self,
@@ -41,5 +47,31 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
             domain=self.domain,
             service="get_forecasts",
             target={"entity_id": self.entity_id},
+            type=type,
+        )
+
+
+class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
+    def get_forecast(
+        self,
+        *,
+        type: Type,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="get_forecast",
+            target={"entity_id": self.entity.entity_id},
+            type=type,
+        )
+
+    def get_forecasts(
+        self,
+        *,
+        type: Literal["daily", "hourly", "twice_daily"],
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="get_forecasts",
+            target={"entity_id": self.entity.entity_id},
             type=type,
         )

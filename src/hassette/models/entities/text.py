@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import TextState
 from hassette.models.states.text import TextAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class TextEntity(BaseEntity[TextState, str]):
     @property
     def attributes(self) -> TextAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "TextEntitySyncFacade":
+        if self._sync is None:
+            self._sync = TextEntitySyncFacade(entity=self)
+        return cast("TextEntitySyncFacade", self._sync)
 
     def set_value(
         self,
@@ -24,5 +30,19 @@ class TextEntity(BaseEntity[TextState, str]):
             domain=self.domain,
             service="set_value",
             target={"entity_id": self.entity_id},
+            value=value,
+        )
+
+
+class TextEntitySyncFacade(BaseEntitySyncFacade[TextState, str]):
+    def set_value(
+        self,
+        *,
+        value: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_value",
+            target={"entity_id": self.entity.entity_id},
             value=value,
         )

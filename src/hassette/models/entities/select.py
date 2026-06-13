@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import SelectState
 from hassette.models.states.select import SelectAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class SelectEntity(BaseEntity[SelectState, str]):
     @property
     def attributes(self) -> SelectAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "SelectEntitySyncFacade":
+        if self._sync is None:
+            self._sync = SelectEntitySyncFacade(entity=self)
+        return cast("SelectEntitySyncFacade", self._sync)
 
     def select_first(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -74,5 +80,57 @@ class SelectEntity(BaseEntity[SelectState, str]):
             domain=self.domain,
             service="select_previous",
             target={"entity_id": self.entity_id},
+            cycle=cycle,
+        )
+
+
+class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
+    def select_first(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="select_first",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def select_last(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="select_last",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def select_next(
+        self,
+        *,
+        cycle: bool | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="select_next",
+            target={"entity_id": self.entity.entity_id},
+            cycle=cycle,
+        )
+
+    def select_option(
+        self,
+        *,
+        option: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="select_option",
+            target={"entity_id": self.entity.entity_id},
+            option=option,
+        )
+
+    def select_previous(
+        self,
+        *,
+        cycle: bool | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="select_previous",
+            target={"entity_id": self.entity.entity_id},
             cycle=cycle,
         )

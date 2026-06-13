@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import ButtonState
 from hassette.models.states.button import ButtonAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class ButtonEntity(BaseEntity[ButtonState, str]):
     @property
     def attributes(self) -> ButtonAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "ButtonEntitySyncFacade":
+        if self._sync is None:
+            self._sync = ButtonEntitySyncFacade(entity=self)
+        return cast("ButtonEntitySyncFacade", self._sync)
 
     def press(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -20,4 +26,13 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
             domain=self.domain,
             service="press",
             target={"entity_id": self.entity_id},
+        )
+
+
+class ButtonEntitySyncFacade(BaseEntitySyncFacade[ButtonState, str]):
+    def press(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="press",
+            target={"entity_id": self.entity.entity_id},
         )

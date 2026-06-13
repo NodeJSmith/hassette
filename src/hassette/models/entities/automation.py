@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import AutomationState
 from hassette.models.states.automation import AutomationAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class AutomationEntity(BaseEntity[AutomationState, str]):
     @property
     def attributes(self) -> AutomationAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "AutomationEntitySyncFacade":
+        if self._sync is None:
+            self._sync = AutomationEntitySyncFacade(entity=self)
+        return cast("AutomationEntitySyncFacade", self._sync)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -59,5 +65,45 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
             domain=self.domain,
             service="trigger",
             target={"entity_id": self.entity_id},
+            skip_condition=skip_condition,
+        )
+
+
+class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
+    def turn_on(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_off(
+        self,
+        *,
+        stop_actions: bool | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+            stop_actions=stop_actions,
+        )
+
+    def toggle(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="toggle",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def trigger(
+        self,
+        *,
+        skip_condition: bool | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="trigger",
+            target={"entity_id": self.entity.entity_id},
             skip_condition=skip_condition,
         )

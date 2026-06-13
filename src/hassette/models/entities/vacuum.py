@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import VacuumState
 from hassette.models.states.vacuum import VacuumAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class VacuumEntity(BaseEntity[VacuumState, str]):
     @property
     def attributes(self) -> VacuumAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "VacuumEntitySyncFacade":
+        if self._sync is None:
+            self._sync = VacuumEntitySyncFacade(entity=self)
+        return cast("VacuumEntitySyncFacade", self._sync)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -156,5 +162,115 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
             domain=self.domain,
             service="set_fan_speed",
             target={"entity_id": self.entity_id},
+            fan_speed=fan_speed,
+        )
+
+
+class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
+    def turn_on(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_off(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def toggle(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="toggle",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def stop(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="stop",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def locate(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="locate",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def start_pause(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="start_pause",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def start(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="start",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def pause(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="pause",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def return_to_base(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="return_to_base",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def clean_spot(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="clean_spot",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def clean_area(
+        self,
+        *,
+        cleaning_area_id: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="clean_area",
+            target={"entity_id": self.entity.entity_id},
+            cleaning_area_id=cleaning_area_id,
+        )
+
+    def send_command(
+        self,
+        *,
+        command: str,
+        params: Any | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="send_command",
+            target={"entity_id": self.entity.entity_id},
+            command=command,
+            params=params,
+        )
+
+    def set_fan_speed(
+        self,
+        *,
+        fan_speed: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_fan_speed",
+            target={"entity_id": self.entity.entity_id},
             fan_speed=fan_speed,
         )

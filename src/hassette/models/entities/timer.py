@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import TimerState
 from hassette.models.states.timer import TimerAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class TimerEntity(BaseEntity[TimerState, str]):
     @property
     def attributes(self) -> TimerAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "TimerEntitySyncFacade":
+        if self._sync is None:
+            self._sync = TimerEntitySyncFacade(entity=self)
+        return cast("TimerEntitySyncFacade", self._sync)
 
     def start(
         self,
@@ -69,5 +75,52 @@ class TimerEntity(BaseEntity[TimerState, str]):
             domain=self.domain,
             service="change",
             target={"entity_id": self.entity_id},
+            duration=duration,
+        )
+
+
+class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
+    def start(
+        self,
+        *,
+        duration: dict[str, int] | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="start",
+            target={"entity_id": self.entity.entity_id},
+            duration=duration,
+        )
+
+    def pause(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="pause",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def cancel(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="cancel",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def finish(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="finish",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def change(
+        self,
+        *,
+        duration: dict[str, int],
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="change",
+            target={"entity_id": self.entity.entity_id},
             duration=duration,
         )

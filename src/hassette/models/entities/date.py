@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import DateState
 from hassette.models.states.date import DateAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class DateEntity(BaseEntity[DateState, str]):
     @property
     def attributes(self) -> DateAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "DateEntitySyncFacade":
+        if self._sync is None:
+            self._sync = DateEntitySyncFacade(entity=self)
+        return cast("DateEntitySyncFacade", self._sync)
 
     def set_value(
         self,
@@ -24,5 +30,19 @@ class DateEntity(BaseEntity[DateState, str]):
             domain=self.domain,
             service="set_value",
             target={"entity_id": self.entity_id},
+            date=date,
+        )
+
+
+class DateEntitySyncFacade(BaseEntitySyncFacade[DateState, str]):
+    def set_value(
+        self,
+        *,
+        date: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="set_value",
+            target={"entity_id": self.entity.entity_id},
             date=date,
         )

@@ -1,10 +1,10 @@
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from hassette.models.states import CameraState
 from hassette.models.states.camera import CameraAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 Format = Literal["hls"]
 
@@ -13,6 +13,12 @@ class CameraEntity(BaseEntity[CameraState, str]):
     @property
     def attributes(self) -> CameraAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "CameraEntitySyncFacade":
+        if self._sync is None:
+            self._sync = CameraEntitySyncFacade(entity=self)
+        return cast("CameraEntitySyncFacade", self._sync)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -100,6 +106,78 @@ class CameraEntity(BaseEntity[CameraState, str]):
             domain=self.domain,
             service="record",
             target={"entity_id": self.entity_id},
+            filename=filename,
+            duration=duration,
+            lookback=lookback,
+        )
+
+
+class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
+    def turn_off(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_on(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def enable_motion_detection(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="enable_motion_detection",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def disable_motion_detection(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="disable_motion_detection",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def snapshot(
+        self,
+        *,
+        filename: str,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="snapshot",
+            target={"entity_id": self.entity.entity_id},
+            filename=filename,
+        )
+
+    def play_stream(
+        self,
+        *,
+        media_player: str,
+        format: Format | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="play_stream",
+            target={"entity_id": self.entity.entity_id},
+            media_player=media_player,
+            format=format,
+        )
+
+    def record(
+        self,
+        *,
+        filename: str,
+        duration: int | None = None,
+        lookback: int | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="record",
+            target={"entity_id": self.entity.entity_id},
             filename=filename,
             duration=duration,
             lookback=lookback,

@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import LockState
 from hassette.models.states.lock import LockAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class LockEntity(BaseEntity[LockState, str]):
     @property
     def attributes(self) -> LockAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "LockEntitySyncFacade":
+        if self._sync is None:
+            self._sync = LockEntitySyncFacade(entity=self)
+        return cast("LockEntitySyncFacade", self._sync)
 
     def lock(
         self,
@@ -54,5 +60,43 @@ class LockEntity(BaseEntity[LockState, str]):
             domain=self.domain,
             service="unlock",
             target={"entity_id": self.entity_id},
+            code=code,
+        )
+
+
+class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
+    def lock(
+        self,
+        *,
+        code: str | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="lock",
+            target={"entity_id": self.entity.entity_id},
+            code=code,
+        )
+
+    def open(
+        self,
+        *,
+        code: str | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="open",
+            target={"entity_id": self.entity.entity_id},
+            code=code,
+        )
+
+    def unlock(
+        self,
+        *,
+        code: str | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="unlock",
+            target={"entity_id": self.entity.entity_id},
             code=code,
         )

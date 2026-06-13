@@ -1,16 +1,22 @@
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 
 from hassette.models.states import UpdateState
 from hassette.models.states.update import UpdateAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class UpdateEntity(BaseEntity[UpdateState, str]):
     @property
     def attributes(self) -> UpdateAttributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "UpdateEntitySyncFacade":
+        if self._sync is None:
+            self._sync = UpdateEntitySyncFacade(entity=self)
+        return cast("UpdateEntitySyncFacade", self._sync)
 
     def install(
         self,
@@ -47,4 +53,34 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
             domain=self.domain,
             service="clear_skipped",
             target={"entity_id": self.entity_id},
+        )
+
+
+class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
+    def install(
+        self,
+        *,
+        backup: bool | None = None,
+        version: str | None = None,
+    ):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="install",
+            target={"entity_id": self.entity.entity_id},
+            backup=backup,
+            version=version,
+        )
+
+    def skip(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="skip",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def clear_skipped(self):
+        return self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="clear_skipped",
+            target={"entity_id": self.entity.entity_id},
         )
