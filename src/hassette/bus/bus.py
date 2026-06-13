@@ -93,7 +93,7 @@ import logging
 import typing
 from collections.abc import Coroutine, Mapping
 from functools import partial
-from typing import Any, Unpack
+from typing import Any, Literal, Unpack
 
 from typing_extensions import Sentinel
 
@@ -141,13 +141,13 @@ class Bus(Resource):
         assert self.hassette._bus_service is not None, "Bus service not initialized"
         self.bus_service = self.hassette._bus_service
         self.priority = priority
-        self._registered_handler_names: dict[tuple[str, int, str, str], str] = {}
+        self._registered_listeners: dict[tuple[str, int, str, str], Listener] = {}
         self._error_handler: BusErrorHandlerType | None = None
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.
-        self._registered_handler_names.clear()
+        self._registered_listeners.clear()
         self._error_handler = None
         self.mark_ready(reason="Bus initialized")
 
@@ -180,17 +180,33 @@ class Bus(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 
-    def add_listener(self, listener: "Listener") -> "Coroutine[Any, Any, None]":
+    def add_listener(
+        self,
+        listener: "Listener",
+        *,
+        if_exists: Literal["error", "skip", "replace"] = "error",
+    ) -> "Coroutine[Any, Any, Subscription]":
         """Add a pre-built listener to the bus.
 
         This is the direct entry point for callers that construct a ``Listener``
         externally. The normal registration flow (``on_state_change``, ``on()``,
         etc.) goes through ``_on_internal`` instead.
 
+        Args:
+            listener: The pre-built listener to add.
+            if_exists: Behavior when a listener with the same natural key already exists.
+                ``"error"`` (default) raises ``DuplicateListenerError``.
+                ``"skip"`` returns a subscription to the existing listener when configs match.
+                ``"replace"`` cancels the existing listener and registers the new one.
+
+        Returns:
+            A subscription to the added listener (or the existing listener on skip).
+
         Raises:
             ListenerNameRequiredError: If the listener has no ``name`` (required for all DB-registered
                 listeners, including once-listeners; cancel-listeners bypass this path entirely).
-            DuplicateListenerError: If the listener's natural key is already registered on this bus instance.
+            DuplicateListenerError: If the listener's natural key is already registered and
+                ``if_exists="error"``.
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if listener.identity.name is None:
@@ -200,40 +216,93 @@ class Bus(Resource):
         source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
         return guard_await(
-            self._add_listener(listener),
+            self._add_listener(listener, if_exists=if_exists),
             owner=self.parent,
             source_location=source_location,
             method_name="add_listener",
         )
 
-    async def _add_listener(self, listener: "Listener") -> None:
+    async def _add_listener(
+        self,
+        listener: "Listener",
+        *,
+        if_exists: Literal["error", "skip", "replace"] = "error",
+    ) -> Subscription:
         """Async body for add_listener: collision check + DB registration.
 
-        register_and_check_collision is a registry mutation — it must not run for a
+        _resolve_collision is a registry mutation — it must not run for a
         never-awaited call (would pollute the duplicate-name registry). Matches the
         on() path where collision check lives in _on_internal.
         """
-        self.register_and_check_collision(listener)
+        existing = self._resolve_collision(listener, if_exists=if_exists)
+        if existing is not None:
+            # skip short-circuit: return a subscription wrapping the existing listener.
+            return Subscription(existing, lambda: self.remove_listener(existing))
+
+        def unsubscribe() -> None:
+            self.remove_listener(listener)
+
         await self.bus_service.add_listener(listener)
+        return Subscription(listener, unsubscribe)
 
-    def register_and_check_collision(self, listener: "Listener") -> None:
-        """Register a non-once listener's natural key, raising DuplicateListenerError on a same-session clash.
+    def _resolve_collision(
+        self,
+        listener: "Listener",
+        *,
+        if_exists: Literal["error", "skip", "replace"] = "error",
+    ) -> "Listener | None":
+        """Resolve a potential registration collision using the if_exists policy.
 
-        Mutates the per-bus key registry as a side effect — this is the single point where in-session
-        duplicate detection happens. Once-listeners are exempt and are not registered.
+        Mutates the per-bus key registry as a side effect — this is the single point where
+        in-session duplicate detection and resolution happens.
+
+        On skip short-circuit (matching existing listener), returns the existing ``Listener``
+        so the caller can wrap it in a ``Subscription``. Returns ``None`` on the proceed path
+        (no existing, or replace after cancelling the old), meaning the caller should register
+        the new listener normally.
+
+        Collision semantics:
+        - No existing listener → register the key, return ``None`` (proceed).
+        - Existing + ``if_exists="error"`` → raise ``DuplicateListenerError``.
+        - Existing + ``if_exists="replace"`` → cancel/remove the existing listener, register
+          the new key, return ``None`` (proceed).
+        - Existing + ``if_exists="skip"`` and configs match → return the existing listener
+          (short-circuit; the caller does NOT register the new one).
+        - Existing + ``if_exists="skip"`` and configs differ → raise ``ValueError`` listing
+          the changed fields (from ``diff_fields``).
+
+        Once-listeners are exempt from collision tracking in this task (T04 removes the
+        exemption and adds once-listener tracking).
         """
         if listener.options.once:
-            return
+            return None
         natural_key = self._listener_natural_key(listener)
-        if natural_key in self._registered_handler_names:
-            existing_handler = self._registered_handler_names[natural_key]
-            raise DuplicateListenerError(
-                name=listener.identity.name or "",
-                topic=listener.topic,
-                existing_handler=existing_handler,
-                duplicate_handler=listener.identity.handler_name,
-            )
-        self._registered_handler_names[natural_key] = listener.identity.handler_name
+        existing = self._registered_listeners.get(natural_key)
+        if existing is not None:
+            if if_exists == "replace":
+                self.logger.debug(
+                    "Replacing existing listener '%s' on topic '%s' (cancelling old, registering new)",
+                    listener.identity.name,
+                    listener.topic,
+                )
+                self.remove_listener(existing)
+            elif if_exists == "skip" and existing.config_matches(listener):
+                return existing
+            elif if_exists == "skip":
+                changed_fields = existing.diff_fields(listener)
+                raise ValueError(
+                    f"A listener named '{listener.identity.name}' on topic '{listener.topic}' already exists "
+                    f"but its configuration has changed (changed fields: {', '.join(changed_fields)})"
+                )
+            else:
+                raise DuplicateListenerError(
+                    name=listener.identity.name or "",
+                    topic=listener.topic,
+                    existing_handler=existing.identity.handler_name,
+                    duplicate_handler=listener.identity.handler_name,
+                )
+        self._registered_listeners[natural_key] = listener
+        return None
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking).
@@ -249,14 +318,25 @@ class Bus(Resource):
         )
 
     def remove_listener(self, listener: "Listener") -> None:
-        """Remove a listener from the bus."""
+        """Remove a listener from the bus and persist cancellation to the database.
+
+        Pops the natural key from the in-memory registry, removes the listener from routing
+        (via BusService), and — when ``db_id`` is set — spawns ``mark_listener_cancelled``
+        on ``bus_service.task_bucket`` so the write survives resource shutdown, mirroring
+        ``Scheduler.cancel_job``.
+        """
         natural_key = self._listener_natural_key(listener)
-        self._registered_handler_names.pop(natural_key, None)
+        self._registered_listeners.pop(natural_key, None)
         self.bus_service.remove_listener(listener)
+        if listener.db_id is not None:
+            self.bus_service.task_bucket.spawn(
+                self.bus_service.mark_listener_cancelled(listener.db_id),
+                name="bus:mark_listener_cancelled",
+            )
 
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
-        self._registered_handler_names.clear()
+        self._registered_listeners.clear()
         self.bus_service.remove_listeners_by_owner(self.owner_id)
 
     def get_listeners(self) -> list["Listener"]:
@@ -287,6 +367,7 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
+        if_exists: Literal["error", "skip", "replace"] = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -310,6 +391,11 @@ class Bus(Resource):
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
+            if_exists: Behavior when a listener with the same natural key already exists.
+                ``"error"`` (default) raises ``DuplicateListenerError``. ``"skip"`` returns the
+                existing listener's subscription when the configurations match, and raises
+                ``ValueError`` if the configuration has drifted. ``"replace"`` cancels the
+                existing listener and registers the new one in its place.
 
         Returns:
             A subscription object. ``sub.cancel()`` removes the listener.
@@ -317,7 +403,10 @@ class Bus(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default).
+            ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
+                exists but with a different configuration (the message lists the changed fields).
         """
         if name is None:
             raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
@@ -339,6 +428,7 @@ class Bus(Resource):
                 timeout_disabled=timeout_disabled,
                 name=name,
                 on_error=on_error,
+                if_exists=if_exists,
                 duration_config=None,
                 source_location=source_location,
                 registration_source=registration_source,
@@ -362,6 +452,7 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
+        if_exists: Literal["error", "skip", "replace"] = "error",
         duration_config: "DurationConfig | None" = None,
         source_location: str = "",
         registration_source: str | None = None,
@@ -434,7 +525,10 @@ class Bus(Resource):
             logger=self.logger,
         )
 
-        self.register_and_check_collision(listener)
+        existing = self._resolve_collision(listener, if_exists=if_exists)
+        if existing is not None:
+            # skip short-circuit: return a subscription wrapping the existing listener.
+            return Subscription(existing, lambda: self.remove_listener(existing))
 
         def unsubscribe() -> None:
             self.remove_listener(listener)
@@ -574,7 +668,8 @@ class Bus(Resource):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered on this bus in the current session.
+                registered on this bus in the current session and ``if_exists="error"``
+                (the default).
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if name is None:
@@ -663,7 +758,8 @@ class Bus(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default).
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if name is None:
@@ -756,7 +852,8 @@ class Bus(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered.
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default).
         """
         if name is None:
             raise ListenerNameRequiredError(

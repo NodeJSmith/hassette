@@ -106,7 +106,7 @@ class TestStateProxyInit:
                 await proxy.on_initialize()
 
         # Clear collision-detection state so the retry doesn't raise "duplicate listener"
-        proxy.bus._registered_handler_names.clear()
+        proxy.bus._registered_listeners.clear()
         await proxy.on_initialize()  # Ensure it can be used in later tests
 
 
@@ -497,7 +497,7 @@ class TestStateProxyWebsocketListeners:
         proxy = hassette_with_state_proxy.state_proxy
 
         # Re-initialize with polling enabled
-        proxy.bus._registered_handler_names.clear()
+        proxy.bus._registered_listeners.clear()
         await proxy.on_initialize()
 
         assert proxy.poll_job is not None

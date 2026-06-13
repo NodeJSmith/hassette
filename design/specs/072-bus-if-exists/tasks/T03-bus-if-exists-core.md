@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add if_exists resolution to bus registration (durable listeners)"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#9", "FR#10", "AC#1", "AC#2", "AC#3", "AC#4", "AC#7", "AC#9"]
 ---
