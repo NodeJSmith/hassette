@@ -206,11 +206,11 @@ def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:
 
 
 def test_run_migrations_applies_001(tmp_path: Path) -> None:
-    """run_migrations applies migrations in order and sets version atomically (FR#7)."""
+    """run_migrations applies all migrations in order and sets version to head."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    assert _user_version(db_path) == 1
+    assert _user_version(db_path) == 2
     assert "executions" in _tables(db_path)
     assert "listeners" in _tables(db_path)
     assert "scheduled_jobs" in _tables(db_path)
@@ -224,7 +224,7 @@ def test_run_migrations_idempotent(tmp_path: Path) -> None:
     run_migrations(db_path)
     run_migrations(db_path)  # second call is a no-op
 
-    assert _user_version(db_path) == 1
+    assert _user_version(db_path) == 2
 
 
 def test_run_migrations_partial_target(tmp_path: Path) -> None:

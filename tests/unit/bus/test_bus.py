@@ -4,7 +4,7 @@ Tests:
 - name= parameter propagation to Listener
 - Duplicate natural key raises DuplicateListenerError in Bus.on()
 - name= disambiguates otherwise-identical keys
-- _registered_handler_names is cleared at start of initialization
+- _registered_listeners is cleared at start of initialization
 """
 
 import typing
@@ -138,13 +138,14 @@ async def test_source_tier_assertion_rejects_invalid_value(bus: "Bus") -> None:
     bus.parent.source_tier = "app"
 
 
-async def test_registered_handler_names_cleared_on_reinit(bus: "Bus") -> None:
-    """_registered_handler_names is cleared at the start of on_initialize() to prevent stale collisions."""
+async def test_registered_listeners_cleared_on_reinit(bus: "Bus") -> None:
+    """_registered_listeners is cleared at the start of on_initialize() to prevent stale collisions."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
-        assert len(bus._registered_handler_names) == 1
+        assert len(bus._registered_listeners) == 1
 
-        bus._registered_handler_names.clear()
+        await bus.on_initialize()
+        assert len(bus._registered_listeners) == 0
 
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
-        assert len(bus._registered_handler_names) == 1
+        assert len(bus._registered_listeners) == 1

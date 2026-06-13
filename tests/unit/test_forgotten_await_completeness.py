@@ -542,7 +542,7 @@ def test_bus_add_listener_warns_on_forgotten_await() -> None:
     from hassette.bus.listeners import Listener
 
     bus = _make_bus()
-    # Pass a MagicMock as the Listener — add_listener only uses it in _add_listener's
+    # Pass a MagicMock as the Listener — add_listener only uses it in _resolve_and_register's
     # async body (the handle wraps that coroutine); the forgotten-await check fires
     # before the coroutine runs, so the mock is sufficient for this warning test.
     listener = MagicMock(spec=Listener)

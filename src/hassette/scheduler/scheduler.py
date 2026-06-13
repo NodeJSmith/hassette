@@ -234,7 +234,7 @@ class Scheduler(Resource):
 
         Duplicate-name handling and registry mutations must not run for a never-awaited
         call — they would pollute _jobs_by_name/_jobs_by_group. Matches the bus
-        _add_listener split where collision check lives in the private coroutine.
+        _resolve_and_register split where collision check lives in the awaited coroutine.
 
         source_location and registration_source are captured in the public def (user
         frame is live there) and threaded here for telemetry backfill.

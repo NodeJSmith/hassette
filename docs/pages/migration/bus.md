@@ -5,6 +5,62 @@ This page covers migrating AppDaemon event listeners and state change listeners 
 !!! note "Coming from synchronous AppDaemon?"
     All registration methods (`on_state_change`, `on_attribute_change`, `on_call_service`, `on`) are `async` and must be awaited — see [Async Basics](async-basics.md) if that shift is new to you.
 
+## Breaking Change: Once-listener name collision now raises
+
+Previously, two `once=True` listeners registered with the same `name` and topic coexisted silently — no error was raised and both listeners remained active. `once=True` listeners now participate in name+topic collision tracking like durable listeners. A second registration under the same name and topic raises `DuplicateListenerError`.
+
+This change affects any app that registers duplicate once-listeners intentionally or accidentally under matching names and topics.
+
+**What to do:**
+
+- **Distinct names** — give each once-listener a unique `name=`. This is the simplest fix and works when each registration is logically distinct.
+- **`if_exists="skip"`** — pass `if_exists="skip"` when the intent is idempotent registration (register once, ignore duplicates with matching config).
+- **`if_exists="replace"`** — pass `if_exists="replace"` when the new registration should supersede the previous one.
+
+```python
+# Before: silently registered two listeners — unpredictable behavior
+await self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_motion,
+    name="motion_once",
+    once=True,
+)
+await self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_motion,
+    name="motion_once",
+    once=True,
+)
+
+# After option 1: distinct names
+await self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_motion,
+    name="motion_once_a",
+    once=True,
+)
+await self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_motion,
+    name="motion_once_b",
+    once=True,
+)
+
+# After option 2: idempotent skip
+await self.bus.on_state_change(
+    "binary_sensor.motion",
+    handler=self.on_motion,
+    name="motion_once",
+    once=True,
+    if_exists="skip",
+)
+```
+
+After a once-listener fires, its name+topic key is released. A subsequent registration under the same name and topic is a fresh registration and does not raise.
+
+!!! note "Telemetry: the schema bump recreates the telemetry database"
+    This release adds a `cancelled_at` column to the `listeners` table, which bumps the telemetry schema version. On first run after upgrade, Hassette deletes and recreates the telemetry database — telemetry is disposable and carries no data to preserve, consistent with prior schema bumps. Querying the telemetry DB directly: `cancelled_at` marks listeners torn down mid-session (an explicit `Subscription.cancel()`, an `if_exists="replace"`, or a once-listener firing), while `retired_at` marks listeners that were not re-registered after a restart — set by the startup reconciliation pass, not at cancel time.
+
 ## The `name=` Requirement
 
 Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name in log output and the monitoring UI, and to avoid registering the same listener twice after a reload.

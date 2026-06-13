@@ -13,7 +13,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 - **No lazy imports.** All imports at the top of the file. Exceptions: `TYPE_CHECKING` guards and deferred imports in `__main__.py` to break circular dependencies at startup.
 - **Immutability.** Create new objects, never mutate existing ones.
 - **Use `whenever` instead of stdlib `datetime`.** Convert at boundaries when libraries require stdlib types.
-- **No `_` prefix on methods.** All methods are public. This is a framework, not a library with external consumers.
+- **`_` prefix marks private methods on public classes only.** Public classes that app authors use directly (`App`, `Bus`, `Scheduler`, `Api`, `StateManager`) prefix non-API methods with `_` to keep their public surface clean. Internal classes that app authors never touch (the `*Service` classes, executors, repositories) use no `_` prefixes — the class is already internal, so marking individual methods private is redundant noise.
 - **Early returns.** Guard clauses at the top, happy path at the bottom.
 - **No section divider comments** between methods.
 - **Dependencies as parameters.** Functions receive collaborators, not create them inline. If testing requires `mock.patch` more than one level deep, the code needs restructuring.

@@ -581,6 +581,16 @@ class CommandExecutor(Service):
         """
         await self.hassette.database_service.submit(self.repository.mark_job_cancelled(db_id))
 
+    async def mark_listener_cancelled(self, db_id: int) -> None:
+        """Set ``cancelled_at`` on the listeners row to persist durable cancellation state.
+
+        Delegates to ``TelemetryRepository.mark_listener_cancelled`` via ``DatabaseService.submit``.
+
+        Args:
+            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+        """
+        await self.hassette.database_service.submit(self.repository.mark_listener_cancelled(db_id))
+
     async def reconcile_registrations(
         self,
         app_key: str,

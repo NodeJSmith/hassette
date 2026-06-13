@@ -10,7 +10,10 @@ reviews:
       - main
 
   request_changes_workflow: false
-  high_level_summary: true
+  # Keep the summary out of the PR description: PR_BODY becomes the squash commit
+  # body, and a summary appended below the BREAKING CHANGE: footers pollutes the
+  # release-please changelog (the last footer absorbs trailing text).
+  high_level_summary: false
   poem: false
 
   path_filters:

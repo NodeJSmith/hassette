@@ -105,7 +105,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, Unpack
+from typing import Any, Literal, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options

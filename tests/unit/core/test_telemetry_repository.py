@@ -45,6 +45,7 @@ CREATE TABLE listeners (
     registration_source   TEXT,
     source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
     retired_at            REAL,
+    cancelled_at          REAL,
     immediate             INTEGER NOT NULL DEFAULT 0,
     duration              REAL,
     entity_id             TEXT
@@ -1242,3 +1243,53 @@ async def test_fr4_on_conflict_target_matches_index(db: aiosqlite.Connection) ->
     assert "COALESCE" not in source or "ON CONFLICT" not in source.split("COALESCE")[0], (
         "register_listener() ON CONFLICT must not use COALESCE"
     )
+
+
+async def test_mark_listener_cancelled_sets_cancelled_at(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """mark_listener_cancelled() sets cancelled_at to the current epoch time."""
+    reg = make_listener_registration()
+    listener_id = await repo.register_listener(reg)
+
+    cursor = await db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "cancelled_at should be NULL before cancellation"
+
+    before_ts = time.time()
+    await repo.mark_listener_cancelled(listener_id)
+    after_ts = time.time()
+
+    cursor = await db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "cancelled_at should be set after mark_listener_cancelled()"
+    assert before_ts <= row[0] <= after_ts, f"cancelled_at={row[0]} should be between {before_ts} and {after_ts}"
+
+
+async def test_register_listener_clears_cancelled_at_on_reregistration(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """Re-registering under the same natural key clears cancelled_at and preserves the row id."""
+    reg = make_listener_registration()
+    listener_id = await repo.register_listener(reg)
+
+    await repo.mark_listener_cancelled(listener_id)
+
+    cursor = await db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "cancelled_at should be set after mark_listener_cancelled()"
+
+    # Re-register under the same natural key
+    new_id = await repo.register_listener(reg)
+
+    assert new_id == listener_id, "Re-registration must preserve the row id"
+
+    cursor = await db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "cancelled_at should be cleared to NULL after re-registration"

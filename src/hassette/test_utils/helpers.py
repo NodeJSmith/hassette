@@ -429,6 +429,9 @@ async def wire_up_app_state_listener(
         status=status,
         once=True,
         name=f"hassette.test_utils.wire_up_{app_key}_{status}",
+        # Since T04 once-listeners participate in collision tracking, so re-wiring the same
+        # (app_key, status) — e.g. across a hot-reload — would raise without replace.
+        if_exists="replace",
     )
 
 
@@ -477,10 +480,7 @@ def create_listener(
     Constructs sub-structs internally and delegates to Listener.create().
     Default handler is a sync lambda; default task_bucket is a MagicMock.
     """
-    if duration is not None and debounce is not None:
-        raise ValueError("Cannot combine 'duration' with 'debounce'")
-    if duration is not None and throttle is not None:
-        raise ValueError("Cannot combine 'duration' with 'throttle'")
+    # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
         raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
     if immediate and not entity_id:

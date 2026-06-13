@@ -44,8 +44,10 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
 def mock_add_listener(bus: "Bus") -> Generator[Mock]:
     """Replace bus.bus_service.add_listener with an AsyncMock, restoring on exit.
 
-    Default return is 1 (a fake db_id). Tests that need a specific db_id
-    should set ``add_mock.return_value`` explicitly.
+    Default return is 1 (a fake db_id). Unlike the real add_listener, this does NOT call
+    listener.mark_registered, so listeners stay at db_id=None and removal paths take the
+    no-spawn branch. Tests that assert on the mark_listener_cancelled spawn must use an
+    inline mock that calls mark_registered (see test_t04_once_listener_tracking.py).
     """
     mock = AsyncMock(return_value=1)
     original = bus.bus_service.add_listener

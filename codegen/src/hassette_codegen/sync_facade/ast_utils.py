@@ -51,7 +51,6 @@ the completeness guard (over a wider inherited surface).  A new lifecycle
 
 INTERNAL_METHODS = frozenset(
     {
-        "register_and_check_collision",
         "get_job_db_ids",
     }
 )

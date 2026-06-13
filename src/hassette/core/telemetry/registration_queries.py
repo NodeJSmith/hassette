@@ -88,6 +88,7 @@ class RegistrationQueriesMixin:
             LEFT JOIN executions e ON {join_condition} AND e.kind = 'handler'
             LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE l.app_key = :app_key AND l.instance_index = :instance_index
+            AND l.cancelled_at IS NULL
             {tier_clause}
             GROUP BY l.id
         """
@@ -153,6 +154,7 @@ class RegistrationQueriesMixin:
             LEFT JOIN executions e ON {join_condition} AND e.kind = 'handler'
             LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE 1=1
+            AND l.cancelled_at IS NULL
             {tier_clause}
             GROUP BY l.id
         """

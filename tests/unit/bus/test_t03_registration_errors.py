@@ -122,12 +122,17 @@ async def test_same_name_different_topics_no_error(bus: "Bus") -> None:
         await bus.on(topic="light.bedroom", handler=handler_b, name="my_listener")
 
 
-async def test_once_listeners_exempt_from_duplicate_error(bus: "Bus") -> None:
-    """Once-listeners with duplicate name+topic are exempt from DuplicateListenerError."""
+async def test_once_listeners_collide_like_durable_listeners(bus: "Bus") -> None:
+    """FR#6: once-listeners with duplicate name+topic raise DuplicateListenerError (T04).
+
+    The once-exemption was removed in T04 — once-listeners participate in collision
+    tracking identically to durable listeners.
+    """
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
-        # Second once-listener with same name+topic must not raise
-        await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
+        # Second once-listener with same name+topic now raises DuplicateListenerError
+        with pytest.raises(DuplicateListenerError):
+            await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
 
 
 # ---------------------------------------------------------------------------

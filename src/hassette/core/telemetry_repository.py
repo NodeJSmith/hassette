@@ -309,7 +309,8 @@ class TelemetryRepository:
                 immediate = excluded.immediate,
                 duration = excluded.duration,
                 entity_id = excluded.entity_id,
-                retired_at = NULL
+                retired_at = NULL,
+                cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
             _listener_insert_params(registration),
@@ -412,6 +413,22 @@ class TelemetryRepository:
         db = self._db_service.db
         await db.execute(
             "UPDATE scheduled_jobs SET cancelled_at = :cancelled_at WHERE id = :id",
+            {"cancelled_at": time.time(), "id": db_id},
+        )
+        await db.commit()
+
+    async def mark_listener_cancelled(self, db_id: int) -> None:
+        """Set ``cancelled_at`` to the current epoch time for the given listener row.
+
+        Called from the cancel path in ``BusService`` when a listener is cancelled
+        so that the durable ``cancelled`` state survives memory removal.
+
+        Args:
+            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+        """
+        db = self._db_service.db
+        await db.execute(
+            "UPDATE listeners SET cancelled_at = :cancelled_at WHERE id = :id",
             {"cancelled_at": time.time(), "id": db_id},
         )
         await db.commit()
