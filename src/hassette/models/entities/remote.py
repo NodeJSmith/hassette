@@ -24,7 +24,11 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         *,
         activity: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.turn_on service.
+
+        Args:
+            activity: Activity ID or activity name to be started.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -35,7 +39,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -45,7 +49,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -63,7 +67,15 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         hold_secs: float | None = None,
         num_repeats: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.send_command service.
+
+        Args:
+            command: A single command or a list of commands to send.
+            delay_secs: The time you want to wait in between repeated commands.
+            device: Device ID to send command to.
+            hold_secs: The time you want to have it held before the release is send.
+            num_repeats: The number of times you want to repeat the commands.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -86,7 +98,17 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         device: str | None = None,
         timeout: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.learn_command service.
+
+        Args:
+            alternative: If code must be stored as an alternative. This is useful for discrete codes. Discrete codes are
+                used for toggles that only perform one function. For example, a code to only turn a device on. If it is
+                on already, sending the code won't change the state.
+            command: A single command or a list of commands to learn.
+            command_type: The type of command to be learned.
+            device: Device ID to learn command from.
+            timeout: Timeout for the command to be learned.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -106,7 +128,12 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         command: Any,
         device: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the remote.delete_command service.
+
+        Args:
+            command: The single command or the list of commands to be deleted.
+            device: Device from which commands will be deleted.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -126,7 +153,14 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         *,
         activity: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.turn_on service synchronously.
+
+        Args:
+            activity: Activity ID or activity name to be started.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -135,7 +169,11 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -143,7 +181,11 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -159,7 +201,18 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         hold_secs: float | None = None,
         num_repeats: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.send_command service synchronously.
+
+        Args:
+            command: A single command or a list of commands to send.
+            delay_secs: The time you want to wait in between repeated commands.
+            device: Device ID to send command to.
+            hold_secs: The time you want to have it held before the release is send.
+            num_repeats: The number of times you want to repeat the commands.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="send_command",
@@ -180,7 +233,20 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         device: str | None = None,
         timeout: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.learn_command service synchronously.
+
+        Args:
+            alternative: If code must be stored as an alternative. This is useful for discrete codes. Discrete codes are
+                used for toggles that only perform one function. For example, a code to only turn a device on. If it is
+                on already, sending the code won't change the state.
+            command: A single command or a list of commands to learn.
+            command_type: The type of command to be learned.
+            device: Device ID to learn command from.
+            timeout: Timeout for the command to be learned.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="learn_command",
@@ -198,7 +264,15 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         command: Any,
         device: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the remote.delete_command service synchronously.
+
+        Args:
+            command: The single command or the list of commands to be deleted.
+            device: Device from which commands will be deleted.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="delete_command",

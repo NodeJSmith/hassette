@@ -22,7 +22,11 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the lock.lock service.
+
+        Args:
+            code: Code used to lock the lock.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -37,7 +41,11 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the lock.open service.
+
+        Args:
+            code: Code used to open the lock.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,7 +60,11 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the lock.unlock service.
+
+        Args:
+            code: Code used to unlock the lock.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -71,7 +83,14 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the lock.lock service synchronously.
+
+        Args:
+            code: Code used to lock the lock.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="lock",
@@ -84,7 +103,14 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the lock.open service synchronously.
+
+        Args:
+            code: Code used to open the lock.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open",
@@ -97,7 +123,14 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the lock.unlock service synchronously.
+
+        Args:
+            code: Code used to unlock the lock.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="unlock",

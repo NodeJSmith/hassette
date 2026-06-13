@@ -24,7 +24,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.set_preset_mode service.
+
+        Args:
+            preset_mode: Preset fan mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -39,7 +43,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.set_percentage service.
+
+        Args:
+            percentage: Speed of the fan.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -55,7 +63,12 @@ class FanEntity(BaseEntity[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.turn_on service.
+
+        Args:
+            percentage: Speed of the fan.
+            preset_mode: Preset fan mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +80,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -81,7 +94,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         oscillating: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.oscillate service.
+
+        Args:
+            oscillating: Turns oscillation on/off.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -92,7 +109,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -106,7 +123,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         direction: Direction,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.set_direction service.
+
+        Args:
+            direction: Direction of the fan rotation.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -121,7 +142,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.increase_speed service.
+
+        Args:
+            percentage_step: Percentage step by which the speed should be increased.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -136,7 +161,11 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the fan.decrease_speed service.
+
+        Args:
+            percentage_step: Percentage step by which the speed should be decreased.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -155,7 +184,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         preset_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.set_preset_mode service synchronously.
+
+        Args:
+            preset_mode: Preset fan mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_preset_mode",
@@ -168,7 +204,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage: int,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.set_percentage service synchronously.
+
+        Args:
+            percentage: Speed of the fan.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_percentage",
@@ -182,7 +225,15 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.turn_on service synchronously.
+
+        Args:
+            percentage: Speed of the fan.
+            preset_mode: Preset fan mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -192,7 +243,11 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -204,7 +259,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         oscillating: bool,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.oscillate service synchronously.
+
+        Args:
+            oscillating: Turns oscillation on/off.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="oscillate",
@@ -213,7 +275,11 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -225,7 +291,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         direction: Direction,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.set_direction service synchronously.
+
+        Args:
+            direction: Direction of the fan rotation.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_direction",
@@ -238,7 +311,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.increase_speed service synchronously.
+
+        Args:
+            percentage_step: Percentage step by which the speed should be increased.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="increase_speed",
@@ -251,7 +331,14 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the fan.decrease_speed service synchronously.
+
+        Args:
+            percentage_step: Percentage step by which the speed should be decreased.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="decrease_speed",

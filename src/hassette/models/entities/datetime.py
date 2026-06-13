@@ -22,7 +22,11 @@ class DateTimeEntity(BaseEntity[DateTimeState, str]):
         *,
         datetime: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the datetime.set_value service.
+
+        Args:
+            datetime: The date/time to set. The time zone of the Home Assistant instance is assumed.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -41,7 +45,14 @@ class DateTimeEntitySyncFacade(BaseEntitySyncFacade[DateTimeState, str]):
         *,
         datetime: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the datetime.set_value service synchronously.
+
+        Args:
+            datetime: The date/time to set. The time zone of the Home Assistant instance is assumed.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_value",

@@ -24,7 +24,11 @@ class TodoEntity(BaseEntity[TodoState, str]):
         *,
         status: Status | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the todo.get_items service.
+
+        Args:
+            status: Only return to-do items with the specified statuses. Returns not completed actions by default.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -42,7 +46,14 @@ class TodoEntity(BaseEntity[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the todo.add_item service.
+
+        Args:
+            item: The name that represents the to-do item.
+            description: A more complete description of the to-do item than provided by the item name.
+            due_date: The date the to-do item is expected to be completed.
+            due_datetime: The date and time the to-do item is expected to be completed.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -65,7 +76,17 @@ class TodoEntity(BaseEntity[TodoState, str]):
         rename: str | None = None,
         status: Literal["needs_action", "completed"] | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the todo.update_item service.
+
+        Args:
+            item: The name/summary of the to-do item. If you have items with duplicate names, you can reference specific
+                ones using their UID instead.
+            description: A more complete description of the to-do item than provided by the item name.
+            due_date: The date the to-do item is expected to be completed.
+            due_datetime: The date and time the to-do item is expected to be completed.
+            rename: The new name for the to-do item.
+            status: A status or confirmation of the to-do item.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -85,7 +106,12 @@ class TodoEntity(BaseEntity[TodoState, str]):
         *,
         item: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the todo.remove_item service.
+
+        Args:
+            item: The name/summary of the to-do item. If you have items with duplicate names, you can reference specific
+                ones using their UID instead.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -96,7 +122,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         )
 
     def remove_completed_items(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the todo.remove_completed_items service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -114,7 +140,14 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         *,
         status: Status | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the todo.get_items service synchronously.
+
+        Args:
+            status: Only return to-do items with the specified statuses. Returns not completed actions by default.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_items",
@@ -130,7 +163,17 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the todo.add_item service synchronously.
+
+        Args:
+            item: The name that represents the to-do item.
+            description: A more complete description of the to-do item than provided by the item name.
+            due_date: The date the to-do item is expected to be completed.
+            due_datetime: The date and time the to-do item is expected to be completed.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="add_item",
@@ -151,7 +194,20 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         rename: str | None = None,
         status: Literal["needs_action", "completed"] | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the todo.update_item service synchronously.
+
+        Args:
+            item: The name/summary of the to-do item. If you have items with duplicate names, you can reference specific
+                ones using their UID instead.
+            description: A more complete description of the to-do item than provided by the item name.
+            due_date: The date the to-do item is expected to be completed.
+            due_datetime: The date and time the to-do item is expected to be completed.
+            rename: The new name for the to-do item.
+            status: A status or confirmation of the to-do item.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="update_item",
@@ -169,7 +225,15 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         *,
         item: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the todo.remove_item service synchronously.
+
+        Args:
+            item: The name/summary of the to-do item. If you have items with duplicate names, you can reference specific
+                ones using their UID instead.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_item",
@@ -178,7 +242,11 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         )
 
     def remove_completed_items(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the todo.remove_completed_items service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_completed_items",

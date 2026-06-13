@@ -22,7 +22,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_preset_mode service.
+
+        Args:
+            preset_mode: Preset mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -40,7 +44,14 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         target_temp_low: float | None = None,
         temperature: float | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_temperature service.
+
+        Args:
+            hvac_mode: HVAC operation mode.
+            target_temp_high: The max temperature setpoint.
+            target_temp_low: The min temperature setpoint.
+            temperature: The temperature setpoint.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,7 +69,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         humidity: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_humidity service.
+
+        Args:
+            humidity: Target humidity.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -73,7 +88,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         fan_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_fan_mode service.
+
+        Args:
+            fan_mode: Fan operation mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -88,7 +107,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         hvac_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_hvac_mode service.
+
+        Args:
+            hvac_mode: HVAC operation mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -103,7 +126,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_swing_mode service.
+
+        Args:
+            swing_mode: Swing operation mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -118,7 +145,11 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_horizontal_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.set_swing_horizontal_mode service.
+
+        Args:
+            swing_horizontal_mode: Horizontal swing operation mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -129,7 +160,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.turn_on service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -139,7 +170,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -149,7 +180,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the climate.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -167,7 +198,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         preset_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_preset_mode service synchronously.
+
+        Args:
+            preset_mode: Preset mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_preset_mode",
@@ -183,7 +221,17 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         target_temp_low: float | None = None,
         temperature: float | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_temperature service synchronously.
+
+        Args:
+            hvac_mode: HVAC operation mode.
+            target_temp_high: The max temperature setpoint.
+            target_temp_low: The min temperature setpoint.
+            temperature: The temperature setpoint.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_temperature",
@@ -199,7 +247,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         humidity: int,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_humidity service synchronously.
+
+        Args:
+            humidity: Target humidity.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_humidity",
@@ -212,7 +267,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         fan_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_fan_mode service synchronously.
+
+        Args:
+            fan_mode: Fan operation mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_fan_mode",
@@ -225,7 +287,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         hvac_mode: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_hvac_mode service synchronously.
+
+        Args:
+            hvac_mode: HVAC operation mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_hvac_mode",
@@ -238,7 +307,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         swing_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_swing_mode service synchronously.
+
+        Args:
+            swing_mode: Swing operation mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_swing_mode",
@@ -251,7 +327,14 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         swing_horizontal_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.set_swing_horizontal_mode service synchronously.
+
+        Args:
+            swing_horizontal_mode: Horizontal swing operation mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_swing_horizontal_mode",
@@ -260,7 +343,11 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def turn_on(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.turn_on service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -268,7 +355,11 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -276,7 +367,11 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the climate.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

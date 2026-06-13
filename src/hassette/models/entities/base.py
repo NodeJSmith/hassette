@@ -83,10 +83,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         return self._get_or_create_sync(BaseEntitySyncFacade)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Turn off the entity.
-
-        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
-        """
+        """Turn off the entity."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.turn_off(self.entity_id, self.domain)
@@ -94,17 +91,15 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
         """Turn on the entity.
 
-        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
+        Args:
+            **data: Service data fields forwarded to the domain's ``turn_on`` service.
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.turn_on(self.entity_id, self.domain, **data)
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Toggle the entity.
-
-        Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn).
-        """
+        """Toggle the entity."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.toggle_service(self.entity_id, self.domain)

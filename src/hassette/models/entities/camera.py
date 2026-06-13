@@ -20,7 +20,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         return self._get_or_create_sync(CameraEntitySyncFacade)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -30,7 +30,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.turn_on service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -40,7 +40,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def enable_motion_detection(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.enable_motion_detection service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -50,7 +50,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         )
 
     def disable_motion_detection(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.disable_motion_detection service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -64,7 +64,11 @@ class CameraEntity(BaseEntity[CameraState, str]):
         *,
         filename: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.snapshot service.
+
+        Args:
+            filename: Full path to filename.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -80,7 +84,12 @@ class CameraEntity(BaseEntity[CameraState, str]):
         media_player: str,
         format: Format | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.play_stream service.
+
+        Args:
+            media_player: Media player to stream to.
+            format: Stream format supported by the media player.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -98,7 +107,14 @@ class CameraEntity(BaseEntity[CameraState, str]):
         duration: int | None = None,
         lookback: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the camera.record service.
+
+        Args:
+            filename: Full path to filename. Must be mp4.
+            duration: Planned duration of the recording. The actual duration may vary.
+            lookback: Planned lookback period to include in the recording (in addition to the duration). Only available
+                if there is currently an active HLS stream. The actual length of the lookback period may vary.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -115,7 +131,11 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
     """Synchronous facade for CameraEntity service methods."""
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -123,7 +143,11 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def turn_on(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.turn_on service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -131,7 +155,11 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def enable_motion_detection(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.enable_motion_detection service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="enable_motion_detection",
@@ -139,7 +167,11 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def disable_motion_detection(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.disable_motion_detection service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="disable_motion_detection",
@@ -151,7 +183,14 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         *,
         filename: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.snapshot service synchronously.
+
+        Args:
+            filename: Full path to filename.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="snapshot",
@@ -165,7 +204,15 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         media_player: str,
         format: Format | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.play_stream service synchronously.
+
+        Args:
+            media_player: Media player to stream to.
+            format: Stream format supported by the media player.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="play_stream",
@@ -181,7 +228,17 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         duration: int | None = None,
         lookback: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the camera.record service synchronously.
+
+        Args:
+            filename: Full path to filename. Must be mp4.
+            duration: Planned duration of the recording. The actual duration may vary.
+            lookback: Planned lookback period to include in the recording (in addition to the duration). Only available
+                if there is currently an active HLS stream. The actual length of the lookback period may vary.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="record",

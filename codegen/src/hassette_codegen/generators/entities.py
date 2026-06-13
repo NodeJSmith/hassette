@@ -11,11 +11,15 @@ Consolidating them is tracked in #938; until then, edit both when changing how s
 dispatch.
 """
 
+import textwrap
 from dataclasses import dataclass
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.type_mapping import map_selector_to_type
+
+DOCSTRING_INDENT = " " * 8
+LINE_LENGTH = 120
 
 
 @dataclass
@@ -23,6 +27,7 @@ class ServiceParam:
     name: str
     python_type: str
     required: bool = False
+    description: str | None = None
 
 
 @dataclass
@@ -30,6 +35,8 @@ class ServiceForTemplate:
     name: str
     method_name: str
     params: list[ServiceParam]
+    async_doc: str
+    sync_doc: str
 
 
 def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
@@ -73,13 +80,24 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
                 if "None" not in python_type:
                     python_type = f"{python_type} | None"
 
-            params.append(ServiceParam(name=param_name, python_type=python_type, required=field.required))
+            params.append(
+                ServiceParam(
+                    name=param_name,
+                    python_type=python_type,
+                    required=field.required,
+                    description=field.description,
+                )
+            )
 
+        sorted_params = sorted(params, key=lambda p: (not p.required, p.name))
+        summary = f"Call the {domain.name}.{service.name} service"
         services_for_template.append(
             ServiceForTemplate(
                 name=service.name,
                 method_name=service.method_name,
-                params=sorted(params, key=lambda p: (not p.required, p.name)),
+                params=sorted_params,
+                async_doc=build_method_docstring(f"{summary}.", sorted_params, returns_none=False),
+                sync_doc=build_method_docstring(f"{summary} synchronously.", sorted_params, returns_none=True),
             )
         )
 
@@ -97,3 +115,42 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
 def _make_alias_name(param_name: str) -> str:
     """Convert a param name to a PascalCase type alias name."""
     return param_name.replace("_", " ").title().replace(" ", "")
+
+
+def build_method_docstring(summary: str, params: list[ServiceParam], *, returns_none: bool) -> str:
+    """Build a Google-style docstring body for an entity service method.
+
+    The returned string carries its own 8-space indentation and triple quotes, so the template
+    inserts it verbatim. Only params with a resolved Home Assistant description appear in ``Args``;
+    descriptions are rewrapped to the project line length and given a trailing period when they
+    lack terminal punctuation.
+    """
+    lines = [f'{DOCSTRING_INDENT}"""{summary}']
+
+    documented = [p for p in params if p.description]
+    if documented:
+        lines.append("")
+        lines.append(f"{DOCSTRING_INDENT}Args:")
+        for param in documented:
+            text = " ".join((param.description or "").split())
+            if not text.endswith((".", "!", "?")):
+                text += "."
+            # Google hanging indent: the ``name:`` label sits at +4, continuation lines at +8.
+            lines.append(
+                textwrap.fill(
+                    text,
+                    width=LINE_LENGTH,
+                    initial_indent=f"{DOCSTRING_INDENT}    {param.name}: ",
+                    subsequent_indent=f"{DOCSTRING_INDENT}        ",
+                    break_long_words=False,
+                    break_on_hyphens=False,
+                )
+            )
+
+    if returns_none:
+        lines.append("")
+        lines.append(f"{DOCSTRING_INDENT}Returns:")
+        lines.append(f"{DOCSTRING_INDENT}    None.")
+
+    lines.append(f'{DOCSTRING_INDENT}"""')
+    return "\n".join(lines)

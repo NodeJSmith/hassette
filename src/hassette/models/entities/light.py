@@ -40,7 +40,31 @@ class LightEntity(BaseEntity[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the light.turn_on service.
+
+        Args:
+            brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
+                is the maximum brightness.
+            brightness_pct: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the
+                minimum brightness, and 100 is the maximum brightness.
+            brightness_step: Change brightness by an amount.
+            brightness_step_pct: Change brightness by a percentage.
+            color_name: A human-readable color name.
+            color_temp_kelvin: Color temperature in Kelvin.
+            effect: Light effect.
+            flash: Tell light to flash, can be either value short or long.
+            hs_color: Color in hue/sat format. A list of two integers. Hue is 0-360 and Sat is 0-100.
+            profile: Name of a light profile to use.
+            rgb_color: The color in RGB format. A list of three integers between 0 and 255 representing the values of
+                red, green, and blue.
+            rgbw_color: The color in RGBW format. A list of four integers between 0 and 255 representing the values of
+                red, green, blue, and white.
+            rgbww_color: The color in RGBWW format. A list of five integers between 0 and 255 representing the values of
+                red, green, blue, cold white, and warm white.
+            transition: Duration it takes to get to next state.
+            white: Set the light to white mode.
+            xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -71,7 +95,12 @@ class LightEntity(BaseEntity[LightState, str]):
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the light.turn_off service.
+
+        Args:
+            flash: Tell light to flash, can be either value short or long.
+            transition: Duration it takes to get to next state.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -100,7 +129,29 @@ class LightEntity(BaseEntity[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the light.toggle service.
+
+        Args:
+            brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
+                is the maximum brightness.
+            brightness_pct: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the
+                minimum brightness, and 100 is the maximum brightness.
+            color_name: A human-readable color name.
+            color_temp_kelvin: Color temperature in Kelvin.
+            effect: Light effect.
+            flash: Tell light to flash, can be either value short or long.
+            hs_color: Color in hue/sat format. A list of two integers. Hue is 0-360 and Sat is 0-100.
+            profile: Name of a light profile to use.
+            rgb_color: The color in RGB format. A list of three integers between 0 and 255 representing the values of
+                red, green, and blue.
+            rgbw_color: The color in RGBW format. A list of four integers between 0 and 255 representing the values of
+                red, green, blue, and white.
+            rgbww_color: The color in RGBWW format. A list of five integers between 0 and 255 representing the values of
+                red, green, blue, cold white, and warm white.
+            transition: Duration it takes to get to next state.
+            white: Set the light to white mode.
+            xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -147,7 +198,34 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the light.turn_on service synchronously.
+
+        Args:
+            brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
+                is the maximum brightness.
+            brightness_pct: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the
+                minimum brightness, and 100 is the maximum brightness.
+            brightness_step: Change brightness by an amount.
+            brightness_step_pct: Change brightness by a percentage.
+            color_name: A human-readable color name.
+            color_temp_kelvin: Color temperature in Kelvin.
+            effect: Light effect.
+            flash: Tell light to flash, can be either value short or long.
+            hs_color: Color in hue/sat format. A list of two integers. Hue is 0-360 and Sat is 0-100.
+            profile: Name of a light profile to use.
+            rgb_color: The color in RGB format. A list of three integers between 0 and 255 representing the values of
+                red, green, and blue.
+            rgbw_color: The color in RGBW format. A list of four integers between 0 and 255 representing the values of
+                red, green, blue, and white.
+            rgbww_color: The color in RGBWW format. A list of five integers between 0 and 255 representing the values of
+                red, green, blue, cold white, and warm white.
+            transition: Duration it takes to get to next state.
+            white: Set the light to white mode.
+            xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -176,7 +254,15 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the light.turn_off service synchronously.
+
+        Args:
+            flash: Tell light to flash, can be either value short or long.
+            transition: Duration it takes to get to next state.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -203,7 +289,32 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the light.toggle service synchronously.
+
+        Args:
+            brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
+                is the maximum brightness.
+            brightness_pct: Number indicating the percentage of full brightness, where 0 turns the light off, 1 is the
+                minimum brightness, and 100 is the maximum brightness.
+            color_name: A human-readable color name.
+            color_temp_kelvin: Color temperature in Kelvin.
+            effect: Light effect.
+            flash: Tell light to flash, can be either value short or long.
+            hs_color: Color in hue/sat format. A list of two integers. Hue is 0-360 and Sat is 0-100.
+            profile: Name of a light profile to use.
+            rgb_color: The color in RGB format. A list of three integers between 0 and 255 representing the values of
+                red, green, and blue.
+            rgbw_color: The color in RGBW format. A list of four integers between 0 and 255 representing the values of
+                red, green, blue, and white.
+            rgbww_color: The color in RGBWW format. A list of five integers between 0 and 255 representing the values of
+                red, green, blue, cold white, and warm white.
+            transition: Duration it takes to get to next state.
+            white: Set the light to white mode.
+            xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

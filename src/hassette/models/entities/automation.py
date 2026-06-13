@@ -18,7 +18,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         return self._get_or_create_sync(AutomationEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the automation.turn_on service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -32,7 +32,11 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         *,
         stop_actions: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the automation.turn_off service.
+
+        Args:
+            stop_actions: Stops currently running actions.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -43,7 +47,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the automation.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -57,7 +61,11 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         *,
         skip_condition: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the automation.trigger service.
+
+        Args:
+            skip_condition: Defines whether or not the conditions will be skipped.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -72,7 +80,11 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
     """Synchronous facade for AutomationEntity service methods."""
 
     def turn_on(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the automation.turn_on service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -84,7 +96,14 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         stop_actions: bool | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the automation.turn_off service synchronously.
+
+        Args:
+            stop_actions: Stops currently running actions.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -93,7 +112,11 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the automation.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -105,7 +128,14 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         skip_condition: bool | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the automation.trigger service synchronously.
+
+        Args:
+            skip_condition: Defines whether or not the conditions will be skipped.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="trigger",

@@ -18,7 +18,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         return self._get_or_create_sync(SelectEntitySyncFacade)
 
     def select_first(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the select.select_first service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         )
 
     def select_last(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the select.select_last service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -42,7 +42,11 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the select.select_next service.
+
+        Args:
+            cycle: If the option should cycle from the last to the first.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -57,7 +61,11 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         option: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the select.select_option service.
+
+        Args:
+            option: Option to be selected.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -72,7 +80,11 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the select.select_previous service.
+
+        Args:
+            cycle: If the option should cycle from the first to the last.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -87,7 +99,11 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
     """Synchronous facade for SelectEntity service methods."""
 
     def select_first(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the select.select_first service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_first",
@@ -95,7 +111,11 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         )
 
     def select_last(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the select.select_last service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_last",
@@ -107,7 +127,14 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the select.select_next service synchronously.
+
+        Args:
+            cycle: If the option should cycle from the last to the first.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_next",
@@ -120,7 +147,14 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         option: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the select.select_option service synchronously.
+
+        Args:
+            option: Option to be selected.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_option",
@@ -133,7 +167,14 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the select.select_previous service synchronously.
+
+        Args:
+            cycle: If the option should cycle from the first to the last.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_previous",

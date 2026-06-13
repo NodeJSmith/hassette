@@ -22,7 +22,11 @@ class TimerEntity(BaseEntity[TimerState, str]):
         *,
         duration: dict[str, int] | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the timer.start service.
+
+        Args:
+            duration: Custom duration to restart the timer with.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -33,7 +37,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def pause(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the timer.pause service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -43,7 +47,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def cancel(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the timer.cancel service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -53,7 +57,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def finish(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the timer.finish service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +71,11 @@ class TimerEntity(BaseEntity[TimerState, str]):
         *,
         duration: dict[str, int],
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the timer.change service.
+
+        Args:
+            duration: Duration to add to or subtract from the running timer.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -86,7 +94,14 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int] | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the timer.start service synchronously.
+
+        Args:
+            duration: Custom duration to restart the timer with.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
@@ -95,7 +110,11 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def pause(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the timer.pause service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
@@ -103,7 +122,11 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def cancel(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the timer.cancel service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="cancel",
@@ -111,7 +134,11 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def finish(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the timer.finish service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="finish",
@@ -123,7 +150,14 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int],
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the timer.change service synchronously.
+
+        Args:
+            duration: Duration to add to or subtract from the running timer.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="change",

@@ -24,7 +24,11 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Type,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the weather.get_forecast service.
+
+        Args:
+            type: The scope of the weather forecast.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -39,7 +43,11 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the weather.get_forecasts service.
+
+        Args:
+            type: The scope of the weather forecast.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,7 +66,14 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Type,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the weather.get_forecast service synchronously.
+
+        Args:
+            type: The scope of the weather forecast.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecast",
@@ -71,7 +86,14 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the weather.get_forecasts service synchronously.
+
+        Args:
+            type: The scope of the weather forecast.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecasts",

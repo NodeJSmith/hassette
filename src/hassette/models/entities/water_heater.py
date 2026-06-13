@@ -22,7 +22,11 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         *,
         away_mode: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the water_heater.set_away_mode service.
+
+        Args:
+            away_mode: New value of away mode.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -38,7 +42,13 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         temperature: float,
         operation_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the water_heater.set_temperature service.
+
+        Args:
+            temperature: New target temperature for the water heater.
+            operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
+                documentation.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -54,7 +64,12 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         *,
         operation_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the water_heater.set_operation_mode service.
+
+        Args:
+            operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
+                documentation.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -65,7 +80,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the water_heater.turn_on service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -75,7 +90,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the water_heater.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -93,7 +108,14 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         away_mode: bool,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the water_heater.set_away_mode service synchronously.
+
+        Args:
+            away_mode: New value of away mode.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_away_mode",
@@ -107,7 +129,16 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         temperature: float,
         operation_mode: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the water_heater.set_temperature service synchronously.
+
+        Args:
+            temperature: New target temperature for the water heater.
+            operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
+                documentation.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_temperature",
@@ -121,7 +152,15 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         operation_mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the water_heater.set_operation_mode service synchronously.
+
+        Args:
+            operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
+                documentation.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_operation_mode",
@@ -130,7 +169,11 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_on(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the water_heater.turn_on service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -138,7 +181,11 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the water_heater.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",

@@ -24,7 +24,14 @@ class SirenEntity(BaseEntity[SirenState, str]):
         tone: str | None = None,
         volume_level: float | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the siren.turn_on service.
+
+        Args:
+            duration: Number of seconds the sound is played. Must be supported by the integration.
+            tone: The tone to emit. When `available_tones` property is a map, either the key or the value can be used.
+                Must be supported by the integration.
+            volume_level: The volume. 0 is inaudible, 1 is the maximum volume. Must be supported by the integration.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -37,7 +44,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the siren.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -47,7 +54,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the siren.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +74,17 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         tone: str | None = None,
         volume_level: float | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the siren.turn_on service synchronously.
+
+        Args:
+            duration: Number of seconds the sound is played. Must be supported by the integration.
+            tone: The tone to emit. When `available_tones` property is a map, either the key or the value can be used.
+                Must be supported by the integration.
+            volume_level: The volume. 0 is inaudible, 1 is the maximum volume. Must be supported by the integration.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -78,7 +95,11 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the siren.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -86,7 +107,11 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the siren.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

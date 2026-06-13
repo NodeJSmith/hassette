@@ -22,7 +22,12 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         *,
         mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the humidifier.set_mode service.
+
+        Args:
+            mode: Operation mode. For example, "normal", "eco", or "away". For a list of possible values, refer to the
+                integration documentation.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -37,7 +42,11 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         *,
         humidity: int,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the humidifier.set_humidity service.
+
+        Args:
+            humidity: Target humidity.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -48,7 +57,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the humidifier.turn_on service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,7 +67,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the humidifier.turn_off service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -68,7 +77,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the humidifier.toggle service."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -86,7 +95,15 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         mode: str,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the humidifier.set_mode service synchronously.
+
+        Args:
+            mode: Operation mode. For example, "normal", "eco", or "away". For a list of possible values, refer to the
+                integration documentation.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_mode",
@@ -99,7 +116,14 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         humidity: int,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the humidifier.set_humidity service synchronously.
+
+        Args:
+            humidity: Target humidity.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_humidity",
@@ -108,7 +132,11 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_on(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the humidifier.turn_on service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -116,7 +144,11 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_off(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the humidifier.turn_off service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -124,7 +156,11 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def toggle(self) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the humidifier.toggle service synchronously.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

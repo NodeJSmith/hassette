@@ -22,7 +22,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_disarm service.
+
+        Args:
+            code: Code to disarm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -37,7 +41,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_arm_custom_bypass service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,7 +60,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_arm_home service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +79,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_arm_away service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -82,7 +98,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_arm_night service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -97,7 +117,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_arm_vacation service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -112,7 +136,11 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Call the alarm_control_panel.alarm_trigger service.
+
+        Args:
+            code: Code to arm the alarm.
+        """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -131,7 +159,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_disarm service synchronously.
+
+        Args:
+            code: Code to disarm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_disarm",
@@ -144,7 +179,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_arm_custom_bypass service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_custom_bypass",
@@ -157,7 +199,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_arm_home service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_home",
@@ -170,7 +219,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_arm_away service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_away",
@@ -183,7 +239,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_arm_night service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_night",
@@ -196,7 +259,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_arm_vacation service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_vacation",
@@ -209,7 +279,14 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Runs synchronously — blocks until the service call completes."""
+        """Call the alarm_control_panel.alarm_trigger service synchronously.
+
+        Args:
+            code: Code to arm the alarm.
+
+        Returns:
+            None.
+        """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_trigger",

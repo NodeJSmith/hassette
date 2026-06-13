@@ -216,7 +216,10 @@ class TestEntityWrapperGenerator:
         assert "def open_cover(self) -> None:" in facade_portion
         assert "-> Coroutine" not in facade_portion
         assert "return self.entity.api.sync" not in facade_portion
-        assert '"""Runs synchronously — blocks until the service call completes."""' in facade_portion
+        # Google-style docstring: descriptive summary plus a Returns section, no await/blocking warning.
+        assert '"""Call the cover.open_cover service synchronously.' in facade_portion
+        assert "Returns:\n            None." in facade_portion
+        assert "Must be awaited" not in facade_portion
 
     def test_facade_imports_base_facade_not_cast(self) -> None:
         domain = ExtractedDomain(
