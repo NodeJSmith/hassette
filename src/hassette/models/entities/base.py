@@ -118,14 +118,14 @@ class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
     def __init__(self, entity: BaseEntity[StateT, StateValueT]) -> None:
         self.entity = entity
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Turn off the entity."""
-        return self.entity.api.sync.turn_off(self.entity.entity_id, self.entity.domain)
+        self.entity.api.sync.turn_off(self.entity.entity_id, self.entity.domain)
 
-    def turn_on(self, **data):
+    def turn_on(self, **data: Any) -> None:
         """Turn on the entity."""
-        return self.entity.api.sync.turn_on(self.entity.entity_id, self.entity.domain, **data)
+        self.entity.api.sync.turn_on(self.entity.entity_id, self.entity.domain, **data)
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Toggle the entity."""
-        return self.entity.api.sync.toggle_service(self.entity.entity_id, self.entity.domain)
+        self.entity.api.sync.toggle_service(self.entity.entity_id, self.entity.domain)
