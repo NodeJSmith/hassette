@@ -14,6 +14,7 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
     @property
     def sync(self) -> "ScriptEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(ScriptEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
@@ -48,6 +49,8 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
 
 class ScriptEntitySyncFacade(BaseEntitySyncFacade[ScriptState, str]):
+    """Synchronous facade for ScriptEntity service methods."""
+
     def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

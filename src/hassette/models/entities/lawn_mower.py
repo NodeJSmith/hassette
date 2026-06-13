@@ -14,6 +14,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
 
     @property
     def sync(self) -> "LawnMowerEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(LawnMowerEntitySyncFacade)
 
     def start_mowing(self) -> Coroutine[Any, Any, None]:
@@ -48,6 +49,8 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
 
 
 class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
+    """Synchronous facade for LawnMowerEntity service methods."""
+
     def start_mowing(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

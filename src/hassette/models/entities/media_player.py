@@ -18,6 +18,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     @property
     def sync(self) -> "MediaPlayerEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(MediaPlayerEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
@@ -329,6 +330,8 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
 
 class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
+    """Synchronous facade for MediaPlayerEntity service methods."""
+
     def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

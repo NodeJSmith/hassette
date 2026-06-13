@@ -79,6 +79,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
 
     @property
     def sync(self) -> "BaseEntitySyncFacade[StateT, StateValueT]":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(BaseEntitySyncFacade)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:

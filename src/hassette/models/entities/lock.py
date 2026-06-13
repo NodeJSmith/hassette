@@ -14,6 +14,7 @@ class LockEntity(BaseEntity[LockState, str]):
 
     @property
     def sync(self) -> "LockEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(LockEntitySyncFacade)
 
     def lock(
@@ -63,6 +64,8 @@ class LockEntity(BaseEntity[LockState, str]):
 
 
 class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
+    """Synchronous facade for LockEntity service methods."""
+
     def lock(
         self,
         *,

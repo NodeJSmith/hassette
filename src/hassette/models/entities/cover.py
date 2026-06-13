@@ -14,6 +14,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     @property
     def sync(self) -> "CoverEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(CoverEntitySyncFacade)
 
     def open_cover(self) -> Coroutine[Any, Any, None]:
@@ -128,6 +129,8 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
 
 class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
+    """Synchronous facade for CoverEntity service methods."""
+
     def open_cover(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

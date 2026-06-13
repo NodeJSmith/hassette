@@ -29,9 +29,7 @@ if TYPE_CHECKING:
     from hassette.api.api import Api
 
 
-# ---------------------------------------------------------------------------
 # Entity construction helpers
-# ---------------------------------------------------------------------------
 
 
 def make_cover_entity(api: "Api") -> tuple[CoverEntity, "Token[Hassette]"]:
@@ -63,9 +61,7 @@ def make_climate_entity(api: "Api") -> tuple[ClimateEntity, "Token[Hassette]"]:
 # local here since they have no second consumer.
 
 
-# ---------------------------------------------------------------------------
 # AC#2 — .sync returns the domain-specific facade type
-# ---------------------------------------------------------------------------
 
 
 def test_cover_sync_is_cover_entity_sync_facade() -> None:
@@ -101,9 +97,7 @@ def test_light_sync_is_light_entity_sync_facade() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#3 — no-param dispatch: CoverEntity.sync.open_cover()
-# ---------------------------------------------------------------------------
 
 
 def test_cover_sync_open_cover_dispatches_call_service() -> None:
@@ -128,9 +122,7 @@ def test_cover_sync_open_cover_dispatches_call_service() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#4 — required-param dispatch: ClimateEntity.sync.set_temperature()
-# ---------------------------------------------------------------------------
 
 
 def test_climate_sync_set_temperature_passes_param_through() -> None:
@@ -156,14 +148,12 @@ def test_climate_sync_set_temperature_passes_param_through() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#5 — optional-param dispatch + inheritance intact: LightEntity.sync.turn_on/turn_off
 #
 # The turn_on dispatch is also exercised by
 # test_entity_coroutine_conversion.test_entity_sync_turn_on_registers. The overlap is
 # intentional — that test pins it under AC#11 (forgotten-await work); this one pins it
 # under AC#5 (entity sync facade) alongside turn_off and the inheritance check.
-# ---------------------------------------------------------------------------
 
 
 def test_light_sync_turn_on_dispatches_via_call_service() -> None:
@@ -222,9 +212,7 @@ def test_light_sync_inherits_base_entity_sync_facade() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#5 — .sync caching: same instance returned on repeated access
-# ---------------------------------------------------------------------------
 
 
 def test_sync_property_caches_facade_instance() -> None:

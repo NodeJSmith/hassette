@@ -14,6 +14,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
 
     @property
     def sync(self) -> "AlarmControlPanelEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(AlarmControlPanelEntitySyncFacade)
 
     def alarm_disarm(
@@ -123,6 +124,8 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
 
 
 class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelState, str]):
+    """Synchronous facade for AlarmControlPanelEntity service methods."""
+
     def alarm_disarm(
         self,
         *,

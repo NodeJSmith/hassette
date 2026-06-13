@@ -14,6 +14,7 @@ class ImageEntity(BaseEntity[ImageState, str]):
 
     @property
     def sync(self) -> "ImageEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(ImageEntitySyncFacade)
 
     def snapshot(
@@ -33,6 +34,8 @@ class ImageEntity(BaseEntity[ImageState, str]):
 
 
 class ImageEntitySyncFacade(BaseEntitySyncFacade[ImageState, str]):
+    """Synchronous facade for ImageEntity service methods."""
+
     def snapshot(
         self,
         *,

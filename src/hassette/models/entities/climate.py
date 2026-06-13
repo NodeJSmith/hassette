@@ -14,6 +14,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
     @property
     def sync(self) -> "ClimateEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(ClimateEntitySyncFacade)
 
     def set_preset_mode(
@@ -159,6 +160,8 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
 
 class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
+    """Synchronous facade for ClimateEntity service methods."""
+
     def set_preset_mode(
         self,
         *,

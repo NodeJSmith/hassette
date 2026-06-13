@@ -14,6 +14,7 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
 
     @property
     def sync(self) -> "SwitchEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(SwitchEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
@@ -48,6 +49,8 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
 
 
 class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
+    """Synchronous facade for SwitchEntity service methods."""
+
     def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

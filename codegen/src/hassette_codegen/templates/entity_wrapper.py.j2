@@ -21,6 +21,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 
     @property
     def sync(self) -> "{{ domain_title }}EntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync({{ domain_title }}EntitySyncFacade)
 {% for service in services %}
 {% if service.params %}
@@ -64,6 +65,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 
 {# ---- Synchronous facade for {{ domain_title }}Entity ---- #}
 class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}State, str]):
+    """Synchronous facade for {{ domain_title }}Entity service methods."""
 {% for service in services %}
 {% if service.params %}
     def {{ service.method_name }}(

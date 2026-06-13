@@ -14,6 +14,7 @@ class TextEntity(BaseEntity[TextState, str]):
 
     @property
     def sync(self) -> "TextEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(TextEntitySyncFacade)
 
     def set_value(
@@ -33,6 +34,8 @@ class TextEntity(BaseEntity[TextState, str]):
 
 
 class TextEntitySyncFacade(BaseEntitySyncFacade[TextState, str]):
+    """Synchronous facade for TextEntity service methods."""
+
     def set_value(
         self,
         *,

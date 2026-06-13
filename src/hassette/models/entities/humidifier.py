@@ -14,6 +14,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
 
     @property
     def sync(self) -> "HumidifierEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(HumidifierEntitySyncFacade)
 
     def set_mode(
@@ -78,6 +79,8 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
 
 
 class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
+    """Synchronous facade for HumidifierEntity service methods."""
+
     def set_mode(
         self,
         *,

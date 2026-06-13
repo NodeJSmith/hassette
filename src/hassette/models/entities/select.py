@@ -14,6 +14,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
     @property
     def sync(self) -> "SelectEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(SelectEntitySyncFacade)
 
     def select_first(self) -> Coroutine[Any, Any, None]:
@@ -83,6 +84,8 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
 
 class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
+    """Synchronous facade for SelectEntity service methods."""
+
     def select_first(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

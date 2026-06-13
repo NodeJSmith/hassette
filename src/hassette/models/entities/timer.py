@@ -14,6 +14,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
     @property
     def sync(self) -> "TimerEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(TimerEntitySyncFacade)
 
     def start(
@@ -78,6 +79,8 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
 
 class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
+    """Synchronous facade for TimerEntity service methods."""
+
     def start(
         self,
         *,

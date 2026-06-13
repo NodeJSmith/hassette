@@ -16,6 +16,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
 
     @property
     def sync(self) -> "TodoEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(TodoEntitySyncFacade)
 
     def get_items(
@@ -106,6 +107,8 @@ class TodoEntity(BaseEntity[TodoState, str]):
 
 
 class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
+    """Synchronous facade for TodoEntity service methods."""
+
     def get_items(
         self,
         *,

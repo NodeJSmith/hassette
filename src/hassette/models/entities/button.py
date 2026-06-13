@@ -14,6 +14,7 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
 
     @property
     def sync(self) -> "ButtonEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(ButtonEntitySyncFacade)
 
     def press(self) -> Coroutine[Any, Any, None]:
@@ -28,6 +29,8 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
 
 
 class ButtonEntitySyncFacade(BaseEntitySyncFacade[ButtonState, str]):
+    """Synchronous facade for ButtonEntity service methods."""
+
     def press(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

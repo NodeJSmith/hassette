@@ -14,6 +14,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
     @property
     def sync(self) -> "AutomationEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(AutomationEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
@@ -68,6 +69,8 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
 
 class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
+    """Synchronous facade for AutomationEntity service methods."""
+
     def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

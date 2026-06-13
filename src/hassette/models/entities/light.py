@@ -17,6 +17,7 @@ class LightEntity(BaseEntity[LightState, str]):
 
     @property
     def sync(self) -> "LightEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(LightEntitySyncFacade)
 
     def turn_on(
@@ -124,6 +125,8 @@ class LightEntity(BaseEntity[LightState, str]):
 
 
 class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
+    """Synchronous facade for LightEntity service methods."""
+
     def turn_on(
         self,
         *,

@@ -132,10 +132,11 @@ with the new snapshot. The updated state is also returned.
 
 #### Entity sync facades (`AppSync` only)
 
-Each domain entity exposes a typed sync facade via `.sync`. `cover.sync` returns a
-`CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. The facade
-mirrors every domain-specific action as a blocking synchronous call — no `await`, no
-`run_sync` boilerplate.
+Every entity exposes a sync facade via `.sync`. Domains with Home Assistant services get a
+typed, domain-specific facade — `cover.sync` returns a `CoverEntitySyncFacade`, `climate.sync`
+returns a `ClimateEntitySyncFacade` — that mirrors each domain action as a blocking
+synchronous call, no `await` or `run_sync` boilerplate. Read-only domains (such as `sensor`)
+have no services to call, so their `.sync` exposes only the base `turn_on`/`turn_off`/`toggle`.
 
 These methods block the calling thread until the call completes, so they belong in
 `AppSync` lifecycle hooks and `run_in_thread` callbacks. Calling one from a regular

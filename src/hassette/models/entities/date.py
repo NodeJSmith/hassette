@@ -14,6 +14,7 @@ class DateEntity(BaseEntity[DateState, str]):
 
     @property
     def sync(self) -> "DateEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(DateEntitySyncFacade)
 
     def set_value(
@@ -33,6 +34,8 @@ class DateEntity(BaseEntity[DateState, str]):
 
 
 class DateEntitySyncFacade(BaseEntitySyncFacade[DateState, str]):
+    """Synchronous facade for DateEntity service methods."""
+
     def set_value(
         self,
         *,

@@ -14,6 +14,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
 
     @property
     def sync(self) -> "WaterHeaterEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(WaterHeaterEntitySyncFacade)
 
     def set_away_mode(
@@ -85,6 +86,8 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
 
 
 class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
+    """Synchronous facade for WaterHeaterEntity service methods."""
+
     def set_away_mode(
         self,
         *,

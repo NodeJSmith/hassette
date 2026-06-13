@@ -14,6 +14,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
 
     @property
     def sync(self) -> "SirenEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(SirenEntitySyncFacade)
 
     def turn_on(
@@ -57,6 +58,8 @@ class SirenEntity(BaseEntity[SirenState, str]):
 
 
 class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
+    """Synchronous facade for SirenEntity service methods."""
+
     def turn_on(
         self,
         *,

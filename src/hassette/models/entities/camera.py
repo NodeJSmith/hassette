@@ -16,6 +16,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     @property
     def sync(self) -> "CameraEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(CameraEntitySyncFacade)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
@@ -111,6 +112,8 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
 
 class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
+    """Synchronous facade for CameraEntity service methods."""
+
     def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

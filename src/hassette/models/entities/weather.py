@@ -16,6 +16,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
 
     @property
     def sync(self) -> "WeatherEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(WeatherEntitySyncFacade)
 
     def get_forecast(
@@ -50,6 +51,8 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
 
 
 class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
+    """Synchronous facade for WeatherEntity service methods."""
+
     def get_forecast(
         self,
         *,

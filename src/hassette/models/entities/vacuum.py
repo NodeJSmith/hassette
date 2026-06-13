@@ -14,6 +14,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     @property
     def sync(self) -> "VacuumEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(VacuumEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
@@ -165,6 +166,8 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
 
 class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
+    """Synchronous facade for VacuumEntity service methods."""
+
     def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
         self.entity.api.sync.call_service(

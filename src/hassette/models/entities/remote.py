@@ -16,6 +16,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
 
     @property
     def sync(self) -> "RemoteEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(RemoteEntitySyncFacade)
 
     def turn_on(
@@ -118,6 +119,8 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
 
 
 class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
+    """Synchronous facade for RemoteEntity service methods."""
+
     def turn_on(
         self,
         *,

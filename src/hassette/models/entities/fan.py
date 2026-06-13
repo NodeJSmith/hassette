@@ -16,6 +16,7 @@ class FanEntity(BaseEntity[FanState, str]):
 
     @property
     def sync(self) -> "FanEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(FanEntitySyncFacade)
 
     def set_preset_mode(
@@ -147,6 +148,8 @@ class FanEntity(BaseEntity[FanState, str]):
 
 
 class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
+    """Synchronous facade for FanEntity service methods."""
+
     def set_preset_mode(
         self,
         *,

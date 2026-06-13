@@ -14,6 +14,7 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
 
     @property
     def sync(self) -> "UpdateEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(UpdateEntitySyncFacade)
 
     def install(
@@ -55,6 +56,8 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
 
 
 class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
+    """Synchronous facade for UpdateEntity service methods."""
+
     def install(
         self,
         *,
