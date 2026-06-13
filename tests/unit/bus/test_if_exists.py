@@ -23,6 +23,7 @@ import pytest
 
 from hassette.bus.listeners import Subscription
 from hassette.exceptions import DuplicateListenerError
+from hassette.test_utils.helpers import create_listener
 
 from .conftest import mock_add_listener
 
@@ -94,7 +95,25 @@ async def test_skip_leaves_one_listener_in_registry(bus: "Bus") -> None:
     key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
     # Only one entry in the registry
     assert key in bus._registered_listeners
-    assert len([k for k in bus._registered_listeners if k == key]) == 1
+    assert len(bus._registered_listeners) == 1
+
+
+async def test_registration_failure_rolls_back_registry_key(bus: "Bus") -> None:
+    """A failed add_listener must not leave a phantom key — a retry under the same name succeeds."""
+    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+
+    with mock_add_listener(bus) as mock:
+        mock.side_effect = RuntimeError("registration boom")
+        with pytest.raises(RuntimeError, match="registration boom"):
+            await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+
+    # The reserved key was rolled back, so nothing is left behind.
+    assert key not in bus._registered_listeners
+
+    # A fresh registration under the same name is not blocked by a phantom collision.
+    with mock_add_listener(bus):
+        await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+    assert key in bus._registered_listeners
 
 
 async def test_skip_does_not_call_add_listener_twice(bus: "Bus") -> None:
@@ -332,8 +351,6 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
 
 async def test_add_listener_returns_subscription(bus: "Bus") -> None:
     """FR#10 / AC#9: add_listener returns a Subscription."""
-    from hassette.test_utils.helpers import create_listener
-
     with mock_add_listener(bus):
         listener = create_listener(
             handler=handler_a,
@@ -350,8 +367,6 @@ async def test_add_listener_returns_subscription(bus: "Bus") -> None:
 
 async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> None:
     """AC#9: add_listener with if_exists='skip' returns subscription to existing listener."""
-    from hassette.test_utils.helpers import create_listener
-
     with mock_add_listener(bus):
         listener1 = create_listener(
             handler=handler_a,
