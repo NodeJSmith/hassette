@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add cancelled_at column and listener cancellation write path"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#9"]
 ---

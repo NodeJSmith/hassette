@@ -21,7 +21,9 @@ signature changes (T03 + T04) are complete.
 
 2. Verify the regenerated facade exposes `if_exists` on `on()`, `add_listener`, and the
    event-specific `**opts` methods (`on_state_change`, `on_attribute_change`, `on_call_service`,
-   etc.), and that the new `Subscription` return type on `add_listener` is reflected.
+   etc.), and that the new `Subscription` return type on `add_listener` is reflected. Grep for
+   callers of the facade's `add_listener` and confirm they type-check cleanly after the
+   `None → Subscription` widening (run `uv run pyright` on any caller files).
 
 3. Run the drift check and the facade generation tests:
    ```bash

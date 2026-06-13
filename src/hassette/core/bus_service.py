@@ -184,6 +184,19 @@ class BusService(Service):
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
         )
 
+    async def mark_listener_cancelled(self, db_id: int) -> None:
+        """Persist durable cancellation state for a listener by setting ``cancelled_at`` in the DB.
+
+        Delegates to ``CommandExecutor.mark_listener_cancelled``. Called from the bus cancel
+        path (``Subscription.cancel`` → ``Bus.remove_listener``, ``replace``'s cancel-old
+        step, or a once-listener firing) so that a replaced or cancelled listener's removal
+        is observable in telemetry, mirroring ``SchedulerService.mark_job_cancelled``.
+
+        Args:
+            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+        """
+        await self._executor.mark_listener_cancelled(db_id)
+
     def remove_listener(self, listener: "Listener") -> None:
         """Synchronously cancel and remove a listener from the routing table."""
         listener.cancel()

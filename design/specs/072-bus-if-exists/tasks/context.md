@@ -81,7 +81,7 @@ None.
 
 ### Scheduler `if_exists` resolution — the canonical error/skip/replace shape
 
-**Source:** `src/hassette/scheduler/scheduler.py` (collision block inside `add_job`, lines 201–218)
+**Source:** `src/hassette/scheduler/scheduler.py` (collision block inside `_add_job`, at the `if existing is not None:` branch, scheduler.py:247; public `add_job` at :174)
 
 ```python
 existing = self._jobs_by_name.get(job.name)
@@ -141,12 +141,14 @@ async def mark_job_cancelled(self, db_id: int) -> None:
 
 `CommandExecutor.mark_job_cancelled` (command_executor.py:574) delegates to the repository via
 `database_service.submit`; `SchedulerService.mark_job_cancelled` (scheduler_service.py:462)
-delegates to the executor; `Scheduler.cancel_job` (scheduler.py:257–264) spawns it on the
-service task bucket so the write survives resource shutdown. Mirror this chain for listeners.
+delegates to the executor; `Scheduler.cancel_job` (scheduler.py:302–309) spawns it on
+`scheduler_service.task_bucket` (the service's bucket, not the resource's) so the write
+survives resource shutdown. Mirror this chain for listeners — the bus spawns on
+`bus_service.task_bucket`.
 
 ### Scheduler fire-time removal callback — the once-listener cleanup pattern
 
-**Source:** `src/hassette/scheduler/scheduler.py:119` (register), `:141` (deregister), `_on_job_removed`
+**Source:** registry methods on `SchedulerService` (`core/scheduler_service.py:122` register, `:135` deregister); `Scheduler` registers `_on_job_removed` at `scheduler/scheduler.py:124`, deregisters at `:146`
 
 ```python
 # __init__:  self.scheduler_service.register_removal_callback(self.owner_id, self._on_job_removed)

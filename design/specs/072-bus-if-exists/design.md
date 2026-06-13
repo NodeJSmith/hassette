@@ -220,9 +220,10 @@ listener's removal at all. Both halves are closed here.
 - Assumes `BusService` is the component that auto-removes a once-listener after it fires
   (`bus_service.py:350`, dispatch `finally`) and is the natural place to invoke a fire-time
   removal callback and the `cancelled_at` write.
-- Assumes the telemetry DB is disposable across schema bumps: `database_service.py:451`
-  deletes and recreates a DB whose version is below head, so a column-adding migration needs
-  no in-place data migration.
+- Assumes the telemetry DB is disposable across schema bumps: `_handle_schema_version`
+  (database_service.py:446; the delete-and-recreate logic is at ~:492) deletes and recreates
+  a DB whose version is below head, so a column-adding migration needs no in-place data
+  migration.
 - Depends on the `hassette-codegen sync-facade` tooling, already wired into the repo and CI
   drift checks.
 
@@ -246,12 +247,15 @@ parity with `add_job` returning the job.
 
 ### Collision resolution
 
-Today `register_and_check_collision` (bus.py:198) is error-only and exempts
+Today `register_and_check_collision` (bus.py:219) is error-only and exempts
 once-listeners. It is reshaped into the single decision point — kept private and
 `_`-prefixed (e.g. `_resolve_collision`) so the codegen ignores it — that both
-`_on_internal` and `add_listener` call, modeled on the collision block inside
-`Scheduler.add_job` (the `if existing is not None:` branch at scheduler.py:201–218; `add_job`
-itself begins at scheduler.py:169):
+`_on_internal` and the `add_listener` path call. Note `add_listener` (bus.py:183) is a
+thin wrapper around the private `_add_listener` (bus.py:209), which is where the collision
+check actually runs — `if_exists` must be threaded through `_add_listener`, not just the
+public wrapper. The resolution logic is modeled on the collision block inside
+`Scheduler._add_job` (the `if existing is not None:` branch at scheduler.py:247; the public
+`add_job` begins at scheduler.py:174):
 
 - Compute the natural key. Look up the existing listener.
 - No existing listener → register the key and proceed.
@@ -270,14 +274,18 @@ the old one is cancelled, on `replace`).
 
 ### Storing the listener, not just its name
 
-`_registered_handler_names: dict[tuple[str, int, str, str], str]` (bus.py:142) currently
+`_registered_handler_names: dict[tuple[str, int, str, str], str]` (bus.py:144) currently
 stores the handler-name string — enough for the `error`-only duplicate message, but `skip`
 (return the existing subscription) and `replace` (cancel the existing listener) need the
 `Listener` object itself. The map's value type changes from `str` to `Listener`, and it
 is renamed `_registered_listeners`. (The key tuple `(app_key, instance_index, name, topic)`
 has no named alias today; introducing a `NaturalKey` alias is optional and not required by
 this change.) The duplicate-error message derives the handler name from
-`listener.identity.handler_name`, so no information is lost.
+`listener.identity.handler_name`, so no information is lost. The rename touches every
+reference: `on_initialize` clears the map (bus.py:150), `remove_listener` (bus.py:251) and
+`remove_all_listeners` (bus.py:257) pop/clear it, and the reshaped resolution method's
+docstring (which today says "Once-listeners are exempt and are not registered") must be
+rewritten to describe the new behavior.
 
 ### Logical-configuration comparison
 
@@ -311,8 +319,9 @@ scheduler's `cancelled_at` mechanism exactly:
   `BusService` the same way `SchedulerService.mark_job_cancelled` (scheduler_service.py:462)
   delegates to the executor.
 - The bus cancel path spawns `mark_listener_cancelled` for a listener with a `db_id`,
-  mirroring how `Scheduler.cancel_job` (scheduler.py:257–264) spawns `mark_job_cancelled` on
-  the service's task bucket so the write survives resource shutdown. This covers all three
+  mirroring how `Scheduler.cancel_job` (scheduler.py:302–309) spawns `mark_job_cancelled` on
+  `scheduler_service.task_bucket` — the **service's** bucket, not the resource's — so the
+  write survives resource shutdown. The bus equivalent spawns on `bus_service.task_bucket`. This covers all three
   cancel sources: `Subscription.cancel` → `Bus.remove_listener`, `replace`'s cancel-old, and
   the once-fire removal.
 
@@ -327,9 +336,10 @@ auto-removed; otherwise a stale key would block future registration.
 block when a once-listener fires (bus_service.py:350), tears the listener out of routing
 but does not touch the per-owner `Bus._registered_listeners`. A fire-time removal-callback
 registry is added to `BusService`, mirroring the scheduler's
-`register_removal_callback`/`_on_job_removed`/`deregister_removal_callback`
-(scheduler.py:119–141, scheduler_service.py): `Bus` registers a callback keyed by `owner_id`
-in its constructor and **deregisters it in `Bus.on_shutdown`** (bus.py:152, which today lacks
+`register_removal_callback`/`deregister_removal_callback` (which live on `SchedulerService`,
+scheduler_service.py:122 and :135; `Scheduler` registers its `_on_job_removed` at
+scheduler.py:124 and deregisters at :146): `Bus` registers a callback keyed by `owner_id`
+in its constructor and **deregisters it in `Bus.on_shutdown`** (bus.py:154, which today lacks
 this — see Impact); when `BusService` removes a listener it invokes the owner's callback,
 which pops the natural key from `_registered_listeners` and spawns the `cancelled_at` write.
 The registry guards a missing/replaced callback the way the scheduler's does (it tolerates
@@ -346,13 +356,13 @@ After the async `Bus` signatures change, `bus/sync.py` is regenerated with
 ## Replacement Targets
 
 - **`Bus._registered_handler_names: dict[NaturalKey, str]` → `_registered_listeners:
-  dict[NaturalKey, Listener]`** (bus.py:142). The string value cannot support `skip`/
+  dict[NaturalKey, Listener]`** (bus.py:144). The string value cannot support `skip`/
   `replace`; it is superseded by storing the `Listener`. The old field name is removed,
   not aliased.
-- **The `if listener.options.once: return` exemption in the collision check** (bus.py:204).
+- **The `if listener.options.once: return` exemption in the collision check** (bus.py:225).
   Removed outright — once-listeners are tracked under Direction A. Replaced by the
   fire-time removal callback; not kept alongside it.
-- **`Bus.add_listener` return type `None`** (bus.py:181) → `Subscription`. The void return
+- **`Bus.add_listener` return type `None`** (bus.py:183) → `Subscription`. The void return
   cannot support `skip`'s return-the-existing contract. Callers that ignore the return are
   unaffected (widening `None` → `Subscription` is non-breaking); the implementer confirms no
   caller is typed as expecting `None`.
@@ -596,7 +606,7 @@ No tests to remove. Tests asserting the old once-exempt behavior are adapted, no
 - `src/hassette/bus/bus.py` — `if_exists` on `on()`, `_on_internal`, `add_listener`
   (now returns `Subscription`); reshape the collision check into the `_`-prefixed
   resolution point; `_registered_handler_names` → `_registered_listeners` (value `Listener`);
-  register the removal callback in `__init__` and **deregister it in `on_shutdown`** (bus.py:152);
+  register the removal callback in `__init__` and **deregister it in `on_shutdown`** (bus.py:154);
   spawn `mark_listener_cancelled` on the cancel path.
 - `src/hassette/bus/listeners.py` — add `Listener.config_matches`/`diff_fields`.
 - `src/hassette/bus/sync.py` — regenerated (not hand-edited).

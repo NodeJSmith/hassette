@@ -38,6 +38,7 @@ EXPECTED_TABLES = {
         "source_location",
         "registration_source",
         "retired_at",
+        "cancelled_at",
         "source_tier",
     },
     "scheduled_jobs": {
@@ -153,7 +154,7 @@ def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
 
 
 def test_user_version_set_after_migration(tmp_path: Path) -> None:
-    """PRAGMA user_version is set to 1 after migration 001 runs."""
+    """PRAGMA user_version is set to 2 after all migrations run."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -163,7 +164,7 @@ def test_user_version_set_after_migration(tmp_path: Path) -> None:
     finally:
         conn.close()
 
-    assert version == 1
+    assert version == 2
 
 
 def test_auto_vacuum_set_on_fresh_db(tmp_path: Path) -> None:

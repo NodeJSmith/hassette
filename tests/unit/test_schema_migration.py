@@ -214,7 +214,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 1 after migration 001 runs."""
+        """PRAGMA user_version is 2 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -224,7 +224,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 1
+        assert version == 2
 
 
 class TestDbVersionMismatch:

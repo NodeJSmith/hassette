@@ -23,8 +23,9 @@ See the design's `## Architecture` → "Tracking once-listeners and fire-time cl
 2. **Removal-callback registry on BusService** — add a per-owner removal-callback registry to
    `src/hassette/core/bus_service.py`, mirroring the scheduler's
    `SchedulerService.register_removal_callback` / `deregister_removal_callback` and the
-   invocation in its removal path (see `scheduler/scheduler.py:119`, `:141`, and
-   `core/scheduler_service.py`). When `BusService.remove_listener` (bus_service.py:187) removes a
+   invocation in its removal path (the registry methods live on `SchedulerService`,
+   `core/scheduler_service.py:122` and `:135`; `Scheduler` registers its `_on_job_removed` at
+   `scheduler/scheduler.py:124` and deregisters at `:146`). When `BusService.remove_listener` (bus_service.py:187) removes a
    listener — including the once-fire path in the dispatch `finally` (bus_service.py:350) — it
    invokes the owning `Bus`'s callback. The registry must tolerate a missing/replaced callback
    (no crash if the owning `Bus` has shut down or been re-created during hot-reload), matching
@@ -34,7 +35,7 @@ See the design's `## Architecture` → "Tracking once-listeners and fire-time cl
    - In `__init__`, register a callback keyed by `self.owner_id` (e.g. `_on_listener_removed`)
      that pops the natural key from `_registered_listeners` and spawns
      `mark_listener_cancelled(listener.db_id)` (T01) when `db_id` is set.
-   - In `on_shutdown` (bus.py:152 — which today lacks this), call
+   - In `on_shutdown` (bus.py:154 — which today lacks this), call
      `bus_service.deregister_removal_callback(self.owner_id)`. This is REQUIRED and is currently
      missing; add it.
    `Bus.remove_listener` already pops the key directly, so the callback closes only the once-fire

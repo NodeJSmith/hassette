@@ -14,9 +14,10 @@ the existing `Listener` so `skip` can return it and `replace` can cancel it, wri
 remain exempt in this task — T04 removes the exemption.
 
 ## Prompt
-Implement `if_exists` for the bus, mirroring `Scheduler.add_job`'s collision block
-(scheduler.py:201–218). See the design's `## Architecture` → "Threading `if_exists`",
-"Collision resolution", "Storing the listener", and "Durable cancellation marker".
+Implement `if_exists` for the bus, mirroring `Scheduler._add_job`'s collision block
+(the `if existing is not None:` branch at scheduler.py:247; public `add_job` at :174).
+See the design's `## Architecture` → "Threading `if_exists`", "Collision resolution",
+"Storing the listener", and "Durable cancellation marker".
 
 1. **Options key** — in `src/hassette/bus/options.py`, add to the `Options` TypedDict:
    `if_exists: Literal["error", "skip", "replace"]`. This propagates `if_exists` through
@@ -26,8 +27,11 @@ Implement `if_exists` for the bus, mirroring `Scheduler.add_job`'s collision blo
    `if_exists: Literal["error", "skip", "replace"] = "error"` parameter to `on()` (it has an
    explicit signature, no `**opts`), to `_on_internal`, and to `add_listener`. Forward it.
    `_subscribe` already passes `**opts` through, so it carries `if_exists` automatically.
+   **Note:** the public `add_listener` (bus.py:183) is a thin wrapper around the private
+   `_add_listener` (bus.py:209), and the collision check runs inside `_add_listener` — thread
+   `if_exists` through `_add_listener`, not just the public wrapper.
 
-3. **Collision resolution** — reshape `register_and_check_collision` (bus.py:198) into the
+3. **Collision resolution** — reshape `register_and_check_collision` (bus.py:219) into the
    single decision point, renamed to a `_`-prefixed name (e.g. `_resolve_collision`) so the
    sync-facade codegen skips it. It must:
    - compute the natural key and look up the existing `Listener`;
@@ -40,6 +44,9 @@ Implement `if_exists` for the bus, mirroring `Scheduler.add_job`'s collision blo
    - existing + `skip` and configs differ → raise `ValueError` listing
      `existing.diff_fields(new)`, mirroring scheduler.py:209–213.
    Have it return `Listener | None` (existing on skip short-circuit, None to proceed).
+   Rewrite the method's docstring — the current one ("Once-listeners are exempt and are not
+   registered") describes behavior this work changes; document the error/skip/replace
+   contract instead.
 
    **Leave the `if listener.options.once: return` once-exemption in place in this task** — it
    stays exactly as today so durable-listener behavior is the only thing changing here. T04
@@ -47,22 +54,25 @@ Implement `if_exists` for the bus, mirroring `Scheduler.add_job`'s collision blo
    T03.
 
 4. **Storage change** — change `_registered_handler_names: dict[tuple[str, int, str, str], str]`
-   (bus.py:142) to `_registered_listeners: dict[tuple[str, int, str, str], Listener]` (value is
-   the `Listener`). Update `remove_listener` (bus.py:230) and `remove_all_listeners` (bus.py:236)
-   accordingly. Derive the handler name for `DuplicateListenerError` from
+   (bus.py:144) to `_registered_listeners: dict[tuple[str, int, str, str], Listener]` (value is
+   the `Listener`). Update every reference: `on_initialize` clears the map (bus.py:150),
+   `remove_listener` (bus.py:251) pops it, and `remove_all_listeners` (bus.py:257) clears it.
+   Derive the handler name for `DuplicateListenerError` from
    `listener.identity.handler_name`.
 
 5. **Caller shaping** — `_on_internal` and `add_listener` call `_resolve_collision`. On a skip
    short-circuit (returns the existing listener), return a `Subscription` wrapping the existing
    listener (`Subscription(existing, lambda: self.remove_listener(existing))`). `add_listener`
    changes its return type from `None` to `Subscription` (FR#10) and returns the new or existing
-   subscription. On proceed, register normally and await `bus_service.add_listener`.
+   subscription — update BOTH the private `_add_listener` return type AND the public wrapper's
+   `Coroutine[Any, Any, None]` annotation (bus.py:183) to `Coroutine[Any, Any, Subscription]`. On proceed, register normally and await `bus_service.add_listener`.
 
 6. **Cancel-path telemetry write** — when the bus cancels/removes a listener via
    `Bus.remove_listener`, spawn `BusService.mark_listener_cancelled(listener.db_id)` (added in
-   T01) for a listener whose `db_id` is set, mirroring how `Scheduler.cancel_job` (scheduler.py:257–264)
-   spawns `mark_job_cancelled` on the service task bucket so the write survives resource
-   shutdown. This covers `Subscription.cancel` and `replace`'s cancel-old step.
+   T01) for a listener whose `db_id` is set, mirroring how `Scheduler.cancel_job` (scheduler.py:302–309)
+   spawns `mark_job_cancelled` via `self.scheduler_service.task_bucket.spawn(...)`. Spawn on
+   `bus_service.task_bucket` — the **service's** bucket, NOT `Bus.task_bucket` — so the write
+   survives resource shutdown. This covers `Subscription.cancel` and `replace`'s cancel-old step.
 
 Add unit tests covering durable (non-once) listeners: `skip` idempotent re-registration returns
 a subscription and leaves one listener; `skip` with drift raises `ValueError` naming changed
@@ -72,9 +82,10 @@ default raises `DuplicateListenerError`; `Subscription.cancel()` writes `cancell
 reaches a representative `**opts` method (`on_call_service`) and `on()`.
 
 ## Focus
-- The registration funnel: public methods → `_subscribe` (bus.py:408) → `_on_internal`
-  (bus.py:316) → `register_and_check_collision` + `bus_service.add_listener`. `on()` (bus.py:255)
-  calls `_on_internal` directly. Keep `if_exists` flowing through all of these.
+- The registration funnel: public methods → `_subscribe` (bus.py:445) → `_on_internal`
+  (bus.py:351) → `register_and_check_collision` + `bus_service.add_listener`. `on()` (bus.py:276)
+  calls `_on_internal` directly. `add_listener` (bus.py:183) → `_add_listener` (bus.py:209) is a
+  separate funnel that also runs the collision check. Keep `if_exists` flowing through all of these.
 - `BusService.add_listener` (bus_service.py:114) returns the `db_id` (int) and sets it on the
   listener via `mark_registered`. After `replace`, the new listener upserts onto the SAME
   natural-key row, so its `db_id` equals the replaced listener's — this is correct (row-id
