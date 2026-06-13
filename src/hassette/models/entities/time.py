@@ -40,6 +40,7 @@ class TimeEntitySyncFacade(BaseEntitySyncFacade[TimeState, str]):
         *,
         time: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_value",

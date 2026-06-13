@@ -130,6 +130,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_disarm",
@@ -142,6 +143,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_custom_bypass",
@@ -154,6 +156,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_home",
@@ -166,6 +169,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_away",
@@ -178,6 +182,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_night",
@@ -190,6 +195,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_vacation",
@@ -202,6 +208,7 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_trigger",

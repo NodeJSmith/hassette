@@ -57,6 +57,7 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Type,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecast",
@@ -69,6 +70,7 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecasts",

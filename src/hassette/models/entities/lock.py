@@ -70,6 +70,7 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="lock",
@@ -82,6 +83,7 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open",
@@ -94,6 +96,7 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="unlock",

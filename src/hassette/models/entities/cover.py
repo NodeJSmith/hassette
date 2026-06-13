@@ -131,6 +131,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
 class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
     def open_cover(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover",
@@ -138,6 +139,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def close_cover(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover",
@@ -145,6 +147,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -156,6 +159,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         *,
         position: int,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_cover_position",
@@ -164,6 +168,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def stop_cover(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover",
@@ -171,6 +176,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def open_cover_tilt(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover_tilt",
@@ -178,6 +184,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def close_cover_tilt(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover_tilt",
@@ -185,6 +192,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def toggle_cover_tilt(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle_cover_tilt",
@@ -196,6 +204,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         *,
         tilt_position: int,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_cover_tilt_position",
@@ -204,6 +213,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def stop_cover_tilt(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover_tilt",

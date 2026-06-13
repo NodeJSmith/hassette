@@ -146,6 +146,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -174,6 +175,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -200,6 +202,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

@@ -86,6 +86,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
 class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
     def select_first(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_first",
@@ -93,6 +94,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         )
 
     def select_last(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_last",
@@ -104,6 +106,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_next",
@@ -116,6 +119,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         option: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_option",
@@ -128,6 +132,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_previous",

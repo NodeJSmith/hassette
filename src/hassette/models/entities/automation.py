@@ -71,6 +71,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
 class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -82,6 +83,7 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         stop_actions: bool | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -90,6 +92,7 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -101,6 +104,7 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         skip_condition: bool | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="trigger",

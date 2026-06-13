@@ -31,6 +31,7 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
 
 class ButtonEntitySyncFacade(BaseEntitySyncFacade[ButtonState, str]):
     def press(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="press",

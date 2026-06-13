@@ -40,6 +40,7 @@ class ImageEntitySyncFacade(BaseEntitySyncFacade[ImageState, str]):
         *,
         filename: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="snapshot",

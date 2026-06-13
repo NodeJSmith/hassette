@@ -114,6 +114,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
 class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -121,6 +122,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -128,6 +130,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def enable_motion_detection(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="enable_motion_detection",
@@ -135,6 +138,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         )
 
     def disable_motion_detection(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="disable_motion_detection",
@@ -146,6 +150,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         *,
         filename: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="snapshot",
@@ -159,6 +164,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         media_player: str,
         format: Format | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="play_stream",
@@ -174,6 +180,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         duration: int | None = None,
         lookback: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="record",

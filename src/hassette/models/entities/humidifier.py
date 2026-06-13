@@ -85,6 +85,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         mode: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_mode",
@@ -97,6 +98,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         humidity: int,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_humidity",
@@ -105,6 +107,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -112,6 +115,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -119,6 +123,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

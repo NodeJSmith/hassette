@@ -51,6 +51,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
 
 class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
     def start_mowing(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_mowing",
@@ -58,6 +59,7 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
         )
 
     def dock(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="dock",
@@ -65,6 +67,7 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
         )
 
     def pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",

@@ -154,6 +154,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         preset_mode: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_preset_mode",
@@ -166,6 +167,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage: int,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_percentage",
@@ -179,6 +181,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -188,6 +191,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -199,6 +203,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         oscillating: bool,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="oscillate",
@@ -207,6 +212,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -218,6 +224,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         direction: Direction,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_direction",
@@ -230,6 +237,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="increase_speed",
@@ -242,6 +250,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="decrease_speed",

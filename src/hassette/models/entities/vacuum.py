@@ -168,6 +168,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
 class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -175,6 +176,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -182,6 +184,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -189,6 +192,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def stop(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop",
@@ -196,6 +200,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def locate(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="locate",
@@ -203,6 +208,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def start_pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_pause",
@@ -210,6 +216,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def start(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
@@ -217,6 +224,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
@@ -224,6 +232,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def return_to_base(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="return_to_base",
@@ -231,6 +240,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def clean_spot(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clean_spot",
@@ -242,6 +252,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         *,
         cleaning_area_id: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clean_area",
@@ -255,6 +266,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         command: str,
         params: Any | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="send_command",
@@ -268,6 +280,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         *,
         fan_speed: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_fan_speed",

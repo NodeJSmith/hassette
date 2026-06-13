@@ -92,6 +92,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         away_mode: bool,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_away_mode",
@@ -105,6 +106,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         temperature: float,
         operation_mode: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_temperature",
@@ -118,6 +120,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         operation_mode: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_operation_mode",
@@ -126,6 +129,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -133,6 +137,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",

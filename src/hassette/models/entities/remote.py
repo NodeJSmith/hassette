@@ -125,6 +125,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         *,
         activity: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -133,6 +134,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -140,6 +142,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -155,6 +158,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         hold_secs: float | None = None,
         num_repeats: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="send_command",
@@ -175,6 +179,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         device: str | None = None,
         timeout: int | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="learn_command",
@@ -192,6 +197,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         command: Any,
         device: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="delete_command",

@@ -51,6 +51,7 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
 
 class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -58,6 +59,7 @@ class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -65,6 +67,7 @@ class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

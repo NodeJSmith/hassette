@@ -66,6 +66,7 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         tone: str | None = None,
         volume_level: float | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -76,6 +77,7 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -83,6 +85,7 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

@@ -113,6 +113,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         *,
         status: Status | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_items",
@@ -128,6 +129,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="add_item",
@@ -148,6 +150,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         rename: str | None = None,
         status: Literal["needs_action", "completed"] | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="update_item",
@@ -165,6 +168,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         *,
         item: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_item",
@@ -173,6 +177,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         )
 
     def remove_completed_items(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_completed_items",

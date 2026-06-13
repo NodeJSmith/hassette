@@ -63,6 +63,7 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         backup: bool | None = None,
         version: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="install",
@@ -72,6 +73,7 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         )
 
     def skip(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="skip",
@@ -79,6 +81,7 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         )
 
     def clear_skipped(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clear_skipped",

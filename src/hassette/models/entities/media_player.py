@@ -332,6 +332,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
 class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
     def turn_on(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -339,6 +340,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def turn_off(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -346,6 +348,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def toggle(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -353,6 +356,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def volume_up(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_up",
@@ -360,6 +364,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def volume_down(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_down",
@@ -371,6 +376,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         is_volume_muted: bool,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_mute",
@@ -383,6 +389,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         volume_level: float,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_set",
@@ -391,6 +398,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_play_pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_play_pause",
@@ -398,6 +406,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_play(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_play",
@@ -405,6 +414,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_pause",
@@ -412,6 +422,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_stop(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_stop",
@@ -419,6 +430,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_next_track(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_next_track",
@@ -426,6 +438,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_previous_track(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_previous_track",
@@ -437,6 +450,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         seek_position: float,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_seek",
@@ -451,6 +465,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         announce: bool | None = None,
         enqueue: Enqueue | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="play_media",
@@ -466,6 +481,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         media_content_id: str | None = None,
         media_type: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="browse_media",
@@ -482,6 +498,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         media_filter_classes: str | None = None,
         media_type: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="search_media",
@@ -497,6 +514,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         source: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_source",
@@ -509,6 +527,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         sound_mode: str | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_sound_mode",
@@ -517,6 +536,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def clear_playlist(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clear_playlist",
@@ -528,6 +548,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         shuffle: bool,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="shuffle_set",
@@ -540,6 +561,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         repeat: Repeat,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="repeat_set",
@@ -552,6 +574,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         group_members: str,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="join",
@@ -560,6 +583,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def unjoin(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="unjoin",

@@ -85,6 +85,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int] | None = None,
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
@@ -93,6 +94,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def pause(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
@@ -100,6 +102,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def cancel(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="cancel",
@@ -107,6 +110,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def finish(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="finish",
@@ -118,6 +122,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int],
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="change",

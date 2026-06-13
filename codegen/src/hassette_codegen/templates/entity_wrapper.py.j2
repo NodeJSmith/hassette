@@ -78,6 +78,7 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
 {% endif %}
 {% endfor %}
     ):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="{{ service.name }}",
@@ -88,6 +89,7 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
         )
 {% else %}
     def {{ service.method_name }}(self):
+        """Runs synchronously — blocks until the service call completes."""
         return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="{{ service.name }}",
