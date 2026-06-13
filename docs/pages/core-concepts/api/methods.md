@@ -156,6 +156,13 @@ Domains without those services fall back to the base facade's untyped `turn_on(*
 form. Either way the IDE and Pyright know the parameter names and types for the
 domain-specific actions.
 
+!!! note "Facade signatures track the released service registry"
+
+    Facade parameters reflect the Home Assistant service registry at the time a Hassette
+    release was built. A parameter added to a service in a later Home Assistant release is
+    not available on the facade until the next Hassette release. Call `call_service`
+    directly to pass a parameter the facade does not yet expose.
+
 ### `get_entity_or_none(entity_id, model)`
 
 Same as `get_entity`, but returns `None` when the entity is not found.

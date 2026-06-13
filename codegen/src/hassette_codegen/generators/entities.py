@@ -1,4 +1,15 @@
-"""Generate entity wrapper .py files from extracted domain data."""
+"""Generate entity wrapper .py files from extracted domain data.
+
+This is the second of two sync-facade codegen paths. The first — `codegen/src/hassette_codegen/sync_facade/` — wraps
+`Api`/`Bus`/`Scheduler` methods via AST body-copy and emits `self.task_bucket.run_sync(...)`.
+This path is template-driven (`templates/entity_wrapper.py.j2`) and emits per-domain
+`{Domain}EntitySyncFacade` classes that delegate through `self.entity.api.sync.call_service(...)`.
+
+The two paths share no abstraction, so a cross-cutting change to sync dispatch — a new timeout
+parameter, telemetry on every sync call, a different error surface — must be applied in both.
+Consolidating them is tracked in #938; until then, edit both when changing how sync facades
+dispatch.
+"""
 
 from dataclasses import dataclass
 
