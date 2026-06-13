@@ -217,13 +217,19 @@ class TaskBucket(Resource):
 
         Args:
             fn: The async function to run.
-            timeout_seconds: The timeout for the function call. None uses the config value.
+            timeout_seconds: The timeout for the function call. ``None`` uses the config value;
+                ``0`` fails immediately.
 
         Returns:
             The result of the function call.
         """
 
-        timeout_seconds = timeout_seconds or self.hassette.config.lifecycle.run_sync_timeout_seconds
+        if timeout_seconds is None:
+            timeout_seconds = self.hassette.config.lifecycle.run_sync_timeout_seconds
+
+        # Name the wrapped coroutine (e.g. "Api.call_service") for error and log context; the
+        # traceback shows the facade method that delegated here.
+        label = getattr(fn, "__qualname__", None) or getattr(fn, "__name__", repr(fn))
 
         # If we're already in an event loop, don't allow blocking calls.
         try:
@@ -232,19 +238,22 @@ class TaskBucket(Resource):
             pass  # not in a loop -> safe to block
         else:
             fn.close()  # close the coroutine to avoid warnings
-            raise RuntimeError("This sync method was called from within an event loop. Use the async method instead.")
+            raise RuntimeError(
+                f"This sync method ({label}) was called from within an event loop. Use the async method instead."
+            )
 
+        fut: Future[R] | None = None
         try:
             fut = asyncio.run_coroutine_threadsafe(fn, self.hassette.loop)
             return fut.result(timeout=timeout_seconds)
         except CfTimeoutError:
-            self.logger.exception("Sync function '%s' timed out", fn.__name__)
+            self.logger.exception("Sync function '%s' timed out", label)
             raise
         except Exception:
-            self.logger.exception("Failed to run sync function '%s'", fn.__name__)
+            self.logger.exception("Failed to run sync function '%s'", label)
             raise
         finally:
-            if not fut.done():
+            if fut is not None and not fut.done():
                 fut.cancel()
 
     async def run_on_loop_thread(self, fn: typing.Callable[..., R], *args: Any, **kwargs: Any) -> R:

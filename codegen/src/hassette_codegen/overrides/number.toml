@@ -1,3 +1,8 @@
+# number.set_value exposes a `text` selector, but Home Assistant coerces the field
+# to a float (vol.Coerce(float)) in the service schema. Type it numerically.
+[param_type_overrides]
+value = "float"
+
 [[property_overrides]]
 name = "step"
 type = "float | None"

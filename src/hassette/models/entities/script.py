@@ -4,7 +4,7 @@ from typing import Any
 from hassette.models.states import ScriptState
 from hassette.models.states.script import ScriptAttributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 
 
 class ScriptEntity(BaseEntity[ScriptState, str]):
@@ -12,8 +12,13 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
     def attributes(self) -> ScriptAttributes:
         return self.state.attributes
 
+    @property
+    def sync(self) -> "ScriptEntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
+        return self._get_or_create_sync(ScriptEntitySyncFacade)
+
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Runs the sequence of actions defined in a script."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -23,7 +28,7 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Stops a running script."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -33,11 +38,39 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+        """Starts a script if it isn't running, stops it otherwise."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
             target={"entity_id": self.entity_id},
+        )
+
+
+class ScriptEntitySyncFacade(BaseEntitySyncFacade[ScriptState, str]):
+    """Synchronous facade for ScriptEntity service methods."""
+
+    def turn_on(self) -> None:
+        """Runs the sequence of actions defined in a script."""
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_on",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def turn_off(self) -> None:
+        """Stops a running script."""
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="turn_off",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def toggle(self) -> None:
+        """Starts a script if it isn't running, stops it otherwise."""
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="toggle",
+            target={"entity_id": self.entity.entity_id},
         )

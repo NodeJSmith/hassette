@@ -42,7 +42,19 @@ SELECTOR_TYPE_MAP: dict[str, str] = {
 
 
 def map_selector_to_type(selector_type: str, selector_data: dict, domain: str = "") -> str:
-    """Map a YAML selector type to a Python type string."""
+    """Map a YAML selector type to a Python type string.
+
+    A selector with ``multiple: true`` accepts a list of the base type — Home Assistant
+    sends these fields as a list of entity IDs, options, or values.
+    """
+    base = _map_base_selector(selector_type, selector_data, domain)
+    # HA's services.yaml always loads `multiple` as a YAML bool, so an identity check is exact.
+    if selector_data.get("multiple") is True:
+        return f"list[{base}]"
+    return base
+
+
+def _map_base_selector(selector_type: str, selector_data: dict, domain: str) -> str:
     if selector_type == "number":
         step = selector_data.get("step")
         if step is not None and isinstance(step, (int, float)) and step < 1:

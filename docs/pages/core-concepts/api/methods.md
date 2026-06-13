@@ -107,9 +107,8 @@ Compare against `MISSING_VALUE` with `is`, not truthiness — some valid attribu
 ### `get_entity(entity_id, model)`
 
 Returns a [`BaseEntity`][hassette.models.entities.base.BaseEntity] subclass with
-domain-specific action methods (`turn_on()`, `turn_off()`, `toggle()`, and
-`refresh()`) along with the entity's current state. The `model` argument
-specifies which entity class to return.
+domain-specific action methods along with the entity's current state. The `model`
+argument specifies which entity class to return.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -118,12 +117,57 @@ specifies which entity class to return.
 
 Entity classes live in [`hassette.models.entities`][hassette.models.entities] — one per domain, named `{Domain}Entity`: `LightEntity`, `SwitchEntity`, `ClimateEntity`, `MediaPlayerEntity`, `VacuumEntity`, `CoverEntity`, `FanEntity`, `LockEntity`, and so on for 30 domains. The API reference lists them all.
 
+Every entity class defines its domain-specific action methods — `CoverEntity` has
+`open_cover()`, `close_cover()`, `set_cover_position(position=...)`, and more;
+`ClimateEntity` has `set_temperature(temperature=...)`, `set_hvac_mode(hvac_mode=...)`,
+and others. All three base actions (`turn_on()`, `turn_off()`, `toggle()`) and
+`refresh()` are available on every entity.
+
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
 ```
 
 `entity.refresh()` re-fetches the entity's state from Home Assistant and replaces `.state`
 with the new snapshot. The updated state is also returned.
+
+#### Entity sync facades (`AppSync` only)
+
+[`AppSync`][hassette.app.app.AppSync] is the app base class for blocking code. Its lifecycle
+hooks run in a thread pool. `self.api.sync` is the synchronous counterpart to `self.api`. An
+entity fetched through `self.api.sync.get_entity(...)` exposes a sync facade via `.sync`.
+
+Domains with Home Assistant services get a typed, domain-specific facade. `cover.sync` returns
+a `CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. Each one mirrors
+a domain action as a blocking synchronous call, with no `await` or `run_sync` boilerplate.
+Read-only domains such as `sensor` have no services to call, so their `.sync` exposes only the
+base `turn_on`/`turn_off`/`toggle`.
+
+These methods block the calling thread until the call completes. They belong in `AppSync`
+lifecycle hooks and [`run_in_thread`](../apps/task-bucket.md#offloading-blocking-code)
+callbacks. Calling one from a regular `async` handler blocks the event loop. `await` the
+entity's async method there instead.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_domain_action"
+```
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_climate"
+```
+
+Where a domain's Home Assistant services include `turn_on`, `turn_off`, or `toggle`,
+the domain facade overrides those methods with typed parameters — `LightEntitySyncFacade.turn_on`
+accepts `brightness`, `color_temp_kelvin`, and the rest of the light service fields.
+Domains without those services fall back to the base facade's untyped `turn_on(**data)`
+form. Either way the IDE and Pyright know the parameter names and types for the
+domain-specific actions.
+
+!!! note "Facade signatures track the released service registry"
+
+    Facade parameters reflect the Home Assistant service registry at the time a Hassette
+    release was built. A parameter added to a service in a later Home Assistant release is
+    not available on the facade until the next Hassette release. Call `call_service`
+    directly to pass a parameter the facade does not yet expose.
 
 ### `get_entity_or_none(entity_id, model)`
 

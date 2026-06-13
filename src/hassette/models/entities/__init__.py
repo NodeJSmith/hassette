@@ -1,73 +1,102 @@
-from .alarm_control_panel import AlarmControlPanelEntity
-from .automation import AutomationEntity
+from .alarm_control_panel import AlarmControlPanelEntity, AlarmControlPanelEntitySyncFacade
+from .automation import AutomationEntity, AutomationEntitySyncFacade
 from .base import BaseEntity, BaseEntitySyncFacade, EntityT
-from .button import ButtonEntity
-from .camera import CameraEntity, Format
-from .climate import ClimateEntity
-from .cover import CoverEntity
-from .date import DateEntity
-from .datetime import DateTimeEntity
-from .fan import Direction, FanEntity
-from .humidifier import HumidifierEntity
-from .image import ImageEntity
-from .lawn_mower import LawnMowerEntity
-from .light import Flash, LightEntity
-from .lock import LockEntity
-from .media_player import Enqueue, MediaPlayerEntity, Repeat
-from .number import NumberEntity
-from .remote import CommandType, RemoteEntity
-from .script import ScriptEntity
-from .select import SelectEntity
-from .siren import SirenEntity
-from .switch import SwitchEntity
-from .text import TextEntity
-from .time import TimeEntity
-from .timer import TimerEntity
-from .todo import Status, TodoEntity
-from .update import UpdateEntity
-from .vacuum import VacuumEntity
-from .water_heater import WaterHeaterEntity
-from .weather import Type, WeatherEntity
+from .button import ButtonEntity, ButtonEntitySyncFacade
+from .camera import CameraEntity, CameraEntitySyncFacade, Format
+from .climate import ClimateEntity, ClimateEntitySyncFacade
+from .cover import CoverEntity, CoverEntitySyncFacade
+from .date import DateEntity, DateEntitySyncFacade
+from .datetime import DateTimeEntity, DateTimeEntitySyncFacade
+from .fan import Direction, FanEntity, FanEntitySyncFacade
+from .humidifier import HumidifierEntity, HumidifierEntitySyncFacade
+from .image import ImageEntity, ImageEntitySyncFacade
+from .lawn_mower import LawnMowerEntity, LawnMowerEntitySyncFacade
+from .light import Flash, LightEntity, LightEntitySyncFacade
+from .lock import LockEntity, LockEntitySyncFacade
+from .media_player import Enqueue, MediaPlayerEntity, MediaPlayerEntitySyncFacade, Repeat
+from .number import NumberEntity, NumberEntitySyncFacade
+from .remote import CommandType, RemoteEntity, RemoteEntitySyncFacade
+from .script import ScriptEntity, ScriptEntitySyncFacade
+from .select import SelectEntity, SelectEntitySyncFacade
+from .siren import SirenEntity, SirenEntitySyncFacade
+from .switch import SwitchEntity, SwitchEntitySyncFacade
+from .text import TextEntity, TextEntitySyncFacade
+from .time import TimeEntity, TimeEntitySyncFacade
+from .timer import TimerEntity, TimerEntitySyncFacade
+from .todo import Status, TodoEntity, TodoEntitySyncFacade
+from .update import UpdateEntity, UpdateEntitySyncFacade
+from .vacuum import VacuumEntity, VacuumEntitySyncFacade
+from .water_heater import WaterHeaterEntity, WaterHeaterEntitySyncFacade
+from .weather import Type, WeatherEntity, WeatherEntitySyncFacade
 
 __all__ = [
     "AlarmControlPanelEntity",
+    "AlarmControlPanelEntitySyncFacade",
     "AutomationEntity",
+    "AutomationEntitySyncFacade",
     "BaseEntity",
     "BaseEntitySyncFacade",
     "ButtonEntity",
+    "ButtonEntitySyncFacade",
     "CameraEntity",
+    "CameraEntitySyncFacade",
     "ClimateEntity",
+    "ClimateEntitySyncFacade",
     "CommandType",
     "CoverEntity",
+    "CoverEntitySyncFacade",
     "DateEntity",
+    "DateEntitySyncFacade",
     "DateTimeEntity",
+    "DateTimeEntitySyncFacade",
     "Direction",
     "Enqueue",
     "EntityT",
     "FanEntity",
+    "FanEntitySyncFacade",
     "Flash",
     "Format",
     "HumidifierEntity",
+    "HumidifierEntitySyncFacade",
     "ImageEntity",
+    "ImageEntitySyncFacade",
     "LawnMowerEntity",
+    "LawnMowerEntitySyncFacade",
     "LightEntity",
+    "LightEntitySyncFacade",
     "LockEntity",
+    "LockEntitySyncFacade",
     "MediaPlayerEntity",
+    "MediaPlayerEntitySyncFacade",
     "NumberEntity",
+    "NumberEntitySyncFacade",
     "RemoteEntity",
+    "RemoteEntitySyncFacade",
     "Repeat",
     "ScriptEntity",
+    "ScriptEntitySyncFacade",
     "SelectEntity",
+    "SelectEntitySyncFacade",
     "SirenEntity",
+    "SirenEntitySyncFacade",
     "Status",
     "SwitchEntity",
+    "SwitchEntitySyncFacade",
     "TextEntity",
+    "TextEntitySyncFacade",
     "TimeEntity",
+    "TimeEntitySyncFacade",
     "TimerEntity",
+    "TimerEntitySyncFacade",
     "TodoEntity",
+    "TodoEntitySyncFacade",
     "Type",
     "UpdateEntity",
+    "UpdateEntitySyncFacade",
     "VacuumEntity",
+    "VacuumEntitySyncFacade",
     "WaterHeaterEntity",
+    "WaterHeaterEntitySyncFacade",
     "WeatherEntity",
+    "WeatherEntitySyncFacade",
 ]

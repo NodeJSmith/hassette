@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import contextlib
 
 import pytest
@@ -119,3 +120,33 @@ async def test_run_sync_raises_inside_loop(bucket_fixture: TaskBucket) -> None:
 
     with pytest.raises(RuntimeError):
         bucket_fixture.run_sync(sample_coroutine())
+
+
+async def test_run_sync_drives_coroutine_from_worker_thread(bucket_fixture: TaskBucket) -> None:
+    """run_sync bridges a coroutine from a worker thread onto the running loop and returns its result.
+
+    This is the path every sync facade (api/bus/scheduler/entity) depends on: a sync caller
+    off the loop thread drives an async method to completion via run_coroutine_threadsafe.
+    Calling through asyncio.to_thread is what makes the run_sync loop-guard pass instead of raise.
+    """
+
+    async def add(a: int, b: int) -> int:
+        await asyncio.sleep(0)
+        return a + b
+
+    result = await asyncio.to_thread(bucket_fixture.run_sync, add(2, 3))
+    assert result == 5
+
+
+async def test_run_sync_timeout_zero_fails_immediately(bucket_fixture: TaskBucket) -> None:
+    """timeout_seconds=0 fails immediately instead of falling back to the config default.
+
+    Guards the ``if timeout_seconds is None`` semantics: an explicit 0 is a real value, not
+    ``None``, so it must not be replaced by the (non-zero) configured default.
+    """
+
+    async def never_returns() -> None:
+        await asyncio.sleep(100)
+
+    with pytest.raises(concurrent.futures.TimeoutError):
+        await asyncio.to_thread(bucket_fixture.run_sync, never_returns(), timeout_seconds=0)

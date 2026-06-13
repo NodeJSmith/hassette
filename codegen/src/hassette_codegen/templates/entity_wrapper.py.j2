@@ -4,7 +4,7 @@ from typing import Any{% if type_aliases %}, Literal{% endif %}
 from hassette.models.states import {{ domain_title }}State
 from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
 
-from .base import BaseEntity
+from .base import BaseEntity, BaseEntitySyncFacade
 {% for imp in extra_imports %}
 {{ imp }}
 {% endfor %}
@@ -18,6 +18,11 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
     @property
     def attributes(self) -> {{ domain_title }}Attributes:
         return self.state.attributes
+
+    @property
+    def sync(self) -> "{{ domain_title }}EntitySyncFacade":
+        """Return the typed synchronous facade for this entity."""
+        return self._get_or_create_sync({{ domain_title }}EntitySyncFacade)
 {% for service in services %}
 {% if service.params %}
 
@@ -32,7 +37,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% endif %}
 {% endfor %}
     ) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+{{ service.doc }}
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -46,13 +51,50 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% else %}
 
     def {{ service.method_name }}(self) -> Coroutine[Any, Any, None]:
-        """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
+{{ service.doc }}
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="{{ service.name }}",
             target={"entity_id": self.entity_id},
+        )
+{% endif %}
+{% endfor %}
+
+
+{# ---- Synchronous facade for {{ domain_title }}Entity ---- #}
+class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}State, str]):
+    """Synchronous facade for {{ domain_title }}Entity service methods."""
+{% for service in services %}
+{% if service.params %}
+    def {{ service.method_name }}(
+        self,
+        *,
+{% for param in service.params %}
+{% if param.required %}
+        {{ param.name }}: {{ param.python_type }},
+{% else %}
+        {{ param.name }}: {{ param.python_type }} = None,
+{% endif %}
+{% endfor %}
+    ) -> None:
+{{ service.doc }}
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="{{ service.name }}",
+            target={"entity_id": self.entity.entity_id},
+{% for param in service.params %}
+            {{ param.name }}={{ param.name }},
+{% endfor %}
+        )
+{% else %}
+    def {{ service.method_name }}(self) -> None:
+{{ service.doc }}
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="{{ service.name }}",
+            target={"entity_id": self.entity.entity_id},
         )
 {% endif %}
 {% endfor %}

@@ -163,7 +163,7 @@ In production mode, the decorator is ignored by default. `allow_only_app_in_prod
 
 ## Synchronous Apps
 
-[`AppSync`][hassette.app.app.AppSync] runs automations written without `async`/`await`. Hassette executes the app's lifecycle hooks in a thread pool so blocking code does not stall the event loop. The bus, scheduler, and API expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`), so registrations and calls work without `await`.
+[`AppSync`][hassette.app.app.AppSync] runs automations written without `async`/`await`. Hassette executes the app's lifecycle hooks in a thread pool so blocking code does not stall the event loop. The bus, scheduler, and API expose synchronous facades via `.sync` (`self.bus.sync`, `self.scheduler.sync`, `self.api.sync`), so registrations and calls work without `await`. Entity objects from `self.api.sync.get_entity(...)` expose the same pattern. `entity.sync` returns a typed domain facade — a `CoverEntitySyncFacade`, `ClimateEntitySyncFacade`, and so on. The facade makes every domain action callable without `await`: `cover.sync.set_cover_position(position=60)`, `climate.sync.set_temperature(temperature=21.0)`. See [API Methods](../api/methods.md#entity-sync-facades-appsync-only) for the full facade reference.
 
 `AppSync` fits apps built on blocking libraries and migrations from synchronous frameworks. Prefer async `App` for new code. See [Lifecycle](lifecycle.md#synchronous-lifecycle) for the sync hook details and a full example.
 

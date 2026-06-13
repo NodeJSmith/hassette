@@ -6,6 +6,10 @@ extend-exclude = [
     "uv.lock",
     "frontend/package-lock.json",
     "design/",
+    # Generated entity facades embed Home Assistant's own service-field descriptions verbatim,
+    # including upstream typos (e.g. "positition" in cover.set_cover_tilt_position). We reproduce
+    # HA's text faithfully rather than typo-policing it; base.py here is reviewed by hand instead.
+    "src/hassette/models/entities/",
 ]
 
 [default.extend-words]
