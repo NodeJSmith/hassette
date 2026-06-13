@@ -22,6 +22,7 @@ Every subscription method accepts these parameters. Individual method tables bel
 | `throttle` | `float \| None` | `None` | Limits the handler to one invocation per N seconds. Events during the cooldown are dropped. |
 | `once` | `bool` | `False` | Fires the handler exactly once, then cancels the subscription. |
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at invocation time. |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a listener with the same name and topic already exists. See [Idempotent Registration](#idempotent-registration). |
 
 `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError`.
 
@@ -305,6 +306,36 @@ Cancelling a subscription and registering a new one is deterministic. The old ha
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_subscription_patterns.py:resubscribe"
 ```
+
+### Idempotent registration
+
+Listener names must be unique per app instance and topic. Registering a second listener with the same name and topic raises `DuplicateListenerError` by default. The `if_exists` parameter controls this behavior.
+
+| Value | Behavior |
+|---|---|
+| `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), handler kwargs, per-registration error handler, and duration configuration. |
+| `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
+
+`if_exists` matters most in `on_initialize`, which re-runs on app reload.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/bus_idempotent_registration.py:idempotent_registration"
+```
+
+`"skip"` works when the listener configuration is stable across reloads. `"replace"` is the right choice when the handler, filter, or timing options may change between reloads.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/bus_idempotent_registration.py:replace_registration"
+```
+
+**Key shape: bus vs. scheduler.** The bus resolves `if_exists` per `(name, topic)` — the same name on a different topic is a different listener and does not collide. The scheduler resolves `if_exists` per `name` alone, because job names are unique across the scheduler regardless of trigger type. `if_exists="skip"` on the bus is safe to use when registering the same handler on multiple topics under different names; `if_exists="replace"` on the bus targets exactly the `(name, topic)` pair, not all listeners sharing that name.
+
+!!! note "Lambda filters report drift under `skip`"
+    Lambdas and closures compare by identity, not by value. Re-registering "the same" filter built from a fresh lambda reports drift and raises under `if_exists="skip"`. Use a named function or a built-in predicate (from `P.*`) for stable comparison. `if_exists="replace"` is not affected by this constraint.
+
+!!! note "Once-listeners and `if_exists`"
+    `once=True` listeners participate in name+topic collision tracking like durable listeners. Two `once=True` registrations with the same name and topic raise `DuplicateListenerError` by default. Pass `if_exists="skip"` or `if_exists="replace"` to control the behavior explicitly.
 
 ## See Also
 

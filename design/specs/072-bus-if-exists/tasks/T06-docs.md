@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Document if_exists on the bus (docs site + snippet + migration)"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#1", "FR#3", "FR#4", "FR#5", "FR#6", "FR#7"]
 ---
