@@ -18,7 +18,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     gen_parser = subparsers.add_parser("generate", help="Generate entity code from HA core")
     gen_parser.add_argument("--ha-core-path", type=Path, help="Path to local HA core checkout")
-    gen_parser.add_argument("--ha-release-tag", type=str, help="HA release tag to clone (e.g., 2026.5.1)")
+    gen_parser.add_argument("--ha-release-tag", type=str, help="HA release tag to clone (e.g., 2026.6.3)")
     gen_parser.add_argument("--check", action="store_true", help="Check for drift without writing files")
     gen_parser.add_argument("--domain", type=str, help="Comma-separated list of domains to generate")
 
