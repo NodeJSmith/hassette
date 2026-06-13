@@ -69,9 +69,9 @@ A blocking call made directly in a handler — `requests.get(...)`, a database d
         Entity objects from `self.api.sync.get_entity(...)` expose their own sync facade.
         Given `cover = self.api.sync.get_entity("cover.living_room", entities.CoverEntity)`,
         the calls `cover.sync.open_cover()` and `cover.sync.set_cover_position(position=60)`
-        run synchronously without `run_sync`. Use `run_sync` for arbitrary coroutines (API calls, template
-        rendering, history lookups); use `entity.sync.<method>()` for domain entity
-        actions. See [API Methods](../api/methods.md#entity-sync-facades-appsync-only)
+        run synchronously without `run_sync`. `run_sync` handles arbitrary coroutines —
+        API calls, template rendering, history lookups. `entity.sync.<method>()` handles
+        domain entity actions. See [API Methods](../api/methods.md#entity-sync-facades-appsync-only)
         for the full facade reference.
 
     ### Running on the Loop Thread

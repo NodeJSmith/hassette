@@ -132,18 +132,19 @@ with the new snapshot. The updated state is also returned.
 
 #### Entity sync facades (`AppSync` only)
 
-[`AppSync`][hassette.app.app.AppSync] is the app base class for blocking code — its
-lifecycle hooks run in a thread pool, and `self.api.sync` is the synchronous counterpart to
-`self.api`. An entity fetched through `self.api.sync.get_entity(...)` exposes a sync facade
-via `.sync`. Domains with Home Assistant services get a typed, domain-specific facade —
-`cover.sync` returns a `CoverEntitySyncFacade`, `climate.sync` returns a
-`ClimateEntitySyncFacade` — that mirrors each domain action as a blocking synchronous call,
-no `await` or `run_sync` boilerplate. Read-only domains (such as `sensor`) have no services
-to call, so their `.sync` exposes only the base `turn_on`/`turn_off`/`toggle`.
+[`AppSync`][hassette.app.app.AppSync] is the app base class for blocking code. Its lifecycle
+hooks run in a thread pool. `self.api.sync` is the synchronous counterpart to `self.api`. An
+entity fetched through `self.api.sync.get_entity(...)` exposes a sync facade via `.sync`.
 
-These methods block the calling thread until the call completes, so they belong in `AppSync`
+Domains with Home Assistant services get a typed, domain-specific facade. `cover.sync` returns
+a `CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. Each one mirrors
+a domain action as a blocking synchronous call, with no `await` or `run_sync` boilerplate.
+Read-only domains such as `sensor` have no services to call, so their `.sync` exposes only the
+base `turn_on`/`turn_off`/`toggle`.
+
+These methods block the calling thread until the call completes. They belong in `AppSync`
 lifecycle hooks and [`run_in_thread`](../apps/task-bucket.md#offloading-blocking-code)
-callbacks. Calling one from a regular `async` handler blocks the event loop; `await` the
+callbacks. Calling one from a regular `async` handler blocks the event loop. `await` the
 entity's async method there instead.
 
 ```python
