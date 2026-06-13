@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Regenerate entity files and verify freshness and types"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#6", "AC#1", "AC#6", "AC#7"]
 ---

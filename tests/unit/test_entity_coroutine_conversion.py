@@ -304,22 +304,34 @@ async def test_base_entity_toggle_awaited_returns_none_no_warning() -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC#11 — entity.sync.turn_on() still registers (regression via api.sync path)
+# AC#11 — entity.sync.turn_on() still registers (now via the domain facade)
 # ---------------------------------------------------------------------------
 
 
 def test_entity_sync_turn_on_registers() -> None:
-    """AC#11: entity.sync.turn_on() still executes via api.sync (BaseEntitySyncFacade route)."""
+    """AC#11: entity.sync.turn_on() executes synchronously via the domain sync facade.
+
+    LightEntity.sync is now a LightEntitySyncFacade. Because `light` defines a
+    `turn_on` service, the facade's generated turn_on overrides the base
+    BaseEntitySyncFacade.turn_on and routes through api.sync.call_service(...) —
+    matching the async LightEntity.turn_on delegation.
+    """
     api = make_api()
     entity, token = make_light_entity(api)
     try:
-        # BaseEntitySyncFacade.turn_on routes through self.entity.api.sync.turn_on(...)
-        # which goes via run_sync. We just verify no exception and the call passes through.
         # Patch api.sync to a mock so we don't need a real event loop here.
         mock_sync = MagicMock()
         api.sync = mock_sync
 
         entity.sync.turn_on(brightness=100)
-        mock_sync.turn_on.assert_called_once_with(entity.entity_id, entity.domain, brightness=100)
+        # The generated facade mirrors the async method: it forwards every light
+        # param (the rest defaulting to None). Assert the meaningful dispatch args
+        # without coupling to every optional param.
+        mock_sync.call_service.assert_called_once()
+        kwargs = mock_sync.call_service.call_args.kwargs
+        assert kwargs["domain"] == entity.domain
+        assert kwargs["service"] == "turn_on"
+        assert kwargs["target"] == {"entity_id": entity.entity_id}
+        assert kwargs["brightness"] == 100
     finally:
         context.HASSETTE_INSTANCE.reset(token)

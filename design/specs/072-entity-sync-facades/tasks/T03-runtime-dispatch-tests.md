@@ -41,16 +41,22 @@ Cover these cases:
    `climate.sync.set_temperature(temperature=21.0)`, assert `call_service` was
    called with `service="set_temperature"` and `temperature=21.0` passed through.
 
-4. **Optional-param / inherited base actions (AC#5):** call
-   `light.sync.turn_on(brightness=128)` and `light.sync.turn_off()`, assert they
-   route through `api.sync.turn_on(...)` / `api.sync.turn_off(...)` (the inherited
-   `BaseEntitySyncFacade` methods) — confirming inheritance is intact.
+4. **Optional-param + inheritance intact (AC#5):** `light` defines `turn_on`,
+   `turn_off`, and `toggle` as services, so the generated `LightEntitySyncFacade`
+   **overrides** the base methods — they route through
+   `api.sync.call_service(service="turn_on"/"turn_off", ...)`, NOT through
+   `api.sync.turn_on(...)`. Assert: `light.sync.turn_on(brightness=128)` calls
+   `call_service` with `service="turn_on"` and `brightness=128` (it forwards all
+   light params, so assert the meaningful subset, not an exact full kwargs match);
+   `light.sync.turn_off()` calls `call_service` with `service="turn_off"`. Also
+   assert `isinstance(light.sync, BaseEntitySyncFacade)` to confirm the inheritance
+   chain is intact (FR#5) even though these particular methods are overridden.
 
-Also confirm the existing regression test still passes:
-`tests/unit/test_entity_coroutine_conversion.py::test_entity_sync_turn_on_registers`
-(it calls `entity.sync.turn_on(brightness=100)` through the inherited route; after
-this change `LightEntity.sync` is `LightEntitySyncFacade`, which inherits
-`turn_on`, so it must stay green).
+   NOTE: `test_entity_coroutine_conversion.py::test_entity_sync_turn_on_registers`
+   was already UPDATED in T02 (it now asserts the `call_service` dispatch, because
+   the regeneration changed `light.sync.turn_on` from the base route to the
+   generated override). Do NOT re-fix it — just confirm it passes. Do not restore
+   the old `api.sync.turn_on` assertion.
 
 Run: `uv run pytest tests/unit/test_sync_entity_facade.py
 tests/unit/test_entity_coroutine_conversion.py tests/unit/test_recording_sync_facade.py -v`
@@ -85,5 +91,7 @@ tests/unit/test_entity_coroutine_conversion.py tests/unit/test_recording_sync_fa
       `api.sync.call_service` with `service="set_temperature"` and the temperature
       passed through.
 - [ ] AC#5: `LightEntity(...).sync.turn_on(brightness=128)` and `.turn_off()`
-      route through the inherited base facade methods and still work;
-      `test_entity_sync_turn_on_registers` remains green.
+      work and dispatch correctly (via the generated override → `call_service`,
+      since light defines these as services); `isinstance(light.sync,
+      BaseEntitySyncFacade)` holds (inheritance chain intact); the T02-updated
+      `test_entity_sync_turn_on_registers` passes.
