@@ -114,11 +114,7 @@ class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
         self.entity = entity
 
     def turn_off(self) -> None:
-        """Turn off the entity.
-
-        Returns:
-            None.
-        """
+        """Turn off the entity."""
         self.entity.api.sync.turn_off(self.entity.entity_id, self.entity.domain)
 
     def turn_on(self, **data: Any) -> None:
@@ -126,16 +122,9 @@ class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
 
         Args:
             **data: Service data fields forwarded to the domain's ``turn_on`` service.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.turn_on(self.entity.entity_id, self.entity.domain, **data)
 
     def toggle(self) -> None:
-        """Toggle the entity.
-
-        Returns:
-            None.
-        """
+        """Toggle the entity."""
         self.entity.api.sync.toggle_service(self.entity.entity_id, self.entity.domain)

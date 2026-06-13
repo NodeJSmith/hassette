@@ -22,7 +22,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_disarm service.
+        """Disarms an alarm.
 
         Args:
             code: Code to disarm the alarm.
@@ -41,7 +41,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_arm_custom_bypass service.
+        """Arms an alarm while allowing to bypass a custom area.
 
         Args:
             code: Code to arm the alarm.
@@ -60,7 +60,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_arm_home service.
+        """Arms an alarm in the home mode.
 
         Args:
             code: Code to arm the alarm.
@@ -79,7 +79,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_arm_away service.
+        """Arms an alarm in the away mode.
 
         Args:
             code: Code to arm the alarm.
@@ -98,7 +98,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_arm_night service.
+        """Arms an alarm in the night mode.
 
         Args:
             code: Code to arm the alarm.
@@ -117,7 +117,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_arm_vacation service.
+        """Arms an alarm in the vacation mode.
 
         Args:
             code: Code to arm the alarm.
@@ -136,7 +136,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the alarm_control_panel.alarm_trigger service.
+        """Triggers an alarm manually.
 
         Args:
             code: Code to arm the alarm.
@@ -159,13 +159,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_disarm service synchronously.
+        """Disarms an alarm.
 
         Args:
             code: Code to disarm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -179,13 +176,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_arm_custom_bypass service synchronously.
+        """Arms an alarm while allowing to bypass a custom area.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -199,13 +193,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_arm_home service synchronously.
+        """Arms an alarm in the home mode.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -219,13 +210,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_arm_away service synchronously.
+        """Arms an alarm in the away mode.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -239,13 +227,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_arm_night service synchronously.
+        """Arms an alarm in the night mode.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -259,13 +244,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_arm_vacation service synchronously.
+        """Arms an alarm in the vacation mode.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -279,13 +261,10 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         *,
         code: str | None = None,
     ) -> None:
-        """Call the alarm_control_panel.alarm_trigger service synchronously.
+        """Triggers an alarm manually.
 
         Args:
             code: Code to arm the alarm.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

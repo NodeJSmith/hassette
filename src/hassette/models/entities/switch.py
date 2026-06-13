@@ -18,7 +18,7 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
         return self._get_or_create_sync(SwitchEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the switch.turn_on service."""
+        """Turns on a switch."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the switch.turn_off service."""
+        """Turns off a switch."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -38,7 +38,7 @@ class SwitchEntity(BaseEntity[SwitchState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the switch.toggle service."""
+        """Toggles a switch on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,11 +52,7 @@ class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
     """Synchronous facade for SwitchEntity service methods."""
 
     def turn_on(self) -> None:
-        """Call the switch.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on a switch."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -64,11 +60,7 @@ class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the switch.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a switch."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -76,11 +68,7 @@ class SwitchEntitySyncFacade(BaseEntitySyncFacade[SwitchState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the switch.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a switch on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

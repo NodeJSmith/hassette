@@ -24,7 +24,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.set_preset_mode service.
+        """Sets the preset mode of a fan.
 
         Args:
             preset_mode: Preset fan mode.
@@ -43,7 +43,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage: int,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.set_percentage service.
+        """Sets the speed of a fan.
 
         Args:
             percentage: Speed of the fan.
@@ -63,7 +63,7 @@ class FanEntity(BaseEntity[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.turn_on service.
+        """Turns on a fan.
 
         Args:
             percentage: Speed of the fan.
@@ -80,7 +80,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the fan.turn_off service."""
+        """Turns off a fan."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -94,7 +94,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         oscillating: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.oscillate service.
+        """Controls the oscillation of a fan.
 
         Args:
             oscillating: Turns oscillation on/off.
@@ -109,7 +109,7 @@ class FanEntity(BaseEntity[FanState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the fan.toggle service."""
+        """Toggles a fan on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -123,7 +123,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         direction: Direction,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.set_direction service.
+        """Sets a fan's rotation direction.
 
         Args:
             direction: Direction of the fan rotation.
@@ -142,7 +142,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.increase_speed service.
+        """Increases the speed of a fan.
 
         Args:
             percentage_step: Percentage step by which the speed should be increased.
@@ -161,7 +161,7 @@ class FanEntity(BaseEntity[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the fan.decrease_speed service.
+        """Decreases the speed of a fan.
 
         Args:
             percentage_step: Percentage step by which the speed should be decreased.
@@ -184,13 +184,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         preset_mode: str,
     ) -> None:
-        """Call the fan.set_preset_mode service synchronously.
+        """Sets the preset mode of a fan.
 
         Args:
             preset_mode: Preset fan mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -204,13 +201,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage: int,
     ) -> None:
-        """Call the fan.set_percentage service synchronously.
+        """Sets the speed of a fan.
 
         Args:
             percentage: Speed of the fan.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -225,14 +219,11 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         percentage: int | None = None,
         preset_mode: str | None = None,
     ) -> None:
-        """Call the fan.turn_on service synchronously.
+        """Turns on a fan.
 
         Args:
             percentage: Speed of the fan.
             preset_mode: Preset fan mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -243,11 +234,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the fan.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a fan."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -259,13 +246,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         oscillating: bool,
     ) -> None:
-        """Call the fan.oscillate service synchronously.
+        """Controls the oscillation of a fan.
 
         Args:
             oscillating: Turns oscillation on/off.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -275,11 +259,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the fan.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a fan on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -291,13 +271,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         direction: Direction,
     ) -> None:
-        """Call the fan.set_direction service synchronously.
+        """Sets a fan's rotation direction.
 
         Args:
             direction: Direction of the fan rotation.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -311,13 +288,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> None:
-        """Call the fan.increase_speed service synchronously.
+        """Increases the speed of a fan.
 
         Args:
             percentage_step: Percentage step by which the speed should be increased.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -331,13 +305,10 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
         *,
         percentage_step: int | None = None,
     ) -> None:
-        """Call the fan.decrease_speed service synchronously.
+        """Decreases the speed of a fan.
 
         Args:
             percentage_step: Percentage step by which the speed should be decreased.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

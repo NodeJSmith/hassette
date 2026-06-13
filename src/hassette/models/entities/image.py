@@ -22,7 +22,7 @@ class ImageEntity(BaseEntity[ImageState, str]):
         *,
         filename: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the image.snapshot service.
+        """Takes a snapshot from an image.
 
         Args:
             filename: Template of a filename. Variable available is `entity_id`.
@@ -45,13 +45,10 @@ class ImageEntitySyncFacade(BaseEntitySyncFacade[ImageState, str]):
         *,
         filename: str,
     ) -> None:
-        """Call the image.snapshot service synchronously.
+        """Takes a snapshot from an image.
 
         Args:
             filename: Template of a filename. Variable available is `entity_id`.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

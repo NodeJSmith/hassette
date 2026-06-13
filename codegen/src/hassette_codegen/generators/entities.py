@@ -35,8 +35,7 @@ class ServiceForTemplate:
     name: str
     method_name: str
     params: list[ServiceParam]
-    async_doc: str
-    sync_doc: str
+    doc: str
 
 
 def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
@@ -90,14 +89,13 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             )
 
         sorted_params = sorted(params, key=lambda p: (not p.required, p.name))
-        summary = f"Call the {domain.name}.{service.name} service"
+        summary = service.description or f"Call the {domain.name}.{service.name} service."
         services_for_template.append(
             ServiceForTemplate(
                 name=service.name,
                 method_name=service.method_name,
                 params=sorted_params,
-                async_doc=build_method_docstring(f"{summary}.", sorted_params, returns_none=False),
-                sync_doc=build_method_docstring(f"{summary} synchronously.", sorted_params, returns_none=True),
+                doc=build_method_docstring(summary, sorted_params),
             )
         )
 
@@ -117,28 +115,33 @@ def _make_alias_name(param_name: str) -> str:
     return param_name.replace("_", " ").title().replace(" ", "")
 
 
-def build_method_docstring(summary: str, params: list[ServiceParam], *, returns_none: bool) -> str:
+def build_method_docstring(summary: str, params: list[ServiceParam]) -> str:
     """Build a Google-style docstring body for an entity service method.
 
     The returned string carries its own 8-space indentation and triple quotes, so the template
-    inserts it verbatim. Only params with a resolved Home Assistant description appear in ``Args``;
-    descriptions are rewrapped to the project line length and given a trailing period when they
-    lack terminal punctuation.
+    inserts it verbatim. ``summary`` is Home Assistant's own service description; only params with
+    a resolved field description appear in ``Args``. Text is rewrapped to the project line length
+    and given a trailing period when it lacks terminal punctuation. No ``Returns`` section is
+    emitted — the ``-> None`` / ``-> Coroutine`` annotation already states the return.
     """
-    lines = [f'{DOCSTRING_INDENT}"""{summary}']
+    lines = textwrap.fill(
+        _with_period(summary),
+        width=LINE_LENGTH,
+        initial_indent=f'{DOCSTRING_INDENT}"""',
+        subsequent_indent=DOCSTRING_INDENT,
+        break_long_words=False,
+        break_on_hyphens=False,
+    ).splitlines()
 
     documented = [p for p in params if p.description]
     if documented:
         lines.append("")
         lines.append(f"{DOCSTRING_INDENT}Args:")
         for param in documented:
-            text = " ".join((param.description or "").split())
-            if not text.endswith((".", "!", "?")):
-                text += "."
             # Google hanging indent: the ``name:`` label sits at +4, continuation lines at +8.
             lines.append(
                 textwrap.fill(
-                    text,
+                    _with_period(param.description or ""),
                     width=LINE_LENGTH,
                     initial_indent=f"{DOCSTRING_INDENT}    {param.name}: ",
                     subsequent_indent=f"{DOCSTRING_INDENT}        ",
@@ -147,10 +150,13 @@ def build_method_docstring(summary: str, params: list[ServiceParam], *, returns_
                 )
             )
 
-    if returns_none:
-        lines.append("")
-        lines.append(f"{DOCSTRING_INDENT}Returns:")
-        lines.append(f"{DOCSTRING_INDENT}    None.")
-
     lines.append(f'{DOCSTRING_INDENT}"""')
     return "\n".join(lines)
+
+
+def _with_period(text: str) -> str:
+    """Collapse whitespace and append a period when the text lacks terminal punctuation."""
+    text = " ".join(text.split())
+    if text and not text.endswith((".", "!", "?")):
+        text += "."
+    return text

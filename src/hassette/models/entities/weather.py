@@ -24,7 +24,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Type,
     ) -> Coroutine[Any, Any, None]:
-        """Call the weather.get_forecast service.
+        """Retrieves the forecast from a weather service.
 
         Args:
             type: The scope of the weather forecast.
@@ -43,7 +43,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ) -> Coroutine[Any, Any, None]:
-        """Call the weather.get_forecasts service.
+        """Retrieves the forecasts from one or more weather services.
 
         Args:
             type: The scope of the weather forecast.
@@ -66,13 +66,10 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Type,
     ) -> None:
-        """Call the weather.get_forecast service synchronously.
+        """Retrieves the forecast from a weather service.
 
         Args:
             type: The scope of the weather forecast.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -86,13 +83,10 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         *,
         type: Literal["daily", "hourly", "twice_daily"],
     ) -> None:
-        """Call the weather.get_forecasts service synchronously.
+        """Retrieves the forecasts from one or more weather services.
 
         Args:
             type: The scope of the weather forecast.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

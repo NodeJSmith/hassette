@@ -18,7 +18,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         return self._get_or_create_sync(AutomationEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the automation.turn_on service."""
+        """Enables an automation."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -32,7 +32,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         *,
         stop_actions: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the automation.turn_off service.
+        """Disables an automation.
 
         Args:
             stop_actions: Stops currently running actions.
@@ -47,7 +47,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the automation.toggle service."""
+        """Toggles (enable / disable) an automation."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -61,7 +61,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
         *,
         skip_condition: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the automation.trigger service.
+        """Triggers the actions of an automation.
 
         Args:
             skip_condition: Defines whether or not the conditions will be skipped.
@@ -80,11 +80,7 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
     """Synchronous facade for AutomationEntity service methods."""
 
     def turn_on(self) -> None:
-        """Call the automation.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Enables an automation."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -96,13 +92,10 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         stop_actions: bool | None = None,
     ) -> None:
-        """Call the automation.turn_off service synchronously.
+        """Disables an automation.
 
         Args:
             stop_actions: Stops currently running actions.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -112,11 +105,7 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the automation.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles (enable / disable) an automation."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -128,13 +117,10 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         *,
         skip_condition: bool | None = None,
     ) -> None:
-        """Call the automation.trigger service synchronously.
+        """Triggers the actions of an automation.
 
         Args:
             skip_condition: Defines whether or not the conditions will be skipped.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

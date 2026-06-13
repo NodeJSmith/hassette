@@ -18,7 +18,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         return self._get_or_create_sync(CoverEntitySyncFacade)
 
     def open_cover(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.open_cover service."""
+        """Opens a cover."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def close_cover(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.close_cover service."""
+        """Closes a cover."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -38,7 +38,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.toggle service."""
+        """Toggles a cover open/closed."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,7 +52,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         *,
         position: int,
     ) -> Coroutine[Any, Any, None]:
-        """Call the cover.set_cover_position service.
+        """Moves a cover to a specific position.
 
         Args:
             position: Target position.
@@ -67,7 +67,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def stop_cover(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.stop_cover service."""
+        """Stops a cover's movement."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -77,7 +77,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def open_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.open_cover_tilt service."""
+        """Tilts a cover open."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -87,7 +87,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def close_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.close_cover_tilt service."""
+        """Tilts a cover to close."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -97,7 +97,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def toggle_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.toggle_cover_tilt service."""
+        """Toggles a cover tilt open/closed."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -111,7 +111,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         *,
         tilt_position: int,
     ) -> Coroutine[Any, Any, None]:
-        """Call the cover.set_cover_tilt_position service.
+        """Moves a cover tilt to a specific position.
 
         Args:
             tilt_position: Target tilt positition.
@@ -126,7 +126,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
         )
 
     def stop_cover_tilt(self) -> Coroutine[Any, Any, None]:
-        """Call the cover.stop_cover_tilt service."""
+        """Stops a tilting cover movement."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -140,11 +140,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
     """Synchronous facade for CoverEntity service methods."""
 
     def open_cover(self) -> None:
-        """Call the cover.open_cover service synchronously.
-
-        Returns:
-            None.
-        """
+        """Opens a cover."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover",
@@ -152,11 +148,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def close_cover(self) -> None:
-        """Call the cover.close_cover service synchronously.
-
-        Returns:
-            None.
-        """
+        """Closes a cover."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover",
@@ -164,11 +156,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the cover.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a cover open/closed."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -180,13 +168,10 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         *,
         position: int,
     ) -> None:
-        """Call the cover.set_cover_position service synchronously.
+        """Moves a cover to a specific position.
 
         Args:
             position: Target position.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -196,11 +181,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def stop_cover(self) -> None:
-        """Call the cover.stop_cover service synchronously.
-
-        Returns:
-            None.
-        """
+        """Stops a cover's movement."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover",
@@ -208,11 +189,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def open_cover_tilt(self) -> None:
-        """Call the cover.open_cover_tilt service synchronously.
-
-        Returns:
-            None.
-        """
+        """Tilts a cover open."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover_tilt",
@@ -220,11 +197,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def close_cover_tilt(self) -> None:
-        """Call the cover.close_cover_tilt service synchronously.
-
-        Returns:
-            None.
-        """
+        """Tilts a cover to close."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover_tilt",
@@ -232,11 +205,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def toggle_cover_tilt(self) -> None:
-        """Call the cover.toggle_cover_tilt service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a cover tilt open/closed."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle_cover_tilt",
@@ -248,13 +217,10 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         *,
         tilt_position: int,
     ) -> None:
-        """Call the cover.set_cover_tilt_position service synchronously.
+        """Moves a cover tilt to a specific position.
 
         Args:
             tilt_position: Target tilt positition.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -264,11 +230,7 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         )
 
     def stop_cover_tilt(self) -> None:
-        """Call the cover.stop_cover_tilt service synchronously.
-
-        Returns:
-            None.
-        """
+        """Stops a tilting cover movement."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover_tilt",

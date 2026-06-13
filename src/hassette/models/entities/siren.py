@@ -24,7 +24,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
         tone: str | None = None,
         volume_level: float | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the siren.turn_on service.
+        """Turns on a siren.
 
         Args:
             duration: Number of seconds the sound is played. Must be supported by the integration.
@@ -44,7 +44,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the siren.turn_off service."""
+        """Turns off a siren."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -54,7 +54,7 @@ class SirenEntity(BaseEntity[SirenState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the siren.toggle service."""
+        """Toggles a siren on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -74,16 +74,13 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         tone: str | None = None,
         volume_level: float | None = None,
     ) -> None:
-        """Call the siren.turn_on service synchronously.
+        """Turns on a siren.
 
         Args:
             duration: Number of seconds the sound is played. Must be supported by the integration.
             tone: The tone to emit. When `available_tones` property is a map, either the key or the value can be used.
                 Must be supported by the integration.
             volume_level: The volume. 0 is inaudible, 1 is the maximum volume. Must be supported by the integration.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -95,11 +92,7 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the siren.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a siren."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -107,11 +100,7 @@ class SirenEntitySyncFacade(BaseEntitySyncFacade[SirenState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the siren.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a siren on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

@@ -22,7 +22,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         *,
         duration: dict[str, int] | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the timer.start service.
+        """Starts a timer or restarts it with a provided duration.
 
         Args:
             duration: Custom duration to restart the timer with.
@@ -37,7 +37,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def pause(self) -> Coroutine[Any, Any, None]:
-        """Call the timer.pause service."""
+        """Pauses a running timer, retaining the remaining duration for later continuation."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -47,7 +47,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def cancel(self) -> Coroutine[Any, Any, None]:
-        """Call the timer.cancel service."""
+        """Resets a timer's duration to the last known initial value without firing the timer finished event."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -57,7 +57,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         )
 
     def finish(self) -> Coroutine[Any, Any, None]:
-        """Call the timer.finish service."""
+        """Finishes a running timer earlier than scheduled."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -71,7 +71,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
         *,
         duration: dict[str, int],
     ) -> Coroutine[Any, Any, None]:
-        """Call the timer.change service.
+        """Changes a timer by adding or subtracting a given duration.
 
         Args:
             duration: Duration to add to or subtract from the running timer.
@@ -94,13 +94,10 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int] | None = None,
     ) -> None:
-        """Call the timer.start service synchronously.
+        """Starts a timer or restarts it with a provided duration.
 
         Args:
             duration: Custom duration to restart the timer with.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -110,11 +107,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def pause(self) -> None:
-        """Call the timer.pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Pauses a running timer, retaining the remaining duration for later continuation."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
@@ -122,11 +115,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def cancel(self) -> None:
-        """Call the timer.cancel service synchronously.
-
-        Returns:
-            None.
-        """
+        """Resets a timer's duration to the last known initial value without firing the timer finished event."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="cancel",
@@ -134,11 +123,7 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         )
 
     def finish(self) -> None:
-        """Call the timer.finish service synchronously.
-
-        Returns:
-            None.
-        """
+        """Finishes a running timer earlier than scheduled."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="finish",
@@ -150,13 +135,10 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         *,
         duration: dict[str, int],
     ) -> None:
-        """Call the timer.change service synchronously.
+        """Changes a timer by adding or subtracting a given duration.
 
         Args:
             duration: Duration to add to or subtract from the running timer.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

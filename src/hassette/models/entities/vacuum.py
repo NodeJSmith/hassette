@@ -18,7 +18,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         return self._get_or_create_sync(VacuumEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.turn_on service."""
+        """Turns on a vacuum cleaner."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.turn_off service."""
+        """Turns off a vacuum cleaner."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -38,7 +38,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.toggle service."""
+        """Toggles a vacuum cleaner on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -48,7 +48,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def stop(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.stop service."""
+        """Stops a vacuum cleaner's current task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -58,7 +58,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def locate(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.locate service."""
+        """Locates a vacuum cleaner."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -68,7 +68,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def start_pause(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.start_pause service."""
+        """Starts, pauses, or resumes a vacuum cleaner's cleaning task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -78,7 +78,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def start(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.start service."""
+        """Starts or resumes a vacuum cleaner's cleaning task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -88,7 +88,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def pause(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.pause service."""
+        """Pauses a vacuum cleaner's current task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -98,7 +98,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def return_to_base(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.return_to_base service."""
+        """Sends a vacuum cleaner back to its dock."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -108,7 +108,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         )
 
     def clean_spot(self) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.clean_spot service."""
+        """Tells a vacuum cleaner to do a spot clean-up."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -122,7 +122,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         *,
         cleaning_area_id: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.clean_area service.
+        """Tells a vacuum cleaner to clean one or more areas.
 
         Args:
             cleaning_area_id: Areas to clean.
@@ -142,7 +142,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         command: str,
         params: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.send_command service.
+        """Sends a command to a vacuum cleaner.
 
         Args:
             command: Command to execute. The commands are integration-specific.
@@ -163,7 +163,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         *,
         fan_speed: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the vacuum.set_fan_speed service.
+        """Sets the fan speed of a vacuum cleaner.
 
         Args:
             fan_speed: Fan speed. The value depends on the integration. Some integrations have speed steps, like
@@ -183,11 +183,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
     """Synchronous facade for VacuumEntity service methods."""
 
     def turn_on(self) -> None:
-        """Call the vacuum.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on a vacuum cleaner."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -195,11 +191,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the vacuum.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a vacuum cleaner."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -207,11 +199,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the vacuum.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a vacuum cleaner on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -219,11 +207,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def stop(self) -> None:
-        """Call the vacuum.stop service synchronously.
-
-        Returns:
-            None.
-        """
+        """Stops a vacuum cleaner's current task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop",
@@ -231,11 +215,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def locate(self) -> None:
-        """Call the vacuum.locate service synchronously.
-
-        Returns:
-            None.
-        """
+        """Locates a vacuum cleaner."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="locate",
@@ -243,11 +223,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def start_pause(self) -> None:
-        """Call the vacuum.start_pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Starts, pauses, or resumes a vacuum cleaner's cleaning task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_pause",
@@ -255,11 +231,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def start(self) -> None:
-        """Call the vacuum.start service synchronously.
-
-        Returns:
-            None.
-        """
+        """Starts or resumes a vacuum cleaner's cleaning task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
@@ -267,11 +239,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def pause(self) -> None:
-        """Call the vacuum.pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Pauses a vacuum cleaner's current task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
@@ -279,11 +247,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def return_to_base(self) -> None:
-        """Call the vacuum.return_to_base service synchronously.
-
-        Returns:
-            None.
-        """
+        """Sends a vacuum cleaner back to its dock."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="return_to_base",
@@ -291,11 +255,7 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         )
 
     def clean_spot(self) -> None:
-        """Call the vacuum.clean_spot service synchronously.
-
-        Returns:
-            None.
-        """
+        """Tells a vacuum cleaner to do a spot clean-up."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clean_spot",
@@ -307,13 +267,10 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         *,
         cleaning_area_id: str,
     ) -> None:
-        """Call the vacuum.clean_area service synchronously.
+        """Tells a vacuum cleaner to clean one or more areas.
 
         Args:
             cleaning_area_id: Areas to clean.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -328,14 +285,11 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         command: str,
         params: Any | None = None,
     ) -> None:
-        """Call the vacuum.send_command service synchronously.
+        """Sends a command to a vacuum cleaner.
 
         Args:
             command: Command to execute. The commands are integration-specific.
             params: Parameters for the command. The parameters are integration-specific.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -350,14 +304,11 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         *,
         fan_speed: str,
     ) -> None:
-        """Call the vacuum.set_fan_speed service synchronously.
+        """Sets the fan speed of a vacuum cleaner.
 
         Args:
             fan_speed: Fan speed. The value depends on the integration. Some integrations have speed steps, like
                 'medium'. Some use a percentage, between 0 and 100.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

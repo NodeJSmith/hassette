@@ -22,7 +22,7 @@ class DateEntity(BaseEntity[DateState, str]):
         *,
         date: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the date.set_value service.
+        """Sets the value of a date.
 
         Args:
             date: The date to set.
@@ -45,13 +45,10 @@ class DateEntitySyncFacade(BaseEntitySyncFacade[DateState, str]):
         *,
         date: str,
     ) -> None:
-        """Call the date.set_value service synchronously.
+        """Sets the value of a date.
 
         Args:
             date: The date to set.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

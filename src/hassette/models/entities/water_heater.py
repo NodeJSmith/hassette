@@ -22,7 +22,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         *,
         away_mode: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Call the water_heater.set_away_mode service.
+        """Sets the away mode of a water heater.
 
         Args:
             away_mode: New value of away mode.
@@ -42,7 +42,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         temperature: float,
         operation_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the water_heater.set_temperature service.
+        """Sets the target temperature of a water heater.
 
         Args:
             temperature: New target temperature for the water heater.
@@ -64,7 +64,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         *,
         operation_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the water_heater.set_operation_mode service.
+        """Sets the operation mode of a water heater.
 
         Args:
             operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
@@ -80,7 +80,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the water_heater.turn_on service."""
+        """Turns on a water heater."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -90,7 +90,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the water_heater.turn_off service."""
+        """Turns off a water heater."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -108,13 +108,10 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         away_mode: bool,
     ) -> None:
-        """Call the water_heater.set_away_mode service synchronously.
+        """Sets the away mode of a water heater.
 
         Args:
             away_mode: New value of away mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -129,15 +126,12 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         temperature: float,
         operation_mode: str | None = None,
     ) -> None:
-        """Call the water_heater.set_temperature service synchronously.
+        """Sets the target temperature of a water heater.
 
         Args:
             temperature: New target temperature for the water heater.
             operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
                 documentation.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -152,14 +146,11 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         operation_mode: str,
     ) -> None:
-        """Call the water_heater.set_operation_mode service synchronously.
+        """Sets the operation mode of a water heater.
 
         Args:
             operation_mode: New value of the operation mode. For a list of possible modes, refer to the integration
                 documentation.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -169,11 +160,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_on(self) -> None:
-        """Call the water_heater.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on a water heater."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -181,11 +168,7 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the water_heater.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a water heater."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",

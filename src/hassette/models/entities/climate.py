@@ -22,7 +22,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         preset_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_preset_mode service.
+        """Sets the preset mode of a thermostat.
 
         Args:
             preset_mode: Preset mode.
@@ -44,7 +44,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         target_temp_low: float | None = None,
         temperature: float | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_temperature service.
+        """Sets the target temperature of a thermostat.
 
         Args:
             hvac_mode: HVAC operation mode.
@@ -69,7 +69,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         humidity: int,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_humidity service.
+        """Sets the target humidity of a thermostat.
 
         Args:
             humidity: Target humidity.
@@ -88,7 +88,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         fan_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_fan_mode service.
+        """Sets the fan mode of a thermostat.
 
         Args:
             fan_mode: Fan operation mode.
@@ -107,7 +107,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         hvac_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_hvac_mode service.
+        """Sets the HVAC mode of a thermostat.
 
         Args:
             hvac_mode: HVAC operation mode.
@@ -126,7 +126,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_swing_mode service.
+        """Sets the swing mode of a thermostat.
 
         Args:
             swing_mode: Swing operation mode.
@@ -145,7 +145,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         *,
         swing_horizontal_mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the climate.set_swing_horizontal_mode service.
+        """Sets the horizontal swing mode of a thermostat.
 
         Args:
             swing_horizontal_mode: Horizontal swing operation mode.
@@ -160,7 +160,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the climate.turn_on service."""
+        """Turns on a thermostat."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -170,7 +170,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the climate.turn_off service."""
+        """Turns off a thermostat."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -180,7 +180,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the climate.toggle service."""
+        """Toggles a thermostat on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -198,13 +198,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         preset_mode: str,
     ) -> None:
-        """Call the climate.set_preset_mode service synchronously.
+        """Sets the preset mode of a thermostat.
 
         Args:
             preset_mode: Preset mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -221,16 +218,13 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         target_temp_low: float | None = None,
         temperature: float | None = None,
     ) -> None:
-        """Call the climate.set_temperature service synchronously.
+        """Sets the target temperature of a thermostat.
 
         Args:
             hvac_mode: HVAC operation mode.
             target_temp_high: The max temperature setpoint.
             target_temp_low: The min temperature setpoint.
             temperature: The temperature setpoint.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -247,13 +241,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         humidity: int,
     ) -> None:
-        """Call the climate.set_humidity service synchronously.
+        """Sets the target humidity of a thermostat.
 
         Args:
             humidity: Target humidity.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -267,13 +258,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         fan_mode: str,
     ) -> None:
-        """Call the climate.set_fan_mode service synchronously.
+        """Sets the fan mode of a thermostat.
 
         Args:
             fan_mode: Fan operation mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -287,13 +275,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         hvac_mode: str | None = None,
     ) -> None:
-        """Call the climate.set_hvac_mode service synchronously.
+        """Sets the HVAC mode of a thermostat.
 
         Args:
             hvac_mode: HVAC operation mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -307,13 +292,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         swing_mode: str,
     ) -> None:
-        """Call the climate.set_swing_mode service synchronously.
+        """Sets the swing mode of a thermostat.
 
         Args:
             swing_mode: Swing operation mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -327,13 +309,10 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         *,
         swing_horizontal_mode: str,
     ) -> None:
-        """Call the climate.set_swing_horizontal_mode service synchronously.
+        """Sets the horizontal swing mode of a thermostat.
 
         Args:
             swing_horizontal_mode: Horizontal swing operation mode.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -343,11 +322,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def turn_on(self) -> None:
-        """Call the climate.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on a thermostat."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -355,11 +330,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the climate.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a thermostat."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -367,11 +338,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the climate.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a thermostat on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

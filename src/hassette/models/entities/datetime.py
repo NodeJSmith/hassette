@@ -22,7 +22,7 @@ class DateTimeEntity(BaseEntity[DateTimeState, str]):
         *,
         datetime: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the datetime.set_value service.
+        """Sets the value of a date/time.
 
         Args:
             datetime: The date/time to set. The time zone of the Home Assistant instance is assumed.
@@ -45,13 +45,10 @@ class DateTimeEntitySyncFacade(BaseEntitySyncFacade[DateTimeState, str]):
         *,
         datetime: str,
     ) -> None:
-        """Call the datetime.set_value service synchronously.
+        """Sets the value of a date/time.
 
         Args:
             datetime: The date/time to set. The time zone of the Home Assistant instance is assumed.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

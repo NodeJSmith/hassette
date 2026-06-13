@@ -24,7 +24,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         *,
         activity: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the remote.turn_on service.
+        """Sends the turn on command.
 
         Args:
             activity: Activity ID or activity name to be started.
@@ -39,7 +39,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the remote.toggle service."""
+        """Sends the toggle command."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -49,7 +49,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the remote.turn_off service."""
+        """Sends the turn off command."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +67,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         hold_secs: float | None = None,
         num_repeats: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the remote.send_command service.
+        """Sends a command or a list of commands to a device.
 
         Args:
             command: A single command or a list of commands to send.
@@ -98,7 +98,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         device: str | None = None,
         timeout: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the remote.learn_command service.
+        """Teaches a remote a command or list of commands from a device.
 
         Args:
             alternative: If code must be stored as an alternative. This is useful for discrete codes. Discrete codes are
@@ -128,7 +128,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         command: Any,
         device: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the remote.delete_command service.
+        """Deletes a command or a list of commands from a remote's database.
 
         Args:
             command: The single command or the list of commands to be deleted.
@@ -153,13 +153,10 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         *,
         activity: str | None = None,
     ) -> None:
-        """Call the remote.turn_on service synchronously.
+        """Sends the turn on command.
 
         Args:
             activity: Activity ID or activity name to be started.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -169,11 +166,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the remote.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Sends the toggle command."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -181,11 +174,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the remote.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Sends the turn off command."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -201,7 +190,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         hold_secs: float | None = None,
         num_repeats: int | None = None,
     ) -> None:
-        """Call the remote.send_command service synchronously.
+        """Sends a command or a list of commands to a device.
 
         Args:
             command: A single command or a list of commands to send.
@@ -209,9 +198,6 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
             device: Device ID to send command to.
             hold_secs: The time you want to have it held before the release is send.
             num_repeats: The number of times you want to repeat the commands.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -233,7 +219,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         device: str | None = None,
         timeout: int | None = None,
     ) -> None:
-        """Call the remote.learn_command service synchronously.
+        """Teaches a remote a command or list of commands from a device.
 
         Args:
             alternative: If code must be stored as an alternative. This is useful for discrete codes. Discrete codes are
@@ -243,9 +229,6 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
             command_type: The type of command to be learned.
             device: Device ID to learn command from.
             timeout: Timeout for the command to be learned.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -264,14 +247,11 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         command: Any,
         device: str | None = None,
     ) -> None:
-        """Call the remote.delete_command service synchronously.
+        """Deletes a command or a list of commands from a remote's database.
 
         Args:
             command: The single command or the list of commands to be deleted.
             device: Device from which commands will be deleted.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

@@ -23,7 +23,7 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
         backup: bool | None = None,
         version: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the update.install service.
+        """Installs an update for a device or service.
 
         Args:
             backup: If supported by the integration, this creates a backup before starting the update.
@@ -40,7 +40,7 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
         )
 
     def skip(self) -> Coroutine[Any, Any, None]:
-        """Call the update.skip service."""
+        """Marks a currently available update as skipped."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -50,7 +50,7 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
         )
 
     def clear_skipped(self) -> Coroutine[Any, Any, None]:
-        """Call the update.clear_skipped service."""
+        """Removes the skipped version marker from an update."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -69,14 +69,11 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         backup: bool | None = None,
         version: str | None = None,
     ) -> None:
-        """Call the update.install service synchronously.
+        """Installs an update for a device or service.
 
         Args:
             backup: If supported by the integration, this creates a backup before starting the update.
             version: The version to install. If omitted, the latest version will be installed.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -87,11 +84,7 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         )
 
     def skip(self) -> None:
-        """Call the update.skip service synchronously.
-
-        Returns:
-            None.
-        """
+        """Marks a currently available update as skipped."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="skip",
@@ -99,11 +92,7 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         )
 
     def clear_skipped(self) -> None:
-        """Call the update.clear_skipped service synchronously.
-
-        Returns:
-            None.
-        """
+        """Removes the skipped version marker from an update."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clear_skipped",

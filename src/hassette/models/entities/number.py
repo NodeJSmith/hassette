@@ -22,7 +22,7 @@ class NumberEntity(BaseEntity[NumberState, str]):
         *,
         value: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the number.set_value service.
+        """Sets the value of a number.
 
         Args:
             value: The target value to set.
@@ -45,13 +45,10 @@ class NumberEntitySyncFacade(BaseEntitySyncFacade[NumberState, str]):
         *,
         value: str,
     ) -> None:
-        """Call the number.set_value service synchronously.
+        """Sets the value of a number.
 
         Args:
             value: The target value to set.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

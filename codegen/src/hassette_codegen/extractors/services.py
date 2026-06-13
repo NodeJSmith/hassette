@@ -28,6 +28,7 @@ class ExtractedService:
     method_name: str
     fields: list[ServiceField] = field(default_factory=list)
     required_features: list[str] = field(default_factory=list)
+    description: str | None = None
 
 
 def extract_services(component_dir: Path) -> list[ExtractedService]:
@@ -46,7 +47,7 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
         return []
 
     method_map = _extract_service_registrations(component_dir / "__init__.py")
-    descriptions = _extract_field_descriptions(component_dir)
+    service_descs, field_descs = _extract_descriptions(component_dir)
 
     services: list[ExtractedService] = []
     for service_name, service_def in raw.items():
@@ -55,7 +56,7 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
         if service_name.startswith("."):
             continue
 
-        fields = _extract_fields(service_def, descriptions.get(service_name, {}))
+        fields = _extract_fields(service_def, field_descs.get(service_name, {}))
         method_name = method_map.get(service_name, service_name)
         required_features = method_map.get(f"{service_name}__features", [])
 
@@ -65,6 +66,7 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
                 method_name=method_name if isinstance(method_name, str) else service_name,
                 fields=fields,
                 required_features=required_features if isinstance(required_features, list) else [],
+                description=service_descs.get(service_name),
             )
         )
 
@@ -116,28 +118,35 @@ def _parse_field(name: str, field_def: dict, description: str | None) -> Service
     )
 
 
-def _extract_field_descriptions(component_dir: Path) -> dict[str, dict[str, str]]:
-    """Map service_name -> {field_name -> resolved description} from the domain's strings.json.
+def _extract_descriptions(component_dir: Path) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """Read the domain's strings.json once for service- and field-level descriptions.
 
-    Home Assistant stores service field descriptions in ``strings.json``, often as
-    ``[%key:component::domain::path%]`` references that resolve to a shared string elsewhere.
+    Returns ``(service_name -> service description, service_name -> {field_name -> description})``.
+    Home Assistant stores these in ``strings.json``, often as ``[%key:component::domain::path%]``
+    references that resolve to a shared string elsewhere.
     """
     strings_path = component_dir / "strings.json"
     try:
         data = json.loads(strings_path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        return {}, {}
 
     # ``component::<domain>`` key refs resolve relative to the components/ root (this dir's parent).
     components_dir = component_dir.parent
-    result: dict[str, dict[str, str]] = {}
+    service_descs: dict[str, str] = {}
+    field_descs: dict[str, dict[str, str]] = {}
     for service_name, service_def in (data.get("services") or {}).items():
         if not isinstance(service_def, dict):
             continue
+        raw = service_def.get("description")
+        if isinstance(raw, str):
+            resolved = _resolve_key_ref(raw, components_dir)
+            if resolved:
+                service_descs[service_name] = resolved
         field_map: dict[str, str] = {}
         _collect_field_descriptions(service_def.get("fields") or {}, components_dir, field_map)
-        result[service_name] = field_map
-    return result
+        field_descs[service_name] = field_map
+    return service_descs, field_descs
 
 
 def _collect_field_descriptions(fields: dict, components_dir: Path, out: dict[str, str]) -> None:

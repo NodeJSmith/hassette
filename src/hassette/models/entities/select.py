@@ -18,7 +18,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         return self._get_or_create_sync(SelectEntitySyncFacade)
 
     def select_first(self) -> Coroutine[Any, Any, None]:
-        """Call the select.select_first service."""
+        """Selects the first option of a select."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         )
 
     def select_last(self) -> Coroutine[Any, Any, None]:
-        """Call the select.select_last service."""
+        """Selects the last option of a select."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -42,7 +42,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the select.select_next service.
+        """Selects the next option of a select.
 
         Args:
             cycle: If the option should cycle from the last to the first.
@@ -61,7 +61,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         option: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the select.select_option service.
+        """Selects an option of a select.
 
         Args:
             option: Option to be selected.
@@ -80,7 +80,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the select.select_previous service.
+        """Selects the previous option of a select.
 
         Args:
             cycle: If the option should cycle from the first to the last.
@@ -99,11 +99,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
     """Synchronous facade for SelectEntity service methods."""
 
     def select_first(self) -> None:
-        """Call the select.select_first service synchronously.
-
-        Returns:
-            None.
-        """
+        """Selects the first option of a select."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_first",
@@ -111,11 +107,7 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         )
 
     def select_last(self) -> None:
-        """Call the select.select_last service synchronously.
-
-        Returns:
-            None.
-        """
+        """Selects the last option of a select."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_last",
@@ -127,13 +119,10 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> None:
-        """Call the select.select_next service synchronously.
+        """Selects the next option of a select.
 
         Args:
             cycle: If the option should cycle from the last to the first.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -147,13 +136,10 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         option: str,
     ) -> None:
-        """Call the select.select_option service synchronously.
+        """Selects an option of a select.
 
         Args:
             option: Option to be selected.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -167,13 +153,10 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         *,
         cycle: bool | None = None,
     ) -> None:
-        """Call the select.select_previous service synchronously.
+        """Selects the previous option of a select.
 
         Args:
             cycle: If the option should cycle from the first to the last.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

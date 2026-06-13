@@ -18,7 +18,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
         return self._get_or_create_sync(LawnMowerEntitySyncFacade)
 
     def start_mowing(self) -> Coroutine[Any, Any, None]:
-        """Call the lawn_mower.start_mowing service."""
+        """Starts a lawn mower's mowing task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -28,7 +28,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
         )
 
     def dock(self) -> Coroutine[Any, Any, None]:
-        """Call the lawn_mower.dock service."""
+        """Returns a lawn mower to its dock."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -38,7 +38,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
         )
 
     def pause(self) -> Coroutine[Any, Any, None]:
-        """Call the lawn_mower.pause service."""
+        """Pauses a lawn mower's current task."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,11 +52,7 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
     """Synchronous facade for LawnMowerEntity service methods."""
 
     def start_mowing(self) -> None:
-        """Call the lawn_mower.start_mowing service synchronously.
-
-        Returns:
-            None.
-        """
+        """Starts a lawn mower's mowing task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_mowing",
@@ -64,11 +60,7 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
         )
 
     def dock(self) -> None:
-        """Call the lawn_mower.dock service synchronously.
-
-        Returns:
-            None.
-        """
+        """Returns a lawn mower to its dock."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="dock",
@@ -76,11 +68,7 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
         )
 
     def pause(self) -> None:
-        """Call the lawn_mower.pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Pauses a lawn mower's current task."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",

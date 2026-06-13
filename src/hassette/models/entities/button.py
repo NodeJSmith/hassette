@@ -18,7 +18,7 @@ class ButtonEntity(BaseEntity[ButtonState, str]):
         return self._get_or_create_sync(ButtonEntitySyncFacade)
 
     def press(self) -> Coroutine[Any, Any, None]:
-        """Call the button.press service."""
+        """Presses a button."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -32,11 +32,7 @@ class ButtonEntitySyncFacade(BaseEntitySyncFacade[ButtonState, str]):
     """Synchronous facade for ButtonEntity service methods."""
 
     def press(self) -> None:
-        """Call the button.press service synchronously.
-
-        Returns:
-            None.
-        """
+        """Presses a button."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="press",

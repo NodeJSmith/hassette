@@ -22,7 +22,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         return self._get_or_create_sync(MediaPlayerEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.turn_on service."""
+        """Turns on the power of a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -32,7 +32,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.turn_off service."""
+        """Turns off the power of a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -42,7 +42,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.toggle service."""
+        """Toggles a media player on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -52,7 +52,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def volume_up(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.volume_up service."""
+        """Turns up the volume of a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -62,7 +62,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def volume_down(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.volume_down service."""
+        """Turns down the volume of a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -76,7 +76,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         is_volume_muted: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.volume_mute service.
+        """Mutes or unmutes a media player.
 
         Args:
             is_volume_muted: Defines whether or not it is muted.
@@ -95,7 +95,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         volume_level: float,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.volume_set service.
+        """Sets the volume level of a media player.
 
         Args:
             volume_level: The volume. 0 is inaudible, 1 is the maximum volume.
@@ -110,7 +110,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_play_pause(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_play_pause service."""
+        """Toggles play/pause on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -120,7 +120,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_play(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_play service."""
+        """Starts playback on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -130,7 +130,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_pause(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_pause service."""
+        """Pauses playback on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -140,7 +140,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_stop(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_stop service."""
+        """Stops playback on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -150,7 +150,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_next_track(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_next_track service."""
+        """Selects the next track on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -160,7 +160,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def media_previous_track(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_previous_track service."""
+        """Selects the previous track on a media player."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -174,7 +174,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         seek_position: float,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.media_seek service.
+        """Allows you to go to a different part of the media that is currently playing on a media player.
 
         Args:
             seek_position: Target position in the currently playing media. The format is platform dependent.
@@ -195,7 +195,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         announce: bool | None = None,
         enqueue: Enqueue | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.play_media service.
+        """Starts playing specified media on a media player.
 
         Args:
             media: The media selected to play.
@@ -219,7 +219,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         media_content_id: str | None = None,
         media_type: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.browse_media service.
+        """Browses the available media.
 
         Args:
             media_content_id: The ID of the content to browse. Integration dependent.
@@ -244,7 +244,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         media_filter_classes: str | None = None,
         media_type: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.search_media service.
+        """Searches the available media.
 
         Args:
             search_query: The term to search for.
@@ -270,7 +270,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         source: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.select_source service.
+        """Sends a media player the command to change the input source.
 
         Args:
             source: Name of the source to switch to. Platform dependent.
@@ -289,7 +289,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         sound_mode: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.select_sound_mode service.
+        """Selects a specific sound mode of a media player.
 
         Args:
             sound_mode: Name of the sound mode to switch to.
@@ -304,7 +304,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def clear_playlist(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.clear_playlist service."""
+        """Removes all items from a media player's playlist."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -318,7 +318,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         shuffle: bool,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.shuffle_set service.
+        """Enables or disables the shuffle mode of a media player.
 
         Args:
             shuffle: Whether the media should be played in randomized order or not.
@@ -337,7 +337,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         repeat: Repeat,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.repeat_set service.
+        """Sets the repeat mode of a media player.
 
         Args:
             repeat: Whether the media (one or all) should be played in a loop or not.
@@ -356,7 +356,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         group_members: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the media_player.join service.
+        """Groups media players together for synchronous playback. Only works on supported multiroom audio systems.
 
         Args:
             group_members: The players which will be synced with the playback specified in 'Targets'.
@@ -371,7 +371,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         )
 
     def unjoin(self) -> Coroutine[Any, Any, None]:
-        """Call the media_player.unjoin service."""
+        """Removes a media player from a group. Only works on platforms which support player groups."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -385,11 +385,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
     """Synchronous facade for MediaPlayerEntity service methods."""
 
     def turn_on(self) -> None:
-        """Call the media_player.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on the power of a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -397,11 +393,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the media_player.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off the power of a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -409,11 +401,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the media_player.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a media player on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
@@ -421,11 +409,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def volume_up(self) -> None:
-        """Call the media_player.volume_up service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns up the volume of a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_up",
@@ -433,11 +417,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def volume_down(self) -> None:
-        """Call the media_player.volume_down service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns down the volume of a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="volume_down",
@@ -449,13 +429,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         is_volume_muted: bool,
     ) -> None:
-        """Call the media_player.volume_mute service synchronously.
+        """Mutes or unmutes a media player.
 
         Args:
             is_volume_muted: Defines whether or not it is muted.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -469,13 +446,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         volume_level: float,
     ) -> None:
-        """Call the media_player.volume_set service synchronously.
+        """Sets the volume level of a media player.
 
         Args:
             volume_level: The volume. 0 is inaudible, 1 is the maximum volume.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -485,11 +459,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_play_pause(self) -> None:
-        """Call the media_player.media_play_pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles play/pause on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_play_pause",
@@ -497,11 +467,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_play(self) -> None:
-        """Call the media_player.media_play service synchronously.
-
-        Returns:
-            None.
-        """
+        """Starts playback on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_play",
@@ -509,11 +475,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_pause(self) -> None:
-        """Call the media_player.media_pause service synchronously.
-
-        Returns:
-            None.
-        """
+        """Pauses playback on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_pause",
@@ -521,11 +483,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_stop(self) -> None:
-        """Call the media_player.media_stop service synchronously.
-
-        Returns:
-            None.
-        """
+        """Stops playback on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_stop",
@@ -533,11 +491,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_next_track(self) -> None:
-        """Call the media_player.media_next_track service synchronously.
-
-        Returns:
-            None.
-        """
+        """Selects the next track on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_next_track",
@@ -545,11 +499,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def media_previous_track(self) -> None:
-        """Call the media_player.media_previous_track service synchronously.
-
-        Returns:
-            None.
-        """
+        """Selects the previous track on a media player."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="media_previous_track",
@@ -561,13 +511,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         seek_position: float,
     ) -> None:
-        """Call the media_player.media_seek service synchronously.
+        """Allows you to go to a different part of the media that is currently playing on a media player.
 
         Args:
             seek_position: Target position in the currently playing media. The format is platform dependent.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -583,15 +530,12 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         announce: bool | None = None,
         enqueue: Enqueue | None = None,
     ) -> None:
-        """Call the media_player.play_media service synchronously.
+        """Starts playing specified media on a media player.
 
         Args:
             media: The media selected to play.
             announce: If the media should be played as an announcement.
             enqueue: If the content should be played now or be added to the queue.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -608,15 +552,12 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         media_content_id: str | None = None,
         media_type: str | None = None,
     ) -> None:
-        """Call the media_player.browse_media service synchronously.
+        """Browses the available media.
 
         Args:
             media_content_id: The ID of the content to browse. Integration dependent.
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -634,7 +575,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         media_filter_classes: str | None = None,
         media_type: str | None = None,
     ) -> None:
-        """Call the media_player.search_media service synchronously.
+        """Searches the available media.
 
         Args:
             search_query: The term to search for.
@@ -642,9 +583,6 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
             media_filter_classes: List of media classes to filter the search results by.
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -661,13 +599,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         source: str,
     ) -> None:
-        """Call the media_player.select_source service synchronously.
+        """Sends a media player the command to change the input source.
 
         Args:
             source: Name of the source to switch to. Platform dependent.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -681,13 +616,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         sound_mode: str | None = None,
     ) -> None:
-        """Call the media_player.select_sound_mode service synchronously.
+        """Selects a specific sound mode of a media player.
 
         Args:
             sound_mode: Name of the sound mode to switch to.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -697,11 +629,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def clear_playlist(self) -> None:
-        """Call the media_player.clear_playlist service synchronously.
-
-        Returns:
-            None.
-        """
+        """Removes all items from a media player's playlist."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clear_playlist",
@@ -713,13 +641,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         shuffle: bool,
     ) -> None:
-        """Call the media_player.shuffle_set service synchronously.
+        """Enables or disables the shuffle mode of a media player.
 
         Args:
             shuffle: Whether the media should be played in randomized order or not.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -733,13 +658,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         repeat: Repeat,
     ) -> None:
-        """Call the media_player.repeat_set service synchronously.
+        """Sets the repeat mode of a media player.
 
         Args:
             repeat: Whether the media (one or all) should be played in a loop or not.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -753,13 +675,10 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         group_members: str,
     ) -> None:
-        """Call the media_player.join service synchronously.
+        """Groups media players together for synchronous playback. Only works on supported multiroom audio systems.
 
         Args:
             group_members: The players which will be synced with the playback specified in 'Targets'.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -769,11 +688,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         )
 
     def unjoin(self) -> None:
-        """Call the media_player.unjoin service synchronously.
-
-        Returns:
-            None.
-        """
+        """Removes a media player from a group. Only works on platforms which support player groups."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="unjoin",

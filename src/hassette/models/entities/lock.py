@@ -22,7 +22,7 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the lock.lock service.
+        """Locks a lock.
 
         Args:
             code: Code used to lock the lock.
@@ -41,7 +41,7 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the lock.open service.
+        """Opens a lock.
 
         Args:
             code: Code used to open the lock.
@@ -60,7 +60,7 @@ class LockEntity(BaseEntity[LockState, str]):
         *,
         code: str | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the lock.unlock service.
+        """Unlocks a lock.
 
         Args:
             code: Code used to unlock the lock.
@@ -83,13 +83,10 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Call the lock.lock service synchronously.
+        """Locks a lock.
 
         Args:
             code: Code used to lock the lock.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -103,13 +100,10 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Call the lock.open service synchronously.
+        """Opens a lock.
 
         Args:
             code: Code used to open the lock.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -123,13 +117,10 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         *,
         code: str | None = None,
     ) -> None:
-        """Call the lock.unlock service synchronously.
+        """Unlocks a lock.
 
         Args:
             code: Code used to unlock the lock.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

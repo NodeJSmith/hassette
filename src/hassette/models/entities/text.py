@@ -22,7 +22,7 @@ class TextEntity(BaseEntity[TextState, str]):
         *,
         value: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the text.set_value service.
+        """Sets the value of a text entity.
 
         Args:
             value: Enter your text.
@@ -45,13 +45,10 @@ class TextEntitySyncFacade(BaseEntitySyncFacade[TextState, str]):
         *,
         value: str,
     ) -> None:
-        """Call the text.set_value service synchronously.
+        """Sets the value of a text entity.
 
         Args:
             value: Enter your text.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

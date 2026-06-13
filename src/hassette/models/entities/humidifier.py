@@ -22,7 +22,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         *,
         mode: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the humidifier.set_mode service.
+        """Sets the mode of a humidifier.
 
         Args:
             mode: Operation mode. For example, "normal", "eco", or "away". For a list of possible values, refer to the
@@ -42,7 +42,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         *,
         humidity: int,
     ) -> Coroutine[Any, Any, None]:
-        """Call the humidifier.set_humidity service.
+        """Sets the target humidity of a humidifier.
 
         Args:
             humidity: Target humidity.
@@ -57,7 +57,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Call the humidifier.turn_on service."""
+        """Turns on a humidifier."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -67,7 +67,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Call the humidifier.turn_off service."""
+        """Turns off a humidifier."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -77,7 +77,7 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         )
 
     def toggle(self) -> Coroutine[Any, Any, None]:
-        """Call the humidifier.toggle service."""
+        """Toggles a humidifier on/off."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
@@ -95,14 +95,11 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         mode: str,
     ) -> None:
-        """Call the humidifier.set_mode service synchronously.
+        """Sets the mode of a humidifier.
 
         Args:
             mode: Operation mode. For example, "normal", "eco", or "away". For a list of possible values, refer to the
                 integration documentation.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -116,13 +113,10 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         *,
         humidity: int,
     ) -> None:
-        """Call the humidifier.set_humidity service synchronously.
+        """Sets the target humidity of a humidifier.
 
         Args:
             humidity: Target humidity.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -132,11 +126,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_on(self) -> None:
-        """Call the humidifier.turn_on service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns on a humidifier."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
@@ -144,11 +134,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def turn_off(self) -> None:
-        """Call the humidifier.turn_off service synchronously.
-
-        Returns:
-            None.
-        """
+        """Turns off a humidifier."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
@@ -156,11 +142,7 @@ class HumidifierEntitySyncFacade(BaseEntitySyncFacade[HumidifierState, str]):
         )
 
     def toggle(self) -> None:
-        """Call the humidifier.toggle service synchronously.
-
-        Returns:
-            None.
-        """
+        """Toggles a humidifier on/off."""
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",

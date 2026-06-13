@@ -40,7 +40,7 @@ class LightEntity(BaseEntity[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the light.turn_on service.
+        """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
         Args:
             brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
@@ -95,7 +95,7 @@ class LightEntity(BaseEntity[LightState, str]):
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the light.turn_off service.
+        """Turns off one or more lights.
 
         Args:
             flash: Tell light to flash, can be either value short or long.
@@ -129,7 +129,7 @@ class LightEntity(BaseEntity[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> Coroutine[Any, Any, None]:
-        """Call the light.toggle service.
+        """Toggles one or more lights, from on to off, or off to on, based on their current state.
 
         Args:
             brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
@@ -198,7 +198,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> None:
-        """Call the light.turn_on service synchronously.
+        """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
         Args:
             brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
@@ -222,9 +222,6 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
             transition: Duration it takes to get to next state.
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -254,14 +251,11 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
     ) -> None:
-        """Call the light.turn_off service synchronously.
+        """Turns off one or more lights.
 
         Args:
             flash: Tell light to flash, can be either value short or long.
             transition: Duration it takes to get to next state.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
@@ -289,7 +283,7 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         white: Any | None = None,
         xy_color: Any | None = None,
     ) -> None:
-        """Call the light.toggle service synchronously.
+        """Toggles one or more lights, from on to off, or off to on, based on their current state.
 
         Args:
             brightness: Number indicating brightness, where 0 turns the light off, 1 is the minimum brightness, and 255
@@ -311,9 +305,6 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
             transition: Duration it takes to get to next state.
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

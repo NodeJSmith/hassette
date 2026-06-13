@@ -22,7 +22,7 @@ class TimeEntity(BaseEntity[TimeState, str]):
         *,
         time: str,
     ) -> Coroutine[Any, Any, None]:
-        """Call the time.set_value service.
+        """Sets the value of a time entity.
 
         Args:
             time: The time to set.
@@ -45,13 +45,10 @@ class TimeEntitySyncFacade(BaseEntitySyncFacade[TimeState, str]):
         *,
         time: str,
     ) -> None:
-        """Call the time.set_value service synchronously.
+        """Sets the value of a time entity.
 
         Args:
             time: The time to set.
-
-        Returns:
-            None.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
