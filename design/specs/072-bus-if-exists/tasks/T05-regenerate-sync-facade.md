@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Regenerate the bus sync facade with if_exists"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#11", "AC#10"]
 ---
