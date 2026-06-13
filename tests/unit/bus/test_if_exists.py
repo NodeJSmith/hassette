@@ -16,8 +16,9 @@ Covers:
 - AC#9: add_listener returns Subscription including skip-returns-existing case
 """
 
+import asyncio
 import typing
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -114,6 +115,44 @@ async def test_registration_failure_rolls_back_registry_key(bus: "Bus") -> None:
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
     assert key in bus._registered_listeners
+
+
+async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus") -> None:
+    """A failed add must not pop a key a concurrent replace already re-pointed to a new listener."""
+    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+
+    gate = asyncio.Event()
+    calls: list = []
+
+    async def add_side_effect(listener):
+        calls.append(listener)
+        if len(calls) == 1:
+            # First registration (A): block, then fail while the second is in flight.
+            await gate.wait()
+            raise RuntimeError("A failed")
+        return 1  # Second registration (B): succeed.
+
+    bus.bus_service.add_listener = AsyncMock(side_effect=add_side_effect)
+
+    # Task A reserves the key, then suspends inside add_listener on the gate.
+    task_a = asyncio.create_task(bus.on(topic="test.topic", handler=handler_a, name="my_listener"))
+    for _ in range(10):
+        await asyncio.sleep(0)
+        if key in bus._registered_listeners:
+            break
+    listener_a = bus._registered_listeners[key]
+
+    # B replaces: removes A's reservation, re-points the key at listener B, registers B.
+    await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
+    listener_b = bus._registered_listeners[key]
+    assert listener_b is not listener_a
+
+    # Let A fail. Its except block must leave B's mapping intact.
+    gate.set()
+    with pytest.raises(RuntimeError, match="A failed"):
+        await task_a
+
+    assert bus._registered_listeners.get(key) is listener_b
 
 
 async def test_skip_does_not_call_add_listener_twice(bus: "Bus") -> None:

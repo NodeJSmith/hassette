@@ -356,7 +356,10 @@ class Bus(Resource):
         except Exception:
             # _resolve_collision reserved natural_key before the await; drop it so a failed add
             # doesn't leave a phantom registration that blocks retries with a false collision.
-            self._registered_listeners.pop(natural_key, None)
+            # Guard on identity: a concurrent replace may have re-pointed the key to a new listener
+            # while this task was awaiting, and that newer mapping must not be evicted.
+            if self._registered_listeners.get(natural_key) is listener:
+                self._registered_listeners.pop(natural_key, None)
             if is_replacing:
                 self.logger.error(
                     "Listener '%s' on topic '%s' failed to register after replacing (cancelling) the "
