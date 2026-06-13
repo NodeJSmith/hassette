@@ -144,7 +144,8 @@ async def test_registered_listeners_cleared_on_reinit(bus: "Bus") -> None:
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         assert len(bus._registered_listeners) == 1
 
-        bus._registered_listeners.clear()
+        await bus.on_initialize()
+        assert len(bus._registered_listeners) == 0
 
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         assert len(bus._registered_listeners) == 1

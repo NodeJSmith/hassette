@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.bus.listeners import Listener, Subscription
+from hassette.event_handling.predicates import StateTo
 from hassette.test_utils.helpers import create_listener, make_task_bucket
 
 
@@ -40,8 +41,6 @@ class TestListenerConfigMatches:
 
     def test_different_predicate_not_matching(self) -> None:
         """Different predicates → config_matches=False, 'predicate' in diff_fields."""
-        from hassette.event_handling.predicates import StateTo
-
         pred_a = StateTo("on")
         pred_b = StateTo("off")
         a = create_listener(handler=fn, where=pred_a)
@@ -171,8 +170,6 @@ class TestListenerConfigMatches:
 
     def test_predicate_same_frozen_dataclass_matches(self) -> None:
         """Two StateTo('on') predicates (frozen dataclass, value equality) → matches."""
-        from hassette.event_handling.predicates import StateTo
-
         a = create_listener(handler=fn, where=StateTo("on"))
         b = create_listener(handler=fn, where=StateTo("on"))
         assert a.config_matches(b) is True

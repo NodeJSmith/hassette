@@ -259,8 +259,19 @@ async def test_callback_no_op_when_key_already_gone(bus: "Bus") -> None:
     # Pop the key first so the callback has nothing to pop
     bus._registered_listeners.pop(key, None)
 
+    # Spy on spawn to prove the no-op path schedules no task — the only thing it could spawn
+    # here is mark_listener_cancelled. Restore after so the patch can't leak if the fixture
+    # scope ever changes.
+    original_spawn = bus.bus_service.task_bucket.spawn
+    spawn_spy = MagicMock()
+    bus.bus_service.task_bucket.spawn = spawn_spy
+
     # Invoke the old callback with the listener — must not raise
     callback = _get_bus_removal_callback(bus)
     assert callback is not None
-    # This must be a no-op, not a crash
-    callback(listener)
+    try:
+        # This must be a no-op: no crash, and no cancelled_at spawn for an already-gone key.
+        callback(listener)
+        spawn_spy.assert_not_called()
+    finally:
+        bus.bus_service.task_bucket.spawn = original_spawn
