@@ -357,6 +357,61 @@ class Listener:
         if self.duration_config is not None:
             self.duration_config.cancel_timer()
 
+    def config_matches(self, other: "Listener") -> bool:
+        """Check whether two listeners represent the same logical configuration.
+
+        Compares handler callable, filter predicate, timing options (once, debounce,
+        throttle, timeout, timeout_disabled), handler kwargs, per-registration error
+        handler (by identity), and duration configuration scalars.
+
+        Does not compare runtime state: listener_id, db_id, _cancelled, or the
+        attached DurationTimer. Lambda/closure predicates and callable conditions
+        compare by identity — two fresh lambdas with identical bodies will report
+        drift. Use non-lambda predicates or if_exists='replace' to avoid this.
+        """
+        return (
+            self.invoker.orig_handler == other.invoker.orig_handler
+            and self.predicate == other.predicate
+            and self.options.once == other.options.once
+            and self.options.debounce == other.options.debounce
+            and self.options.throttle == other.options.throttle
+            and self.options.timeout == other.options.timeout
+            and self.options.timeout_disabled == other.options.timeout_disabled
+            and self.invoker.kwargs == other.invoker.kwargs
+            and self.invoker.error_handler is other.invoker.error_handler
+            and _duration_configs_match(self.duration_config, other.duration_config)
+        )
+
+    def diff_fields(self, other: "Listener") -> list[str]:
+        """Return configuration field names that differ between two listeners.
+
+        Compares the same fields as config_matches(). Returns a stable-ordered list
+        of field names (e.g. 'handler', 'predicate', 'once', 'debounce', ...) for use
+        in drift error messages.
+        """
+        changed: list[str] = []
+        if self.invoker.orig_handler != other.invoker.orig_handler:
+            changed.append("handler")
+        if self.predicate != other.predicate:
+            changed.append("predicate")
+        if self.options.once != other.options.once:
+            changed.append("once")
+        if self.options.debounce != other.options.debounce:
+            changed.append("debounce")
+        if self.options.throttle != other.options.throttle:
+            changed.append("throttle")
+        if self.options.timeout != other.options.timeout:
+            changed.append("timeout")
+        if self.options.timeout_disabled != other.options.timeout_disabled:
+            changed.append("timeout_disabled")
+        if self.invoker.kwargs != other.invoker.kwargs:
+            changed.append("kwargs")
+        if self.invoker.error_handler is not other.invoker.error_handler:
+            changed.append("error_handler")
+        if not _duration_configs_match(self.duration_config, other.duration_config):
+            changed.append("duration_config")
+        return changed
+
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
@@ -465,6 +520,26 @@ class Subscription:
     def cancel(self) -> None:
         """Cancel the subscription by calling the unsubscribe function."""
         self.unsubscribe()
+
+
+def _duration_configs_match(a: DurationConfig | None, b: DurationConfig | None) -> bool:
+    """Compare two DurationConfig objects by their logical-configuration scalars.
+
+    Both None → equal. One None, one non-None → not equal. Compares entity_id,
+    duration, immediate, is_attribute_listener, and hold_predicate. Excludes the
+    attached _timer (runtime state).
+    """
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    return (
+        a.entity_id == b.entity_id
+        and a.duration == b.duration
+        and a.immediate == b.immediate
+        and a.is_attribute_listener == b.is_attribute_listener
+        and a.hold_predicate == b.hold_predicate
+    )
 
 
 def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHandlerType":
