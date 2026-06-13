@@ -84,7 +84,8 @@ class SummaryQueriesMixin:
                 LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
                 LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
                 WHERE (
-                    (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index)
+                    (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index
+                     AND l.cancelled_at IS NULL)
                     OR
                     (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index
                      AND sj.cancelled_at IS NULL)

@@ -7,7 +7,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, Unpack
+from typing import Any, Literal, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -50,19 +50,32 @@ class BusSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.bus_service
 
-    def add_listener(self, listener: "Listener") -> None:
+    def add_listener(
+        self, listener: "Listener", *, if_exists: Literal["error", "skip", "replace"] = "error"
+    ) -> Subscription:
         """Add a pre-built listener to the bus.
 
         This is the direct entry point for callers that construct a ``Listener``
         externally. The normal registration flow (``on_state_change``, ``on()``,
         etc.) goes through ``_on_internal`` instead.
 
+        Args:
+            listener: The pre-built listener to add.
+            if_exists: Behavior when a listener with the same natural key already exists.
+                ``"error"`` (default) raises ``DuplicateListenerError``.
+                ``"skip"`` returns a subscription to the existing listener when configs match.
+                ``"replace"`` cancels the existing listener and registers the new one.
+
+        Returns:
+            A subscription to the added listener (or the existing listener on skip).
+
         Raises:
             ListenerNameRequiredError: If the listener has no ``name`` (required for all DB-registered
                 listeners, including once-listeners; cancel-listeners bypass this path entirely).
-            DuplicateListenerError: If the listener's natural key is already registered on this bus instance."""
+            DuplicateListenerError: If the listener's natural key is already registered and
+                ``if_exists="error"``."""
 
-        return self.task_bucket.run_sync(self._bus.add_listener(listener))
+        return self.task_bucket.run_sync(self._bus.add_listener(listener, if_exists=if_exists))
 
     def emit(self, topic: str, data: object) -> None:
         """Broadcast data to all subscribers of the given topic.
@@ -86,6 +99,7 @@ class BusSyncFacade(Resource):
         timeout_disabled: bool = False,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
+        if_exists: Literal["error", "skip", "replace"] = "error",
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -109,6 +123,11 @@ class BusSyncFacade(Resource):
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
+            if_exists: Behavior when a listener with the same natural key already exists.
+                ``"error"`` (default) raises ``DuplicateListenerError``. ``"skip"`` returns the
+                existing listener's subscription when the configurations match, and raises
+                ``ValueError`` if the configuration has drifted. ``"replace"`` cancels the
+                existing listener and registers the new one in its place.
 
         Returns:
             A subscription object. ``sub.cancel()`` removes the listener.
@@ -116,7 +135,10 @@ class BusSyncFacade(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered."""
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default).
+            ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
+                exists but with a different configuration (the message lists the changed fields)."""
 
         return self.task_bucket.run_sync(
             self._bus.on(
@@ -131,6 +153,7 @@ class BusSyncFacade(Resource):
                 timeout_disabled=timeout_disabled,
                 name=name,
                 on_error=on_error,
+                if_exists=if_exists,
             )
         )
 
@@ -177,7 +200,8 @@ class BusSyncFacade(Resource):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered on this bus in the current session."""
+                registered on this bus in the current session and ``if_exists="error"``
+                (the default)."""
 
         return self.task_bucket.run_sync(
             self._bus.on_state_change(
@@ -236,7 +260,8 @@ class BusSyncFacade(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered."""
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default)."""
 
         return self.task_bucket.run_sync(
             self._bus.on_attribute_change(
@@ -288,7 +313,8 @@ class BusSyncFacade(Resource):
 
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
-            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already registered."""
+            DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
+                registered and ``if_exists="error"`` (the default)."""
 
         return self.task_bucket.run_sync(
             self._bus.on_call_service(
@@ -711,7 +737,16 @@ class BusSyncFacade(Resource):
         return self._bus.on_error(handler)
 
     def remove_listener(self, listener: "Listener") -> None:
-        """Remove a listener from the bus."""
+        """Remove a listener from the bus and persist cancellation to the database.
+
+        Pops the natural key from the in-memory registry, removes the listener from routing
+        (via BusService), and — when ``db_id`` is set — spawns ``mark_listener_cancelled``
+        on ``bus_service.task_bucket`` so the write survives resource shutdown, mirroring
+        ``Scheduler.cancel_job``.
+
+        BusService.remove_listener also fires _on_listener_removed, but that callback only
+        spawns mark_listener_cancelled when the key is still present (once-fire path). Because
+        this method pops the key first, the callback's spawn is skipped — avoiding a double write."""
 
         return self._bus.remove_listener(listener)
 

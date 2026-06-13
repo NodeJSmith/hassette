@@ -53,6 +53,10 @@ class BusService(Service):
     router: "Router"
     """Router to manage event listeners."""
 
+    _removal_callbacks: "dict[str, Callable[[Listener], None]]"
+    """Per-owner callbacks invoked when a listener is removed (via remove_listener or
+    remove_listeners_by_owner)."""
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -90,6 +94,8 @@ class BusService(Service):
             task_bucket=self.task_bucket,
             logger=self.logger,
         )
+
+        self._removal_callbacks = {}
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -184,16 +190,78 @@ class BusService(Service):
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
         )
 
+    async def mark_listener_cancelled(self, db_id: int) -> None:
+        """Persist durable cancellation state for a listener by setting ``cancelled_at`` in the DB.
+
+        Delegates to ``CommandExecutor.mark_listener_cancelled``. Called from the bus cancel
+        path (``Subscription.cancel`` → ``Bus.remove_listener``, ``replace``'s cancel-old
+        step, or a once-listener firing) so that a replaced or cancelled listener's removal
+        is observable in telemetry, mirroring ``SchedulerService.mark_job_cancelled``.
+
+        Args:
+            db_id: The ``id`` of the ``listeners`` row to mark as cancelled.
+        """
+        await self._executor.mark_listener_cancelled(db_id)
+
+    def register_removal_callback(self, owner_id: str, callback: "Callable[[Listener], None]") -> None:
+        """Register a callback invoked whenever a listener belonging to owner_id is removed.
+
+        If a callback is already registered for owner_id, the new one silently replaces it.
+        This handles hot-reload cycles where the old Bus is orphaned without a formal shutdown.
+
+        Args:
+            owner_id: The owner whose listener removals should trigger the callback.
+            callback: Called with the removed Listener as its single argument.
+        """
+        self._removal_callbacks[owner_id] = callback
+
+    def deregister_removal_callback(self, owner_id: str) -> None:
+        """Remove the removal callback for owner_id, if any.
+
+        No-op when owner_id has no registered callback. Called by Bus.on_shutdown so
+        the slot is freed before the Bus is re-initialized (e.g. during a hot-reload cycle).
+
+        Args:
+            owner_id: The owner whose callback should be removed.
+        """
+        self._removal_callbacks.pop(owner_id, None)
+
     def remove_listener(self, listener: "Listener") -> None:
-        """Synchronously cancel and remove a listener from the routing table."""
+        """Synchronously cancel and remove a listener from the routing table.
+
+        Fires the per-owner removal callback (if registered) after removal. This closes the
+        once-fire gap: the dispatch finally block calls this method directly, bypassing
+        Bus.remove_listener, so the callback is the only way to notify the Bus that the
+        once-listener's natural key should be released from _registered_listeners.
+        """
         listener.cancel()
         self.router.remove_listener_by_id(listener.topic, listener.listener_id)
+        self._fire_removal_callback(listener)
 
     def remove_listeners_by_owner(self, owner: str) -> None:
-        """Remove all listeners owned by a specific owner synchronously."""
+        """Remove all listeners owned by a specific owner synchronously.
+
+        Fires the per-owner removal callback for each removed listener, mirroring
+        SchedulerService._remove_jobs_by_owner. On the shutdown path Bus.remove_all_listeners
+        pre-clears _registered_listeners first, so the callbacks find nothing to pop and skip
+        the cancelled_at spawn; firing them here keeps this method correct for any future caller
+        that removes listeners without that pre-clear.
+        """
         removed = self.router.clear_owner(owner)
         for listener in removed:
             listener.cancel()
+            self._fire_removal_callback(listener)
+
+    def _fire_removal_callback(self, listener: "Listener") -> None:
+        """Invoke the per-owner removal callback for listener, if one is registered.
+
+        Singular (one listener per call) by design: the bus fires on each removal as it
+        happens, where SchedulerService._fire_removal_callbacks batches a list at the end
+        of a bulk operation.
+        """
+        callback = self._removal_callbacks.get(listener.identity.owner_id)
+        if callback is not None:
+            callback(listener)
 
     def get_listeners_by_owner(self, owner: str) -> list["Listener"]:
         """Get all listeners owned by a specific owner."""
