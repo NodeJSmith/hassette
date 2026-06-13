@@ -23,5 +23,5 @@ class IdempotentApp(App[AppConfig]):
         )
         # --8<-- [end:replace_registration]
 
-    async def on_temp_changed(self):
+    async def on_temp_changed(self, event):
         pass
