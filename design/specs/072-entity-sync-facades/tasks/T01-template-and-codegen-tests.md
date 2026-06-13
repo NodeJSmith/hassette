@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Emit domain sync facades from the entity template"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#7", "AC#8"]
 ---
