@@ -8,29 +8,33 @@ from hassette.bus.listeners import Listener, Subscription
 from hassette.test_utils.helpers import create_listener, make_task_bucket
 
 
+def fn() -> None:
+    pass
+
+
+def fn_other() -> None:
+    pass
+
+
 class TestListenerConfigMatches:
     """Tests for Listener.config_matches() and diff_fields() — FR#8."""
 
     def test_identical_config_matches(self) -> None:
         """Two listeners with the same config return config_matches=True."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, topic="state_changed.light.kitchen")
         b = create_listener(handler=fn, topic="state_changed.light.kitchen")
         assert a.config_matches(b) is True
 
     def test_identical_config_diff_fields_empty(self) -> None:
         """Two identical listeners produce an empty diff_fields list."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
         assert a.diff_fields(b) == []
 
     def test_different_handler_not_matching(self) -> None:
         """Different handlers → config_matches=False, 'handler' in diff_fields."""
-        fn_a = lambda: None  # noqa: E731
-        fn_b = lambda: None  # noqa: E731
-        a = create_listener(handler=fn_a)
-        b = create_listener(handler=fn_b)
+        a = create_listener(handler=fn)
+        b = create_listener(handler=fn_other)
         assert a.config_matches(b) is False
         assert "handler" in a.diff_fields(b)
 
@@ -38,7 +42,6 @@ class TestListenerConfigMatches:
         """Different predicates → config_matches=False, 'predicate' in diff_fields."""
         from hassette.event_handling.predicates import StateTo
 
-        fn = lambda: None  # noqa: E731
         pred_a = StateTo("on")
         pred_b = StateTo("off")
         a = create_listener(handler=fn, where=pred_a)
@@ -48,7 +51,6 @@ class TestListenerConfigMatches:
 
     def test_different_once_not_matching(self) -> None:
         """Different once → 'once' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, once=False)
         b = create_listener(handler=fn, once=True)
         assert a.config_matches(b) is False
@@ -56,7 +58,6 @@ class TestListenerConfigMatches:
 
     def test_different_debounce_not_matching(self) -> None:
         """Different debounce → 'debounce' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, debounce=1.0)
         b = create_listener(handler=fn, debounce=2.0)
         assert a.config_matches(b) is False
@@ -64,7 +65,6 @@ class TestListenerConfigMatches:
 
     def test_different_throttle_not_matching(self) -> None:
         """Different throttle → 'throttle' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, throttle=1.0)
         b = create_listener(handler=fn, throttle=2.0)
         assert a.config_matches(b) is False
@@ -72,7 +72,6 @@ class TestListenerConfigMatches:
 
     def test_different_timeout_not_matching(self) -> None:
         """Different timeout → 'timeout' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, timeout=5.0)
         b = create_listener(handler=fn, timeout=10.0)
         assert a.config_matches(b) is False
@@ -80,7 +79,6 @@ class TestListenerConfigMatches:
 
     def test_different_timeout_disabled_not_matching(self) -> None:
         """Different timeout_disabled → 'timeout_disabled' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, timeout_disabled=False)
         b = create_listener(handler=fn, timeout_disabled=True)
         assert a.config_matches(b) is False
@@ -88,7 +86,6 @@ class TestListenerConfigMatches:
 
     def test_different_kwargs_not_matching(self) -> None:
         """Different kwargs → 'kwargs' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, kwargs={"key": "a"})
         b = create_listener(handler=fn, kwargs={"key": "b"})
         assert a.config_matches(b) is False
@@ -96,7 +93,6 @@ class TestListenerConfigMatches:
 
     def test_different_error_handler_not_matching(self) -> None:
         """Different error_handler (by identity) → 'error_handler' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         eh_a = AsyncMock()
         eh_b = AsyncMock()
         a = create_listener(handler=fn, error_handler=eh_a)
@@ -106,7 +102,6 @@ class TestListenerConfigMatches:
 
     def test_same_error_handler_matches(self) -> None:
         """Same error_handler instance (by identity) → matches."""
-        fn = lambda: None  # noqa: E731
         eh = AsyncMock()
         a = create_listener(handler=fn, error_handler=eh)
         b = create_listener(handler=fn, error_handler=eh)
@@ -114,7 +109,6 @@ class TestListenerConfigMatches:
 
     def test_different_duration_config_not_matching(self) -> None:
         """Different duration_config scalars → 'duration_config' in diff_fields."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, entity_id="light.kitchen", duration=5.0)
         b = create_listener(handler=fn, entity_id="light.kitchen", duration=10.0)
         assert a.config_matches(b) is False
@@ -122,7 +116,6 @@ class TestListenerConfigMatches:
 
     def test_both_duration_config_none_matches(self) -> None:
         """Both duration_config=None → matches (treated as equal)."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
         assert a.duration_config is None
@@ -131,7 +124,6 @@ class TestListenerConfigMatches:
 
     def test_one_duration_config_none_not_matching(self) -> None:
         """One duration_config=None, other non-None → not matching."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn, entity_id="light.kitchen")
         assert a.config_matches(b) is False
@@ -139,7 +131,6 @@ class TestListenerConfigMatches:
 
     def test_runtime_state_excluded_listener_id(self) -> None:
         """Different listener_id values do not affect config_matches."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
         # listener_id is assigned sequentially and will differ
@@ -148,7 +139,6 @@ class TestListenerConfigMatches:
 
     def test_runtime_state_excluded_db_id(self) -> None:
         """Different db_id values do not affect config_matches."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
         a.mark_registered(1)
@@ -158,7 +148,6 @@ class TestListenerConfigMatches:
 
     def test_runtime_state_excluded_cancelled(self) -> None:
         """Cancelled status does not affect config_matches."""
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
         b.cancel()
@@ -167,10 +156,8 @@ class TestListenerConfigMatches:
 
     def test_diff_fields_lists_all_changed_fields(self) -> None:
         """diff_fields returns all changed field names when multiple differ."""
-        fn_a = lambda: None  # noqa: E731
-        fn_b = lambda: None  # noqa: E731
-        a = create_listener(handler=fn_a, debounce=1.0)
-        b = create_listener(handler=fn_b, debounce=2.0)
+        a = create_listener(handler=fn, debounce=1.0)
+        b = create_listener(handler=fn_other, debounce=2.0)
         changed = a.diff_fields(b)
         assert "handler" in changed
         assert "debounce" in changed
@@ -179,7 +166,6 @@ class TestListenerConfigMatches:
         """Two StateTo('on') predicates (frozen dataclass, value equality) → matches."""
         from hassette.event_handling.predicates import StateTo
 
-        fn = lambda: None  # noqa: E731
         a = create_listener(handler=fn, where=StateTo("on"))
         b = create_listener(handler=fn, where=StateTo("on"))
         assert a.config_matches(b) is True

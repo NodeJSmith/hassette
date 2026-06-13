@@ -38,23 +38,6 @@ async def handler_b(event) -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_mock_task_bucket():
-    """Create a mock task bucket that records spawned coroutines."""
-    bucket = MagicMock()
-    bucket.spawn = MagicMock()
-    return bucket
-
-
-# ---------------------------------------------------------------------------
-# FR#2 / AC#4 — error (default) raises DuplicateListenerError
-# ---------------------------------------------------------------------------
-
-
 async def test_error_default_raises_on_duplicate(bus: "Bus") -> None:
     """AC#4: Omitting if_exists under an existing key raises DuplicateListenerError."""
     with mock_add_listener(bus):
@@ -79,9 +62,7 @@ async def test_error_via_on_call_service(bus: "Bus") -> None:
             await bus.on_call_service(handler=handler_b, name="svc_listener", if_exists="error")
 
 
-# ---------------------------------------------------------------------------
 # FR#3 / AC#1 — skip idempotent re-registration
-# ---------------------------------------------------------------------------
 
 
 async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
@@ -134,9 +115,7 @@ async def test_skip_via_on_call_service(bus: "Bus") -> None:
     assert sub2.listener is sub1.listener
 
 
-# ---------------------------------------------------------------------------
 # FR#4 / AC#2 — skip with drift raises ValueError
-# ---------------------------------------------------------------------------
 
 
 async def test_skip_drift_raises_value_error(bus: "Bus") -> None:
@@ -158,9 +137,7 @@ async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
     assert "handler" in msg
 
 
-# ---------------------------------------------------------------------------
 # FR#5 / AC#3 — replace cancels old, registers new
-# ---------------------------------------------------------------------------
 
 
 async def test_replace_cancels_old_listener(bus: "Bus") -> None:
@@ -226,9 +203,7 @@ async def test_replace_db_id_preserved(bus: "Bus") -> None:
         bus.bus_service.add_listener = original
 
 
-# ---------------------------------------------------------------------------
 # FR#9 / AC#7 — cancel path spawns mark_listener_cancelled
-# ---------------------------------------------------------------------------
 
 
 async def test_cancel_subscription_spawns_mark_cancelled(bus: "Bus") -> None:
@@ -352,9 +327,7 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
     assert old_db_id in cancelled_db_ids, f"mark_listener_cancelled should have been called with db_id={old_db_id}"
 
 
-# ---------------------------------------------------------------------------
 # FR#10 / AC#9 — add_listener returns Subscription
-# ---------------------------------------------------------------------------
 
 
 async def test_add_listener_returns_subscription(bus: "Bus") -> None:
@@ -401,9 +374,7 @@ async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> No
     assert sub2.listener is sub1.listener, "skip should return existing listener's subscription"
 
 
-# ---------------------------------------------------------------------------
 # FR#1 — if_exists accepted on on() explicitly
-# ---------------------------------------------------------------------------
 
 
 async def test_if_exists_accepted_on_on_method(bus: "Bus") -> None:

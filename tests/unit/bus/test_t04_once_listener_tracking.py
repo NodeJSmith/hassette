@@ -31,9 +31,7 @@ async def handler_b(event) -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
 # FR#6 / AC#5 — once-listeners participate in collision tracking
-# ---------------------------------------------------------------------------
 
 
 async def test_once_listeners_collide_with_duplicate_error(bus: "Bus") -> None:
@@ -63,9 +61,7 @@ async def test_once_if_exists_replace_works(bus: "Bus") -> None:
     assert sub2.listener is not sub1.listener
 
 
-# ---------------------------------------------------------------------------
 # FR#7 / AC#6 — once-fire releases the key (new registration succeeds)
-# ---------------------------------------------------------------------------
 
 
 def _get_bus_removal_callback(bus: "Bus"):
@@ -138,9 +134,7 @@ async def test_once_key_released_after_fire(bus: "Bus") -> None:
         bus.bus_service.mark_listener_cancelled = original_mark
 
 
-# ---------------------------------------------------------------------------
 # FR#9 / AC#8 — once-fire spawns mark_listener_cancelled
-# ---------------------------------------------------------------------------
 
 
 async def test_once_fire_spawns_mark_listener_cancelled(bus: "Bus") -> None:
@@ -230,9 +224,7 @@ async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
     assert len(spawned_coros) == 0, "No spawn when db_id is None"
 
 
-# ---------------------------------------------------------------------------
 # FR#7 — on_shutdown deregisters the removal callback
-# ---------------------------------------------------------------------------
 
 
 async def test_shutdown_deregisters_removal_callback(bus: "Bus") -> None:
