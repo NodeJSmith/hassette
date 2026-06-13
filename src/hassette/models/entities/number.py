@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import NumberState
 from hassette.models.states.number import NumberAttributes
@@ -14,9 +14,7 @@ class NumberEntity(BaseEntity[NumberState, str]):
 
     @property
     def sync(self) -> "NumberEntitySyncFacade":
-        if self._sync is None:
-            self._sync = NumberEntitySyncFacade(entity=self)
-        return cast("NumberEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(NumberEntitySyncFacade)
 
     def set_value(
         self,
@@ -39,9 +37,9 @@ class NumberEntitySyncFacade(BaseEntitySyncFacade[NumberState, str]):
         self,
         *,
         value: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_value",
             target={"entity_id": self.entity.entity_id},

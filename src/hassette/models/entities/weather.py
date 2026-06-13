@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from hassette.models.states import WeatherState
 from hassette.models.states.weather import WeatherAttributes
@@ -16,9 +16,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
 
     @property
     def sync(self) -> "WeatherEntitySyncFacade":
-        if self._sync is None:
-            self._sync = WeatherEntitySyncFacade(entity=self)
-        return cast("WeatherEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(WeatherEntitySyncFacade)
 
     def get_forecast(
         self,
@@ -56,9 +54,9 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         self,
         *,
         type: Type,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecast",
             target={"entity_id": self.entity.entity_id},
@@ -69,9 +67,9 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         self,
         *,
         type: Literal["daily", "hourly", "twice_daily"],
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecasts",
             target={"entity_id": self.entity.entity_id},

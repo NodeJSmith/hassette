@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from hassette.models.states import CameraState
 from hassette.models.states.camera import CameraAttributes
@@ -16,9 +16,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
     @property
     def sync(self) -> "CameraEntitySyncFacade":
-        if self._sync is None:
-            self._sync = CameraEntitySyncFacade(entity=self)
-        return cast("CameraEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(CameraEntitySyncFacade)
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -113,33 +111,33 @@ class CameraEntity(BaseEntity[CameraState, str]):
 
 
 class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def enable_motion_detection(self):
+    def enable_motion_detection(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="enable_motion_detection",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def disable_motion_detection(self):
+    def disable_motion_detection(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="disable_motion_detection",
             target={"entity_id": self.entity.entity_id},
@@ -149,9 +147,9 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         self,
         *,
         filename: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="snapshot",
             target={"entity_id": self.entity.entity_id},
@@ -163,9 +161,9 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         *,
         media_player: str,
         format: Format | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="play_stream",
             target={"entity_id": self.entity.entity_id},
@@ -179,9 +177,9 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         filename: str,
         duration: int | None = None,
         lookback: int | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="record",
             target={"entity_id": self.entity.entity_id},

@@ -178,6 +178,11 @@ def test_light_sync_turn_on_dispatches_via_call_service() -> None:
 
         # The generated facade forwards all light params (many default to None).
         # Assert the meaningful subset without coupling to every optional param.
+        #
+        # Note for test authors: this mock (and RecordingApi.sync) records the None-valued
+        # optional kwargs as-is. Production drops them — Api._call_service filters
+        # `{k: v for k, v in data.items() if v is not None}` before the WebSocket payload — so
+        # a kwargs-pinning assertion via the mock/recorder sees Nones that never reach HA.
         mock_sync.call_service.assert_called_once()
         kwargs = mock_sync.call_service.call_args.kwargs
         assert kwargs["domain"] == "light"

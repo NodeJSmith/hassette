@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import WaterHeaterState
 from hassette.models.states.water_heater import WaterHeaterAttributes
@@ -14,9 +14,7 @@ class WaterHeaterEntity(BaseEntity[WaterHeaterState, str]):
 
     @property
     def sync(self) -> "WaterHeaterEntitySyncFacade":
-        if self._sync is None:
-            self._sync = WaterHeaterEntitySyncFacade(entity=self)
-        return cast("WaterHeaterEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(WaterHeaterEntitySyncFacade)
 
     def set_away_mode(
         self,
@@ -91,9 +89,9 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         self,
         *,
         away_mode: bool,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_away_mode",
             target={"entity_id": self.entity.entity_id},
@@ -105,9 +103,9 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         *,
         temperature: float,
         operation_mode: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_temperature",
             target={"entity_id": self.entity.entity_id},
@@ -119,26 +117,26 @@ class WaterHeaterEntitySyncFacade(BaseEntitySyncFacade[WaterHeaterState, str]):
         self,
         *,
         operation_mode: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_operation_mode",
             target={"entity_id": self.entity.entity_id},
             operation_mode=operation_mode,
         )
 
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},

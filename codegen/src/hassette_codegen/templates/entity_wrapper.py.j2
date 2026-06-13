@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast{% if type_aliases %}, Literal{% endif %}
+from typing import Any{% if type_aliases %}, Literal{% endif %}
 
 from hassette.models.states import {{ domain_title }}State
 from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
@@ -21,9 +21,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 
     @property
     def sync(self) -> "{{ domain_title }}EntitySyncFacade":
-        if self._sync is None:
-            self._sync = {{ domain_title }}EntitySyncFacade(entity=self)
-        return cast("{{ domain_title }}EntitySyncFacade", self._sync)
+        return self._get_or_create_sync({{ domain_title }}EntitySyncFacade)
 {% for service in services %}
 {% if service.params %}
 
@@ -64,6 +62,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% endfor %}
 
 
+{# ---- Synchronous facade for {{ domain_title }}Entity ---- #}
 class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}State, str]):
 {% for service in services %}
 {% if service.params %}
@@ -77,9 +76,9 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
         {{ param.name }}: {{ param.python_type }} = None,
 {% endif %}
 {% endfor %}
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="{{ service.name }}",
             target={"entity_id": self.entity.entity_id},
@@ -88,9 +87,9 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
 {% endfor %}
         )
 {% else %}
-    def {{ service.method_name }}(self):
+    def {{ service.method_name }}(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="{{ service.name }}",
             target={"entity_id": self.entity.entity_id},

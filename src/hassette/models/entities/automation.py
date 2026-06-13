@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import AutomationState
 from hassette.models.states.automation import AutomationAttributes
@@ -14,9 +14,7 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
     @property
     def sync(self) -> "AutomationEntitySyncFacade":
-        if self._sync is None:
-            self._sync = AutomationEntitySyncFacade(entity=self)
-        return cast("AutomationEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(AutomationEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -70,9 +68,9 @@ class AutomationEntity(BaseEntity[AutomationState, str]):
 
 
 class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
@@ -82,18 +80,18 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         self,
         *,
         stop_actions: bool | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
             stop_actions=stop_actions,
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},
@@ -103,9 +101,9 @@ class AutomationEntitySyncFacade(BaseEntitySyncFacade[AutomationState, str]):
         self,
         *,
         skip_condition: bool | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="trigger",
             target={"entity_id": self.entity.entity_id},

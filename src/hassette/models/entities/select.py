@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import SelectState
 from hassette.models.states.select import SelectAttributes
@@ -14,9 +14,7 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
     @property
     def sync(self) -> "SelectEntitySyncFacade":
-        if self._sync is None:
-            self._sync = SelectEntitySyncFacade(entity=self)
-        return cast("SelectEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(SelectEntitySyncFacade)
 
     def select_first(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -85,17 +83,17 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
 
 class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
-    def select_first(self):
+    def select_first(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_first",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def select_last(self):
+    def select_last(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_last",
             target={"entity_id": self.entity.entity_id},
@@ -105,9 +103,9 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         self,
         *,
         cycle: bool | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_next",
             target={"entity_id": self.entity.entity_id},
@@ -118,9 +116,9 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         self,
         *,
         option: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_option",
             target={"entity_id": self.entity.entity_id},
@@ -131,9 +129,9 @@ class SelectEntitySyncFacade(BaseEntitySyncFacade[SelectState, str]):
         self,
         *,
         cycle: bool | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="select_previous",
             target={"entity_id": self.entity.entity_id},

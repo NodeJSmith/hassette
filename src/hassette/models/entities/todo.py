@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from hassette.models.states import TodoState
 from hassette.models.states.todo import TodoAttributes
@@ -16,9 +16,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
 
     @property
     def sync(self) -> "TodoEntitySyncFacade":
-        if self._sync is None:
-            self._sync = TodoEntitySyncFacade(entity=self)
-        return cast("TodoEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(TodoEntitySyncFacade)
 
     def get_items(
         self,
@@ -112,9 +110,9 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         self,
         *,
         status: Status | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_items",
             target={"entity_id": self.entity.entity_id},
@@ -128,9 +126,9 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         description: str | None = None,
         due_date: str | None = None,
         due_datetime: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="add_item",
             target={"entity_id": self.entity.entity_id},
@@ -149,9 +147,9 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_datetime: str | None = None,
         rename: str | None = None,
         status: Literal["needs_action", "completed"] | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="update_item",
             target={"entity_id": self.entity.entity_id},
@@ -167,18 +165,18 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         self,
         *,
         item: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_item",
             target={"entity_id": self.entity.entity_id},
             item=item,
         )
 
-    def remove_completed_items(self):
+    def remove_completed_items(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="remove_completed_items",
             target={"entity_id": self.entity.entity_id},

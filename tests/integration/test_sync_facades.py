@@ -11,11 +11,16 @@ FR#11: the handle passes ``asyncio.iscoroutine`` and ``run_sync`` drives it to
 completion), and that calling a facade from inside the event loop fails fast.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from hassette import context
 from hassette.app.app import AppSync
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
+from hassette.models.entities.cover import CoverEntity
+from hassette.models.states import CoverState
 from hassette.test_utils.app_harness import AppTestHarness
 
 
@@ -98,3 +103,40 @@ async def test_api_sync_facade_fires_service_from_sync_init() -> None:
         assert turn_on_call.kwargs.get("entity_id") == "light.kitchen", (
             f"Expected entity_id='light.kitchen', got {turn_on_call.kwargs!r}"
         )
+
+
+async def test_entity_sync_facade_delegates_to_call_service() -> None:
+    """entity.sync.<method>() delegates to the real (non-mocked) sync call_service with correct args.
+
+    Points the entity's context api at the harness RecordingApi so the full delegation chain
+    ``entity.sync.open_cover`` -> ``entity.api.sync.call_service`` is exercised against a real
+    recording facade, not a MagicMock. The run_sync bridge itself is covered separately by
+    ``test_task_bucket.test_run_sync_drives_coroutine_from_worker_thread``.
+    """
+    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+        recorder = harness.api_recorder
+        # Point the entity's context api at the harness recorder, matching the make_*_entity
+        # wiring in the unit tests. Scoped to try/finally so harness teardown sees the original
+        # HASSETTE_INSTANCE restored — the entity calls must stay inside this block.
+        hassette_stub = MagicMock()
+        hassette_stub.api = recorder
+        token = context.HASSETTE_INSTANCE.set(hassette_stub)
+        try:
+            state = CoverState.model_validate(
+                {"entity_id": "cover.garage", "state": "open", "attributes": {}, "context": {}}
+            )
+            cover = CoverEntity(state=state)
+            cover.sync.open_cover()
+            cover.sync.set_cover_position(position=60)
+        finally:
+            context.HASSETTE_INSTANCE.reset(token)
+
+        service_calls = {c.kwargs["service"]: c for c in recorder.calls if c.method == "call_service"}
+
+        assert "open_cover" in service_calls, f"Expected open_cover call_service, got {sorted(service_calls)}"
+        open_call = service_calls["open_cover"]
+        assert open_call.kwargs["domain"] == "cover"
+        assert open_call.kwargs["target"] == {"entity_id": "cover.garage"}
+
+        assert "set_cover_position" in service_calls, f"Expected set_cover_position, got {sorted(service_calls)}"
+        assert service_calls["set_cover_position"].kwargs.get("position") == 60

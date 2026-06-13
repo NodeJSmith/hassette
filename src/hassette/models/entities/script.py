@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import ScriptState
 from hassette.models.states.script import ScriptAttributes
@@ -14,9 +14,7 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
     @property
     def sync(self) -> "ScriptEntitySyncFacade":
-        if self._sync is None:
-            self._sync = ScriptEntitySyncFacade(entity=self)
-        return cast("ScriptEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(ScriptEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -50,25 +48,25 @@ class ScriptEntity(BaseEntity[ScriptState, str]):
 
 
 class ScriptEntitySyncFacade(BaseEntitySyncFacade[ScriptState, str]):
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},

@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import TimeState
 from hassette.models.states.time import TimeAttributes
@@ -14,9 +14,7 @@ class TimeEntity(BaseEntity[TimeState, str]):
 
     @property
     def sync(self) -> "TimeEntitySyncFacade":
-        if self._sync is None:
-            self._sync = TimeEntitySyncFacade(entity=self)
-        return cast("TimeEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(TimeEntitySyncFacade)
 
     def set_value(
         self,
@@ -39,9 +37,9 @@ class TimeEntitySyncFacade(BaseEntitySyncFacade[TimeState, str]):
         self,
         *,
         time: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_value",
             target={"entity_id": self.entity.entity_id},

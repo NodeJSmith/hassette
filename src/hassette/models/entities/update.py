@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import UpdateState
 from hassette.models.states.update import UpdateAttributes
@@ -14,9 +14,7 @@ class UpdateEntity(BaseEntity[UpdateState, str]):
 
     @property
     def sync(self) -> "UpdateEntitySyncFacade":
-        if self._sync is None:
-            self._sync = UpdateEntitySyncFacade(entity=self)
-        return cast("UpdateEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(UpdateEntitySyncFacade)
 
     def install(
         self,
@@ -62,9 +60,9 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
         *,
         backup: bool | None = None,
         version: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="install",
             target={"entity_id": self.entity.entity_id},
@@ -72,17 +70,17 @@ class UpdateEntitySyncFacade(BaseEntitySyncFacade[UpdateState, str]):
             version=version,
         )
 
-    def skip(self):
+    def skip(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="skip",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def clear_skipped(self):
+    def clear_skipped(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clear_skipped",
             target={"entity_id": self.entity.entity_id},

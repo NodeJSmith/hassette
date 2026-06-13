@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import AlarmControlPanelState
 from hassette.models.states.alarm_control_panel import AlarmControlPanelAttributes
@@ -14,9 +14,7 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
 
     @property
     def sync(self) -> "AlarmControlPanelEntitySyncFacade":
-        if self._sync is None:
-            self._sync = AlarmControlPanelEntitySyncFacade(entity=self)
-        return cast("AlarmControlPanelEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(AlarmControlPanelEntitySyncFacade)
 
     def alarm_disarm(
         self,
@@ -129,9 +127,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_disarm",
             target={"entity_id": self.entity.entity_id},
@@ -142,9 +140,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_custom_bypass",
             target={"entity_id": self.entity.entity_id},
@@ -155,9 +153,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_home",
             target={"entity_id": self.entity.entity_id},
@@ -168,9 +166,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_away",
             target={"entity_id": self.entity.entity_id},
@@ -181,9 +179,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_night",
             target={"entity_id": self.entity.entity_id},
@@ -194,9 +192,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_arm_vacation",
             target={"entity_id": self.entity.entity_id},
@@ -207,9 +205,9 @@ class AlarmControlPanelEntitySyncFacade(BaseEntitySyncFacade[AlarmControlPanelSt
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="alarm_trigger",
             target={"entity_id": self.entity.entity_id},

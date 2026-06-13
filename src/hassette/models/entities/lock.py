@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import LockState
 from hassette.models.states.lock import LockAttributes
@@ -14,9 +14,7 @@ class LockEntity(BaseEntity[LockState, str]):
 
     @property
     def sync(self) -> "LockEntitySyncFacade":
-        if self._sync is None:
-            self._sync = LockEntitySyncFacade(entity=self)
-        return cast("LockEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(LockEntitySyncFacade)
 
     def lock(
         self,
@@ -69,9 +67,9 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="lock",
             target={"entity_id": self.entity.entity_id},
@@ -82,9 +80,9 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open",
             target={"entity_id": self.entity.entity_id},
@@ -95,9 +93,9 @@ class LockEntitySyncFacade(BaseEntitySyncFacade[LockState, str]):
         self,
         *,
         code: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="unlock",
             target={"entity_id": self.entity.entity_id},

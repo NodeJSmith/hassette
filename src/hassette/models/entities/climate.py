@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import ClimateState
 from hassette.models.states.climate import ClimateAttributes
@@ -14,9 +14,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
     @property
     def sync(self) -> "ClimateEntitySyncFacade":
-        if self._sync is None:
-            self._sync = ClimateEntitySyncFacade(entity=self)
-        return cast("ClimateEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(ClimateEntitySyncFacade)
 
     def set_preset_mode(
         self,
@@ -165,9 +163,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         preset_mode: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_preset_mode",
             target={"entity_id": self.entity.entity_id},
@@ -181,9 +179,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         target_temp_high: float | None = None,
         target_temp_low: float | None = None,
         temperature: float | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_temperature",
             target={"entity_id": self.entity.entity_id},
@@ -197,9 +195,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         humidity: int,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_humidity",
             target={"entity_id": self.entity.entity_id},
@@ -210,9 +208,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         fan_mode: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_fan_mode",
             target={"entity_id": self.entity.entity_id},
@@ -223,9 +221,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         hvac_mode: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_hvac_mode",
             target={"entity_id": self.entity.entity_id},
@@ -236,9 +234,9 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         swing_mode: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_swing_mode",
             target={"entity_id": self.entity.entity_id},
@@ -249,34 +247,34 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
         self,
         *,
         swing_horizontal_mode: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_swing_horizontal_mode",
             target={"entity_id": self.entity.entity_id},
             swing_horizontal_mode=swing_horizontal_mode,
         )
 
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},

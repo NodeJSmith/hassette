@@ -1,5 +1,6 @@
 """Unit tests for the entity wrapper generator."""
 
+import ast
 import py_compile
 import sys
 import tempfile
@@ -147,8 +148,9 @@ class TestEntityWrapperGenerator:
         output = generate_entity_wrapper(domain)
         assert output is not None
         assert 'def sync(self) -> "FanEntitySyncFacade":' in output
-        assert "FanEntitySyncFacade(entity=self)" in output
-        assert 'cast("FanEntitySyncFacade", self._sync)' in output
+        # Caching is delegated to the base helper; no per-file construction or cast.
+        assert "self._get_or_create_sync(FanEntitySyncFacade)" in output
+        assert "cast(" not in output
 
     def test_facade_methods_match_async_signatures(self) -> None:
         domain = ExtractedDomain(
@@ -174,8 +176,8 @@ class TestEntityWrapperGenerator:
         assert output is not None
         # Facade class present
         assert "class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):" in output
-        # No-param service emits method with just self
-        assert "def open_cover(self):" in output
+        # No-param service emits a void method with just self
+        assert "def open_cover(self) -> None:" in output
         # Required-param service emits keyword-only param
         assert "def set_cover_position(" in output
         assert "position:" in output
@@ -185,7 +187,7 @@ class TestEntityWrapperGenerator:
         assert 'service="set_cover_position"' in output
         assert 'target={"entity_id": self.entity.entity_id}' in output
 
-    def test_facade_methods_have_no_return_annotation(self) -> None:
+    def test_facade_methods_are_void(self) -> None:
         domain = ExtractedDomain(
             name="cover",
             base_class="StringBaseState",
@@ -209,11 +211,14 @@ class TestEntityWrapperGenerator:
         assert output is not None
         # Split on the facade class to inspect only the facade portion
         facade_portion = output.split("class CoverEntitySyncFacade", 1)[1]
-        # Facade methods must not carry a return annotation
-        assert "-> None" not in facade_portion
+        # Facade methods are synchronous and void: explicit `-> None`, no `return` of the
+        # underlying ServiceResponse, and not a coroutine.
+        assert "def open_cover(self) -> None:" in facade_portion
         assert "-> Coroutine" not in facade_portion
+        assert "return self.entity.api.sync" not in facade_portion
+        assert '"""Runs synchronously — blocks until the service call completes."""' in facade_portion
 
-    def test_facade_imports_cast_and_base_facade(self) -> None:
+    def test_facade_imports_base_facade_not_cast(self) -> None:
         domain = ExtractedDomain(
             name="fan",
             base_class="BoolBaseState",
@@ -223,7 +228,9 @@ class TestEntityWrapperGenerator:
         )
         output = generate_entity_wrapper(domain)
         assert output is not None
-        assert "from typing import Any, cast" in output
+        # The base caching helper removed the per-file cast, so `cast` is no longer imported.
+        assert "from typing import Any\n" in output
+        assert "cast" not in output
         assert "BaseEntitySyncFacade" in output.split("class FanEntity")[0]
 
     def test_output_compiles_with_facade(self) -> None:
@@ -252,3 +259,47 @@ class TestEntityWrapperGenerator:
             f.write(output)
             f.flush()
             py_compile.compile(f.name, doraise=True)
+
+    def test_facade_param_lists_match_async_entity_methods(self) -> None:
+        """Each facade method's parameter names mirror the async entity method's.
+
+        String-presence checks would miss a template change that emits a parameter
+        subset on the facade; this parses the AST and compares names directly.
+        """
+        domain = ExtractedDomain(
+            name="cover",
+            base_class="StringBaseState",
+            services=[
+                ExtractedService(name="open_cover", method_name="open_cover", fields=[]),
+                ExtractedService(
+                    name="set_cover_position",
+                    method_name="set_cover_position",
+                    fields=[
+                        ServiceField(
+                            name="position",
+                            selector_type="number",
+                            selector_data={"min": 0, "max": 100},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        tree = ast.parse(output)
+
+        def method_params(class_name: str, method_name: str) -> list[str]:
+            cls = next((n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name), None)
+            assert cls is not None, f"class {class_name} not found in generated output"
+            fn = next((n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == method_name), None)
+            assert fn is not None, f"method {method_name} not found on {class_name}"
+            names = [a.arg for a in (fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs)]
+            return [n for n in names if n != "self"]
+
+        for method in ("open_cover", "set_cover_position"):
+            async_params = method_params("CoverEntity", method)
+            facade_params = method_params("CoverEntitySyncFacade", method)
+            assert facade_params == async_params, (
+                f"{method}: facade params {facade_params} != async entity params {async_params}"
+            )

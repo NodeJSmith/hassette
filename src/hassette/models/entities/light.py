@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from hassette.const.colors import Color
 from hassette.models.states import LightState
@@ -17,9 +17,7 @@ class LightEntity(BaseEntity[LightState, str]):
 
     @property
     def sync(self) -> "LightEntitySyncFacade":
-        if self._sync is None:
-            self._sync = LightEntitySyncFacade(entity=self)
-        return cast("LightEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(LightEntitySyncFacade)
 
     def turn_on(
         self,
@@ -145,9 +143,9 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         transition: int | None = None,
         white: Any | None = None,
         xy_color: Any | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
@@ -174,9 +172,9 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         *,
         flash: Literal["long", "short"] | None = None,
         transition: int | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
@@ -201,9 +199,9 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         transition: int | None = None,
         white: Any | None = None,
         xy_color: Any | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},

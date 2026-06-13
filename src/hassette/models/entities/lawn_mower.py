@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import LawnMowerState
 from hassette.models.states.lawn_mower import LawnMowerAttributes
@@ -14,9 +14,7 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
 
     @property
     def sync(self) -> "LawnMowerEntitySyncFacade":
-        if self._sync is None:
-            self._sync = LawnMowerEntitySyncFacade(entity=self)
-        return cast("LawnMowerEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(LawnMowerEntitySyncFacade)
 
     def start_mowing(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -50,25 +48,25 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
 
 
 class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
-    def start_mowing(self):
+    def start_mowing(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_mowing",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def dock(self):
+    def dock(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="dock",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def pause(self):
+    def pause(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
             target={"entity_id": self.entity.entity_id},

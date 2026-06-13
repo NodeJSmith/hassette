@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import CoverState
 from hassette.models.states.cover import CoverAttributes
@@ -14,9 +14,7 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     @property
     def sync(self) -> "CoverEntitySyncFacade":
-        if self._sync is None:
-            self._sync = CoverEntitySyncFacade(entity=self)
-        return cast("CoverEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(CoverEntitySyncFacade)
 
     def open_cover(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -130,25 +128,25 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
 
 class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
-    def open_cover(self):
+    def open_cover(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def close_cover(self):
+    def close_cover(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},
@@ -158,42 +156,42 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         self,
         *,
         position: int,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_cover_position",
             target={"entity_id": self.entity.entity_id},
             position=position,
         )
 
-    def stop_cover(self):
+    def stop_cover(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def open_cover_tilt(self):
+    def open_cover_tilt(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="open_cover_tilt",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def close_cover_tilt(self):
+    def close_cover_tilt(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="close_cover_tilt",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def toggle_cover_tilt(self):
+    def toggle_cover_tilt(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle_cover_tilt",
             target={"entity_id": self.entity.entity_id},
@@ -203,18 +201,18 @@ class CoverEntitySyncFacade(BaseEntitySyncFacade[CoverState, str]):
         self,
         *,
         tilt_position: int,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_cover_tilt_position",
             target={"entity_id": self.entity.entity_id},
             tilt_position=tilt_position,
         )
 
-    def stop_cover_tilt(self):
+    def stop_cover_tilt(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop_cover_tilt",
             target={"entity_id": self.entity.entity_id},

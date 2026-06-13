@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import TimerState
 from hassette.models.states.timer import TimerAttributes
@@ -14,9 +14,7 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
     @property
     def sync(self) -> "TimerEntitySyncFacade":
-        if self._sync is None:
-            self._sync = TimerEntitySyncFacade(entity=self)
-        return cast("TimerEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(TimerEntitySyncFacade)
 
     def start(
         self,
@@ -84,34 +82,34 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         self,
         *,
         duration: dict[str, int] | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
             target={"entity_id": self.entity.entity_id},
             duration=duration,
         )
 
-    def pause(self):
+    def pause(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="cancel",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def finish(self):
+    def finish(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="finish",
             target={"entity_id": self.entity.entity_id},
@@ -121,9 +119,9 @@ class TimerEntitySyncFacade(BaseEntitySyncFacade[TimerState, str]):
         self,
         *,
         duration: dict[str, int],
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="change",
             target={"entity_id": self.entity.entity_id},

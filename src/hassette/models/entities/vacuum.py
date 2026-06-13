@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, cast
+from typing import Any
 
 from hassette.models.states import VacuumState
 from hassette.models.states.vacuum import VacuumAttributes
@@ -14,9 +14,7 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
     @property
     def sync(self) -> "VacuumEntitySyncFacade":
-        if self._sync is None:
-            self._sync = VacuumEntitySyncFacade(entity=self)
-        return cast("VacuumEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(VacuumEntitySyncFacade)
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Must be awaited — a forgotten ``await`` is reported per ``forgotten_await_behavior`` (default: warn)."""
@@ -167,81 +165,81 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 
 
 class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
-    def turn_on(self):
+    def turn_on(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def stop(self):
+    def stop(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="stop",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def locate(self):
+    def locate(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="locate",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def start_pause(self):
+    def start_pause(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start_pause",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def start(self):
+    def start(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="start",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def pause(self):
+    def pause(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def return_to_base(self):
+    def return_to_base(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="return_to_base",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def clean_spot(self):
+    def clean_spot(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clean_spot",
             target={"entity_id": self.entity.entity_id},
@@ -251,9 +249,9 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         self,
         *,
         cleaning_area_id: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="clean_area",
             target={"entity_id": self.entity.entity_id},
@@ -265,9 +263,9 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         *,
         command: str,
         params: Any | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="send_command",
             target={"entity_id": self.entity.entity_id},
@@ -279,9 +277,9 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         self,
         *,
         fan_speed: str,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="set_fan_speed",
             target={"entity_id": self.entity.entity_id},

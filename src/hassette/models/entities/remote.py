@@ -1,5 +1,5 @@
 from collections.abc import Coroutine
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from hassette.models.states import RemoteState
 from hassette.models.states.remote import RemoteAttributes
@@ -16,9 +16,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
 
     @property
     def sync(self) -> "RemoteEntitySyncFacade":
-        if self._sync is None:
-            self._sync = RemoteEntitySyncFacade(entity=self)
-        return cast("RemoteEntitySyncFacade", self._sync)
+        return self._get_or_create_sync(RemoteEntitySyncFacade)
 
     def turn_on(
         self,
@@ -124,26 +122,26 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         self,
         *,
         activity: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_on",
             target={"entity_id": self.entity.entity_id},
             activity=activity,
         )
 
-    def toggle(self):
+    def toggle(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="toggle",
             target={"entity_id": self.entity.entity_id},
         )
 
-    def turn_off(self):
+    def turn_off(self) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="turn_off",
             target={"entity_id": self.entity.entity_id},
@@ -157,9 +155,9 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         device: str | None = None,
         hold_secs: float | None = None,
         num_repeats: int | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="send_command",
             target={"entity_id": self.entity.entity_id},
@@ -178,9 +176,9 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         command_type: CommandType | None = None,
         device: str | None = None,
         timeout: int | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="learn_command",
             target={"entity_id": self.entity.entity_id},
@@ -196,9 +194,9 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         *,
         command: Any,
         device: str | None = None,
-    ):
+    ) -> None:
         """Runs synchronously — blocks until the service call completes."""
-        return self.entity.api.sync.call_service(
+        self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="delete_command",
             target={"entity_id": self.entity.entity_id},
