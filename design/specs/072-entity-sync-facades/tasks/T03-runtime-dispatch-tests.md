@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add runtime dispatch tests for domain sync facades"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["AC#2", "AC#3", "AC#4", "AC#5"]
 ---

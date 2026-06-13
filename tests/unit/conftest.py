@@ -10,6 +10,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from io import StringIO
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,6 +18,7 @@ import structlog
 import structlog.processors
 import structlog.stdlib
 
+from hassette import context
 from hassette.api.api import Api
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
@@ -27,6 +29,13 @@ from hassette.logging_ import (
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
 )
+from hassette.models.entities.light import LightEntity
+from hassette.models.states import LightState
+
+if TYPE_CHECKING:
+    from contextvars import Token
+
+    from hassette import Hassette
 
 
 def make_mock_parent() -> MagicMock:
@@ -73,6 +82,21 @@ def make_api() -> Api:
     api.entity_exists = AsyncMock(return_value=False)
 
     return api
+
+
+def make_light_entity(api: Api) -> "tuple[LightEntity, Token[Hassette]]":
+    """Create a LightEntity wired to the given api via HASSETTE_INSTANCE context.
+
+    Shared factory: used by test_entity_coroutine_conversion and
+    test_sync_entity_facade. The caller resets the returned token in a finally block.
+    """
+    hassette_mock = MagicMock()
+    hassette_mock.api = api
+    token = context.HASSETTE_INSTANCE.set(hassette_mock)
+
+    state = LightState.model_validate({"entity_id": "light.kitchen", "state": "off", "attributes": {}, "context": {}})
+    entity = LightEntity(state=state)
+    return entity, token
 
 
 def public_async_methods(cls: type) -> set[str]:

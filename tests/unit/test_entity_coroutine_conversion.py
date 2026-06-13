@@ -26,8 +26,8 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.humidifier import HumidifierEntity
 from hassette.models.entities.light import LightEntity
-from hassette.models.states import HumidifierState, LightState
-from tests.unit.conftest import make_api
+from hassette.models.states import HumidifierState
+from tests.unit.conftest import make_api, make_light_entity
 
 
 @pytest.fixture(autouse=True)
@@ -40,19 +40,6 @@ if TYPE_CHECKING:
 
     from hassette import Hassette
     from hassette.api.api import Api
-
-
-def make_light_entity(api: "Api") -> tuple[LightEntity, "Token[Hassette]"]:
-    """Create a LightEntity wired to the given api via HASSETTE_INSTANCE context."""
-    hassette_mock = MagicMock()
-    hassette_mock.api = api
-    token = context.HASSETTE_INSTANCE.set(hassette_mock)
-
-    state = LightState.model_validate({"entity_id": "light.kitchen", "state": "off", "attributes": {}, "context": {}})
-    entity = LightEntity(state=state)
-    # token stays set for the test duration — caller cleans up if needed
-    # (or we rely on contextvars scoping per coroutine)
-    return entity, token
 
 
 def make_humidifier_entity(api: "Api") -> tuple[HumidifierEntity, "Token[Hassette]"]:
