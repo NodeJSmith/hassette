@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.bus.listeners import Subscription
+from hassette.bus.listeners import Listener, Subscription
 from hassette.exceptions import DuplicateListenerError
 from hassette.test_utils.helpers import create_listener
 
@@ -122,9 +122,9 @@ async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus")
     key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
 
     gate = asyncio.Event()
-    calls: list = []
+    calls: list[Listener] = []
 
-    async def add_side_effect(listener):
+    async def add_side_effect(listener: Listener) -> int:
         calls.append(listener)
         if len(calls) == 1:
             # First registration (A): block, then fail while the second is in flight.
