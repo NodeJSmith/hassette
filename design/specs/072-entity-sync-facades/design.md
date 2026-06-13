@@ -1,7 +1,7 @@
 # Design: Domain Entity Sync Facades
 
 **Date:** 2026-06-12
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Issue:** #959
 
