@@ -66,9 +66,10 @@ A blocking call made directly in a handler — `requests.get(...)`, a database d
         `run_sync()` is safe only inside `run_in_thread()` callbacks and [`AppSync`][hassette.app.app.AppSync] lifecycle methods. Calling it from a regular `async` handler (the event loop thread) raises `RuntimeError` — `await` the async method directly there instead.
 
     !!! note "Entity domain actions: use `entity.sync.<method>()` instead"
-        Domain entity objects expose their own sync facade. `cover.sync.open_cover()`,
-        `cover.sync.set_cover_position(position=60)`, and
-        `climate.sync.set_temperature(temperature=21.0)` run synchronously without
+        Entity objects from `self.api.sync.get_entity(...)` expose their own sync facade.
+        Given `cover = self.api.sync.get_entity("cover.living_room", entities.CoverEntity)`,
+        the calls `cover.sync.open_cover()`, `cover.sync.set_cover_position(position=60)`,
+        and `climate.sync.set_temperature(temperature=21.0)` run synchronously without
         `run_sync`. Use `run_sync` for arbitrary coroutines (API calls, template
         rendering, history lookups); use `entity.sync.<method>()` for domain entity
         actions. See [API Methods](../api/methods.md#entity-sync-facades-appsync-only)
