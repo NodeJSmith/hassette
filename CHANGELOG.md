@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚠ BREAKING CHANGES
 
 * two `once=True` listeners registered with the same name and topic now raise `DuplicateListenerError` instead of silently coexisting. Use distinct names, or the new `if_exists` parameter, to register more than one once-listener under a shared name+topic.
+* `Bus.add_listener` now returns a `Subscription` instead of `None`. Callers that asserted the return was `None` must update; callers that ignore the return are unaffected.
 
 ### Features
 
+* add typed sync facades for all domain entity classes ([#1020](https://github.com/NodeJSmith/hassette/issues/1020)) ([c0b2f0c](https://github.com/NodeJSmith/hassette/commit/c0b2f0c6e83f268fbe69e8db2bbfcd8178b44b3a))
 * add if_exists to bus handler registration ([#1015](https://github.com/NodeJSmith/hassette/issues/1015)) ([dd1cb28](https://github.com/NodeJSmith/hassette/commit/dd1cb282e8b373dead5d8f156f009e756e585660))
 * runtime detection of forgotten await on registration methods ([#1019](https://github.com/NodeJSmith/hassette/issues/1019)) ([61e36be](https://github.com/NodeJSmith/hassette/commit/61e36be0089159041ffd87a45cdc1d11c9786394))
 
