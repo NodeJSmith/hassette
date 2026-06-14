@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Document execution modes on the bus concept page and docstrings"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#2", "FR#3", "FR#5", "FR#15", "FR#20", "FR#21", "FR#22"]
 ---

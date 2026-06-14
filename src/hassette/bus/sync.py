@@ -199,7 +199,18 @@ class BusSyncFacade(Resource):
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
-            **opts: Additional options like `once`, `debounce` and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. When omitted, the
+                tier-aware default applies: ``"single"`` for app handlers, ``"parallel"`` for
+                framework-internal listeners. An explicit ``mode=`` always wins. Suppressed
+                (``single``) and dropped (``queued`` cap) events log at DEBUG only.
+                Suppressed/dropped counts are live-only diagnostics, reset on restart.
+                See `Execution Modes <https://hassette.dev/core-concepts/bus/execution-modes/>`_.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
@@ -261,7 +272,14 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
+                counts are live-only diagnostics, reset on restart.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -314,7 +332,14 @@ class BusSyncFacade(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier for this listener. Omitting it raises
                 ``ListenerNameRequiredError`` at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
+                counts are live-only diagnostics, reset on restart.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -352,7 +377,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -387,7 +412,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -413,7 +438,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -435,7 +460,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -457,7 +482,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -489,7 +514,7 @@ class BusSyncFacade(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -519,7 +544,7 @@ class BusSyncFacade(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -544,7 +569,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -569,7 +594,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -594,7 +619,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -619,7 +644,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -652,7 +677,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -688,7 +713,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
@@ -715,7 +740,7 @@ class BusSyncFacade(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener."""
