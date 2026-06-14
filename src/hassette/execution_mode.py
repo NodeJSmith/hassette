@@ -37,7 +37,13 @@ class ExecutionModeGuard:
     One instance exists per listener. The guard tracks at most one running invocation for
     ``single``/``restart``/``queued`` and serializes its critical section with an internal lock
     so concurrently-spawned dispatch tasks cannot interleave a ``restart`` cancel-and-replace.
-    ``parallel`` is a pass-through with no tracking or locking.
+
+    ``parallel`` is a fire-and-forget pass-through: ``run()`` calls ``run_and_track()`` and
+    discards the returned task. The spawned task is owned and tracked by the caller's own task
+    machinery (the bus's ``task_bucket``) — the guard neither retains nor awaits it, holds no
+    tracking state, and takes no lock. A caller that needs to await the handler must not route a
+    parallel listener through ``run()``; ``HandlerInvoker`` awaits parallel inline and never
+    reaches this branch.
     """
 
     __slots__ = ("_cap", "_lock", "_mode", "current_task", "dropped", "pending", "suppressed")
@@ -57,11 +63,15 @@ class ExecutionModeGuard:
     async def run(self, run_and_track: RunAndTrack) -> Outcome:
         """Apply the listener's mode to one trigger.
 
-        ``run_and_track`` spawns a fresh handler-invocation task and returns it. The guard never
-        spawns the task itself — it only decides whether and when to call this callable.
+        ``run_and_track`` spawns a fresh handler-invocation task and returns it. For
+        ``single``/``restart``/``queued`` the guard decides whether and when to call this
+        callable and retains the returned task as its cancellable handle. For ``parallel`` the
+        guard calls it once and discards the returned task — the task is owned and tracked by the
+        caller's task machinery, not by the guard. A caller needing to await the handler must not
+        route a parallel listener here.
         """
         if self._mode is ExecutionMode.PARALLEL:
-            run_and_track()
+            run_and_track()  # fire-and-forget: caller's task_bucket tracks it; parallel does not await
             return Outcome.RAN
 
         async with self._lock:

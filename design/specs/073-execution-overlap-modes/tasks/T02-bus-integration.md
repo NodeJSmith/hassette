@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Wire mode into bus registration, dispatch, and tier default"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "FR#12", "FR#17", "FR#20", "FR#21", "FR#22", "AC#2", "AC#3", "AC#4", "AC#6", "AC#7", "AC#8", "AC#9", "AC#14", "AC#15", "AC#16"]
 ---

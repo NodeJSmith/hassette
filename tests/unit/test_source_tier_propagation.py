@@ -19,6 +19,7 @@ from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
+from hassette.types.enums import ExecutionMode
 
 if typing.TYPE_CHECKING:
     from hassette import HassetteConfig
@@ -98,6 +99,35 @@ class TestBusSourceTierPropagation:
         """on_state_change and other convenience methods also propagate source_tier."""
         sub = await framework_bus.on_state_change("sensor.test", handler=handler, name="framework_tier_state")
         assert sub.listener.identity.source_tier == "framework"
+
+
+class TestExecutionModeTierDefault:
+    """The tier-aware default for ``mode`` (FR#3, AC#2): app→single, framework→parallel."""
+
+    async def test_app_registration_without_mode_defaults_to_single(self, app_bus: "Bus") -> None:
+        """An app-tier registration without an explicit mode resolves to single."""
+        sub = await app_bus.on(topic="test.topic", handler=handler, name="app_default_mode")
+        assert sub.listener.options.mode is ExecutionMode.SINGLE
+
+    async def test_framework_registration_without_mode_defaults_to_parallel(self, framework_bus: "Bus") -> None:
+        """A framework-tier registration without an explicit mode resolves to parallel."""
+        sub = await framework_bus.on(topic="test.topic", handler=handler, name="framework_default_mode")
+        assert sub.listener.options.mode is ExecutionMode.PARALLEL
+
+    async def test_explicit_mode_wins_over_tier_default(self, framework_bus: "Bus") -> None:
+        """An explicit mode always wins over the tier default, even for framework listeners."""
+        sub = await framework_bus.on(topic="test.topic", handler=handler, name="framework_explicit", mode="single")
+        assert sub.listener.options.mode is ExecutionMode.SINGLE
+
+    async def test_convenience_method_app_default_single(self, app_bus: "Bus") -> None:
+        """on_state_change (typed method, mode via Options) also picks up the app-tier single default."""
+        sub = await app_bus.on_state_change("sensor.test", handler=handler, name="app_state_default")
+        assert sub.listener.options.mode is ExecutionMode.SINGLE
+
+    async def test_invalid_mode_raises_at_registration(self, app_bus: "Bus") -> None:
+        """An invalid mode string is rejected at registration time (FR#12, AC#9)."""
+        with pytest.raises(ValueError, match="Invalid execution mode"):
+            await app_bus.on(topic="test.topic", handler=handler, name="bad_mode", mode="bogus")
 
 
 def make_scheduler_with_parent(source_tier: str) -> "Scheduler":

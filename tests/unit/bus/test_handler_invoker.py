@@ -1,14 +1,15 @@
-"""Unit tests for HandlerInvoker sub-struct."""
+"""Unit tests for HandlerInvoker sub-struct.
+
+These tests exercise the create/once-guard/invoke flow, not overlap behavior, so dispatch tests
+use ``mode="parallel"`` (the inline pass-through that never asks ``task_bucket`` to spawn a child).
+``make_task_bucket`` is imported from the shared helpers so it stays in sync with the production
+factory the integration tests rely on.
+"""
 
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
-
-
-def make_task_bucket() -> MagicMock:
-    tb = MagicMock()
-    tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    return tb
+from hassette.test_utils.helpers import make_task_bucket
 
 
 async def simple_handler() -> None:
@@ -174,13 +175,17 @@ class TestHandlerInvokerSetAppErrorHandlerResolver:
 
 
 class TestHandlerInvokerDispatch:
+    # These tests exercise the once-guard + invoke flow, not overlap behavior. They use
+    # ``mode="parallel"`` (the byte-for-byte inline pass-through) so the MagicMock task_bucket
+    # is never asked to spawn a real child task. Overlap-mode dispatch is covered by the
+    # ExecutionModeGuard unit tests and the bus integration tests.
     async def test_dispatch_calls_invoke_fn(self) -> None:
         task_bucket = make_task_bucket()
         invoker = HandlerInvoker.create(
             task_bucket=task_bucket,
             handler=simple_handler,
             kwargs=None,
-            options=ListenerOptions(),
+            options=ListenerOptions(mode="parallel"),
         )
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
@@ -193,7 +198,7 @@ class TestHandlerInvokerDispatch:
             task_bucket=task_bucket,
             handler=simple_handler,
             kwargs=None,
-            options=ListenerOptions(once=True),
+            options=ListenerOptions(once=True, mode="parallel"),
         )
         invoke_fn = AsyncMock()
 
@@ -213,7 +218,7 @@ class TestHandlerInvokerDispatch:
             task_bucket=task_bucket,
             handler=simple_handler,
             kwargs=None,
-            options=ListenerOptions(once=False),
+            options=ListenerOptions(once=False, mode="parallel"),
         )
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)

@@ -27,7 +27,7 @@ from hassette.events import (
     create_event_from_hass,
 )
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ExecutionMode, ResourceStatus
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
@@ -441,9 +441,27 @@ async def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key
 
 
 def make_task_bucket() -> MagicMock:
-    """Create a MagicMock TaskBucket suitable for Listener construction in tests."""
+    """Create a MagicMock TaskBucket suitable for Listener construction in tests.
+
+    ``spawn`` creates a real ``asyncio.Task`` when a loop is running so the execution-mode
+    guard (which spawns and awaits the cancellable child handler task) behaves like production.
+    Outside a running loop it returns a MagicMock so sync-context construction still works.
+    """
     tb = MagicMock()
     tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+
+    def spawn_side_effect(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No loop (sync-context test): close the coroutine so it isn't reported as
+            # "never awaited", then hand back a MagicMock standing in for the Task.
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            return MagicMock()
+        return asyncio.create_task(coro)
+
+    tb.spawn = MagicMock(side_effect=spawn_side_effect)
     return tb
 
 
@@ -461,6 +479,7 @@ def create_listener(
     timeout: float | None = None,
     timeout_disabled: bool = False,
     priority: int = 0,
+    mode: "ExecutionMode | str" = ExecutionMode.PARALLEL,
     app_key: str = "",
     instance_index: int = 0,
     name: str | None = None,
@@ -513,6 +532,7 @@ def create_listener(
         timeout=timeout,
         timeout_disabled=timeout_disabled,
         priority=priority,
+        mode=ExecutionMode(mode),
     )
 
     invoker = HandlerInvoker.create(

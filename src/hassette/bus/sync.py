@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
     from hassette.types import ChangeType, HandlerType, Predicate
+    from hassette.types.enums import ExecutionMode
     from hassette.types.types import BusErrorHandlerType
 
 
@@ -97,6 +98,7 @@ class BusSyncFacade(Resource):
         throttle: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
+        mode: "ExecutionMode | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
@@ -119,6 +121,11 @@ class BusSyncFacade(Resource):
             timeout: Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
                 None means fall through to the config default.
             timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
+            mode: Overlap behavior when a trigger fires while a prior invocation still runs —
+                ``"single"``, ``"restart"``, ``"queued"``, or ``"parallel"``. When omitted, the
+                effective default is tier-aware: ``parallel`` for framework listeners, ``single``
+                for app listeners. Suppressed/dropped counts are live-only diagnostics, reset on
+                restart.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
@@ -151,6 +158,7 @@ class BusSyncFacade(Resource):
                 throttle=throttle,
                 timeout=timeout,
                 timeout_disabled=timeout_disabled,
+                mode=mode,
                 name=name,
                 on_error=on_error,
                 if_exists=if_exists,
