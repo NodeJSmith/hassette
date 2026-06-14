@@ -53,6 +53,9 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     },
   ];
   if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled });
+  cells.push({ label: "Mode", value: listener.mode });
+  if (listener.suppressed_count > 0) cells.push({ label: "Suppressed", value: listener.suppressed_count });
+  if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count });
   cells.push(
     { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
     { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },

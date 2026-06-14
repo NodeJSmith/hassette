@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Show mode chip and suppressed/dropped counts in the UI"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#18", "FR#19", "AC#13"]
 ---
