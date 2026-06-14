@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add ExecutionMode enum and ExecutionModeGuard with unit tests"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "FR#9", "FR#10", "FR#11", "FR#13", "FR#15", "FR#17", "AC#5", "AC#12"]
 ---

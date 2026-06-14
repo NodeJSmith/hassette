@@ -28,6 +28,38 @@ class RestartType(StrEnum):
     """The service is temporary — once its restart budget is exhausted, it stops permanently."""
 
 
+class ExecutionMode(StrEnum):
+    """Overlap behavior for a listener when a trigger fires while a prior invocation still runs."""
+
+    SINGLE = auto()
+    """Drop the re-fire while a prior invocation is still running."""
+
+    RESTART = auto()
+    """Cancel the running invocation and start a new one."""
+
+    QUEUED = auto()
+    """Serialize triggers, running them one at a time in arrival order."""
+
+    PARALLEL = auto()
+    """Run invocations concurrently with no overlap guard (today's behavior)."""
+
+
+class Outcome(StrEnum):
+    """The result of handing a trigger to an ``ExecutionModeGuard``."""
+
+    RAN = auto()
+    """The invocation was started immediately."""
+
+    QUEUED_ACCEPTED = auto()
+    """A ``queued`` trigger was accepted into the pending queue; it will run later."""
+
+    SUPPRESSED = auto()
+    """A ``single`` re-fire was dropped because a prior invocation is still running."""
+
+    DROPPED = auto()
+    """A ``queued`` trigger was dropped because the pending queue is at its cap."""
+
+
 class Topic(StrEnum):
     """Event topic identifiers for the internal pub/sub bus."""
 

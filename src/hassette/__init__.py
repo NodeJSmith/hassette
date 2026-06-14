@@ -20,7 +20,7 @@ from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
-from .types.enums import ForgottenAwaitBehavior
+from .types.enums import ExecutionMode, ForgottenAwaitBehavior
 
 A = accessors
 C = conditions
@@ -43,6 +43,7 @@ __all__ = [
     "Bus",
     "C",
     "D",
+    "ExecutionMode",
     "ForgottenAwaitBehavior",
     "Hassette",
     "HassetteConfig",
