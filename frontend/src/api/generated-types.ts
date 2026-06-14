@@ -1160,6 +1160,21 @@ export interface components {
             duration?: number | null;
             /** Entity Id */
             entity_id?: string | null;
+            /**
+             * Mode
+             * @default single
+             */
+            mode: string;
+            /**
+             * Suppressed Count
+             * @default 0
+             */
+            suppressed_count: number;
+            /**
+             * Dropped Count
+             * @default 0
+             */
+            dropped_count: number;
         };
         /**
          * LivenessResponse

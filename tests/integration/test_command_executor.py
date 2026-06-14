@@ -87,6 +87,42 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     assert record.listener_id == 1
 
 
+async def test_restart_cancellation_persists_cancelled_row(
+    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
+) -> None:
+    """A cancelled invocation lands as a status='cancelled' execution row (FR#16, AC#11).
+
+    ``restart`` mode cancels the in-flight child task, surfacing as ``CancelledError`` inside the
+    handler invocation. ``test_cancelled_error_reraises`` proves that path queues a
+    ``status='cancelled'`` record; this test proves such a record persists to the ``executions``
+    table — no new mechanism, the existing cancellation row path.
+    """
+    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
+
+    db_service, session_id = initialized_db
+
+    listener_id = await executor.register_listener(make_listener_registration())
+
+    record = _ExecutionRecord(
+        kind="handler",
+        listener_id=listener_id,
+        session_id=session_id,
+        execution_start_ts=time.time(),
+        duration_ms=10.0,
+        status="cancelled",
+    )
+    executor._write_queue.put_nowait(record)
+    await executor._drain_and_persist()
+
+    cursor = await db_service.db.execute(
+        "SELECT status FROM executions WHERE listener_id = ?",
+        (listener_id,),
+    )
+    rows = await cursor.fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "cancelled"
+
+
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
     listener = make_mock_listener()

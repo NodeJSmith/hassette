@@ -153,6 +153,7 @@ def create_hassette_stub(
         hassette._app_handler.reload_app = AsyncMock()
 
     hassette.bus_service = hassette._bus_service
+    hassette.bus_service.live_execution_counts = MagicMock(return_value={})
 
     hassette.scheduler_service = hassette._scheduler_service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])

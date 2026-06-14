@@ -188,7 +188,31 @@ class BusService(Service):
             immediate=listener.duration_config.immediate if listener.duration_config else False,
             duration=listener.duration_config.duration if listener.duration_config else None,
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
+            mode=listener.options.mode.value,
         )
+
+    def live_execution_counts(self) -> "dict[int, tuple[int, int]]":
+        """Return a snapshot of live ``(suppressed, dropped)`` counts keyed by listener ``db_id``.
+
+        Reads each active listener's ``ExecutionModeGuard`` from the router. Live and in-memory
+        only — no DB access (FR#15). Listeners not yet assigned a ``db_id`` are skipped; the web
+        layer treats a missing entry as ``(0, 0)``. The counters reset on guard restart and are
+        never persisted.
+
+        Returns:
+            A dict mapping listener ``db_id`` to a ``(suppressed, dropped)`` tuple.
+        """
+        # No awaits in this method — safe from asyncio mutation races against add_listener /
+        # remove_listener (router.owners is only mutated on the event loop). Do not add an await
+        # to this loop without adding synchronization, or the snapshot could tear.
+        counts: dict[int, tuple[int, int]] = {}
+        for listeners in self.router.owners.values():
+            for listener in listeners:
+                if listener.db_id is None:
+                    continue
+                guard = listener.invoker.guard
+                counts[listener.db_id] = (guard.suppressed, guard.dropped)
+        return counts
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
         """Persist durable cancellation state for a listener by setting ``cancelled_at`` in the DB.

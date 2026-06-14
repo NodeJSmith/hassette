@@ -237,6 +237,59 @@ async def test_queued_cap_drops_newest(
     assert len(sub.listener.invoker.pending_done) == 0
 
 
+async def test_live_execution_counts_snapshot_keyed_by_db_id(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """live_execution_counts() exposes per-listener (suppressed, dropped) by db_id (FR#15, AC#10)."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "0")
+
+    started = 0
+    gate = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        nonlocal started
+        started += 1
+        await gate.wait()
+
+    sub = await bus.on_state_change(ENTITY, handler=handler, name="counts_single", mode="single")
+    db_id = sub.listener.db_id
+    assert db_id is not None  # the harness assigns a db_id at registration
+
+    await fire(harness, "0", "1")  # starts and blocks
+    await wait_for(lambda: started == 1)
+    await fire(harness, "1", "2")  # suppressed re-fire
+    await wait_for(lambda: sub.listener.invoker.guard.suppressed == 1)
+
+    counts = harness.bus_service.live_execution_counts()
+    assert counts[db_id] == (1, 0)
+
+    gate.set()
+    await harness.bus_service.await_dispatch_idle()
+
+
+async def test_live_execution_counts_omits_retired_listener(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """A cancelled (retired) listener drops out of the live snapshot; web maps it to 0 (FR#15)."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "0")
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        pass
+
+    sub = await bus.on_state_change(ENTITY, handler=handler, name="counts_retired", mode="single")
+    db_id = sub.listener.db_id
+    assert db_id is not None
+    assert db_id in harness.bus_service.live_execution_counts()
+
+    sub.cancel()
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    assert db_id not in harness.bus_service.live_execution_counts()
+
+
 async def test_parallel_runs_concurrently(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:

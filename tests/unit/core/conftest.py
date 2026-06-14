@@ -54,6 +54,7 @@ CREATE TABLE listeners (
     handler_method        TEXT NOT NULL DEFAULT '',
     topic                 TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
+    mode                  TEXT NOT NULL DEFAULT 'single',
     retired_at            REAL
 );
 

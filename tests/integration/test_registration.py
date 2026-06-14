@@ -117,6 +117,74 @@ async def test_listener_registration_persists_correct_app_key(
     assert row[1] == 2, f"Expected instance_index=2, got {row[1]}"
 
 
+@pytest.mark.parametrize("mode", ["single", "restart", "queued", "parallel"])
+async def test_listener_registration_persists_mode(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+    mode: str,
+) -> None:
+    """register_listener() persists the resolved execution mode (FR#14, AC#1)."""
+    db_service, _ = initialized_db
+    reg = ListenerRegistration(
+        app_key="my_app",
+        instance_index=0,
+        handler_method="MyApp.on_event",
+        topic="hass.event.state_changed",
+        debounce=None,
+        throttle=None,
+        once=False,
+        priority=0,
+        predicate_description=None,
+        human_description=None,
+        source_location="test_registration.py:1",
+        registration_source=None,
+        name=f"listener_{mode}",
+        mode=mode,
+    )
+    listener_id = await executor.register_listener(reg)
+
+    cursor = await db_service.db.execute("SELECT mode FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == mode
+
+
+async def test_listener_mode_updates_on_reregistration(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """A mode-only change updates the persisted mode on the same row via the upsert (FR#14)."""
+    db_service, _ = initialized_db
+
+    def make_reg(mode: str) -> ListenerRegistration:
+        return ListenerRegistration(
+            app_key="my_app",
+            instance_index=0,
+            handler_method="MyApp.on_event",
+            topic="hass.event.state_changed",
+            debounce=None,
+            throttle=None,
+            once=False,
+            priority=0,
+            predicate_description=None,
+            human_description=None,
+            source_location="test_registration.py:1",
+            registration_source=None,
+            name="reg_mode_listener",
+            mode=mode,
+        )
+
+    first_id = await executor.register_listener(make_reg("single"))
+    second_id = await executor.register_listener(make_reg("queued"))
+
+    # Same natural key -> same row preserved, mode updated in place.
+    assert second_id == first_id
+    cursor = await db_service.db.execute("SELECT mode FROM listeners WHERE id = ?", (first_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "queued"
+
+
 async def test_job_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],

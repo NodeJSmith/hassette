@@ -60,6 +60,10 @@ class ListenerRegistration:
     entity_id: str | None = None
     """The entity this listener monitors, if applicable."""
 
+    mode: str = "single"
+    """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
+    the ``listeners.mode`` column. The tier-aware default is already applied in the options."""
+
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:

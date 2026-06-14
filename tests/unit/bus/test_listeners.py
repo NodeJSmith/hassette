@@ -55,6 +55,13 @@ class TestListenerConfigMatches:
         assert a.config_matches(b) is False
         assert "once" in a.diff_fields(b)
 
+    def test_different_mode_not_matching(self) -> None:
+        """A mode-only change → config_matches=False, 'mode' in diff_fields (FR#14)."""
+        a = create_listener(handler=fn, mode="single")
+        b = create_listener(handler=fn, mode="queued")
+        assert a.config_matches(b) is False
+        assert "mode" in a.diff_fields(b)
+
     def test_different_debounce_not_matching(self) -> None:
         """Different debounce → 'debounce' in diff_fields."""
         a = create_listener(handler=fn, debounce=1.0)

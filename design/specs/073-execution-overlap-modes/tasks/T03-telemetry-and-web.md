@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Persist mode and expose live suppressed/dropped counts via the web API"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#14", "FR#15", "FR#16", "AC#1", "AC#10", "AC#11"]
 ---

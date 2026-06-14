@@ -80,6 +80,7 @@ class ListenerSummary(BaseModel):
     immediate: int = 0
     duration: float | None = None
     entity_id: str | None = None
+    mode: str = "single"
     total_invocations: int
     successful: int
     failed: int

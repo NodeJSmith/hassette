@@ -3080,6 +3080,21 @@
               }
             ],
             "title": "Entity Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "single"
+          },
+          "suppressed_count": {
+            "type": "integer",
+            "title": "Suppressed Count",
+            "default": 0
+          },
+          "dropped_count": {
+            "type": "integer",
+            "title": "Dropped Count",
+            "default": 0
           }
         },
         "type": "object",

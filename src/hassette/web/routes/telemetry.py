@@ -169,6 +169,7 @@ async def app_health(
 @router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
 async def app_listeners(
     telemetry: TelemetryDep,
+    hassette: HassetteDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = INSTANCE_INDEX_PARAM,
@@ -184,7 +185,8 @@ async def app_listeners(
         LOGGER.warning("Failed to fetch listeners for %s", app_key, exc_info=True)
         response.status_code = 503
         return []
-    return [to_listener_with_summary(ls) for ls in listeners]
+    live_counts = hassette.bus_service.live_execution_counts()
+    return [to_listener_with_summary(ls, live_counts) for ls in listeners]
 
 
 @router.get("/app/{app_key}/activity", response_model=list[ActivityFeedEntry])
