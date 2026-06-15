@@ -68,6 +68,7 @@ class ExecutionMarker:
     instance_name: str | None
     execution_id: str
     started_at: float
+    instance_index: int | None = None
 
 
 @dataclass
@@ -478,6 +479,7 @@ class CommandExecutor(Service):
             instance_name=instance_name,
             execution_id=execution_id,
             started_at=time.monotonic(),
+            instance_index=instance_index,
         )
         return execution_id, token
 
