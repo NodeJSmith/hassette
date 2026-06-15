@@ -23,6 +23,7 @@ from hassette.config.helpers import (
 from hassette.config.legacy import LEGACY_KEY_MIGRATION
 from hassette.config.models import (
     AppsConfig,
+    BlockingIODetectionConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -104,6 +105,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
     """File watcher debounce, step, and enable/disable settings."""
+
+    blocking_io: BlockingIODetectionConfig = Field(default_factory=BlockingIODetectionConfig)
+    """Blocking-I/O detection settings for the shared event loop."""
 
     # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     config_file: Path | str | None = Field(default=Path("hassette.toml"))

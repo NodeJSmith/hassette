@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add blocking-IO behavior enum, warning, config, and resolver"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "AC#6"]
 ---

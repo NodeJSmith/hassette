@@ -15,6 +15,20 @@ class ForgottenAwaitBehavior(StrEnum):
     to a raised exception. Under normal filters, behaves identically to ``WARN``."""
 
 
+class BlockingIOBehavior(StrEnum):
+    """Controls what happens when blocking I/O is detected on the shared event loop."""
+
+    IGNORE = auto()
+    """Suppress the warning entirely — the blocking-IO detection is silently ignored."""
+
+    WARN = auto()
+    """Emit a ``HassetteBlockingIOWarning`` (default). Integrates with ``-W error``."""
+
+    ERROR = auto()
+    """Emit ``HassetteBlockingIOWarning`` in a form that ``filterwarnings("error")`` escalates
+    to a raised exception. Under normal filters, behaves identically to ``WARN``."""
+
+
 class RestartType(StrEnum):
     """Enumeration for service restart strategies."""
 

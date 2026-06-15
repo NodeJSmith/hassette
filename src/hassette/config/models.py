@@ -15,6 +15,7 @@ from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_v
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
+from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
 
 LOGGER = getLogger(__name__)
@@ -413,3 +414,46 @@ class FileWatcherConfig(ExcludeExtrasMixin, BaseModel):
 
     watch_files: bool = Field(default=True)
     """Whether to watch files for changes and reload apps automatically."""
+
+
+class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
+    """Blocking-I/O detection settings for the shared event loop.
+
+    Controls the two-tier detection system: Tier 1 (always-on responsiveness watchdog) and
+    Tier 2 (call-site interception of known blocking primitives, dev-default / prod-opt-in).
+    """
+
+    behavior: BlockingIOBehavior | None = Field(default=None)
+    """Global default behavior for blocking-IO detection.
+
+    When ``None`` (default), the effective behavior is ``"warn"``. Per-app
+    ``AppConfig.blocking_io_behavior`` overrides this when set. Set to ``"ignore"`` to
+    suppress detection globally, or ``"error"`` to escalate via ``filterwarnings("error")``."""
+
+    watchdog_enabled: bool = Field(default=True)
+    """Whether to run the Tier 1 loop-responsiveness watchdog. Defaults to True."""
+
+    lag_threshold_seconds: float = Field(default=0.1)
+    """Tier 1: minimum loop lag in seconds before a blocking-detected event is emitted.
+    Defaults to 100ms — brief stalls under this threshold are not reported."""
+
+    watchdog_interval_seconds: float = Field(default=0.25)
+    """Tier 1: interval in seconds between watchdog heartbeat checks.
+    Defaults to 250ms — trades detection latency for overhead."""
+
+    capture_stack_on_block: bool = Field(default=True)
+    """Whether to capture a stack snapshot of the loop thread when a severe stall is detected.
+    Defaults to True. Set to False to reduce overhead on low-memory systems."""
+
+    deep_detection_enabled: bool | None = Field(default=None)
+    """Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).
+
+    When ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production.
+    Set explicitly to ``True`` or ``False`` to override the dev_mode default."""
+
+    allow_deep_detection_in_prod: bool = Field(default=False)
+    """Whether to enable Tier 2 deep detection in production mode.
+
+    When True, Tier 2 call-site interception is active even when ``dev_mode`` is False,
+    regardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.
+    Defaults to False."""
