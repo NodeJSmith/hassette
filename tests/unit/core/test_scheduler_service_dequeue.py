@@ -208,7 +208,7 @@ class TestDispatchRaceGuard:
 
         svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc._dispatch_and_log(job)
+        await svc.dispatch_and_log(job)
         assert not run_called, "run_job must NOT be called when job._dequeued is True"
 
     async def test_dispatch_runs_non_dequeued_job(self) -> None:
@@ -225,5 +225,5 @@ class TestDispatchRaceGuard:
 
         svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc._dispatch_and_log(job)
+        await svc.dispatch_and_log(job)
         assert run_called, "run_job must be called when job._dequeued is False"

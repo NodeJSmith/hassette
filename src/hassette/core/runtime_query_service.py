@@ -91,34 +91,34 @@ class RuntimeQueryService(Resource):
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASS_EVENT_STATE_CHANGED,
-                handler=self._on_state_change,
+                handler=self.on_state_change,
                 name="hassette.rqs.on_state_change",
             )
         )
         self._subscriptions.append(
             await self.bus.on_app_state_changed(
-                handler=self._on_app_state_changed, name="hassette.rqs.on_app_state_changed"
+                handler=self.on_app_state_changed, name="hassette.rqs.on_app_state_changed"
             )
         )
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-                handler=self._on_service_status,
+                handler=self.on_service_status,
                 name="hassette.rqs.on_service_status",
             )
         )
         self._subscriptions.append(
-            await self.bus.on_websocket_connected(handler=self._on_ws_connected, name="hassette.rqs.on_ws_connected")
+            await self.bus.on_websocket_connected(handler=self.on_ws_connected, name="hassette.rqs.on_ws_connected")
         )
         self._subscriptions.append(
             await self.bus.on_websocket_disconnected(
-                handler=self._on_ws_disconnected, name="hassette.rqs.on_ws_disconnected"
+                handler=self.on_ws_disconnected, name="hassette.rqs.on_ws_disconnected"
             )
         )
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
-                handler=self._on_execution_completed,
+                handler=self.on_execution_completed,
                 name="hassette.rqs.on_execution_completed",
             )
         )
@@ -156,7 +156,7 @@ class RuntimeQueryService(Resource):
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
-    async def _on_state_change(self, event: RawStateChangeEvent) -> None:
+    async def on_state_change(self, event: RawStateChangeEvent) -> None:
         payload = StateChangedData(
             entity_id=event.payload.data.entity_id,
             new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
@@ -164,7 +164,7 @@ class RuntimeQueryService(Resource):
         )
         await self.buffer_and_broadcast("state_changed", payload)
 
-    async def _on_app_state_changed(self, event: Event) -> None:
+    async def on_app_state_changed(self, event: Event) -> None:
         if not hasattr(event, "payload"):
             return
         data = event.payload.data
@@ -181,7 +181,7 @@ class RuntimeQueryService(Resource):
         )
         await self.buffer_and_broadcast("app_status_changed", payload)
 
-    async def _on_service_status(self, event: Event[Any]) -> None:
+    async def on_service_status(self, event: Event[Any]) -> None:
         if not hasattr(event, "payload"):
             return
         data = event.payload.data
@@ -199,13 +199,13 @@ class RuntimeQueryService(Resource):
         )
         await self.buffer_and_broadcast("service_status", payload)
 
-    async def _on_ws_connected(self) -> None:
+    async def on_ws_connected(self) -> None:
         await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=True))
 
-    async def _on_ws_disconnected(self) -> None:
+    async def on_ws_disconnected(self) -> None:
         await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=False))
 
-    async def _on_execution_completed(self, event: Event[Any]) -> None:
+    async def on_execution_completed(self, event: Event[Any]) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick."""
         data: ExecutionCompletedPayload = event.payload.data
         self._pending_completions.append(
@@ -220,9 +220,9 @@ class RuntimeQueryService(Resource):
                 "job_id": data.job_id,
             }
         )
-        await self._schedule_flush()
+        await self.schedule_flush()
 
-    async def _schedule_flush(self) -> None:
+    async def schedule_flush(self) -> None:
         """Schedule a single flush task for the current event-loop tick if not already scheduled.
 
         All completion events arriving within the same drain cycle are collected in
@@ -232,9 +232,9 @@ class RuntimeQueryService(Resource):
         if self._flush_scheduled:
             return
         self._flush_scheduled = True
-        self.task_bucket.spawn(self._flush_completions(), name="rqs:flush_completions")
+        self.task_bucket.spawn(self.flush_completions(), name="rqs:flush_completions")
 
-    async def _flush_completions(self) -> None:
+    async def flush_completions(self) -> None:
         """Broadcast a single ``execution_completed`` WS message for the current drain tick.
 
         All handler and job completions accumulated in ``_pending_completions`` are
@@ -302,7 +302,7 @@ class RuntimeQueryService(Resource):
         else:
             status = "starting"
 
-        boot_issues = self._collect_boot_issues()
+        boot_issues = self.collect_boot_issues()
 
         return SystemStatus(
             status=status,
@@ -316,7 +316,7 @@ class RuntimeQueryService(Resource):
             log_records_dropped=self.hassette.get_log_records_dropped(),
         )
 
-    def _collect_boot_issues(self) -> list[BootIssue]:
+    def collect_boot_issues(self) -> list[BootIssue]:
         """Collect boot-time issues from blocked apps and failed app instances.
 
         Returns a list of ``BootIssue`` objects derived from:

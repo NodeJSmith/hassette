@@ -1,10 +1,10 @@
-"""Unit tests for ServiceWatcher._handle_exhaustion and _cooldown_and_retry (WP02).
+"""Unit tests for ServiceWatcher.handle_exhaustion and cooldown_and_retry (WP02).
 
 Verifies:
-- _handle_exhaustion sets EXHAUSTED_COOLING on the service instance for TRANSIENT services
-- _handle_exhaustion sets EXHAUSTED_DEAD on the service instance for TEMPORARY services
-- _cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when cooldown cycle limit exceeded
-- Status assignment is skipped (with warning) when _get_service returns empty list
+- handle_exhaustion sets EXHAUSTED_COOLING on the service instance for TRANSIENT services
+- handle_exhaustion sets EXHAUSTED_DEAD on the service instance for TEMPORARY services
+- cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when cooldown cycle limit exceeded
+- Status assignment is skipped (with warning) when get_service returns empty list
 """
 
 import asyncio
@@ -102,7 +102,7 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
 
 
 async def test_exhausted_cooling_sets_status_on_instance():
-    """TRANSIENT service: _handle_exhaustion sets EXHAUSTED_COOLING on the service instance."""
+    """TRANSIENT service: handle_exhaustion sets EXHAUSTED_COOLING on the service instance."""
     hassette = build_hassette()
     service = _DummyService(hassette)
     service._status = ResourceStatus.FAILED
@@ -122,7 +122,7 @@ async def test_exhausted_cooling_sets_status_on_instance():
 
     # Patch task_bucket.spawn to capture (and close) the coroutine without running it
     with patch.object(watcher.task_bucket, "spawn", side_effect=_capture_spawn):
-        await watcher._handle_exhaustion(
+        await watcher.handle_exhaustion(
             name=service.class_name,
             role=service.role,
             key=f"{service.class_name}:{service.role}",
@@ -140,7 +140,7 @@ async def test_exhausted_cooling_sets_status_on_instance():
 
 
 async def test_exhausted_dead_sets_status_on_instance():
-    """TEMPORARY service: _handle_exhaustion sets EXHAUSTED_DEAD on the service instance."""
+    """TEMPORARY service: handle_exhaustion sets EXHAUSTED_DEAD on the service instance."""
     hassette = build_hassette()
     service = _TempService(hassette)
     service._status = ResourceStatus.FAILED
@@ -150,7 +150,7 @@ async def test_exhausted_dead_sets_status_on_instance():
     spec = RestartSpec(restart_type=RestartType.TEMPORARY)
     payload = make_failed_payload(service)
 
-    await watcher._handle_exhaustion(
+    await watcher.handle_exhaustion(
         name=service.class_name,
         role=service.role,
         key=f"{service.class_name}:{service.role}",
@@ -164,7 +164,7 @@ async def test_exhausted_dead_sets_status_on_instance():
 
 
 async def test_cooldown_exceeded_sets_exhausted_dead():
-    """_cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when max_cooldown_cycles exceeded."""
+    """cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when max_cooldown_cycles exceeded."""
     hassette = build_hassette()
     service = _DummyService(hassette)
     service._status = ResourceStatus.EXHAUSTED_COOLING
@@ -180,7 +180,7 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
     # Pre-set cycle count to exceed max_cooldown_cycles on next call
     watcher._cooldown_cycles[key] = 1  # will become 2 > max_cooldown_cycles=1
 
-    await watcher._cooldown_and_retry(
+    await watcher.cooldown_and_retry(
         name=service.class_name,
         role=service.role,
         key=key,
@@ -193,7 +193,7 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
 
 
 async def test_exhausted_status_skipped_when_service_not_found():
-    """When _get_service returns empty list, status set is skipped — no exception, event still emitted."""
+    """When get_service returns empty list, status set is skipped — no exception, event still emitted."""
     hassette = build_hassette()
     hassette.children = []
 
@@ -212,7 +212,7 @@ async def test_exhausted_status_skipped_when_service_not_found():
         ready_phase=None,
     )
 
-    await watcher._handle_exhaustion(
+    await watcher.handle_exhaustion(
         name="NonExistentService",
         role=ResourceRole.SERVICE,
         key="NonExistentService:service",

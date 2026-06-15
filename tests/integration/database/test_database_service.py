@@ -175,7 +175,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
     initial_heartbeat = row[0]
 
     await asyncio.sleep(0.05)
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
 
@@ -235,7 +235,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     )
     await db.commit()
 
-    await initialized_service._run_retention_cleanup()
+    await initialized_service.run_retention_cleanup()
 
     await initialized_service._db_write_queue.join()
 
@@ -304,24 +304,24 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
     assert initialized_service._db is not None
     await initialized_service._db.close()
 
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 2
 
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
@@ -334,14 +334,14 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     initialized_service._db = MagicMock()
     initialized_service._db.execute = AsyncMock(side_effect=sqlite3.OperationalError("db error"))
 
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     # Restore real connection — next heartbeat should succeed and reset
     initialized_service._db = real_db
-    await initialized_service._update_heartbeat()
+    await initialized_service.update_heartbeat()
 
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
@@ -497,7 +497,7 @@ async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: Datab
     initialized_service.hassette.config.database.max_size_mb = 0
 
     # Patch _get_db_size_mb to detect if it is ever called
-    with patch.object(initialized_service, "_get_db_size_mb") as mock_size:
+    with patch.object(initialized_service, "get_db_size_mb") as mock_size:
         await initialized_service._check_size_failsafe()
         mock_size.assert_not_called()
 

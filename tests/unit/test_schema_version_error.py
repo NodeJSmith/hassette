@@ -3,7 +3,7 @@
 Validates:
 - SchemaVersionError exists as a typed exception in hassette.exceptions
 - SchemaVersionError is NOT a FatalError subclass (must reach FAILED path)
-- DatabaseService._handle_schema_version raises SchemaVersionError (not RuntimeError)
+- DatabaseService.handle_schema_version raises SchemaVersionError (not RuntimeError)
   when the DB schema version is ahead of the code's expected head
 """
 
@@ -72,8 +72,8 @@ class TestDatabaseServiceRaisesSchemaVersionError:
         svc = self.make_svc(tmp_path)
 
         with (
-            patch.object(DatabaseService, "_get_current_db_version", return_value=999),
-            patch.object(DatabaseService, "_get_expected_head_version", return_value=1),
+            patch.object(DatabaseService, "get_current_db_version", return_value=999),
+            patch.object(DatabaseService, "get_expected_head_version", return_value=1),
             pytest.raises(SchemaVersionError, match="ahead"),
         ):
-            asyncio.run(svc._handle_schema_version(db_path))
+            asyncio.run(svc.handle_schema_version(db_path))

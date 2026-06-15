@@ -151,9 +151,9 @@ async def test_retryable_batch_expanded_in_drain():
         captured_records.extend(records)
         captured_retry_counts.append(retry_count)
 
-    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     assert inv in captured_records
     assert job in captured_records
@@ -180,7 +180,7 @@ async def test_id_none_records_persist():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have attempted to persist
     assert len(persist_calls) == 1
@@ -204,7 +204,7 @@ async def test_operational_error_triggers_retry():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have re-enqueued as RetryableBatch
     assert not executor._write_queue.empty()
@@ -232,7 +232,7 @@ async def test_max_retries_drops_batch():
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
     # Pass retry_count=3 to indicate exhausted batch
-    await CommandExecutor._persist_batch(  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(  # pyright: ignore[reportArgumentType]
         executor, exhausted_batch.records, retry_count=3
     )
 
@@ -258,7 +258,7 @@ async def test_data_error_drops_immediately():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
 
     # No re-enqueue
     assert executor._write_queue.empty()
@@ -292,7 +292,7 @@ async def test_integrity_error_row_by_row_fallback():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor._persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
 
     # Should have incremented dropped_exhausted for the 1 record that failed even with null FK
     assert executor._dropped_exhausted == 1
@@ -322,7 +322,7 @@ def test_build_record_reads_source_tier():
     result.error_traceback = None
     result.is_di_failure = False
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, ExecutionRecord)
     assert record.kind == "handler"
@@ -354,7 +354,7 @@ def test_build_record_reads_is_di_failure():
     result.error_traceback = None
     result.is_di_failure = True
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, ExecutionRecord)
     assert record.is_di_failure is True
@@ -380,7 +380,7 @@ async def test_flush_queue_handles_db_closed():
     executor.repository.persist_execution_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     # _flush_queue must NOT raise — shutdown must complete
-    await executor._flush_queue()
+    await executor.flush_queue()
 
     # Should have logged something (error/warning about dropped records)
     assert executor.logger.error.called or executor.logger.warning.called
@@ -481,9 +481,9 @@ async def test_retryable_batch_future_not_before_is_requeued():
         nonlocal persist_called
         persist_called = True
 
-    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     # Must NOT have been persisted
     assert not persist_called
@@ -511,9 +511,9 @@ async def test_retryable_batch_past_not_before_is_persisted():
     async def fake_persist(records, *, retry_count=0):
         persist_args.append((list(records), retry_count))
 
-    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     assert len(persist_args) == 1
     persisted_records, persisted_retry = persist_args[0]
@@ -540,7 +540,7 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
 
     before = time.monotonic()
     # retry_count=0 → backoff should be 1s (retry_count + 1 = 1)
-    await CommandExecutor._persist_batch(executor, [inv], retry_count=0)  # pyright: ignore[reportArgumentType]
+    await CommandExecutor.persist_batch(executor, [inv], retry_count=0)  # pyright: ignore[reportArgumentType]
     after = time.monotonic()
 
     assert not executor._write_queue.empty()
@@ -569,7 +569,7 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
         before = time.monotonic()
-        await CommandExecutor._persist_batch(executor, [inv], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
+        await CommandExecutor.persist_batch(executor, [inv], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
         after = time.monotonic()
 
         queued = executor._write_queue.get_nowait()
@@ -591,8 +591,8 @@ async def test_serve_loops_without_blocking_when_queue_empty():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 0.05  # very short — timer fires quickly
 
@@ -634,8 +634,8 @@ async def test_serve_timer_drains_items_added_during_drain():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long — rely on item arrival, not timer
 
@@ -669,8 +669,8 @@ async def test_serve_item_flush_drains_queue_on_arrival():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long interval — item should arrive first
 

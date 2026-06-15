@@ -141,7 +141,7 @@ class TestCompletionPayloadEnrichment:
         ev = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=42, status="success", duration_ms=5.0, app_key="lights", instance_index=1
         )
-        await runtime._on_execution_completed(ev)
+        await runtime.on_execution_completed(ev)
         assert runtime._pending_completions[0]["app_key"] == "lights"
         assert runtime._pending_completions[0]["instance_index"] == 1
         assert runtime._pending_completions[0]["kind"] == "handler"
@@ -153,7 +153,7 @@ class TestCompletionPayloadEnrichment:
         ev = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
         )
-        await runtime._on_execution_completed(ev)
+        await runtime.on_execution_completed(ev)
         assert runtime._pending_completions[0]["app_key"] == "climate"
         assert runtime._pending_completions[0]["instance_index"] == 2
         assert runtime._pending_completions[0]["kind"] == "job"
@@ -165,7 +165,7 @@ class TestCompletionPayloadEnrichment:
         ev = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=999, status="success", duration_ms=5.0
         )
-        await runtime._on_execution_completed(ev)
+        await runtime.on_execution_completed(ev)
         assert runtime._pending_completions[0]["app_key"] == ""
         assert runtime._pending_completions[0]["instance_index"] == 0
 
@@ -195,14 +195,14 @@ class TestCompletionBatching:
             error_type="ValueError",
         )
 
-        await runtime._on_execution_completed(ev1)
-        await runtime._on_execution_completed(ev2)
+        await runtime.on_execution_completed(ev1)
+        await runtime.on_execution_completed(ev2)
 
         # Flush should not have fired yet (still in the same tick)
         assert len(broadcast_calls) == 0
 
         # Manually flush (simulates asyncio.sleep(0) yielding)
-        await runtime._flush_completions()
+        await runtime.flush_completions()
 
         assert len(broadcast_calls) == 1
         msg = broadcast_calls[0]
@@ -231,11 +231,11 @@ class TestCompletionBatching:
             kind="job", job_id=11, status="success", duration_ms=30.0, app_key="scheduler_app", instance_index=0
         )
 
-        await runtime._on_execution_completed(ev1)
-        await runtime._on_execution_completed(ev2)
+        await runtime.on_execution_completed(ev1)
+        await runtime.on_execution_completed(ev2)
 
         assert len(broadcast_calls) == 0
-        await runtime._flush_completions()
+        await runtime.flush_completions()
 
         assert len(broadcast_calls) == 1
         msg = broadcast_calls[0]
@@ -251,8 +251,8 @@ class TestCompletionBatching:
         ev = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=5, status="success", duration_ms=1.0, app_key="buf_app", instance_index=0
         )
-        await runtime._on_execution_completed(ev)
-        await runtime._flush_completions()
+        await runtime.on_execution_completed(ev)
+        await runtime.flush_completions()
 
         assert len(runtime._event_buffer) == 1
         buffered = runtime._event_buffer[0]
@@ -267,16 +267,16 @@ class TestCompletionBatching:
         ev = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=3, status="success", duration_ms=1.0, app_key="app", instance_index=0
         )
-        await runtime._on_execution_completed(ev)
+        await runtime.on_execution_completed(ev)
         assert len(runtime._pending_completions) == 1
 
-        await runtime._flush_completions()
+        await runtime.flush_completions()
         assert len(runtime._pending_completions) == 0
 
     async def test_flush_noop_when_no_pending(self, runtime: RuntimeQueryService) -> None:
         """Flush with empty pending list does not call broadcast."""
         runtime.broadcast = AsyncMock()
-        await runtime._flush_completions()
+        await runtime.flush_completions()
         runtime.broadcast.assert_not_awaited()
 
     async def test_mixed_handler_and_job_emit_single_message(self, runtime: RuntimeQueryService) -> None:
@@ -295,9 +295,9 @@ class TestCompletionBatching:
             kind="job", job_id=10, status="success", duration_ms=8.0, app_key="my_app", instance_index=0
         )
 
-        await runtime._on_execution_completed(handler_ev)
-        await runtime._on_execution_completed(job_ev)
-        await runtime._flush_completions()
+        await runtime.on_execution_completed(handler_ev)
+        await runtime.on_execution_completed(job_ev)
+        await runtime.flush_completions()
 
         # Single message containing both handler and job entries
         assert len(broadcast_calls) == 1
@@ -400,7 +400,7 @@ class TestServiceStatusMapping:
             ready=True,
             ready_phase="Connected and authenticated",
         )
-        await runtime._on_service_status(event)
+        await runtime.on_service_status(event)
 
         assert len(broadcast_calls) == 1
         data = broadcast_calls[0]["data"]
@@ -416,7 +416,7 @@ class TestServiceStatusMapping:
             role=ResourceRole.SERVICE,
             status=ResourceStatus.STARTING,
         )
-        await runtime._on_service_status(event)
+        await runtime.on_service_status(event)
 
         assert len(broadcast_calls) == 1
         data = broadcast_calls[0]["data"]

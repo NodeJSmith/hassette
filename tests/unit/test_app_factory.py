@@ -210,7 +210,7 @@ class TestAppFactoryLoadClass:
         """Loads class when not cached."""
         mock_load_class.return_value = mock_app_class = Mock()
 
-        result = factory._load_class("test_app", mock_manifest, force_reload=False)
+        result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is mock_app_class
         mock_load_class.assert_called_once()
@@ -221,7 +221,7 @@ class TestAppFactoryLoadClass:
         """Returns cached class when already loaded."""
         mock_get_loaded.return_value = mock_app_class = Mock()
 
-        result = factory._load_class("test_app", mock_manifest, force_reload=False)
+        result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is mock_app_class
         mock_get_loaded.assert_called_once_with(mock_manifest.full_path, mock_manifest.class_name)
@@ -230,7 +230,7 @@ class TestAppFactoryLoadClass:
     def test_load_class_returns_none_when_previously_failed(self, mock_failed, factory: AppFactory, mock_manifest):
         """Returns None for previously failed classes."""
 
-        result = factory._load_class("test_app", mock_manifest, force_reload=False)
+        result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is None
 
@@ -242,7 +242,7 @@ class TestAppFactoryLoadClass:
         """Force reload attempts fresh load even if cached."""
         mock_load_class.return_value = mock_app_class = Mock()
 
-        result = factory._load_class("test_app", mock_manifest, force_reload=True)
+        result = factory.load_class("test_app", mock_manifest, force_reload=True)
 
         assert result is mock_app_class
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
@@ -252,7 +252,7 @@ class TestAppFactoryLoadClass:
         """Returns None on load failure."""
         mock_load_class.side_effect = ImportError("Module not found")
 
-        result = factory._load_class("test_app", mock_manifest, force_reload=False)
+        result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is None
 
@@ -267,14 +267,14 @@ class TestAppFactoryGetLoadError:
         cached_error = ValueError("Cached error")
         mock_get_error.return_value = cached_error
 
-        result = factory._get_load_error(mock_manifest)
+        result = factory.get_load_error(mock_manifest)
 
         assert result is cached_error
 
     def test_get_load_error_returns_runtime_error_if_no_cached(self, factory: AppFactory, mock_manifest):
         """Returns RuntimeError if no cached error."""
 
-        result = factory._get_load_error(mock_manifest)
+        result = factory.get_load_error(mock_manifest)
 
         assert isinstance(result, RuntimeError)
         assert "Unknown error" in str(result)
@@ -283,24 +283,24 @@ class TestAppFactoryGetLoadError:
 class TestAppFactoryNormalizeConfigs:
     def test_normalize_configs_none(self):
         """Returns empty list for None."""
-        result = AppFactory._normalize_configs(None)
+        result = AppFactory.normalize_configs(None)
         assert result == []
 
     def test_normalize_configs_empty_dict(self):
         """Returns empty list for empty dict."""
-        result = AppFactory._normalize_configs({})
+        result = AppFactory.normalize_configs({})
         assert result == [{}]
 
     def test_normalize_configs_single_dict(self):
         """Wraps single dict in list."""
         config = {"instance_name": "test"}
-        result = AppFactory._normalize_configs(config)
+        result = AppFactory.normalize_configs(config)
         assert result == [config]
 
     def test_normalize_configs_list(self):
         """Returns list as-is."""
         configs = [{"instance_name": "test1"}, {"instance_name": "test2"}]
-        result = AppFactory._normalize_configs(configs)
+        result = AppFactory.normalize_configs(configs)
         assert result == configs
 
 

@@ -67,7 +67,7 @@ class StateProxy(Resource):
 
         # Perform initial state sync
         try:
-            await self._load_cache()
+            await self.load_cache()
 
             self.mark_ready(reason="Initial state sync complete")
 
@@ -86,12 +86,12 @@ class StateProxy(Resource):
 
         self.state_change_sub = await self.bus.on(
             topic=Topic.HASS_EVENT_STATE_CHANGED,
-            handler=self._on_state_change,
+            handler=self.on_state_change,
             name="hassette.state_proxy.on_state_change",
         )
         if not self.hassette.config.disable_state_proxy_polling:
             self.poll_job = await self.scheduler.run_every(
-                self._load_cache,
+                self.load_cache,
                 seconds=self.hassette.config.state_proxy_poll_interval_seconds,
                 if_exists="skip",
             )
@@ -226,7 +226,7 @@ class StateProxy(Resource):
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
         return entity_id in self.states
 
-    async def _on_state_change(self, event: RawStateChangeEvent) -> None:
+    async def on_state_change(self, event: RawStateChangeEvent) -> None:
         """Handle state_changed events to update the cache.
 
         This handler runs with priority=100 to ensure the cache is updated before
@@ -313,7 +313,7 @@ class StateProxy(Resource):
 
             load_cache_succeeded = False
             try:
-                await self._load_cache()
+                await self.load_cache()
                 load_cache_succeeded = True
             except Exception as e:
                 self.logger.exception("Failed to resync states after HA restart: %s", e)
@@ -334,7 +334,7 @@ class StateProxy(Resource):
 
             await self._emit_readiness_event()
 
-    async def _load_cache(self) -> None:
+    async def load_cache(self) -> None:
         """Load the state cache from Home Assistant.
 
         This is called during initialization and reconnection to populate

@@ -114,7 +114,7 @@ def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:
     bus_service._dispatch_idle_event.clear()
 
     task = MagicMock(spec=asyncio.Task)
-    bus_service._on_dispatch_done(task)
+    bus_service.on_dispatch_done(task)
 
     assert bus_service._dispatch_pending == 0
     assert bus_service._dispatch_idle_event.is_set()
@@ -126,7 +126,7 @@ def test_on_dispatch_done_normal_decrement(bus_service: BusService) -> None:
     bus_service._dispatch_idle_event.clear()
 
     task = MagicMock(spec=asyncio.Task)
-    bus_service._on_dispatch_done(task)
+    bus_service.on_dispatch_done(task)
 
     assert bus_service._dispatch_pending == 2
     assert not bus_service._dispatch_idle_event.is_set()
@@ -138,7 +138,7 @@ def test_on_dispatch_done_sets_idle_at_zero(bus_service: BusService) -> None:
     bus_service._dispatch_idle_event.clear()
 
     task = MagicMock(spec=asyncio.Task)
-    bus_service._on_dispatch_done(task)
+    bus_service.on_dispatch_done(task)
 
     assert bus_service._dispatch_pending == 0
     assert bus_service._dispatch_idle_event.is_set()

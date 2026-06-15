@@ -111,7 +111,7 @@ async def test_restart_cancellation_persists_cancelled_row(
         status="cancelled",
     )
     executor._write_queue.put_nowait(record)
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     cursor = await db_service.db.execute(
         "SELECT status FROM executions WHERE listener_id = ?",
@@ -339,7 +339,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     executor._write_queue.put_nowait(record)
 
     # Drain without going through serve() loop — call _drain_and_persist directly
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     # Verify it landed in DB
     cursor = await db_service.db.execute(
@@ -373,7 +373,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
         )
         executor._write_queue.put_nowait(record)
 
-    await executor._flush_queue()
+    await executor.flush_queue()
 
     # Both records should be in DB, queue should be empty
     assert executor._write_queue.empty()
@@ -440,7 +440,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     result.status = "success"
     result.duration_ms = 1.0
 
-    record = exc._build_record(cmd, result, time.time(), "test-exec-id")
+    record = exc.build_record(cmd, result, time.time(), "test-exec-id")
     assert isinstance(record, ExecutionRecord)
     assert record.session_id == 99
     assert record.listener_id == 5
@@ -483,7 +483,7 @@ async def test_persist_batch_drops_presession_records(
     executor.hassette.session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
     type(executor.hassette).session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
 
-    await executor._persist_batch([valid, pre_session])
+    await executor.persist_batch([valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
     type(executor.hassette).session_id = unittest.mock.PropertyMock(return_value=session_id)

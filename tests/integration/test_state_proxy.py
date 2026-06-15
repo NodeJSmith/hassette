@@ -600,7 +600,7 @@ class TestStateProxyReconnectConcurrency:
         state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
         with (
-            patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache),
+            patch.object(state_proxy, "load_cache", side_effect=gated_load_cache),
             patch.object(state_proxy, "subscribe_to_events", wraps=state_proxy.subscribe_to_events) as mock_subscribe,
         ):
             task1 = asyncio.create_task(state_proxy.on_reconnect())
@@ -632,7 +632,7 @@ class TestStateProxyReconnectConcurrency:
 
         state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
-        with patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache):
+        with patch.object(state_proxy, "load_cache", side_effect=gated_load_cache):
             reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
             await asyncio.sleep(0)
 
@@ -646,7 +646,7 @@ class TestStateProxyReconnectConcurrency:
                 make_sensor_state_dict("sensor.temp", "21"),
             )
             # This must complete without deadlock
-            await asyncio.wait_for(state_proxy._on_state_change(event), timeout=1.0)
+            await asyncio.wait_for(state_proxy.on_state_change(event), timeout=1.0)
 
             gate.set()
             await reconnect_task

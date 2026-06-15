@@ -132,7 +132,7 @@ class TestExecutionIdContextVar:
         listener.invoker.invoke = AsyncMock(side_effect=handler_fn)
         cmd = make_invoke_handler_cmd(listener=listener)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         assert len(captured) == 1
         value = captured[0]
@@ -149,7 +149,7 @@ class TestExecutionIdContextVar:
         listener = make_listener()
         cmd = make_invoke_handler_cmd(listener=listener)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         assert CURRENT_EXECUTION_ID.get() is None
 
@@ -161,7 +161,7 @@ class TestExecutionIdContextVar:
         cmd = make_invoke_handler_cmd(listener=listener)
 
         with pytest.raises(asyncio.CancelledError):
-            await executor._execute_handler(cmd)
+            await executor.execute_handler(cmd)
 
         assert CURRENT_EXECUTION_ID.get() is None
 
@@ -178,7 +178,7 @@ class TestExecutionIdContextVar:
             listener = make_listener()
             listener.invoker.invoke = AsyncMock(side_effect=capture)
             cmd = make_invoke_handler_cmd(listener=listener)
-            await executor._execute_handler(cmd)
+            await executor.execute_handler(cmd)
 
         assert len(ids) == 2
         assert ids[0] is not None
@@ -196,7 +196,7 @@ class TestExecutionIdContextVar:
         cmd = make_execute_job_cmd()
         cmd.callable = AsyncMock(side_effect=job_fn)
 
-        await executor._execute_job(cmd)
+        await executor.execute_job(cmd)
 
         assert len(captured) == 1
         value = captured[0]
@@ -212,7 +212,7 @@ class TestExecutionIdContextVar:
         executor = make_executor()
         cmd = make_execute_job_cmd()
 
-        await executor._execute_job(cmd)
+        await executor.execute_job(cmd)
 
         assert CURRENT_EXECUTION_ID.get() is None
 
@@ -222,7 +222,7 @@ class TestExecutionIdContextVar:
         cmd = make_execute_job_cmd(side_effect=asyncio.CancelledError)
 
         with pytest.raises(asyncio.CancelledError):
-            await executor._execute_job(cmd)
+            await executor.execute_job(cmd)
 
         assert CURRENT_EXECUTION_ID.get() is None
 
@@ -252,8 +252,8 @@ class TestExecutionIdContextVar:
         cmd2 = make_invoke_handler_cmd(listener=listener2)
 
         await asyncio.gather(
-            executor._execute_handler(cmd1),
-            executor._execute_handler(cmd2),
+            executor.execute_handler(cmd1),
+            executor.execute_handler(cmd2),
         )
 
         assert len(captured) == 2
@@ -270,7 +270,7 @@ class TestHandlerRecordTriggerFields:
         listener = make_listener()
         cmd = make_invoke_handler_cmd(listener=listener, event=event)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_context_id == event.payload.event_id
@@ -281,7 +281,7 @@ class TestHandlerRecordTriggerFields:
         event = make_hass_event(origin="LOCAL")
         cmd = make_invoke_handler_cmd(event=event)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "LOCAL"
@@ -292,7 +292,7 @@ class TestHandlerRecordTriggerFields:
         event = make_hass_event(origin="REMOTE")
         cmd = make_invoke_handler_cmd(event=event)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "REMOTE"
@@ -303,7 +303,7 @@ class TestHandlerRecordTriggerFields:
         event = make_hassette_event()
         cmd = make_invoke_handler_cmd(event=event)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_origin == "HASSETTE"
@@ -314,7 +314,7 @@ class TestHandlerRecordTriggerFields:
         event = make_hassette_event()
         cmd = make_invoke_handler_cmd(event=event)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_context_id == event.payload.event_id
@@ -327,7 +327,7 @@ class TestHandlerRecordTriggerFields:
         cmd = make_invoke_handler_cmd(event=event)
         cmd.is_synthetic = True
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_context_id is None
@@ -339,7 +339,7 @@ class TestHandlerRecordTriggerFields:
         cmd = make_invoke_handler_cmd(event=event)
         cmd.is_synthetic = True
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.trigger_origin == SYNTHETIC_ORIGIN
@@ -351,7 +351,7 @@ class TestJobRecordFields:
         executor = make_executor()
         cmd = make_execute_job_cmd()
 
-        await executor._execute_job(cmd)
+        await executor.execute_job(cmd)
 
         record = executor._write_queue.get_nowait()
         assert record.execution_id is not None
@@ -381,7 +381,7 @@ class TestErrorHandlerExecutionIdInheritance:
         listener.invoker.error_handler = error_handler
         cmd = make_invoke_handler_cmd(listener=listener)
 
-        await executor._execute_handler(cmd)
+        await executor.execute_handler(cmd)
         await drain_tasks(executor)
 
         assert len(main_id) == 1

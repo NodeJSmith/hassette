@@ -76,20 +76,20 @@ class ExecutionModeGuard:
 
         async with self._lock:
             if self._mode is ExecutionMode.SINGLE:
-                return self._run_single(run_and_track)
+                return self.run_single(run_and_track)
             if self._mode is ExecutionMode.RESTART:
-                return await self._run_restart(run_and_track)
-            return self._run_queued(run_and_track)
+                return await self.run_restart(run_and_track)
+            return self.run_queued(run_and_track)
 
-    def _run_single(self, run_and_track: RunAndTrack) -> Outcome:
-        if self._is_running():
+    def run_single(self, run_and_track: RunAndTrack) -> Outcome:
+        if self.is_running():
             self.suppressed += 1
             LOGGER.debug("single-mode listener busy; suppressing re-fire (suppressed=%d)", self.suppressed)
             return Outcome.SUPPRESSED
         self.current_task = run_and_track()
         return Outcome.RAN
 
-    async def _run_restart(self, run_and_track: RunAndTrack) -> Outcome:
+    async def run_restart(self, run_and_track: RunAndTrack) -> Outcome:
         task = self.current_task
         if task is not None and not task.done():
             task.cancel()
@@ -100,24 +100,24 @@ class ExecutionModeGuard:
         self.current_task = run_and_track()
         return Outcome.RAN
 
-    def _run_queued(self, run_and_track: RunAndTrack) -> Outcome:
-        if self._is_running():
+    def run_queued(self, run_and_track: RunAndTrack) -> Outcome:
+        if self.is_running():
             if len(self.pending) >= self._cap:
                 self.dropped += 1
                 LOGGER.debug("queued listener at cap=%d; dropping newest trigger (dropped=%d)", self._cap, self.dropped)
                 return Outcome.DROPPED
             self.pending.append(run_and_track)
             return Outcome.QUEUED_ACCEPTED
-        self._start_queued(run_and_track)
+        self.start_queued(run_and_track)
         return Outcome.RAN
 
-    def _start_queued(self, run_and_track: RunAndTrack) -> None:
+    def start_queued(self, run_and_track: RunAndTrack) -> None:
         """Spawn a queued invocation and arrange to drain the next factory when it completes."""
         task = run_and_track()
         self.current_task = task
-        task.add_done_callback(self._drain_next)
+        task.add_done_callback(self.drain_next)
 
-    def _drain_next(self, _done: "asyncio.Task[None]") -> None:
+    def drain_next(self, _done: "asyncio.Task[None]") -> None:
         """Done-callback: start the next queued factory, one at a time, in arrival order.
 
         Runs without the lock: asyncio invokes done-callbacks on the single event-loop thread, so
@@ -138,10 +138,10 @@ class ExecutionModeGuard:
                 LOGGER.exception("queued invocation failed to start; dropping it and draining the next")
                 continue
             self.current_task = task
-            task.add_done_callback(self._drain_next)
+            task.add_done_callback(self.drain_next)
             return
 
-    def _is_running(self) -> bool:
+    def is_running(self) -> bool:
         return self.current_task is not None and not self.current_task.done()
 
     async def release(self) -> None:

@@ -140,7 +140,7 @@ class WebsocketService(Service):
         """True once the connection has reached CONNECTED at least once; never reverts."""
         return self._ever_connected
 
-    def _set_connection_state(self, new: ConnectionState) -> None:
+    def set_connection_state(self, new: ConnectionState) -> None:
         """Transition to a new connection state with validation.
 
         Validates the transition against WS_VALID_TRANSITIONS. In strict lifecycle mode
@@ -209,7 +209,7 @@ class WebsocketService(Service):
         return next(self._seq)
 
     async def before_shutdown(self) -> None:
-        await self._send_connection_lost_event()
+        await self.send_connection_lost_event()
 
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
@@ -235,17 +235,17 @@ class WebsocketService(Service):
                 recovery_started_at: float | None = None
 
                 # Set CONNECTING before the first connection attempt
-                self._set_connection_state(ConnectionState.CONNECTING)
+                self.set_connection_state(ConnectionState.CONNECTING)
 
                 while True:
                     try:
-                        self._recv_task = await self._make_connection(session)
+                        self._recv_task = await self.make_connection(session)
                         await self._recv_task
                         return  # clean exit (shutdown)
                     except InvalidAuthError:
                         if early_drop_attempts > 0:
                             self.logger.error("Authentication failed on reconnect — possible token revocation")
-                        self._set_connection_state(ConnectionState.DISCONNECTED)
+                        self.set_connection_state(ConnectionState.DISCONNECTED)
                         raise
                     except Exception as exc:
                         elapsed = (
@@ -273,22 +273,22 @@ class WebsocketService(Service):
                                 f", close_code={close_code}" if close_code is not None else "",
                             )
                             # Send event before marking not-ready so the idempotency guard passes
-                            await self._send_connection_lost_event()
+                            await self.send_connection_lost_event()
                             self.mark_not_ready(reason="Early drop detected")
                             await self._emit_readiness_event()
-                            await self._partial_cleanup()
-                            await self._early_drop_backoff(early_drop_attempts)
+                            await self.partial_cleanup()
+                            await self.early_drop_backoff(early_drop_attempts)
                             # Set CONNECTING before the next retry
-                            self._set_connection_state(ConnectionState.CONNECTING)
+                            self.set_connection_state(ConnectionState.CONNECTING)
                             continue
                         # Genuine failure — propagate to _serve_wrapper
-                        self._set_connection_state(ConnectionState.DISCONNECTED)
-                        await self._send_connection_lost_event()
+                        self.set_connection_state(ConnectionState.DISCONNECTED)
+                        await self.send_connection_lost_event()
                         self.mark_not_ready(reason="WebSocket recv loop failed")
                         await self._emit_readiness_event()
                         raise
 
-    async def _connect_ws(self, session: aiohttp.ClientSession) -> None:
+    async def connect_ws(self, session: aiohttp.ClientSession) -> None:
         """Open the WebSocket connection and authenticate.
 
         Sets self._ws. Converts ClientConnectorError with ConnectionRefusedError cause
@@ -311,7 +311,7 @@ class WebsocketService(Service):
         self.logger.debug("Connected to WebSocket at %s", self.url)
         await self.authenticate()
 
-    async def _start_recv_and_subscribe(self) -> asyncio.Task:
+    async def start_recv_and_subscribe(self) -> asyncio.Task:
         """Spawn the recv loop, send connection event, subscribe, mark ready, and record connected_at.
 
         Returns:
@@ -319,21 +319,21 @@ class WebsocketService(Service):
         """
         # start reader first so send_and_wait can get replies; assign to self immediately
         # so _partial_cleanup can cancel it if a later step (subscribe, event) raises
-        recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
+        recv_task = self.task_bucket.spawn(self.recv_loop(), name="ws:recv")
         self._recv_task = recv_task
 
         # CONNECTED before subscribe — send_json() gates on self.connected
-        self._set_connection_state(ConnectionState.CONNECTED)
+        self.set_connection_state(ConnectionState.CONNECTED)
 
-        await self._send_connection_established_event()
-        self._subscription_ids.add(await self._subscribe_events())
+        await self.send_connection_established_event()
+        self._subscription_ids.add(await self.subscribe_events())
 
         self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
         self._connected_at = time.monotonic()
         return recv_task
 
-    async def _partial_cleanup(self) -> None:
+    async def partial_cleanup(self) -> None:
         """Cancel recv task, close WebSocket, clear futures and subscriptions.
 
         Does NOT close self._session — that is owned by serve()'s async with block.
@@ -360,7 +360,7 @@ class WebsocketService(Service):
         self._ws = None
         self._recv_task = None
 
-    async def _early_drop_backoff(self, attempt: int) -> None:
+    async def early_drop_backoff(self, attempt: int) -> None:
         """Compute and sleep for an exponential-jitter backoff after an early drop.
 
         Args:
@@ -373,7 +373,7 @@ class WebsocketService(Service):
         ) + random.uniform(0, config.websocket.early_drop_backoff_initial_seconds)
         await asyncio.sleep(backoff)
 
-    async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
+    async def make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         self._connected_at = None
 
         # inner function so we can use `self` in the retry decorator
@@ -388,17 +388,17 @@ class WebsocketService(Service):
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
         )
         async def _inner_connect():
-            await self._partial_cleanup()
-            await self._connect_ws(session)
-            return await self._start_recv_and_subscribe()
+            await self.partial_cleanup()
+            await self.connect_ws(session)
+            return await self.start_recv_and_subscribe()
 
         return await _inner_connect()
 
-    async def _recv_loop(self) -> None:
+    async def recv_loop(self) -> None:
         while True:
-            await self._raw_recv()
+            await self.raw_recv()
 
-    async def _subscribe_events(self, event_type: str | None = None) -> int:
+    async def subscribe_events(self, event_type: str | None = None) -> int:
         """Subscribe to HA events; returns the subscription ID (the message id you sent)."""
         payload: dict[str, Any] = {"type": "subscribe_events"}
         if event_type is not None:
@@ -413,7 +413,7 @@ class WebsocketService(Service):
 
     async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
-        self._set_connection_state(ConnectionState.DISCONNECTED)
+        self.set_connection_state(ConnectionState.DISCONNECTED)
 
         # Set exceptions for all pending response futures
         for fut in list(self._response_futures.values()):
@@ -499,7 +499,7 @@ class WebsocketService(Service):
 
         return await send_with_retry()
 
-    def _respond_if_necessary(self, message: dict) -> None:
+    def respond_if_necessary(self, message: dict) -> None:
         if message.get("type") != "result":
             return
 
@@ -579,7 +579,7 @@ class WebsocketService(Service):
 
             raise RuntimeError(f"Unexpected authentication response: {msg}")
 
-    async def _raw_recv(self) -> None:
+    async def raw_recv(self) -> None:
         """Receive a raw WebSocket frame.
 
         Raises:
@@ -602,7 +602,7 @@ class WebsocketService(Service):
                 self.logger.exception("Invalid JSON received: %s", raw)
                 return
 
-            await self._dispatch(data)
+            await self.dispatch(data)
             return
 
         if msg_type == WSMsgType.BINARY:
@@ -628,24 +628,24 @@ class WebsocketService(Service):
 
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
-    async def _dispatch(self, data: dict[str, Any]) -> None:
+    async def dispatch(self, data: dict[str, Any]) -> None:
         try:
             match data.get("type"):
                 case "event":
-                    await self._dispatch_hass_event(cast("HassEventEnvelopeDict", data))
+                    await self.dispatch_hass_event(cast("HassEventEnvelopeDict", data))
                 case "result":
-                    self._respond_if_necessary(data)
+                    self.respond_if_necessary(data)
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
         except Exception:
             self.logger.exception("Failed to dispatch message: %s", data)
 
-    async def _dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
+    async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
         event = create_event_from_hass(data)
         await self.hassette.send_event(event)
 
-    async def _send_connection_lost_event(self) -> None:
+    async def send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus.
 
         Idempotent: skips if the service is already not-ready (prevents duplicate
@@ -659,7 +659,7 @@ class WebsocketService(Service):
         with suppress(Exception):
             await self.hassette.send_event(event)
 
-    async def _send_connection_established_event(self) -> None:
+    async def send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await self.hassette.send_event(event)

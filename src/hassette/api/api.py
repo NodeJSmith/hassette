@@ -290,11 +290,11 @@ class Api(Resource):
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
-        return await self._api_service._ws_conn.send_and_wait(**data)
+        return await self._api_service.ws_conn.send_and_wait(**data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
-        await self._api_service._ws_conn.send_json(**data)
+        await self._api_service.ws_conn.send_json(**data)
 
     async def rest_request(
         self,
@@ -317,7 +317,7 @@ class Api(Resource):
         Returns:
             The response from the API.
         """
-        return await self._api_service._rest_request(
+        return await self._api_service.rest_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
         )
 
@@ -788,7 +788,7 @@ class Api(Resource):
         if "," in entity_id:
             raise ValueError("Entity ID should not contain commas. Use `get_histories` for multiple entities.")
 
-        entries = await self._api_service._get_history_raw(
+        entries = await self._api_service.get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,
@@ -830,7 +830,7 @@ class Api(Resource):
         """
         entity_id = ",".join(entity_ids)
 
-        entries = await self._api_service._get_history_raw(
+        entries = await self._api_service.get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,

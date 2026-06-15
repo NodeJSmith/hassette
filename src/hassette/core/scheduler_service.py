@@ -96,17 +96,17 @@ class SchedulerService(Service):
 
             if due_jobs:
                 for job in due_jobs:
-                    self.task_bucket.spawn(self._dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
+                    self.task_bucket.spawn(self.dispatch_and_log(job), name="scheduler:dispatch_scheduled_job")
 
             await self.sleep(next_run_time)
 
     def kick(self) -> None:
         self._wakeup_event.set()
 
-    async def _enqueue_job(self, job: "ScheduledJob") -> None:
+    async def enqueue_job(self, job: "ScheduledJob") -> None:
         """Push a job onto the queue and wake the scheduler."""
 
-        self._apply_jitter_to_heap(job)
+        self.apply_jitter_to_heap(job)
         await self._job_queue.add(job)
         self.kick()
 
@@ -117,7 +117,7 @@ class SchedulerService(Service):
 
         if removed:
             self.kick()
-            self._fire_removal_callbacks(removed)
+            self.fire_removal_callbacks(removed)
 
     def register_removal_callback(self, owner_id: str, callback: Callable[["ScheduledJob"], None]) -> None:
         """Register a callback to be called whenever a job belonging to owner_id is removed.
@@ -144,14 +144,14 @@ class SchedulerService(Service):
         """
         self._removal_callbacks.pop(owner_id, None)
 
-    def _fire_removal_callbacks(self, jobs: "list[ScheduledJob]") -> None:
+    def fire_removal_callbacks(self, jobs: "list[ScheduledJob]") -> None:
         """Invoke per-owner removal callbacks for each job in jobs."""
         for job in jobs:
             callback = self._removal_callbacks.get(job.owner_id)
             if callback is not None:
                 callback(job)
 
-    def _apply_jitter_to_heap(self, job: "ScheduledJob") -> None:
+    def apply_jitter_to_heap(self, job: "ScheduledJob") -> None:
         """Apply jitter to the heap sort_index and fire_at without mutating job.next_run.
 
         If job.jitter is not None, a random offset in [0, jitter) seconds is added
@@ -193,7 +193,7 @@ class SchedulerService(Service):
         if removed:
             self.kick()
 
-        self._fire_removal_callbacks([job])
+        self.fire_removal_callbacks([job])
 
     async def sleep(self, next_run_time: ZonedDateTime | None = None):
         """Sleep until the next job is due or a kick is received.
@@ -206,7 +206,7 @@ class SchedulerService(Service):
                 If None, uses the default delay.
         """
         try:
-            timeout = self._calculate_sleep_time(next_run_time).in_seconds()
+            timeout = self.calculate_sleep_time(next_run_time).in_seconds()
             await asyncio.wait_for(self._wakeup_event.wait(), timeout=timeout)
             self.logger.debug("Scheduler woke up due to kick")
         except asyncio.CancelledError:
@@ -217,7 +217,7 @@ class SchedulerService(Service):
         finally:
             self._wakeup_event.clear()
 
-    def _calculate_sleep_time(self, next_run_time: ZonedDateTime | None) -> TimeDelta:
+    def calculate_sleep_time(self, next_run_time: ZonedDateTime | None) -> TimeDelta:
         """Calculate the time to sleep until the next job is due.
 
         Args:
@@ -273,9 +273,9 @@ class SchedulerService(Service):
             name_auto=job.name_auto,
         )
         job.mark_registered(await self._executor.register_job(reg))
-        await self._enqueue_job(job)
+        await self.enqueue_job(job)
 
-    async def _dispatch_and_log(self, job: "ScheduledJob") -> None:
+    async def dispatch_and_log(self, job: "ScheduledJob") -> None:
         """Dispatch a job and log its execution.
 
         Args:
@@ -391,7 +391,7 @@ class SchedulerService(Service):
             curr_next_run,
             job.next_run,
         )
-        await self._enqueue_job(job)
+        await self.enqueue_job(job)
 
     async def trigger_due_jobs(self) -> int:
         """Fire all jobs due at the current time.
@@ -414,7 +414,7 @@ class SchedulerService(Service):
 
         count = 0
         for job in due_jobs:
-            await self._dispatch_and_log(job)
+            await self.dispatch_and_log(job)
             count += 1
 
         return count
@@ -456,7 +456,7 @@ class SchedulerService(Service):
         # from the heap by the serve loop. This prevents the dispatch race
         # (guard in _dispatch_and_log) and makes cancel idempotent.
         job._dequeued = True
-        self._fire_removal_callbacks([job])
+        self.fire_removal_callbacks([job])
         return removed
 
     async def mark_job_cancelled(self, db_id: int) -> None:

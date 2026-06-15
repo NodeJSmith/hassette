@@ -27,11 +27,11 @@ class ErrorContext:
     @property
     def log_label(self) -> str:
         """One-line label identifying the source of the error, used in log messages."""
-        base = self._domain_label
+        base = self.domain_label
         if self.execution_id:
             return f"{base}, exec={self.execution_id}"
         return base
 
     @property
-    def _domain_label(self) -> str:
+    def domain_label(self) -> str:
         raise NotImplementedError

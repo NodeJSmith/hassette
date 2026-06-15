@@ -242,7 +242,7 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     await executor.execute(cmd)
 
     # Drain and persist
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     # Query the unified executions table
     rows = await db_service.submit(
