@@ -105,7 +105,7 @@ from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ExecutionMode, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
@@ -438,6 +438,7 @@ class Bus(Resource):
         throttle: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
+        mode: "ExecutionMode | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
@@ -460,6 +461,11 @@ class Bus(Resource):
             timeout: Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
                 None means fall through to the config default.
             timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
+            mode: Overlap behavior when a trigger fires while a prior invocation still runs —
+                ``"single"``, ``"restart"``, ``"queued"``, or ``"parallel"``. When omitted, the
+                effective default is tier-aware: ``parallel`` for framework listeners, ``single``
+                for app listeners. Suppressed/dropped counts are live-only diagnostics, reset on
+                restart.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
@@ -499,6 +505,7 @@ class Bus(Resource):
                 throttle=throttle,
                 timeout=timeout,
                 timeout_disabled=timeout_disabled,
+                mode=mode,
                 name=name,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -523,6 +530,7 @@ class Bus(Resource):
         throttle: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
+        mode: "ExecutionMode | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
@@ -531,6 +539,10 @@ class Bus(Resource):
         registration_source: str | None = None,
     ) -> Subscription:
         """Private registration method carrying the full parameter set.
+
+        ``mode=None`` means "not supplied" — it resolves to the tier-aware default
+        (``parallel`` for framework listeners, ``single`` for app listeners). An explicit
+        mode always wins.
 
         Called by on() (with duration_config=None) and by _subscribe() (which
         builds DurationConfig from duration/entity_id when provided).
@@ -551,6 +563,21 @@ class Bus(Resource):
         instance_index = parent.index
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
+
+        # Tier-aware default (FR#3): an omitted mode (None) resolves to ``parallel`` for framework
+        # listeners — preserving the supervisor/state-cache concurrency — and ``single`` for app
+        # listeners. An explicit mode always wins. A raw string is coerced here so an invalid value
+        # raises a clear ValueError at registration time (FR#12).
+        if mode is None:
+            resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
+        elif isinstance(mode, ExecutionMode):
+            resolved_mode = mode
+        else:
+            try:
+                resolved_mode = ExecutionMode(mode)
+            except ValueError as exc:
+                valid = ", ".join(repr(m.value) for m in ExecutionMode)
+                raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
 
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)
@@ -577,6 +604,7 @@ class Bus(Resource):
             timeout=timeout,
             timeout_disabled=timeout_disabled,
             priority=self.priority,
+            mode=resolved_mode,
         )
 
         invoker = HandlerInvoker.create(
@@ -723,7 +751,18 @@ class Bus(Resource):
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
-            **opts: Additional options like `once`, `debounce` and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. When omitted, the
+                tier-aware default applies: ``"single"`` for app handlers, ``"parallel"`` for
+                framework-internal listeners. An explicit ``mode=`` always wins. Suppressed
+                (``single``) and dropped (``queued`` cap) events log at DEBUG only.
+                Suppressed/dropped counts are live-only diagnostics, reset on restart.
+                See `Execution Modes <https://hassette.dev/core-concepts/bus/execution-modes/>`_.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
@@ -815,7 +854,14 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
+                counts are live-only diagnostics, reset on restart.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -909,7 +955,14 @@ class Bus(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier for this listener. Omitting it raises
                 ``ListenerNameRequiredError`` at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
+                ``timeout_disabled``, ``if_exists``, and ``mode``.
+
+                ``mode`` controls overlap behavior when a trigger fires while a prior invocation
+                is still running: ``"single"`` drops the re-fire (the default for app handlers),
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
+                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
+                counts are live-only diagnostics, reset on restart.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -977,7 +1030,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1038,7 +1091,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1093,7 +1146,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1119,7 +1172,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1145,7 +1198,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1181,7 +1234,7 @@ class Bus(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1237,7 +1290,7 @@ class Bus(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1264,7 +1317,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1291,7 +1344,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1318,7 +1371,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1350,7 +1403,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1390,7 +1443,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1448,7 +1501,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1483,7 +1536,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, and `throttle`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
 
         Returns:
             A subscription object that can be used to manage the listener.

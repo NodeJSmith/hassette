@@ -325,6 +325,37 @@ def test_to_listener_with_summary_none_traceback_when_no_error():
     assert result.last_error_traceback is None
 
 
+def test_to_listener_with_summary_mode_passthrough():
+    """mode passes through from the DB summary to the response model."""
+    summary = make_listener_summary(mode="queued")
+
+    result = to_listener_with_summary(summary)
+
+    assert result.mode == "queued"
+
+
+def test_to_listener_with_summary_merges_live_counts_by_db_id():
+    """suppressed/dropped come from the live snapshot keyed by listener db_id."""
+    summary = make_listener_summary(listener_id=42)
+
+    result = to_listener_with_summary(summary, {42: (3, 5)})
+
+    assert result.suppressed_count == 3
+    assert result.dropped_count == 5
+
+
+def test_to_listener_with_summary_defaults_counts_to_zero_when_no_live_guard():
+    """A listener absent from the live snapshot (retired) reports zero counts."""
+    summary = make_listener_summary(listener_id=42)
+
+    result = to_listener_with_summary(summary, {99: (1, 1)})
+
+    assert result.suppressed_count == 0
+    assert result.dropped_count == 0
+    # Default-mode summary still maps cleanly with no snapshot at all.
+    assert to_listener_with_summary(summary).mode == "single"
+
+
 def test_to_listener_with_summary_min_max_none_passthrough():
     """min_duration_ms and max_duration_ms pass through as None (no invocations)."""
 

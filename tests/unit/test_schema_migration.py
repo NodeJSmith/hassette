@@ -214,7 +214,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 2 after all migrations run."""
+        """PRAGMA user_version is 3 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -224,7 +224,28 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 2
+        assert version == 3
+
+    def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
+        """003.sql adds a mode column to listeners defaulting to 'single'."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(listeners)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "mode" in cols
+
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+            row = conn.execute("SELECT mode FROM listeners WHERE name = 'my_listener'").fetchone()
+            assert row[0] == "single"
+        finally:
+            conn.close()
 
 
 class TestDbVersionMismatch:

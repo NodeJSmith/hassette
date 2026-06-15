@@ -170,12 +170,22 @@ def listener_kind_from_topic(topic: str) -> ListenerKind:
     return "event"
 
 
-def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
+def to_listener_with_summary(
+    ls: ListenerSummary,
+    live_counts: dict[int, tuple[int, int]] | None = None,
+) -> ListenerWithSummary:
     """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
 
     Copies every field from the summary and appends a computed
     ``handler_summary`` string via :func:`~hassette.web.telemetry_helpers.format_handler_summary`.
+
+    Args:
+        ls: The persisted listener summary from the telemetry DB.
+        live_counts: Live ``(suppressed, dropped)`` counts keyed by listener ``db_id``, sourced
+            from the bus's in-memory guards. A listener with no live guard (e.g. retired) defaults
+            to ``(0, 0)``.
     """
+    suppressed, dropped = (live_counts or {}).get(ls.listener_id, (0, 0))
     return ListenerWithSummary(
         listener_id=ls.listener_id,
         app_key=ls.app_key,
@@ -210,4 +220,7 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         immediate=ls.immediate,
         duration=ls.duration,
         entity_id=ls.entity_id,
+        mode=ls.mode,
+        suppressed_count=suppressed,
+        dropped_count=dropped,
     )

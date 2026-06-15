@@ -48,6 +48,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.bus.extraction",  # BusExtraction type used in dependency injection docs
         "hassette.resources.base",  # Resource base class referenced in lifecycle/internals docs
         "hassette.resources.service",  # Service base class referenced in internals docs
+        "hassette.execution_mode",  # ExecutionModeGuard, DEFAULT_QUEUE_DEPTH referenced in bus docs
         "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
         "hassette.bus.error_context",  # BusErrorContext referenced in handler docs
         "hassette.events.hass.hass",  # RawStateChangeEvent, CallServiceEvent, ComponentLoadedEvent

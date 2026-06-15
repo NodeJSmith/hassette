@@ -39,6 +39,7 @@ CREATE TABLE listeners (
     throttle              REAL,
     once                  INTEGER NOT NULL DEFAULT 0,
     priority              INTEGER NOT NULL DEFAULT 0,
+    mode                  TEXT    NOT NULL DEFAULT 'single',
     predicate_description TEXT,
     human_description     TEXT,
     source_location       TEXT    NOT NULL,

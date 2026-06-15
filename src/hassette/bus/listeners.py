@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -9,6 +10,8 @@ from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
+from hassette.execution_mode import ExecutionModeGuard
+from hassette.types.enums import ExecutionMode, Outcome
 from hassette.types.types import SourceTier
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
@@ -20,6 +23,14 @@ if typing.TYPE_CHECKING:
     from hassette.types.types import BusErrorHandlerType
 
 LOGGER = getLogger(__name__)
+
+STALL_THRESHOLD_SECONDS: float = 60.0
+"""How long a ``single``/``queued`` invocation may hold its guard before a stall WARNING fires.
+
+Independent of the per-listener ``timeout`` (which still ultimately releases the guard via the
+command executor). This is the ONLY WARNING in the execution-mode feature — suppressions and
+drops stay at DEBUG.
+"""
 
 # In-memory routing ID, assigned at listener creation. This is the dispatch/dedup key
 # used by router.py and bus_service.py — distinct from the database row id (``db_id``),
@@ -87,7 +98,24 @@ class ListenerOptions:
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
+    mode: ExecutionMode = ExecutionMode.SINGLE
+    """Overlap behavior when a trigger fires while a prior invocation still runs.
+
+    ``single`` drops the re-fire, ``restart`` cancels-and-replaces, ``queued`` serializes,
+    ``parallel`` runs concurrently. The tier-aware default (framework→parallel, app→single)
+    is applied by the registration path, not by this dataclass default. Suppressed/dropped
+    counts are live-only diagnostics held on the per-listener guard, reset on restart.
+    """
+
     def __post_init__(self) -> None:
+        # Coerce a raw string mode (arriving via the Options TypedDict or str ergonomics) into
+        # the enum. An unknown value fails coercion — surface it as a clear ValueError (FR#12).
+        if not isinstance(self.mode, ExecutionMode):
+            try:
+                self.mode = ExecutionMode(self.mode)
+            except ValueError as exc:
+                valid = ", ".join(repr(m.value) for m in ExecutionMode)
+                raise ValueError(f"Invalid execution mode {self.mode!r}; must be one of {valid}") from exc
         if self.debounce is not None and self.debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
         if self.throttle is not None and self.throttle <= 0:
@@ -127,12 +155,34 @@ class HandlerInvoker:
     rate_limiter: RateLimiter | None
     """Rate limiter for debounce/throttle. None when no rate limiting is configured."""
 
+    task_bucket: "TaskBucket"
+    """TaskBucket used to spawn the cancellable child handler task for non-parallel modes."""
+
+    guard: ExecutionModeGuard
+    """Per-listener overlap state machine. Owns the running-task reference and live counters."""
+
+    mode: ExecutionMode
+    """Resolved overlap mode. Copied from options so dispatch can branch without reading the guard's
+    private state."""
+
+    handler_short_name: str
+    """Short handler name, captured for the stall WARNING and debug logs."""
+
     once: bool = False
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
 
     fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
+
+    pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False)
+    """Unresolved per-invocation completion futures for non-parallel modes.
+
+    Each ``_run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
+    that resolves when the handler actually runs (or is dropped/released). A queued trigger accepted
+    into the deque has no live child until drain time, so its future would hang forever if the
+    listener is released first. ``release_guard`` resolves every remaining future here so those outer
+    dispatch tasks unwind and ``_dispatch_pending`` settles."""
 
     @classmethod
     def create(
@@ -178,6 +228,10 @@ class HandlerInvoker:
             error_handler=error_handler,
             app_error_handler_resolver=app_error_handler_resolver,
             rate_limiter=rate_limiter,
+            task_bucket=task_bucket,
+            guard=ExecutionModeGuard(options.mode),
+            mode=options.mode,
+            handler_short_name=callable_short_name(handler),
             once=options.once,
         )
 
@@ -190,15 +244,20 @@ class HandlerInvoker:
         self.app_error_handler_resolver = resolver
 
     async def dispatch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
-        """Apply rate limiting around the given invoke function.
+        """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
 
-        BusService builds the invoke function (internal error-catching or tracked
-        telemetry), HandlerInvoker wraps it with rate limiting. BusService never
-        touches the RateLimiter directly.
+        Order: once-guard → rate limiter (whether to start) → mode guard (overlap of started
+        invocations). BusService builds ``invoke_fn`` (tracked telemetry); HandlerInvoker wraps it.
 
-        Includes once-guard: if ``once=True`` and the invoker has already fired,
-        this method returns immediately. Safe without a lock — no ``await`` between
-        check-and-set.
+        Once-guard: if ``once=True`` and the invoker has already fired, returns immediately. Safe
+        without a lock — no ``await`` between check-and-set.
+
+        Mode guard: ``parallel`` is a pass-through that awaits ``invoke_fn`` inline (byte-for-byte
+        today's behavior, no child task). For ``single``/``restart``/``queued`` the guard receives a
+        run-and-track callable that spawns a fresh child task through ``task_bucket``; this method
+        then awaits that child so the outer dispatch task stays pending and remains counted by
+        ``_dispatch_pending``. A ``restart`` cancellation of the child surfaces as ``CancelledError``
+        inside the child only — it is swallowed here so the outer dispatch task does not crash.
         """
         if self.once and self.fired:
             return
@@ -206,14 +265,90 @@ class HandlerInvoker:
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(invoke_fn)
+            await self.rate_limiter.call(lambda: self._run_with_mode(invoke_fn))
         else:
+            await self._run_with_mode(invoke_fn)
+
+    async def _run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+        """Apply the overlap mode guard to a single started invocation.
+
+        The outer dispatch task (counted by BusService's ``_dispatch_pending``) must stay pending
+        until the handler ACTUALLY runs — including the ``queued`` case where the child is spawned
+        later, at drain time. A per-invocation ``done`` future bridges that gap: ``run_and_track``
+        resolves it when its spawned child completes; ``release_guard`` resolves any still-unresolved
+        futures so a released-while-queued trigger does not hang the outer task forever.
+        """
+        if self.mode is ExecutionMode.PARALLEL:
             await invoke_fn()
+            return
+
+        # ``done`` resolves when this trigger's handler finishes (normal or cancelled), is dropped
+        # by the guard, or is released before it ever ran. Awaiting it keeps the outer dispatch task
+        # — and thus _dispatch_pending — counted across the whole wait, including queue time.
+        loop = asyncio.get_running_loop()
+        done: asyncio.Future[None] = loop.create_future()
+        self.pending_done.add(done)
+
+        def resolve_done() -> None:
+            self.pending_done.discard(done)
+            if not done.done():
+                done.set_result(None)
+
+        def run_and_track() -> asyncio.Task[None]:
+            # The guard may call this now (RAN) or later at drain time (QUEUED_ACCEPTED). Either way,
+            # resolve ``done`` once the spawned child settles, normally or via restart-cancellation.
+            task = self.task_bucket.spawn(self._invocation_with_stall_watch(invoke_fn), name="bus:mode_invocation")
+            task.add_done_callback(lambda _t: resolve_done())
+            return task
+
+        outcome = await self.guard.run(run_and_track)
+
+        if outcome in (Outcome.SUPPRESSED, Outcome.DROPPED):
+            # The factory was never called — no child will resolve ``done``; resolve it here.
+            resolve_done()
+            return
+        # RAN: child already spawned, ``done`` resolves when it finishes.
+        # QUEUED_ACCEPTED: child spawns at drain time (or release resolves ``done`` first).
+        await done
+
+    async def _invocation_with_stall_watch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+        """Run one handler invocation, emitting a WARNING if it holds the guard past the threshold."""
+        watchdog = asyncio.get_running_loop().call_later(STALL_THRESHOLD_SECONDS, self._warn_stalled)
+        try:
+            await invoke_fn()
+        finally:
+            watchdog.cancel()
+
+    def _warn_stalled(self) -> None:
+        """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
+        LOGGER.warning(
+            "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",
+            self.handler_short_name,
+            self.mode.value,
+            STALL_THRESHOLD_SECONDS,
+        )
 
     def cancel(self) -> None:
         """Cancel any pending rate-limiter tasks."""
         if self.rate_limiter:
             self.rate_limiter.cancel()
+
+    async def release_guard(self) -> None:
+        """Release the execution-mode guard: cancel the in-flight task and drop queued factories.
+
+        Called when a listener is cancelled or replaced so no event/listener/app references leak
+        (FR#17). ``parallel`` listeners hold no guard state, so this is a cheap no-op for them.
+
+        Queued triggers still parked in the guard's deque never spawn a child once released, so
+        their outer dispatch tasks are parked on ``done`` futures that nothing else will resolve.
+        Resolve every remaining one here so those tasks unwind and ``_dispatch_pending`` settles.
+        """
+        await self.guard.release()
+        # Copy first: resolving discards from the set via the future's resolve_done closure.
+        for done in list(self.pending_done):
+            self.pending_done.discard(done)
+            if not done.done():
+                done.set_result(None)
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler with dependency injection."""
@@ -346,8 +481,14 @@ class Listener:
     def cancel(self) -> None:
         """Cancel the listener: set the cancelled flag and stop any pending tasks.
 
-        Sets _cancelled flag, calls invoker.mark_fired() to prevent handler invocation
-        on any in-flight dispatch task, and cancels rate limiter and duration timer.
+        Sets _cancelled flag and calls invoker.mark_fired(). For once=True listeners, mark_fired()
+        prevents the handler from starting on any in-flight dispatch task that has not yet checked
+        the once-guard. For once=False listeners, mark_fired() has no effect on dispatch (the
+        once-guard is not consulted); protection comes from release_guard() cancelling the in-flight
+        child task — spawned asynchronously, so there is a small window before it takes effect.
+        Also cancels the rate limiter and duration timer, and releases the execution-mode guard
+        (cancelling any in-flight handler task and dropping queued factories) so no event/listener
+        references leak (FR#17).
 
         Terminal operation: the listener must not be reused after this call.
         """
@@ -356,13 +497,17 @@ class Listener:
         self.invoker.cancel()
         if self.duration_config is not None:
             self.duration_config.cancel_timer()
+        # release_guard is async (it awaits the cancelled task's settling under a lock); cancel()
+        # is sync, so spawn the release on the same bucket that runs handler tasks. For ``parallel``
+        # listeners this is a cheap no-op; for the others it drops the in-flight task and queue.
+        self.invoker.task_bucket.spawn(self.invoker.release_guard(), name="bus:release_guard")
 
     def config_matches(self, other: "Listener") -> bool:
         """Check whether two listeners represent the same logical configuration.
 
         Compares handler callable, filter predicate, timing options (once, debounce,
-        throttle, timeout, timeout_disabled, priority), handler kwargs, per-registration
-        error handler (by identity), and duration configuration scalars.
+        throttle, timeout, timeout_disabled, priority), the execution mode, handler kwargs,
+        per-registration error handler (by identity), and duration configuration scalars.
 
         Does not compare runtime state: listener_id, db_id, _cancelled, or the
         attached DurationTimer. Lambda/closure predicates and callable conditions
@@ -378,6 +523,7 @@ class Listener:
             and self.options.timeout == other.options.timeout
             and self.options.timeout_disabled == other.options.timeout_disabled
             and self.options.priority == other.options.priority
+            and self.options.mode == other.options.mode
             and self.invoker.kwargs == other.invoker.kwargs
             and self.invoker.error_handler is other.invoker.error_handler
             and _duration_configs_match(self.duration_config, other.duration_config)
@@ -407,6 +553,8 @@ class Listener:
             changed.append("timeout_disabled")
         if self.options.priority != other.options.priority:
             changed.append("priority")
+        if self.options.mode != other.options.mode:
+            changed.append("mode")
         if self.invoker.kwargs != other.invoker.kwargs:
             changed.append("kwargs")
         if self.invoker.error_handler is not other.invoker.error_handler:
@@ -485,7 +633,10 @@ class Listener:
             source_tier="framework",
         )
 
-        options = ListenerOptions()
+        # Cancel-listeners are source_tier='framework' but bypass _on_internal's tier-aware
+        # resolution, so set parallel explicitly to match the framework-tier default. They fire at
+        # most once per timer, so parallel is the safe internal default.
+        options = ListenerOptions(mode=ExecutionMode.PARALLEL)
 
         invoker = HandlerInvoker.create(
             task_bucket=task_bucket,

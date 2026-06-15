@@ -128,6 +128,11 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           <span class={styles.kindChip} aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </span>
+          {item.kind === "listener" && item.data.mode && (
+            <span class={styles.modeChip} aria-label={`mode: ${item.data.mode}`} data-testid="handler-row-mode-chip">
+              {item.data.mode}
+            </span>
+          )}
           <span class={styles.name}>{item.name}</span>
           {isFailing && (
             <Badge variant="danger" size="xs">

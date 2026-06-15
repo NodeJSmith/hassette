@@ -96,6 +96,94 @@ class TestTelemetryListeners:
         assert data[0]["handler_summary"] == "light.kitchen"
         assert data[0]["listener_id"] == 1
 
+    async def test_returns_mode_and_live_counts(self, client: "AsyncClient", mock_hassette) -> None:
+        """The endpoint surfaces persisted mode and live suppressed/dropped counts (FR#14, FR#15, AC#10)."""
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            return_value=[
+                ListenerSummary(
+                    listener_id=7,
+                    app_key="my_app",
+                    instance_index=0,
+                    handler_method="on_light",
+                    topic="state_changed.light.kitchen",
+                    debounce=None,
+                    throttle=None,
+                    once=0,
+                    priority=0,
+                    predicate_description=None,
+                    human_description=None,
+                    source_location="my_app.py:10",
+                    registration_source=None,
+                    mode="single",
+                    total_invocations=3,
+                    successful=3,
+                    failed=0,
+                    di_failures=0,
+                    cancelled=0,
+                    total_duration_ms=30.0,
+                    avg_duration_ms=10.0,
+                    min_duration_ms=10.0,
+                    max_duration_ms=10.0,
+                    last_invoked_at=1234567890.0,
+                    last_error_type=None,
+                    last_error_message=None,
+                )
+            ]
+        )
+        # Live snapshot keyed by listener db_id (== listener_id 7).
+        mock_hassette.bus_service.live_execution_counts = MagicMock(return_value={7: (2, 4)})
+
+        response = await client.get("/api/telemetry/app/my_app/listeners")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["mode"] == "single"
+        assert data[0]["suppressed_count"] == 2
+        assert data[0]["dropped_count"] == 4
+
+    async def test_listener_with_no_live_guard_reports_zero_counts(self, client: "AsyncClient", mock_hassette) -> None:
+        """A listener absent from the live snapshot (retired) reports zero counts (FR#15)."""
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+            return_value=[
+                ListenerSummary(
+                    listener_id=7,
+                    app_key="my_app",
+                    instance_index=0,
+                    handler_method="on_light",
+                    topic="state_changed.light.kitchen",
+                    debounce=None,
+                    throttle=None,
+                    once=0,
+                    priority=0,
+                    predicate_description=None,
+                    human_description=None,
+                    source_location="my_app.py:10",
+                    registration_source=None,
+                    mode="restart",
+                    total_invocations=0,
+                    successful=0,
+                    failed=0,
+                    di_failures=0,
+                    cancelled=0,
+                    total_duration_ms=0.0,
+                    avg_duration_ms=0.0,
+                    min_duration_ms=None,
+                    max_duration_ms=None,
+                    last_invoked_at=None,
+                    last_error_type=None,
+                    last_error_message=None,
+                )
+            ]
+        )
+        mock_hassette.bus_service.live_execution_counts = MagicMock(return_value={})
+
+        response = await client.get("/api/telemetry/app/my_app/listeners")
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["mode"] == "restart"
+        assert data[0]["suppressed_count"] == 0
+        assert data[0]["dropped_count"] == 0
+
 
 class TestTelemetryDashboard:
     async def test_app_grid_returns_per_app_health(self, client: "AsyncClient") -> None:

@@ -131,3 +131,18 @@
   color: var(--ink-4);
   white-space: nowrap;
 }
+
+.modeChip {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-1);
+  color: var(--ink-3);
+  text-transform: lowercase;
+  letter-spacing: var(--tr-label-tight);
+  line-height: 1.4;
+}

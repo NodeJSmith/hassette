@@ -23,6 +23,7 @@ Every subscription method accepts these parameters. Individual method tables bel
 | `once` | `bool` | `False` | Fires the handler exactly once, then cancels the subscription. |
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at invocation time. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a listener with the same name and topic already exists. See [Idempotent Registration](#idempotent-registration). |
+| `mode` | `"single"` \| `"restart"` \| `"queued"` \| `"parallel"` \| `None` | tier-aware | Overlap behavior when a trigger fires while the handler is still running. See [Execution Modes](execution-modes.md). |
 
 `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError`.
 

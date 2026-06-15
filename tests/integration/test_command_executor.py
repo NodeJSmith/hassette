@@ -87,6 +87,41 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     assert record.listener_id == 1
 
 
+async def test_restart_cancellation_persists_cancelled_row(
+    executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
+) -> None:
+    """A cancelled invocation lands as a status='cancelled' execution row (FR#16, AC#11).
+
+    ``restart`` mode cancels the in-flight child task, surfacing as ``CancelledError`` inside the
+    handler invocation. ``test_cancelled_error_reraises`` proves that path queues a
+    ``status='cancelled'`` record; this test proves such a record persists to the ``executions``
+    table — no new mechanism, the existing cancellation row path.
+    """
+
+    db_service, session_id = initialized_db
+
+    listener_id = await executor.register_listener(make_listener_registration())
+
+    record = ExecutionRecord(
+        kind="handler",
+        listener_id=listener_id,
+        session_id=session_id,
+        execution_start_ts=time.time(),
+        duration_ms=10.0,
+        status="cancelled",
+    )
+    executor._write_queue.put_nowait(record)
+    await executor._drain_and_persist()
+
+    cursor = await db_service.db.execute(
+        "SELECT status FROM executions WHERE listener_id = ?",
+        (listener_id,),
+    )
+    rows = await cursor.fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "cancelled"
+
+
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
     listener = make_mock_listener()
@@ -285,7 +320,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in executions after drain."""
-    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
 
     db_service, session_id = initialized_db
 
@@ -294,7 +328,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     listener_id = await executor.register_listener(reg)
 
     # Queue a success record directly
-    record = _ExecutionRecord(
+    record = ExecutionRecord(
         kind="handler",
         listener_id=listener_id,
         session_id=session_id,
@@ -321,7 +355,6 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """_flush_queue() persists remaining records before returning."""
-    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
 
     db_service, session_id = initialized_db
 
@@ -330,7 +363,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
     # Put two records in the queue
     for _ in range(2):
-        record = _ExecutionRecord(
+        record = ExecutionRecord(
             kind="handler",
             listener_id=listener_id,
             session_id=session_id,

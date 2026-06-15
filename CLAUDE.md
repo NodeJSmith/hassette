@@ -180,6 +180,10 @@ These suites run with the same warning configuration as CI (`filterwarnings` in 
 
 When fixing or modifying any test, run that test locally and confirm it passes before committing. For system and e2e tests, use the nox sessions above. For unit/integration tests, run at minimum the affected test file. Do not commit test fixes based on code inspection alone — a test that looks correct can still fail due to marker filtering, warning configuration, fixture scoping, or async timing.
 
+## Pre-Ship Verification for Docs Changes
+
+When a branch adds or edits docs-site pages under `docs/pages/`, run both doc-review skills on the touched pages before opening the PR — `doc-persona-review` (followability) and `doc-accuracy-review` (prose-vs-code truth). Scope each run to the changed page slugs. A `lost`/`stuck-at-step-N` persona verdict, or a confirmed `WRONG`/`OUTDATED_API` accuracy finding, on lines you touched is a ship blocker. See `.claude/rules/doc-rules.md` (Verify with Persona and Accuracy Reviews) for scope and verdict details.
+
 ## GitHub Issues
 
 ### Title Conventions

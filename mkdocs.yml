@@ -52,6 +52,7 @@ nav:
           - Overview: pages/core-concepts/bus/index.md
           - Writing Handlers: pages/core-concepts/bus/handlers.md
           - Subscription Methods: pages/core-concepts/bus/methods.md
+          - Execution Modes: pages/core-concepts/bus/execution-modes.md
           - Filtering & Predicates: pages/core-concepts/bus/filtering.md
           - Dependency Injection: pages/core-concepts/bus/dependency-injection.md
           - Custom Extractors: pages/core-concepts/bus/custom-extractors.md

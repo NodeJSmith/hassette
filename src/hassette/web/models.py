@@ -328,6 +328,9 @@ class ListenerWithSummary(BaseModel):
     immediate: int = 0
     duration: float | None = None
     entity_id: str | None = None
+    mode: str = "single"
+    suppressed_count: int = 0
+    dropped_count: int = 0
 
 
 class ActivityBucket(BaseModel):

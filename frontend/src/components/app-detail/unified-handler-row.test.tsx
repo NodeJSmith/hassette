@@ -288,6 +288,46 @@ describe("UnifiedHandlerRow — subline switching", () => {
   });
 });
 
+describe("UnifiedHandlerRow — mode chip", () => {
+  it("renders mode chip for listener with mode=single", () => {
+    const item = makeListenerItem({ mode: "single", listener_id: 1 });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("handler-row-mode-chip").textContent).toBe("single");
+  });
+
+  it("renders mode chip for listener with mode=parallel", () => {
+    const item = makeListenerItem({ mode: "parallel", listener_id: 2 });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("handler-row-mode-chip").textContent).toBe("parallel");
+  });
+
+  it("renders mode chip for listener with mode=queued", () => {
+    const item = makeListenerItem({ mode: "queued", listener_id: 3 });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("handler-row-mode-chip").textContent).toBe("queued");
+  });
+
+  it("renders mode chip for listener with mode=restart", () => {
+    const item = makeListenerItem({ mode: "restart", listener_id: 4 });
+    const { getByTestId } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, {
+      wrapper,
+    });
+    expect(getByTestId("handler-row-mode-chip").textContent).toBe("restart");
+  });
+
+  it("does not render mode chip for job items", () => {
+    const item = makeJobItem({ job_id: 5 });
+    const { container } = render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />, { wrapper });
+    expect(container.querySelector("[data-testid='handler-row-mode-chip']")).toBeNull();
+  });
+});
+
 describe("UnifiedHandlerRow — job", () => {
   it("renders with data-testid containing kind='job' and job id", () => {
     const item = makeJobItem({ job_id: 7 });

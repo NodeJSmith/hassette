@@ -11,10 +11,21 @@ from typing import Literal
 
 from typing_extensions import TypedDict
 
+from hassette.types.enums import ExecutionMode
+
 
 class Options(TypedDict, total=False):
     once: bool
     """Whether the listener should be removed after one invocation."""
+
+    mode: ExecutionMode | str
+    """Overlap behavior when a trigger fires while a prior invocation still runs.
+
+    ``"single"`` drops the re-fire (the app-tier default), ``"restart"`` cancels the running
+    invocation and starts a new one, ``"queued"`` serializes triggers in arrival order (bounded),
+    ``"parallel"`` runs concurrently (the framework-tier default). When omitted, the effective
+    default is tier-aware: ``parallel`` for framework listeners, ``single`` for app listeners.
+    """
 
     debounce: float | None
     """Length of time in seconds to wait before invoking the handler, resetting if another event is received."""
