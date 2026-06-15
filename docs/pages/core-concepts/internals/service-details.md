@@ -105,7 +105,7 @@ flowchart TD
     end
 
     subgraph engine["SchedulerService"]
-        heap["Min-heap<br/>by next_run"]
+        heap["Min-heap<br/>by fire_at"]
         loop["serve() loop"]
         exec["CommandExecutor"]
         heap -- "pop due" --> loop --> exec
@@ -124,9 +124,9 @@ flowchart TD
 
 `SchedulerService.serve()` loops indefinitely. Each iteration:
 
-1. Calls `_ScheduledJobQueue.pop_due_and_peek_next(now)`: pops all jobs whose `next_run` is at or before `now` and returns the next scheduled time.
+1. Calls `_ScheduledJobQueue.pop_due_and_peek_next(now)`: pops all jobs whose dispatch time (`fire_at`) is at or before `now` and returns the next scheduled time.
 2. Spawns a `TaskBucket` task for each due job via [`CommandExecutor`][hassette.core.command_executor.CommandExecutor].
-3. Sleeps until the next job's `next_run` time, clamped between `min_delay` and `max_delay`.
+3. Sleeps until the next job's `fire_at` time, clamped between `min_delay` and `max_delay`.
 
 When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick()` method interrupts the sleep immediately. It fires when a new job is registered with an earlier run time than the current sleep target.
 
@@ -145,7 +145,7 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ### Missed-Job Handling
 
-`SchedulerService` does not make up missed executions. A job whose `next_run` passed during a shutdown or restart fires once on the next `pop_due` call, not multiple times for the skipped interval. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
+`SchedulerService` does not make up missed executions. A job whose dispatch time (`fire_at`) passed during a shutdown or restart fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
 
 ### Jitter and Job Groups
 

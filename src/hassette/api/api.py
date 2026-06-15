@@ -571,7 +571,6 @@ class Api(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-        self.logger.debug("Turning on entity %s", entity_id)
         return self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
 
     def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
@@ -590,7 +589,6 @@ class Api(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-        self.logger.debug("Turning off entity %s", entity_id)
         return self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id})
 
     def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> "Coroutine[Any, Any, None]":
@@ -609,7 +607,6 @@ class Api(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
-        self.logger.debug("Toggling entity %s", entity_id)
         return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id})
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":

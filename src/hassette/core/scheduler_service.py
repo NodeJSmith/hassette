@@ -4,7 +4,7 @@ import random
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import ClassVar, Generic, TypeVar
 
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
@@ -508,26 +508,6 @@ class _ScheduledJobQueue(Resource):
         else:
             self.logger.debug("Queued job %s for %s", job, job.next_run)
 
-    async def pop_due(self, reference_time: ZonedDateTime | None = None) -> list["ScheduledJob"]:
-        """Return and remove all jobs due to run at or before the reference time."""
-
-        due_jobs: list[ScheduledJob] = []
-
-        async with self._lock:
-            current_time = reference_time or date_utils.now()
-            while not self._queue.is_empty():
-                candidate = self._queue.peek()
-                if candidate is None or candidate.fire_at > current_time:
-                    break
-
-                due_jobs.append(self._queue.pop())
-                current_time = date_utils.now()
-
-        if due_jobs:
-            self.logger.debug("Dequeued %d due jobs", len(due_jobs))
-
-        return due_jobs
-
     async def pop_due_and_peek_next(
         self, reference_time: ZonedDateTime
     ) -> tuple[list["ScheduledJob"], ZonedDateTime | None]:
@@ -552,19 +532,6 @@ class _ScheduledJobQueue(Resource):
             self.logger.debug("Dequeued %d due jobs", len(due_jobs))
 
         return due_jobs, next_run
-
-    async def next_run_time(self) -> ZonedDateTime | None:
-        """Return the next scheduled fire time (fire_at) if available."""
-
-        async with self._lock:
-            upcoming = self._queue.peek()
-            return upcoming.fire_at if upcoming else None
-
-    async def peek(self) -> "ScheduledJob | None":
-        """Return the next scheduled job without removing it."""
-
-        async with self._lock:
-            return self._queue.peek()
 
     async def remove_owner(self, owner: str) -> "list[ScheduledJob]":
         """Remove all jobs belonging to the given owner. Returns the removed jobs."""
@@ -611,24 +578,6 @@ class _ScheduledJobQueue(Resource):
         """Return a snapshot of all queued jobs (non-destructive)."""
         async with self._lock:
             return list(self._queue)
-
-    async def clear(self, predicate: Callable[["ScheduledJob"], bool] | None = None) -> int:
-        """Clear the queue, optionally filtering by predicate."""
-
-        def is_true(_: Any) -> bool:
-            return True
-
-        if predicate is None:
-            predicate = is_true
-
-        async with self._lock:
-            removed = self._queue.remove_where(predicate)
-
-        count = len(removed)
-        if count:
-            self.logger.debug("Cleared %d jobs from queue", count)
-
-        return count
 
 
 @dataclass

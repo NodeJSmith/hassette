@@ -165,8 +165,6 @@ class RuntimeQueryService(Resource):
         await self.buffer_and_broadcast("state_changed", payload)
 
     async def on_app_state_changed(self, event: Event) -> None:
-        if not hasattr(event, "payload"):
-            return
         data = event.payload.data
         payload = AppStatusChangedData(
             app_key=data.app_key,
@@ -182,8 +180,6 @@ class RuntimeQueryService(Resource):
         await self.buffer_and_broadcast("app_status_changed", payload)
 
     async def on_service_status(self, event: Event[Any]) -> None:
-        if not hasattr(event, "payload"):
-            return
         data = event.payload.data
         payload = ServiceStatusData(
             resource_name=data.resource_name,
