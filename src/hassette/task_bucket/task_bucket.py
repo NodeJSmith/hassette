@@ -14,8 +14,6 @@ from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
-    from types import CoroutineType
-
     from hassette import Hassette
 
 T = TypeVar("T")
@@ -150,11 +148,34 @@ class TaskBucket(Resource):
             self.hassette.loop.call_soon_threadsafe(_create)
             return result.result()  # block this worker thread briefly to hand back the Task
 
-    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "CoroutineType[Any, Any, R]":
-        """Run a synchronous function in a separate thread.
+    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
+        """Run a synchronous function on the dedicated sync-handler executor.
 
-        This is a thin wrapper around `asyncio.to_thread`, but ensures that the current TaskBucket context
-        is preserved in the new thread.
+        Routes sync user code (handlers, jobs, App lifecycle hooks) through
+        ``hassette.sync_executor`` (an
+        :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`)
+        so that slow sync handlers are isolated from framework-internal
+        ``asyncio.to_thread`` calls (logging, database), which continue using the
+        loop-default executor.
+
+        A shared mutable cell (``list[threading.Thread | None]``) captures the
+        worker thread immediately when ``_call`` starts executing.  T06 reads
+        ``cell[0]`` at the timeout site to check whether the thread outlived its
+        timeout::
+
+            cell: list[threading.Thread | None] = [None]
+            # _call (worker): cell[0] = threading.current_thread()   <- set on worker
+            # T06 (loop thread): cell[0].is_alive()                  <- read on loop
+
+        A ContextVar is NOT used here: ``loop.run_in_executor`` copies the loop
+        thread's context one-way into the worker callable, so any write the worker
+        makes to a ContextVar mutates the worker's private copy and the loop thread
+        reads back ``None``.  The cell sidesteps this by being a plain list created
+        on the loop thread and closed over by both the loop thread and the worker.
+
+        If the timeout fires before the worker has dequeued ``_call``, ``cell[0]``
+        remains ``None`` — a "not-started" timeout, not a thread leak.  T06 relies
+        on this sentinel to distinguish the two cases.
 
         Args:
             fn: The synchronous function to run.
@@ -165,15 +186,30 @@ class TaskBucket(Resource):
             A coroutine that resolves to the return value of *fn*.
         """
         current_bucket = ctx.CURRENT_BUCKET.get()
+        # Shared mutable cell: set by the worker, read by T06 at the timeout site.
+        # See module-level docstring above for the ContextVar caveat.
+        cell: list[threading.Thread | None] = [None]
 
         def _call() -> R:
+            # Record which worker thread picked up this callable — read by T06.
+            cell[0] = threading.current_thread()
             if current_bucket is not None:
                 with ctx.use_task_bucket(current_bucket):
                     return fn(*args, **kwargs)
             else:
                 return fn(*args, **kwargs)
 
-        return asyncio.to_thread(_call)
+        # Submit to the dedicated executor so sync user code is isolated from
+        # framework-internal asyncio.to_thread calls (logging, database).
+        # loop.run_in_executor returns an asyncio.Future (awaitable) — callers
+        # that do ``await self.run_in_thread(...)`` work identically to before.
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[R] = loop.run_in_executor(self.hassette.sync_executor, _call)
+        # Expose the cell on the future so T06 can reach the worker thread identity
+        # for the in-flight call.  cell[0] is set as the first statement of _call
+        # on the worker thread; it remains None if the job never dequeued.
+        future._sync_thread_cell = cell  # pyright: ignore[reportAttributeAccessIssue]
+        return future
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Schedule a callable on the event loop from any thread."""

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
+from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.config import TEST_WS_URL, make_test_config
 
 
@@ -74,6 +75,9 @@ def make_mock_hassette(
         - ``.database_service``: ``None``
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
+        - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
+          (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
+          reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
 
     Example::
 
@@ -146,6 +150,17 @@ def make_mock_hassette(
 
     # Resource children
     hassette.children = []
+
+    # Dedicated sync-user-code executor — a real InterruptibleThreadPoolExecutor so
+    # TaskBucket.run_in_thread can submit work during tests.  Thread names carry the
+    # "hassette-sync" prefix, matching production and allowing pool-identity assertions.
+    # Shutdown at process exit; individual tests that need isolation may replace this.
+    executor = InterruptibleThreadPoolExecutor(
+        max_workers=2,
+        thread_name_prefix="hassette-sync",
+    )
+    atexit.register(executor.shutdown, join_threads_or_timeout=False)
+    hassette.sync_executor = executor
 
     if sealed:
         seal(hassette)

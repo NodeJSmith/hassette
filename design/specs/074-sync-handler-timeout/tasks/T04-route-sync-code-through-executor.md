@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Route sync user code through the dedicated executor"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#1", "FR#2", "FR#9", "AC#2", "AC#7"]
 ---
