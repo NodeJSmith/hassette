@@ -15,6 +15,7 @@ from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
 from hassette.types import Topic
@@ -42,6 +43,7 @@ class AppHandler(Resource):
         BusService,
         SchedulerService,
         StateProxy,
+        SyncExecutorService,
     ]
 
     # Per-instance restart instead of full app-key restart (#796)

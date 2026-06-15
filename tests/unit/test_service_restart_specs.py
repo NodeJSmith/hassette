@@ -11,6 +11,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
@@ -20,6 +21,7 @@ from hassette.types.enums import RestartType
 ALL_SERVICES = [
     BusService,
     SchedulerService,
+    SyncExecutorService,
     WebsocketService,
     DatabaseService,
     WebApiService,
@@ -42,6 +44,10 @@ class TestAllServicesDeclareRestartSpec:
 
 
 class TestRestartTypes:
+    def test_sync_executor_service_permanent(self) -> None:
+        """SyncExecutorService must use PERMANENT restart type."""
+        assert SyncExecutorService.restart_spec.restart_type is RestartType.PERMANENT
+
     def test_bus_service_permanent(self) -> None:
         """BusService must use PERMANENT restart type."""
         assert BusService.restart_spec.restart_type is RestartType.PERMANENT

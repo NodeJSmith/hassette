@@ -19,6 +19,7 @@ from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
@@ -37,6 +38,7 @@ from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
 from .state_proxy import StateProxy
+from .sync_executor_service import SyncExecutorService
 from .telemetry.query_service import TelemetryQueryService
 from .web_api_service import WebApiService
 from .web_ui_watcher import WebUiWatcherService
@@ -82,6 +84,7 @@ class Hassette(Resource):
         self._loop_thread_id: int | None = None
 
         # Service slot declarations — populated by wire_services()
+        self._sync_executor_service: SyncExecutorService | None = None
         self._event_stream_service: EventStreamService | None = None
         self._database_service: DatabaseService | None = None
         self._logging_service: LoggingService | None = None
@@ -158,6 +161,11 @@ class Hassette(Resource):
         context.set_global_hassette_config(self.config)
 
         self.startup_tasks()
+
+        # SyncExecutorService: placed early for readability only — depends_on=[] so it has no
+        # ordering constraint here.  Start/stop sequencing is driven by the depends_on graph,
+        # not by registration order.
+        self._sync_executor_service = self.add_child(SyncExecutorService)
 
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
@@ -257,6 +265,18 @@ class Hassette(Resource):
         if self._loop is None:
             raise RuntimeError("Event loop is not running")
         return self._loop
+
+    @property
+    def sync_executor(self) -> InterruptibleThreadPoolExecutor:
+        """Dedicated thread-pool executor for sync user code.
+
+        TaskBucket.run_in_thread routes all sync handler/job/App-lifecycle submissions
+        here.  Framework-internal asyncio.to_thread calls (logging, database) continue
+        using the loop-default executor and are NOT routed through this property.
+        """
+        if self._sync_executor_service is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._sync_executor_service.executor
 
     @property
     def command_executor(self) -> CommandExecutor:

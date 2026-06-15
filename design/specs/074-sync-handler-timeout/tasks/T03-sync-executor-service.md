@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add SyncExecutorService and wire it into the lifecycle graph"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#5"]
 ---
