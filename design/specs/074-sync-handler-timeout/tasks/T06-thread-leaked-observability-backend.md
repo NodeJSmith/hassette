@@ -14,11 +14,11 @@ Make the timeout leak observable end-to-end on the backend: at the timeout site,
 
 2. **Dataclass** — add `thread_leaked: bool = False` (or `int`, matching how other boolean-ish columns like `is_di_failure` are typed) to `ExecutionRecord` (`src/hassette/core/execution_record.py:12-105`), with a docstring.
 
-3. **Build path** — populate `thread_leaked` in `command_executor.build_record` (`command_executor.py:359-420`, both the handler branch `:384-402` and the job branch `:404-420`) from the `ExecutionResult`/timeout outcome.
+3. **Carrier + build path** — `ExecutionResult` has no `thread_leaked` field today, so add one (`thread_leaked: bool = False`) to `ExecutionResult` (find its definition — likely `execution.py` near `track_execution`). The liveness check in step 5 sets `result.thread_leaked = True`; `build_record` (`command_executor.py:359-420`, handler branch `:384-402` and job branch `:404-420`) reads `result.thread_leaked` and passes it into the `ExecutionRecord` constructor. This makes the carrier explicit — liveness is computed once in `_execute`, not re-derived in `build_record`.
 
 4. **Persistence** — add `thread_leaked` to `telemetry_repository._execution_insert_params` (`telemetry_repository.py:18-52`) so it flows into `_EXECUTION_INSERT_COLUMNS`/`_EXECUTION_INSERT_SQL` (`:58-65`). Confirm whether the column tuple is auto-derived from the params dict or hard-coded, and update accordingly.
 
-5. **The liveness check** — at the timeout handling in `command_executor._execute` (`:265-288`), after the timeout is observed, read the worker-thread reference captured by T04's `run_in_thread` and check `thread.is_alive()`. If the reference is set AND alive, mark the result as thread-leaked (so `build_record` sets `thread_leaked=True`) and emit a distinct log line at the existing timeout-warning site distinguishing "thread still alive" from a clean timeout. If the reference is unset (worker never started — the "not-started" timeout), do NOT flag it. Keep the command layer decoupled from executor internals — it reads only a thread reference and `is_alive()`, never the pool.
+5. **The liveness check** — at the timeout handling in `command_executor._execute` (`:265-288`), after the timeout is observed, read the shared cell that T04's `run_in_thread` exposed for the in-flight call (`cell[0]`) and check `is_alive()`. If `cell[0]` is set AND alive, set `result.thread_leaked = True` and emit a distinct log line at the existing timeout-warning site distinguishing "thread still alive" from a clean timeout. If `cell[0]` is `None` (worker never started — the "not-started" timeout), do NOT flag it. Keep the command layer decoupled from executor internals — it reads only a thread reference and `is_alive()`, never the pool.
 
 Tests:
 - A sync handler that blocks past its timeout produces a record with `thread_leaked=1`, distinguishable from a clean timeout (`thread_leaked=0`), verified against the real dedicated executor (not a mock).
@@ -29,7 +29,7 @@ Tests:
 Run affected files with `uv run pytest <files> -v` (never `-n auto`). This touches `src/hassette/core/` — run `uv run nox -s system` before done.
 
 ## Focus
-- The capture mechanism is defined by T04 (ContextVar or shared cell). Consume exactly what T04 exposes; if T04 used a ContextVar set inside `_call`, confirm it is readable at the `_execute` timeout site, otherwise use the explicit cell T04 provides. Do not re-derive a future handle.
+- The capture mechanism is a shared mutable cell exposed by T04 (`list[threading.Thread | None]`). Consume exactly that cell — do NOT introduce a ContextVar (it does not propagate worker→loop) and do not re-derive a future handle.
 - Keep `thread_leaked` separate from `status` — `status='timed_out'` stays unchanged (preserves FR#9 / the caller contract). The leak is an orthogonal flag.
 - `ExecutionRecord` is frozen (`@dataclass(frozen=True)`); construct with the new field, don't mutate.
 - The persistence column tuple at `telemetry_repository.py:58-62`: verify whether it is derived from the params dict keys or listed manually — a manual list must be updated or the INSERT will desync from the DDL.

@@ -2,7 +2,7 @@
 task_id: "T05"
 title: "Add saturation warnings and shutdown interruption behavior"
 status: "planned"
-depends_on: ["T04"]
+depends_on: ["T03", "T04"]
 implements: ["FR#4", "FR#6", "FR#7", "AC#3", "AC#4", "AC#5", "AC#6"]
 ---
 
@@ -10,7 +10,7 @@ implements: ["FR#4", "FR#6", "FR#7", "AC#3", "AC#4", "AC#5", "AC#6"]
 Give `SyncExecutorService` its runtime behavior: a two-trigger pool-saturation warning (a submission-time check plus a periodic probe in `serve()`, because a submission-only check goes silent exactly when the pool is fully starved) and the end-to-end shutdown interruption (Python-level workers interrupted within budget, C-blocked workers logged and abandoned at budget expiry). Now that routing (T04) exists, real worker threads can be produced, so this task carries the integration tests for both saturation and shutdown. Also document the `SystemExit`/`finally` contract.
 
 ## Prompt
-1. **Submission-time saturation check** — in `TaskBucket.run_in_thread` (or a helper the service exposes), after submitting work, compute active-vs-ceiling occupancy from the dedicated executor and emit a rate-limited WARNING when it crosses ~75%. Mirror the lazy-eviction rate-limit pattern in `command_executor.log_timeout_rate_limited` (`command_executor.py:290-326`) and the `_CAPACITY_WARN_THRESHOLD`/`_CAPACITY_WARN_RATE_LIMIT_SECS` constants (`command_executor.py` top-of-file). Active-worker count is an approximation from the executor's accounting — comment it as such.
+1. **Submission-time saturation check** — in `TaskBucket.run_in_thread` (or a helper the service exposes), after submitting work, compute active-vs-ceiling occupancy from the dedicated executor and emit a rate-limited WARNING when it crosses ~75%. Mirror the **write-queue** capacity-warning pattern in `command_executor.enqueue_record` (`command_executor.py:328-346`), which rate-limits with a single global timestamp (`_last_capacity_warn_ts`) and the `_CAPACITY_WARN_THRESHOLD`/`_CAPACITY_WARN_RATE_LIMIT_SECS` constants — pool saturation is a global condition, so use the global-timestamp model, NOT the per-entity dict in `log_timeout_rate_limited` (`:290-326`). Active-worker count is an approximation from the executor's accounting — comment it as such.
 
 2. **Periodic probe** — fill in the `serve()` loop extension point left by T03: every ~30s, read pool occupancy and emit the same rate-limited WARNING while saturation persists, yielding to `shutdown_event` between cycles. The probe is the live "8/8 workers stuck" signal when submissions have stopped. Add a co-located code comment at the probe and at the rate-limit constant tying the two together: the probe cadence must be ≥ the rate-limit suppress window, or the probe self-suppresses and the operator sees nothing. Picking a probe interval shorter than the suppress window silently couples the two — the comment is what prevents a future maintainer from doing that.
 

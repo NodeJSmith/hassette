@@ -15,7 +15,7 @@ Edit `src/hassette/config/models.py`, `LifecycleConfig` class (`:218-259`). Add 
 - `sync_executor_max_workers: int = Field(default_factory=lambda: min(32, (os.cpu_count() or 1) + 4))` — the dedicated pool ceiling. Match the prior implicit default-pool sizing. Add a docstring noting this is a reasonable starting ceiling, NOT a literal behavior-equivalence (the old shared pool also served logging/DB, so a same-size dedicated pool gives sync handlers more effective headroom).
 - `sync_executor_shutdown_timeout_seconds: float = Field(default=10.0)` — the shutdown interruption budget (HA's value). Docstring: the join-or-interrupt budget for sync-handler worker threads at shutdown; must be under `total_shutdown_timeout_seconds`.
 
-Add a `@model_validator(mode="after")` mirroring the existing one at `:208-215`:
+Add a `@model_validator(mode="after")` mirroring the existing one at `:208-215` (note: that example, `fill_event_defaults`, is on `LoggingConfig`, not `LifecycleConfig` — it is a shape reference for the validator pattern, not the same class):
 
 ```python
 @model_validator(mode="after")
