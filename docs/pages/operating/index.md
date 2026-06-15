@@ -13,7 +13,7 @@ Hassette talks to Home Assistant over a WebSocket — a persistent connection th
 When Hassette first starts (or [`WebsocketService`][hassette.core.websocket_service.WebsocketService] restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added (a small random offset so retries don't fire in lockstep). Tenacity — the retry library Hassette uses internally — logs a WARNING before each sleep, where `...` is the exception that triggered the retry:
 
 ```
-Retrying hassette.core.websocket_service.WebsocketService._make_connection.<locals>._inner_connect in X.Xs as it raised ...
+Retrying hassette.core.websocket_service.WebsocketService.make_connection.<locals>._inner_connect in X.Xs as it raised ...
 ```
 
 If all five attempts fail, the error reaches layer 3.

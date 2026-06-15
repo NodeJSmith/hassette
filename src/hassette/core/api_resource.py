@@ -4,6 +4,7 @@ import typing
 from asyncio import CancelledError
 from collections.abc import Callable
 from contextlib import AsyncExitStack
+from http import HTTPStatus
 from typing import Any, ClassVar
 
 import aiohttp
@@ -72,15 +73,15 @@ class ApiResource(Resource):
         self._rest_url_override: str | None = rest_url
         self._headers_factory: Callable[[], dict[str, str]] | None = headers_factory
 
-    async def on_initialize(self):
+    async def on_initialize(self) -> None:
         """
         Start the API service.
 
         WebsocketService is guaranteed ready by depends_on auto-wait.
         """
         # Use injected overrides when provided; fall back to config-derived properties.
-        rest_url = self._rest_url_override if self._rest_url_override is not None else self._rest_url
-        headers = self._headers_factory() if self._headers_factory is not None else self._headers
+        rest_url = self._rest_url_override if self._rest_url_override is not None else self.rest_url
+        headers = self._headers_factory() if self._headers_factory is not None else self.headers
         await self._stack.__aenter__()
         self._session = await self._stack.enter_async_context(aiohttp.ClientSession(headers=headers, base_url=rest_url))
         self.mark_ready(reason="API session initialized")
@@ -94,22 +95,22 @@ class ApiResource(Resource):
         return self.hassette.config.logging.api
 
     @property
-    def _headers(self) -> dict[str, str]:
+    def headers(self) -> dict[str, str]:
         """Get the headers for this API instance."""
         return self.hassette.config.headers
 
     @property
-    def _rest_url(self) -> str:
+    def rest_url(self) -> str:
         """Get the REST URL for this API instance."""
         return self.hassette.rest_url
 
     @property
-    def _ws_conn(self) -> "WebsocketService":
+    def ws_conn(self) -> "WebsocketService":
         """Get the WebSocket connection for this API instance."""
         assert self.hassette._websocket_service is not None
         return self.hassette._websocket_service
 
-    async def _rest_request(
+    async def rest_request(
         self,
         method: str,
         url: str,
@@ -160,7 +161,7 @@ class ApiResource(Resource):
 
                 return response
             except aiohttp.ClientResponseError as e:
-                if e.status == 404:
+                if e.status == HTTPStatus.NOT_FOUND:
                     if not suppress_error_message:
                         self.logger.error(
                             "Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2
@@ -179,7 +180,7 @@ class ApiResource(Resource):
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
         )
 
-    async def _get_history_raw(
+    async def get_history_raw(
         self,
         entity_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
@@ -204,7 +205,7 @@ class ApiResource(Resource):
         # so we remove them if they are False
         params = {k: v for k, v in params.items() if v is not False}
 
-        response = await self._rest_request("GET", url, params=params)
+        response = await self.rest_request("GET", url, params=params)
 
         entries = await response.json()
 

@@ -21,7 +21,7 @@ async def bus_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hass
     """Fresh harness with bus + state_proxy for bus integration tests.
 
     Marks the state proxy ready. State is seeded via harness.seed_state().
-    The api mock returns an empty state list so _load_cache succeeds without HTTP.
+    The api mock returns an empty state list so load_cache succeeds without HTTP.
     """
     harness = HassetteHarness(test_config, skip_global_set=False)
     harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()

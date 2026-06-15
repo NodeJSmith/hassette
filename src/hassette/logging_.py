@@ -242,7 +242,7 @@ class LogPersistenceHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         if record.levelno < self._persistence_level:
             return
-        self._batch.append(self._record_to_dict(record))
+        self._batch.append(self.record_to_dict(record))
         if len(self._batch) >= self.BATCH_SIZE:
             self._flush()
 
@@ -260,7 +260,7 @@ class LogPersistenceHandler(logging.Handler):
 
         def _do_enqueue(b=batch) -> None:
             try:
-                if not db_service.enqueue(db_service._insert_log_records(b)):  # pyright: ignore[reportPrivateUsage]
+                if not db_service.enqueue(db_service._insert_log_records(b)):
                     with dropped_lock:
                         self._dropped += batch_len
             except RuntimeError:
@@ -269,7 +269,7 @@ class LogPersistenceHandler(logging.Handler):
 
         loop.call_soon_threadsafe(_do_enqueue)
 
-    def _record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
+    def record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
         return {
             "timestamp": record.created,
             "level": record.levelname,

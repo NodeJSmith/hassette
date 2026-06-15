@@ -235,7 +235,7 @@ class TestSizeFailsafePrePass:
                 return 10.0
             return 0.0
 
-        service._get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
+        service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # executions should NOT be touched (log_records were sufficient)
@@ -278,7 +278,7 @@ class TestSizeFailsafePrePass:
                 return 10.0
             return 0.0
 
-        service._get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
+        service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # Execution records should have been deleted (pre-pass was insufficient)

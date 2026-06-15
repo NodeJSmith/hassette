@@ -178,7 +178,7 @@ class HandlerInvoker:
     pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False)
     """Unresolved per-invocation completion futures for non-parallel modes.
 
-    Each ``_run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
+    Each ``run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
     that resolves when the handler actually runs (or is dropped/released). A queued trigger accepted
     into the deque has no live child until drain time, so its future would hang forever if the
     listener is released first. ``release_guard`` resolves every remaining future here so those outer
@@ -265,11 +265,11 @@ class HandlerInvoker:
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(lambda: self._run_with_mode(invoke_fn))
+            await self.rate_limiter.call(lambda: self.run_with_mode(invoke_fn))
         else:
-            await self._run_with_mode(invoke_fn)
+            await self.run_with_mode(invoke_fn)
 
-    async def _run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+    async def run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
         """Apply the overlap mode guard to a single started invocation.
 
         The outer dispatch task (counted by BusService's ``_dispatch_pending``) must stay pending
@@ -297,7 +297,7 @@ class HandlerInvoker:
         def run_and_track() -> asyncio.Task[None]:
             # The guard may call this now (RAN) or later at drain time (QUEUED_ACCEPTED). Either way,
             # resolve ``done`` once the spawned child settles, normally or via restart-cancellation.
-            task = self.task_bucket.spawn(self._invocation_with_stall_watch(invoke_fn), name="bus:mode_invocation")
+            task = self.task_bucket.spawn(self.invocation_with_stall_watch(invoke_fn), name="bus:mode_invocation")
             task.add_done_callback(lambda _t: resolve_done())
             return task
 
@@ -311,15 +311,15 @@ class HandlerInvoker:
         # QUEUED_ACCEPTED: child spawns at drain time (or release resolves ``done`` first).
         await done
 
-    async def _invocation_with_stall_watch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+    async def invocation_with_stall_watch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
         """Run one handler invocation, emitting a WARNING if it holds the guard past the threshold."""
-        watchdog = asyncio.get_running_loop().call_later(STALL_THRESHOLD_SECONDS, self._warn_stalled)
+        watchdog = asyncio.get_running_loop().call_later(STALL_THRESHOLD_SECONDS, self.warn_stalled)
         try:
             await invoke_fn()
         finally:
             watchdog.cancel()
 
-    def _warn_stalled(self) -> None:
+    def warn_stalled(self) -> None:
         """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
             "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",

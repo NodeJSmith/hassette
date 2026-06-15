@@ -112,7 +112,7 @@ async def test_framework_listener_registration(
         name="hassette.test.framework_listener",
         source_tier="framework",
     )
-    reg = bus_service._build_registration(listener)
+    reg = bus_service.build_registration(listener)
     await executor.register_listener(reg)
 
     # Verify the DB row

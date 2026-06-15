@@ -265,7 +265,7 @@ class ExecutionCompletedData(BaseModel):
 class ExecutionCompletedWsMessage(BaseModel):
     type: Literal["execution_completed"]
     data: list[ExecutionCompletedData]
-    """Per-drain batch: all executions persisted in one ``_drain_and_persist()`` cycle."""
+    """Per-drain batch: all executions persisted in one ``drain_and_persist()`` cycle."""
     timestamp: float
 
 

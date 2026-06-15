@@ -544,7 +544,7 @@ class TestStateProxyWebsocketListeners:
         mock_mark_not_ready.assert_not_called()
 
     async def test_subscribes_to_events_even_when_load_cache_fails(self, state_proxy: "StateProxy") -> None:
-        """subscribe_to_events runs regardless of _load_cache failure (#992)."""
+        """subscribe_to_events runs regardless of load_cache failure (#992)."""
         simulate_disconnect(state_proxy, clear_subscription=True)
 
         state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=Exception("API unavailable"))
@@ -600,7 +600,7 @@ class TestStateProxyReconnectConcurrency:
         state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
         with (
-            patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache),
+            patch.object(state_proxy, "load_cache", side_effect=gated_load_cache),
             patch.object(state_proxy, "subscribe_to_events", wraps=state_proxy.subscribe_to_events) as mock_subscribe,
         ):
             task1 = asyncio.create_task(state_proxy.on_reconnect())
@@ -621,7 +621,7 @@ class TestStateProxyReconnectConcurrency:
         assert state_proxy.is_ready()
 
     async def test_reconnect_lock_does_not_block_state_writes(self, state_proxy: "StateProxy") -> None:
-        """_on_state_change completes while on_reconnect is held mid-flight."""
+        """on_state_change completes while on_reconnect is held mid-flight."""
         simulate_disconnect(state_proxy)
 
         gate = asyncio.Event()
@@ -632,21 +632,21 @@ class TestStateProxyReconnectConcurrency:
 
         state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
-        with patch.object(state_proxy, "_load_cache", side_effect=gated_load_cache):
+        with patch.object(state_proxy, "load_cache", side_effect=gated_load_cache):
             reconnect_task = asyncio.create_task(state_proxy.on_reconnect())
             await asyncio.sleep(0)
 
-            # on_reconnect is blocked inside _load_cache
+            # on_reconnect is blocked inside load_cache
             assert not reconnect_task.done()
 
-            # _on_state_change uses self.lock (FairAsyncRLock), not _reconnect_lock
+            # on_state_change uses self.lock (FairAsyncRLock), not _reconnect_lock
             event = make_full_state_change_event(
                 "sensor.temp",
                 make_sensor_state_dict("sensor.temp", "20"),
                 make_sensor_state_dict("sensor.temp", "21"),
             )
             # This must complete without deadlock
-            await asyncio.wait_for(state_proxy._on_state_change(event), timeout=1.0)
+            await asyncio.wait_for(state_proxy.on_state_change(event), timeout=1.0)
 
             gate.set()
             await reconnect_task

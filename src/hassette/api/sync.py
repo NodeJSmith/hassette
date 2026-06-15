@@ -439,7 +439,7 @@ class ApiSyncFacade(Resource):
         entity_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get the logbook entries for a specific entity.
 
         Args:
@@ -479,7 +479,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_camera_image(entity_id, timestamp))
 
-    def get_calendars(self) -> list[dict]:
+    def get_calendars(self) -> list[dict[str, Any]]:
         """Get the list of calendars."""
 
         return self.task_bucket.run_sync(self._api.get_calendars())
@@ -489,7 +489,7 @@ class ApiSyncFacade(Resource):
         calendar_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get events from a specific calendar.
 
         Args:
@@ -502,7 +502,7 @@ class ApiSyncFacade(Resource):
 
         return self.task_bucket.run_sync(self._api.get_calendar_events(calendar_id, start_time, end_time))
 
-    def render_template(self, template: str, variables: dict | None = None) -> str:
+    def render_template(self, template: str, variables: dict[str, Any] | None = None) -> str:
         """Render a template with given variables.
 
         Args:

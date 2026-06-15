@@ -36,7 +36,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 
 The budget uses a sliding window defined by two fields: `budget_intensity` (maximum restarts allowed) and `budget_period_seconds` (the window size in seconds). Timestamps older than `budget_period_seconds` are evicted before each check.
 
-When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `_handle_exhaustion()`. The budget resets on successful recovery. `record_restart()` is not called again until the service fails after being healthy.
+When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. The budget resets on successful recovery. `record_restart()` is not called again until the service fails after being healthy.
 
 Backoff between restart attempts uses exponential growth: `backoff_base_seconds * (backoff_multiplier ** (attempt - 1))`, capped at `backoff_max_seconds`. The defaults produce delays of 2 s, 4 s, 8 s, and so on up to 60 s.
 
@@ -46,7 +46,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 **Normal errors.** The exception name appears in neither `fatal_error_names` nor `non_retryable_error_names`. The restart proceeds through the budget check and backoff sequence.
 
-**Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `_handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
+**Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
 
 **Fatal errors.** The exception name is in `fatal_error_names`. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path: the service catches them itself in `_serve_wrapper()` and calls `handle_crash()` directly, going to `CRASHED` without ever emitting the `FAILED` event that this routing reads.
 

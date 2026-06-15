@@ -46,6 +46,9 @@ _SIZE_FAILSAFE_VACUUM_PAGES = 100
 # Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
+_BUSY_TIMEOUT_MS = 5000
+"""SQLite busy_timeout (ms) applied to both read and write connections."""
+
 _LOG_COLUMNS = (
     "seq",
     "timestamp",
@@ -201,14 +204,14 @@ class DatabaseService(Service):
         """Set up the database: check schema version, run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
-        self._db_path = self._resolve_db_path()
+        self._db_path = self.resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        await self._handle_schema_version(self._db_path)
+        await self.handle_schema_version(self._db_path)
 
         self.logger.info("Running database migrations for %s", self._db_path)
         timeout = self.hassette.config.database.migration_timeout_seconds
-        await asyncio.wait_for(asyncio.to_thread(self._run_migrations), timeout=timeout)
+        await asyncio.wait_for(asyncio.to_thread(self.run_migrations), timeout=timeout)
 
         self._db = await _connect_daemon(self._db_path, isolation_level=None)
         self._db.row_factory = aiosqlite.Row
@@ -218,16 +221,16 @@ class DatabaseService(Service):
         self._read_db = await _connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
-        await self._read_db.execute("PRAGMA busy_timeout = 5000")
+        await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
 
-        await self._set_pragmas()
+        await self.set_pragmas()
         try:
             await self._check_size_failsafe()
         except Exception:
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
-        self._db_worker_task = asyncio.create_task(self._db_write_worker())
+        self._db_worker_task = asyncio.create_task(self.db_write_worker())
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
@@ -245,19 +248,19 @@ class DatabaseService(Service):
             except TimeoutError:
                 pass
 
-            await self._update_heartbeat()
+            await self.update_heartbeat()
 
             if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
             time_since_retention = time.monotonic() - last_retention_run
             if time_since_retention >= _RETENTION_INTERVAL_SECONDS:
-                await self._run_retention_cleanup()
+                await self.run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
             time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
             if time_since_size_failsafe >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
-                await self._run_size_failsafe()
+                await self.run_size_failsafe()
                 last_size_failsafe_run = time.monotonic()
 
     async def on_shutdown(self) -> None:
@@ -278,10 +281,10 @@ class DatabaseService(Service):
                 self._db_worker_task.cancel()
                 await asyncio.gather(self._db_worker_task, return_exceptions=True)
                 self._db_worker_task = None
-            self._close_remaining_queue_items(queue)
-            await self._close_connections()
+            self.close_remaining_queue_items(queue)
+            await self.close_connections()
 
-    def _close_remaining_queue_items(self, queue: asyncio.Queue[_WriteQueueItem] | None) -> None:
+    def close_remaining_queue_items(self, queue: asyncio.Queue[_WriteQueueItem] | None) -> None:
         """Close any coroutines left on the write queue without executing them.
 
         Called during shutdown to prevent unawaited-coroutine warnings from GC.
@@ -302,7 +305,7 @@ class DatabaseService(Service):
         if closed:
             self.logger.debug("Closed %d remaining coroutine(s) from write queue during shutdown", closed)
 
-    async def _close_connections(self) -> None:
+    async def close_connections(self) -> None:
         """Close both database connections. Idempotent — safe to call multiple times.
 
         Always attempts both connections even if the first close raises CancelledError.
@@ -336,10 +339,10 @@ class DatabaseService(Service):
 
     async def cleanup(self, timeout: int | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
-        await self._close_connections()
+        await self.close_connections()
         await super().cleanup(timeout)
 
-    async def _db_write_worker(self) -> None:
+    async def db_write_worker(self) -> None:
         """Drain _db_write_queue sequentially.
 
         Each item is a (coroutine, future) pair. If future is not None, the
@@ -349,7 +352,7 @@ class DatabaseService(Service):
         The loop runs until cancelled by on_shutdown().
         """
         if self._db_write_queue is None:
-            raise RuntimeError("_db_write_worker() started before on_initialize() set _db_write_queue")
+            raise RuntimeError("db_write_worker() started before on_initialize() set _db_write_queue")
         queue = self._db_write_queue
         while True:
             coro, future = await queue.get()
@@ -422,13 +425,13 @@ class DatabaseService(Service):
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
         return True
 
-    def _resolve_db_path(self) -> Path:
+    def resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""
         if self.hassette.config.database.path is not None:
             return self.hassette.config.database.path.resolve()
         return self.hassette.config.data_dir / "hassette.db"
 
-    def _get_expected_head_version(self) -> int:
+    def get_expected_head_version(self) -> int:
         """Return the highest migration version number from migrations_sql/ (synchronous).
 
         Scans the migrations_sql/ directory for *.sql files with numeric stems
@@ -439,11 +442,11 @@ class DatabaseService(Service):
             raise RuntimeError("No migration files found in migrations_sql/")
         return max(sql_files)
 
-    def _get_current_db_version(self, db_path: Path) -> int:
+    def get_current_db_version(self, db_path: Path) -> int:
         """Return PRAGMA user_version from the on-disk DB (synchronous). Returns 0 for fresh databases."""
         return _read_user_version(db_path)
 
-    async def _handle_schema_version(self, db_path: Path) -> None:
+    async def handle_schema_version(self, db_path: Path) -> None:
         """Check schema version and handle mismatches.
 
         If the DB file does not exist yet, does nothing (migrations will create it).
@@ -463,8 +466,8 @@ class DatabaseService(Service):
         if not db_path.exists():
             return
 
-        expected_head = await asyncio.to_thread(self._get_expected_head_version)
-        current_version = await asyncio.to_thread(self._get_current_db_version, db_path)
+        expected_head = await asyncio.to_thread(self.get_expected_head_version)
+        current_version = await asyncio.to_thread(self.get_current_db_version, db_path)
 
         if current_version == expected_head:
             return
@@ -507,14 +510,14 @@ class DatabaseService(Service):
                 f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
             ) from exc
 
-    def _run_migrations(self) -> None:
+    def run_migrations(self) -> None:
         """Run PRAGMA user_version migrations to the latest version (synchronous, called via to_thread).
 
         auto_vacuum = INCREMENTAL is set by the runner before any tables are created.
         """
         run_migrations(self._db_path)
 
-    async def _set_pragmas(self) -> None:
+    async def set_pragmas(self) -> None:
         """Configure SQLite PRAGMAs for performance and safety."""
         db = self.db
         await db.execute("PRAGMA journal_mode = WAL")
@@ -524,13 +527,13 @@ class DatabaseService(Service):
         # This is acceptable for operational telemetry — the orphan-session mechanism
         # compensates for session rows but not for individual telemetry records.
         await db.execute("PRAGMA synchronous = NORMAL")
-        await db.execute("PRAGMA busy_timeout = 5000")
+        await db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
         await db.execute("PRAGMA foreign_keys = ON")
         # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
         # This line documents intent only.
         await db.execute("PRAGMA auto_vacuum = INCREMENTAL")
 
-    async def _update_heartbeat(self) -> None:
+    async def update_heartbeat(self) -> None:
         """Await a heartbeat update for the current session.
 
         Early-return guards run inline; the DB write is awaited via submit()
@@ -568,7 +571,7 @@ class DatabaseService(Service):
                 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
             )
 
-    async def _run_retention_cleanup(self) -> None:
+    async def run_retention_cleanup(self) -> None:
         """Enqueue a retention cleanup; fire-and-forget via enqueue()."""
         if self._db is None:
             return
@@ -650,7 +653,7 @@ class DatabaseService(Service):
             await self.db.rollback()
             self.logger.exception("Failed to run retention cleanup")
 
-    def _get_db_size_mb(self) -> float:
+    def get_db_size_mb(self) -> float:
         """Return total database size (main + WAL + SHM) in megabytes."""
         total = 0
         for suffix in ("", "-wal", "-shm"):
@@ -671,7 +674,7 @@ class DatabaseService(Service):
         if max_size_mb == 0:
             return
 
-        current_size = self._get_db_size_mb()
+        current_size = self.get_db_size_mb()
         if current_size <= max_size_mb:
             self._consecutive_size_triggers = 0
             return
@@ -716,7 +719,7 @@ class DatabaseService(Service):
                 await vacuum_cursor.close()
                 await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
-                current_size = self._get_db_size_mb()
+                current_size = self.get_db_size_mb()
                 if current_size <= max_size_mb:
                     break
 
@@ -729,7 +732,7 @@ class DatabaseService(Service):
                         max_size_mb,
                     )
 
-            current_size = self._get_db_size_mb()
+            current_size = self.get_db_size_mb()
             if current_size <= max_size_mb:
                 break
 
@@ -738,7 +741,7 @@ class DatabaseService(Service):
             parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
             self.logger.info("Size failsafe: deleted %s (%.1f MB remaining)", parts, current_size)
 
-    async def _run_size_failsafe(self) -> None:
+    async def run_size_failsafe(self) -> None:
         """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
         if self._db is None:
             return

@@ -88,7 +88,7 @@ class BusService(Service):
         self._duration_hold = DurationHoldManager(
             executor=self._executor,
             config_resolver=self._config_resolver,
-            state_reader=self._read_entity_state,
+            state_reader=self.read_entity_state,
             remove_listener=self.remove_listener,
             router=self.router,
             task_bucket=self.task_bucket,
@@ -106,7 +106,7 @@ class BusService(Service):
         """Return whether to log all events."""
         return self.hassette.config.logging.all_events
 
-    def _on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
+    def on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
         """Callback for dispatch task completion — decrements pending counter."""
         if self._dispatch_pending <= 0:
             self.logger.warning("_dispatch_pending underflow detected (was %d); resetting to 0", self._dispatch_pending)
@@ -145,7 +145,7 @@ class BusService(Service):
             )
 
         # Await DB registration inline — db_id is set before route insertion.
-        reg = self._build_registration(listener)
+        reg = self.build_registration(listener)
         db_id = await self._executor.register_listener(reg)
         listener.mark_registered(db_id)
 
@@ -159,11 +159,11 @@ class BusService(Service):
                 self._duration_hold.immediate_fire_task(listener),
                 name="bus:immediate_fire",
             )
-            immediate_task.add_done_callback(self._on_dispatch_done)
+            immediate_task.add_done_callback(self.on_dispatch_done)
 
         return db_id
 
-    def _build_registration(self, listener: Listener) -> ListenerRegistration:
+    def build_registration(self, listener: Listener) -> ListenerRegistration:
         """Build a ``ListenerRegistration`` struct from listener identity and options."""
         source_location = listener.identity.source_location
         registration_source: str | None = listener.identity.registration_source or None
@@ -260,7 +260,7 @@ class BusService(Service):
         """
         listener.cancel()
         self.router.remove_listener_by_id(listener.topic, listener.listener_id)
-        self._fire_removal_callback(listener)
+        self.fire_removal_callback(listener)
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner synchronously.
@@ -274,13 +274,13 @@ class BusService(Service):
         removed = self.router.clear_owner(owner)
         for listener in removed:
             listener.cancel()
-            self._fire_removal_callback(listener)
+            self.fire_removal_callback(listener)
 
-    def _fire_removal_callback(self, listener: "Listener") -> None:
+    def fire_removal_callback(self, listener: "Listener") -> None:
         """Invoke the per-owner removal callback for listener, if one is registered.
 
         Singular (one listener per call) by design: the bus fires on each removal as it
-        happens, where SchedulerService._fire_removal_callbacks batches a list at the end
+        happens, where SchedulerService.fire_removal_callbacks batches a list at the end
         of a bulk operation.
         """
         callback = self._removal_callbacks.get(listener.identity.owner_id)
@@ -291,7 +291,7 @@ class BusService(Service):
         """Get all listeners owned by a specific owner."""
         return self.router.get_listeners_by_owner(owner)
 
-    def _should_log_event(self, event: "Event[Any]") -> bool:
+    def should_log_event(self, event: "Event[Any]") -> bool:
         """Determine if an event should be logged based on its type."""
         if not event.payload:
             return False
@@ -313,10 +313,10 @@ class BusService(Service):
         if self._event_filter.should_skip(base_topic, event):
             return
 
-        if self._should_log_event(event):
+        if self.should_log_event(event):
             self.logger.debug("Event: %r", event)
 
-        routes = self._expand_topics(base_topic, event)  # ordered: most specific -> least
+        routes = self.expand_topics(base_topic, event)  # ordered: most specific -> least
         chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
 
         # Route first, then dedupe by "first match wins" because routes are ordered by specificity
@@ -347,9 +347,9 @@ class BusService(Service):
                 self._dispatch_pending += 1
                 self._dispatch_idle_event.clear()
                 task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
-                task.add_done_callback(self._on_dispatch_done)
+                task.add_done_callback(self.on_dispatch_done)
 
-    def _expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
+    def expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
         payload = event.payload
         if not isinstance(payload, HassPayload):
             return [topic]
@@ -369,7 +369,7 @@ class BusService(Service):
             topic,  # hass.event.state_changed
         ]
 
-    def _read_entity_state(self, entity_id: str) -> "HassStateDict | None":
+    def read_entity_state(self, entity_id: str) -> "HassStateDict | None":
         """Read entity state from StateProxy; returns None on any error.
 
         Absorbs ``ResourceNotReadyError`` and unexpected exceptions so the

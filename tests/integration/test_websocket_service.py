@@ -211,7 +211,7 @@ async def test_respond_if_necessary_sets_result(websocket_service: WebsocketServ
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[5] = pending_future
 
-    websocket_service._respond_if_necessary({"type": "result", "id": 5, "success": True, "result": {"value": 7}})
+    websocket_service.respond_if_necessary({"type": "result", "id": 5, "success": True, "result": {"value": 7}})
 
     assert pending_future.done()
     assert pending_future.result() == {"value": 7}
@@ -220,7 +220,7 @@ async def test_respond_if_necessary_sets_result(websocket_service: WebsocketServ
 async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketService) -> None:
     """Attach FailedMessageError when result payloads report failure.
 
-    Verifies the end-to-end path _respond_if_necessary → from_error_response →
+    Verifies the end-to-end path respond_if_necessary → from_error_response →
     FailedMessageError.code / .original_data is wired correctly: HA's error
     envelope `code` field must flow through to the exception's `code` attribute
     so callers can do `except FailedMessageError as e: if e.code == "...": ...`.
@@ -234,7 +234,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
         "success": False,
         "error": {"code": "invalid_format", "message": "failure"},
     }
-    websocket_service._respond_if_necessary(original_message)
+    websocket_service.respond_if_necessary(original_message)
 
     assert pending_future.done()
     exception = pending_future.exception()
@@ -286,7 +286,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
         "type": "event",
         "event": {"event_type": "dummy", "data": {}, "context": {}, "origin": "local", "time_fired": "now"},
     }
-    await websocket_service._dispatch(data)
+    await websocket_service.dispatch(data)
 
     mock_create.assert_called_once_with(data)
     send_event_mock.assert_awaited_once_with(dummy_event)
@@ -297,9 +297,9 @@ async def test_dispatch_routes_result_messages(
 ) -> None:
     """Ensure result messages are passed to the responder helper."""
     respond_mock = Mock()
-    monkeypatch.setattr(websocket_service, "_respond_if_necessary", respond_mock)
+    monkeypatch.setattr(websocket_service, "respond_if_necessary", respond_mock)
 
-    await websocket_service._dispatch({"type": "result", "id": 1})
+    await websocket_service.dispatch({"type": "result", "id": 1})
 
     respond_mock.assert_called_once_with({"type": "result", "id": 1})
 
@@ -314,9 +314,9 @@ async def test_raw_recv_dispatches_text_payload(
     websocket_service._ws = fake_ws
 
     dispatch_mock = AsyncMock()
-    monkeypatch.setattr(websocket_service, "_dispatch", dispatch_mock)
+    monkeypatch.setattr(websocket_service, "dispatch", dispatch_mock)
 
-    await websocket_service._raw_recv()
+    await websocket_service.raw_recv()
 
     dispatch_mock.assert_awaited_once_with({"type": "result", "id": 1})
 
@@ -326,7 +326,7 @@ async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketSe
     websocket_service._ws = build_fake_ws(is_closed=True)
 
     with pytest.raises(RetryableConnectionClosedError):
-        await websocket_service._raw_recv()
+        await websocket_service.raw_recv()
 
 
 async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketService) -> None:
@@ -336,7 +336,7 @@ async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketServ
     websocket_service._ws = fake_ws
 
     with pytest.raises(RetryableConnectionClosedError):
-        await websocket_service._raw_recv()
+        await websocket_service.raw_recv()
 
 
 async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketService) -> None:
@@ -347,7 +347,7 @@ async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketServic
     websocket_service._ws = fake_ws
 
     with pytest.raises(RetryableConnectionClosedError) as exc_info:
-        await websocket_service._raw_recv()
+        await websocket_service.raw_recv()
 
     assert exc_info.value.__cause__ is socket_error
 
@@ -365,13 +365,13 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     """Fire WEBSOCKET_DISCONNECTED when the recv loop dies unexpectedly."""
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
-    # The real _make_connection calls mark_ready() via _start_recv_and_subscribe; mirror that here
+    # The real make_connection calls mark_ready() via start_recv_and_subscribe; mirror that here
     websocket_service.mark_ready(reason="test: simulating successful connection")
 
     with (
         patch.object(
             websocket_service,
-            "_make_connection",
+            "make_connection",
             return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
@@ -392,7 +392,7 @@ async def test_marked_not_ready_on_recv_loop_failure(websocket_service: Websocke
     with (
         patch.object(
             websocket_service,
-            "_make_connection",
+            "make_connection",
             return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
@@ -411,7 +411,7 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
     with (
         patch.object(
             websocket_service,
-            "_make_connection",
+            "make_connection",
             return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
@@ -422,21 +422,21 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
 
 
 async def test_connect_ws_sets_ws_and_authenticates(websocket_service: WebsocketService) -> None:
-    """_connect_ws sets self._ws and calls authenticate."""
+    """connect_ws sets self._ws and calls authenticate."""
     fake_ws = build_fake_ws()
     fake_session = MagicMock()
     fake_session.ws_connect = AsyncMock(return_value=fake_ws)
 
     websocket_service.authenticate = AsyncMock()
 
-    await websocket_service._connect_ws(fake_session)
+    await websocket_service.connect_ws(fake_session)
 
     assert websocket_service._ws is fake_ws
     websocket_service.authenticate.assert_awaited_once()
 
 
 async def test_connect_ws_wraps_connection_refused(websocket_service: WebsocketService) -> None:
-    """_connect_ws converts ClientConnectorError with ConnectionRefusedError cause to CouldNotFindHomeAssistantError."""
+    """connect_ws converts ClientConnectorError with ConnectionRefusedError cause to CouldNotFindHomeAssistantError."""
     fake_session = MagicMock()
     cause = ConnectionRefusedError("refused")
     connector_error = ClientConnectorError.__new__(ClientConnectorError)
@@ -445,11 +445,11 @@ async def test_connect_ws_wraps_connection_refused(websocket_service: WebsocketS
     fake_session.ws_connect = AsyncMock(side_effect=connector_error)
 
     with pytest.raises(CouldNotFindHomeAssistantError):
-        await websocket_service._connect_ws(fake_session)
+        await websocket_service.connect_ws(fake_session)
 
 
 async def test_start_recv_and_subscribe_marks_ready(websocket_service: WebsocketService) -> None:
-    """_start_recv_and_subscribe spawns recv, calls mark_ready, sets _connected_at, returns recv task."""
+    """start_recv_and_subscribe spawns recv, calls mark_ready, sets _connected_at, returns recv task."""
     fake_task = asyncio.create_task(asyncio.sleep(0))
     websocket_service.task_bucket = MagicMock()
 
@@ -461,19 +461,19 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
         return fake_task
 
     websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-    websocket_service._send_connection_established_event = AsyncMock()
-    websocket_service._subscribe_events = AsyncMock(return_value=42)
+    websocket_service.send_connection_established_event = AsyncMock()
+    websocket_service.subscribe_events = AsyncMock(return_value=42)
     websocket_service.mark_ready = Mock()
     # Stub _emit_readiness_event: this test focuses on mark_ready/subscription behavior;
     # readiness event emission is covered by test_websocket_readiness_events.py.
     websocket_service._emit_readiness_event = AsyncMock()
 
-    # _start_recv_and_subscribe calls _set_connection_state(CONNECTED).
+    # start_recv_and_subscribe calls set_connection_state(CONNECTED).
     # DISCONNECTED → CONNECTED is invalid; the real flow goes through CONNECTING first
-    # (set by serve() before calling _make_connection). Set CONNECTING as the pre-condition.
+    # (set by serve() before calling make_connection). Set CONNECTING as the pre-condition.
     websocket_service._connection_state = ConnectionState.CONNECTING
 
-    result = await websocket_service._start_recv_and_subscribe()
+    result = await websocket_service.start_recv_and_subscribe()
 
     # Close any coroutines captured to suppress ResourceWarning
     for coro in spawned_coros:
@@ -488,7 +488,7 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
 
 
 async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
-    """_partial_cleanup cancels recv task, closes ws, clears futures and subscription ids."""
+    """partial_cleanup cancels recv task, closes ws, clears futures and subscription ids."""
     fake_ws = build_fake_ws()
     fake_recv_task = asyncio.create_task(asyncio.sleep(100))
     websocket_service._ws = fake_ws
@@ -499,7 +499,7 @@ async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: Web
     fut = websocket_service.hassette.loop.create_future()
     websocket_service._response_futures[99] = fut
 
-    await websocket_service._partial_cleanup()
+    await websocket_service.partial_cleanup()
 
     assert websocket_service._ws is None
     assert websocket_service._recv_task is None
@@ -510,30 +510,30 @@ async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: Web
 
 
 async def test_partial_cleanup_preserves_session(websocket_service: WebsocketService) -> None:
-    """_partial_cleanup must NOT clear self._session."""
+    """partial_cleanup must NOT clear self._session."""
     fake_session = MagicMock()
     websocket_service._session = fake_session
     websocket_service._ws = build_fake_ws()
     websocket_service._recv_task = asyncio.create_task(asyncio.sleep(0))
 
-    await websocket_service._partial_cleanup()
+    await websocket_service.partial_cleanup()
 
     assert websocket_service._session is fake_session
 
 
 async def test_partial_cleanup_suppresses_errors(websocket_service: WebsocketService) -> None:
-    """_partial_cleanup must not propagate any exceptions."""
+    """partial_cleanup must not propagate any exceptions."""
     fake_ws = build_fake_ws()
     fake_ws.close = AsyncMock(side_effect=RuntimeError("close failed"))
     websocket_service._ws = fake_ws
     websocket_service._recv_task = None
 
     # Should not raise
-    await websocket_service._partial_cleanup()
+    await websocket_service.partial_cleanup()
 
 
 async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketService) -> None:
-    """_partial_cleanup completes within ~2s even when recv task is non-cancellable."""
+    """partial_cleanup completes within ~2s even when recv task is non-cancellable."""
 
     async def _never_ends():
         try:
@@ -547,9 +547,9 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
 
     started = time.monotonic()
     try:
-        await websocket_service._partial_cleanup()
+        await websocket_service.partial_cleanup()
         elapsed = time.monotonic() - started
-        assert elapsed < 4.0, f"_partial_cleanup took too long: {elapsed:.2f}s"
+        assert elapsed < 4.0, f"partial_cleanup took too long: {elapsed:.2f}s"
     finally:
         stuck_task.cancel()
         await asyncio.gather(stuck_task, return_exceptions=True)
@@ -561,14 +561,14 @@ async def test_early_drop_retries_and_succeeds(
 ) -> None:
     """An early-drop within the stable window is retried transparently.
 
-    Verifies: handle_failed never called, _make_connection called 3 times,
-    _partial_cleanup called 2 times, DISCONNECTED event emitted 2 times,
+    Verifies: handle_failed never called, make_connection called 3 times,
+    partial_cleanup called 2 times, DISCONNECTED event emitted 2 times,
     mark_not_ready called twice.
     """
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
 
-    # First two _make_connection calls succeed but recv task fails immediately.
+    # First two make_connection calls succeed but recv task fails immediately.
     # Third call succeeds with clean exit.
     call_count = 0
     partial_cleanup_count = 0
@@ -597,8 +597,8 @@ async def test_early_drop_retries_and_succeeds(
         nonlocal partial_cleanup_count
         partial_cleanup_count += 1
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -606,8 +606,8 @@ async def test_early_drop_retries_and_succeeds(
 
     await websocket_service.serve()
 
-    assert make_connection_count == 3, f"Expected 3 _make_connection calls, got {make_connection_count}"
-    assert partial_cleanup_count == 2, f"Expected 2 _partial_cleanup calls, got {partial_cleanup_count}"
+    assert make_connection_count == 3, f"Expected 3 make_connection calls, got {make_connection_count}"
+    assert partial_cleanup_count == 2, f"Expected 2 partial_cleanup calls, got {partial_cleanup_count}"
 
     # DISCONNECTED should have been sent 2 times (once per early drop)
     disconnected_count = sum(
@@ -638,8 +638,8 @@ async def test_early_drop_exhausts_retry_budget(
 
         return asyncio.create_task(_fail())
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 2)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -649,7 +649,7 @@ async def test_early_drop_exhausts_retry_budget(
         await websocket_service.serve()
 
     # Initial + 2 retries = 3 total attempts, then propagates
-    assert call_count == 3, f"Expected 3 total _make_connection calls, got {call_count}"
+    assert call_count == 3, f"Expected 3 total make_connection calls, got {call_count}"
     assert not websocket_service.is_ready()
 
 
@@ -673,8 +673,8 @@ async def test_early_drop_exhausts_recovery_timeout(
 
         return asyncio.create_task(_fail())
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     # Configure very short max recovery (effectively 0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 10)
@@ -687,7 +687,7 @@ async def test_early_drop_exhausts_recovery_timeout(
         await websocket_service.serve()
 
     # Should have made only 1 attempt then stopped due to recovery timeout
-    assert call_count == 1, f"Expected 1 _make_connection call (recovery timeout), got {call_count}"
+    assert call_count == 1, f"Expected 1 make_connection call (recovery timeout), got {call_count}"
 
 
 async def test_stable_connection_failure_propagates_immediately(
@@ -711,14 +711,14 @@ async def test_stable_connection_failure_propagates_immediately(
 
         return asyncio.create_task(_fail())
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
 
     # Only 1 attempt — stable drop doesn't retry
-    assert call_count == 1, f"Expected 1 _make_connection call, got {call_count}"
+    assert call_count == 1, f"Expected 1 make_connection call, got {call_count}"
 
 
 async def test_non_retryable_exception_in_stable_window(
@@ -741,13 +741,13 @@ async def test_non_retryable_exception_in_stable_window(
 
         return asyncio.create_task(_fail())
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RuntimeError):
         await websocket_service.serve()
 
-    assert call_count == 1, f"Expected 1 _make_connection call, got {call_count}"
+    assert call_count == 1, f"Expected 1 make_connection call, got {call_count}"
 
 
 async def test_auth_failure_on_reconnect_logs_distinctive_message(
@@ -773,8 +773,8 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
             return asyncio.create_task(_fail())
         raise InvalidAuthError("token revoked")
 
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -788,13 +788,13 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
 
 
 async def test_send_connection_lost_event_idempotent(websocket_service: WebsocketService) -> None:
-    """_send_connection_lost_event is a no-op when service is already not-ready."""
+    """send_connection_lost_event is a no-op when service is already not-ready."""
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
 
-    # Service starts not-ready; calling _send_connection_lost_event should be a no-op
+    # Service starts not-ready; calling send_connection_lost_event should be a no-op
     assert not websocket_service.is_ready()
-    await websocket_service._send_connection_lost_event()
+    await websocket_service.send_connection_lost_event()
 
     disconnected_count = sum(
         1
@@ -805,23 +805,23 @@ async def test_send_connection_lost_event_idempotent(websocket_service: Websocke
 
 
 async def test_send_connection_lost_event_self_suppressing(websocket_service: WebsocketService) -> None:
-    """_send_connection_lost_event does not propagate bus exceptions."""
+    """send_connection_lost_event does not propagate bus exceptions."""
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
     websocket_service.mark_ready(reason="test: make service ready so event fires")
 
     # Should not raise even though the bus raises
-    await websocket_service._send_connection_lost_event()
+    await websocket_service.send_connection_lost_event()
 
 
 async def test_raw_recv_passes_close_code(websocket_service: WebsocketService) -> None:
-    """_raw_recv passes close_code from _ws.close_code when raising RetryableConnectionClosedError."""
+    """raw_recv passes close_code from _ws.close_code when raising RetryableConnectionClosedError."""
     fake_ws = build_fake_ws()
     fake_ws.close_code = 1001  # pyright: ignore[reportAttributeAccessIssue]
     fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSE, data=None))
     websocket_service._ws = fake_ws
 
     with pytest.raises(RetryableConnectionClosedError) as exc_info:
-        await websocket_service._raw_recv()
+        await websocket_service.raw_recv()
 
     assert exc_info.value.close_code == 1001, f"Expected close_code=1001, got {exc_info.value.close_code}"
 
@@ -861,8 +861,8 @@ async def test_service_status_stays_running_during_early_drop(
         statuses_during_retry.append((websocket_service.status, websocket_service.is_ready()))
 
     websocket_service.mark_not_ready = capturing_mark_not_ready  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)

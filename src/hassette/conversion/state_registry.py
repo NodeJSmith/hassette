@@ -45,7 +45,7 @@ class StateRegistry:
 
     _registry: ClassVar[dict[StateKey, type["BaseState"]]] = {}
 
-    def _get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
+    def get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
         if not entity_id:
             # specifically this way so we also handle empty strings/None
             entity_id = data.get("entity_id") or "<unknown>"
@@ -97,7 +97,7 @@ class StateRegistry:
             )
             raise InvalidDataForStateConversionError(data)
 
-        entity_id = self._get_entity_id(data, entity_id=entity_id)
+        entity_id = self.get_entity_id(data, entity_id=entity_id)
         domain = entity_id.split(".", 1)[0]
 
         # Look up the appropriate state class from the registry
@@ -108,7 +108,7 @@ class StateRegistry:
         final_idx = len(classes) - 1
         for i, cls in enumerate(classes):
             try:
-                return self._conversion_with_error_handling(cls, data, entity_id, domain)
+                return self.conversion_with_error_handling(cls, data, entity_id, domain)
             except UnableToConvertStateError:
                 if i == final_idx:
                     raise
@@ -148,7 +148,7 @@ class StateRegistry:
                 return cls._registry[k]
         return None
 
-    def _conversion_with_error_handling(
+    def conversion_with_error_handling(
         self, state_class: type["BaseState"], data: "HassStateDict", entity_id: str, domain: str
     ) -> "BaseState":
         """Convert state data, logging and re-raising as UnableToConvertStateError on failure."""

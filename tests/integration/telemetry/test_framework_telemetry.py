@@ -198,7 +198,7 @@ async def test_command_executor_job_registration_with_source_tier(framework_hass
 
 
 async def test_queue_persistence_via_drain_and_persist(framework_hassette: MagicMock) -> None:
-    """Records queued → _drain_and_persist() → persisted to executions table."""
+    """Records queued → drain_and_persist() → persisted to executions table."""
     hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
@@ -242,7 +242,7 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     await executor.execute(cmd)
 
     # Drain and persist
-    await executor._drain_and_persist()
+    await executor.drain_and_persist()
 
     # Query the unified executions table
     rows = await db_service.submit(

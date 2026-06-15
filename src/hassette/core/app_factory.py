@@ -44,16 +44,16 @@ class AppFactory:
             force_reload: Whether to force reload the class
         """
         # Try to load the class
-        app_class = self._load_class(app_key, manifest, force_reload)
+        app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
             # Class loading failed - record failure at index 0
-            load_error = self._get_load_error(manifest)
+            load_error = self.get_load_error(manifest)
             self.registry.record_failure(app_key, 0, load_error)
             return
 
         # Set manifest on class
         app_class.app_manifest = manifest
-        app_configs = self._normalize_configs(manifest.app_config)
+        app_configs = self.normalize_configs(manifest.app_config)
 
         # Create instances
         for idx, config in enumerate(app_configs):
@@ -81,7 +81,7 @@ class AppFactory:
                 )
                 self.registry.record_failure(app_key, idx, e)
 
-    def _load_class(
+    def load_class(
         self,
         app_key: str,
         manifest: "AppManifest",
@@ -111,14 +111,14 @@ class AppFactory:
 
         return get_loaded_class(manifest.full_path, manifest.class_name)
 
-    def _get_load_error(self, manifest: "AppManifest") -> Exception:
+    def get_load_error(self, manifest: "AppManifest") -> Exception:
         """Get the error that caused class loading to fail."""
         if class_failed_to_load(manifest.full_path, manifest.class_name):
             return get_class_load_error(manifest.full_path, manifest.class_name)
         return RuntimeError(f"Unknown error loading class for {manifest.class_name}")
 
     @staticmethod
-    def _normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
+    def normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
         """Ensure app_config is a list of dicts."""
         if app_config is None:
             return []

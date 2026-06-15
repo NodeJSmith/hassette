@@ -107,7 +107,7 @@ class SchedulerSyncFacade(Resource):
                 the callable and trigger.
             group: Optional group name for bulk management (see ``cancel_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
-                Jitter is applied via ``SchedulerService._apply_jitter_to_heap`` on enqueue.
+                Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
                 See the ``fire_at`` field on ``ScheduledJob``.
             timeout: Per-job timeout in seconds. ``None`` uses the global default.
                 A positive ``float`` overrides the default.

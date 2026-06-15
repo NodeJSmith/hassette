@@ -185,12 +185,12 @@ class TestDispatchRaceGuard:
     """Regression test for the dispatch race window (#518 spec).
 
     Scenario: serve loop pops a job into due_jobs, then cancel_job runs
-    before _dispatch_and_log executes. The _dequeued guard must prevent
+    before dispatch_and_log executes. The _dequeued guard must prevent
     the handler from firing.
     """
 
     async def test_dispatch_skips_dequeued_job(self) -> None:
-        """_dispatch_and_log returns immediately when job._dequeued is True."""
+        """dispatch_and_log returns immediately when job._dequeued is True."""
         svc = make_scheduler_service()
         job = make_job()
 
@@ -208,11 +208,11 @@ class TestDispatchRaceGuard:
 
         svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc._dispatch_and_log(job)
+        await svc.dispatch_and_log(job)
         assert not run_called, "run_job must NOT be called when job._dequeued is True"
 
     async def test_dispatch_runs_non_dequeued_job(self) -> None:
-        """_dispatch_and_log proceeds normally when job._dequeued is False."""
+        """dispatch_and_log proceeds normally when job._dequeued is False."""
         svc = make_scheduler_service()
         job = make_job()
         job._dequeued = False
@@ -225,5 +225,5 @@ class TestDispatchRaceGuard:
 
         svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
 
-        await svc._dispatch_and_log(job)
+        await svc.dispatch_and_log(job)
         assert run_called, "run_job must be called when job._dequeued is False"

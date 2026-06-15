@@ -274,10 +274,10 @@ class TestDbVersionMismatch:
         svc.logger = MagicMock()
 
         with (
-            patch.object(DatabaseService, "_get_current_db_version", return_value=0),
-            patch.object(DatabaseService, "_get_expected_head_version", return_value=1),
+            patch.object(DatabaseService, "get_current_db_version", return_value=0),
+            patch.object(DatabaseService, "get_expected_head_version", return_value=1),
         ):
-            asyncio.run(svc._handle_schema_version(db_path))
+            asyncio.run(svc.handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
             assert not db_path.exists()
 

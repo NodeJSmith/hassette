@@ -1,7 +1,7 @@
 """Unit tests for WebsocketService connection state machine (WP03).
 
 Tests for the three-state ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED),
-_set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
+set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
 """
 
 import asyncio
@@ -57,31 +57,31 @@ class TestValidTransitionTable:
     async def test_disconnected_to_connecting(self, websocket_service: WebsocketService) -> None:
         """DISCONNECTED → CONNECTING is valid."""
         websocket_service._connection_state = ConnectionState.DISCONNECTED
-        websocket_service._set_connection_state(ConnectionState.CONNECTING)
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
         assert websocket_service.connection_state == ConnectionState.CONNECTING
 
     async def test_connecting_to_connected(self, websocket_service: WebsocketService) -> None:
         """CONNECTING → CONNECTED is valid."""
         websocket_service._connection_state = ConnectionState.CONNECTING
-        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
         assert websocket_service.connection_state == ConnectionState.CONNECTED
 
     async def test_connecting_to_disconnected(self, websocket_service: WebsocketService) -> None:
         """CONNECTING → DISCONNECTED is valid (non-retryable failure)."""
         websocket_service._connection_state = ConnectionState.CONNECTING
-        websocket_service._set_connection_state(ConnectionState.DISCONNECTED)
+        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
     async def test_connected_to_connecting(self, websocket_service: WebsocketService) -> None:
         """CONNECTED → CONNECTING is valid (reconnect)."""
         websocket_service._connection_state = ConnectionState.CONNECTED
-        websocket_service._set_connection_state(ConnectionState.CONNECTING)
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
         assert websocket_service.connection_state == ConnectionState.CONNECTING
 
     async def test_connected_to_disconnected(self, websocket_service: WebsocketService) -> None:
         """CONNECTED → DISCONNECTED is valid (clean shutdown)."""
         websocket_service._connection_state = ConnectionState.CONNECTED
-        websocket_service._set_connection_state(ConnectionState.DISCONNECTED)
+        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
 
@@ -91,7 +91,7 @@ class TestInvalidTransitions:
         websocket_service_strict._connection_state = ConnectionState.DISCONNECTED
 
         with pytest.raises(InvalidLifecycleTransitionError):
-            websocket_service_strict._set_connection_state(ConnectionState.CONNECTED)
+            websocket_service_strict.set_connection_state(ConnectionState.CONNECTED)
 
         # State unchanged after invalid transition
         assert websocket_service_strict.connection_state == ConnectionState.DISCONNECTED
@@ -101,7 +101,7 @@ class TestInvalidTransitions:
         websocket_service._connection_state = ConnectionState.DISCONNECTED
 
         # Should not raise — non-strict mode only warns
-        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
 
         # In non-strict mode the transition is still applied (warn-and-continue)
         # (this matches the lifecycle mixin behavior)
@@ -114,7 +114,7 @@ class TestInvalidTransitions:
         websocket_service_strict._connection_state = ConnectionState.CONNECTED
 
         # Self-transitions are always silently ignored — they are not invalid transitions
-        websocket_service_strict._set_connection_state(ConnectionState.CONNECTED)
+        websocket_service_strict.set_connection_state(ConnectionState.CONNECTED)
         assert websocket_service_strict.connection_state == ConnectionState.CONNECTED
 
 
@@ -126,7 +126,7 @@ class TestHasattrGuard:
         ws.logger = logging.getLogger("test")
 
         assert not hasattr(ws, "hassette")
-        ws._set_connection_state(ConnectionState.CONNECTED)
+        ws.set_connection_state(ConnectionState.CONNECTED)
         assert ws._connection_state == ConnectionState.CONNECTED
 
 
@@ -136,18 +136,18 @@ class TestValidConnectSequence:
         websocket_service.hassette.send_event = AsyncMock()
 
         states: list[ConnectionState] = []
-        original_set = websocket_service._set_connection_state
+        original_set = websocket_service.set_connection_state
 
         def capture_set(new: ConnectionState) -> None:
             original_set(new)
             states.append(websocket_service.connection_state)
 
-        websocket_service._set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Stub _make_connection to succeed on first attempt (clean exit)
+        # Stub make_connection to succeed on first attempt (clean exit)
         async def fake_make_connection(_session):
-            # Simulate _start_recv_and_subscribe setting CONNECTED and marking ready
-            websocket_service._set_connection_state(ConnectionState.CONNECTED)
+            # Simulate start_recv_and_subscribe setting CONNECTED and marking ready
+            websocket_service.set_connection_state(ConnectionState.CONNECTED)
             websocket_service.mark_ready(reason="test: connected")
 
             async def _clean():
@@ -155,7 +155,7 @@ class TestValidConnectSequence:
 
             return asyncio.create_task(_clean())
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -174,13 +174,13 @@ class TestReconnectSequence:
         websocket_service.hassette.send_event = AsyncMock()
 
         states: list[ConnectionState] = []
-        original_set = websocket_service._set_connection_state
+        original_set = websocket_service.set_connection_state
 
         def capture_set(new: ConnectionState) -> None:
             original_set(new)
             states.append(websocket_service.connection_state)
 
-        websocket_service._set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
 
         call_count = 0
 
@@ -190,7 +190,7 @@ class TestReconnectSequence:
 
             if call_count == 1:
                 # First: successful connection, then early drop
-                websocket_service._set_connection_state(ConnectionState.CONNECTED)
+                websocket_service.set_connection_state(ConnectionState.CONNECTED)
                 websocket_service._connected_at = time.monotonic()
                 websocket_service.mark_ready(reason="test: connected")
 
@@ -200,7 +200,7 @@ class TestReconnectSequence:
                 return asyncio.create_task(_fail())
 
             # Second: clean exit (reconnect succeeded)
-            websocket_service._set_connection_state(ConnectionState.CONNECTED)
+            websocket_service.set_connection_state(ConnectionState.CONNECTED)
             websocket_service.mark_ready(reason="test: reconnected")
 
             async def _clean():
@@ -208,8 +208,8 @@ class TestReconnectSequence:
 
             return asyncio.create_task(_clean())
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -230,7 +230,7 @@ class TestAuthFailureDisconnects:
         async def fake_make_connection(_session):
             raise InvalidAuthError("bad token")
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(InvalidAuthError):
             await websocket_service.serve()
@@ -256,8 +256,8 @@ class TestMaxRetriesDisconnects:
 
             return asyncio.create_task(_fail())
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.hassette.config.websocket.early_drop_max_retries = 1
         websocket_service.hassette.config.websocket.early_drop_stable_window_seconds = 30.0
         websocket_service.hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
@@ -289,23 +289,23 @@ class TestCleanShutdownDisconnects:
 
 class TestPartialCleanupNoStateChange:
     async def test_partial_cleanup_no_state_change(self, websocket_service: WebsocketService) -> None:
-        """_partial_cleanup() does NOT change connection_state."""
+        """partial_cleanup() does NOT change connection_state."""
         # Put into CONNECTED state
         websocket_service._connection_state = ConnectionState.CONNECTED
         websocket_service._ws = None
         websocket_service._recv_task = None
 
-        await websocket_service._partial_cleanup()
+        await websocket_service.partial_cleanup()
 
-        # State must remain CONNECTED — _partial_cleanup is resource cleanup, not state transition
+        # State must remain CONNECTED — partial_cleanup is resource cleanup, not state transition
         assert websocket_service.connection_state == ConnectionState.CONNECTED
 
     async def test_partial_cleanup_no_state_change_from_connecting(self, websocket_service: WebsocketService) -> None:
-        """_partial_cleanup() does NOT change connection_state from CONNECTING either."""
+        """partial_cleanup() does NOT change connection_state from CONNECTING either."""
         websocket_service._connection_state = ConnectionState.CONNECTING
         websocket_service._ws = None
         websocket_service._recv_task = None
 
-        await websocket_service._partial_cleanup()
+        await websocket_service.partial_cleanup()
 
         assert websocket_service.connection_state == ConnectionState.CONNECTING

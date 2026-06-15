@@ -110,7 +110,7 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Each call to restart_service increments budget and attempts restart.
     # The service fails on restart but exceptions are caught.
@@ -119,7 +119,7 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
 
     budget = watcher._budgets.get(key)
     assert budget is not None
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 3
     assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
 
@@ -192,7 +192,7 @@ async def test_exponential_backoff(get_service_watcher_mock: ServiceWatcher):
         sleep_calls.append(duration)
         return True  # sleep completed normally
 
-    with patch.object(watcher, "_shutdown_safe_sleep", side_effect=mock_shutdown_safe_sleep):
+    with patch.object(watcher, "shutdown_safe_sleep", side_effect=mock_shutdown_safe_sleep):
         for _ in range(3):
             await watcher.restart_service(event)
 
@@ -218,21 +218,21 @@ async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher
     watcher.hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Accumulate 2 restart attempts
     for _ in range(2):
         await watcher.restart_service(event)
 
     budget = watcher._budgets[key]
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 2
 
     # Mark the service ready, then fire RUNNING event — budget should reset
     dummy_service.mark_ready(reason="test")
-    await watcher._on_service_running(make_service_running_event(dummy_service))
+    await watcher.on_service_running(make_service_running_event(dummy_service))
 
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 0  # budget reset
 
 
@@ -268,7 +268,7 @@ async def test_permanent_exhaustion_records_fatal_reason(get_service_watcher_moc
     """PERMANENT exhaustion records _fatal_shutdown_reason synchronously at the decision site.
 
     Regression test for the reason-race: the CRASHED event is dispatched asynchronously
-    (task-per-handler), so the reason must be set synchronously in _handle_exhaustion — not
+    (task-per-handler), so the reason must be set synchronously in handle_exhaustion — not
     only in the async shutdown_if_crashed handler — or run_forever() exits 0 on a real crash.
     """
     watcher = get_service_watcher_mock
@@ -287,7 +287,7 @@ async def test_permanent_exhaustion_records_fatal_reason(get_service_watcher_moc
     event = make_service_failed_event(dummy_service)
     await watcher.restart_service(event)
     await watcher.restart_service(event)
-    await watcher.restart_service(event)  # exhausts → _handle_exhaustion (PERMANENT)
+    await watcher.restart_service(event)  # exhausts → handle_exhaustion (PERMANENT)
 
     assert hassette._fatal_shutdown_reason is not None
     assert dummy_service.class_name in hassette._fatal_shutdown_reason
@@ -333,7 +333,7 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Use up budget
     await watcher.restart_service(event)
@@ -529,19 +529,19 @@ async def test_in_restart_guard_prevents_double_budget(get_service_watcher_mock:
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Manually set the in-restart flag to simulate concurrent restart in progress
     watcher._restarting.add(key)
     # Ensure budget exists but has 1 entry (from the first restart)
-    budget = watcher._get_budget(key, spec)
+    budget = watcher.get_budget(key, spec)
     budget.record_restart()
 
     # Second FAILED event arrives while restart is in progress — should be dropped
     await watcher.restart_service(event)
 
     # Budget should still have only 1 entry
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 1, "Second FAILED event should have been dropped by in-restart guard"
 
     # Clean up
@@ -565,7 +565,7 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(get_service_watcher_mock: 
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Set shutdown event to trigger early abort during backoff
     hassette.shutdown_event.set()
@@ -594,21 +594,21 @@ async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: Serv
     watcher.hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Accumulate 2 restart attempts
     await watcher.restart_service(event)
     await watcher.restart_service(event)
 
     budget = watcher._budgets[key]
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 2
 
     # Mark the service ready, then fire RUNNING event — budget should reset
     dummy_service.mark_ready(reason="test")
-    await watcher._on_service_running(make_service_running_event(dummy_service))
+    await watcher.on_service_running(make_service_running_event(dummy_service))
 
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 0  # budget.reset() was called
     assert key not in watcher._restarting  # in-restart cleared
 
@@ -629,19 +629,19 @@ async def test_readiness_timeout_no_budget_impact(get_service_watcher_mock: Serv
     watcher.hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Accumulate 1 restart attempt
     await watcher.restart_service(event)
 
     budget = watcher._budgets[key]
-    budget._evict_expired()
+    budget.evict_expired()
     count_before = len(budget._timestamps)
 
     # Fire RUNNING event WITHOUT marking ready — timeout will occur, no budget impact
-    await watcher._on_service_running(make_service_running_event(dummy_service))
+    await watcher.on_service_running(make_service_running_event(dummy_service))
 
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == count_before, "Readiness timeout should not impact restart budget"
 
 
@@ -662,7 +662,7 @@ async def test_cooldown_then_recovery(get_service_watcher_mock: ServiceWatcher):
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Use up the budget (1 restart)
     await watcher.restart_service(event)
@@ -679,7 +679,7 @@ async def test_cooldown_then_recovery(get_service_watcher_mock: ServiceWatcher):
     # After cooldown, budget should have been reset and restart attempted
     budget = watcher._budgets.get(key)
     if budget:
-        budget._evict_expired()
+        budget.evict_expired()
         # Budget was reset during cooldown
         assert len(budget._timestamps) == 0 or call_counts["start"] >= 2
 
@@ -701,11 +701,11 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Set cycle count to max+1 to simulate exceeding max.
-    # Also put the service in EXHAUSTED_COOLING — the valid pre-condition for _cooldown_and_retry
-    # (in production, _handle_exhaustion sets this before spawning the cooldown task).
+    # Also put the service in EXHAUSTED_COOLING — the valid pre-condition for cooldown_and_retry
+    # (in production, handle_exhaustion sets this before spawning the cooldown task).
     watcher._cooldown_cycles[key] = 2  # already exceeded max_cooldown_cycles=1
     dummy_service._status = ResourceStatus.EXHAUSTED_COOLING
 
@@ -716,8 +716,8 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Run _cooldown_and_retry directly — should detect exceeded cycles and emit EXHAUSTED_DEAD
-    await watcher._cooldown_and_retry(dummy_service.class_name, dummy_service.role, key, spec)
+    # Run cooldown_and_retry directly — should detect exceeded cycles and emit EXHAUSTED_DEAD
+    await watcher.cooldown_and_retry(dummy_service.class_name, dummy_service.role, key, spec)
 
     hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -771,8 +771,8 @@ async def test_concurrent_failures_independent_budgets(get_service_watcher_mock:
     event_a = make_service_failed_event(service_a)
     event_b = make_service_failed_event(service_b)
 
-    key_a = watcher._service_key(service_a.class_name, service_a.role)
-    key_b = watcher._service_key(service_b.class_name, service_b.role)
+    key_a = watcher.service_key(service_a.class_name, service_a.role)
+    key_b = watcher.service_key(service_b.class_name, service_b.role)
 
     # Fail both services
     await asyncio.gather(
@@ -786,8 +786,8 @@ async def test_concurrent_failures_independent_budgets(get_service_watcher_mock:
     # Each should have independent budget with 1 restart recorded
     budget_a = watcher._budgets[key_a]
     budget_b = watcher._budgets[key_b]
-    budget_a._evict_expired()
-    budget_b._evict_expired()
+    budget_a.evict_expired()
+    budget_b.evict_expired()
     assert len(budget_a._timestamps) == 1
     assert len(budget_b._timestamps) == 1
 
@@ -808,7 +808,7 @@ async def test_restart_exception_caught_no_double_count(get_service_watcher_mock
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Make service.restart() raise
     async def raise_on_restart():
@@ -821,7 +821,7 @@ async def test_restart_exception_caught_no_double_count(get_service_watcher_mock
 
     budget = watcher._budgets.get(key)
     assert budget is not None
-    budget._evict_expired()
+    budget.evict_expired()
     # Only 1 budget entry recorded (before restart), not 2
     assert len(budget._timestamps) == 1
 
@@ -848,14 +848,14 @@ async def test_bus_recovery_reconciliation(get_service_watcher_mock: ServiceWatc
     # (as if FAILED event was dropped during BusService restart).
     # Use ._status bypass — this is deliberate test fixture setup, not a lifecycle operation.
     dummy_service._status = ResourceStatus.FAILED
-    key = watcher._service_key(dummy_service.class_name, dummy_service.role)
+    key = watcher.service_key(dummy_service.class_name, dummy_service.role)
     assert key not in watcher._budgets  # no budget entry — dropped during blind window
 
     # Run reconciliation
-    await watcher._reconcile_after_bus_recovery()
+    await watcher.reconcile_after_bus_recovery()
 
     # Reconciliation should have picked up the FAILED service and entered restart flow
     budget = watcher._budgets.get(key)
     assert budget is not None, "Reconciliation should have created a budget entry"
-    budget._evict_expired()
+    budget.evict_expired()
     assert len(budget._timestamps) == 1, "Reconciliation should have recorded one restart"

@@ -197,7 +197,7 @@ flowchart TD
 
 First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
 
-Second, `_load_cache()` bulk-fetches all entity states via `get_states_raw()` and populates the `states` dict. A periodic `run_every` job re-runs `_load_cache()` at `state_proxy_poll_interval_seconds` intervals to recover from any missed events.
+Second, `load_cache()` bulk-fetches all entity states via `get_states_raw()` and populates the `states` dict. A periodic `run_every` job re-runs `load_cache()` at `state_proxy_poll_interval_seconds` intervals to recover from any missed events.
 
 ### Lock-Free Reads
 
@@ -211,7 +211,7 @@ Second, `_load_cache()` bulk-fetches all entity states via `get_states_raw()` an
 
 ### Disconnect and Reconnect
 
-On WebSocket disconnect, `StateProxy` clears `self.states` and calls `mark_not_ready()`. State reads during this window raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]. On reconnect, `_load_cache()` bulk-reloads all states, then `subscribe_to_events()` re-registers the bus subscription. `mark_ready()` then unblocks any waiters.
+On WebSocket disconnect, `StateProxy` clears `self.states` and calls `mark_not_ready()`. State reads during this window raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]. On reconnect, `load_cache()` bulk-reloads all states, then `subscribe_to_events()` re-registers the bus subscription. `mark_ready()` then unblocks any waiters.
 
 ## Api Internals
 
@@ -295,7 +295,7 @@ The migration runner reads `PRAGMA user_version` from the on-disk database and a
 
 On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREMENTAL` via a separate connection before any transaction. `PRAGMA auto_vacuum` cannot be changed inside `BEGIN IMMEDIATE`, so it must precede the first transaction.
 
-`DatabaseService._handle_schema_version()` runs before migrations:
+`DatabaseService.handle_schema_version()` runs before migrations:
 
 | On-disk version | Code action |
 |---|---|
@@ -308,7 +308,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 
 ### Write Pipeline
 
-`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `_db_write_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` or place a raw item via `enqueue()`. The worker processes items one at a time. Each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
+`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `db_write_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` or place a raw item via `enqueue()`. The worker processes items one at a time. Each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
 
 A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and a 5-second busy timeout. Read queries never contend with the write worker.
 

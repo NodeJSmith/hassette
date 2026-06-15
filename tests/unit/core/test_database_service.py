@@ -45,7 +45,7 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
         return mock_conn
 
     with (
-        patch.object(service, "_run_migrations"),
+        patch.object(service, "run_migrations"),
         patch("hassette.core.database_service._connect_daemon", side_effect=fake_connect),
     ):
         await service.on_initialize()
@@ -80,7 +80,7 @@ def test_db_property_raises_when_uninitialized(service: DatabaseService) -> None
 def test_resolve_db_path_uses_config_when_set(service: DatabaseService) -> None:
     """When db_path is configured, use it directly."""
     service.hassette.config.database.path = Path("/custom/path/my.db")
-    result = service._resolve_db_path()
+    result = service.resolve_db_path()
     assert result == Path("/custom/path/my.db").resolve()
 
 
@@ -88,7 +88,7 @@ def test_resolve_db_path_defaults_to_data_dir(service: DatabaseService, tmp_path
     """When db_path is None, default to data_dir / hassette.db."""
     service.hassette.config.database.path = None
     service.hassette.config.data_dir = tmp_path
-    result = service._resolve_db_path()
+    result = service.resolve_db_path()
     assert result == tmp_path / "hassette.db"
 
 
@@ -165,13 +165,13 @@ async def test_db_max_size_mb_zero_disables_failsafe(
     """_check_size_failsafe() returns immediately when db_max_size_mb is 0."""
     initialized_service_with_worker.hassette.config.database.max_size_mb = 0
 
-    # Patch _get_db_size_mb to prove it's never called — the early return
+    # Patch get_db_size_mb to prove it's never called — the early return
     # should skip the size check entirely.
-    initialized_service_with_worker._get_db_size_mb = MagicMock(  # pyright: ignore[reportAttributeAccessIssue]
-        side_effect=AssertionError("_get_db_size_mb should not be called when disabled"),
+    initialized_service_with_worker.get_db_size_mb = MagicMock(  # pyright: ignore[reportAttributeAccessIssue]
+        side_effect=AssertionError("get_db_size_mb should not be called when disabled"),
     )
     await initialized_service_with_worker._check_size_failsafe()
-    initialized_service_with_worker._get_db_size_mb.assert_not_called()
+    initialized_service_with_worker.get_db_size_mb.assert_not_called()
 
 
 async def test_worker_continues_after_enqueue_error(
@@ -220,7 +220,7 @@ async def test_close_remaining_queue_items_closes_coroutines_and_cancels_futures
     queue.put_nowait((coro1, future1))
     queue.put_nowait((coro2, future2))
 
-    initialized_service_with_worker._close_remaining_queue_items(queue)
+    initialized_service_with_worker.close_remaining_queue_items(queue)
 
     assert future1.cancelled()
     assert future2.cancelled()

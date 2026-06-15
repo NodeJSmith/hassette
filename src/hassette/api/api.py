@@ -163,6 +163,7 @@ import typing
 from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for AC#8 annotation inspection
 from contextlib import suppress
 from enum import StrEnum
+from http import HTTPStatus
 from typing import Any, Literal, overload
 
 import aiohttp
@@ -290,11 +291,11 @@ class Api(Resource):
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
-        return await self._api_service._ws_conn.send_and_wait(**data)
+        return await self._api_service.ws_conn.send_and_wait(**data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
-        await self._api_service._ws_conn.send_json(**data)
+        await self._api_service.ws_conn.send_json(**data)
 
     async def rest_request(
         self,
@@ -317,7 +318,7 @@ class Api(Resource):
         Returns:
             The response from the API.
         """
-        return await self._api_service._rest_request(
+        return await self._api_service.rest_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
         )
 
@@ -788,7 +789,7 @@ class Api(Resource):
         if "," in entity_id:
             raise ValueError("Entity ID should not contain commas. Use `get_histories` for multiple entities.")
 
-        entries = await self._api_service._get_history_raw(
+        entries = await self._api_service.get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,
@@ -830,7 +831,7 @@ class Api(Resource):
         """
         entity_id = ",".join(entity_ids)
 
-        entries = await self._api_service._get_history_raw(
+        entries = await self._api_service.get_history_raw(
             entity_id=entity_id,
             start_time=start_time,
             end_time=end_time,
@@ -853,7 +854,7 @@ class Api(Resource):
         entity_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get the logbook entries for a specific entity.
 
         Args:
@@ -905,7 +906,7 @@ class Api(Resource):
         entity_id: str | StrEnum,
         state: Any,
         attributes: dict[str, Any] | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Async body for set_state."""
         entity_id = str(entity_id)
 
@@ -948,7 +949,7 @@ class Api(Resource):
 
         return await response.read()
 
-    async def get_calendars(self) -> list[dict]:
+    async def get_calendars(self) -> list[dict[str, Any]]:
         """Get the list of calendars."""
 
         url = "calendars"
@@ -960,7 +961,7 @@ class Api(Resource):
         calendar_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get events from a specific calendar.
 
         Args:
@@ -981,7 +982,7 @@ class Api(Resource):
     async def render_template(
         self,
         template: str,
-        variables: dict | None = None,
+        variables: dict[str, Any] | None = None,
     ) -> str:
         """Render a template with given variables.
 
@@ -1013,7 +1014,7 @@ class Api(Resource):
 
         response = await self.rest_request("DELETE", url)
 
-        if response.status != 204:
+        if response.status != HTTPStatus.NO_CONTENT:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
 
     # All 32 methods use _ws_helper_call for consistent error context.

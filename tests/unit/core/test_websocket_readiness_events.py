@@ -43,7 +43,7 @@ class TestWebsocketReadinessEvents:
         websocket_service.mark_ready(reason="test: pre-state")
         websocket_service._connected_at = time.monotonic()
 
-        # Mock _make_connection to return a task that fails with RetryableConnectionClosedError
+        # Mock make_connection to return a task that fails with RetryableConnectionClosedError
         # on the first call, then succeeds on the second.
         call_count = 0
 
@@ -51,7 +51,7 @@ class TestWebsocketReadinessEvents:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # Simulate successful connection (mark_ready mirrors what _start_recv_and_subscribe does)
+                # Simulate successful connection (mark_ready mirrors what start_recv_and_subscribe does)
                 websocket_service._connected_at = time.monotonic()
                 websocket_service.mark_ready(reason="test: connected")
 
@@ -66,8 +66,8 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_clean())
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -114,7 +114,7 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_fail())
 
-        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()
@@ -134,7 +134,7 @@ class TestWebsocketReadinessEvents:
     ) -> None:
         """Successful connect path emits a service_status event with ready=True after mark_ready().
 
-        Runs the real _start_recv_and_subscribe() with sub-methods stubbed to isolate
+        Runs the real start_recv_and_subscribe() with sub-methods stubbed to isolate
         the mark_ready() → _emit_readiness_event() call that subtask 3 adds.
         """
         send_event_calls: list = []
@@ -144,7 +144,7 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Stub out the sub-methods that _start_recv_and_subscribe calls so we can run the
+        # Stub out the sub-methods that start_recv_and_subscribe calls so we can run the
         # real method and observe whether it calls _emit_readiness_event() after mark_ready().
         spawned_coros: list = []
 
@@ -158,10 +158,10 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-        websocket_service._send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service._subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
 
-        result_task = await websocket_service._start_recv_and_subscribe()
+        result_task = await websocket_service.start_recv_and_subscribe()
 
         # Close spawned coroutines to suppress ResourceWarning
         for coro in spawned_coros:
@@ -197,11 +197,11 @@ class TestEverConnectedLatch:
         self,
         websocket_service: WebsocketService,
     ) -> None:
-        """ever_connected flips True when _set_connection_state transitions to CONNECTED."""
-        websocket_service._set_connection_state(ConnectionState.CONNECTING)
+        """ever_connected flips True when set_connection_state transitions to CONNECTED."""
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
         assert websocket_service.ever_connected is False  # not yet
 
-        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
         assert websocket_service.ever_connected is True
 
     def test_ever_connected_stays_true_after_disconnect(
@@ -209,9 +209,9 @@ class TestEverConnectedLatch:
         websocket_service: WebsocketService,
     ) -> None:
         """ever_connected remains True after a subsequent disconnect (one-way latch)."""
-        websocket_service._set_connection_state(ConnectionState.CONNECTING)
-        websocket_service._set_connection_state(ConnectionState.CONNECTED)
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
         assert websocket_service.ever_connected is True
 
-        websocket_service._set_connection_state(ConnectionState.DISCONNECTED)
+        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
         assert websocket_service.ever_connected is True  # latch does not revert

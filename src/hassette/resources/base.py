@@ -564,7 +564,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         to wrap with ``suppress(Exception)``.
         """
         try:
-            event = self._create_service_status_event(
+            event = self.create_service_status_event(
                 self._status, ready=self.is_ready(), ready_phase=self._ready_reason
             )
             await self.hassette.send_event(event)

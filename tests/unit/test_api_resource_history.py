@@ -1,4 +1,4 @@
-"""Unit tests for ApiResource._get_history_raw URL formatting."""
+"""Unit tests for ApiResource.get_history_raw URL formatting."""
 
 from whenever import Date, PlainDateTime, ZonedDateTime
 
