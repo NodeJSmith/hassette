@@ -127,9 +127,9 @@ Each listener with a non-`parallel` mode tracks two live counters:
 - **Suppressed** — triggers dropped by `single` while the handler was running.
 - **Dropped** — triggers discarded by `queued` when the queue was at its cap.
 
-These counts appear in the monitoring UI's Handlers tab when non-zero. They are
-live-only diagnostics — held in memory, reset to zero when the process restarts,
-never persisted to the database.
+These counts appear in the [monitoring UI's Handlers tab](../../web-ui/debug-handler.md)
+when non-zero. They are live-only diagnostics — held in memory, reset to zero
+when the process restarts, never persisted to the database.
 
 A non-zero suppressed count on a `single` handler indicates re-fires are
 arriving faster than the handler completes. If that represents lost work,
@@ -137,21 +137,24 @@ consider `queued`. If it represents expected deduplication, `single` is correct.
 
 ### Stall detection
 
-A handler that holds a `single` or `queued` guard (the lock that enforces
-one-at-a-time execution) longer than 60 seconds without completing emits a
-WARNING. This is the only WARNING the execution mode feature generates.
-Suppressed and dropped events always log at DEBUG.
+A handler that holds its execution-mode guard — any mode except `parallel` —
+longer than 60 seconds without completing emits a WARNING. This is the only
+WARNING the execution mode feature generates. Suppressed and dropped events
+always log at DEBUG.
 
 The per-listener `timeout` still applies and ultimately releases the guard when
 it fires. The stall WARNING is an early signal, independent of the timeout.
 
 ### Mode in the monitoring UI
 
-The mode is persisted for each listener and displayed as a chip in the app
-detail Handlers tab. The mode chip is visible alongside invocation counts and
-last-seen timestamps.
+The mode is persisted for each listener and displayed as a chip in the
+[app detail Handlers tab](../../web-ui/debug-handler.md). The mode chip is
+visible alongside invocation counts and last-seen timestamps.
 
 ## Composition
+
+Each parameter shown with `mode` below — `debounce`, `throttle`, `once`, and
+`duration` — is documented in full in [Subscription Methods](methods.md).
 
 ### With `debounce` and `throttle`
 
