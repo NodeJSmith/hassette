@@ -320,9 +320,9 @@ class HandlerInvoker:
             watchdog.cancel()
 
     def _warn_stalled(self) -> None:
-        """Emit the single feature WARNING: a single/queued handler is still holding its guard."""
+        """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
-            "Handler '%s' has held its %s execution-mode guard for over %.0fs; re-fires are being blocked",
+            "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",
             self.handler_short_name,
             self.mode.value,
             STALL_THRESHOLD_SECONDS,

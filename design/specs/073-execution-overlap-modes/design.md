@@ -1,7 +1,7 @@
 # Design: Execution Overlap Modes for Event Handlers
 
 **Date:** 2026-06-14
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-04-19-execution-overlap-modes/research.md
 **Issue:** #543
