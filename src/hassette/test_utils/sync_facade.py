@@ -300,7 +300,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         entity_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_logbook"))
 
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
@@ -321,7 +321,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     ) -> bytes:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_camera_image"))
 
-    def get_calendars(self) -> list[dict]:
+    def get_calendars(self) -> list[dict[str, Any]]:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_calendars"))
 
     def get_calendar_events(
@@ -329,10 +329,10 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         calendar_id: str,
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_calendar_events"))
 
-    def render_template(self, template: str, variables: dict | None = None) -> str:
+    def render_template(self, template: str, variables: dict[str, Any] | None = None) -> str:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="render_template"))
 
     def delete_entity(self, entity_id: str) -> None:
