@@ -4,6 +4,7 @@ Covers defaults, field constraints, computed defaults, and intra-model validator
 Also covers integration-level config loading with nested sections and env var overrides.
 """
 
+import os
 import warnings
 from pathlib import Path
 
@@ -241,6 +242,8 @@ class TestLifecycleConfig:
         assert cfg.error_handler_timeout_seconds == 5.0
         assert cfg.run_sync_timeout_seconds == 6
         assert cfg.task_cancellation_timeout_seconds == 5
+        assert cfg.sync_executor_max_workers == min(32, (os.cpu_count() or 1) + 4)
+        assert cfg.sync_executor_shutdown_timeout_seconds == 10.0
 
     def test_resource_shutdown_timeout_defaults_from_app_shutdown(self):
         """resource_shutdown_timeout_seconds defaults to app_shutdown_timeout_seconds."""
@@ -281,6 +284,42 @@ class TestLifecycleConfig:
         """error_handler_timeout_seconds accepts None."""
         cfg = LifecycleConfig(error_handler_timeout_seconds=None)
         assert cfg.error_handler_timeout_seconds is None
+
+    def test_sync_executor_max_workers_default(self):
+        """sync_executor_max_workers defaults to min(32, cpu_count+4)."""
+        cfg = LifecycleConfig()
+        expected = min(32, (os.cpu_count() or 1) + 4)
+        assert cfg.sync_executor_max_workers == expected
+
+    def test_sync_executor_shutdown_timeout_default(self):
+        """sync_executor_shutdown_timeout_seconds defaults to 10.0."""
+        cfg = LifecycleConfig()
+        assert cfg.sync_executor_shutdown_timeout_seconds == 10.0
+
+    def test_sync_executor_shutdown_timeout_is_float(self):
+        """sync_executor_shutdown_timeout_seconds is a float."""
+        cfg = LifecycleConfig()
+        assert isinstance(cfg.sync_executor_shutdown_timeout_seconds, float)
+
+    def test_sync_executor_shutdown_budget_equal_to_total_raises(self):
+        """sync_executor_shutdown_timeout_seconds >= total_shutdown_timeout_seconds raises ValueError."""
+        with pytest.raises(ValidationError, match="sync_executor_shutdown_timeout_seconds"):
+            LifecycleConfig(sync_executor_shutdown_timeout_seconds=30.0, total_shutdown_timeout_seconds=30)
+
+    def test_sync_executor_shutdown_budget_greater_than_total_raises(self):
+        """sync_executor_shutdown_timeout_seconds > total_shutdown_timeout_seconds raises ValueError."""
+        with pytest.raises(ValidationError, match="sync_executor_shutdown_timeout_seconds"):
+            LifecycleConfig(sync_executor_shutdown_timeout_seconds=31.0, total_shutdown_timeout_seconds=30)
+
+    def test_sync_executor_shutdown_budget_under_total_passes(self):
+        """sync_executor_shutdown_timeout_seconds < total_shutdown_timeout_seconds is valid."""
+        cfg = LifecycleConfig(sync_executor_shutdown_timeout_seconds=5.0, total_shutdown_timeout_seconds=30)
+        assert cfg.sync_executor_shutdown_timeout_seconds == 5.0
+
+    def test_sync_executor_default_budget_valid_under_default_total(self):
+        """Default budget (10.0) is safely under default total (30), so default config is valid."""
+        cfg = LifecycleConfig()
+        assert cfg.sync_executor_shutdown_timeout_seconds < cfg.total_shutdown_timeout_seconds
 
 
 class TestWebApiConfig:
