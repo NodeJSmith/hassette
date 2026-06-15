@@ -2,7 +2,7 @@
 task_id: "T03"
 title: "Persist scheduled-job mode to the database"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T02"]
 implements: ["FR#10", "AC#10"]
 ---
 
