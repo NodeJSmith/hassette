@@ -195,7 +195,7 @@ class SchedulerService(Service):
 
         self.fire_removal_callbacks([job])
 
-    async def sleep(self, next_run_time: ZonedDateTime | None = None):
+    async def sleep(self, next_run_time: ZonedDateTime | None = None) -> None:
         """Sleep until the next job is due or a kick is received.
 
         This method will wait for the next job to be due or until a kick is received.
@@ -642,7 +642,7 @@ class HeapQueue(Generic[T]):
     def __len__(self) -> int:
         return len(self._queue)
 
-    def push(self, job: T):
+    def push(self, job: T) -> None:
         """Push a job onto the queue."""
         heapq.heappush(self._queue, job)  # pyright: ignore[reportArgumentType]
 

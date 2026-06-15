@@ -387,7 +387,7 @@ class WebsocketService(Service):
             reraise=True,
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
         )
-        async def _inner_connect():
+        async def _inner_connect() -> asyncio.Task:
             await self.partial_cleanup()
             await self.connect_ws(session)
             return await self.start_recv_and_subscribe()

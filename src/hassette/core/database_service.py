@@ -46,6 +46,9 @@ _SIZE_FAILSAFE_VACUUM_PAGES = 100
 # Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
+_BUSY_TIMEOUT_MS = 5000
+"""SQLite busy_timeout (ms) applied to both read and write connections."""
+
 _LOG_COLUMNS = (
     "seq",
     "timestamp",
@@ -218,7 +221,7 @@ class DatabaseService(Service):
         self._read_db = await _connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
-        await self._read_db.execute("PRAGMA busy_timeout = 5000")
+        await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
         try:
@@ -524,7 +527,7 @@ class DatabaseService(Service):
         # This is acceptable for operational telemetry — the orphan-session mechanism
         # compensates for session rows but not for individual telemetry records.
         await db.execute("PRAGMA synchronous = NORMAL")
-        await db.execute("PRAGMA busy_timeout = 5000")
+        await db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
         await db.execute("PRAGMA foreign_keys = ON")
         # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
         # This line documents intent only.

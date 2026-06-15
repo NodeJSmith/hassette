@@ -231,10 +231,6 @@ class StateProxy(Resource):
 
         This handler runs with priority=100 to ensure the cache is updated before
         app handlers process the event.
-
-        Args:
-            entity_id: The entity ID that changed.
-            new_state: The new state object, or None if the entity was removed.
         """
         # note: we are not listening to entity_registry_updated because state_changed seems to capture
         # both the new state when renamed and the removal when deleted.

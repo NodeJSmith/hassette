@@ -4,6 +4,7 @@ import typing
 from asyncio import CancelledError
 from collections.abc import Callable
 from contextlib import AsyncExitStack
+from http import HTTPStatus
 from typing import Any, ClassVar
 
 import aiohttp
@@ -72,7 +73,7 @@ class ApiResource(Resource):
         self._rest_url_override: str | None = rest_url
         self._headers_factory: Callable[[], dict[str, str]] | None = headers_factory
 
-    async def on_initialize(self):
+    async def on_initialize(self) -> None:
         """
         Start the API service.
 
@@ -160,7 +161,7 @@ class ApiResource(Resource):
 
                 return response
             except aiohttp.ClientResponseError as e:
-                if e.status == 404:
+                if e.status == HTTPStatus.NOT_FOUND:
                     if not suppress_error_message:
                         self.logger.error(
                             "Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2
