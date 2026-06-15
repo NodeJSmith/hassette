@@ -97,13 +97,12 @@ async def test_restart_cancellation_persists_cancelled_row(
     ``status='cancelled'`` record; this test proves such a record persists to the ``executions``
     table — no new mechanism, the existing cancellation row path.
     """
-    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
 
     db_service, session_id = initialized_db
 
     listener_id = await executor.register_listener(make_listener_registration())
 
-    record = _ExecutionRecord(
+    record = ExecutionRecord(
         kind="handler",
         listener_id=listener_id,
         session_id=session_id,
@@ -321,7 +320,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in executions after drain."""
-    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
 
     db_service, session_id = initialized_db
 
@@ -330,7 +328,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     listener_id = await executor.register_listener(reg)
 
     # Queue a success record directly
-    record = _ExecutionRecord(
+    record = ExecutionRecord(
         kind="handler",
         listener_id=listener_id,
         session_id=session_id,
@@ -357,7 +355,6 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """_flush_queue() persists remaining records before returning."""
-    from hassette.core.execution_record import ExecutionRecord as _ExecutionRecord
 
     db_service, session_id = initialized_db
 
@@ -366,7 +363,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
     # Put two records in the queue
     for _ in range(2):
-        record = _ExecutionRecord(
+        record = ExecutionRecord(
             kind="handler",
             listener_id=listener_id,
             session_id=session_id,

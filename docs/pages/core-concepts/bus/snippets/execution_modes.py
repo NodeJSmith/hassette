@@ -176,3 +176,48 @@ class OccupancyApp(App[AppConfig]):
             "light", "turn_on", entity_id="light.living_room"
         )
 # --8<-- [end:duration_single]
+
+
+# ---------------------------------------------------------------------------
+# Intro: the mode= parameter
+# ---------------------------------------------------------------------------
+
+class DoorApp(App[AppConfig]):
+    async def on_initialize(self):
+        # --8<-- [start:mode_parameter_basic]
+        await self.bus.on_state_change(
+            "binary_sensor.front_door",
+            changed_to="on",
+            handler=self.on_door_opened,
+            name="front_door_opened",
+            mode="single",  # or "restart", "queued", "parallel"
+        )
+        # --8<-- [end:mode_parameter_basic]
+
+    async def on_door_opened(
+        self,
+        new: D.StateNew[states.BinarySensorState],
+    ):
+        await self.api.call_service("lock", "lock", entity_id="lock.front")
+
+
+# ---------------------------------------------------------------------------
+# Migration: restore pre-1.0 concurrent behavior
+# ---------------------------------------------------------------------------
+
+class ReadingApp(App[AppConfig]):
+    async def on_initialize(self):
+        # --8<-- [start:migrating_parallel]
+        await self.bus.on_state_change(
+            "sensor.outdoor_temperature",
+            handler=self.record_reading,
+            name="temp_readings",
+            mode="parallel",  # opt back into pre-1.0 concurrent behavior
+        )
+        # --8<-- [end:migrating_parallel]
+
+    async def record_reading(
+        self,
+        new: D.StateNew[states.SensorState],
+    ):
+        self.logger.info("Reading settled at %s", new.value)

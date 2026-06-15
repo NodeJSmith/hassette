@@ -5,13 +5,7 @@ invocation of the same handler is still running. Four modes are available,
 matching Home Assistant's automation mode names.
 
 ```python
-await self.bus.on_state_change(
-    "binary_sensor.front_door",
-    changed_to="on",
-    handler=self.on_door_opened,
-    name="front_door_opened",
-    mode="single",  # or "restart", "queued", "parallel"
-)
+--8<-- "pages/core-concepts/bus/snippets/execution_modes.py:mode_parameter_basic"
 ```
 
 All four bus registration methods — `on_state_change`, `on_attribute_change`,
@@ -121,12 +115,7 @@ Home Assistant, where automation modes apply to user automations only.
     app handler that relied on that behavior can restore it explicitly:
 
     ```python
-    await self.bus.on_state_change(
-        "sensor.outdoor_temperature",
-        handler=self.record_reading,
-        name="temp_readings",
-        mode="parallel",  # opt back into pre-1.0 concurrent behavior
-    )
+    --8<-- "pages/core-concepts/bus/snippets/execution_modes.py:migrating_parallel"
     ```
 
 ## Observability
