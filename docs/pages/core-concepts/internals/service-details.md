@@ -145,7 +145,7 @@ When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick(
 
 ### Missed-Job Handling
 
-`SchedulerService` does not make up missed executions. A job whose `next_run` passed during a shutdown or restart fires once on the next `pop_due` call, not multiple times for the skipped interval. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
+`SchedulerService` does not make up missed executions. A job whose `next_run` passed during a shutdown or restart fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
 
 ### Jitter and Job Groups
 

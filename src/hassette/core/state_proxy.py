@@ -101,7 +101,6 @@ class StateProxy(Resource):
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""
-        self.logger.debug("Shutting down state proxy")
         self.mark_not_ready(reason="Shutting down")
         # Null out subscription/job references to guard against on_disconnect() race.
         self.poll_job = None
