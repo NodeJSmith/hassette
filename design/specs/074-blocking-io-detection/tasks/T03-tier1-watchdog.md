@@ -31,7 +31,7 @@ This task does NOT persist events to the DB — that wiring is T05. Emit the in-
 ## Verify
 - [ ] FR#1: The watchdog measures loop responsiveness continuously with no call to `loop.set_debug(True)` anywhere in the path (asserted by test/grep).
 - [ ] FR#2: On a stall past threshold, it emits a signal naming the app, the handler/job, and the measured stall duration.
-- [ ] FR#3: The watchdog is enabled by default (`watchdog_enabled=True`) and its default response is warn — a test confirms it never raises on a stall under default config.
+- [ ] FR#3: The watchdog is enabled by default (`watchdog_enabled=True`) and its default response is warn — a test confirms it never raises on a stall under default config, and that `ERROR` behavior escalates only via the user's `filterwarnings("error")`, not an unconditional raise from the watchdog.
 - [ ] FR#9: A handler running `await asyncio.sleep(T)` for T past threshold produces no blocking warning.
 - [ ] AC#1: A `time.sleep(T)` handler produces exactly one warning naming that app with duration ≈ T.
 - [ ] AC#3: The `await asyncio.sleep(T)` case produces zero warnings (paired with FR#9, asserted in the same test module).

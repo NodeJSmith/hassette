@@ -24,6 +24,7 @@ Implement persistence per `design/specs/074-blocking-io-detection/design.md`, `#
 - Migrations: `src/hassette/migrations_sql/` has `001.sql`–`003.sql`; `_collect_migrations` (referenced from `core/database_service.py:440`) scans for numeric stems and PRAGMA `user_version` drives application. `004.sql` is picked up automatically.
 - Schema precedent is **`executions`**, not `log_records` — only `executions` has a `session_id` FK and `source_tier` CHECK. Copy its column/constraint/index style.
 - `src/hassette/core/telemetry_repository.py` is the write path; `telemetry_models.py` holds `BaseModel` records (`Execution`, `SlowHandlerRecord`, `LogRecord`, ...). Match their field/typing conventions.
+- The IGNORE-suppresses-row property (no warning AND no row for an `ignore` app) is owned end-to-end by T06/AC#6 — T05 just honors the resolver's `IGNORE` by not writing; do not add a separate AC#6 verify here.
 - The DB write must not run on a path that itself blocks the loop — telemetry writes already go through the existing async/queue machinery; reuse it rather than writing synchronously from the watchdog/guard hot path.
 - `session_id` must reference a valid session; reuse however other telemetry rows obtain the current session id (grep the repository for `session_id`).
 - Capture full test output to a tmp file; do NOT run `pytest -n auto`.
