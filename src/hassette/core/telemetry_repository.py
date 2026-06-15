@@ -570,7 +570,7 @@ class TelemetryRepository:
     async def persist_execution_batch_with_fk_fallback(self, records: list[ExecutionRecord]) -> int:
         """Insert execution records row-by-row with FK violation fallback (best-effort per record).
 
-        Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
+        Called by ``CommandExecutor.handle_fk_violation`` after a batch INSERT already
         failed with IntegrityError. Each record is inserted individually; on FK violation
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.

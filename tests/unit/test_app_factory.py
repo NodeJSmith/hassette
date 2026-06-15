@@ -195,7 +195,7 @@ class TestAppFactoryCreateInstances:
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     @patch("hassette.core.app_factory.class_already_loaded", return_value=True)
     def test_create_instances_force_reload(self, mock_loaded, mock_load_class, factory: AppFactory, mock_manifest):
-        """Passes force_reload=True through to _load_class()."""
+        """Passes force_reload=True through to load_class()."""
         mock_load_class.return_value = Mock()
 
         factory.create_instances("test_app", mock_manifest, force_reload=True)

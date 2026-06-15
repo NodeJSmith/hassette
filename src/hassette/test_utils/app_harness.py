@@ -308,7 +308,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         # Step 5: Pre-configure hassette.api mock before state proxy starts.
         # HassetteHarness.start() checks "if not self.hassette.api" before setting it,
         # so we set it here first with get_states_raw returning [] to prevent
-        # StateProxy._load_cache() from failing when on_initialize() runs.
+        # StateProxy.load_cache() from failing when on_initialize() runs.
         api_mock = AsyncMock()
         api_mock.sync = AsyncMock()
         api_mock.get_states_raw = AsyncMock(return_value=[])

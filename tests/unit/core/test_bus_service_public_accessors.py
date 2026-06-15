@@ -109,7 +109,7 @@ def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusSe
 
 
 def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:
-    """_on_dispatch_done clamps to 0 and sets idle when counter is already zero."""
+    """on_dispatch_done clamps to 0 and sets idle when counter is already zero."""
     bus_service._dispatch_pending = 0
     bus_service._dispatch_idle_event.clear()
 
@@ -121,7 +121,7 @@ def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:
 
 
 def test_on_dispatch_done_normal_decrement(bus_service: BusService) -> None:
-    """_on_dispatch_done decrements normally when counter is positive."""
+    """on_dispatch_done decrements normally when counter is positive."""
     bus_service._dispatch_pending = 3
     bus_service._dispatch_idle_event.clear()
 
@@ -133,7 +133,7 @@ def test_on_dispatch_done_normal_decrement(bus_service: BusService) -> None:
 
 
 def test_on_dispatch_done_sets_idle_at_zero(bus_service: BusService) -> None:
-    """_on_dispatch_done sets idle event when counter reaches zero."""
+    """on_dispatch_done sets idle event when counter reaches zero."""
     bus_service._dispatch_pending = 1
     bus_service._dispatch_idle_event.clear()
 

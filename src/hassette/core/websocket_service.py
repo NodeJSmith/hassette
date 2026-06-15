@@ -318,7 +318,7 @@ class WebsocketService(Service):
             The recv loop task.
         """
         # start reader first so send_and_wait can get replies; assign to self immediately
-        # so _partial_cleanup can cancel it if a later step (subscribe, event) raises
+        # so partial_cleanup can cancel it if a later step (subscribe, event) raises
         recv_task = self.task_bucket.spawn(self.recv_loop(), name="ws:recv")
         self._recv_task = recv_task
 

@@ -149,7 +149,7 @@ class ScheduledJob:
     """Actual dispatch time, including any jitter offset.
 
     Equals ``next_run`` when no jitter is configured. Set by
-    ``SchedulerService._apply_jitter_to_heap()`` at enqueue time when jitter > 0.
+    ``SchedulerService.apply_jitter_to_heap()`` at enqueue time when jitter > 0.
     The pop loop in ``_ScheduledJobQueue.pop_due_and_peek_next`` compares against
     ``fire_at`` (not ``next_run``) to decide when to dispatch.
     """
@@ -170,7 +170,7 @@ class ScheduledJob:
     """Optional group name for grouping related jobs. Included in deduplication comparison."""
 
     jitter: float | None = field(default=None, compare=False)
-    """Seconds of random offset applied at enqueue time by ``SchedulerService._apply_jitter_to_heap()``.
+    """Seconds of random offset applied at enqueue time by ``SchedulerService.apply_jitter_to_heap()``.
 
     Does not affect ``next_run`` (unjittered logical fire time). See the ``fire_at`` field on
     ``ScheduledJob`` for the actual dispatch time after jitter is applied.
@@ -343,7 +343,7 @@ class ScheduledJob:
         """Update the next run timestamp, fire_at, and ordering metadata.
 
         Both ``next_run`` and ``fire_at`` are set to the rounded value. Call
-        ``SchedulerService._apply_jitter_to_heap()`` after this to set a jittered
+        ``SchedulerService.apply_jitter_to_heap()`` after this to set a jittered
         ``fire_at`` when the job has ``jitter`` configured.
         """
         rounded = next_run.round(unit="second")

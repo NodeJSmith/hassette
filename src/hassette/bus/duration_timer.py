@@ -160,7 +160,7 @@ class DurationTimer:
 
         ``start()`` clears ``_cancelled`` to enable timer restart when the entity
         re-enters the target state.  After ``Listener.cancel()``, no further
-        ``start()`` calls should occur — ``_dispatch()`` guards this with an
+        ``start()`` calls should occur — ``dispatch()`` guards this with an
         ``is_cancelled`` check.
         """
         self._cancelled = True  # idempotency guard — MUST be first

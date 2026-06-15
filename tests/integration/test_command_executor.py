@@ -338,7 +338,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     )
     executor._write_queue.put_nowait(record)
 
-    # Drain without going through serve() loop — call _drain_and_persist directly
+    # Drain without going through serve() loop — call drain_and_persist directly
     await executor.drain_and_persist()
 
     # Verify it landed in DB
@@ -354,7 +354,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
-    """_flush_queue() persists remaining records before returning."""
+    """flush_queue() persists remaining records before returning."""
 
     db_service, session_id = initialized_db
 
@@ -422,7 +422,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 
 
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
-    """_build_record() reads session_id from self.hassette.session_id directly.
+    """build_record() reads session_id from self.hassette.session_id directly.
 
     _safe_session_id() was removed in WP03. session_id is now always read directly.
     The phased startup contract guarantees a valid session_id exists before any
@@ -450,7 +450,7 @@ async def test_persist_batch_drops_presession_records(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """_persist_batch() silently drops records with session_id=None when session unavailable.
+    """persist_batch() silently drops records with session_id=None when session unavailable.
 
     Records queued before _create_session() runs have session_id=None. When the session
     is unavailable at drain time, those records are dropped with a warning.

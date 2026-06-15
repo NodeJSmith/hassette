@@ -20,7 +20,7 @@ def make_cmd_invoke_handler(source_tier: str) -> MagicMock:
     cmd.listener = MagicMock()
     cmd.listener.invoker.invoke = AsyncMock(return_value=None)
     cmd.effective_timeout = None
-    # Provide event with payload attributes so _build_record can extract trigger fields
+    # Provide event with payload attributes so build_record can extract trigger fields
     cmd.event = MagicMock()
     cmd.event.payload.event_id = "test-event-id"
     cmd.event.payload.origin = "LOCAL"

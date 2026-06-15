@@ -195,7 +195,7 @@ class StateProxy(Resource):
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
-        # Snapshot to avoid RuntimeError if _load_cache() mutates the dict mid-iteration
+        # Snapshot to avoid RuntimeError if load_cache() mutates the dict mid-iteration
         for eid, state in list(self.states.items()):
             try:
                 if extract_domain(eid) == domain:
@@ -276,7 +276,7 @@ class StateProxy(Resource):
         Retains the state cache so consumers can read stale data while disconnected
         instead of hitting ResourceNotReadyError. Callers can check ``is_ready()`` to
         distinguish fresh from stale data. The cache is replaced with fresh data on
-        reconnect via ``_load_cache()``.
+        reconnect via ``load_cache()``.
 
         This method is idempotent: if StateProxy is already not-ready, subsequent
         calls are no-ops. This prevents redundant work during early-drop retry loops.

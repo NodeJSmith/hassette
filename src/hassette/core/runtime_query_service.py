@@ -227,7 +227,7 @@ class RuntimeQueryService(Resource):
 
         All completion events arriving within the same drain cycle are collected in
         ``_pending_completions`` before a single WS message is broadcast -
-        one message per ``_drain_and_persist()`` cycle, not one per record.
+        one message per ``drain_and_persist()`` cycle, not one per record.
         """
         if self._flush_scheduled:
             return
@@ -239,11 +239,11 @@ class RuntimeQueryService(Resource):
 
         All handler and job completions accumulated in ``_pending_completions`` are
         emitted as one batched message. The ``kind`` field on each item discriminates
-        handler invocations from job executions. One message per ``_drain_and_persist()``
+        handler invocations from job executions. One message per ``drain_and_persist()``
         cycle, not one per record.
         """
         # Reset BEFORE the awaits so new events arriving during broadcast land in
-        # the fresh pending list and _schedule_flush re-arms correctly.
+        # the fresh pending list and schedule_flush re-arms correctly.
         self._flush_scheduled = False
         now = time.time()
 

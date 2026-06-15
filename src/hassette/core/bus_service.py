@@ -280,7 +280,7 @@ class BusService(Service):
         """Invoke the per-owner removal callback for listener, if one is registered.
 
         Singular (one listener per call) by design: the bus fires on each removal as it
-        happens, where SchedulerService._fire_removal_callbacks batches a list at the end
+        happens, where SchedulerService.fire_removal_callbacks batches a list at the end
         of a bulk operation.
         """
         callback = self._removal_callbacks.get(listener.identity.owner_id)

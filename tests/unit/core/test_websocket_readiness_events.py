@@ -43,7 +43,7 @@ class TestWebsocketReadinessEvents:
         websocket_service.mark_ready(reason="test: pre-state")
         websocket_service._connected_at = time.monotonic()
 
-        # Mock _make_connection to return a task that fails with RetryableConnectionClosedError
+        # Mock make_connection to return a task that fails with RetryableConnectionClosedError
         # on the first call, then succeeds on the second.
         call_count = 0
 
@@ -51,7 +51,7 @@ class TestWebsocketReadinessEvents:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # Simulate successful connection (mark_ready mirrors what _start_recv_and_subscribe does)
+                # Simulate successful connection (mark_ready mirrors what start_recv_and_subscribe does)
                 websocket_service._connected_at = time.monotonic()
                 websocket_service.mark_ready(reason="test: connected")
 
@@ -134,7 +134,7 @@ class TestWebsocketReadinessEvents:
     ) -> None:
         """Successful connect path emits a service_status event with ready=True after mark_ready().
 
-        Runs the real _start_recv_and_subscribe() with sub-methods stubbed to isolate
+        Runs the real start_recv_and_subscribe() with sub-methods stubbed to isolate
         the mark_ready() → _emit_readiness_event() call that subtask 3 adds.
         """
         send_event_calls: list = []
@@ -144,7 +144,7 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Stub out the sub-methods that _start_recv_and_subscribe calls so we can run the
+        # Stub out the sub-methods that start_recv_and_subscribe calls so we can run the
         # real method and observe whether it calls _emit_readiness_event() after mark_ready().
         spawned_coros: list = []
 
@@ -197,7 +197,7 @@ class TestEverConnectedLatch:
         self,
         websocket_service: WebsocketService,
     ) -> None:
-        """ever_connected flips True when _set_connection_state transitions to CONNECTED."""
+        """ever_connected flips True when set_connection_state transitions to CONNECTED."""
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
         assert websocket_service.ever_connected is False  # not yet
 

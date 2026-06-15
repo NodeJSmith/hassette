@@ -124,7 +124,7 @@ INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
 #:            on_initialize / on_shutdown — internal lifecycle hooks, not user API.
 #: Scheduler: on_initialize / on_shutdown — same.
 #: Api:       get_* / create_* / update_* / delete_* / list_* / reset_* /
-#:            decrement_* / increment_* / entity_exists / *_rest_request /
+#:            decrement_* / increment_* / entity_exists / *rest_request /
 #:            ws_send_* / render_template / on_initialize
 #:            — all return data that is consumed immediately; a dropped coroutine
 #:            produces an AttributeError downstream (not silent). Also covers

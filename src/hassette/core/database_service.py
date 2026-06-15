@@ -352,7 +352,7 @@ class DatabaseService(Service):
         The loop runs until cancelled by on_shutdown().
         """
         if self._db_write_queue is None:
-            raise RuntimeError("_db_write_worker() started before on_initialize() set _db_write_queue")
+            raise RuntimeError("db_write_worker() started before on_initialize() set _db_write_queue")
         queue = self._db_write_queue
         while True:
             coro, future = await queue.get()

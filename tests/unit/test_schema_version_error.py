@@ -38,7 +38,7 @@ class TestSchemaVersionErrorType:
 
 
 class TestDatabaseServiceRaisesSchemaVersionError:
-    """Tests that _handle_schema_version raises SchemaVersionError when the DB is ahead of the code."""
+    """Tests that handle_schema_version raises SchemaVersionError when the DB is ahead of the code."""
 
     def make_svc(self, tmp_path: Path) -> DatabaseService:
         """Build a DatabaseService instance without going through __init__."""
@@ -63,7 +63,7 @@ class TestDatabaseServiceRaisesSchemaVersionError:
         """When the DB's PRAGMA user_version is ahead of the code's expected head, SchemaVersionError is raised.
 
         The migration runner uses PRAGMA user_version (integer), not Alembic string revisions.
-        _get_current_db_version() reads the on-disk integer; _get_expected_head_version() returns
+        get_current_db_version() reads the on-disk integer; get_expected_head_version() returns
         the highest numbered migration file. When current > expected, startup is refused.
         """
         db_path = tmp_path / "test.db"

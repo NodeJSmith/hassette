@@ -185,7 +185,7 @@ class SchedulerService(Service):
         remove_job would return False and the callback would silently drop.
 
         Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
-        instead. Both paths fire ``_fire_removal_callbacks`` unconditionally.
+        instead. Both paths fire ``fire_removal_callbacks`` unconditionally.
         """
 
         removed = await self._job_queue.remove_job(job)
@@ -397,7 +397,7 @@ class SchedulerService(Service):
         """Fire all jobs due at the current time.
 
         Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())``
-        call, then awaits each ``_dispatch_and_log(job)`` inline (not via
+        call, then awaits each ``dispatch_and_log(job)`` inline (not via
         ``task_bucket.spawn``). Jobs re-enqueued during dispatch (repeating jobs)
         are not included in this invocation — only the initial snapshot is
         processed, preventing infinite loops when the clock is frozen.
@@ -436,7 +436,7 @@ class SchedulerService(Service):
         """Remove a job from the scheduler synchronously, fire removal callbacks, and kick.
 
         Calls ``_ScheduledJobQueue.remove_item_sync`` directly (no lock). Fires
-        ``_fire_removal_callbacks`` unconditionally — even when the job was not in
+        ``fire_removal_callbacks`` unconditionally — even when the job was not in
         the heap — to prevent dict leaks when the serve loop already popped the job.
         Calls ``kick()`` only when the job was actually removed from the heap.
 
@@ -454,7 +454,7 @@ class SchedulerService(Service):
             self.logger.debug("Job not in heap (already popped by serve loop): %s", job)
         # Set _dequeued unconditionally — even when the job was already popped
         # from the heap by the serve loop. This prevents the dispatch race
-        # (guard in _dispatch_and_log) and makes cancel idempotent.
+        # (guard in dispatch_and_log) and makes cancel idempotent.
         job._dequeued = True
         self.fire_removal_callbacks([job])
         return removed

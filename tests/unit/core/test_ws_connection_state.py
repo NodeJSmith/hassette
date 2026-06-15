@@ -1,7 +1,7 @@
 """Unit tests for WebsocketService connection state machine (WP03).
 
 Tests for the three-state ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED),
-_set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
+set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
 """
 
 import asyncio
@@ -144,9 +144,9 @@ class TestValidConnectSequence:
 
         websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Stub _make_connection to succeed on first attempt (clean exit)
+        # Stub make_connection to succeed on first attempt (clean exit)
         async def fake_make_connection(_session):
-            # Simulate _start_recv_and_subscribe setting CONNECTED and marking ready
+            # Simulate start_recv_and_subscribe setting CONNECTED and marking ready
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
             websocket_service.mark_ready(reason="test: connected")
 
@@ -289,7 +289,7 @@ class TestCleanShutdownDisconnects:
 
 class TestPartialCleanupNoStateChange:
     async def test_partial_cleanup_no_state_change(self, websocket_service: WebsocketService) -> None:
-        """_partial_cleanup() does NOT change connection_state."""
+        """partial_cleanup() does NOT change connection_state."""
         # Put into CONNECTED state
         websocket_service._connection_state = ConnectionState.CONNECTED
         websocket_service._ws = None
@@ -297,11 +297,11 @@ class TestPartialCleanupNoStateChange:
 
         await websocket_service.partial_cleanup()
 
-        # State must remain CONNECTED — _partial_cleanup is resource cleanup, not state transition
+        # State must remain CONNECTED — partial_cleanup is resource cleanup, not state transition
         assert websocket_service.connection_state == ConnectionState.CONNECTED
 
     async def test_partial_cleanup_no_state_change_from_connecting(self, websocket_service: WebsocketService) -> None:
-        """_partial_cleanup() does NOT change connection_state from CONNECTING either."""
+        """partial_cleanup() does NOT change connection_state from CONNECTING either."""
         websocket_service._connection_state = ConnectionState.CONNECTING
         websocket_service._ws = None
         websocket_service._recv_task = None

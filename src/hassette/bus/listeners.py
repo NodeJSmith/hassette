@@ -178,7 +178,7 @@ class HandlerInvoker:
     pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False)
     """Unresolved per-invocation completion futures for non-parallel modes.
 
-    Each ``_run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
+    Each ``run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
     that resolves when the handler actually runs (or is dropped/released). A queued trigger accepted
     into the deque has no live child until drain time, so its future would hang forever if the
     listener is released first. ``release_guard`` resolves every remaining future here so those outer

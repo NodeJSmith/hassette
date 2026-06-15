@@ -144,7 +144,7 @@ class TestExecutionIdContextVar:
         assert record.execution_id == value
 
     async def test_execution_id_none_after_handler_execution(self) -> None:
-        """CURRENT_EXECUTION_ID resets to None after _execute_handler() returns."""
+        """CURRENT_EXECUTION_ID resets to None after execute_handler() returns."""
         executor = make_executor()
         listener = make_listener()
         cmd = make_invoke_handler_cmd(listener=listener)
@@ -208,7 +208,7 @@ class TestExecutionIdContextVar:
         assert record.execution_id == value
 
     async def test_execution_id_none_after_job_execution(self) -> None:
-        """CURRENT_EXECUTION_ID resets to None after _execute_job() returns."""
+        """CURRENT_EXECUTION_ID resets to None after execute_job() returns."""
         executor = make_executor()
         cmd = make_execute_job_cmd()
 

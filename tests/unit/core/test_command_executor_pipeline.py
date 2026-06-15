@@ -3,10 +3,10 @@
 Tests cover:
 - Bounded queue with overflow handling
 - RetryableBatch expansion in drain and flush
-- Error classification in _persist_batch
+- Error classification in persist_batch
 - FK violation row-by-row fallback
-- source_tier and is_di_failure in _build_record
-- _flush_queue graceful handling on DB closed
+- source_tier and is_di_failure in build_record
+- flush_queue graceful handling on DB closed
 - RetryableBatch.not_before backoff deferral (#656)
 - serve() timer-based flush (#657)
 """
@@ -299,7 +299,7 @@ async def test_integrity_error_row_by_row_fallback():
 
 
 def test_build_record_reads_source_tier():
-    """_build_record sets source_tier from cmd.source_tier and returns ExecutionRecord."""
+    """build_record sets source_tier from cmd.source_tier and returns ExecutionRecord."""
     executor = init_executor()
 
     listener = MagicMock()
@@ -331,7 +331,7 @@ def test_build_record_reads_source_tier():
 
 
 def test_build_record_reads_is_di_failure():
-    """_build_record sets is_di_failure from result.is_di_failure."""
+    """build_record sets is_di_failure from result.is_di_failure."""
     executor = init_executor()
 
     listener = MagicMock()
@@ -361,7 +361,7 @@ def test_build_record_reads_is_di_failure():
 
 
 async def test_flush_queue_handles_db_closed():
-    """_flush_queue does not raise when DB submit raises RuntimeError (DB closed at shutdown)."""
+    """flush_queue does not raise when DB submit raises RuntimeError (DB closed at shutdown)."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
@@ -379,7 +379,7 @@ async def test_flush_queue_handles_db_closed():
 
     executor.repository.persist_execution_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
-    # _flush_queue must NOT raise — shutdown must complete
+    # flush_queue must NOT raise — shutdown must complete
     await executor.flush_queue()
 
     # Should have logged something (error/warning about dropped records)
@@ -523,7 +523,7 @@ async def test_retryable_batch_past_not_before_is_persisted():
 
 
 async def test_retryable_batch_not_before_set_to_backoff_delay():
-    """When _persist_batch re-enqueues a batch, not_before is set to monotonic + (retry_count + 1)."""
+    """When persist_batch re-enqueues a batch, not_before is set to monotonic + (retry_count + 1)."""
     executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
@@ -614,7 +614,7 @@ async def test_serve_loops_without_blocking_when_queue_empty():
 
 
 async def test_serve_timer_drains_items_added_during_drain():
-    """Items put back into the queue during _drain_and_persist (e.g. deferred retries) are
+    """Items put back into the queue during drain_and_persist (e.g. deferred retries) are
     picked up on the next loop iteration, not lost."""
     executor = init_executor()
 

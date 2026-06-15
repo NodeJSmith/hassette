@@ -167,7 +167,7 @@ async def test_pragmas_are_set(initialized_service: DatabaseService) -> None:
 
 
 async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
-    """_update_heartbeat updates last_heartbeat_at."""
+    """update_heartbeat updates last_heartbeat_at."""
     session_id = initialized_service.hassette.session_id
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
@@ -186,7 +186,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
 
 
 async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
-    """_run_retention_cleanup deletes old records but keeps recent ones."""
+    """run_retention_cleanup deletes old records but keeps recent ones."""
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
@@ -496,7 +496,7 @@ async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: Datab
     """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
     initialized_service.hassette.config.database.max_size_mb = 0
 
-    # Patch _get_db_size_mb to detect if it is ever called
+    # Patch get_db_size_mb to detect if it is ever called
     with patch.object(initialized_service, "get_db_size_mb") as mock_size:
         await initialized_service._check_size_failsafe()
         mock_size.assert_not_called()

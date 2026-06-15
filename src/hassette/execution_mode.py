@@ -53,7 +53,7 @@ class ExecutionModeGuard:
         self._cap = cap
         self._lock = asyncio.Lock()
         self.current_task: asyncio.Task[None] | None = None
-        # Logically bounded to ``_cap`` via the explicit length check in ``_run_queued``, NOT via
+        # Logically bounded to ``_cap`` via the explicit length check in ``run_queued``, NOT via
         # ``deque(maxlen=_cap)``: a maxlen deque evicts the OLDEST (leftmost) entry on overflow,
         # but the spec requires dropping the NEWEST trigger. Do not replace with ``maxlen``.
         self.pending: deque[RunAndTrack] = deque()
