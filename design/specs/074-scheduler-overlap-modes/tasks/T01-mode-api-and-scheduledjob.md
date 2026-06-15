@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add mode parameter, resolution, and guard to scheduler API"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#6", "FR#7", "FR#8", "FR#9", "AC#2", "AC#8", "AC#9"]
 ---

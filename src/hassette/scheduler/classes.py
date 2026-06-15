@@ -8,6 +8,8 @@ from croniter import croniter
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.execution_mode import ExecutionModeGuard
+from hassette.types.enums import ExecutionMode
 from hassette.types.types import SourceTier
 
 MAX_CRON_ITERATIONS = 10_000
@@ -217,6 +219,17 @@ class ScheduledJob:
     source_tier: SourceTier = field(default="app", compare=False)
     """Whether this job originates from a user app or the framework itself."""
 
+    mode: ExecutionMode = field(default=ExecutionMode.SINGLE, compare=False)
+    """Resolved overlap mode for this job. Determines behavior when a prior invocation is still
+    running as the next occurrence becomes due. Defaults to ``ExecutionMode.SINGLE`` so existing
+    direct ``ScheduledJob(...)`` constructions in tests remain valid; the real resolution happens
+    in ``Scheduler.schedule()``."""
+
+    guard: ExecutionModeGuard = field(init=False, compare=False)
+    """Per-job overlap state machine. Created in ``__post_init__`` from ``mode``. Lives for the
+    full lifetime of the job, spanning all re-fires. ``compare=False`` prevents the guard from
+    affecting heap ordering. ``init=False`` — do not pass directly; set via ``mode``."""
+
     _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
     """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
 
@@ -245,6 +258,7 @@ class ScheduledJob:
         if self.timeout_disabled and self.timeout is not None:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
 
+        self.guard = ExecutionModeGuard(self.mode)
         self.set_next_run(self.next_run)
 
         if not self.name:
@@ -290,13 +304,14 @@ class ScheduledJob:
             and self.args == other.args
             and self.kwargs == other.kwargs
             and self.error_handler is other.error_handler
+            and self.mode is other.mode
         )
 
     def diff_fields(self, other: "ScheduledJob") -> list[str]:
         """Return a list of configuration field names that differ between two jobs.
 
         Compares the same fields as ``matches()`` — callable, trigger, group,
-        jitter, timeout, timeout_disabled, args, kwargs, error_handler.
+        jitter, timeout, timeout_disabled, args, kwargs, error_handler, and mode.
         """
         changed: list[str] = []
         if self.job != other.job:
@@ -319,6 +334,8 @@ class ScheduledJob:
             changed.append("kwargs")
         if self.error_handler is not other.error_handler:
             changed.append("error_handler")
+        if self.mode is not other.mode:
+            changed.append("mode")
         return changed
 
     def set_app_error_handler_resolver(self, resolver: "Callable[[], SchedulerErrorHandlerType | None]") -> None:
