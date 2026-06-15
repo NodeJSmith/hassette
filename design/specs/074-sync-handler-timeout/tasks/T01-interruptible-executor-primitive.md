@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add interruptible thread-pool executor primitive"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "FR#7"]
 ---
