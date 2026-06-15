@@ -26,6 +26,8 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
 from .app_handler import AppHandler
+from .block_io_guard import install as install_block_io_guard
+from .block_io_guard import uninstall as uninstall_block_io_guard
 from .bus_service import BusService
 from .command_executor import CommandExecutor
 from .database_service import DatabaseService
@@ -467,6 +469,17 @@ class Hassette(Resource):
             )
             self._loop_watchdog.start()
 
+        # Install Tier 2 call-site interception (monkeypatch). The dev/prod enablement decision
+        # lives inside install_block_io_guard (_should_install): dev_mode on by default, prod
+        # requires the explicit allow_deep_detection_in_prod flag (FR#6, AC#10). install() no-ops
+        # when disabled, so the only gate here is that an executor exists for marker attribution.
+        if self._command_executor is not None:
+            install_block_io_guard(
+                self,
+                loop_thread_id=self._loop_thread_id,
+                executor=self._command_executor,
+            )
+
         await self.on_initialize()
 
         # Phase 1: Start database and create session before anything else.
@@ -665,6 +678,11 @@ class Hassette(Resource):
             except Exception:
                 self.logger.warning("Loop watchdog stop raised during shutdown", exc_info=True)
             self._loop_watchdog = None
+        # Uninstall Tier 2 call-site interception so no patches remain after shutdown (FR#12/AC#9).
+        try:
+            uninstall_block_io_guard()
+        except Exception:
+            self.logger.warning("Tier 2 block IO guard uninstall raised during shutdown", exc_info=True)
         try:
             if self._bus is not None:
                 self._bus.remove_all_listeners()

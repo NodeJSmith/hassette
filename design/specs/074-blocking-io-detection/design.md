@@ -144,6 +144,11 @@ Tier 1 distinguishes blocking from slow-async because it measures loop *responsi
 
 A new module (`src/hassette/core/block_io_guard.py`) patches a curated primitive set — `builtins.open`, `time.sleep`, `socket.socket.connect/recv/send`, `os.listdir`/`scandir`/`walk`, `glob.glob`, seeded from HA's `block_async_io.py`. Each wrapper checks `threading.get_ident() == loop_thread_id`; on a hit it resolves behavior, captures the offending line via `source_capture`, reads the thread-visible marker for app attribution, and warns/raises. Install/teardown live alongside the loop setup in `core.py` (install after line 449, teardown in shutdown), and must be idempotent and reversible (FR#12, AC#9).
 
+Two refinements landed during T04 implementation, both faithful to the design intent rather than departures from it:
+
+- **Non-blocking socket gate.** asyncio's own transports call `socket.socket.recv/send/connect` on the loop thread, but on *non-blocking* sockets (`setblocking(False)`), which do not stall the loop. The socket wrapper passes through when `self.getblocking()` is False, so only genuinely blocking socket calls are flagged — this is HA's approach and avoids a per-HA-event false-positive storm. The thread-id gate alone is insufficient here because asyncio's non-blocking I/O *is* on the loop thread.
+- **Per-thread re-entrancy guard.** Emitting a warning can read source via `linecache`, which calls the patched `builtins.open` on the loop thread — an unguarded wrapper would recurse to a `RecursionError`. A `threading.local` flag makes any patched call that fires *while a wrapper is mid-detection on this thread* pass straight through. The guard also suppresses inner patched calls a primitive makes synchronously (e.g. one `os.walk` no longer multiplies into a warning per internal `os.scandir`).
+
 Tier 2 defaults on in `dev_mode` and off in production; an explicit `allow_blocking_detection_in_prod`-style flag enables it in production, mirroring `allow_reload_in_prod` (`config.py:182`) exactly.
 
 ### Persistence
