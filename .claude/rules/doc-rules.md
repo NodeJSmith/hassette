@@ -177,12 +177,13 @@ Hassette uses concepts from async Python, dependency injection, and Home Assista
 - **Home Assistant concepts**: Don't explain what entities, services, or automations are. Do explain how Hassette maps to them ("a Hassette `App` is like an AppDaemon app or a Home Assistant automation, but written in Python").
 - **Hassette-specific terms**: Always define on first use within a page. Bus, Scheduler, App, StateManager, Resource — these are Hassette vocabulary and need introduction.
 
-## Verify with a Persona Review
+## Verify with Persona and Accuracy Reviews
 
-When a change adds or edits a docs-site page under `docs/pages/`, run the `doc-persona-review` skill on the touched pages before shipping. The skill runs a cognitive walkthrough as a beginner persona and catches the gaps a writer who already knows the system can't see — terms used before they're defined, objects referenced without showing where they come from, missing prerequisites.
+When a change adds or edits a docs-site page under `docs/pages/`, run two reviews on the touched pages before shipping: `doc-persona-review` (is the page *followable*?) and `doc-accuracy-review` (is the page *true*?). They are siblings — the persona walkthrough catches gaps a writer who knows the system can't see (terms used before they're defined, missing prerequisites), and the accuracy pass catches prose that drifted from the code (wrong defaults, stale signatures, behavior that no longer matches `src/`). Snippets are Pyright-checked in CI; prose claims are not, so they drift silently after every `src/` change.
 
-- **Scope the run to the pages you changed**, not the whole section. Pass the page slugs (e.g. `core-concepts/api/methods`) so the review targets your edits, not unrelated pages.
+- **Scope both runs to the pages you changed**, not the whole section. Pass the page slugs (e.g. `core-concepts/api/methods`) so the reviews target your edits, not unrelated pages.
 - **Act on findings that land on the lines you touched.** Pre-existing findings on untouched content are out of scope for the current change — file a follow-up issue if they're worth fixing, but don't let them block the PR.
-- **A `lost` or `stuck-at-step-N` verdict on new content is a blocker.** Fix it before shipping. `followable` and `followable-with-effort` are passing verdicts.
+- **Persona: a `lost` or `stuck-at-step-N` verdict on new content is a blocker.** Fix it before shipping. `followable` and `followable-with-effort` are passing verdicts.
+- **Accuracy: a confirmed `WRONG` or `OUTDATED_API` finding on touched lines is a blocker.** Triage each finding against the cited code first — the reviewer can be wrong, and a bad "fix" makes a true sentence false — then fix the ones that hold before shipping.
 
-This applies to docs-site prose pages. It does not apply to docstring-only changes (the persona review reads rendered pages, not API reference generated from docstrings) or to `design/`, `.claude/`, and other non-site documentation.
+This applies to docs-site prose pages. It does not apply to docstring-only changes (the reviews read rendered pages, not API reference generated from docstrings) or to `design/`, `.claude/`, and other non-site documentation.
