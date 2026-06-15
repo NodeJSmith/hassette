@@ -40,9 +40,11 @@ piece is absent on the job side today.
    the `"group"`/`name_auto` handling, but note both `mode` and the dataclass field are absent today
    (unlike `group`, which is already wired).
 
-5. **Job summary query**: wherever `get_all_jobs_summary`/`get_job_summary` build the `JobSummary`
-   (telemetry query layer — see Focus), select the new `mode` column so it flows to the model. (The
-   `JobSummary` field itself and the API surface are T05; this task ensures the column is queried.)
+5. **Job summary query**: in `src/hassette/core/telemetry/registration_queries.py`, the
+   `get_all_jobs_summary` (line ~167) and `get_job_summary` (line ~240) functions build the
+   `JobSummary` — select the new `mode` column there so it flows to the model. (These functions live
+   in `registration_queries.py`, NOT `telemetry_repository.py`.) The `JobSummary` field itself and
+   the API surface are T05; this task ensures the column is queried.
 
 6. **Tests (same task).** A memory→DB persistence test (FR#10/AC#10): register a job with
    `mode="queued"`, assert `scheduled_jobs.mode == 'queued'`. Do NOT assert a DB→guard

@@ -50,5 +50,5 @@ Do NOT regenerate types here — T05 already did and committed them; consume `ge
 
 ## Verify
 
-- [ ] FR#12: the jobs UI displays each job's mode; suppressed/dropped counts render when non-zero.
-- [ ] AC#11: the jobs view (UI half) shows mode and live counts sourced from the jobs API; the JobSummary test factory and component tests cover the new fields.
+- [ ] FR#12: the jobs UI displays each job's mode; suppressed/dropped counts render when non-zero; the `JobSummary` factory in `frontend/src/test/factories.ts` includes `mode`/`suppressed_count`/`dropped_count`.
+- [ ] AC#11: the jobs view (UI half) shows mode and live counts sourced from the jobs API; component tests cover the new fields.

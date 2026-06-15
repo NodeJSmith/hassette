@@ -30,10 +30,11 @@ through the guard)", honoring the Edge Cases and the "Guard wiring with a comple
    - One-shots (`next_run_time()` → `None`): run once, remove after — unchanged observable behavior.
 
 2. **In-lock `_dequeued` re-check (FR#17).** `dequeue_job` (`scheduler_service.py:435`) is lockless
-   and sets `job._dequeued = True` (line 458) at any await point. Add a second `if job._dequeued:
-   return`/skip check held INSIDE the queue lock in the enqueue path (in `_ScheduledJobQueue.add` or
-   a guarded wrapper), immediately before `_queue.push`, atomic with the push. The entry-level check
-   at line 284 stays. Push-then-check is insufficient.
+   and sets `job._dequeued = True` (line 458) at any await point. Add a second `if job._dequeued:`
+   skip check held INSIDE the SAME lock acquisition that does the push — i.e. inside
+   `_ScheduledJobQueue.add` (line 494), after `async with self._lock` and immediately before
+   `self._queue.push(job)` — NOT a separate acquire-and-check before calling `add`. The entry-level
+   check at line 284 stays. Push-then-check is insufficient.
 
 3. **Guard routing (`run_with_guard` equivalent, mirror `HandlerInvoker.run_with_mode`).** Replace
    the direct `await self.run_job(job)` with mode-aware routing:
@@ -77,7 +78,7 @@ Do NOT change the public scheduling API (T01), persistence (T03), or the state-p
   `reschedule_job` (line 350) computes `next_run_time`, handles trigger-raise/`None` via
   `_remove_job`, handles non-future delta (advance 1s), and `enqueue_job`s. You are reordering and
   splitting this, not rewriting the next-run math.
-- `enqueue_job` (line 106) calls `apply_jitter_to_heap` then `_job_queue.add` (line 494, holds
+- `enqueue_job` (line 110) calls `apply_jitter_to_heap` then `_job_queue.add` (line 494, holds
   `FairAsyncRLock`). The in-lock `_dequeued` check belongs at the push site inside that lock.
 - `serve()` (line 84) spawns `dispatch_and_log` per due job via `task_bucket.spawn` — this is why
   parallel concurrency works without routing parallel through the guard.

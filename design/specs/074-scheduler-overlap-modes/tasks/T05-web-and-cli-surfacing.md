@@ -2,7 +2,7 @@
 task_id: "T05"
 title: "Surface job mode and live counts in the API and CLI"
 status: "planned"
-depends_on: ["T01", "T03"]
+depends_on: ["T01", "T02", "T03"]
 implements: ["FR#11", "AC#11"]
 ---
 
@@ -62,7 +62,7 @@ Do NOT implement the frontend display (T06) — but DO regenerate the types it c
   joins by `db_id`.
 - Both routes import `enrich_jobs_with_heap`; `web/routes/telemetry.py:220` is the second one the
   design's Impact missed.
-- CLI: `cli/commands/job.py` builds `JOB_LIST_COLUMNS` (line ~15) and renders via `render_table`;
+- CLI: `cli/commands/job.py` builds `JOB_LIST_COLUMNS` (line ~11) and renders via `render_table`;
   add a `Column("mode", "Mode", ...)`. `JobSummary.model_validate` is used at line 77 — extra fields
   flow automatically once on the model.
 - Schema regen + worktree npm: `.claude/rules/frontend-worktree.md` and CLAUDE.md "Schema
