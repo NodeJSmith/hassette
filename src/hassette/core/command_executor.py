@@ -45,6 +45,31 @@ _BATCH_DRAIN_CAP = 100
 _RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 
+@dataclass(frozen=True)
+class ExecutionMarker:
+    """Immutable snapshot of the execution currently holding the loop thread.
+
+    Published to ``CommandExecutor._current_execution`` via a single atomic attribute
+    assignment so an off-loop watchdog thread can read it without a lock. A separate OS
+    thread cannot read another thread's ``ContextVar``, so the blocking-IO watchdog reads
+    this plain attribute instead of ``CURRENT_EXECUTION_ID``. Frozen (immutable) so a reader
+    can never observe a half-mutated marker — replacement is always a whole-object rebind.
+
+    Single-slot semantics: the marker reflects the most recent ``bind_execution_context``
+    that has not yet been unbound. While the loop thread is *frozen* by a blocking call no
+    interleaving occurs, so the marker names exactly the execution that froze it. A handler
+    that yields (``await``) and is then displaced by another execution running to completion
+    loses its marker — but the loop is responsive across an ``await``, so the watchdog is not
+    consulted in that window. ``started_at`` is ``time.monotonic()`` (process-wide, readable
+    across threads) for measuring how long the execution has held the loop.
+    """
+
+    app_key: str | None
+    instance_name: str | None
+    execution_id: str
+    started_at: float
+
+
 @dataclass
 class RetryableBatch:
     """A batch of records that failed to persist and should be retried.
@@ -108,6 +133,18 @@ class CommandExecutor(Service):
     Maps in-memory ID (listener_id or job_id) to the monotonic timestamp of the
     last timeout WARNING. Entries older than 60s are lazily evicted during
     rate-limit checks.
+    """
+
+    _current_execution: ExecutionMarker | None = None
+    """Thread-visible marker of the execution currently on the loop thread, or None when idle.
+
+    Read by the off-loop blocking-IO watchdog (Tier 1) to attribute a loop freeze to the app
+    that caused it. Published via atomic attribute assignment in ``bind_execution_context`` and
+    cleared in ``unbind_execution_context``. Each assignment creates an instance-level attribute
+    that shadows this class-level default, so instances never share marker state. The class-level
+    ``None`` default exists only so the attribute is safe to read before the first execution and
+    on instances built via ``__new__`` in test helpers (which bypass ``__init__`` — see
+    ``tests/unit/core/conftest.py``).
     """
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
@@ -428,15 +465,32 @@ class CommandExecutor(Service):
             app_inst = self.hassette.app_handler.get(app_key, instance_index)
             if app_inst is not None:
                 instance_name = app_inst.app_config.instance_name
+        resolved_app_key = app_key or None
         structlog.contextvars.bind_contextvars(
-            app_key=app_key or None,
+            app_key=resolved_app_key,
             instance_name=instance_name,
             instance_index=instance_index,
         )
+        # Publish the thread-visible marker last, as a single atomic assignment, so the off-loop
+        # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
+        self._current_execution = ExecutionMarker(
+            app_key=resolved_app_key,
+            instance_name=instance_name,
+            execution_id=execution_id,
+            started_at=time.monotonic(),
+        )
         return execution_id, token
 
-    @staticmethod
-    def unbind_execution_context(token: Token[str | None]) -> None:
+    def unbind_execution_context(self, token: Token[str | None]) -> None:
+        """Clear the execution marker and reset the ContextVar/structlog binding on exit.
+
+        Paired with ``bind_execution_context``. Was a ``@staticmethod``; it takes ``self`` now
+        so it can clear ``_current_execution``. Clearing the marker first (to ``None`` = idle) is
+        deliberate: the off-loop watchdog reads only ``_current_execution``, so a clear-first order
+        means it can never attribute a stale execution once this returns. ``CURRENT_EXECUTION_ID``
+        is thread-local, so its reset order relative to the marker is invisible to other threads.
+        """
+        self._current_execution = None
         CURRENT_EXECUTION_ID.reset(token)
         structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
