@@ -33,7 +33,7 @@ Run affected files with `uv run pytest <files> -v` (never `-n auto`). This touch
 - Keep `thread_leaked` separate from `status` — `status='timed_out'` stays unchanged (preserves FR#9 / the caller contract). The leak is an orthogonal flag.
 - `ExecutionRecord` is frozen (`@dataclass(frozen=True)`); construct with the new field, don't mutate.
 - The persistence column tuple at `telemetry_repository.py:58-62`: verify whether it is derived from the params dict keys or listed manually — a manual list must be updated or the INSERT will desync from the DDL.
-- The leak check is best-effort (the thread may finish microseconds later); a brief grace is acceptable. Do not block the loop waiting on the worker.
+- The leak check is best-effort (the thread may finish microseconds later); a brief grace is acceptable. Do not block the loop waiting on the worker. Concretely: prefer a single immediate `is_alive()` read at the timeout site — do NOT `await asyncio.sleep(...)` then re-read, which would extend the handler's observed timeout window and muddy `duration_ms`. If a grace is truly needed, keep it to a sub-millisecond, non-blocking check, and document why.
 
 ## Verify
 - [ ] FR#3: a timed-out sync handler whose worker thread is still alive logs a distinct "thread still alive" signal and sets `thread_leaked=1` on the execution record; a not-started timeout sets `thread_leaked=0`.
