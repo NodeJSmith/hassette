@@ -8,17 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.45.0](https://github.com/NodeJSmith/hassette/compare/v0.44.0...v0.45.0) (2026-06-16)
 
 
-### Features
+### Monitoring UI
 
-* surface cancelled execution status across the monitoring UI ([#1057](https://github.com/NodeJSmith/hassette/issues/1057)) ([b92ed65](https://github.com/NodeJSmith/hassette/commit/b92ed65eddd1b0f0d799debf249afccb2ccbbe39))
-* surface thread_leaked worker-leak count on job and handler summaries ([#1052](https://github.com/NodeJSmith/hassette/issues/1052)) ([26c0f16](https://github.com/NodeJSmith/hassette/commit/26c0f16a12c94eda45bdbd6ffb97b89bc096a321))
+- Cancelled executions are now surfaced across the monitoring UI — handlers and jobs dropped, restarted, or queued out by overlap modes show a cancelled count and status in the summary tables and detail panes. (#1057)
+- Job and handler summaries now show a `thread_leaked` count, surfacing sync work whose worker thread leaked (e.g. a timed-out handler that never returned its thread to the pool). (#1052)
+- Execution-scoped log views now include framework logs alongside app logs, so a single execution's full log context is visible in one place. (#1051)
 
 
 ### Bug Fixes
 
-* correct app_key when two config sections share an App class ([#1064](https://github.com/NodeJSmith/hassette/issues/1064)) ([dc7b4d8](https://github.com/NodeJSmith/hassette/commit/dc7b4d849698ee72c8fa4c52ce5759192e205eac))
-* show framework logs in execution-scoped log views ([#1051](https://github.com/NodeJSmith/hassette/issues/1051)) ([dbfeccb](https://github.com/NodeJSmith/hassette/commit/dbfeccb11f276ef939c80860d031ebc2361c76b0))
-* stop blocking-IO detection blaming the wrong app under load ([#1054](https://github.com/NodeJSmith/hassette/issues/1054)) ([361bdad](https://github.com/NodeJSmith/hassette/commit/361bdad6a65fcce14119f5cf44290e27182e3cbc))
+- Two config sections that share the same `App` class now resolve to distinct `app_key`s instead of colliding, so telemetry and lookups no longer attribute both instances to one key. (#1064)
+- Blocking-I/O detection now attributes the offending app correctly under load; a busy event loop previously could blame the wrong app for blocking calls. (#1054)
 
 ## [0.44.0](https://github.com/NodeJSmith/hassette/compare/v0.43.0...v0.44.0) (2026-06-16)
 
