@@ -436,7 +436,7 @@ class Scheduler(Resource):
 
         # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework jobs
         # and ``single`` for app jobs. An explicit mode always wins. A raw string is coerced here
-        # so an invalid value raises a clear ValueError at scheduling time (FR#8).
+        # so an invalid value raises a clear ValueError at scheduling time.
         if mode is None:
             resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
         elif isinstance(mode, ExecutionMode):

@@ -44,6 +44,13 @@ class ExecutionMode(StrEnum):
     """Run invocations concurrently with no overlap guard (today's behavior)."""
 
 
+DEFAULT_OVERLAP_MODE: str = ExecutionMode.SINGLE.value
+"""Default overlap mode persisted on registration/summary models when none is resolved yet.
+
+Typed ``str`` (not ``ExecutionMode``) because these model fields hold the string form written to
+the ``TEXT`` DB columns, not the enum."""
+
+
 class Outcome(StrEnum):
     """The result of handing a trigger to an ``ExecutionModeGuard``."""
 

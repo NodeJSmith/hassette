@@ -10,7 +10,6 @@ from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.bus.listeners import STALL_THRESHOLD_SECONDS
 from hassette.core.commands import ExecuteJob
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ScheduledJobRegistration
@@ -28,6 +27,13 @@ if typing.TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+STALL_THRESHOLD_SECONDS: float = 60.0
+"""Seconds a non-parallel job may hold its execution-mode guard before the stall watchdog warns.
+
+Kept in sync with the bus's own ``STALL_THRESHOLD_SECONDS`` (same value, separate constant) so the
+scheduler does not import from the bus layer. ``test_stall_threshold_in_sync`` asserts the two stay
+equal — update both together."""
 
 
 class SchedulerService(Service):
@@ -427,7 +433,7 @@ class SchedulerService(Service):
         """Run one job invocation, emitting a WARNING if it holds the guard past the threshold.
 
         Mirrors ``HandlerInvoker.invocation_with_stall_watch`` from ``bus/listeners.py``.
-        Reuses the shared ``STALL_THRESHOLD_SECONDS`` constant (imported from listeners).
+        Uses this module's own ``STALL_THRESHOLD_SECONDS`` (same value as the bus constant).
 
         Args:
             job: The job to invoke.
@@ -644,9 +650,6 @@ class _ScheduledJobQueue(Resource):
         """
 
         async with self._lock:
-            # Second _dequeued check, held inside the lock atomic with push.
-            # dequeue_job can fire at any await point after dispatch_and_log's entry
-            # check; this re-check prevents re-pushing a cancelled job.
             if job._dequeued:
                 self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push", job)
                 return

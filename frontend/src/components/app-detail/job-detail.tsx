@@ -39,8 +39,8 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStat
     { label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" },
     { label: "Failed", value: job.failed, tone: job.failed > 0 ? "err" : undefined },
     { label: "Timed Out", value: job.timed_out, tone: job.timed_out > 0 ? "warn" : undefined },
+    { label: "Mode", value: job.mode },
   ];
-  cells.push({ label: "Mode", value: job.mode });
   if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count });
   if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count });
   cells.push(
