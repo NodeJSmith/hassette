@@ -167,6 +167,7 @@ class ExecutionCompletedPayload:
     app_key: str = ""
     instance_index: int = 0
     error_type: str | None = None
+    thread_leaked: bool = False
 
 
 class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPayload]]):
@@ -183,6 +184,7 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
         app_key: str = "",
         instance_index: int = 0,
         error_type: str | None = None,
+        thread_leaked: bool = False,
     ) -> "HassetteExecutionCompletedEvent":
         payload = ExecutionCompletedPayload(
             kind=kind,
@@ -193,6 +195,7 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
             app_key=app_key,
             instance_index=instance_index,
             error_type=error_type,
+            thread_leaked=thread_leaked,
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,

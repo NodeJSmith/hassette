@@ -45,6 +45,7 @@ async def hassette_instance(test_config: HassetteConfig):
 _HARNESS_FIXTURES = frozenset(
     {
         "hassette_with_nothing",
+        "hassette_with_sync_executor",
         "hassette_with_bus",
         "hassette_with_scheduler",
         "hassette_with_file_watcher",

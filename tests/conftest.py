@@ -223,17 +223,20 @@ def _isolate_registries():
 
 
 @pytest.fixture
-async def bucket_fixture(hassette_with_nothing: "HassetteHarness") -> AsyncIterator[TaskBucket]:
+async def bucket_fixture(hassette_with_sync_executor: "HassetteHarness") -> AsyncIterator[TaskBucket]:
+    # Tasks already running at entry belong to the module-scoped harness (e.g. the
+    # SyncExecutorService serve loop), not to this test — exclude them from the parachute.
+    preexisting = asyncio.all_tasks()
     try:
-        yield hassette_with_nothing.task_bucket
+        yield hassette_with_sync_executor.task_bucket
     finally:
         # hard cleanup if a test forgot
-        await hassette_with_nothing.task_bucket.cancel_all()
+        await hassette_with_sync_executor.task_bucket.cancel_all()
         await asyncio.sleep(0)  # let cancellations propagate
 
-        # last-resort parachute: fail if anything still running
+        # last-resort parachute: fail if the test left anything running
         current = asyncio.current_task()
-        leftovers = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
+        leftovers = [t for t in asyncio.all_tasks() if t is not current and t not in preexisting and not t.done()]
         if leftovers:
             # cancel and wait briefly so the loop can unwind
             for t in leftovers:

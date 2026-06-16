@@ -105,11 +105,32 @@ Individual subscriptions and jobs can override the global default:
 
 ### Limitations
 
-**Synchronous handlers.** A synchronous (non-`async`) handler may keep running in the background after its timeout fires. Hassette runs sync handlers in a thread, and the timeout cancels the wrapper around the thread — Python cannot stop the thread itself. Long-running sync work that needs reliable cancellation requires an `async` implementation.
+**Synchronous handlers.** A synchronous (non-`async`) handler runs in a dedicated thread pool. When its timeout fires, the caller unblocks and the invocation is recorded as `timed_out` — but the thread keeps running until it returns naturally. Python cannot forcibly stop a running thread mid-call. The thread holds its pool slot until it completes; if enough threads stall simultaneously, the pool fills and new sync work queues up. At shutdown, Hassette interrupts any threads still alive after the join budget using `SystemExit` — so sync workers do stop at process teardown, within the configured budget.
+
+!!! warning "Shutdown interruption runs `finally` blocks — not proof of clean completion"
+    When a sync worker is interrupted at shutdown, Python unwinds its stack normally: every `finally` block and context-manager `__exit__` runs before the thread dies. A `finally` that commits a database write or flushes a file will execute, but the handler did not complete cleanly — only part of its work ran. Do not treat `finally` execution as confirmation that a sync handler finished successfully.
+
+**Pool saturation.** When all workers in the sync-handler pool are blocked, new sync work queues up and no sync handlers or jobs fire until a slot opens. Hassette logs a rate-limited WARNING as the pool approaches its ceiling. The recourse is to raise `lifecycle.sync_executor_max_workers`, fix the slow handler, or convert it to `async`. See [Sync-handler pool configuration](#sync-handler-pool) below.
 
 **Catching `TimeoutError` internally.** A handler that catches `TimeoutError` before it propagates to Hassette prevents the cancellation from taking effect. The handler continues running; the record shows `status='success'`. Catching `TimeoutError` in handler bodies without re-raising it defeats the timeout mechanism.
 
 **`lifecycle.run_sync_timeout_seconds`** (default: 6s) is a separate timeout that applies to calls made from synchronous (non-async) contexts into Hassette's event loop via `task_bucket.run_sync()`. This timeout is not related to handler execution. It governs blocking calls made from threads outside the event loop.
+
+### Sync-handler pool
+
+Sync handlers, sync jobs, and App sync lifecycle hooks run on a dedicated thread pool owned by Hassette. The pool is separate from the framework's internal thread pool (used by logging and the database), so slow sync handlers cannot starve framework internals.
+
+Two `[hassette.lifecycle]` fields control the pool:
+
+| Field | Default | Effect |
+|---|---|---|
+| `sync_executor_max_workers` | `min(32, cpu_count + 4)` | Pool ceiling — the maximum number of sync workers that can run concurrently. |
+
+The shutdown budget (`sync_executor_shutdown_timeout_seconds`) is documented in the [Startup and Shutdown Timeouts](#startup-and-shutdown-timeouts) table below.
+
+When the pool nears its ceiling (≥ 75% occupied), Hassette logs a rate-limited WARNING at most once every 30 seconds. The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted.
+
+At shutdown, Hassette joins workers within the budget. Threads still alive after the join attempt receive `SystemExit` (best-effort — C-blocked threads such as `time.sleep()` or native I/O cannot be interrupted at the Python level and are abandoned when the budget expires). Shutdown still completes within `total_shutdown_timeout_seconds` regardless.
 
 ## Startup and Shutdown Timeouts
 
@@ -122,6 +143,7 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 | `app_shutdown_timeout_seconds` | 10s | A single app's `on_shutdown`. |
 | `resource_shutdown_timeout_seconds` | = app shutdown | Each non-app resource's shutdown phase. |
 | `total_shutdown_timeout_seconds` | 30s | The entire shutdown, hooks and propagation included. |
+| `sync_executor_shutdown_timeout_seconds` | 10s | Budget for joining and interrupting sync-handler worker threads. Must be less than `total_shutdown_timeout_seconds`. |
 | `registration_await_timeout` | 30s | Waiting for pending listener/job database registrations to flush before post-ready reconciliation. |
 | `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
 

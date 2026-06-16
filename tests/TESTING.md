@@ -116,10 +116,11 @@ async def cleanup_harness(request: pytest.FixtureRequest) -> None:
         await harness.reset()
 ```
 
-`_HARNESS_FIXTURES` covers the 7 module-scoped harness fixtures:
-`hassette_with_nothing`, `hassette_with_bus`, `hassette_with_scheduler`,
-`hassette_with_file_watcher`, `hassette_with_state_proxy`,
-`hassette_with_state_registry`, `hassette_with_app_handler`.
+`_HARNESS_FIXTURES` covers the 8 module-scoped harness fixtures:
+`hassette_with_nothing`, `hassette_with_sync_executor`, `hassette_with_bus`,
+`hassette_with_scheduler`, `hassette_with_file_watcher`,
+`hassette_with_state_proxy`, `hassette_with_state_registry`,
+`hassette_with_app_handler`.
 
 Function-scoped fixtures (`hassette_with_app_handler_custom_config`) are
 excluded — they are recreated fresh for each test, so no cleanup is needed.

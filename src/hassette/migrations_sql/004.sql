@@ -1,0 +1,1 @@
+ALTER TABLE executions ADD COLUMN thread_leaked INTEGER NOT NULL DEFAULT 0;

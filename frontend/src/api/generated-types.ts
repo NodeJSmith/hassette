@@ -932,6 +932,11 @@ export interface components {
              * @default {}
              */
             kwargs_json: string;
+            /**
+             * Thread Leaked
+             * @default false
+             */
+            thread_leaked: boolean;
         };
         /**
          * ExecutionStatus

@@ -19,7 +19,7 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for an executions INSERT.
 
     All booleans are converted to int (SQLite has no native bool type).
-    Columns match the ``executions`` table in 001.sql exactly.
+    Columns match the ``executions`` table schema (001.sql original; 004.sql adds ``thread_leaked``).
 
     Args:
         record: The unified execution record to convert.
@@ -49,6 +49,7 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "attempt_number": record.attempt_number,
         "args_json": record.args_json,
         "kwargs_json": record.kwargs_json,
+        "thread_leaked": 1 if record.thread_leaked else 0,
     }
 
 

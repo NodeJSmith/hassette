@@ -61,6 +61,20 @@ async def hassette_with_nothing(
 
 
 @pytest.fixture(scope="module")
+async def hassette_with_sync_executor(
+    hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
+    test_config: "HassetteConfig",
+) -> "AsyncIterator[HassetteHarness]":
+    """Harness with the sync executor wired, but no bus/scheduler/app components.
+
+    TaskBucket.run_in_thread routes sync work to hassette.sync_executor, so any
+    test that dispatches a sync handler through the bare task bucket needs it.
+    """
+    async with hassette_harness(test_config).with_sync_executor() as harness:
+        yield harness
+
+
+@pytest.fixture(scope="module")
 async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",

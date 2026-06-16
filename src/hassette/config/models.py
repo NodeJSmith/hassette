@@ -5,6 +5,7 @@ Each class groups a logical subset of configuration fields. All inherit
 initialises them as sub-models, not independent settings roots.
 """
 
+import os
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -236,6 +237,18 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     total_shutdown_timeout_seconds: int = Field(default=30)
     """Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation)."""
 
+    sync_executor_max_workers: int = Field(default_factory=lambda: min(32, (os.cpu_count() or 1) + 4), ge=1)
+    """Pool ceiling for the dedicated sync-handler thread pool executor.
+    Sized to match the prior implicit default-pool ceiling (min(32, cpu+4)). This is a
+    reasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old
+    shared pool also served logging and DB work, so a same-size dedicated pool gives sync
+    handlers more effective headroom in practice."""
+
+    sync_executor_shutdown_timeout_seconds: float = Field(default=10.0, gt=0)
+    """Join-or-interrupt budget for sync-handler worker threads at shutdown (ported from HA).
+    Must be less than total_shutdown_timeout_seconds so the outer shutdown budget is not
+    exceeded by the executor interrupt phase."""
+
     registration_await_timeout: int = Field(default=30)
     """Timeout in seconds to wait for all pending listener/job DB registrations to flush
     before post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls."""
@@ -257,6 +270,17 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     @classmethod
     def validate_timeouts(cls, value: Any) -> float | None:
         return validate_positive_or_none(value)
+
+    @model_validator(mode="after")
+    def validate_sync_executor_shutdown_budget(self) -> "LifecycleConfig":
+        """Ensure the sync executor shutdown budget stays within the total shutdown window."""
+        if self.sync_executor_shutdown_timeout_seconds >= self.total_shutdown_timeout_seconds:
+            raise ValueError(
+                f"sync_executor_shutdown_timeout_seconds "
+                f"({self.sync_executor_shutdown_timeout_seconds}) must be less than "
+                f"total_shutdown_timeout_seconds ({self.total_shutdown_timeout_seconds})"
+            )
+        return self
 
 
 class WebApiConfig(ExcludeExtrasMixin, BaseModel):
