@@ -139,8 +139,11 @@ filterwarnings = [
     "default::ResourceWarning:aiohttp\\.connector",
     "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
     # starlette 1.3.x's TestClient nudges toward the httpx2 fork; we still use httpx. Third-party
-    # deprecation we can't act on without adopting the fork — don't let it fail the suite.
-    "default:Using `httpx` with `starlette.testclient`:starlette.exceptions.StarletteDeprecationWarning",
+    # deprecation we can't act on without adopting the fork — don't let it fail the suite. Scope by
+    # category only: the warning's stacklevel attributes it to the importing module (not
+    # starlette.testclient), so a module filter misses it, and message matching is fragile to
+    # upstream wording. We never emit StarletteDeprecationWarning ourselves, so category scope is safe.
+    "default::starlette.exceptions.StarletteDeprecationWarning",
 ]
 # Skip Docker/system/e2e tests by default (run explicitly: pytest -m docker / -m e2e / nox -s system).
 # e2e must not mix into ad-hoc runs: Playwright breaks the session-scoped asyncio loop for every

@@ -694,7 +694,7 @@ async def test_serve_item_flush_drains_queue_on_arrival():
     assert "item" in drain_calls
 
 
-def test_record_blocking_event_swallows_uninitialized_db():
+def test_record_blocking_event_swallows_uninitialized_db() -> None:
     """record_blocking_event is fire-and-forget: a not-yet-initialized database_service
     (``enqueue`` raises ``RuntimeError`` before ``on_initialize``) drops the row and never propagates.
 
