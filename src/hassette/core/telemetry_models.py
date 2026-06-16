@@ -62,7 +62,7 @@ class AppHealthSummary(BaseModel):
 class ListenerSummary(BaseModel):
     """Per-listener summary returned by ``get_listener_summary()``.
 
-    ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
+    ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.
     Invariant: ``successful + failed + cancelled + timed_out == total_invocations``.
     """
 
@@ -159,8 +159,8 @@ class Execution(BaseModel):
 class JobSummary(BaseModel):
     """Per-job summary returned by ``get_job_summary()``.
 
-    ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
-    Invariant: ``successful + failed + timed_out == total_executions``.
+    ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.
+    Invariant: ``successful + failed + cancelled + timed_out == total_executions``.
     """
 
     job_id: int
@@ -179,6 +179,7 @@ class JobSummary(BaseModel):
     total_executions: int
     successful: int
     failed: int
+    cancelled: int = 0
     timed_out: int = 0
     thread_leaked: int = 0
     """Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).

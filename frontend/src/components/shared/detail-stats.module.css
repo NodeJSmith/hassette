@@ -43,6 +43,10 @@
   color: var(--ok);
 }
 
+.valueCancel {
+  color: var(--cancel);
+}
+
 .valueMute {
   color: var(--ink-3);
 }

@@ -26,6 +26,7 @@ const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
   "runs",
   "failed",
   "timed_out",
+  "cancelled",
   "error_rate",
   "avg_duration",
   "next_run",
@@ -205,13 +206,14 @@ export function HandlersPage() {
               <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
                 <colgroup>
                   <col style="width: 7%" />
-                  <col style="width: 13%" />
-                  <col style="width: 20%" />
-                  <col style="width: 13%" />
+                  <col style="width: 12%" />
+                  <col style="width: 18%" />
+                  <col style="width: 12%" />
                   <col style="width: 7%" />
                   <col style="width: 7%" />
-                  <col style="width: 9%" />
-                  <col style="width: 9%" />
+                  <col style="width: 7%" />
+                  <col style="width: 7%" />
+                  <col style="width: 8%" />
                   <col style="width: 8%" />
                   <col style="width: 7%" />
                 </colgroup>
@@ -244,6 +246,9 @@ export function HandlersPage() {
                     </SortHeader>
                     <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">
                       timed out
+                    </SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="cancelled">
+                      cancelled
                     </SortHeader>
                     <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">
                       error rate

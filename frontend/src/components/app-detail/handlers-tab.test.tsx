@@ -215,9 +215,10 @@ describe("HandlersTab", () => {
 
   it("handler stats row: does not show cancelled when zero", async () => {
     const listener = createListener({ listener_id: 21, cancelled: 0 });
-    const { getByTestId, queryByText } = renderHandlersTab([listener], [], "listener/21");
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/21");
     await waitFor(() => getByTestId("handler-stats-row"));
-    expect(queryByText("Cancelled")).toBeNull();
+    const statsRow = getByTestId("handler-stats-row");
+    expect(statsRow.textContent).not.toContain("Cancelled");
   });
 
   it("handler stats row: shows cancelled count when > 0", async () => {

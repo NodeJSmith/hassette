@@ -24,6 +24,7 @@ function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
     runs: 42,
     failed: 2,
     timed_out: 1,
+    cancelled: 0,
     avg_duration_ms: 150,
     next_run_ts: null,
     source_tier: "app",
@@ -125,6 +126,20 @@ describe("HandlerTableRow", () => {
     expect(tds[6].textContent).toBe("0");
   });
 
+  it("shows cancelled with cancel class when cancelled > 0", () => {
+    const { container } = renderTableRow(createRow({ cancelled: 5, failed: 0, timed_out: 0 }));
+    const cancelCell = container.querySelector("td.ht-text-cancel");
+    expect(cancelCell).not.toBeNull();
+    expect(cancelCell?.textContent).toBe("5");
+  });
+
+  it("shows 0 for cancelled when cancelled is 0", () => {
+    const { container } = renderTableRow(createRow({ cancelled: 0 }));
+    // 8th td (index 7) is the cancelled cell
+    const tds = container.querySelectorAll("td");
+    expect(tds[7].textContent).toBe("0");
+  });
+
   it("shows error rate via formatRate", () => {
     const row = createRow({ failed: 2, runs: 42 });
     const expected = formatRate(2, 42);
@@ -134,9 +149,9 @@ describe("HandlerTableRow", () => {
 
   it("shows '—' for next_run when next_run_ts is null", () => {
     const { container } = renderTableRow(createRow({ next_run_ts: null }));
-    // Last td (index 9) is the next_run cell
+    // Last td (index 10) is the next_run cell
     const tds = container.querySelectorAll("td");
-    expect(tds[9].textContent).toBe("—");
+    expect(tds[10].textContent).toBe("—");
   });
 
   it("applies rowFailing class on <tr> when failed > 0", () => {

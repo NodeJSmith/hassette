@@ -12,6 +12,7 @@ export interface UnifiedRow {
   runs: number;
   failed: number;
   timed_out: number;
+  cancelled: number;
   avg_duration_ms: number;
   next_run_ts: number | null;
   source_tier: string;
@@ -28,6 +29,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
     runs: l.total_invocations,
     failed: l.failed,
     timed_out: l.timed_out,
+    cancelled: l.cancelled,
     avg_duration_ms: l.avg_duration_ms,
     next_run_ts: null,
     source_tier: l.source_tier,
@@ -45,6 +47,7 @@ export function jobToRow(j: JobData): UnifiedRow {
     runs: j.total_executions,
     failed: j.failed,
     timed_out: j.timed_out,
+    cancelled: j.cancelled,
     avg_duration_ms: j.avg_duration_ms,
     next_run_ts: j.next_run ?? null,
     source_tier: j.source_tier,
@@ -59,6 +62,7 @@ export type HandlerSortKey =
   | "runs"
   | "failed"
   | "timed_out"
+  | "cancelled"
   | "error_rate"
   | "avg_duration"
   | "next_run";
@@ -82,6 +86,8 @@ export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState
       return dir * (a.failed - b.failed);
     case "timed_out":
       return dir * (a.timed_out - b.timed_out);
+    case "cancelled":
+      return dir * (a.cancelled - b.cancelled);
     case "error_rate": {
       const rateA = a.runs > 0 ? a.failed / a.runs : 0;
       const rateB = b.runs > 0 ? b.failed / b.runs : 0;

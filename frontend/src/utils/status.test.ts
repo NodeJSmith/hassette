@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
+import { executionStatusKind, INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -27,6 +27,26 @@ describe("statusToVariant", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(statusToVariant("exploding")).toBe("neutral");
     expect(warnSpy).toHaveBeenCalledWith('Unknown status: "exploding"');
+    warnSpy.mockRestore();
+  });
+});
+
+describe("executionStatusKind", () => {
+  it("maps each execution status to its shape kind", () => {
+    expect(executionStatusKind("success")).toBe("ok");
+    expect(executionStatusKind("timed_out")).toBe("warn");
+    expect(executionStatusKind("cancelled")).toBe("cancel");
+    expect(executionStatusKind("error")).toBe("err");
+  });
+
+  it("does not treat cancelled as an error", () => {
+    expect(executionStatusKind("cancelled")).not.toBe("err");
+  });
+
+  it("returns err and warns for an unknown status", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(executionStatusKind("exploding")).toBe("err");
+    expect(warnSpy).toHaveBeenCalledWith('Unknown execution status: "exploding"');
     warnSpy.mockRestore();
   });
 });

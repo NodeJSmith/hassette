@@ -35,6 +35,9 @@ export function statusToVariant(status: string): StatusVariant {
 export function executionStatusKind(status: string): StatusKind {
   if (status === "success") return "ok";
   if (status === "timed_out") return "warn";
+  if (status === "cancelled") return "cancel";
+  if (status === "error") return "err";
+  console.warn(`Unknown execution status: "${status}"`);
   return "err";
 }
 
@@ -67,7 +70,7 @@ export function levelToVariant(level: string): StatusVariant {
  * only — use executionStatusKind() for execution results, levelToKind() for
  * log levels. New ResourceStatus variants must be added to both maps.
  */
-export type StatusKind = "ok" | "warn" | "err" | "mute";
+export type StatusKind = "ok" | "warn" | "err" | "cancel" | "mute";
 
 const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
   ["DEBUG", "mute"],

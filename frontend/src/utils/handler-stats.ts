@@ -5,6 +5,7 @@ export interface HandlerStats {
   totalExecutions: number;
   totalFailed: number;
   totalTimedOut: number;
+  totalCancelled: number;
 }
 
 export function computeHandlerStats(listeners: ListenerData[], jobs: JobData[]): HandlerStats {
@@ -13,5 +14,6 @@ export function computeHandlerStats(listeners: ListenerData[], jobs: JobData[]):
     totalExecutions: jobs.reduce((s, j) => s + j.total_executions, 0),
     totalFailed: listeners.reduce((s, l) => s + l.failed, 0) + jobs.reduce((s, j) => s + j.failed, 0),
     totalTimedOut: listeners.reduce((s, l) => s + l.timed_out, 0) + jobs.reduce((s, j) => s + j.timed_out, 0),
+    totalCancelled: listeners.reduce((s, l) => s + l.cancelled, 0) + jobs.reduce((s, j) => s + j.cancelled, 0),
   };
 }

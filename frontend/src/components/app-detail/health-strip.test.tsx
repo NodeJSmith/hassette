@@ -5,17 +5,26 @@ import { createJob, createListener } from "../../test/factories";
 import { HandlersHealthStrip } from "./health-strip";
 
 describe("HandlersHealthStrip", () => {
-  it("renders 5 columns with correct labels", () => {
+  it("renders 6 columns with correct labels", () => {
     const { container } = render(<HandlersHealthStrip listeners={[createListener()]} jobs={[createJob()]} />);
     const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
-    expect(cards.length).toBe(5);
-    // Check all 5 labels (CSS text-transform: uppercase applies visually; DOM text is mixed case)
+    expect(cards.length).toBe(6);
+    // Check all 6 labels (CSS text-transform: uppercase applies visually; DOM text is mixed case)
     const text = container.textContent ?? "";
     expect(text.toLowerCase()).toContain("handlers");
     expect(text.toLowerCase()).toContain("invocations");
     expect(text.toLowerCase()).toContain("success rate");
     expect(text.toLowerCase()).toContain("failed");
     expect(text.toLowerCase()).toContain("timed out");
+    expect(text.toLowerCase()).toContain("cancelled");
+  });
+
+  it("shows cancelled count and applies cancel tone when > 0", () => {
+    const listeners = [createListener({ listener_id: 1, cancelled: 4, total_invocations: 10 })];
+    const { container } = render(<HandlersHealthStrip listeners={listeners} jobs={[]} />);
+    const cancelValue = container.querySelector("[data-tone='cancel']");
+    expect(cancelValue).not.toBeNull();
+    expect(cancelValue?.textContent).toContain("4");
   });
 
   it("renders combined handler + job count in HANDLERS column", () => {

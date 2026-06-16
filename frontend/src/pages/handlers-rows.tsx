@@ -82,6 +82,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       <td class="ht-text-mono ht-text-sm">{row.runs}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{row.failed}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>{row.timed_out}</td>
+      <td class={clsx("ht-text-mono ht-text-sm", row.cancelled > 0 && "ht-text-cancel")}>{row.cancelled}</td>
       <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>{errorRate}</td>
       <td class="ht-text-mono ht-text-sm">{avgDur}</td>
       <td class={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>{nextRunDisplay ?? "—"}</td>
@@ -106,6 +107,7 @@ export function HandlerMobileRow({ row }: HandlerRowProps) {
           <span>{row.runs} runs</span>
           {row.failed > 0 && <span class="ht-text-danger">{row.failed} failed</span>}
           {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
+          {row.cancelled > 0 && <span class="ht-text-cancel">{row.cancelled} cancelled</span>}
           {row.runs > 0 && <span>{errorRate} err</span>}
           {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
         </>

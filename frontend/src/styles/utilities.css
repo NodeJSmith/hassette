@@ -14,6 +14,9 @@
 .ht-text-warning {
   color: var(--warn);
 }
+.ht-text-cancel {
+  color: var(--cancel);
+}
 
 /* Text size & weight */
 .ht-text-xs {

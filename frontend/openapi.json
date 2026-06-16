@@ -2655,6 +2655,11 @@
             "type": "integer",
             "title": "Failed"
           },
+          "cancelled": {
+            "type": "integer",
+            "title": "Cancelled",
+            "default": 0
+          },
           "timed_out": {
             "type": "integer",
             "title": "Timed Out",
@@ -2835,7 +2840,7 @@
           "avg_duration_ms"
         ],
         "title": "JobSummary",
-        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.\nInvariant: ``successful + failed + timed_out == total_executions``."
+        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out == total_executions``."
       },
       "LifecycleConfigResponse": {
         "properties": {

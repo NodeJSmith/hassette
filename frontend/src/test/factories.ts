@@ -161,6 +161,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     total_executions: 0,
     successful: 0,
     failed: 0,
+    cancelled: 0,
     timed_out: 0,
     thread_leaked: 0,
     last_executed_at: null,
