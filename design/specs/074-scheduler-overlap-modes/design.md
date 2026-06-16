@@ -1,7 +1,7 @@
 # Design: Execution Overlap Modes for the Scheduler
 
 **Date:** 2026-06-15
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/073-execution-overlap-modes/design.md (the bus half — archived; defines the shared enum/guard this design reuses)
 
