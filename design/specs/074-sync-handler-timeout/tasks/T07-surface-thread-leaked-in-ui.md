@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Surface thread-leaked marker in web API and monitoring UI"
-status: "planned"
+status: "done"
 depends_on: ["T06"]
 implements: ["FR#3"]
 ---

@@ -214,6 +214,7 @@ class RuntimeQueryService(Resource):
                 "error_type": data.error_type,
                 "listener_id": data.listener_id,
                 "job_id": data.job_id,
+                "thread_leaked": data.thread_leaked,
             }
         )
         await self.schedule_flush()

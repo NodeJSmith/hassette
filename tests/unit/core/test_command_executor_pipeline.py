@@ -321,6 +321,7 @@ def test_build_record_reads_source_tier():
     result.error_message = None
     result.error_traceback = None
     result.is_di_failure = False
+    result.thread_leaked = False
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
@@ -353,11 +354,46 @@ def test_build_record_reads_is_di_failure():
     result.error_message = "dep failed"
     result.error_traceback = None
     result.is_di_failure = True
+    result.thread_leaked = False
 
     record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, ExecutionRecord)
     assert record.is_di_failure is True
+
+
+def test_build_record_reads_thread_leaked():
+    """build_record copies thread_leaked from result to ExecutionRecord."""
+    executor = init_executor()
+
+    listener = MagicMock()
+    listener.invoker.invoke = AsyncMock()
+    event = MagicMock()
+
+    cmd = InvokeHandler(
+        listener=listener,
+        event=event,
+        topic="test/topic",
+        listener_id=1,
+        source_tier="app",
+        effective_timeout=None,
+    )
+
+    result = MagicMock()
+    result.duration_ms = 1.0
+    result.status = "timed_out"
+    result.error_type = None
+    result.error_message = None
+    result.error_traceback = None
+    result.is_di_failure = False
+    result.thread_leaked = True
+
+    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")  # pyright: ignore[reportArgumentType]
+    assert record.thread_leaked is True
+
+    result.thread_leaked = False
+    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id-2")  # pyright: ignore[reportArgumentType]
+    assert record.thread_leaked is False
 
 
 async def test_flush_queue_handles_db_closed():
@@ -423,7 +459,8 @@ CREATE TABLE executions (
     retry_count           INTEGER NOT NULL DEFAULT 0,
     attempt_number        INTEGER NOT NULL DEFAULT 1,
     args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}'
+    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
+    thread_leaked         INTEGER NOT NULL DEFAULT 0
 );
 """
 

@@ -888,6 +888,7 @@ class CommandExecutor(Service):
                     app_key=record.app_key,
                     instance_index=record.instance_index,
                     error_type=record.error_type,
+                    thread_leaked=record.thread_leaked,
                 )
                 await self.hassette.send_event(exec_event)
         except Exception:
