@@ -43,7 +43,7 @@ class MyApp(App[MyAppUserConfig]):
         if self.test_button:
             self.logger.info("Test button exists: %s", self.test_button)
 
-    async def test_reload_app(self):
+    async def test_reload_app(self) -> None:
         await self.hassette._app_handler.reload_app(self.app_key)
 
     async def test_stuff(self) -> None:

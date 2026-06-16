@@ -176,7 +176,9 @@ class TestAppFactoryCreateInstances:
         assert mock_app_class.app_manifest is mock_manifest
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_create_instances_passes_app_key_to_constructor(self, mock_load_class, factory: AppFactory, mock_manifest):
+    def test_create_instances_passes_app_key_to_constructor(
+        self, mock_load_class, factory: AppFactory, mock_manifest
+    ) -> None:
         """Passes the app_key loop value to the App constructor (regression #1060)."""
         mock_load_class.return_value = mock_app_class = Mock()
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
