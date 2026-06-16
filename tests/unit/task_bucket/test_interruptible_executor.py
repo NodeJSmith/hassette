@@ -13,11 +13,13 @@ Coverage targets (from T01 Verify section):
 
 import contextlib
 import logging
+import sys
 import threading
 import time
 from collections.abc import Iterator
 from unittest.mock import patch
 
+import coverage
 import pytest
 
 from hassette.task_bucket.interruptible_executor import (
@@ -28,6 +30,15 @@ from hassette.task_bucket.interruptible_executor import (
 )
 
 _EXECUTOR_LOGGER = "hassette.task_bucket.interruptible_executor"
+
+# async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
+# coverage's settrace tracer on Python 3.11. Python 3.12+ trace via sys.monitoring (PEP 669)
+# and are unaffected. Production never runs under coverage, and the non-coverage suite plus the
+# 3.12+ coverage runs exercise this path — so skip only the 3.11-under-coverage combination.
+skip_c_blocked_under_coverage_py311 = pytest.mark.skipif(
+    sys.version_info < (3, 12) and coverage.Coverage.current() is not None,
+    reason="async_raise into a C-blocked worker deadlocks under coverage's settrace tracer on Python 3.11",
+)
 
 
 @contextlib.contextmanager
@@ -263,6 +274,7 @@ class TestJoinOrInterruptThreads:
 class TestInterruptibleThreadPoolExecutorShutdown:
     """Tests for the full shutdown() / join_threads_or_timeout() path."""
 
+    @skip_c_blocked_under_coverage_py311
     def test_shutdown_completes_within_timeout_for_c_blocked_thread(self) -> None:
         """shutdown() must return within the budget even when a worker is C-blocked.
 
