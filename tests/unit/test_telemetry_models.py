@@ -8,6 +8,7 @@ from hassette.core.telemetry_models import (
     ListenerSummary,
     SessionSummary,
 )
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
 class TestAppHealthSummary:
@@ -229,7 +230,7 @@ class TestJobSummary:
             "avg_duration_ms": 0.0,
         }
         model = JobSummary.model_validate(data)
-        assert model.mode == "single"
+        assert model.mode == DEFAULT_OVERLAP_MODE
         assert model.suppressed_count == 0
         assert model.dropped_count == 0
 

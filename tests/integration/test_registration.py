@@ -16,6 +16,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
+from hassette.types.enums import ExecutionMode
 
 
 @pytest.fixture
@@ -63,8 +64,7 @@ def make_mock_job(
     job.args = ()
     job.kwargs = {}
     job.db_id = None
-    job.mode = MagicMock()
-    job.mode.value = "single"
+    job.mode = ExecutionMode.SINGLE
     return job
 
 
