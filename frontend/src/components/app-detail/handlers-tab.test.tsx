@@ -446,6 +446,42 @@ describe("HandlersTab", () => {
     expect(getByTestId("handler-status-pill").textContent).toBe("failing");
   });
 
+  it("job stats row: shows mode cell for every job", async () => {
+    const job = createJob({ job_id: 50, mode: "queued" });
+    const { getByTestId } = renderHandlersTab([], [job], "job/50");
+    await waitFor(() => getByTestId("job-stats-row"));
+    expect(getByTestId("job-stats-row").textContent).toContain("Mode");
+    expect(getByTestId("job-stats-row").textContent).toContain("queued");
+  });
+
+  it("job stats row: does not show Suppressed or Dropped when counts are zero", async () => {
+    const job = createJob({ job_id: 51, suppressed_count: 0, dropped_count: 0 });
+    const { getByTestId, queryByText } = renderHandlersTab([], [job], "job/51");
+    await waitFor(() => getByTestId("job-stats-row"));
+    expect(queryByText("Suppressed")).toBeNull();
+    expect(queryByText("Dropped")).toBeNull();
+  });
+
+  it("job stats row: shows Suppressed when suppressed_count > 0", async () => {
+    const job = createJob({ job_id: 52, mode: "single", suppressed_count: 3, dropped_count: 0 });
+    const { getByTestId, queryByText } = renderHandlersTab([], [job], "job/52");
+    await waitFor(() => getByTestId("job-stats-row"));
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Suppressed");
+    expect(statsRow.textContent).toContain("3");
+    expect(queryByText("Dropped")).toBeNull();
+  });
+
+  it("job stats row: shows Dropped when dropped_count > 0", async () => {
+    const job = createJob({ job_id: 53, mode: "queued", suppressed_count: 0, dropped_count: 2 });
+    const { getByTestId, queryByText } = renderHandlersTab([], [job], "job/53");
+    await waitFor(() => getByTestId("job-stats-row"));
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Dropped");
+    expect(statsRow.textContent).toContain("2");
+    expect(queryByText("Suppressed")).toBeNull();
+  });
+
   it("shows placeholder when selectedHandler has invalid format", () => {
     const { queryByTestId, getByTestId } = renderHandlersTab(
       [createListener({ listener_id: 1 })],
