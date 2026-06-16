@@ -118,7 +118,7 @@ class SchedulerService(Service):
 
         if removed:
             self.kick()
-            # Release guards for all removed jobs (FR#14).
+            # Release guards for all removed jobs.
             for job in removed:
                 await job.guard.release()
                 # Drain any pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang.
@@ -186,13 +186,13 @@ class SchedulerService(Service):
         """Remove a specific job via the async path (acquires lock) and wake the scheduler.
 
         Used by the serve loop for job exhaustion and trigger errors in dispatch_and_log.
-        The callback is fired unconditionally because the serve loop has already
-        popped the job from the queue before dispatch_and_log calls _remove_job —
-        remove_job would return False and the callback would silently drop.
+        The serve loop pops the job from the heap before dispatch_and_log calls this, so
+        ``remove_job`` often returns False (the job is already absent). Removal callbacks
+        fire unconditionally regardless, so the Scheduler still clears ``_jobs_by_name``
+        and ``_jobs_by_group``.
 
         Releases the job's guard so any in-flight or queued invocations are cancelled
-        and dropped (FR#14). Note: a task spawned by drain_next concurrently with
-        release() may detach rather than cancel — the guard is reused unmodified.
+        and dropped.
 
         Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
         instead. Both paths fire ``fire_removal_callbacks`` unconditionally.
@@ -203,12 +203,10 @@ class SchedulerService(Service):
         if removed:
             self.kick()
 
-        # Release guard: cancels in-flight invocation, drops queued factories (FR#14).
-        # Note: drain_next/release interleave edge — a task spawned by drain_next
-        # concurrently with release() may detach rather than cancel; not fixed here
-        # because the guard is reused unmodified from the bus.
+        # Release guard (cancels in-flight invocation, drops queued factories), then drain
+        # pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang. See
+        # drain_pending_done for the drain_next/release interleave caveat.
         await job.guard.release()
-        # Drain any pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang.
         self.drain_pending_done(job)
 
         self.fire_removal_callbacks([job])
@@ -297,10 +295,10 @@ class SchedulerService(Service):
     async def dispatch_and_log(self, job: "ScheduledJob") -> None:
         """Dispatch a job and log its execution.
 
-        Option B ordering: skip-if-dequeued → compute next → (enqueue next OR mark for
-        removal) → run-through-guard → remove-if-marked.
+        Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
+        run-through-guard → remove-if-marked.
 
-        The current due fire ALWAYS runs once popped (FR#16). Computing the next occurrence
+        The current due fire ALWAYS runs once popped. Computing the next occurrence
         happens first so the next tick is on the heap before the run completes, enabling
         overlap for recurring jobs. A trigger that raises or returns None marks the job for
         removal after the current fire — the current fire is never skipped.
@@ -316,7 +314,7 @@ class SchedulerService(Service):
 
         # Step 1: Compute next occurrence and either enqueue it or mark for removal.
         # For one-shots (trigger is None or next_run_time() → None) nothing is enqueued.
-        # The current fire ALWAYS runs regardless of the trigger outcome (FR#16).
+        # The current fire ALWAYS runs regardless of the trigger outcome.
         remove_after_fire = False
         if job.trigger is not None:
             try:
@@ -324,7 +322,7 @@ class SchedulerService(Service):
             except Exception:
                 self.logger.exception(
                     "dispatch_and_log: trigger raised for db_id=%s callable=%s trigger=%r — "
-                    "running current fire then removing job (FR#16)",
+                    "running current fire then removing job",
                     job.db_id,
                     getattr(job.job, "__qualname__", str(job.job)),
                     job.trigger,
@@ -348,8 +346,8 @@ class SchedulerService(Service):
                     curr_next_run,
                     job.next_run,
                 )
-                # Enqueue next occurrence BEFORE running — enables overlap (FR#1).
-                # The in-lock _dequeued re-check inside _job_queue.add (FR#17) guards
+                # Enqueue next occurrence BEFORE running — enables overlap.
+                # The in-lock _dequeued re-check inside _job_queue.add guards
                 # against a cancel landing between here and the push.
                 await self.enqueue_job(job)
             elif not remove_after_fire:
@@ -363,6 +361,9 @@ class SchedulerService(Service):
         try:
             await self.run_job_with_guard(job)
         except asyncio.CancelledError:
+            # Step 3 is skipped on cancellation: a job marked for removal stays in
+            # _jobs_by_name until Scheduler.on_shutdown clears it unconditionally. This
+            # only happens during shutdown-driven task cancellation.
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
@@ -441,7 +442,7 @@ class SchedulerService(Service):
         """Emit the stall WARNING: a non-parallel job is still holding its guard.
 
         Called by the stall watchdog after STALL_THRESHOLD_SECONDS. Named after the job
-        and its mode so the operator can identify the stuck invocation (FR#18).
+        and its mode so the operator can identify the stuck invocation.
 
         Args:
             job: The job whose invocation is stalled.
@@ -569,7 +570,7 @@ class SchedulerService(Service):
         # (guard in dispatch_and_log) and makes cancel idempotent.
         job._dequeued = True
 
-        # Release guard: cancels in-flight invocation, drops queued factories (FR#14).
+        # Release guard: cancels in-flight invocation, drops queued factories.
         # dequeue_job is synchronous, so spawn the release as a fire-and-forget task.
         # drain_pending_done runs after the release task completes so the QUEUED_ACCEPTED
         # hang fix (pending_done drain) fires on the same event-loop turn as guard.release().
@@ -590,7 +591,7 @@ class SchedulerService(Service):
         Mirrors ``HandlerInvoker.release_guard`` (bus/listeners.py:347-351). Called after
         ``guard.release()`` in every cancel/removal path so dispatch tasks parked on
         ``await done`` (QUEUED_ACCEPTED with a factory that was dropped without ever being
-        called) unwind instead of hanging forever (FR#14).
+        called) unwind instead of hanging forever.
 
         Args:
             job: The job whose pending_done set should be drained.
@@ -637,17 +638,17 @@ class _ScheduledJobQueue(Resource):
 
         The ``_dequeued`` flag is re-checked inside the lock, atomic with the heap
         push, to guard against a cancel arriving at any await point after the entry-level
-        check in ``dispatch_and_log`` and before the push here (FR#17). ``dequeue_job``
+        check in ``dispatch_and_log`` and before the push here. ``dequeue_job``
         sets ``_dequeued`` lock-free but on the same event-loop thread, so the in-lock
         read here sees any set that preceded this lock acquisition.
         """
 
         async with self._lock:
-            # FR#17: second _dequeued check, held inside the lock atomic with push.
+            # Second _dequeued check, held inside the lock atomic with push.
             # dequeue_job can fire at any await point after dispatch_and_log's entry
             # check; this re-check prevents re-pushing a cancelled job.
             if job._dequeued:
-                self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push (FR#17)", job)
+                self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push", job)
                 return
             self._queue.push(job)
 
