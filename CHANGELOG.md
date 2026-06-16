@@ -8,77 +8,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.44.0](https://github.com/NodeJSmith/hassette/compare/v0.43.0...v0.44.0) (2026-06-16)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
-* app-tier bus listeners now default to `single` execution mode instead of overlapping concurrently. A trigger that fires while a prior invocation of the same handler is still running is dropped by default. App authors who rely on concurrent/overlapping invocations must set `mode="parallel"` explicitly on the registration (e.g. `self.bus.on_state_change(..., mode="parallel")`). Framework-tier listeners are unchanged — they default to `parallel`.
+- **App-tier bus handlers now default to `single` execution mode** — a trigger that fires while a prior invocation of the same handler is still running is dropped instead of running concurrently. Apps that rely on overlapping invocations must pass `mode="parallel"` on the registration (e.g. `self.bus.on_state_change(..., mode="parallel")`). Framework-tier listeners are unchanged and still default to `parallel`. (#1028)
 
-### Features
+### Execution Overlap Modes
 
-* add execution overlap modes to bus handlers ([#1028](https://github.com/NodeJSmith/hassette/issues/1028)) ([79f4d1a](https://github.com/NodeJSmith/hassette/commit/79f4d1acb7a4afe9b76e54092ffa11204f92bb2f))
-* add execution overlap modes to scheduled jobs ([#1046](https://github.com/NodeJSmith/hassette/issues/1046)) ([ebd193e](https://github.com/NodeJSmith/hassette/commit/ebd193e90b677e08a9c8c6936020af51da6a067b))
-* contain timed-out sync handlers with a dedicated executor ([#1042](https://github.com/NodeJSmith/hassette/issues/1042)) ([c0fdd73](https://github.com/NodeJSmith/hassette/commit/c0fdd7324cbf3559b1621a4a81fe5e515c6e6e91))
-* detect and attribute blocking I/O on the shared event loop ([#1040](https://github.com/NodeJSmith/hassette/issues/1040)) ([566ae06](https://github.com/NodeJSmith/hassette/commit/566ae0635a19a3c351f9decaaf2ea5224e78de55))
+- Bus handlers gain per-listener overlap modes — `single` (drop the re-fire), `restart` (cancel and replace), `queued` (serialize), and `parallel` (run concurrently) — controlling what happens when a handler is re-triggered while still running. App-tier defaults to `single`; framework-tier to `parallel`. (#1028)
+- Scheduled jobs gain the same overlap modes via a `mode=` parameter on `run_in`, `run_once`, `run_every`, `run_daily`, and `run_cron`. Framework jobs default to `parallel`, app jobs to `single`. (#1046)
+
+### Event Loop Protection
+
+- Sync handlers now run on a dedicated, isolated thread pool, so a slow or timed-out handler can no longer starve framework internals like logging and the database. Tune the pool with the new `sync_executor_max_workers` config. (#1042)
+- Blocking I/O run directly on the shared event loop (e.g. `time.sleep`, `requests.get`, blocking `open().read()`) is now detected, attributed to the offending app, and logged. Control it with `blocking_io_behavior` globally or per-app, or set it to `"ignore"` to disable. (#1040)
 
 ## [0.43.0](https://github.com/NodeJSmith/hassette/compare/v0.42.0...v0.43.0) (2026-06-13)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
-* two `once=True` listeners registered with the same name and topic now raise `DuplicateListenerError` instead of silently coexisting. Use distinct names, or the new `if_exists` parameter, to register more than one once-listener under a shared name+topic.
-* `Bus.add_listener` now returns a `Subscription` instead of `None`. Callers that asserted the return was `None` must update; callers that ignore the return are unaffected.
+- **Duplicate `once=True` listeners now raise `DuplicateListenerError`** — two once-listeners with the same name and topic no longer silently coexist. Use distinct names, or the new `if_exists` parameter, to register more than one under a shared name+topic. (#1015)
+- **`Bus.add_listener` now returns a `Subscription` instead of `None`** — callers that asserted the return was `None` must update; callers that ignore the return are unaffected.
 
 ### Features
 
-* add typed sync facades for all domain entity classes ([#1020](https://github.com/NodeJSmith/hassette/issues/1020)) ([c0b2f0c](https://github.com/NodeJSmith/hassette/commit/c0b2f0c6e83f268fbe69e8db2bbfcd8178b44b3a))
-* add if_exists to bus handler registration ([#1015](https://github.com/NodeJSmith/hassette/issues/1015)) ([dd1cb28](https://github.com/NodeJSmith/hassette/commit/dd1cb282e8b373dead5d8f156f009e756e585660))
-* runtime detection of forgotten await on registration methods ([#1019](https://github.com/NodeJSmith/hassette/issues/1019)) ([61e36be](https://github.com/NodeJSmith/hassette/commit/61e36be0089159041ffd87a45cdc1d11c9786394))
-
+- Typed sync facades for all domain entity classes, giving synchronous code the same typed entity access as async handlers. (#1020)
+- `if_exists` parameter on bus handler registration — `"error"` (default) or `"skip"` for idempotent registration. (#1015)
+- Forgetting to `await` a registration call (`bus.on_state_change`, `scheduler.run_in`, `api.call_service`) now raises a runtime warning naming the exact call site, plus a static Pyright signal — instead of failing silently. (#1019)
 
 ### Bug Fixes
 
-* **cli:** show degraded telemetry status on 503 instead of exiting ([#1016](https://github.com/NodeJSmith/hassette/issues/1016)) ([67b537e](https://github.com/NodeJSmith/hassette/commit/67b537efcba2d1cccdfdc60c2c3788270caafa2b))
+- **CLI:** telemetry status now shows a degraded status on HTTP 503 instead of exiting with an error. (#1016)
 
 ## [0.42.0](https://github.com/NodeJSmith/hassette/compare/v0.41.0...v0.42.0) (2026-06-11)
 
 
 ### Features
 
-* **ui:** redesign diagnostics page and fix mobile table cropping ([#1013](https://github.com/NodeJSmith/hassette/issues/1013)) ([3fee929](https://github.com/NodeJSmith/hassette/commit/3fee92957e4882302883f8b90fa388740dcf6d80))
-
+- **Web UI:** redesigned diagnostics page and fixed table cropping on mobile. (#1013)
 
 ### Bug Fixes
 
-* coerce numeric strings in Comparison condition ([#1003](https://github.com/NodeJSmith/hassette/issues/1003)) ([ae751a6](https://github.com/NodeJSmith/hassette/commit/ae751a680b721c14045b8de197a3c9d2cefcfd53))
-* Docker semver images not published since v0.39.0 ([#999](https://github.com/NodeJSmith/hassette/issues/999)) ([ee1d804](https://github.com/NodeJSmith/hassette/commit/ee1d804ef264eaad076795ba471470879533a954))
-
+- `Comparison` condition coerces numeric strings, so comparisons against string-typed states behave as expected. (#1003)
+- Docker semver image tags are published again — they had been missing since v0.39.0. (#999)
 
 ### Documentation
 
-* rewrite documentation site ([#970](https://github.com/NodeJSmith/hassette/issues/970)) ([32d945e](https://github.com/NodeJSmith/hassette/commit/32d945ece917e2278eed200afdc762b4d253cd69))
+- Full documentation site rewrite — getting started, core concepts, web UI, CLI, testing, recipes, migration, and troubleshooting, with tested code snippets throughout. (#970)
 
 ## [0.41.0](https://github.com/NodeJSmith/hassette/compare/v0.40.0...v0.41.0) (2026-06-08)
 
 
 ### Features
 
-* retain last-known state cache on disconnect instead of clearing it ([#996](https://github.com/NodeJSmith/hassette/issues/996)) ([70e4518](https://github.com/NodeJSmith/hassette/commit/70e45182135cfeeff391af8fc5ecb307ac9b87c6))
-
+- The state cache retains last-known values on disconnect instead of clearing them, so apps keep reading the last known state through a brief HA outage. (#996)
 
 ### Bug Fixes
 
-* local log timestamps, WS retry, and state proxy self-healing ([#990](https://github.com/NodeJSmith/hassette/issues/990)) ([f5378fa](https://github.com/NodeJSmith/hassette/commit/f5378fa711726d21a826b1f547c3d5c929387460))
-* re-establish state subscription on reconnect and add concurrency guard ([#995](https://github.com/NodeJSmith/hassette/issues/995)) ([c020ea6](https://github.com/NodeJSmith/hassette/commit/c020ea6f3a8d71195e5c5a1ec4bc8770ed45a4f7))
+- Log timestamps now use local time instead of UTC, matching the host timezone; `send_and_wait` retries transient WebSocket transport timeouts with backoff; and the state proxy's periodic poll survives disconnect to self-heal if reconnect resync fails. (#990)
+- State subscription is re-established on reconnect even when the cache reload fails, with a concurrency guard that serializes overlapping reconnects when the WebSocket flaps. (#995)
 
 ## [0.40.0](https://github.com/NodeJSmith/hassette/compare/v0.39.1...v0.40.0) (2026-06-06)
 
 
-### ⚠ BREAKING CHANGES
+### Breaking Changes
 
-* `GET /api/health` now returns HTTP 200 (not 503) while the process is serving — for `starting` and `degraded` as well as `ok`. The handler never returns 503. Any healthcheck or restart automation pointed at `/api/health` should move to `/api/health/live` (liveness, HA-independent) for restart decisions, or `/api/health/ready` (200 only when fully connected) for traffic routing. Separately, a fatal, unrecoverable shutdown now exits with a non-zero status code instead of 0, so supervisors using `Restart=on-failure` will restart after a fatal crash; a clean operator shutdown (SIGTERM / `docker stop`) still exits 0.
+- **`GET /api/health` now returns 200 (not 503) whenever the process is serving** — for `starting` and `degraded` as well as `ok`; it never returns 503. Move restart automation to `/api/health/live` (liveness, independent of HA) and traffic routing to `/api/health/ready` (200 only when fully connected). Separately, a fatal unrecoverable shutdown now exits non-zero, so supervisors using `Restart=on-failure` restart after a crash; a clean operator shutdown (SIGTERM / `docker stop`) still exits 0. (#978)
 
 ### Features
 
-* add liveness/readiness health endpoints and non-zero fatal exit ([#978](https://github.com/NodeJSmith/hassette/issues/978)) ([3c84005](https://github.com/NodeJSmith/hassette/commit/3c84005b37730da85171a2d335d6eb8f303ab0d9))
+- Split health checks into `/api/health/live` (liveness) and `/api/health/ready` (readiness) endpoints, fixing the reboot loop where an HA outage made an external healthcheck restart Hassette. Fatal crashes now exit non-zero so supervisors can act on them. (#978)
 
 ## [0.39.1](https://github.com/NodeJSmith/hassette/compare/v0.39.0...v0.39.1) (2026-06-05)
 
