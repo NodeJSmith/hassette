@@ -4,15 +4,18 @@ Tests are scoped to the standalone primitive — no Hassette imports required.
 
 Coverage targets (from T01 Verify section):
 - FR#6: async_raise terminates a Python busy-loop thread; straggler name+stack logged
-  before interrupt (caplog).
+  before interrupt (captured via a handler attached directly to the executor logger,
+  so the assertion does not depend on global ``propagate`` state).
 - FR#7: join_threads_or_timeout completes within timeout even when a worker is blocked
   in a C call (time.sleep); res==0 (ValueError) and res>1 (SystemError) paths are
   handled and no exception propagates out of shutdown.
 """
 
+import contextlib
 import logging
 import threading
 import time
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +26,40 @@ from hassette.task_bucket.interruptible_executor import (
     async_raise,
     join_or_interrupt_threads,
 )
+
+_EXECUTOR_LOGGER = "hassette.task_bucket.interruptible_executor"
+
+
+@contextlib.contextmanager
+def capture_warnings(logger_name: str = _EXECUTOR_LOGGER) -> Iterator[list[logging.LogRecord]]:
+    """Capture WARNING+ records from ``logger_name`` via a directly-attached handler.
+
+    Unlike pytest's ``caplog``, this does not rely on records propagating to the root
+    logger, so it is immune to other tests leaving ``propagate=False`` on a ``hassette``
+    ancestor (which the async logging pipeline sets). The handler sits on the target
+    logger itself, and the logger's level is pinned to WARNING for the duration so the
+    record is not filtered by an ancestor's level.
+
+    test_sync_executor_service.py works around the same ``propagate=False`` problem by
+    mock-patching the service logger's ``.warning`` method instead.
+    """
+    records: list[logging.LogRecord] = []
+
+    class _Recorder(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    logger = logging.getLogger(logger_name)
+    handler = _Recorder(level=logging.WARNING)
+    prev_level = logger.level
+    logger.setLevel(logging.WARNING)
+    logger.addHandler(handler)
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(prev_level)
+
 
 # ---------------------------------------------------------------------------
 # async_raise — unit-level tests
@@ -103,16 +140,17 @@ class TestAsyncRaise:
 class TestLogThreadRunningAtShutdown:
     """Tests for the logging helper."""
 
-    def test_logs_warning_with_name_and_stack(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_logs_warning_with_name_and_stack(self) -> None:
         """_log_thread_running_at_shutdown must emit a WARNING with name and stack trace."""
         t = threading.current_thread()
         assert t.ident is not None
 
-        with caplog.at_level(logging.WARNING, logger="hassette.task_bucket.interruptible_executor"):
+        with capture_warnings() as records:
             _log_thread_running_at_shutdown(t.name, t.ident)
 
-        assert any(t.name in r.message and "is still running at shutdown" in r.message for r in caplog.records), (
-            f"Expected warning with thread name '{t.name}'; got: {[r.message for r in caplog.records]}"
+        messages = [r.getMessage() for r in records]
+        assert any(t.name in m and "is still running at shutdown" in m for m in messages), (
+            f"Expected warning with thread name '{t.name}'; got: {messages}"
         )
 
 
@@ -139,7 +177,7 @@ class TestJoinOrInterruptThreads:
         joined = join_or_interrupt_threads({t}, timeout=2.0, log=False)
         assert t in joined
 
-    def test_logs_straggler_name_before_interrupt(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_logs_straggler_name_before_interrupt(self) -> None:
         """When log=True, the straggler's name and stack must be logged before async_raise."""
         ready = threading.Event()
 
@@ -157,13 +195,14 @@ class TestJoinOrInterruptThreads:
         t.start()
         ready.wait()
 
-        with caplog.at_level(logging.WARNING, logger="hassette.task_bucket.interruptible_executor"):
+        with capture_warnings() as records:
             join_or_interrupt_threads({t}, timeout=0.05, log=True)
 
         t.join(timeout=2.0)
 
-        assert any("test-straggler-thread" in r.message for r in caplog.records), (
-            f"Expected log entry with thread name; got: {[r.message for r in caplog.records]}"
+        messages = [r.getMessage() for r in records]
+        assert any("test-straggler-thread" in m for m in messages), (
+            f"Expected log entry with thread name; got: {messages}"
         )
 
     def test_suppresses_value_error_from_async_raise(self) -> None:
@@ -290,7 +329,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
         assert terminated.is_set(), "Worker thread must have received SystemExit"
 
-    def test_stack_logged_for_python_straggler(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_stack_logged_for_python_straggler(self) -> None:
         """Straggler thread name and stack must be logged before interrupt (FR#6 / AC#4)."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="test-worker")
         ready = threading.Event()
@@ -306,11 +345,12 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         executor.submit(busy_loop)
         ready.wait()
 
-        with caplog.at_level(logging.WARNING, logger="hassette.task_bucket.interruptible_executor"):
+        with capture_warnings() as records:
             executor.shutdown(join_threads_or_timeout=True, timeout=2.0)
 
-        assert any("is still running at shutdown" in r.message for r in caplog.records), (
-            f"Expected straggler warning; got: {[r.message for r in caplog.records]}"
+        messages = [r.getMessage() for r in records]
+        assert any("is still running at shutdown" in m for m in messages), (
+            f"Expected straggler warning; got: {messages}"
         )
 
     def test_shutdown_without_join_skips_interrupt_loop(self) -> None:

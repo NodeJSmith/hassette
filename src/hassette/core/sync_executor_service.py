@@ -46,6 +46,10 @@ _SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 # Must be >= _SATURATION_WARN_RATE_LIMIT_SECS to avoid self-suppression (see above).
 _SATURATION_PROBE_INTERVAL_SECS = 30.0
 
+# Worker thread name prefix for the dedicated sync-user-code pool. Shared with the test
+# mock executor so pool-identity assertions match production threads.
+SYNC_EXECUTOR_THREAD_NAME_PREFIX = "hassette-sync"
+
 
 class SyncExecutorService(Service):
     """Service that owns the dedicated thread-pool executor for sync user code.
@@ -82,7 +86,7 @@ class SyncExecutorService(Service):
         # Construct immediately — no None window before serve() runs.
         self.executor = InterruptibleThreadPoolExecutor(
             max_workers=hassette.config.lifecycle.sync_executor_max_workers,
-            thread_name_prefix="hassette-sync",
+            thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
         )
         self._active_workers = 0
         self._last_saturation_warn_ts = 0.0
@@ -121,9 +125,6 @@ class SyncExecutorService(Service):
         context only — it does not gate the warning.
         """
         max_workers: int = self.executor._max_workers  # pyright: ignore[reportAttributeAccessIssue]
-
-        if max_workers <= 0:
-            return
 
         occupancy = self._active_workers / max_workers
         if occupancy < _SATURATION_WARN_THRESHOLD:

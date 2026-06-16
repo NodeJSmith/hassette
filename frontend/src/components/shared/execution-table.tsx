@@ -80,7 +80,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
             const rowKey = record.execution_id ?? `${kind}-${i}`;
             const isError = record.status === "error";
             const isTimeout = record.status === "timed_out";
-            const threadLeaked = record.thread_leaked === true;
+            const threadLeaked = record.thread_leaked;
 
             return [
               <tr

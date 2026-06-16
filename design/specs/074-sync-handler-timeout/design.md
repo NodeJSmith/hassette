@@ -1,7 +1,7 @@
 # Design: Sync Handler Timeout — Visibility, Containment, and Shutdown Interruption
 
 **Date:** 2026-06-15
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-15-sync-handler-timeout/research.md
 

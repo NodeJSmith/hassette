@@ -281,14 +281,14 @@ class CommandExecutor(Service):
             # cell[0] is None when: (a) the handler is async (no worker), or (b) the
             # timeout fired before the worker dequeued _call (not-started timeout).
             # Neither case is a leak; only a live cell[0] after the await is cancelled is.
-            _cell = SYNC_WORKER_CELL.get()
-            if _cell is not None and _cell[0] is not None and _cell[0].is_alive():
+            cell = SYNC_WORKER_CELL.get()
+            if cell is not None and cell[0] is not None and cell[0].is_alive():
                 result.thread_leaked = True
                 self.logger.warning(
                     "Sync worker thread still alive after timeout (%.1fms elapsed, thread=%s) — "
                     "worker will run to completion on the dedicated executor",
                     result.duration_ms,
-                    _cell[0].name,
+                    cell[0].name,
                 )
             # Clear the cell so a future invocation that reuses this asyncio context cannot
             # read a stale worker reference and report a false thread_leaked.

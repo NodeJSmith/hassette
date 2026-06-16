@@ -236,7 +236,9 @@ class TaskBucket(Resource):
         # signal on each new submission.
         try:
             svc = self.hassette.sync_executor_service
-        except (RuntimeError, AttributeError):
+        except RuntimeError:
+            # The property raises RuntimeError until wire_services() wires the service
+            # (early startup, or unit tests that never construct it).
             svc = None
         if svc is not None:
             svc.track_submission(cast("asyncio.Future[Any]", future))
@@ -274,7 +276,6 @@ class TaskBucket(Resource):
             except TimeoutError:
                 raise
             except Exception:
-                # optional: you can re-raise without cancelling; no task to cancel anymore
                 self.logger.exception("Error in sync function '%s'", getattr(fn, "__name__", repr(fn)))
                 raise
 
@@ -331,7 +332,7 @@ class TaskBucket(Resource):
         """
         fut = self.hassette.loop.create_future()
 
-        def _call():
+        def _call() -> None:
             try:
                 fut.set_result(fn(*args, **kwargs))
             except Exception as e:

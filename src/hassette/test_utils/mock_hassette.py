@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
+from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.config import TEST_WS_URL, make_test_config
 
@@ -78,6 +79,7 @@ def make_mock_hassette(
         - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
           (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
           reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
+        - ``.sync_executor_service``: ``None`` (the service is not wired in unit tests)
 
     Example::
 
@@ -157,10 +159,15 @@ def make_mock_hassette(
     # Shutdown at process exit; individual tests that need isolation may replace this.
     executor = InterruptibleThreadPoolExecutor(
         max_workers=2,
-        thread_name_prefix="hassette-sync",
+        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
     )
     atexit.register(executor.shutdown, join_threads_or_timeout=False)
     hassette.sync_executor = executor
+
+    # SyncExecutorService is not wired in unit tests. Set to None explicitly so the
+    # sealed mock exposes the attribute (run_in_thread reads it for saturation tracking
+    # and skips when None) instead of raising AttributeError on access.
+    hassette.sync_executor_service = None
 
     if sealed:
         seal(hassette)
