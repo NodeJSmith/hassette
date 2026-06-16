@@ -572,11 +572,11 @@ class TelemetryRepository:
                 INSERT INTO blocking_events (
                     session_id, app_key, instance_name, instance_index,
                     execution_id, tier, primitive, source_location,
-                    stall_duration_ms, detected_ts, source_tier
+                    stall_duration_ms, detected_ts, source_tier, reason
                 ) VALUES (
                     :session_id, :app_key, :instance_name, :instance_index,
                     :execution_id, :tier, :primitive, :source_location,
-                    :stall_duration_ms, :detected_ts, :source_tier
+                    :stall_duration_ms, :detected_ts, :source_tier, :reason
                 )
                 """,
                 {
@@ -591,6 +591,7 @@ class TelemetryRepository:
                     "stall_duration_ms": event.stall_duration_ms,
                     "detected_ts": event.detected_ts,
                     "source_tier": event.source_tier,
+                    "reason": event.reason,
                 },
             )
             await db.commit()

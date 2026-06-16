@@ -95,7 +95,9 @@ CREATE TABLE blocking_events (
     stall_duration_ms REAL,
     detected_ts      REAL NOT NULL,
     source_tier      TEXT NOT NULL
-        CHECK (source_tier IN ('app', 'framework'))
+        CHECK (source_tier IN ('app', 'framework')),
+    reason           TEXT
+        CHECK (reason IN ('attributed', 'framework', 'displaced'))
 );
 CREATE INDEX idx_be_ts      ON blocking_events(detected_ts);
 CREATE INDEX idx_be_app_ts  ON blocking_events(app_key, detected_ts);

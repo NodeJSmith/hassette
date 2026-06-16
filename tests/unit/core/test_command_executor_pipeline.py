@@ -756,6 +756,7 @@ def test_record_blocking_event_swallows_uninitialized_db() -> None:
         execution_id="01abc",
         tier="monkeypatch",
         detected_at=time.time(),
+        reason="attributed",
     )
 
     # Must not raise — the observational guard path cannot crash the wrapped primitive.

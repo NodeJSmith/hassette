@@ -6,6 +6,7 @@ by both Tier 1 (loop-responsiveness watchdog) and Tier 2 (call-site interception
 Architecture reference: design/specs/074-blocking-io-detection/design.md
 """
 
+import asyncio
 import builtins
 import contextlib
 import glob as glob_module
@@ -16,10 +17,11 @@ import time
 import warnings
 from dataclasses import dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
+from hassette.types.types import BlockingAttributionReason
 from hassette.utils.source_capture import capture_source_location
 
 if TYPE_CHECKING:
@@ -135,6 +137,11 @@ class MonkeypatchEvent:
     detected_at: float
     """``time.time()`` wall-clock timestamp when the call was intercepted."""
 
+    reason: BlockingAttributionReason
+    """Attribution outcome: ``"attributed"`` (the marker's task made this call), ``"displaced"``
+    (a marker was bound but a different task — or no task — made the call, so ``app_key`` was
+    withheld), or ``"framework"`` (no execution was bound: a genuine framework/library call)."""
+
 
 # ---------------------------------------------------------------------------
 # Enablement logic (FR#6, AC#10)
@@ -167,7 +174,11 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     this BEFORE invoking the original primitive, so a raised warning intercepts the call —
     the original never runs. ``IGNORE`` returns without emitting (the original then runs).
     """
-    owner, marker = _resolve_owner(hassette, executor)
+    marker = executor.current_execution
+    app_key, instance_name, instance_index, execution_id, reason = _confirm_attribution(marker)
+    # Resolve the owner App from the *confirmed* app_key (None for displaced/framework), so a
+    # displaced call resolves behavior from global config, not the innocent marker app's setting.
+    owner = _resolve_owner(hassette, app_key, instance_index)
     behavior = resolve_blocking_io_behavior(owner)
     if behavior is BlockingIOBehavior.IGNORE:
         return
@@ -177,12 +188,13 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
         # frames_to_skip=0 is correct: find_caller_frame strips all hassette frames (this
         # module and the wrapper included) by module name, landing on the app call site.
         source_location=capture_source_location(frames_to_skip=0),
-        app_key=marker.app_key if marker is not None else None,
-        instance_name=marker.instance_name if marker is not None else None,
-        instance_index=marker.instance_index if marker is not None else None,
-        execution_id=marker.execution_id if marker is not None else None,
+        app_key=app_key,
+        instance_name=instance_name,
+        instance_index=instance_index,
+        execution_id=execution_id,
         tier="monkeypatch",
         detected_at=time.time(),
+        reason=reason,
     )
     # Persist BEFORE emitting (T05). _emit can raise (a filterwarnings("error") escalation that
     # intercepts the call), which would otherwise skip the row — but the call was detected and
@@ -263,16 +275,53 @@ def _make_method_wrapper(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_owner(hassette: "Hassette", executor: "CommandExecutor") -> "tuple[object, ExecutionMarker | None]":
-    """Read the current execution marker and resolve the owner App (or hassette)."""
-    marker = executor.current_execution
-    owner: object = hassette
-    if marker is not None and marker.app_key is not None:
-        with contextlib.suppress(Exception):
-            app_inst = hassette.app_handler.get(marker.app_key, marker.instance_index or 0)
-            if app_inst is not None:
-                owner = app_inst
-    return owner, marker
+class _Attribution(NamedTuple):
+    """Resolved attribution for one detected blocking call. The first four fields are ``None``
+    unless ``reason == "attributed"`` (a displaced/framework call carries no owner)."""
+
+    app_key: str | None
+    instance_name: str | None
+    instance_index: int | None
+    execution_id: str | None
+    reason: BlockingAttributionReason
+
+
+def _confirm_attribution(marker: "ExecutionMarker | None") -> _Attribution:
+    """Confirm the marker names the task making this blocking call.
+
+    Tier 2 runs inline on the loop thread in the *same task* as the blocking call, so reading the
+    marker is already accurate in the common case. The ``task_id`` check only withholds attribution
+    on a *positive* mismatch: a different task is currently running than the one that bound the
+    marker, which means the marker's execution yielded and a displacing task made the call. When
+    there is no current task (a bare loop callback, or no running loop), the marker is trusted —
+    the inline read is reliable there and withholding would lose correct attributions.
+
+    Note the deliberate asymmetry with Tier 1's ``_classify_attribution``: when the marker was
+    bound outside any task (``task_id is None``) Tier 2 *trusts* it (the inline read is in the
+    blocker's own call chain), whereas Tier 1 *withholds* (it reads cross-thread and cannot
+    confirm). No marker at all is a genuine framework/library call.
+    """
+    if marker is None:
+        return _Attribution(None, None, None, None, "framework")
+    try:
+        current = asyncio.current_task()
+    except RuntimeError:
+        current = None  # no running loop on this thread — fall through to trusting the marker
+    if current is not None and marker.task_id is not None and id(current) != marker.task_id:
+        # A different task displaced the marker's execution and made this call — withhold.
+        return _Attribution(None, None, None, None, "displaced")
+    return _Attribution(marker.app_key, marker.instance_name, marker.instance_index, marker.execution_id, "attributed")
+
+
+def _resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> object:
+    """Resolve the owning App instance for behavior resolution, or ``hassette`` when unattributed."""
+    if app_key is None:
+        return hassette
+    with contextlib.suppress(Exception):
+        app_inst = hassette.app_handler.get(app_key, instance_index or 0)
+        if app_inst is not None:
+            return app_inst
+    return hassette
 
 
 # ---------------------------------------------------------------------------
