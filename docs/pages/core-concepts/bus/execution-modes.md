@@ -44,9 +44,9 @@ starts a fresh one with the new event.
 ```
 
 The cancelled invocation receives `CancelledError` at its next `await`. Making
-handlers cancellation-safe is the author's responsibility — the framework cancels
-the task, but cleanup logic inside the handler must be idiomatic Python
-(`try/finally` or `contextlib.suppress`).
+handlers cancellation-safe is the author's responsibility. The framework cancels
+the task; `try/finally` runs cleanup as the cancellation propagates. Suppressing
+the `CancelledError` keeps the task alive and defeats the restart.
 
 `restart` is the right choice for "latest wins" patterns: a search-as-you-type
 handler, a preview renderer, or any scenario where only the most recent trigger
@@ -55,9 +55,8 @@ matters.
 !!! warning "Cancelled invocations have side effects"
     A handler cancelled mid-run may have already mutated state or called a
     service. The framework provides no automatic rollback. Handlers that mutate
-    state mid-run need cancellation handling (`try/finally` or
-    `contextlib.suppress`). `single` or `queued` avoid partial execution
-    entirely.
+    state mid-run need cancellation handling with `try/finally`. `single` or
+    `queued` avoid partial execution entirely.
 
 ### `queued` — serialize in arrival order
 
@@ -139,7 +138,7 @@ consider `queued`. If it represents expected deduplication, `single` is correct.
 
 `restart` cancels the running invocation on every re-fire, so a busy `restart`
 handler accumulates cancelled invocations. Cancelled is a persisted execution
-status, not a live counter — the telemetry database records each one, and the
+status, not a live counter. The telemetry database records each one, and the
 monitoring UI surfaces a cancelled count separate from failures.
 
 A `restart` handler working as designed shows a high cancelled count and a
@@ -148,8 +147,8 @@ against the success rate.
 
 ![Handler strip showing a cancelled count beside a 100% success rate](../../../_static/web_ui_cancelled_strip.png)
 
-The handler detail pane marks each cancelled invocation with a blue diamond and
-a `cancelled` label, distinct from the red square of an error.
+The handler detail pane marks each cancelled invocation with a blue diamond.
+A `cancelled` label sets it apart from the red square of an error.
 
 ![Restart handler detail with cancelled invocations](../../../_static/web_ui_cancelled_detail.png)
 
