@@ -433,11 +433,11 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     watchdog_enabled: bool = Field(default=True)
     """Whether to run the Tier 1 loop-responsiveness watchdog. Defaults to True."""
 
-    lag_threshold_seconds: float = Field(default=0.1)
+    lag_threshold_seconds: float = Field(default=0.1, gt=0)
     """Tier 1: minimum loop lag in seconds before a blocking-detected event is emitted.
     Defaults to 100ms — brief stalls under this threshold are not reported."""
 
-    watchdog_interval_seconds: float = Field(default=0.25)
+    watchdog_interval_seconds: float = Field(default=0.25, gt=0)
     """Tier 1: interval in seconds between watchdog heartbeat checks.
     Defaults to 250ms — trades detection latency for overhead."""
 

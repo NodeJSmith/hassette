@@ -592,16 +592,19 @@ class HassetteHarness:
 
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
+        shutdown_errors: list[Exception] = []
 
         # Stop the loop watchdog before shutting down children — avoids spurious stall
-        # warnings during teardown and ensures no daemon thread outlives the test.
+        # warnings during teardown and ensures no daemon thread outlives the test. A failed
+        # stop() can leave a daemon thread alive across tests, so surface it like the rest.
         if self.hassette._loop_watchdog is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self.hassette._loop_watchdog.stop()
+            except Exception as exc:
+                shutdown_errors.append(exc)
             self.hassette._loop_watchdog = None
 
         # Shut down in reverse order so dependents stop before their dependencies.
-        shutdown_errors: list[Exception] = []
         for resource in reversed(self.hassette.children):
             try:
                 await shutdown_resource(resource)

@@ -17,6 +17,6 @@ class LegacyApp(App[LegacyAppConfig]):
         )
 
     async def on_door(self) -> None:
-        # Synchronous file read — currently suppressed while migrating.
+        # Synchronous file append — currently suppressed while migrating.
         with open("/data/door_log.txt", "a") as f:  # noqa: ASYNC230
             f.write("door opened\n")

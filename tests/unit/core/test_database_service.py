@@ -300,6 +300,12 @@ def test_retention_days_getter_for_executions(mock_hassette: MagicMock) -> None:
     assert by_table["executions"].retention_days_getter(mock_hassette.config) == 14
 
 
+def test_retention_days_getter_for_blocking_events(mock_hassette: MagicMock) -> None:
+    mock_hassette.config.database.retention_days = 21
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["blocking_events"].retention_days_getter(mock_hassette.config) == 21
+
+
 def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):

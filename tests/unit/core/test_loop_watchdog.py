@@ -12,6 +12,7 @@ synchronous freeze does not starve the session-scoped loop and trip neighbouring
 """
 
 import asyncio
+import inspect
 import re
 import threading
 import time
@@ -20,14 +21,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.core import loop_watchdog as loop_watchdog_module
 from hassette.core.command_executor import ExecutionMarker
 from hassette.core.loop_watchdog import LoopWatchdog, WatchdogEvent
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _LAG = 0.10  # threshold: 100ms
 _INTERVAL = 0.25  # watchdog_interval_seconds: 250ms (check_interval = /3 ≈ 83ms)
@@ -91,24 +89,10 @@ def _make_watchdog(
     )
 
 
-# ---------------------------------------------------------------------------
-# FR#1 — no loop.set_debug in watchdog path
-# ---------------------------------------------------------------------------
-
-
 def test_watchdog_does_not_call_set_debug() -> None:
     """LoopWatchdog must never call loop.set_debug(True) — FR#1."""
-    import inspect
-
-    import hassette.core.loop_watchdog as mod
-
-    src = inspect.getsource(mod)
+    src = inspect.getsource(loop_watchdog_module)
     assert "set_debug" not in src, "loop_watchdog.py must not reference set_debug"
-
-
-# ---------------------------------------------------------------------------
-# FR#12 / AC#9 — lifecycle: double start no-op, stop cleans up, re-start works
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="function")
@@ -177,17 +161,13 @@ async def test_restart_after_stop_works() -> None:
         watchdog.stop()
 
 
-# ---------------------------------------------------------------------------
-# AC#1 — blocking handler trips exactly one warning naming the app
-#
-# A real time.sleep on the loop thread is required to produce a genuine tick
-# stall. Pin to function-scoped loop so it does not freeze other tests.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_blocking_sleep_emits_exactly_one_warning() -> None:
-    """A time.sleep > threshold on the loop thread produces exactly ONE warning — AC#1."""
+    """A time.sleep > threshold on the loop thread produces exactly ONE warning — AC#1.
+
+    A real time.sleep is required to produce a genuine tick stall; the function-scoped
+    loop keeps that freeze from starving other tests.
+    """
     loop = asyncio.get_running_loop()
     executor = _make_executor("kitchen_lights")
 
@@ -241,17 +221,12 @@ async def test_blocking_sleep_warning_reports_full_duration() -> None:
     assert reported_ms <= block_ms * 2.0, f"duration {reported_ms}ms over-reports block {block_ms:.0f}ms"
 
 
-# ---------------------------------------------------------------------------
-# AC#3 / FR#9 — await asyncio.sleep does NOT trigger Tier 1
-#
-# This is the CENTRAL correctness test. The loop stays responsive across an
-# await, so the tick keeps advancing → no stall is ever detected.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_async_sleep_produces_no_warning() -> None:
     """await asyncio.sleep(T) for T >> threshold MUST produce zero warnings — AC#3/FR#9.
+
+    The central correctness test: the loop stays responsive across an await, so the tick
+    keeps advancing and no stall is ever detected.
 
     Detection is gated on tick staleness, not marker age. While the handler
     awaits, the loop is free and the tick advances normally — so no stall is
@@ -272,11 +247,6 @@ async def test_async_sleep_produces_no_warning() -> None:
         finally:
             watchdog.stop()
     # If we reach here without an exception, zero warnings were emitted. ✓
-
-
-# ---------------------------------------------------------------------------
-# FR#3 — default config never raises; ERROR escalates only via filterwarnings
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio(loop_scope="function")
@@ -320,11 +290,6 @@ async def test_error_behavior_emits_via_warnings_not_unconditional_raise() -> No
             watchdog.stop()
 
 
-# ---------------------------------------------------------------------------
-# Persistence hook (T05) — on_stall fires before the warning, daemon survives escalation
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
     """on_stall (persist) is called before warnings.warn, so a filterwarnings('error') escalation
@@ -360,11 +325,6 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
     on_stall.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# IGNORE behavior — suppress silently
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_ignore_behavior_suppresses_warning() -> None:
     """BlockingIOBehavior.IGNORE suppresses warning entirely."""
@@ -389,11 +349,6 @@ async def test_ignore_behavior_suppresses_warning() -> None:
     # No exception raised → IGNORE suppressed the warning ✓
 
 
-# ---------------------------------------------------------------------------
-# De-duplication — exactly one warning per stall episode
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_deduplication_one_warning_per_stall_episode() -> None:
     """A single stall episode spanning multiple daemon polls emits exactly ONE warning."""
@@ -411,11 +366,6 @@ async def test_deduplication_one_warning_per_stall_episode() -> None:
             watchdog.stop()
 
     assert len(record) == 1, f"expected 1 warning for one stall, got {len(record)}"
-
-
-# ---------------------------------------------------------------------------
-# WatchdogEvent dataclass — structural assertion for T05
-# ---------------------------------------------------------------------------
 
 
 def test_watchdog_event_fields_for_t05() -> None:

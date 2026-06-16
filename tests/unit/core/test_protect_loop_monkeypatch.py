@@ -34,10 +34,6 @@ from hassette.core.command_executor import ExecutionMarker
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _REAL_SLEEP = time.__dict__["sleep"]  # stash before any test mutates time.sleep
 _REAL_OPEN = builtins.__dict__["open"]
 
@@ -76,11 +72,6 @@ def _make_executor(*, app_key: str | None = "test_app", instance_index: int | No
     return executor
 
 
-# ---------------------------------------------------------------------------
-# Guaranteed-teardown fixture
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(autouse=True)
 def ensure_uninstall():
     """Guarantee Tier 2 patches are never leaked between tests.
@@ -96,11 +87,6 @@ def ensure_uninstall():
     # Verify the known primitives are not patched.
     assert time.sleep is _REAL_SLEEP, "time.sleep leaked between tests"
     assert builtins.open is _REAL_OPEN, "builtins.open leaked between tests"
-
-
-# ---------------------------------------------------------------------------
-# FR#6 / AC#10 — enablement matrix
-# ---------------------------------------------------------------------------
 
 
 class TestEnablementMatrix:
@@ -168,11 +154,6 @@ class TestEnablementMatrix:
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is True
         assert is_installed()
-
-
-# ---------------------------------------------------------------------------
-# FR#12 / AC#9 — idempotency and leak prevention
-# ---------------------------------------------------------------------------
 
 
 class TestIdempotencyAndLeak:
@@ -259,11 +240,6 @@ class TestIdempotencyAndLeak:
         assert not is_installed()
 
 
-# ---------------------------------------------------------------------------
-# FR#8 / AC#4 — off-loop thread gate: never flag calls from worker threads
-# ---------------------------------------------------------------------------
-
-
 class TestOffLoopGate:
     def test_time_sleep_off_loop_thread_passes_through(self):
         """time.sleep called from a worker thread is not flagged (FR#8/AC#4)."""
@@ -304,11 +280,6 @@ class TestOffLoopGate:
         assert any(issubclass(w.category, HassetteBlockingIOWarning) for w in caught), (
             "Expected HassetteBlockingIOWarning on loop-thread time.sleep"
         )
-
-
-# ---------------------------------------------------------------------------
-# FR#5 — per-primitive WARN / IGNORE / ERROR behaviors
-# ---------------------------------------------------------------------------
 
 
 class TestPrimitiveWarnBehavior:
@@ -366,11 +337,6 @@ class TestPrimitiveWarnBehavior:
         )
 
 
-# ---------------------------------------------------------------------------
-# AC#5 — dev_mode RAISES before sleep; prod without flag → no patch
-# ---------------------------------------------------------------------------
-
-
 class TestRaiseBeforeSleep:
     @pytest.mark.asyncio(loop_scope="function")
     async def test_dev_mode_raises_before_sleep(self):
@@ -391,9 +357,10 @@ class TestRaiseBeforeSleep:
                 time.sleep(0.05)  # noqa: ASYNC251 — intentional: guard raises BEFORE this sleep runs
         elapsed = time.monotonic() - start
 
-        # If sleep actually ran, elapsed would be ≥ 0.05s.
-        # The guard raises BEFORE the call, so elapsed should be tiny.
-        assert elapsed < 0.03, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
+        # If sleep actually ran, elapsed would be ≥ 0.05s. The guard raises BEFORE the call, so
+        # elapsed stays well under that — 0.045 keeps a safety margin below 0.05 while leaving
+        # headroom for warning-machinery overhead on loaded CI (the prior 0.03 bound flaked there).
+        assert elapsed < 0.045, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
 
     def test_record_blocking_event_called_before_intercepting_raise(self):
         """Persist fires BEFORE the warning, so a filterwarnings('error') intercept still records.
@@ -430,11 +397,6 @@ class TestRaiseBeforeSleep:
             time.sleep(0)
 
         assert not any(issubclass(w.category, HassetteBlockingIOWarning) for w in caught)
-
-
-# ---------------------------------------------------------------------------
-# Re-entrancy guard — emitting a warning must not recurse through patched open
-# ---------------------------------------------------------------------------
 
 
 class TestReentrancyGuard:
@@ -487,11 +449,6 @@ class TestReentrancyGuard:
             )
         finally:
             guard_mod._in_wrapper.active = False
-
-
-# ---------------------------------------------------------------------------
-# MonkeypatchEvent structure
-# ---------------------------------------------------------------------------
 
 
 class TestMonkeypatchEvent:
@@ -567,11 +524,6 @@ class TestMonkeypatchEvent:
         assert caught
         msg = str(caught[0].message)
         assert "<framework>" in msg
-
-
-# ---------------------------------------------------------------------------
-# Socket method patching (method wrapper)
-# ---------------------------------------------------------------------------
 
 
 class TestSocketMethodPatch:

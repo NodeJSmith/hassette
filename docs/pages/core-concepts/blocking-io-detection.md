@@ -16,7 +16,7 @@ Both tiers share the same thread-id gate: calls that originate on a worker threa
 
 Both tiers emit a [`HassetteBlockingIOWarning`][hassette.exceptions.HassetteBlockingIOWarning], a `RuntimeWarning` subclass. The message names the primitive intercepted (Tier 2), the owning app, and the call site:
 
-```
+```text
 HassetteBlockingIOWarning: Blocking I/O detected on the event loop
 (Tier 2 — call-site interception) — primitive: time.sleep,
 app: sensor_app, call site: sensor_app.py:42

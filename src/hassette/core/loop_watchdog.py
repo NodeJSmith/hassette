@@ -224,10 +224,6 @@ class LoopWatchdog:
         self._stall_marker = None
         self._stall_stack = None
 
-    # ------------------------------------------------------------------
-    # In-loop tick callback — runs only when the loop is free
-    # ------------------------------------------------------------------
-
     def _tick(self) -> None:
         """Advance the heartbeat timestamp and reschedule."""
         self._last_tick = time.monotonic()
@@ -235,10 +231,6 @@ class LoopWatchdog:
             # Overwrite _tick_handle with the newly scheduled call so stop() always holds the
             # currently-pending handle and cancels it, regardless of how many ticks have fired.
             self._tick_handle = self._loop.call_later(self._check_interval, self._tick)
-
-    # ------------------------------------------------------------------
-    # Off-loop daemon thread — captures during freeze, reports on recovery
-    # ------------------------------------------------------------------
 
     def _daemon_body(self) -> None:
         """Main loop of the daemon watchdog thread.
@@ -274,12 +266,13 @@ class LoopWatchdog:
                     self._stall_stack = None
             except Exception:
                 # Defensive: drop the open episode so a poisoned marker can't wedge detection.
+                # Log first so the discarded stall marker and stack leave a diagnostic trail.
+                LOGGER.debug(
+                    "Loop watchdog poll iteration failed — dropping open stall episode (marker and stack cleared)",
+                    exc_info=True,
+                )
                 self._stall_marker = None
                 self._stall_stack = None
-
-    # ------------------------------------------------------------------
-    # Stack capture — loop thread frame filtered through is_internal_frame
-    # ------------------------------------------------------------------
 
     def _capture_loop_stack(self) -> str | None:
         """Capture and filter the loop thread's current stack frames.
@@ -308,10 +301,6 @@ class LoopWatchdog:
         if not lines:
             return None
         return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Warning emission
-    # ------------------------------------------------------------------
 
     def _emit_stall(self, marker: "ExecutionMarker", stall_seconds: float, stack_text: str | None) -> None:
         """Build a WatchdogEvent for a recovered stall and emit the warning."""
