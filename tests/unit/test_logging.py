@@ -22,6 +22,7 @@ from hassette.logging_ import (
     add_execution_id,
     enable_basic_logging,
 )
+from hassette.web.models import LogWsMessage
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -995,8 +996,6 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
     def test_broadcast_envelope_validates_against_log_ws_message(self) -> None:
         """The envelope round-trips through LogWsMessage, the model the frontend schema is generated from."""
-        from hassette.web.models import LogWsMessage
-
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True
