@@ -55,7 +55,7 @@ def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 25
         app_key=app_key,
         instance_name="my_app_instance" if app_key else None,
         instance_index=0 if app_key else None,
-        execution_id="exec-uuid-watchdog",
+        execution_id="exec-uuid-watchdog" if app_key else None,
         stall_duration_ms=stall_ms,
         tier="watchdog",
         stack_text='  File "my_app.py", line 42, in on_event (my_app)',
@@ -257,6 +257,7 @@ class TestUnresolvedOwnerPersistence:
 
         row = rows[0]
         assert row["app_key"] is None
+        assert row["execution_id"] is None
         assert row["source_tier"] == "framework"
         assert row["tier"] == "watchdog"
         assert row["stall_duration_ms"] is not None
@@ -279,6 +280,7 @@ class TestUnresolvedOwnerPersistence:
 
         row = rows[0]
         assert row["app_key"] is None
+        assert row["execution_id"] is None
         assert row["source_tier"] == "framework"
         assert row["tier"] == "monkeypatch"
         assert row["primitive"] == "time.sleep"

@@ -409,14 +409,10 @@ def test_watchdog_event_fields_for_t05() -> None:
     assert event.reason == "attributed"
 
 
-# ---------------------------------------------------------------------------
 # Issue #1048 — task-identity confirmation. The single-slot marker names the most-recently-bound
 # execution, which under concurrent load is not always the task frozen on the loop. The watchdog
 # confirms the marker's task is the one actually frozen and withholds attribution otherwise, so a
 # displaced or idle/framework freeze is recorded honestly instead of blaming an innocent app.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio(loop_scope="function")
 async def test_classify_attribution_distinguishes_outcomes() -> None:
     """Matching task → attributed; different (or absent) task → displaced; no task on the loop
