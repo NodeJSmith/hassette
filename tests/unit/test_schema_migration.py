@@ -214,7 +214,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 3 after all migrations run."""
+        """PRAGMA user_version is 4 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -224,7 +224,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 3
+        assert version == 4
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""
@@ -244,6 +244,44 @@ class TestFreshMigration:
             conn.commit()
             row = conn.execute("SELECT mode FROM listeners WHERE name = 'my_listener'").fetchone()
             assert row[0] == "single"
+        finally:
+            conn.close()
+
+    def test_scheduled_jobs_has_mode_column_default_single(self, tmp_path: Path) -> None:
+        """004.sql adds a mode column to scheduled_jobs defaulting to 'single'."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(scheduled_jobs)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "mode" in cols
+
+            conn.execute(
+                "INSERT INTO scheduled_jobs"
+                " (app_key, instance_index, job_name, handler_method, source_location, source_tier)"
+                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app')"
+            )
+            conn.commit()
+            row = conn.execute("SELECT mode FROM scheduled_jobs WHERE job_name = 'my_job'").fetchone()
+            assert row[0] == "single"
+        finally:
+            conn.close()
+
+    def test_scheduled_jobs_mode_check_rejects_invalid(self, tmp_path: Path) -> None:
+        """scheduled_jobs.mode CHECK constraint rejects invalid values."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO scheduled_jobs "
+                    "(app_key, instance_index, job_name, handler_method, source_location, source_tier, mode)"
+                    " VALUES ('app', 0, 'bad_job', 'on_x', 'app.py:1', 'app', 'invalid')"
+                )
         finally:
             conn.close()
 

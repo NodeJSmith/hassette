@@ -113,3 +113,7 @@ class ScheduledJobRegistration:
 
     name_auto: bool = False
     """Whether the job name was auto-generated from the callable and trigger ID."""
+
+    mode: str = "single"
+    """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
+    the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""

@@ -63,6 +63,8 @@ def make_mock_job(
     job.args = ()
     job.kwargs = {}
     job.db_id = None
+    job.mode = MagicMock()
+    job.mode.value = "single"
     return job
 
 
@@ -256,6 +258,8 @@ async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> 
     reg_arg = executor_mock.register_job.call_args.args[0]
     assert reg_arg.app_key == "my_app"
     assert reg_arg.instance_index == 3
+    # mode threads through from job.mode.value to the registration (FR#10)
+    assert reg_arg.mode == "single"
 
 
 async def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMock) -> None:
@@ -332,6 +336,78 @@ async def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) ->
     reg_arg = executor_mock.register_job.call_args.args[0]
     assert reg_arg.app_key == "my_app"
     assert reg_arg.instance_index == 1
+
+
+@pytest.mark.parametrize("mode_str", ["single", "restart", "queued", "parallel"])
+async def test_job_registration_persists_mode(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+    mode_str: str,
+) -> None:
+    """register_job() persists the resolved execution mode to scheduled_jobs.mode (FR#10, AC#10).
+
+    Memory→DB only: mode is written via the upsert and is display/telemetry only.
+    The column is never read back to reconstruct the guard.
+    """
+    db_service, _ = initialized_db
+    reg = ScheduledJobRegistration(
+        app_key="my_app",
+        instance_index=0,
+        job_name=f"mode_job_{mode_str}",
+        handler_method="MyApp.my_job",
+        trigger_type=None,
+        trigger_label="once",
+        trigger_detail=None,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="test_registration.py:1",
+        registration_source=None,
+        mode=mode_str,
+    )
+    job_id = await executor.register_job(reg)
+    assert job_id > 0
+
+    cursor = await db_service.db.execute(
+        "SELECT mode FROM scheduled_jobs WHERE id = ?",
+        (job_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == mode_str, f"Expected mode={mode_str!r}, got {row[0]!r}"
+
+
+async def test_job_mode_updates_on_reregistration(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """A mode-only change updates the persisted mode on the same row via the upsert (AC#10)."""
+    db_service, _ = initialized_db
+
+    def make_reg(mode: str) -> ScheduledJobRegistration:
+        return ScheduledJobRegistration(
+            app_key="my_app",
+            instance_index=0,
+            job_name="rereg_mode_job",
+            handler_method="MyApp.my_job",
+            trigger_type=None,
+            trigger_label="once",
+            trigger_detail=None,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="test_registration.py:1",
+            registration_source=None,
+            mode=mode,
+        )
+
+    first_id = await executor.register_job(make_reg("single"))
+    second_id = await executor.register_job(make_reg("queued"))
+
+    # Same natural key → same row preserved, mode updated in place.
+    assert second_id == first_id
+    cursor = await db_service.db.execute("SELECT mode FROM scheduled_jobs WHERE id = ?", (first_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "queued", f"Expected mode='queued' after re-registration, got {row[0]!r}"
 
 
 async def test_group_persisted_at_registration(

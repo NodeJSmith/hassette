@@ -289,6 +289,7 @@ class SchedulerService(Service):
             source_tier=job.source_tier,
             group=job.group,
             name_auto=job.name_auto,
+            mode=job.mode.value,
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
