@@ -58,9 +58,11 @@ A job can cancel itself from inside its own handler. The `ScheduledJob` referenc
 
 ## Prevent overlapping executions
 
-The scheduler's default `single` mode prevents a recurring job from running
-twice at once. When the next tick becomes due while the prior invocation is
-still running, the scheduler drops the re-fire and logs it at DEBUG.
+App jobs run in `single` mode by default, which prevents a recurring job from
+running twice at once. When the next tick becomes due while the prior invocation
+is still running, the scheduler drops the re-fire and logs it at DEBUG.
+Framework-internal jobs default to `parallel` — see
+[Execution Modes](execution-modes.md#default-mode-tier-aware).
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_every.py"
