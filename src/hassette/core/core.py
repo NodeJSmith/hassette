@@ -494,11 +494,22 @@ class Hassette(Resource):
                 executor=self._command_executor,
             )
 
-        await self.on_initialize()
+        # on_initialize() and database_service.start() run AFTER the watchdog + Tier 2 guard are
+        # installed but BEFORE the managed startup try below. A raise here would otherwise skip
+        # before_shutdown(), leaking the watchdog daemon thread and the process-global monkeypatches
+        # into the process. Route any failure through shutdown() so both detectors are torn down.
+        try:
+            await self.on_initialize()
 
-        # Phase 1: Start database and create session before anything else.
-        # This guarantees a valid session_id exists before any handler can fire.
-        self.database_service.start()
+            # Phase 1: Start database and create session before anything else.
+            # This guarantees a valid session_id exists before any handler can fire.
+            self.database_service.start()
+        except Exception:
+            self.logger.exception("Startup failed during initialization")
+            self.record_fatal_reason("startup failure: initialization raised before service startup")
+            await self.shutdown()
+            self._raise_if_fatal_shutdown()
+            return
 
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
@@ -693,8 +704,10 @@ class Hassette(Resource):
                 self.logger.warning("Loop watchdog stop raised during shutdown", exc_info=True)
             self._loop_watchdog = None
         # Uninstall Tier 2 call-site interception so no patches remain after shutdown (FR#12/AC#9).
+        # Pass self so a non-owning instance's shutdown cannot remove the owner's process-global
+        # patches (Tier 2 has a single owner; uninstall no-ops for non-owners).
         try:
-            uninstall_block_io_guard()
+            uninstall_block_io_guard(self)
         except Exception:
             self.logger.warning("Tier 2 block IO guard uninstall raised during shutdown", exc_info=True)
         try:

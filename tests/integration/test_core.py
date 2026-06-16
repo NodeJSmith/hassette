@@ -4,10 +4,11 @@ import threading
 import typing
 from types import SimpleNamespace
 from typing import ClassVar, cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import hassette.core.block_io_guard as block_io_guard
 import hassette.core.core as core_module
 from hassette import Hassette
 from hassette.bus import Bus
@@ -237,6 +238,37 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
     assert hassette_instance.wait_for_ready.await_count == 2
     hassette_instance.shutdown.assert_awaited_once()
     assert hassette_instance.ready_event.is_set(), "Ready event was not set"
+
+
+async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_instance: Hassette) -> None:
+    """A failure starting the database service tears the watchdog and Tier 2 monkeypatches down.
+
+    database_service.start() runs after the watchdog + Tier 2 guard are installed but before the
+    managed startup try. Without cleanup-on-failure, a raise here would skip before_shutdown(),
+    leaking the daemon thread and process-global patches. This drives the real shutdown() path and
+    asserts both detectors are actually gone afterward — not merely that shutdown() was called.
+    """
+    # dev_mode=True forces Tier 2 to install, so the teardown assertions below are non-vacuous.
+    hassette_instance.config.dev_mode = True
+    hassette_instance.config.blocking_io.deep_detection_enabled = True
+    hassette_instance._database_service.start = Mock(side_effect=RuntimeError("db start broke"))  # pyright: ignore[reportAttributeAccessIssue]
+
+    real_install = core_module.install_block_io_guard
+    try:
+        with (
+            patch.object(core_module, "install_block_io_guard", wraps=real_install) as install_spy,
+            pytest.raises(FatalError),
+        ):
+            await hassette_instance.run_forever()
+
+        # The guard really installed (so the next assertion can't pass vacuously), and the real
+        # shutdown() path (not mocked) tore both detectors back down.
+        install_spy.assert_called_once()
+        assert not block_io_guard.is_installed(), "Tier 2 guard leaked after startup failure"
+        assert hassette_instance._loop_watchdog is None, "Loop watchdog leaked after startup failure"
+    finally:
+        # Safety net: never let a failed assertion leak process-global patches into other tests.
+        block_io_guard.uninstall()
 
 
 async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance: Hassette) -> None:

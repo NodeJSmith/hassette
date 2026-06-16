@@ -387,14 +387,28 @@ def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExec
     return True
 
 
-def uninstall() -> bool:
+def uninstall(hassette: "Hassette | None" = None) -> bool:
     """Restore every patched primitive to its original.
 
     Idempotent: calling when not installed is a no-op.
-    Returns ``True`` when originals were restored, ``False`` when not installed.
+
+    Owner-aware: Tier 2 is process-global with a single owning instance. When ``hassette``
+    is passed and is not the owner, this no-ops and leaves the patches in place so a
+    non-owning instance's shutdown cannot disable call-site interception for the still-running
+    owner. Pass ``None`` (the default) to force an unconditional restore — used by tests and
+    by rollback inside ``install()``.
+
+    Returns ``True`` when originals were restored, ``False`` when not installed or the caller
+    is not the owner.
     """
     global _installed, _owner_id
     if not _installed:
+        return False
+    if hassette is not None and _owner_id != id(hassette):
+        LOGGER.warning(
+            "Tier 2 blocking-IO guard uninstall requested by a non-owner Hassette instance; "
+            "leaving process-global patches installed for the owning instance."
+        )
         return False
 
     # Restore module-level originals.

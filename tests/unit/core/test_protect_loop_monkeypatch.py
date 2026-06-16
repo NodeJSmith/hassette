@@ -231,6 +231,28 @@ class TestIdempotencyAndLeak:
         assert second is True
         assert time.sleep is not _REAL_SLEEP
 
+    def test_uninstall_by_non_owner_is_noop(self) -> None:
+        """A non-owning instance cannot uninstall the owner's process-global patches.
+
+        Tier 2 has a single owner. If a second Hassette instance's shutdown called uninstall,
+        it would disable call-site interception for the still-running owner. Passing the caller
+        to uninstall() makes it no-op when the caller is not the owner.
+        """
+        owner = _make_hassette()
+        other = _make_hassette()
+        ex = _make_executor()
+        install(owner, loop_thread_id=threading.get_ident(), executor=ex)
+
+        # Non-owner uninstall is refused — patches stay live for the owner.
+        assert uninstall(other) is False
+        assert is_installed()
+        assert time.sleep is not _REAL_SLEEP
+
+        # The owner can still uninstall its own patches.
+        assert uninstall(owner) is True
+        assert not is_installed()
+        assert time.sleep is _REAL_SLEEP
+
     def test_is_installed_reflects_state(self) -> None:
         """is_installed() tracks install/uninstall state correctly."""
         assert not is_installed()
@@ -352,17 +374,19 @@ class TestRaiseBeforeSleep:
         ex = _make_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
+        # Use a large nominal duration so "did the real sleep run?" has a wide, load-proof margin:
+        # if the guard intercepts, elapsed is only warning-machinery overhead; if it does not, elapsed
+        # is ~SLEEP_S. A 0.5s bound separates the two by an order of magnitude even on a loaded CI
+        # runner (tight bounds near the sleep duration flaked here repeatedly under xdist + coverage).
+        sleep_s = 2.0
         start = time.monotonic()
         with warnings.catch_warnings():
             warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
             with pytest.raises(HassetteBlockingIOWarning):
-                time.sleep(0.05)  # noqa: ASYNC251 — intentional: guard raises BEFORE this sleep runs
+                time.sleep(sleep_s)  # noqa: ASYNC251 — intentional: guard raises BEFORE this sleep runs
         elapsed = time.monotonic() - start
 
-        # If sleep actually ran, elapsed would be ≥ 0.05s. The guard raises BEFORE the call, so
-        # elapsed stays well under that — 0.045 keeps a safety margin below 0.05 while leaving
-        # headroom for warning-machinery overhead on loaded CI (the prior 0.03 bound flaked there).
-        assert elapsed < 0.045, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
+        assert elapsed < 0.5, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
 
     def test_record_blocking_event_called_before_intercepting_raise(self) -> None:
         """Persist fires BEFORE the warning, so a filterwarnings('error') intercept still records.
