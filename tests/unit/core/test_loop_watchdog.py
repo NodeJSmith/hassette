@@ -179,6 +179,12 @@ async def test_blocking_sleep_emits_exactly_one_warning() -> None:
         try:
             # Freeze the loop thread — this is the very thing under test.
             time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
+            # The "handler" is done: clear its marker (as unbind_execution_context does in
+            # production) before yielding. The daemon already captured this marker during the
+            # freeze, so episode 1 still emits — but a CPU-starvation tick lag during recovery
+            # (common under heavy CI parallelism) now finds no live execution and opens no second
+            # episode, so the one-warning assertion stays true under load.
+            executor.current_execution = None
             # Let the watchdog detect and the loop recover.
             await asyncio.sleep(_INTERVAL * 2)
         finally:
@@ -361,6 +367,9 @@ async def test_deduplication_one_warning_per_stall_episode() -> None:
         try:
             # Sleep long enough that the daemon polls several times (> 3 check intervals).
             time.sleep(_BLOCK * 2)  # noqa: ASYNC251
+            # Handler done — clear the marker before yielding so a CPU-starvation tick lag during
+            # recovery opens no second episode (the daemon captured it during the freeze).
+            executor.current_execution = None
             await asyncio.sleep(_INTERVAL * 2)
         finally:
             watchdog.stop()
