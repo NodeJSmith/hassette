@@ -57,3 +57,4 @@ Run `hassette job` to see all scheduled jobs for your running instance, where `<
 - [Scheduling Methods](methods.md): full method reference, cron expressions, and per-job options including `group`, `jitter`, and `if_exists`
 - [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
 - [Job Management](management.md): cancelling, grouping, error handling, and the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] object
+- [Execution Modes](execution-modes.md): controlling overlap behavior for recurring jobs — `single`, `restart`, `queued`, `parallel`
