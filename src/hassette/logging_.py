@@ -131,7 +131,8 @@ class LogCaptureHandler(logging.Handler):
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
             loop = self._loop
-            payload = {"type": "log", "data": entry.to_dict()}
+            # LogWsMessage requires a top-level timestamp; entry.to_dict() only nests one under data.
+            payload = {"type": "log", "data": entry.to_dict(), "timestamp": entry.timestamp}
 
             def _schedule_broadcast() -> None:
                 with contextlib.suppress(RuntimeError):
