@@ -47,6 +47,7 @@ from hassette.utils.source_capture import is_internal_frame
 
 if TYPE_CHECKING:
     import asyncio
+    from collections.abc import Callable
 
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor, ExecutionMarker
@@ -114,11 +115,13 @@ class LoopWatchdog:
         loop: "asyncio.AbstractEventLoop",
         loop_thread_id: int,
         executor: "CommandExecutor",
+        on_stall: "Callable[[WatchdogEvent], object] | None" = None,
     ) -> None:
         self._hassette = hassette
         self._loop = loop
         self._loop_thread_id = loop_thread_id
         self._executor = executor
+        self._on_stall = on_stall
 
         cfg = hassette.config.blocking_io
         self._lag_threshold = cfg.lag_threshold_seconds
@@ -182,8 +185,11 @@ class LoopWatchdog:
             self._daemon_thread = None
         # Flush a still-open episode: a block that never recovered before shutdown is still
         # reported once, rather than silently dropped. The daemon has exited, so no race here.
+        # Suppress: this runs on the loop thread during teardown; an escalated warning or a
+        # closing-loop persist error must not derail shutdown.
         if self._stall_marker is not None:
-            self._emit_stall(self._stall_marker, time.monotonic() - self._stall_frozen_since, self._stall_stack)
+            with contextlib.suppress(Exception):
+                self._emit_stall(self._stall_marker, time.monotonic() - self._stall_frozen_since, self._stall_stack)
         self._stall_marker = None
         self._stall_stack = None
 
@@ -214,22 +220,29 @@ class LoopWatchdog:
             time.sleep(self._check_interval)
             if self._stop_event.is_set():
                 break
-            lag = time.monotonic() - self._last_tick
-            if lag >= self._lag_threshold:
-                # Tick is stale — the loop is frozen. Capture the offender once, on the first
-                # poll that sees the freeze, while its marker and stack are still live.
-                if self._stall_marker is None:
-                    marker: ExecutionMarker | None = self._executor._current_execution
-                    if marker is not None:
-                        self._stall_marker = marker
-                        self._stall_frozen_since = self._last_tick
-                        self._stall_stack = self._capture_loop_stack() if self._capture_stack else None
-                continue
-            # Loop is responsive. If an episode is open, it just recovered — report it now with
-            # the full stall duration (the span the tick was starved), then close the episode.
-            if self._stall_marker is not None:
-                duration = self._last_tick - self._stall_frozen_since
-                self._emit_stall(self._stall_marker, duration, self._stall_stack)
+            # Never let a per-iteration error kill the daemon — a dead daemon means Tier 1
+            # silently stops detecting for the rest of the process. Swallow and keep polling.
+            try:
+                lag = time.monotonic() - self._last_tick
+                if lag >= self._lag_threshold:
+                    # Tick is stale — the loop is frozen. Capture the offender once, on the first
+                    # poll that sees the freeze, while its marker and stack are still live.
+                    if self._stall_marker is None:
+                        marker: ExecutionMarker | None = self._executor._current_execution
+                        if marker is not None:
+                            self._stall_marker = marker
+                            self._stall_frozen_since = self._last_tick
+                            self._stall_stack = self._capture_loop_stack() if self._capture_stack else None
+                    continue
+                # Loop is responsive. If an episode is open, it just recovered — report it now
+                # with the full stall duration (the span the tick was starved), then close it.
+                if self._stall_marker is not None:
+                    duration = self._last_tick - self._stall_frozen_since
+                    self._emit_stall(self._stall_marker, duration, self._stall_stack)
+                    self._stall_marker = None
+                    self._stall_stack = None
+            except Exception:
+                # Defensive: drop the open episode so a poisoned marker can't wedge detection.
                 self._stall_marker = None
                 self._stall_stack = None
 
@@ -317,6 +330,17 @@ class LoopWatchdog:
         if event.stack_text:
             msg += f"\nLoop thread stack (non-framework frames):\n{event.stack_text}"
 
-        # Both WARN and ERROR emit via warnings.warn. ERROR escalates only if the user has
-        # configured filterwarnings("error") — we never raise unconditionally (FR#3).
-        warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)
+        # Persist FIRST (T05): warnings.warn below can raise (a user filterwarnings("error")
+        # escalation), which would otherwise skip the row — but the stall happened and must be
+        # recorded regardless. on_stall marshals onto the loop; suppress so a closed-loop
+        # RuntimeError at shutdown can't kill the daemon thread.
+        if self._on_stall is not None:
+            with contextlib.suppress(Exception):
+                self._on_stall(event)
+
+        # Emit on the daemon thread. WARN and ERROR both go through warnings.warn; if the user's
+        # filter escalates it to an error, warnings.warn raises — swallow it so the escalation
+        # cannot kill the watchdog thread. Tier 1 is warn-after and never propagates a raise
+        # (FR#3); call-site interception is Tier 2's job.
+        with contextlib.suppress(HassetteBlockingIOWarning):
+            warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)

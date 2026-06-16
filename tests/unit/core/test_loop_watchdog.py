@@ -321,6 +321,46 @@ async def test_error_behavior_emits_via_warnings_not_unconditional_raise() -> No
 
 
 # ---------------------------------------------------------------------------
+# Persistence hook (T05) — on_stall fires before the warning, daemon survives escalation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
+    """on_stall (persist) is called before warnings.warn, so a filterwarnings('error') escalation
+    neither skips persistence nor kills the daemon thread.
+
+    Regression: previously _emit warned before calling on_stall, so an escalated warning raised on
+    the daemon thread skipped the persist AND killed the watchdog.
+    """
+    loop = asyncio.get_running_loop()
+    executor = _make_executor("persist_app")
+    on_stall = MagicMock()
+    hassette = _make_hassette()
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
+        watchdog = LoopWatchdog(
+            hassette,
+            loop=loop,
+            loop_thread_id=threading.get_ident(),
+            executor=executor,
+            on_stall=on_stall,
+        )
+        watchdog.start()
+        try:
+            time.sleep(_BLOCK)  # noqa: ASYNC251
+            await asyncio.sleep(_INTERVAL * 2)
+            # The daemon must still be alive after the escalated warning (not killed).
+            assert watchdog._daemon_thread is not None
+            assert watchdog._daemon_thread.is_alive()
+        finally:
+            watchdog.stop()
+
+    on_stall.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # IGNORE behavior — suppress silently
 # ---------------------------------------------------------------------------
 

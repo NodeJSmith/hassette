@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry_models import BlockingEvent
 from hassette.types.types import is_framework_key
 
 if TYPE_CHECKING:
@@ -546,6 +547,44 @@ class TelemetryRepository:
         except Exception:
             await db.rollback()
             raise
+
+    async def insert_blocking_event(self, event: BlockingEvent) -> None:
+        """Insert a single blocking event row into the ``blocking_events`` table.
+
+        Each detected Tier 1 or Tier 2 event produces exactly one row. No batching —
+        blocking events are rare, so the overhead of one INSERT per event is acceptable.
+
+        Args:
+            event: The ``BlockingEvent`` record to persist.
+        """
+        db = self._db_service.db
+        await db.execute(
+            """
+            INSERT INTO blocking_events (
+                session_id, app_key, instance_name, instance_index,
+                execution_id, tier, primitive, source_location,
+                stall_duration_ms, detected_ts, source_tier
+            ) VALUES (
+                :session_id, :app_key, :instance_name, :instance_index,
+                :execution_id, :tier, :primitive, :source_location,
+                :stall_duration_ms, :detected_ts, :source_tier
+            )
+            """,
+            {
+                "session_id": event.session_id,
+                "app_key": event.app_key,
+                "instance_name": event.instance_name,
+                "instance_index": event.instance_index,
+                "execution_id": event.execution_id,
+                "tier": event.tier,
+                "primitive": event.primitive,
+                "source_location": event.source_location,
+                "stall_duration_ms": event.stall_duration_ms,
+                "detected_ts": event.detected_ts,
+                "source_tier": event.source_tier,
+            },
+        )
+        await db.commit()
 
     async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
         """Write a batch of unified execution records to the executions table.

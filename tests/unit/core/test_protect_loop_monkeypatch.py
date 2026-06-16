@@ -395,6 +395,25 @@ class TestRaiseBeforeSleep:
         # The guard raises BEFORE the call, so elapsed should be tiny.
         assert elapsed < 0.03, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
 
+    def test_record_blocking_event_called_before_intercepting_raise(self):
+        """Persist fires BEFORE the warning, so a filterwarnings('error') intercept still records.
+
+        Regression: previously _detect emitted (and raised) before calling record_blocking_event,
+        so an intercepting raise skipped the row entirely.
+        """
+        tid = threading.get_ident()
+        h = _make_hassette(dev_mode=True)
+        ex = _make_executor()
+        ex.record_blocking_event = MagicMock()
+        install(h, loop_thread_id=tid, executor=ex)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
+            with pytest.raises(HassetteBlockingIOWarning):
+                time.sleep(0)  # raises (intercept) after the row is queued
+
+        ex.record_blocking_event.assert_called_once()
+
     def test_prod_without_flag_no_patch(self):
         """Production default → time.sleep is NOT patched at all."""
         h = _make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)

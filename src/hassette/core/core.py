@@ -461,11 +461,20 @@ class Hassette(Resource):
         # Install Tier 1 loop-responsiveness watchdog after the loop thread id is captured.
         # Gated on watchdog_enabled (default True); executor is required for marker attribution.
         if self.config.blocking_io.watchdog_enabled and self._command_executor is not None:
+            _executor = self._command_executor
+            _loop = self._loop
             self._loop_watchdog = LoopWatchdog(
                 self,
-                loop=self._loop,
+                loop=_loop,
                 loop_thread_id=self._loop_thread_id,
-                executor=self._command_executor,
+                executor=_executor,
+                # The watchdog daemon thread calls on_stall from off-loop; marshal onto the
+                # loop thread via call_soon_threadsafe so record_blocking_event always runs
+                # on the loop thread (T05 threading invariant). Skip when the loop is already
+                # closing during shutdown — call_soon_threadsafe on a closed loop raises.
+                on_stall=lambda ev: (
+                    None if _loop.is_closed() else _loop.call_soon_threadsafe(_executor.record_blocking_event, ev)
+                ),
             )
             self._loop_watchdog.start()
 

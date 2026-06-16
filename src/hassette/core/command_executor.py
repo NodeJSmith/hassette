@@ -17,10 +17,13 @@ import uuid_utils
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.context import CURRENT_EXECUTION_ID
+from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
+from hassette.core.loop_watchdog import WatchdogEvent
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry_models import BlockingEvent
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent
@@ -930,6 +933,62 @@ class CommandExecutor(Service):
                 await self.hassette.send_event(exec_event)
         except Exception:
             self.logger.debug("Failed to emit completion events — ignoring", exc_info=True)
+
+    def record_blocking_event(self, event: WatchdogEvent | MonkeypatchEvent) -> None:
+        """Persist a blocking event row. Must be called on the loop thread.
+
+        Tier 1 (watchdog): the daemon thread marshals via ``loop.call_soon_threadsafe``
+        so this method always runs on the loop thread regardless of which tier detected
+        the event. Tier 2 (monkeypatch) calls this directly from the wrapper, which
+        already executes on the loop thread.
+
+        Spawns the async DB write as a fire-and-forget task via ``task_bucket.spawn``
+        so that the call returns immediately without blocking the loop.
+
+        Args:
+            event: A ``WatchdogEvent`` (tier='watchdog') or ``MonkeypatchEvent``
+                (tier='monkeypatch') describing the detected blocking call.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        if isinstance(event, WatchdogEvent):
+            blocking_event = BlockingEvent(
+                session_id=session_id,
+                app_key=event.app_key,
+                instance_name=event.instance_name,
+                instance_index=event.instance_index,
+                execution_id=event.execution_id,
+                tier="watchdog",
+                primitive=None,
+                # Store the stack text in source_location (Tier 1 has no call-site location,
+                # but the captured stack is the closest equivalent).
+                source_location=event.stack_text,
+                stall_duration_ms=event.stall_duration_ms,
+                detected_ts=event.detected_at,
+                source_tier="app" if event.app_key is not None else "framework",
+            )
+        else:
+            blocking_event = BlockingEvent(
+                session_id=session_id,
+                app_key=event.app_key,
+                instance_name=event.instance_name,
+                instance_index=event.instance_index,
+                execution_id=event.execution_id,
+                tier="monkeypatch",
+                primitive=event.primitive,
+                source_location=event.source_location,
+                stall_duration_ms=None,
+                detected_ts=event.detected_at,
+                source_tier="app" if event.app_key is not None else "framework",
+            )
+
+        self.task_bucket.spawn(
+            self.hassette.database_service.submit(self.repository.insert_blocking_event(blocking_event)),
+            name="executor:record_blocking_event",
+        )
 
     async def handle_fk_violation(
         self,

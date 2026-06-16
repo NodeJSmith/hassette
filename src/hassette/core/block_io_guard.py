@@ -175,6 +175,11 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
         tier="monkeypatch",
         detected_at=time.time(),
     )
+    # Persist BEFORE emitting (T05). _emit can raise (a filterwarnings("error") escalation that
+    # intercepts the call), which would otherwise skip the row — but the call was detected and
+    # must be recorded. task_bucket.spawn() is non-blocking and the _in_wrapper.active guard is
+    # still set, so any patched primitive the DB machinery touches passes straight through.
+    executor.record_blocking_event(event)
     _emit(event)
 
 
