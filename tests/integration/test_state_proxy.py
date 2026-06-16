@@ -5,6 +5,7 @@ shutdown behavior, and thread-safety/concurrency.
 """
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -967,36 +968,40 @@ class TestStateProxyPollNonOverlap:
         with patch("hassette.utils.date_utils.now", side_effect=lambda: frozen_time):
             # Dispatch tick 1 in a background task — will block inside gated_load_cache.
             dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(poll_job))
+            try:
+                # Wait until gated_load_cache is actually executing (spawned task has started).
+                await asyncio.wait_for(entered.wait(), timeout=2.0)
+                assert concurrent_entries[0] == 1, "First poll should be in flight"
 
-            # Wait until gated_load_cache is actually executing (spawned task has started).
-            await asyncio.wait_for(entered.wait(), timeout=2.0)
-            assert concurrent_entries[0] == 1, "First poll should be in flight"
+                # After dispatch-time reschedule, poll_job is re-enqueued on the heap.
+                # Get it — it's the same object cycled back.
+                all_jobs = await scheduler_service.get_all_jobs()
+                next_poll = next((j for j in all_jobs if j is poll_job), None)
+                assert next_poll is not None, "poll_job should have been re-enqueued (dispatch-time reschedule, FR#1)"
 
-            # After dispatch-time reschedule, poll_job is re-enqueued on the heap.
-            # Get it — it's the same object cycled back.
-            all_jobs = await scheduler_service.get_all_jobs()
-            next_poll = next((j for j in all_jobs if j is poll_job), None)
-            assert next_poll is not None, "poll_job should have been re-enqueued (dispatch-time reschedule, FR#1)"
+                # Move time forward past the second tick.
+                frozen_time = next_poll.next_run.add(seconds=1)
 
-            # Move time forward past the second tick.
-            frozen_time = next_poll.next_run.add(seconds=1)
+                # Dispatch tick 2 inline — guard should suppress (single mode, AC#13).
+                await scheduler_service.dispatch_and_log(next_poll)
 
-            # Dispatch tick 2 inline — guard should suppress (single mode, AC#13).
-            await scheduler_service.dispatch_and_log(next_poll)
+                # The guard suppressed the second invocation at the scheduler level.
+                assert poll_job.guard.suppressed >= 1, (
+                    f"Expected guard.suppressed >= 1 (single-mode scheduler suppression, AC#13), "
+                    f"got {poll_job.guard.suppressed}"
+                )
 
-            # The guard suppressed the second invocation at the scheduler level.
-            assert poll_job.guard.suppressed >= 1, (
-                f"Expected guard.suppressed >= 1 (single-mode scheduler suppression, AC#13), "
-                f"got {poll_job.guard.suppressed}"
-            )
-
-            # load_cache was never entered by both ticks concurrently.
-            assert max_concurrent_entries[0] <= 1, (
-                f"load_cache entered concurrently (max_concurrent={max_concurrent_entries[0]}); "
-                "scheduler-level single-mode guard should prevent this (AC#13)"
-            )
-
-            # Unblock the first dispatch and let it finish while the clock is still
-            # frozen, so run_job does not log a spurious behind-schedule warning.
-            gate.set()
-            await asyncio.wait_for(dispatch1, timeout=2.0)
+                # load_cache was never entered by both ticks concurrently.
+                assert max_concurrent_entries[0] <= 1, (
+                    f"load_cache entered concurrently (max_concurrent={max_concurrent_entries[0]}); "
+                    "scheduler-level single-mode guard should prevent this (AC#13)"
+                )
+            finally:
+                # Always unblock and drain the first dispatch, even if an assertion
+                # above failed — otherwise the blocked background task and the
+                # patched callable leak into later tests. Cleanup runs while the
+                # clock is still frozen, so run_job logs no behind-schedule warning.
+                poll_job.job = original_job_callable
+                gate.set()
+                with contextlib.suppress(asyncio.CancelledError, TimeoutError):
+                    await asyncio.wait_for(dispatch1, timeout=2.0)

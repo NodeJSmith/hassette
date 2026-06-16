@@ -210,19 +210,19 @@ class TestDispatchRaceGuard:
         # Simulate the race: job was popped from heap, then cancelled
         job._dequeued = True
 
-        # Mock run_job to detect if it would have been called
+        # Spy run_job_with_guard — the entry point dispatch_and_log actually routes
+        # through. Spying run_job here would be vacuous: the guard path is never run_job,
+        # so a broken _dequeued guard would still leave run_called False and pass.
         run_called = False
-        original_run_job = svc.run_job
 
-        async def spy_run_job(_j):
+        async def spy_run_job_with_guard(_j):
             nonlocal run_called
             run_called = True
-            await original_run_job(_j)
 
-        svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job_with_guard = spy_run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
-        assert not run_called, "run_job must NOT be called when job._dequeued is True"
+        assert not run_called, "run_job_with_guard must NOT be called when job._dequeued is True"
 
     async def test_dispatch_runs_non_dequeued_job(self) -> None:
         """dispatch_and_log proceeds normally when job._dequeued is False."""
