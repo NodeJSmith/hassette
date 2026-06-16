@@ -83,7 +83,8 @@ class ExecutionQueriesMixin:
                 e.retry_count,
                 e.attempt_number,
                 e.args_json,
-                e.kwargs_json
+                e.kwargs_json,
+                e.thread_leaked
             FROM executions e
             WHERE {where} {since_clause}
             ORDER BY e.execution_start_ts DESC

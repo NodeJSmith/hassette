@@ -76,7 +76,8 @@ CREATE TABLE executions (
     session_id            INTEGER NOT NULL DEFAULT 0,
     execution_start_ts    REAL NOT NULL,
     duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
+    status                TEXT NOT NULL DEFAULT 'success',
+    thread_leaked         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE blocking_events (

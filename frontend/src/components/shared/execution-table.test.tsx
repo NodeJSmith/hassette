@@ -171,6 +171,42 @@ describe("ExecutionTable", () => {
     expect(container.querySelector("[data-testid='invocation-detail']")).not.toBeNull();
   });
 
+  // ── Thread-leaked marker ──
+
+  it("shows thread leaked badge when thread_leaked is true on a timed-out row", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "timed_out", thread_leaked: true })]}
+        kind="job"
+        tableId="t"
+      />,
+    );
+    expect(container.textContent).toContain("thread leaked");
+  });
+
+  it("does not show thread leaked badge when thread_leaked is false", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "timed_out", thread_leaked: false })]}
+        kind="job"
+        tableId="t"
+      />,
+    );
+    expect(container.textContent).not.toContain("thread leaked");
+  });
+
+  it("shows thread leaked badge alongside timed out label on same row", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "timed_out", thread_leaked: true })]}
+        kind="job"
+        tableId="t"
+      />,
+    );
+    expect(container.textContent).toContain("timed out");
+    expect(container.textContent).toContain("thread leaked");
+  });
+
   // ── Show More ──
 
   it("shows Show More button when records exceed 5", () => {

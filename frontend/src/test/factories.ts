@@ -217,8 +217,9 @@ export function createExecutionCompletedPayload(
     status: "success",
     duration_ms: 75,
     error_type: null,
+    thread_leaked: false,
     ...overrides,
-  };
+  } satisfies WsExecutionCompletedPayload;
 }
 
 export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse> = {}): TelemetryStatusResponse {
@@ -252,6 +253,7 @@ export function createExecution(kind: "handler" | "job", overrides: Partial<Exec
           attempt_number: 1,
           args_json: "[]",
           kwargs_json: "{}",
+          thread_leaked: false,
         }
       : {
           kind: "job",
@@ -270,6 +272,7 @@ export function createExecution(kind: "handler" | "job", overrides: Partial<Exec
           attempt_number: 1,
           args_json: "[]",
           kwargs_json: "{}",
+          thread_leaked: false,
         };
   return { ...base, ...overrides } satisfies Execution;
 }

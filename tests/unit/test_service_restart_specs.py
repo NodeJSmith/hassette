@@ -1,6 +1,6 @@
 """Unit tests for per-service restart_spec class attribute declarations.
 
-Each of the 8 production Service subclasses must declare restart_spec
+Each of the 9 production Service subclasses must declare restart_spec
 directly in cls.__dict__ (not inherited) with values matching the design doc.
 """
 
@@ -11,6 +11,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
@@ -20,6 +21,7 @@ from hassette.types.enums import RestartType
 ALL_SERVICES = [
     BusService,
     SchedulerService,
+    SyncExecutorService,
     WebsocketService,
     DatabaseService,
     WebApiService,
@@ -42,6 +44,10 @@ class TestAllServicesDeclareRestartSpec:
 
 
 class TestRestartTypes:
+    def test_sync_executor_service_permanent(self) -> None:
+        """SyncExecutorService must use PERMANENT restart type."""
+        assert SyncExecutorService.restart_spec.restart_type is RestartType.PERMANENT
+
     def test_bus_service_permanent(self) -> None:
         """BusService must use PERMANENT restart type."""
         assert BusService.restart_spec.restart_type is RestartType.PERMANENT
@@ -83,6 +89,10 @@ class TestBudgetValues:
     def test_scheduler_service_budget(self) -> None:
         assert SchedulerService.restart_spec.budget_intensity == 2
         assert SchedulerService.restart_spec.budget_period_seconds == 30
+
+    def test_sync_executor_service_budget(self) -> None:
+        assert SyncExecutorService.restart_spec.budget_intensity == 2
+        assert SyncExecutorService.restart_spec.budget_period_seconds == 30
 
     def test_websocket_service_budget(self) -> None:
         assert WebsocketService.restart_spec.budget_intensity == 5

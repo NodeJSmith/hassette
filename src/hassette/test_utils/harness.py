@@ -29,6 +29,7 @@ from hassette.core.file_watcher import FileWatcherService
 from hassette.core.loop_watchdog import LoopWatchdog
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
@@ -259,11 +260,12 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
 
 
 DEPENDENCIES: dict[str, set[str]] = {
-    "bus": set(),
-    "scheduler": set(),
+    "sync_executor": set(),
+    "bus": {"sync_executor"},
+    "scheduler": {"sync_executor"},
     "file_watcher": set(),
     "api_mock": set(),
-    "app_handler": {"bus", "scheduler", "state_proxy"},
+    "app_handler": {"bus", "scheduler", "state_proxy", "sync_executor"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
     # service_watcher removed: ServiceWatcher is a real framework service but has no
@@ -289,6 +291,7 @@ STARTUP_ORDER: list[str] = sort_harness_graph(DEPENDENCIES)
 #                      this map without a matching _starters entry created a ghost entry
 #                      that made the structural test impossible to satisfy.
 COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
+    "sync_executor": SyncExecutorService,
     "bus": BusService,
     "scheduler": SchedulerService,
     "app_handler": AppHandler,
@@ -471,6 +474,10 @@ class HassetteHarness:
         finally:
             lock.release()
 
+    def with_sync_executor(self) -> "HassetteHarness":
+        self._components.add("sync_executor")
+        return self
+
     def with_bus(self) -> "HassetteHarness":
         self._components.add("bus")
         return self
@@ -652,6 +659,9 @@ class HassetteHarness:
         if shutdown_errors:
             raise ExceptionGroup("errors during harness teardown", shutdown_errors)
 
+    async def _start_sync_executor(self) -> None:
+        self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)
+
     async def _start_bus(self) -> None:
         # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls
         # (e.g., ServiceWatcher max-restart exceeded) do not close the anyio streams and
@@ -765,6 +775,7 @@ class HassetteHarness:
 
     # Dispatch table: component name → starter method
     _starters: typing.ClassVar[dict[str, Callable[["HassetteHarness"], typing.Awaitable[None]]]] = {
+        "sync_executor": _start_sync_executor,
         "bus": _start_bus,
         "scheduler": _start_scheduler,
         "file_watcher": _start_file_watcher,

@@ -9,10 +9,13 @@ import atexit
 import shutil
 import tempfile
 import threading
+import weakref
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
+from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX
+from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.test_utils.config import TEST_WS_URL, make_test_config
 
 
@@ -74,6 +77,10 @@ def make_mock_hassette(
         - ``.database_service``: ``None``
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
+        - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
+            (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
+            reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
+        - ``.sync_executor_service``: ``None`` (the service is not wired in unit tests)
 
     Example::
 
@@ -146,6 +153,24 @@ def make_mock_hassette(
 
     # Resource children
     hassette.children = []
+
+    # Dedicated sync-user-code executor — a real InterruptibleThreadPoolExecutor so
+    # TaskBucket.run_in_thread can submit work during tests.  Thread names carry the
+    # "hassette-sync" prefix, matching production and allowing pool-identity assertions.
+    # Shutdown is tied to the mock's lifetime via weakref.finalize: each executor is
+    # cleaned up when its mock is garbage-collected, rather than living until process
+    # exit, so repeated factory calls don't accumulate live executors.
+    executor = InterruptibleThreadPoolExecutor(
+        max_workers=2,
+        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
+    )
+    weakref.finalize(hassette, executor.shutdown, join_threads_or_timeout=False)
+    hassette.sync_executor = executor
+
+    # SyncExecutorService is not wired in unit tests. Set to None explicitly so the
+    # sealed mock exposes the attribute (run_in_thread reads it for saturation tracking
+    # and skips when None) instead of raising AttributeError on access.
+    hassette.sync_executor_service = None
 
     if sealed:
         seal(hassette)

@@ -11,6 +11,7 @@ from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
 from hassette.core.registration import ListenerRegistration
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
@@ -40,7 +41,7 @@ _HASSETTE_TOPIC_PREFIX = "hassette."
 class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
-    depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService]
+    depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService, SyncExecutorService]
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
         restart_type=RestartType.PERMANENT,
         budget_intensity=2,

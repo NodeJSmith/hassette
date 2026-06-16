@@ -134,6 +134,7 @@ export interface ExecutionCompletedData {
   error_type?: string | null;
   listener_id?: number | null;
   job_id?: number | null;
+  thread_leaked?: boolean;
 }
 
 export type WsLogPayload = LogEntryResponse;
