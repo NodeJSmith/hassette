@@ -34,12 +34,13 @@ import warnings
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import hassette.core.block_io_guard as guard_mod
-from hassette.core.block_io_guard import install, uninstall
+from hassette.core.block_io_guard import install, resolve_blocking_io_behavior, uninstall
 from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import LoopWatchdog
@@ -59,27 +60,30 @@ async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-async def _drain() -> None:
-    """Yield long enough for enqueued record_blocking_event DB writes to drain."""
-    await asyncio.sleep(0.05)
+async def _drain(db_svc: DatabaseService) -> None:
+    """Block until every enqueued record_blocking_event DB write has been processed.
+
+    The single-writer DB worker drains its queue in FIFO order, so submitting a sentinel coroutine
+    and awaiting it guarantees that all writes enqueued before it have finished — deterministic
+    where a fixed sleep would race the worker on slow CI.
+    """
+
+    async def _sentinel() -> None:
+        return None
+
+    await db_svc.submit(_sentinel())
 
 
 def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
-    """Build an unsealed MagicMock hassette wired so the resolver returns IGNORE.
+    """Build an unsealed MagicMock hassette wired so the real resolver returns IGNORE.
 
-    resolve_blocking_io_behavior(owner) follows this path when owner is an App:
-        owner.app_config.blocking_io_behavior  (per-app; None → check global)
-        owner.hassette.config.blocking_io.behavior  (global)
+    The per-app resolution path is what these tests exercise: a live execution marker carries an
+    ``app_key``, ``_resolve_owner`` resolves it to the owning app via ``app_handler.get(app_key)``,
+    and ``resolve_blocking_io_behavior`` reads ``owner.app_config.blocking_io_behavior``.
 
-    When the executor has no live execution (marker=None), _resolve_owner returns
-    (hassette, None) and the resolver walks:
-        hassette.app_config.blocking_io_behavior  (AttributeError → suppressed)
-        hassette.hassette.config.blocking_io.behavior  (owner IS hassette → one
-            level too deep; also suppressed)
-
-    To avoid that layering issue, we attach an explicit ``app_config`` on the mock
-    with ``blocking_io_behavior = IGNORE``.  The resolver finds it on the first path
-    and never needs the global fallback.
+    ``app_handler.get`` returns a per-app owner whose ``app_config.blocking_io_behavior`` is IGNORE,
+    so the tests run the genuine owner-lookup + resolution path (a broken ``app_handler.get`` or
+    resolver would now fail) rather than short-circuiting on an attribute pinned to the mock.
     """
     config = make_test_config(
         data_dir=premigrated_db_path.parent,
@@ -90,12 +94,16 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     h = MagicMock()
     h.config = config
 
-    # Expose app_config.blocking_io_behavior so the resolver finds IGNORE on the
-    # per-app path without needing to traverse h.hassette.config.blocking_io.behavior.
-    h.app_config.blocking_io_behavior = BlockingIOBehavior.IGNORE
-
-    # Resolver will find IGNORE before reaching the global path.
-    h.app_handler.get.return_value = None
+    # The owning app for the bound execution's app_key. The real resolver reads
+    # owner.app_config.blocking_io_behavior; returning this from app_handler.get exercises the
+    # genuine per-app lookup + resolution path.
+    app_owner = SimpleNamespace(
+        app_config=SimpleNamespace(
+            blocking_io_behavior=BlockingIOBehavior.IGNORE,
+            instance_name="ignored_app_0",
+        )
+    )
+    h.app_handler.get.return_value = app_owner
 
     # Lifecycle signals.
     h.ready_event = AsyncMock()
@@ -233,7 +241,7 @@ class TestExecutorOffloadProducesNoBlocking:
                 )
 
                 # Drain so any (unexpected) record_blocking_event tasks would have persisted.
-                await _drain()
+                await _drain(db_svc)
         finally:
             uninstall()
             h.config.blocking_io.deep_detection_enabled = None
@@ -264,11 +272,13 @@ class TestExecutorOffloadProducesNoBlocking:
         h = executor.hassette
         loop = asyncio.get_running_loop()
 
-        # A short lag threshold so the watchdog is sensitive.
+        # A short lag threshold so the watchdog is sensitive. The interval must be SMALLER than the
+        # threshold: otherwise the gap between ticks alone exceeds the threshold and a responsive
+        # loop can look stale, producing false positives that would mask a real regression here.
         orig_lag = h.config.blocking_io.lag_threshold_seconds
         orig_interval = h.config.blocking_io.watchdog_interval_seconds
         h.config.blocking_io.lag_threshold_seconds = 0.05
-        h.config.blocking_io.watchdog_interval_seconds = 0.1
+        h.config.blocking_io.watchdog_interval_seconds = 0.01
 
         stall_events: list[object] = []
         watchdog = LoopWatchdog(
@@ -293,15 +303,26 @@ class TestExecutorOffloadProducesNoBlocking:
                     worker_tids.append(threading.get_ident())
                     time.sleep(duration)
 
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    await loop.run_in_executor(pool, _sleep_on_worker, 0.2)
+                # Bind a live execution while the worker sleeps. The watchdog only attributes and
+                # persists a stall when a marker is live; without one a wrongly-detected stall would
+                # be skipped and the zero-rows assertion could pass vacuously. With it bound, any
+                # false stall is attributed and surfaces — so zero rows genuinely proves the loop
+                # stayed responsive while the sleep ran off-thread.
+                _exec_id, token = executor.bind_execution_context("sync_handler_app", 0)
+                try:
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        await loop.run_in_executor(pool, _sleep_on_worker, 0.2)
 
-                assert worker_tids, "worker callable did not run"
-                assert worker_tids[0] != loop_thread_id, "sleep must have run on a worker thread, not the loop thread"
+                    assert worker_tids, "worker callable did not run"
+                    assert worker_tids[0] != loop_thread_id, (
+                        "sleep must have run on a worker thread, not the loop thread"
+                    )
 
-                # Give the watchdog multiple poll cycles to notice if it wrongly flags.
-                await asyncio.sleep(0.3)
-                await _drain()
+                    # Give the watchdog multiple poll cycles to notice if it wrongly flags.
+                    await asyncio.sleep(0.3)
+                    await _drain(db_svc)
+                finally:
+                    executor.unbind_execution_context(token)
         finally:
             watchdog.stop()
             h.config.blocking_io.lag_threshold_seconds = orig_lag
@@ -340,27 +361,46 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         ignore_db: tuple[DatabaseService, "MagicMock", int],
         loop_thread_id: int,
     ) -> None:
-        """Tier 2 with ignore behavior: time.sleep on loop thread → no warning, no row."""
+        """Tier 2 with ignore behavior: time.sleep on loop thread → no warning, no row.
+
+        Binds a live execution so the guard resolves the marker's app_key to the per-app owner via
+        app_handler.get and reads its IGNORE behavior — the genuine resolution path, not a mock
+        short-circuit. A resolver spy (wraps, not replace) proves that path was actually reached.
+        """
         db_svc, h, _ = ignore_db
 
         h.config.dev_mode = True
         h.config.blocking_io.deep_detection_enabled = True
+
+        # Live execution: marker.app_key drives app_handler.get(app_key) → the IGNORE owner.
+        _exec_id, token = ignore_executor.bind_execution_context("ignored_app", 0)
 
         assert not guard_mod.is_installed()
         install(h, loop_thread_id=loop_thread_id, executor=ignore_executor)
         assert guard_mod.is_installed()
 
         caught_warnings: list[warnings.WarningMessage] = []
-        try:
-            with warnings.catch_warnings(record=True) as caught_warnings:
-                warnings.simplefilter("always", HassetteBlockingIOWarning)
+        # Spy on (without replacing) the resolver: a call proves the guard reached per-app behavior
+        # resolution. Combined with app_handler.get being consulted, this fails if either collaborator
+        # is broken — the prior version could pass even then.
+        with patch(
+            "hassette.core.block_io_guard.resolve_blocking_io_behavior",
+            wraps=resolve_blocking_io_behavior,
+        ) as resolve_spy:
+            try:
+                with warnings.catch_warnings(record=True) as caught_warnings:
+                    warnings.simplefilter("always", HassetteBlockingIOWarning)
 
-                # Call time.sleep on the LOOP thread — normally Tier 2 would fire.
-                time.sleep(0.01)  # noqa: ASYNC251
+                    # Call time.sleep on the LOOP thread — Tier 2 fires unless behavior is IGNORE.
+                    time.sleep(0.01)  # noqa: ASYNC251
 
-                await _drain()
-        finally:
-            uninstall()
+                    await _drain(db_svc)
+            finally:
+                uninstall()
+                ignore_executor.unbind_execution_context(token)
+
+        assert resolve_spy.called, "guard must reach per-app behavior resolution (test not vacuous)"
+        h.app_handler.get.assert_called_with("ignored_app", 0)
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (
@@ -410,12 +450,13 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         )
 
         caught_warnings: list[warnings.WarningMessage] = []
-        # Spy on the watchdog's behavior resolver: a call proves the daemon actually DETECTED
-        # the stall and reached the resolve step — without this, "no warning / no row" could
-        # pass simply because the watchdog never fired (a vacuous pass).
+        # Spy on (without replacing) the watchdog's behavior resolver: a call proves the daemon
+        # actually DETECTED the stall and reached the resolve step (non-vacuous). wraps= keeps the
+        # real resolver, which reads IGNORE off the per-app owner returned by app_handler.get — so a
+        # broken owner lookup or resolver would surface as a warning/row instead of silently passing.
         with patch(
             "hassette.core.loop_watchdog.resolve_blocking_io_behavior",
-            return_value=BlockingIOBehavior.IGNORE,
+            wraps=resolve_blocking_io_behavior,
         ) as resolve_spy:
             watchdog.start()
             try:
@@ -428,7 +469,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
 
                     # Let the watchdog recover and process the (suppressed) episode.
                     await asyncio.sleep(0.4)
-                    await _drain()
+                    await _drain(db_svc)
             finally:
                 watchdog.stop()
 

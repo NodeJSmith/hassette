@@ -543,11 +543,18 @@ class HassetteHarness:
             and isinstance(executor, CommandExecutor)
             and self.hassette.config.blocking_io.watchdog_enabled
         ):
+            _loop = self.hassette._loop
             self.hassette._loop_watchdog = LoopWatchdog(
                 self.hassette,
-                loop=self.hassette._loop,
+                loop=_loop,
                 loop_thread_id=self.hassette._loop_thread_id,
                 executor=executor,
+                # Mirror core.py: marshal record_blocking_event onto the loop thread so integration
+                # tests exercise the same Tier 1 persistence path as production. Without on_stall the
+                # watchdog warns but drops telemetry. Gate on is_running() like core does.
+                on_stall=lambda ev: (
+                    _loop.call_soon_threadsafe(executor.record_blocking_event, ev) if _loop.is_running() else None
+                ),
             )
             self.hassette._loop_watchdog.start()
 

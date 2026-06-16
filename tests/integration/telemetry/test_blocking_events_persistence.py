@@ -10,7 +10,6 @@ Threading invariant: record_blocking_event() always runs on the loop thread.
 Tier 1 marshals via call_soon_threadsafe; Tier 2 calls directly (already on loop).
 """
 
-import asyncio
 import time
 from collections.abc import AsyncIterator
 from unittest.mock import MagicMock
@@ -77,16 +76,19 @@ def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEve
     )
 
 
-async def _drain_tasks() -> None:
-    """Wait for enqueued record_blocking_event DB writes to finish.
+async def _drain_tasks(db_svc: DatabaseService) -> None:
+    """Block until every enqueued record_blocking_event DB write has been processed.
 
-    record_blocking_event() calls database_service.enqueue(), which places the INSERT
-    coroutine on the DB write queue for the single-writer worker to process. We yield
-    to the event loop long enough for the worker to drain the queue.
+    record_blocking_event() calls database_service.enqueue(), which places the INSERT coroutine
+    on the DB write queue for the single-writer worker. The worker drains the queue in FIFO order,
+    so submitting a sentinel coroutine and awaiting it guarantees that every write enqueued before
+    it has finished — deterministic where a fixed sleep would race the worker on slow CI.
     """
-    # A brief yield is sufficient: enqueue() puts synchronously and the DB write
-    # worker drains the queue in the same event-loop turn or the next.
-    await asyncio.sleep(0.05)
+
+    async def _sentinel() -> None:
+        return None
+
+    await db_svc.submit(_sentinel())
 
 
 async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
@@ -112,7 +114,7 @@ class TestTier1Persistence:
         event = _make_watchdog_event(stall_ms=300.0)
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 1
@@ -146,7 +148,7 @@ class TestTier1Persistence:
         )
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 1
@@ -171,7 +173,7 @@ class TestTier1Persistence:
         )
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert rows[0]["source_location"] is None
@@ -193,7 +195,7 @@ class TestTier2Persistence:
         event = _make_monkeypatch_event()
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 1
@@ -218,7 +220,7 @@ class TestTier2Persistence:
 
         executor.record_blocking_event(_make_watchdog_event(stall_ms=100.0))
         executor.record_blocking_event(_make_monkeypatch_event())
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 2
@@ -242,7 +244,7 @@ class TestUnresolvedOwnerPersistence:
         event = _make_watchdog_event(app_key=None)
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 1, "Unresolved owner must NOT be dropped"
@@ -263,7 +265,7 @@ class TestUnresolvedOwnerPersistence:
         event = _make_monkeypatch_event(app_key=None)
 
         executor.record_blocking_event(event)
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 1, "Unresolved owner must NOT be dropped"
@@ -284,7 +286,7 @@ class TestUnresolvedOwnerPersistence:
 
         executor.record_blocking_event(_make_watchdog_event(app_key=None))
         executor.record_blocking_event(_make_monkeypatch_event(app_key=None))
-        await _drain_tasks()
+        await _drain_tasks(db_svc)
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 2
