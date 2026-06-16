@@ -1,5 +1,6 @@
 """System tests for WebSocket reconnection — verifies Hassette recovers from an HA restart."""
 
+import asyncio
 import subprocess
 
 import pytest
@@ -24,7 +25,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
     4. Wait until HA comes back and Hassette reconnects with active subscriptions.
     5. Register a bus handler and toggle the light — verify event delivery works.
     """
-    wait_for_ha_ready()
+    await asyncio.to_thread(wait_for_ha_ready)
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
@@ -41,7 +42,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
             desc="WebSocket disconnect detected after HA restart",
         )
 
-        wait_for_ha_ready()
+        await asyncio.to_thread(wait_for_ha_ready)
 
         await wait_for(
             websocket_service.is_ready,
@@ -72,7 +73,7 @@ async def test_early_drop_retry_does_not_increment_restart_counter(ha_container:
     5. Assert the restart counter is still 0 — zero budget consumed.
     6. Verify event delivery works (functional confirmation).
     """
-    wait_for_ha_ready()
+    await asyncio.to_thread(wait_for_ha_ready)
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
@@ -95,7 +96,7 @@ async def test_early_drop_retry_does_not_increment_restart_counter(ha_container:
             desc="WebSocket disconnect detected after HA restart",
         )
 
-        wait_for_ha_ready()
+        await asyncio.to_thread(wait_for_ha_ready)
 
         await wait_for(
             websocket_service.is_ready,
@@ -125,7 +126,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
     4. Wait until the state proxy is ready with populated states.
     5. Verify that light.kitchen_lights has a valid state.
     """
-    wait_for_ha_ready()
+    await asyncio.to_thread(wait_for_ha_ready)
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
@@ -148,7 +149,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             desc="WebSocket disconnect detected after HA restart",
         )
 
-        wait_for_ha_ready()
+        await asyncio.to_thread(wait_for_ha_ready)
 
         def _entity_available() -> bool:
             try:

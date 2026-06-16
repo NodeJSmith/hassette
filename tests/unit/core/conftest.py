@@ -78,6 +78,26 @@ CREATE TABLE executions (
     duration_ms           REAL NOT NULL DEFAULT 0,
     status                TEXT NOT NULL DEFAULT 'success'
 );
+
+CREATE TABLE blocking_events (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id       INTEGER REFERENCES sessions(id),
+    app_key          TEXT,
+    instance_name    TEXT,
+    instance_index   INTEGER,
+    execution_id     TEXT,
+    tier             TEXT NOT NULL
+        CHECK (tier IN ('watchdog', 'monkeypatch')),
+    primitive        TEXT,
+    source_location  TEXT,
+    stall_duration_ms REAL,
+    detected_ts      REAL NOT NULL,
+    source_tier      TEXT NOT NULL
+        CHECK (source_tier IN ('app', 'framework'))
+);
+CREATE INDEX idx_be_ts      ON blocking_events(detected_ts);
+CREATE INDEX idx_be_app_ts  ON blocking_events(app_key, detected_ts);
+CREATE INDEX idx_be_session ON blocking_events(session_id);
 """
 
 
