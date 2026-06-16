@@ -13,6 +13,8 @@ Covers:
 import asyncio
 import threading
 import time
+from collections.abc import Iterator
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -25,9 +27,17 @@ from hassette.test_utils import make_mock_hassette
 
 
 @pytest.fixture
-def hassette_mock():
-    """Hassette mock with a real sync executor (thread_name_prefix="hassette-sync")."""
-    return make_mock_hassette()
+def hassette_mock() -> Iterator[AsyncMock]:
+    """Hassette mock with a real sync executor (thread_name_prefix="hassette-sync").
+
+    The executor is joined at teardown so its worker threads don't outlive the test.
+    """
+    hassette = make_mock_hassette()
+    try:
+        yield hassette
+    finally:
+        # Deterministically join the worker threads so they don't outlive the test.
+        hassette.sync_executor.shutdown(join_threads_or_timeout=True)
 
 
 @pytest.fixture

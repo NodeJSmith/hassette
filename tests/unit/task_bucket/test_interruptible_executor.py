@@ -172,7 +172,7 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=short_work, daemon=True)
         t.start()
-        started.wait()
+        assert started.wait(timeout=2.0), "worker did not signal start in time"
 
         joined = join_or_interrupt_threads({t}, timeout=2.0, log=False)
         assert t in joined
@@ -193,7 +193,7 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=busy_loop, name="test-straggler-thread", daemon=True)
         t.start()
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         with capture_warnings() as records:
             join_or_interrupt_threads({t}, timeout=0.05, log=True)
@@ -217,7 +217,7 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=quick, daemon=True)
         t.start()
-        done.wait()
+        assert done.wait(timeout=2.0), "worker did not signal done in time"
         t.join()  # now dead
 
         # Should not raise — dead thread goes into joined set
@@ -240,7 +240,7 @@ class TestJoinOrInterruptThreads:
 
         t = threading.Thread(target=loop, daemon=True)
         t.start()
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
@@ -278,7 +278,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
             time.sleep(60)  # long C-level sleep
 
         executor.submit(c_blocked)
-        started.wait()
+        assert started.wait(timeout=2.0), "worker did not signal start in time"
 
         budget = 1.0
         wall_start = time.monotonic()
@@ -299,7 +299,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
                 pass
 
         executor.submit(busy)
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         # Must not raise — benign errors are suppressed
         executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
@@ -322,7 +322,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
                 raise
 
         executor.submit(busy_loop)
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         budget = 2.0
         executor.shutdown(join_threads_or_timeout=True, timeout=budget)
@@ -343,7 +343,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
                 raise
 
         executor.submit(busy_loop)
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         with capture_warnings() as records:
             executor.shutdown(join_threads_or_timeout=True, timeout=2.0)
@@ -363,7 +363,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
             time.sleep(30)
 
         executor.submit(busy)
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         # Should return immediately (no join attempt)
         wall_start = time.monotonic()
@@ -432,7 +432,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
         t = threading.Thread(target=busy_loop, daemon=True)
         t.start()
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",
@@ -461,7 +461,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
                 raise
 
         executor.submit(busy)
-        ready.wait()
+        assert ready.wait(timeout=2.0), "worker did not signal ready in time"
 
         with patch(
             "hassette.task_bucket.interruptible_executor.async_raise",

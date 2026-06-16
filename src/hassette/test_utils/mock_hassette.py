@@ -9,6 +9,7 @@ import atexit
 import shutil
 import tempfile
 import threading
+import weakref
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
@@ -77,8 +78,8 @@ def make_mock_hassette(
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
         - ``.sync_executor``: real :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`
-          (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
-          reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
+            (``max_workers=2``, ``thread_name_prefix="hassette-sync"``) so that tests
+            reaching ``TaskBucket.run_in_thread`` submit work on the correct pool
         - ``.sync_executor_service``: ``None`` (the service is not wired in unit tests)
 
     Example::
@@ -156,12 +157,14 @@ def make_mock_hassette(
     # Dedicated sync-user-code executor — a real InterruptibleThreadPoolExecutor so
     # TaskBucket.run_in_thread can submit work during tests.  Thread names carry the
     # "hassette-sync" prefix, matching production and allowing pool-identity assertions.
-    # Shutdown at process exit; individual tests that need isolation may replace this.
+    # Shutdown is tied to the mock's lifetime via weakref.finalize: each executor is
+    # cleaned up when its mock is garbage-collected, rather than living until process
+    # exit, so repeated factory calls don't accumulate live executors.
     executor = InterruptibleThreadPoolExecutor(
         max_workers=2,
         thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
     )
-    atexit.register(executor.shutdown, join_threads_or_timeout=False)
+    weakref.finalize(hassette, executor.shutdown, join_threads_or_timeout=False)
     hassette.sync_executor = executor
 
     # SyncExecutorService is not wired in unit tests. Set to None explicitly so the

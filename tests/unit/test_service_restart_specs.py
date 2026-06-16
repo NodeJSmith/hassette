@@ -1,6 +1,6 @@
 """Unit tests for per-service restart_spec class attribute declarations.
 
-Each of the 8 production Service subclasses must declare restart_spec
+Each of the 9 production Service subclasses must declare restart_spec
 directly in cls.__dict__ (not inherited) with values matching the design doc.
 """
 

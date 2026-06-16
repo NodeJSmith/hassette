@@ -63,10 +63,16 @@ async def test_not_started_sync_timeout_no_false_positive(
     # Gate for the two pool-filling blockers.  We release it after the test assertion
     # so they exit cleanly before the test tears down.
     pool_gate = threading.Event()
+    # Barrier with 3 parties: the two filler threads, plus this test (which waits via
+    # asyncio.to_thread below, so its wait runs on a real thread and counts as a party).
+    # The barrier releases only once both fillers have provably started on the pool,
+    # replacing a racy fixed sleep.
+    started = threading.Barrier(3)
     hassette_mock = make_mock_hassette()
     bucket = TaskBucket(hassette_mock)
 
     def pool_filler() -> None:
+        started.wait(timeout=2.0)
         pool_gate.wait(timeout=10.0)
 
     # Submit two jobs to saturate both workers (max_workers=2 in make_mock_hassette).
@@ -75,8 +81,8 @@ async def test_not_started_sync_timeout_no_false_positive(
     filler_f1 = loop.run_in_executor(hassette_mock.sync_executor, pool_filler)
     filler_f2 = loop.run_in_executor(hassette_mock.sync_executor, pool_filler)
 
-    # Give both fillers time to dequeue and block.
-    await asyncio.sleep(0.02)
+    # Wait until both fillers have definitely dequeued and started.
+    await asyncio.to_thread(started.wait, 2.0)
 
     # Now submit the real handler — it will queue behind the two fillers.
     def sync_fn(_event: object) -> None:
