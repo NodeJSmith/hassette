@@ -470,10 +470,15 @@ class Hassette(Resource):
                 executor=_executor,
                 # The watchdog daemon thread calls on_stall from off-loop; marshal onto the
                 # loop thread via call_soon_threadsafe so record_blocking_event always runs
-                # on the loop thread (T05 threading invariant). Skip when the loop is already
-                # closing during shutdown — call_soon_threadsafe on a closed loop raises.
+                # on the loop thread (T05 threading invariant). Gate on is_running(): a loop
+                # that is stopped-but-not-closed during shutdown still reports is_closed()
+                # False, yet call_soon_threadsafe would schedule a callback that never runs.
+                # Residual races after the check: if the loop CLOSES, call_soon_threadsafe
+                # raises RuntimeError, caught and debug-logged by LoopWatchdog._emit; if it
+                # merely STOPS, the callback is enqueued but never runs — one blocking_events
+                # row is silently dropped, which is acceptable for fire-and-forget telemetry.
                 on_stall=lambda ev: (
-                    None if _loop.is_closed() else _loop.call_soon_threadsafe(_executor.record_blocking_event, ev)
+                    _loop.call_soon_threadsafe(_executor.record_blocking_event, ev) if _loop.is_running() else None
                 ),
             )
             self._loop_watchdog.start()

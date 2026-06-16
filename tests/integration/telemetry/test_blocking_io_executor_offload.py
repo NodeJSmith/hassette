@@ -60,7 +60,7 @@ async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
 
 
 async def _drain() -> None:
-    """Yield long enough for spawned record_blocking_event tasks to complete their DB writes."""
+    """Yield long enough for enqueued record_blocking_event DB writes to drain."""
     await asyncio.sleep(0.05)
 
 
@@ -392,7 +392,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         # The watchdog only acts when an execution marker is live (it attributes the stall to the
         # running execution). Set one so the stall is actually detected and attributed — without
         # it the watchdog skips detection entirely and the test would pass for the wrong reason.
-        ignore_executor._current_execution = ExecutionMarker(
+        ignore_executor.current_execution = ExecutionMarker(
             app_key="ignored_app",
             instance_name=None,
             execution_id="exec-ignore",

@@ -11,6 +11,9 @@ CREATE TABLE blocking_events (
     tier             TEXT NOT NULL
         CHECK (tier IN ('watchdog', 'monkeypatch')),
     primitive        TEXT,
+    -- source_location format differs by tier (check the `tier` column before parsing):
+    --   tier='monkeypatch' (Tier 2): "<file>:<lineno>" of the first non-hassette caller frame.
+    --   tier='watchdog'   (Tier 1): a multi-line loop-thread stack snapshot (or NULL when none).
     source_location  TEXT,
     stall_duration_ms REAL,
     detected_ts      REAL NOT NULL,

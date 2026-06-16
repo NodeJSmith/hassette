@@ -78,16 +78,14 @@ def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEve
 
 
 async def _drain_tasks() -> None:
-    """Wait for spawned record_blocking_event tasks and their DB writes to finish.
+    """Wait for enqueued record_blocking_event DB writes to finish.
 
-    record_blocking_event() spawns asyncio tasks that call database_service.submit(),
-    which serializes through the DB write worker. The tasks complete very quickly
-    (spawned tasks have no pending_tasks() entries by the time we reach the first
-    await), so we simply yield to the event loop long enough for the DB worker to
-    process all enqueued INSERT statements.
+    record_blocking_event() calls database_service.enqueue(), which places the INSERT
+    coroutine on the DB write queue for the single-writer worker to process. We yield
+    to the event loop long enough for the worker to drain the queue.
     """
-    # A brief yield is sufficient: spawned tasks schedule immediately and the DB
-    # write worker drains the queue in the same event-loop turn or the next.
+    # A brief yield is sufficient: enqueue() puts synchronously and the DB write
+    # worker drains the queue in the same event-loop turn or the next.
     await asyncio.sleep(0.05)
 
 

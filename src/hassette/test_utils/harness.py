@@ -536,7 +536,7 @@ class HassetteHarness:
 
         # Install Tier 1 loop-responsiveness watchdog when a real CommandExecutor is present.
         # The harness uses mock executors by default; the watchdog only activates when the
-        # executor has a live _current_execution attribute (i.e., it is a real CommandExecutor).
+        # executor has a live current_execution attribute (i.e., it is a real CommandExecutor).
         executor = getattr(self.hassette, "_command_executor", None)
         if (
             executor is not None

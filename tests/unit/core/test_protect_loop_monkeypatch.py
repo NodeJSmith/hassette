@@ -66,7 +66,7 @@ def _make_hassette(
 
 def _make_executor(*, app_key: str | None = "test_app", instance_index: int | None = 0) -> MagicMock:
     executor = MagicMock()
-    executor._current_execution = ExecutionMarker(
+    executor.current_execution = ExecutionMarker(
         app_key=app_key,
         instance_name=None,
         execution_id="exec-t04",

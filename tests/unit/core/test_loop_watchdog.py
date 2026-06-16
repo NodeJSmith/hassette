@@ -64,9 +64,9 @@ def _make_hassette(*, behavior: BlockingIOBehavior | None = None) -> MagicMock:
 
 
 def _make_executor(app_key: str | None = "test_app") -> MagicMock:
-    """Build a mock executor with a controllable _current_execution marker."""
+    """Build a mock executor with a controllable current_execution marker."""
     executor = MagicMock()
-    executor._current_execution = ExecutionMarker(
+    executor.current_execution = ExecutionMarker(
         app_key=app_key,
         instance_name=None,
         execution_id="exec-123",
@@ -116,7 +116,7 @@ async def test_double_start_is_noop() -> None:
     """Starting the watchdog twice is a no-op — second call must not spawn another thread."""
     loop = asyncio.get_running_loop()
     executor = _make_executor()
-    executor._current_execution = None  # no execution running
+    executor.current_execution = None  # no execution running
 
     watchdog = _make_watchdog(loop, executor)
     try:
@@ -133,7 +133,7 @@ async def test_stop_cleans_up_thread_and_handle() -> None:
     """After stop(), no daemon thread is alive and the tick handle is cancelled — FR#12/AC#9."""
     loop = asyncio.get_running_loop()
     executor = _make_executor()
-    executor._current_execution = None
+    executor.current_execution = None
 
     watchdog = _make_watchdog(loop, executor)
     watchdog.start()
@@ -162,7 +162,7 @@ async def test_restart_after_stop_works() -> None:
     """After stop(), a second start() re-installs cleanly — FR#12/AC#9."""
     loop = asyncio.get_running_loop()
     executor = _make_executor()
-    executor._current_execution = None
+    executor.current_execution = None
 
     watchdog = _make_watchdog(loop, executor)
     watchdog.start()

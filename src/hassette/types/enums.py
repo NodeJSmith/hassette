@@ -19,14 +19,27 @@ class BlockingIOBehavior(StrEnum):
     """Controls what happens when blocking I/O is detected on the shared event loop."""
 
     IGNORE = auto()
-    """Suppress the warning entirely — the blocking-IO detection is silently ignored."""
+    """Suppress detection entirely — no warning AND no ``blocking_events`` row is written.
+    This is the deliberate exception to the persist-before-warn rule: ``IGNORE`` means
+    "I know this app blocks; treat it as if detection never fired," so there is no audit
+    trail for ignored events."""
 
     WARN = auto()
     """Emit a ``HassetteBlockingIOWarning`` (default). Integrates with ``-W error``."""
 
     ERROR = auto()
     """Emit ``HassetteBlockingIOWarning`` in a form that ``filterwarnings("error")`` escalates
-    to a raised exception. Under normal filters, behaves identically to ``WARN``."""
+    to a raised exception. Under normal filters, behaves identically to ``WARN`` — the framework
+    does not raise on its own; escalation requires the caller to install the error filter
+    (``-W error``, a pytest ``filterwarnings`` marker, or ``warnings.filterwarnings`` at startup).
+
+    The effect of escalation differs by detection tier:
+
+    - **Tier 2 (call-site interception)** detects *before* the blocking primitive runs, so an
+      escalated warning raises at the call site and prevents the blocking call from executing.
+    - **Tier 1 (loop watchdog)** is warn-after: the stall has already completed when the warning
+      fires on the off-loop daemon thread. The daemon suppresses the escalation to stay alive, so
+      ``ERROR`` cannot retroactively interrupt a Tier 1 stall — it only records and warns."""
 
 
 class RestartType(StrEnum):

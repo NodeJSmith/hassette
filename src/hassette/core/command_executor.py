@@ -52,7 +52,7 @@ _RETRY_BACKOFF_BASE_SECONDS = 1.0
 class ExecutionMarker:
     """Immutable snapshot of the execution currently holding the loop thread.
 
-    Published to ``CommandExecutor._current_execution`` via a single atomic attribute
+    Published to ``CommandExecutor.current_execution`` via a single atomic attribute
     assignment so an off-loop watchdog thread can read it without a lock. A separate OS
     thread cannot read another thread's ``ContextVar``, so the blocking-IO watchdog reads
     this plain attribute instead of ``CURRENT_EXECUTION_ID``. Frozen (immutable) so a reader
@@ -139,7 +139,7 @@ class CommandExecutor(Service):
     rate-limit checks.
     """
 
-    _current_execution: ExecutionMarker | None = None
+    current_execution: ExecutionMarker | None = None
     """Thread-visible marker of the execution currently on the loop thread, or None when idle.
 
     Read by the off-loop blocking-IO watchdog (Tier 1) to attribute a loop freeze to the app
@@ -477,7 +477,7 @@ class CommandExecutor(Service):
         )
         # Publish the thread-visible marker last, as a single atomic assignment, so the off-loop
         # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
-        self._current_execution = ExecutionMarker(
+        self.current_execution = ExecutionMarker(
             app_key=resolved_app_key,
             instance_name=instance_name,
             execution_id=execution_id,
@@ -490,12 +490,12 @@ class CommandExecutor(Service):
         """Clear the execution marker and reset the ContextVar/structlog binding on exit.
 
         Paired with ``bind_execution_context``. Was a ``@staticmethod``; it takes ``self`` now
-        so it can clear ``_current_execution``. Clearing the marker first (to ``None`` = idle) is
-        deliberate: the off-loop watchdog reads only ``_current_execution``, so a clear-first order
+        so it can clear ``current_execution``. Clearing the marker first (to ``None`` = idle) is
+        deliberate: the off-loop watchdog reads only ``current_execution``, so a clear-first order
         means it can never attribute a stale execution once this returns. ``CURRENT_EXECUTION_ID``
         is thread-local, so its reset order relative to the marker is invisible to other threads.
         """
-        self._current_execution = None
+        self.current_execution = None
         CURRENT_EXECUTION_ID.reset(token)
         structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -942,8 +942,9 @@ class CommandExecutor(Service):
         the event. Tier 2 (monkeypatch) calls this directly from the wrapper, which
         already executes on the loop thread.
 
-        Spawns the async DB write as a fire-and-forget task via ``task_bucket.spawn``
-        so that the call returns immediately without blocking the loop.
+        Enqueues the DB write fire-and-forget via ``database_service.enqueue()``, which
+        returns immediately and drops on a full write queue rather than accumulating
+        suspended tasks under a detection storm.
 
         Args:
             event: A ``WatchdogEvent`` (tier='watchdog') or ``MonkeypatchEvent``
@@ -985,10 +986,10 @@ class CommandExecutor(Service):
                 source_tier="app" if event.app_key is not None else "framework",
             )
 
-        self.task_bucket.spawn(
-            self.hassette.database_service.submit(self.repository.insert_blocking_event(blocking_event)),
-            name="executor:record_blocking_event",
-        )
+        # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the
+        # drop) rather than suspending an unbounded number of spawned tasks under a Tier 2
+        # detection storm. Blocking-event rows are diagnostic, not a completion contract.
+        self.hassette.database_service.enqueue(self.repository.insert_blocking_event(blocking_event))
 
     async def handle_fk_violation(
         self,

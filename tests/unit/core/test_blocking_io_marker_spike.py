@@ -40,17 +40,17 @@ def test_marker_published_on_bind_and_cleared_on_unbind() -> None:
     executor = make_executor()
     executor.hassette.app_handler.get.return_value = None  # keep instance_name=None
 
-    assert executor._current_execution is None  # idle before any execution
+    assert executor.current_execution is None  # idle before any execution
 
     execution_id, token = executor.bind_execution_context("kitchen_lights", 0)
-    marker = executor._current_execution
+    marker = executor.current_execution
     assert isinstance(marker, ExecutionMarker)
     assert marker.app_key == "kitchen_lights"
     assert marker.execution_id == execution_id
     assert marker.instance_name is None
 
     executor.unbind_execution_context(token)
-    assert executor._current_execution is None
+    assert executor.current_execution is None
 
 
 def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
@@ -69,7 +69,7 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
 
     def off_loop_reader() -> None:
         block_in_progress.wait(timeout=5)
-        candidate_b_read.append(executor._current_execution)  # marker is live here
+        candidate_b_read.append(executor.current_execution)  # marker is live here
         reader_done.set()
 
     reader = threading.Thread(target=off_loop_reader, daemon=True)
@@ -82,11 +82,11 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     executor.unbind_execution_context(block_token)
 
     # Candidate A fires only now, after the freeze cleared: the marker is None.
-    candidate_a_after_unbind = executor._current_execution
+    candidate_a_after_unbind = executor.current_execution
 
     # The next execution, scheduled immediately after the block.
     next_exec_id, next_token = executor.bind_execution_context("next_app", 0)
-    candidate_a_if_later = executor._current_execution  # if A fires even later -> next_app
+    candidate_a_if_later = executor.current_execution  # if A fires even later -> next_app
     executor.unbind_execution_context(next_token)
 
     # Candidate B (off-loop, mid-block) attributed the freeze to the blocking app.
@@ -133,7 +133,7 @@ async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
         while not stop.is_set():
             time.sleep(threshold / 3)
             if time.monotonic() - last_tick > threshold:
-                marker = executor._current_execution
+                marker = executor.current_execution
                 if marker is not None and not daemon_attribution:
                     daemon_attribution.append(marker)
 
@@ -145,7 +145,7 @@ async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
         nonlocal last_tick, heartbeat_fires
         last_tick = time.monotonic()
         heartbeat_fires += 1
-        marker = executor._current_execution
+        marker = executor.current_execution
         if marker is not None:
             heartbeat_attribution.append(marker)
         if not stop.is_set():

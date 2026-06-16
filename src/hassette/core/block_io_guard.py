@@ -15,6 +15,7 @@ import threading
 import time
 import warnings
 from dataclasses import dataclass
+from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 from hassette.exceptions import HassetteBlockingIOWarning
@@ -25,17 +26,25 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 
+LOGGER = getLogger(__name__)
+
 # Hardcoded fallback when neither per-app nor global config has a value set.
 DEFAULT_BLOCKING_IO_BEHAVIOR = BlockingIOBehavior.WARN
 
 # ---------------------------------------------------------------------------
 # Saved originals — populated at install, restored at uninstall.
-# These module globals are mutated only by install()/uninstall(), which run on the
-# loop thread during startup/shutdown (single-threaded); no lock is needed.
+# Tier 2 patches builtins / socket / os, which are PROCESS-GLOBAL: there can be exactly
+# one active install per process, and its wrappers close over one specific (hassette,
+# executor) pair. A second Hassette instance in the same process therefore cannot install
+# its own Tier 2 — it would have to share the first instance's attribution. These globals
+# track the single owner so a conflicting second install is reported loudly, not silently.
+# Mutated only by install()/uninstall(), which run on the loop thread during
+# startup/shutdown (single-threaded); no lock is needed.
 # ---------------------------------------------------------------------------
 
 _originals: dict[str, Any] = {}
 _installed = False
+_owner_id: int | None = None
 
 # Per-thread re-entrancy guard. While a wrapper is mid-detection on this thread, any
 # inner patched call passes straight through instead of re-triggering detection. This
@@ -255,7 +264,7 @@ def _make_method_wrapper(
 
 def _resolve_owner(hassette: "Hassette", executor: "CommandExecutor") -> "tuple[object, ExecutionMarker | None]":
     """Read the current execution marker and resolve the owner App (or hassette)."""
-    marker = executor._current_execution
+    marker = executor.current_execution
     owner: object = hassette
     if marker is not None and marker.app_key is not None:
         with contextlib.suppress(Exception):
@@ -328,18 +337,25 @@ _SOCKET_METHOD_TABLE: list[tuple[str, str]] = [
 def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExecutor") -> bool:
     """Install Tier 2 call-site interception.
 
-    Idempotent: a second call without an intervening ``uninstall`` is a no-op.
-    Returns ``True`` when patches were installed, ``False`` when the call was
-    a no-op (already installed or disabled by config).
+    Idempotent for a single owner: a second call without an intervening ``uninstall`` is a
+    no-op. Returns ``True`` when patches were installed, ``False`` when the call was a no-op
+    (already installed or disabled by config). Tier 2 is process-global; a second call from a
+    *different* Hassette instance logs a warning and is refused (that instance gets no Tier 2).
 
     Args:
         hassette: The running Hassette instance.
         loop_thread_id: ``threading.get_ident()`` captured on the loop thread.
-        executor: The ``CommandExecutor`` whose ``_current_execution`` marker
+        executor: The ``CommandExecutor`` whose ``current_execution`` marker
             is read for app attribution.
     """
-    global _installed
+    global _installed, _owner_id
     if _installed:
+        if _owner_id != id(hassette):
+            LOGGER.warning(
+                "Tier 2 blocking-IO guard is already installed by another Hassette instance in "
+                "this process; this instance will not get call-site interception. Tier 2 patches "
+                "builtins/socket/os, which are process-global and cannot be owned by two instances."
+            )
         return False
     if not _should_install(hassette):
         return False
@@ -347,6 +363,7 @@ def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExec
     # Mark installed BEFORE patching so a mid-install failure can be rolled back by uninstall()
     # (which no-ops when not installed). Otherwise a partial patch would be permanent.
     _installed = True
+    _owner_id = id(hassette)
     try:
         # Install module-level wrappers.
         for label, target, attr in _PRIMITIVE_TABLE:
@@ -375,7 +392,7 @@ def uninstall() -> bool:
     Idempotent: calling when not installed is a no-op.
     Returns ``True`` when originals were restored, ``False`` when not installed.
     """
-    global _installed
+    global _installed, _owner_id
     if not _installed:
         return False
 
@@ -393,6 +410,7 @@ def uninstall() -> bool:
 
     _originals.clear()
     _installed = False
+    _owner_id = None
     return True
 
 

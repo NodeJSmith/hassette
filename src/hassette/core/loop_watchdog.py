@@ -38,12 +38,15 @@ import threading
 import time
 import warnings
 from dataclasses import dataclass
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from hassette.core.block_io_guard import resolve_blocking_io_behavior
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.utils.source_capture import is_internal_frame
+
+LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
     import asyncio
@@ -64,7 +67,7 @@ class WatchdogEvent:
 
     Carries enough attribution that the persistence layer (T05) can write a
     ``blocking_events`` row without re-reading any live state. The watchdog
-    clears ``_current_execution`` on the loop thread after the block, so T05
+    clears ``current_execution`` on the loop thread after the block, so T05
     must consume this snapshot, not re-read the executor.
     """
 
@@ -117,6 +120,23 @@ class LoopWatchdog:
         executor: "CommandExecutor",
         on_stall: "Callable[[WatchdogEvent], object] | None" = None,
     ) -> None:
+        """Construct the watchdog.
+
+        Args:
+            hassette: The running Hassette instance (used for config and app resolution).
+            loop: The event loop to watch.
+            loop_thread_id: ``threading.get_ident()`` of the loop thread.
+            executor: The ``CommandExecutor`` whose ``current_execution`` marker is read for
+                attribution.
+            on_stall: Optional callback invoked once per stall episode for persistence.
+
+                Threading contract: ``on_stall`` is called **from the off-loop daemon thread**,
+                not the event-loop thread. It must be non-blocking and thread-safe, and it must
+                not call async functions or acquire non-reentrant locks directly. To run work on
+                the loop thread (e.g. a DB write), marshal it with ``loop.call_soon_threadsafe``.
+                Exceptions raised by ``on_stall`` are caught and logged at debug — they never
+                kill the daemon — but a callback that blocks will stall detection.
+        """
         self._hassette = hassette
         self._loop = loop
         self._loop_thread_id = loop_thread_id
@@ -179,17 +199,29 @@ class LoopWatchdog:
             self._tick_handle = None
         # Join the daemon thread. The ceiling is one poll cycle plus slack — bounded by the
         # watchdog interval, NOT by lag_threshold (a large threshold must not stall shutdown).
+        # daemon_done is True when no daemon could be holding the open episode: either none was
+        # started, or the join confirmed it exited. It is False only when the join timed out and
+        # the daemon is still alive — in which case the daemon owns the episode and may emit it
+        # itself on recovery, so flushing here too would double-report.
+        daemon_done = True
         if self._daemon_thread is not None:
             self._daemon_thread.join(timeout=self._check_interval * 3 + 1.0)
             # Daemon is daemonic, so a timed-out join cannot block process exit; drop the ref.
+            daemon_done = not self._daemon_thread.is_alive()
             self._daemon_thread = None
         # Flush a still-open episode: a block that never recovered before shutdown is still
-        # reported once, rather than silently dropped. The daemon has exited, so no race here.
-        # Suppress: this runs on the loop thread during teardown; an escalated warning or a
-        # closing-loop persist error must not derail shutdown.
-        if self._stall_marker is not None:
-            with contextlib.suppress(Exception):
+        # reported once, rather than silently dropped. Guarded on daemon_done so we never race
+        # the still-running daemon over the same episode (see above).
+        if daemon_done and self._stall_marker is not None:
+            # Runs on the loop thread during teardown; an escalated warning or a closing-loop
+            # persist error must not derail shutdown — but a drop should be visible, not silent.
+            try:
                 self._emit_stall(self._stall_marker, time.monotonic() - self._stall_frozen_since, self._stall_stack)
+            except Exception as exc:
+                LOGGER.debug("Failed to flush open stall episode at shutdown: %s", exc)
+        # Always clear the episode refs. When daemon_done is False we skip the flush above but
+        # still release the marker — the daemon is daemonic and will be killed at process exit,
+        # so there is no surviving reader to race the clear.
         self._stall_marker = None
         self._stall_stack = None
 
@@ -228,7 +260,7 @@ class LoopWatchdog:
                     # Tick is stale — the loop is frozen. Capture the offender once, on the first
                     # poll that sees the freeze, while its marker and stack are still live.
                     if self._stall_marker is None:
-                        marker: ExecutionMarker | None = self._executor._current_execution
+                        marker: ExecutionMarker | None = self._executor.current_execution
                         if marker is not None:
                             self._stall_marker = marker
                             self._stall_frozen_since = self._last_tick
@@ -305,7 +337,8 @@ class LoopWatchdog:
         WARN and ERROR both call ``warnings.warn``. ERROR escalates only via the user's
         ``filterwarnings("error")`` — Tier 1 never raises unconditionally.
 
-        ``IGNORE`` suppresses silently.
+        ``IGNORE`` suppresses both the warning AND persistence — no ``blocking_events`` row is
+        written. This is the deliberate exception to persist-before-warn (see below).
         """
         # Resolve the owner App instance for per-app behavior resolution.
         owner: object = self._hassette
@@ -317,6 +350,8 @@ class LoopWatchdog:
 
         behavior = resolve_blocking_io_behavior(owner)
         if behavior is BlockingIOBehavior.IGNORE:
+            # IGNORE returns BEFORE persistence: an ignored stall leaves no audit trail by design.
+            # The persist-before-warn rule below applies only to WARN/ERROR.
             return
 
         app_label = marker.app_key or "<framework>"
@@ -330,13 +365,17 @@ class LoopWatchdog:
         if event.stack_text:
             msg += f"\nLoop thread stack (non-framework frames):\n{event.stack_text}"
 
-        # Persist FIRST (T05): warnings.warn below can raise (a user filterwarnings("error")
-        # escalation), which would otherwise skip the row — but the stall happened and must be
-        # recorded regardless. on_stall marshals onto the loop; suppress so a closed-loop
-        # RuntimeError at shutdown can't kill the daemon thread.
+        # Persist FIRST (T05), for WARN/ERROR only (IGNORE already returned above): warnings.warn
+        # below can raise on a user filterwarnings("error") escalation, which would otherwise skip
+        # the row — but a non-ignored stall happened and must be recorded regardless of escalation.
+        # on_stall marshals onto the loop; a closed/stopped loop at shutdown raises RuntimeError.
+        # Catch it so the escalation can't kill the daemon thread, but log at debug so the dropped
+        # persist is visible rather than silent.
         if self._on_stall is not None:
-            with contextlib.suppress(Exception):
+            try:
                 self._on_stall(event)
+            except Exception as exc:
+                LOGGER.debug("Failed to persist stall event (loop unavailable at shutdown?): %s", exc)
 
         # Emit on the daemon thread. WARN and ERROR both go through warnings.warn; if the user's
         # filter escalates it to an error, warnings.warn raises — swallow it so the escalation

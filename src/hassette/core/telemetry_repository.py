@@ -10,6 +10,8 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.telemetry_models import BlockingEvent
 from hassette.types.types import is_framework_key
 
+LOGGER = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     import aiosqlite
 
@@ -461,7 +463,7 @@ class TelemetryRepository:
                 When None, once=True rows are unconditionally deleted.
         """
         if is_framework_key(app_key):
-            logging.getLogger(__name__).warning(
+            LOGGER.warning(
                 "reconcile_registrations() called for app_key=%r — framework listeners are not reconciled; skipping",
                 app_key,
             )
@@ -521,7 +523,7 @@ class TelemetryRepository:
                 # Skip once=True deletion entirely — any row that fired before reconciliation
                 # but whose execution hasn't flushed yet would be orphaned without the
                 # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
-                logging.getLogger(__name__).debug(
+                LOGGER.debug(
                     "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
                     app_key,
                 )
@@ -552,39 +554,51 @@ class TelemetryRepository:
         """Insert a single blocking event row into the ``blocking_events`` table.
 
         Each detected Tier 1 or Tier 2 event produces exactly one row. No batching —
-        blocking events are rare, so the overhead of one INSERT per event is acceptable.
+        blocking events are normally rare, so the overhead of one INSERT per event is
+        acceptable. A DB write failure (disk full, lock contention) is logged here with
+        app attribution and the row is dropped, rather than propagating as an
+        unattributed "Unhandled error in enqueued DB write" from the write worker.
 
         Args:
             event: The ``BlockingEvent`` record to persist.
         """
         db = self._db_service.db
-        await db.execute(
-            """
-            INSERT INTO blocking_events (
-                session_id, app_key, instance_name, instance_index,
-                execution_id, tier, primitive, source_location,
-                stall_duration_ms, detected_ts, source_tier
-            ) VALUES (
-                :session_id, :app_key, :instance_name, :instance_index,
-                :execution_id, :tier, :primitive, :source_location,
-                :stall_duration_ms, :detected_ts, :source_tier
+        try:
+            await db.execute(
+                """
+                INSERT INTO blocking_events (
+                    session_id, app_key, instance_name, instance_index,
+                    execution_id, tier, primitive, source_location,
+                    stall_duration_ms, detected_ts, source_tier
+                ) VALUES (
+                    :session_id, :app_key, :instance_name, :instance_index,
+                    :execution_id, :tier, :primitive, :source_location,
+                    :stall_duration_ms, :detected_ts, :source_tier
+                )
+                """,
+                {
+                    "session_id": event.session_id,
+                    "app_key": event.app_key,
+                    "instance_name": event.instance_name,
+                    "instance_index": event.instance_index,
+                    "execution_id": event.execution_id,
+                    "tier": event.tier,
+                    "primitive": event.primitive,
+                    "source_location": event.source_location,
+                    "stall_duration_ms": event.stall_duration_ms,
+                    "detected_ts": event.detected_ts,
+                    "source_tier": event.source_tier,
+                },
             )
-            """,
-            {
-                "session_id": event.session_id,
-                "app_key": event.app_key,
-                "instance_name": event.instance_name,
-                "instance_index": event.instance_index,
-                "execution_id": event.execution_id,
-                "tier": event.tier,
-                "primitive": event.primitive,
-                "source_location": event.source_location,
-                "stall_duration_ms": event.stall_duration_ms,
-                "detected_ts": event.detected_ts,
-                "source_tier": event.source_tier,
-            },
-        )
-        await db.commit()
+            await db.commit()
+        except Exception:
+            LOGGER.warning(
+                "Dropped blocking_events row (DB write failed) — tier=%s app=%s primitive=%s",
+                event.tier,
+                event.app_key,
+                event.primitive,
+                exc_info=True,
+            )
 
     async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
         """Write a batch of unified execution records to the executions table.
@@ -621,7 +635,6 @@ class TelemetryRepository:
         """
         db = self._db_service.db
         dropped = 0
-        logger = logging.getLogger(__name__)
 
         if not records:
             return 0
@@ -632,7 +645,7 @@ class TelemetryRepository:
             for record in records:
                 params = _execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
-                if await _insert_row_with_fk_fallback(db, params, fk_field, logger):
+                if await _insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
                     dropped += 1
 
             await db.commit()
