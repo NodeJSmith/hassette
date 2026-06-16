@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 
+from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.commands import InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
@@ -691,3 +692,36 @@ async def test_serve_item_flush_drains_queue_on_arrival():
         await stopper
 
     assert "item" in drain_calls
+
+
+def test_record_blocking_event_swallows_uninitialized_db():
+    """record_blocking_event is fire-and-forget: a not-yet-initialized database_service
+    (``enqueue`` raises ``RuntimeError`` before ``on_initialize``) drops the row and never propagates.
+
+    Regression: the Tier 2 monkeypatch guard wraps ``socket.send``. When it fired while the
+    DatabaseService queue was still ``None`` (early startup, shutdown, or the test harness's own
+    xdist/rerunfailures socket IPC), the raised ``RuntimeError`` escaped through ``_detect`` into the
+    wrapped primitive and crashed the whole caller (pytest INTERNALERROR on 3.11).
+    """
+    executor = init_executor()
+    # Repository returns an opaque handle; the real coroutine is closed by enqueue() in production.
+    executor.repository.insert_blocking_event = MagicMock(return_value=MagicMock())
+    executor.hassette.database_service.enqueue = MagicMock(
+        side_effect=RuntimeError("DatabaseService.enqueue() called before on_initialize()")
+    )
+
+    event = MonkeypatchEvent(
+        primitive="socket.send",
+        source_location="app.py:10",
+        app_key="test_app",
+        instance_name="default",
+        instance_index=0,
+        execution_id="01abc",
+        tier="monkeypatch",
+        detected_at=time.time(),
+    )
+
+    # Must not raise — the observational guard path cannot crash the wrapped primitive.
+    CommandExecutor.record_blocking_event(executor, event)
+
+    executor.hassette.database_service.enqueue.assert_called_once()

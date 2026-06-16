@@ -186,8 +186,9 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     )
     # Persist BEFORE emitting (T05). _emit can raise (a filterwarnings("error") escalation that
     # intercepts the call), which would otherwise skip the row — but the call was detected and
-    # must be recorded. task_bucket.spawn() is non-blocking and the _in_wrapper.active guard is
-    # still set, so any patched primitive the DB machinery touches passes straight through.
+    # must be recorded. record_blocking_event() is best-effort: it enqueues the write fire-and-forget
+    # and drops the row (no raise) if the DB queue isn't live yet. The _in_wrapper.active
+    # guard is still set, so any patched primitive the DB machinery touches passes straight through.
     executor.record_blocking_event(event)
     _emit(event)
 

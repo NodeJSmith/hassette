@@ -989,7 +989,17 @@ class CommandExecutor(Service):
         # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the
         # drop) rather than suspending an unbounded number of spawned tasks under a Tier 2
         # detection storm. Blocking-event rows are diagnostic, not a completion contract.
-        self.hassette.database_service.enqueue(self.repository.insert_blocking_event(blocking_event))
+        #
+        # enqueue() raises RuntimeError if the database service queue isn't live yet (before
+        # on_initialize) or after shutdown. The Tier 2 monkeypatch guard can fire in exactly
+        # those windows — and it runs inside the wrapped primitive (e.g. socket.send), where a
+        # raised exception would crash the caller. The detection path is observational, so a
+        # not-yet-ready queue drops the row instead of propagating.
+        try:
+            self.hassette.database_service.enqueue(self.repository.insert_blocking_event(blocking_event))
+        except RuntimeError:
+            # enqueue() is the only RuntimeError source here, raised when the queue isn't live.
+            self.logger.debug("Database service not ready — dropping blocking-event row")
 
     async def handle_fk_violation(
         self,
