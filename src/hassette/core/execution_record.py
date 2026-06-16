@@ -58,6 +58,19 @@ class ExecutionRecord:
     is_di_failure: bool = False
     """True when the execution failed due to a DependencyError (or subclass)."""
 
+    thread_leaked: bool = False
+    """True when the execution timed out and the worker thread was still alive after the timeout.
+
+    Set only for sync handlers whose worker thread outlived the asyncio timeout.  False for
+    async handlers, for executions that never started their worker (not-started timeout), and
+    for all non-timed-out executions.  Corresponds to the ``thread_leaked`` column in the
+    ``executions`` table (004.sql).
+
+    Subject to a small race window: if the worker finishes between the timeout cancellation and the
+    liveness check, this field reads False even though the thread outlived the asyncio deadline.
+    This is a false-negative (undercounting), not a false-positive. Treat as a lower bound.
+    """
+
     error_type: str | None = None
     """Exception class name if status is 'error', otherwise None."""
 

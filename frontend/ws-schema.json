@@ -269,6 +269,11 @@
           ],
           "default": null,
           "title": "Job Id"
+        },
+        "thread_leaked": {
+          "default": false,
+          "title": "Thread Leaked",
+          "type": "boolean"
         }
       },
       "required": [

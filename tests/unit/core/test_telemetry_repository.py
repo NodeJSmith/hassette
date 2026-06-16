@@ -107,7 +107,8 @@ CREATE TABLE executions (
     retry_count           INTEGER NOT NULL DEFAULT 0,
     attempt_number        INTEGER NOT NULL DEFAULT 1,
     args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}'
+    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
+    thread_leaked         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_exec_listener_time

@@ -85,7 +85,7 @@ Located in `src/hassette/event_handling/`:
 
 Services declare a `restart_spec` class attribute (`RestartSpec`) that controls supervision behavior: restart type (`PERMANENT`, `TRANSIENT`, or `TEMPORARY`), sliding-window budget (intensity + period), backoff parameters, and error routing (fatal vs. non-retryable error names). The `ServiceWatcher` reads this spec when a service fails.
 
-`BusService` and `SchedulerService` both declare `depends_on: [DatabaseService]` — the database is guaranteed ready before any listener or job registration can occur.
+`BusService` and `SchedulerService` both declare `depends_on: [DatabaseService, SyncExecutorService]` — the database is guaranteed ready before any listener or job registration can occur. `AppHandler` also declares `SyncExecutorService` in its `depends_on`; the dedicated sync-handler executor (`SyncExecutorService`) outlives every component that submits sync work (Bus, Scheduler, and the App lifecycle hooks), so it is torn down only after them at shutdown.
 
 ## App Pattern
 

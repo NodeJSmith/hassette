@@ -260,6 +260,7 @@ class ExecutionCompletedData(BaseModel):
     error_type: str | None = None
     listener_id: int | None = None
     job_id: int | None = None
+    thread_leaked: bool = False
 
 
 class ExecutionCompletedWsMessage(BaseModel):

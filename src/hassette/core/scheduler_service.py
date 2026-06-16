@@ -13,6 +13,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ScheduledJobRegistration
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -39,7 +40,7 @@ equal — update both together."""
 class SchedulerService(Service):
     """Service that manages scheduled jobs."""
 
-    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService]
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
         restart_type=RestartType.PERMANENT,
         budget_intensity=2,

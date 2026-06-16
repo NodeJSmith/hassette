@@ -141,6 +141,13 @@ class Execution(BaseModel):
     """JSON-encoded positional arguments for job executions. '[]' for handler invocations."""
     kwargs_json: str = "{}"
     """JSON-encoded keyword arguments for job executions. '{}' for handler invocations."""
+    thread_leaked: bool = False
+    """True when the execution timed out and the sync worker thread was still alive after the timeout.
+
+    Subject to a small race window: if the worker finishes between the timeout cancellation and the
+    liveness check, this field reads False even though the thread outlived the asyncio deadline.
+    This is a false-negative (undercounting), not a false-positive. Treat as a lower bound.
+    """
 
 
 class JobSummary(BaseModel):

@@ -2500,6 +2500,11 @@
             "type": "string",
             "title": "Kwargs Json",
             "default": "{}"
+          },
+          "thread_leaked": {
+            "type": "boolean",
+            "title": "Thread Leaked",
+            "default": false
           }
         },
         "type": "object",

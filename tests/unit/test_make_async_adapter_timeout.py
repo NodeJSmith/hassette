@@ -1,23 +1,17 @@
 """Unit tests for make_async_adapter TimeoutError handling."""
 
-import asyncio
-from unittest.mock import MagicMock
-
 import pytest
 
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 async def test_sync_fn_timeout_error_propagates_cleanly() -> None:
     """TimeoutError in sync handler propagates without being caught by the except Exception block."""
-    hassette = MagicMock()
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.logging.log_level = "INFO"
-    hassette.loop = asyncio.get_running_loop()
-    hassette._loop_thread_id = None
-    bucket = TaskBucket(hassette, parent=hassette)
+    # make_mock_hassette provisions a real hassette-sync executor, so run_in_thread
+    # can submit via loop.run_in_executor(hassette.sync_executor, ...) without raising.
+    hassette = make_mock_hassette()
+    bucket = TaskBucket(hassette)
 
     def sync_fn() -> None:
         raise TimeoutError("timed out")

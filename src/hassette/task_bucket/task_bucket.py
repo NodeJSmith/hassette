@@ -6,6 +6,7 @@ import typing
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
+from contextvars import ContextVar
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -13,9 +14,24 @@ from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
-if typing.TYPE_CHECKING:
-    from types import CoroutineType
+SYNC_WORKER_CELL: ContextVar[list[threading.Thread | None] | None] = ContextVar("sync_worker_cell", default=None)
+"""Carries the shared mutable cell for the current sync submission from the loop thread to _execute.
 
+Set on the loop thread in ``run_in_thread`` immediately after creating the cell.  The cell
+itself is a ``list[threading.Thread | None]`` whose first element is set by the worker thread
+when ``_call`` starts executing.  ``_execute`` (same asyncio task, same context snapshot) reads
+this ContextVar to reach ``cell[0]`` at the timeout site.
+
+Why a ContextVar carrying the cell *reference* works (unlike writing from the worker):
+``loop.run_in_executor`` copies the loop thread's context one-way into the worker; the worker
+gets a private snapshot.  Only the loop thread writes to this ContextVar (setting the cell
+reference); the worker writes only to ``cell[0]`` (the list contents).  Because the cell is a
+plain mutable list created on the loop thread and captured by both sides, the worker's mutation
+to ``cell[0]`` is immediately visible to the loop thread when it reads ``cell[0]`` via
+``SYNC_WORKER_CELL.get()``.
+"""
+
+if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 T = TypeVar("T")
@@ -150,11 +166,34 @@ class TaskBucket(Resource):
             self.hassette.loop.call_soon_threadsafe(_create)
             return result.result()  # block this worker thread briefly to hand back the Task
 
-    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "CoroutineType[Any, Any, R]":
-        """Run a synchronous function in a separate thread.
+    def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
+        """Run a synchronous function on the dedicated sync-handler executor.
 
-        This is a thin wrapper around `asyncio.to_thread`, but ensures that the current TaskBucket context
-        is preserved in the new thread.
+        Routes sync user code (handlers, jobs, App lifecycle hooks) through
+        ``hassette.sync_executor`` (an
+        :class:`~hassette.task_bucket.interruptible_executor.InterruptibleThreadPoolExecutor`)
+        so that slow sync handlers are isolated from framework-internal
+        ``asyncio.to_thread`` calls (logging, database), which continue using the
+        loop-default executor.
+
+        A shared mutable cell (``list[threading.Thread | None]``) captures the
+        worker thread immediately when ``_call`` starts executing.  T06 reads
+        ``cell[0]`` at the timeout site to check whether the thread outlived its
+        timeout::
+
+            cell: list[threading.Thread | None] = [None]
+            # _call (worker): cell[0] = threading.current_thread()   <- set on worker
+            # T06 (loop thread): cell[0].is_alive()                  <- read on loop
+
+        A ContextVar is NOT used here: ``loop.run_in_executor`` copies the loop
+        thread's context one-way into the worker callable, so any write the worker
+        makes to a ContextVar mutates the worker's private copy and the loop thread
+        reads back ``None``.  The cell sidesteps this by being a plain list created
+        on the loop thread and closed over by both the loop thread and the worker.
+
+        If the timeout fires before the worker has dequeued ``_call``, ``cell[0]``
+        remains ``None`` — a "not-started" timeout, not a thread leak.  T06 relies
+        on this sentinel to distinguish the two cases.
 
         Args:
             fn: The synchronous function to run.
@@ -165,15 +204,46 @@ class TaskBucket(Resource):
             A coroutine that resolves to the return value of *fn*.
         """
         current_bucket = ctx.CURRENT_BUCKET.get()
+        # Shared mutable cell: set by the worker, read by T06 at the timeout site.
+        # The cell is created and owned here (loop thread); the worker mutates cell[0].
+        cell: list[threading.Thread | None] = [None]
+        # Expose the cell to _execute via a ContextVar set on the loop thread.
+        # _execute runs in the same asyncio task (same context), so it reads back
+        # the same cell reference.  See SYNC_WORKER_CELL docstring for why this
+        # works when setting from the loop thread but not from the worker.
+        SYNC_WORKER_CELL.set(cell)
 
         def _call() -> R:
+            # Record which worker thread picked up this callable — read by T06.
+            cell[0] = threading.current_thread()
             if current_bucket is not None:
                 with ctx.use_task_bucket(current_bucket):
                     return fn(*args, **kwargs)
             else:
                 return fn(*args, **kwargs)
 
-        return asyncio.to_thread(_call)
+        # Submit to the dedicated executor so sync user code is isolated from
+        # framework-internal asyncio.to_thread calls (logging, database).
+        # loop.run_in_executor returns an asyncio.Future (awaitable) — callers
+        # that do ``await self.run_in_thread(...)`` work identically to before.
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[R] = loop.run_in_executor(self.hassette.sync_executor, _call)
+
+        # Submission-time saturation check: track the active worker count and emit a
+        # rate-limited WARNING if the pool is approaching its ceiling.
+        # The periodic probe in SyncExecutorService.serve() covers the case where
+        # submissions stop (fully-starved pool); this check catches the rising-load
+        # signal on each new submission.
+        try:
+            svc = self.hassette.sync_executor_service
+        except RuntimeError:
+            # The property raises RuntimeError until wire_services() wires the service
+            # (early startup, or unit tests that never construct it).
+            svc = None
+        if svc is not None:
+            svc.track_submission(cast("asyncio.Future[Any]", future))
+
+        return future
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Schedule a callable on the event loop from any thread."""
@@ -206,7 +276,6 @@ class TaskBucket(Resource):
             except TimeoutError:
                 raise
             except Exception:
-                # optional: you can re-raise without cancelling; no task to cancel anymore
                 self.logger.exception("Error in sync function '%s'", getattr(fn, "__name__", repr(fn)))
                 raise
 
@@ -263,7 +332,7 @@ class TaskBucket(Resource):
         """
         fut = self.hassette.loop.create_future()
 
-        def _call():
+        def _call() -> None:
             try:
                 fut.set_result(fn(*args, **kwargs))
             except Exception as e:
