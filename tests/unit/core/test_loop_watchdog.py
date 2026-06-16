@@ -17,6 +17,7 @@ import re
 import threading
 import time
 import warnings
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -62,13 +63,19 @@ def _make_hassette(*, behavior: BlockingIOBehavior | None = None) -> MagicMock:
 
 
 def _make_executor(app_key: str | None = "test_app") -> MagicMock:
-    """Build a mock executor with a controllable current_execution marker."""
+    """Build a mock executor with a controllable current_execution marker.
+
+    Stamps the marker with the current task id so the watchdog's task-identity confirmation
+    treats a block in *this* task as attributed (the blocking-in-own-task case these tests model).
+    """
     executor = MagicMock()
+    task = asyncio.current_task()
     executor.current_execution = ExecutionMarker(
         app_key=app_key,
         instance_name=None,
         execution_id="exec-123",
         started_at=time.monotonic(),
+        task_id=id(task) if task is not None else None,
     )
     return executor
 
@@ -391,6 +398,7 @@ def test_watchdog_event_fields_for_t05() -> None:
         tier="watchdog",
         stack_text=None,
         detected_at=time.time(),
+        reason="attributed",
     )
     assert event.tier == "watchdog"
     assert event.app_key == "lights_app"
@@ -398,3 +406,110 @@ def test_watchdog_event_fields_for_t05() -> None:
     assert event.instance_name == "office"
     assert event.instance_index == 0
     assert event.stack_text is None
+    assert event.reason == "attributed"
+
+
+# ---------------------------------------------------------------------------
+# Issue #1048 — task-identity confirmation. The single-slot marker names the most-recently-bound
+# execution, which under concurrent load is not always the task frozen on the loop. The watchdog
+# confirms the marker's task is the one actually frozen and withholds attribution otherwise, so a
+# displaced or idle/framework freeze is recorded honestly instead of blaming an innocent app.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_classify_attribution_distinguishes_outcomes() -> None:
+    """Matching task → attributed; different (or absent) task → displaced; no task on the loop
+    at all → framework."""
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    assert task is not None
+    watchdog = _make_watchdog(loop, _make_executor())
+
+    attributed = ExecutionMarker("app", None, "e1", time.monotonic(), task_id=id(task))
+    assert watchdog._classify_attribution(attributed) == "attributed"
+
+    # The frozen task (this test task) is live but its id does not match the marker's task.
+    displaced = ExecutionMarker("app", None, "e2", time.monotonic(), task_id=-1)
+    assert watchdog._classify_attribution(displaced) == "displaced"
+
+    no_task = ExecutionMarker("app", None, "e3", time.monotonic(), task_id=None)
+    assert watchdog._classify_attribution(no_task) == "displaced"
+
+    # A loop with no running task (e.g. idle in select()) reads current_task() as None → framework.
+    # asyncio.current_task(loop) is a plain _current_tasks dict lookup, so a sentinel loop that was
+    # never run resolves to None — no real loop needed (and nothing to leak).
+    idle_loop = cast("asyncio.AbstractEventLoop", object())
+    idle_watchdog = _make_watchdog(idle_loop, _make_executor())
+    assert idle_watchdog._classify_attribution(attributed) == "framework"
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_displaced_block_not_attributed_to_innocent_app() -> None:
+    """A freeze whose marker was bound by a different task records NULL + reason='displaced',
+    and the warning labels it <framework> rather than blaming the marker's app — FR#4 / #1048."""
+    loop = asyncio.get_running_loop()
+    executor = MagicMock()
+    # Marker bound by a different task than the one that will freeze the loop. id() is never
+    # negative, so task_id=-1 can never match the frozen task and reliably models displacement.
+    executor.current_execution = ExecutionMarker(
+        app_key="innocent_app",
+        instance_name=None,
+        execution_id="exec-displaced",
+        started_at=time.monotonic(),
+        task_id=-1,
+    )
+    captured: list[WatchdogEvent] = []
+
+    with pytest.warns(HassetteBlockingIOWarning) as record:
+        watchdog = LoopWatchdog(
+            _make_hassette(),
+            loop=loop,
+            loop_thread_id=threading.get_ident(),
+            executor=executor,
+            on_stall=captured.append,
+        )
+        watchdog.start()
+        try:
+            time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
+            executor.current_execution = None
+            await asyncio.sleep(_INTERVAL * 2)
+        finally:
+            watchdog.stop()
+
+    msg = str(record[0].message)
+    assert "innocent_app" not in msg
+    assert "<framework>" in msg
+    assert captured, "on_stall should record the displaced stall"
+    assert captured[0].app_key is None
+    assert captured[0].execution_id is None
+    assert captured[0].reason == "displaced"
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_attributed_block_records_reason_attributed() -> None:
+    """A freeze whose marker matches the frozen task is attributed to its app, reason='attributed'."""
+    loop = asyncio.get_running_loop()
+    executor = _make_executor("kitchen_lights")  # task_id stamped with this task
+    captured: list[WatchdogEvent] = []
+
+    with pytest.warns(HassetteBlockingIOWarning):
+        watchdog = LoopWatchdog(
+            _make_hassette(),
+            loop=loop,
+            loop_thread_id=threading.get_ident(),
+            executor=executor,
+            on_stall=captured.append,
+        )
+        watchdog.start()
+        try:
+            time.sleep(_BLOCK)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
+            executor.current_execution = None
+            await asyncio.sleep(_INTERVAL * 2)
+        finally:
+            watchdog.stop()
+
+    assert captured
+    assert captured[0].app_key == "kitchen_lights"
+    assert captured[0].reason == "attributed"
+    assert captured[0].execution_id == "exec-123"

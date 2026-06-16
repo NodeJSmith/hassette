@@ -16,7 +16,7 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel
 
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
-from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, ExecutionStatus, SourceTier
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
 
@@ -404,4 +404,14 @@ class BlockingEvent(BaseModel):
     """Unix epoch seconds when the event was detected (``time.time()``)."""
 
     source_tier: SourceTier
-    """``'app'`` when ``app_key`` is set; ``'framework'`` for unresolved owners."""
+    """``'app'`` when ``app_key`` is set; ``'framework'`` otherwise. Coarser than ``reason``, which
+    splits the ``'framework'`` case into genuinely-unowned (``reason='framework'``) vs
+    attribution-withheld (``reason='displaced'``). Kept for backward compatibility with pre-``reason``
+    rows and existing queries; new code should prefer ``reason``."""
+
+    reason: BlockingAttributionReason | None = None
+    """Why the attribution is what it is. ``'attributed'`` — ``app_key`` names the task that
+    actually blocked. ``'framework'`` — no execution was bound (genuine framework/gap block).
+    ``'displaced'`` — an execution was bound but a *different* task was frozen on the loop, so
+    ``app_key`` was withheld (NULL) rather than blaming the wrong app. ``None`` for rows written
+    before migration 007."""

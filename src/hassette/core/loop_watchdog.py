@@ -32,6 +32,7 @@ A block that never recovers before shutdown is flushed once in ``stop()``.
 Architecture reference: design/specs/074-blocking-io-detection/design.md §"Tier 1"
 """
 
+import asyncio
 import contextlib
 import sys
 import threading
@@ -44,12 +45,12 @@ from typing import TYPE_CHECKING
 from hassette.core.block_io_guard import resolve_blocking_io_behavior
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
+from hassette.types.types import BlockingAttributionReason
 from hassette.utils.source_capture import is_internal_frame
 
 LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
-    import asyncio
     from collections.abc import Callable
 
     from hassette import Hassette
@@ -80,8 +81,9 @@ class WatchdogEvent:
     instance_index: int | None
     """0-based instance index from the execution marker, or ``None`` when the marker had none."""
 
-    execution_id: str
-    """UUIDv7 string of the execution that froze the loop."""
+    execution_id: str | None
+    """UUIDv7 of the execution that froze the loop, or ``None`` when attribution was withheld
+    (``reason`` is ``"displaced"``/``"framework"``) so no execution is named."""
 
     stall_duration_ms: float
     """Stall duration in milliseconds — the span the in-loop tick was starved (≈ the block length)."""
@@ -94,6 +96,11 @@ class WatchdogEvent:
 
     detected_at: float
     """``time.time()`` wall-clock timestamp when the stall was detected."""
+
+    reason: BlockingAttributionReason
+    """Attribution outcome: ``"attributed"`` (``app_key`` names the frozen task), ``"displaced"``
+    (a different task was frozen — ``app_key`` withheld), or ``"framework"`` (no task was running,
+    e.g. the loop was idle in ``select()`` — ``app_key`` withheld)."""
 
 
 class LoopWatchdog:
@@ -168,6 +175,9 @@ class LoopWatchdog:
         self._stall_marker: ExecutionMarker | None = None
         self._stall_frozen_since: float = 0.0
         self._stall_stack: str | None = None
+        # Attribution outcome for the open episode, decided when the freeze is first captured.
+        # Default to "displaced" so a half-set episode never blames an app.
+        self._stall_reason: BlockingAttributionReason = "displaced"
 
     def start(self) -> None:
         """Install the tick callback and start the daemon thread. Idempotent."""
@@ -216,13 +226,17 @@ class LoopWatchdog:
             # Runs on the loop thread during teardown; an escalated warning or a closing-loop
             # persist error must not derail shutdown — but a drop should be visible, not silent.
             try:
-                self._emit_stall(self._stall_marker, time.monotonic() - self._stall_frozen_since, self._stall_stack)
+                self._emit_stall(
+                    self._stall_marker,
+                    time.monotonic() - self._stall_frozen_since,
+                    self._stall_stack,
+                    self._stall_reason,
+                )
             except Exception as exc:
                 LOGGER.debug("Failed to flush open stall episode at shutdown: %s", exc)
         # Release the episode refs even when daemon_done is False (flush skipped above): the
         # daemon is daemonic and dies at process exit, so no surviving reader can race the clear.
-        self._stall_marker = None
-        self._stall_stack = None
+        self._close_episode()
 
     def _tick(self) -> None:
         """Advance the heartbeat timestamp and reschedule."""
@@ -255,15 +269,18 @@ class LoopWatchdog:
                         if marker is not None:
                             self._stall_marker = marker
                             self._stall_frozen_since = self._last_tick
+                            # Confirm the marker names the task actually frozen on the loop while
+                            # the freeze is live — a displaced or framework freeze must not blame
+                            # the most-recently-bound app.
+                            self._stall_reason = self._classify_attribution(marker)
                             self._stall_stack = self._capture_loop_stack() if self._capture_stack else None
                     continue
                 # Loop is responsive. If an episode is open, it just recovered — report it now
                 # with the full stall duration (the span the tick was starved), then close it.
                 if self._stall_marker is not None:
                     duration = self._last_tick - self._stall_frozen_since
-                    self._emit_stall(self._stall_marker, duration, self._stall_stack)
-                    self._stall_marker = None
-                    self._stall_stack = None
+                    self._emit_stall(self._stall_marker, duration, self._stall_stack, self._stall_reason)
+                    self._close_episode()
             except Exception:
                 # Defensive: drop the open episode so a poisoned marker can't wedge detection.
                 # Log first so the discarded stall marker and stack leave a diagnostic trail.
@@ -271,8 +288,45 @@ class LoopWatchdog:
                     "Loop watchdog poll iteration failed — dropping open stall episode (marker and stack cleared)",
                     exc_info=True,
                 )
-                self._stall_marker = None
-                self._stall_stack = None
+                self._close_episode()
+
+    def _close_episode(self) -> None:
+        """Clear open-episode state after it is reported or dropped.
+
+        Reason resets to ``"displaced"`` (not ``None``) so that if the next episode is captured but
+        the process dies before classification runs, the half-set episode withholds attribution
+        rather than blaming an app — the same defensive default as ``__init__``.
+        """
+        self._stall_marker = None
+        self._stall_stack = None
+        self._stall_reason = "displaced"
+
+    def _classify_attribution(self, marker: "ExecutionMarker") -> BlockingAttributionReason:
+        """Confirm the marker names the task actually frozen on the loop.
+
+        Reads the loop's current task cross-thread. ``asyncio.current_task(loop)`` is a lookup in
+        the module-global ``_current_tasks`` dict keyed by *loop* (not by thread), and a dict read
+        under the GIL is atomic — so the off-loop daemon can read it safely. During a synchronous
+        freeze the blocking task is still the loop's current task (it never reached ``leave_task``),
+        so a matching ``task_id`` confirms the marker. A *different* task means the marker is
+        displaced — some other execution bound the marker and then yielded while this one froze the
+        loop. *No* task means the loop was not running an execution at all (idle in ``select()`` or
+        in framework callback code), so the marker's app must not be blamed.
+
+        Returns ``"attributed"``, ``"displaced"``, or ``"framework"``.
+        """
+        try:
+            frozen = asyncio.current_task(self._loop)
+        except Exception:
+            # Can't read the loop's task — withhold attribution rather than guess.
+            return "displaced"
+        if frozen is None:
+            return "framework"
+        if marker.task_id is not None and id(frozen) == marker.task_id:
+            return "attributed"
+        # A different task is frozen, or the marker was bound outside any task (task_id is None):
+        # both are "not confirmably this app", recorded as displaced rather than blaming it.
+        return "displaced"
 
     def _capture_loop_stack(self) -> str | None:
         """Capture and filter the loop thread's current stack frames.
@@ -302,21 +356,34 @@ class LoopWatchdog:
             return None
         return "\n".join(lines)
 
-    def _emit_stall(self, marker: "ExecutionMarker", stall_seconds: float, stack_text: str | None) -> None:
-        """Build a WatchdogEvent for a recovered stall and emit the warning."""
+    def _emit_stall(
+        self,
+        marker: "ExecutionMarker",
+        stall_seconds: float,
+        stack_text: str | None,
+        reason: BlockingAttributionReason,
+    ) -> None:
+        """Build a WatchdogEvent for a recovered stall and emit the warning.
+
+        ``reason`` decides attribution: only ``"attributed"`` carries the marker's owner into the
+        event; ``"displaced"``/``"framework"`` withhold app_key/instance/execution so a freeze that
+        the marker's task did not cause is recorded honestly as unattributed rather than blamed.
+        """
+        attributed = reason == "attributed"
         event = WatchdogEvent(
-            app_key=marker.app_key,
-            instance_name=marker.instance_name,
-            instance_index=marker.instance_index,
-            execution_id=marker.execution_id,
+            app_key=marker.app_key if attributed else None,
+            instance_name=marker.instance_name if attributed else None,
+            instance_index=marker.instance_index if attributed else None,
+            execution_id=marker.execution_id if attributed else None,
             stall_duration_ms=stall_seconds * 1000.0,
             tier="watchdog",
             stack_text=stack_text,
             detected_at=time.time(),
+            reason=reason,
         )
-        self._emit(marker, event)
+        self._emit(event)
 
-    def _emit(self, marker: "ExecutionMarker", event: WatchdogEvent) -> None:
+    def _emit(self, event: WatchdogEvent) -> None:
         """Resolve behavior and emit the warning for a detected stall.
 
         Resolution: per-app ``AppConfig.blocking_io_behavior`` → global
@@ -327,12 +394,16 @@ class LoopWatchdog:
 
         ``IGNORE`` suppresses both the warning AND persistence — no ``blocking_events`` row is
         written. This is the deliberate exception to persist-before-warn (see below).
+
+        A displaced/framework stall has no ``app_key``, so behavior resolves from global config
+        rather than the (innocent) most-recently-bound app's per-app setting.
         """
-        # Resolve the owner App instance for per-app behavior resolution.
+        # Resolve the owner App instance for per-app behavior resolution. event.app_key is None
+        # for displaced/framework stalls, so those fall through to global behavior.
         owner: object = self._hassette
-        if marker.app_key is not None:
+        if event.app_key is not None:
             with contextlib.suppress(Exception):
-                app_inst = self._hassette.app_handler.get(marker.app_key, marker.instance_index or 0)
+                app_inst = self._hassette.app_handler.get(event.app_key, event.instance_index or 0)
                 if app_inst is not None:
                     owner = app_inst
 
@@ -342,12 +413,13 @@ class LoopWatchdog:
             # The persist-before-warn rule below applies only to WARN/ERROR.
             return
 
-        app_label = marker.app_key or "<framework>"
-        inst_label = f" ({marker.instance_name})" if marker.instance_name else ""
+        app_label = event.app_key or "<framework>"
+        inst_label = f" ({event.instance_name})" if event.instance_name else ""
+        exec_label = event.execution_id or "<unattributed>"
         msg = (
             f"Blocking I/O detected on the event loop — "
             f"app: {app_label}{inst_label}, "
-            f"execution: {marker.execution_id}, "
+            f"execution: {exec_label}, "
             f"stall: {event.stall_duration_ms:.0f}ms"
         )
         if event.stack_text:

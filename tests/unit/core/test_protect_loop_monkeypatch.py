@@ -10,6 +10,7 @@ Covers:
     MonkeypatchEvent — dataclass fields are populated correctly
 """
 
+import asyncio
 import builtins
 import contextlib
 import glob as glob_module
@@ -513,6 +514,7 @@ class TestMonkeypatchEvent:
             execution_id="exec-1",
             tier="monkeypatch",
             detected_at=1.0,
+            reason="attributed",
         )
         with pytest.raises((AttributeError, TypeError)):
             event.primitive = "changed"  # pyright: ignore[reportAttributeAccessIssue]
@@ -528,6 +530,7 @@ class TestMonkeypatchEvent:
         assert "execution_id" in field_names
         assert "tier" in field_names
         assert "detected_at" in field_names
+        assert "reason" in field_names
 
     def test_event_tier_is_monkeypatch(self) -> None:
         """MonkeypatchEvent tier is always 'monkeypatch' for Tier 2 events."""
@@ -540,6 +543,7 @@ class TestMonkeypatchEvent:
             execution_id=None,
             tier="monkeypatch",
             detected_at=2.0,
+            reason="framework",
         )
         assert event.tier == "monkeypatch"
 
@@ -574,6 +578,110 @@ class TestMonkeypatchEvent:
         assert caught
         msg = str(caught[0].message)
         assert "<framework>" in msg
+
+
+class TestTier2TaskIdentityAttribution:
+    """The task_id check withholds attribution only when a *different* task displaced the marker.
+
+    Issue #1048: under concurrent load the single-slot marker can name an execution that yielded
+    while another task makes the blocking call. Tier 2 reads the marker inline, so it compares the
+    current task against the marker's task to confirm the call is inside the bound execution.
+    """
+
+    @pytest.mark.asyncio(loop_scope="function")
+    async def test_same_task_call_is_attributed(self) -> None:
+        """A call from the task that bound the marker is attributed to its app, reason=attributed."""
+        tid = threading.get_ident()
+        h = _make_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = MagicMock()
+        ex.record_blocking_event = MagicMock()
+        task = asyncio.current_task()
+        ex.current_execution = ExecutionMarker(
+            app_key="my_app",
+            instance_name=None,
+            execution_id="exec-attr",
+            started_at=time.monotonic(),
+            instance_index=0,
+            task_id=id(task),
+        )
+        install(h, loop_thread_id=tid, executor=ex)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", HassetteBlockingIOWarning)
+            time.sleep(0)  # noqa: ASYNC251 — patched; the guard fires before the real sleep
+
+        msgs = [str(w.message) for w in caught if issubclass(w.category, HassetteBlockingIOWarning)]
+        assert msgs
+        assert "my_app" in msgs[0]
+        event = ex.record_blocking_event.call_args[0][0]
+        assert event.app_key == "my_app"
+        assert event.reason == "attributed"
+
+    @pytest.mark.asyncio(loop_scope="function")
+    async def test_marker_without_task_id_is_trusted(self) -> None:
+        """A marker bound outside any task (task_id=None) is trusted by Tier 2 — the deliberate
+        asymmetry with Tier 1, which withholds in the same case (it reads cross-thread, Tier 2 reads
+        inline in the blocker's own call chain)."""
+        tid = threading.get_ident()
+        h = _make_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = MagicMock()
+        ex.record_blocking_event = MagicMock()
+        ex.current_execution = ExecutionMarker(
+            app_key="my_app",
+            instance_name=None,
+            execution_id="exec-no-task",
+            started_at=time.monotonic(),
+            instance_index=0,
+            task_id=None,
+        )
+        install(h, loop_thread_id=tid, executor=ex)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", HassetteBlockingIOWarning)
+            time.sleep(0)  # noqa: ASYNC251 — patched; the guard fires before the real sleep
+
+        msgs = [str(w.message) for w in caught if issubclass(w.category, HassetteBlockingIOWarning)]
+        assert msgs
+        assert "my_app" in msgs[0]
+        event = ex.record_blocking_event.call_args[0][0]
+        assert event.app_key == "my_app"
+        assert event.reason == "attributed"
+
+    @pytest.mark.asyncio(loop_scope="function")
+    async def test_displaced_call_is_not_attributed_to_innocent_app(self) -> None:
+        """A call from a task other than the marker's withholds attribution (NULL, reason=displaced).
+
+        Models the bug: an app bound the marker, yielded, and a different task made the blocking
+        call. The innocent app must not be blamed — the row records NULL with reason='displaced'.
+        """
+        tid = threading.get_ident()
+        h = _make_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = MagicMock()
+        ex.record_blocking_event = MagicMock()
+        # task_id of a DIFFERENT task than the one running this test — id() is never negative,
+        # so -1 can never match the current task and reliably models displacement.
+        ex.current_execution = ExecutionMarker(
+            app_key="innocent_app",
+            instance_name=None,
+            execution_id="exec-displaced",
+            started_at=time.monotonic(),
+            instance_index=0,
+            task_id=-1,
+        )
+        install(h, loop_thread_id=tid, executor=ex)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", HassetteBlockingIOWarning)
+            time.sleep(0)  # noqa: ASYNC251 — patched; the guard fires before the real sleep
+
+        msgs = [str(w.message) for w in caught if issubclass(w.category, HassetteBlockingIOWarning)]
+        assert msgs, "Expected a warning even when attribution is withheld"
+        assert "innocent_app" not in msgs[0]
+        assert "<framework>" in msgs[0]
+        event = ex.record_blocking_event.call_args[0][0]
+        assert event.app_key is None
+        assert event.execution_id is None
+        assert event.reason == "displaced"
 
 
 class TestSocketMethodPatch:
