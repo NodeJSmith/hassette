@@ -18,7 +18,9 @@ import socket
 import threading
 import time
 import warnings
+from collections.abc import Iterator
 from dataclasses import fields
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -73,7 +75,7 @@ def _make_executor(*, app_key: str | None = "test_app", instance_index: int | No
 
 
 @pytest.fixture(autouse=True)
-def ensure_uninstall():
+def ensure_uninstall() -> Iterator[None]:
     """Guarantee Tier 2 patches are never leaked between tests.
 
     Runs try/finally so even a test that raises mid-body cannot leave patches
@@ -90,7 +92,7 @@ def ensure_uninstall():
 
 
 class TestEnablementMatrix:
-    def test_dev_mode_installs(self):
+    def test_dev_mode_installs(self) -> None:
         """dev_mode=True → Tier 2 installs."""
         h = _make_hassette(dev_mode=True)
         ex = _make_executor()
@@ -99,7 +101,7 @@ class TestEnablementMatrix:
         assert is_installed()
         assert time.sleep is not _REAL_SLEEP
 
-    def test_prod_default_does_not_install(self):
+    def test_prod_default_does_not_install(self) -> None:
         """Production without flag → NOT patched (AC#10)."""
         h = _make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
         ex = _make_executor()
@@ -108,7 +110,7 @@ class TestEnablementMatrix:
         assert not is_installed()
         assert time.sleep is _REAL_SLEEP
 
-    def test_prod_with_flag_and_explicit_enabled_installs(self):
+    def test_prod_with_flag_and_explicit_enabled_installs(self) -> None:
         """Production with deep_detection_enabled=True + allow_deep_detection_in_prod=True → patched.
 
         The enablement spec: deep_detection_enabled=None → follows dev_mode. With dev_mode=False
@@ -123,7 +125,7 @@ class TestEnablementMatrix:
         assert is_installed()
         assert time.sleep is not _REAL_SLEEP
 
-    def test_explicit_disabled_overrides_dev_mode(self):
+    def test_explicit_disabled_overrides_dev_mode(self) -> None:
         """deep_detection_enabled=False overrides dev_mode=True."""
         h = _make_hassette(dev_mode=True, deep_detection_enabled=False)
         ex = _make_executor()
@@ -132,7 +134,7 @@ class TestEnablementMatrix:
         assert not is_installed()
         assert time.sleep is _REAL_SLEEP
 
-    def test_explicit_enabled_prod_no_allow_flag_not_installed(self):
+    def test_explicit_enabled_prod_no_allow_flag_not_installed(self) -> None:
         """deep_detection_enabled=True in prod without allow flag → NOT installed (prod gate applies).
 
         Flow:
@@ -147,7 +149,7 @@ class TestEnablementMatrix:
         assert result is False
         assert not is_installed()
 
-    def test_explicit_enabled_prod_with_allow_flag(self):
+    def test_explicit_enabled_prod_with_allow_flag(self) -> None:
         """deep_detection_enabled=True + prod + allow flag → installed."""
         h = _make_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True)
         ex = _make_executor()
@@ -157,7 +159,7 @@ class TestEnablementMatrix:
 
 
 class TestIdempotencyAndLeak:
-    def test_double_install_is_noop(self):
+    def test_double_install_is_noop(self) -> None:
         """Second install without uninstall is a no-op (returns False)."""
         h = _make_hassette()
         ex = _make_executor()
@@ -167,12 +169,12 @@ class TestIdempotencyAndLeak:
         assert first is True
         assert second is False  # no-op
 
-    def test_uninstall_when_not_installed_is_noop(self):
+    def test_uninstall_when_not_installed_is_noop(self) -> None:
         """uninstall() when not installed returns False and does not raise."""
         result = uninstall()
         assert result is False
 
-    def test_uninstall_restores_time_sleep(self):
+    def test_uninstall_restores_time_sleep(self) -> None:
         """After uninstall, time.sleep is the original."""
         h = _make_hassette()
         ex = _make_executor()
@@ -181,7 +183,7 @@ class TestIdempotencyAndLeak:
         uninstall()
         assert time.sleep is _REAL_SLEEP
 
-    def test_uninstall_restores_builtins_open(self):
+    def test_uninstall_restores_builtins_open(self) -> None:
         """After uninstall, builtins.open is the original."""
         h = _make_hassette()
         ex = _make_executor()
@@ -190,7 +192,7 @@ class TestIdempotencyAndLeak:
         uninstall()
         assert builtins.open is _REAL_OPEN
 
-    def test_uninstall_restores_all_primitives(self):
+    def test_uninstall_restores_all_primitives(self) -> None:
         """After uninstall, every primitive in the table is its original."""
         originals: dict[str, object] = {
             "time.sleep": _REAL_SLEEP,
@@ -217,7 +219,7 @@ class TestIdempotencyAndLeak:
         assert socket.socket.recv is originals["socket.recv"]
         assert socket.socket.send is originals["socket.send"]
 
-    def test_reinstall_after_uninstall_works(self):
+    def test_reinstall_after_uninstall_works(self) -> None:
         """After uninstall, a re-install succeeds and patches primitives again."""
         h = _make_hassette()
         ex = _make_executor()
@@ -229,7 +231,7 @@ class TestIdempotencyAndLeak:
         assert second is True
         assert time.sleep is not _REAL_SLEEP
 
-    def test_is_installed_reflects_state(self):
+    def test_is_installed_reflects_state(self) -> None:
         """is_installed() tracks install/uninstall state correctly."""
         assert not is_installed()
         h = _make_hassette()
@@ -241,7 +243,7 @@ class TestIdempotencyAndLeak:
 
 
 class TestOffLoopGate:
-    def test_time_sleep_off_loop_thread_passes_through(self):
+    def test_time_sleep_off_loop_thread_passes_through(self) -> None:
         """time.sleep called from a worker thread is not flagged (FR#8/AC#4)."""
         fake_loop_thread_id = threading.get_ident() + 9999  # different from current thread
         h = _make_hassette()
@@ -266,7 +268,7 @@ class TestOffLoopGate:
         t.join(timeout=5)
         assert not warning_fired, "Worker-thread call triggered a blocking-IO warning"
 
-    def test_loop_thread_call_fires_warning(self):
+    def test_loop_thread_call_fires_warning(self) -> None:
         """time.sleep on the loop thread (our thread) triggers warning."""
         tid = threading.get_ident()
         h = _make_hassette()
@@ -283,7 +285,7 @@ class TestOffLoopGate:
 
 
 class TestPrimitiveWarnBehavior:
-    def test_time_sleep_loop_thread_warns(self):
+    def test_time_sleep_loop_thread_warns(self) -> None:
         """time.sleep on loop thread emits HassetteBlockingIOWarning (WARN behavior)."""
         tid = threading.get_ident()
         h = _make_hassette(behavior=BlockingIOBehavior.WARN)
@@ -299,7 +301,7 @@ class TestPrimitiveWarnBehavior:
         assert "time.sleep" in msgs[0]
         assert "test_app" in msgs[0]
 
-    def test_open_loop_thread_warns(self, tmp_path):
+    def test_open_loop_thread_warns(self, tmp_path: Path) -> None:
         """builtins.open on loop thread emits HassetteBlockingIOWarning (WARN behavior)."""
         tid = threading.get_ident()
         h = _make_hassette(behavior=BlockingIOBehavior.WARN)
@@ -318,7 +320,7 @@ class TestPrimitiveWarnBehavior:
         assert msgs, "Expected a HassetteBlockingIOWarning for open() on loop thread"
         assert "builtins.open" in msgs[0]
 
-    def test_ignore_behavior_suppresses_warning(self):
+    def test_ignore_behavior_suppresses_warning(self) -> None:
         """IGNORE behavior → no warning, original is still called."""
         tid = threading.get_ident()
         h = _make_hassette(behavior=BlockingIOBehavior.IGNORE)
@@ -339,7 +341,7 @@ class TestPrimitiveWarnBehavior:
 
 class TestRaiseBeforeSleep:
     @pytest.mark.asyncio(loop_scope="function")
-    async def test_dev_mode_raises_before_sleep(self):
+    async def test_dev_mode_raises_before_sleep(self) -> None:
         """In dev_mode with filterwarnings('error'), time.sleep RAISES before sleeping.
 
         The test verifies the sleep does not execute by checking elapsed time is tiny
@@ -362,7 +364,7 @@ class TestRaiseBeforeSleep:
         # headroom for warning-machinery overhead on loaded CI (the prior 0.03 bound flaked there).
         assert elapsed < 0.045, f"Sleep appears to have run (elapsed={elapsed:.4f}s); guard did not intercept"
 
-    def test_record_blocking_event_called_before_intercepting_raise(self):
+    def test_record_blocking_event_called_before_intercepting_raise(self) -> None:
         """Persist fires BEFORE the warning, so a filterwarnings('error') intercept still records.
 
         Regression: previously _detect emitted (and raised) before calling record_blocking_event,
@@ -381,7 +383,7 @@ class TestRaiseBeforeSleep:
 
         ex.record_blocking_event.assert_called_once()
 
-    def test_prod_without_flag_no_patch(self):
+    def test_prod_without_flag_no_patch(self) -> None:
         """Production default → time.sleep is NOT patched at all."""
         h = _make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
         ex = _make_executor()
@@ -400,7 +402,7 @@ class TestRaiseBeforeSleep:
 
 
 class TestReentrancyGuard:
-    def test_warning_display_reading_source_does_not_recurse(self, tmp_path):
+    def test_warning_display_reading_source_does_not_recurse(self, tmp_path: Path) -> None:
         """A patched primitive whose warning display opens a file must not recurse — CRITICAL.
 
         Production reproduces this via linecache: warnings.warn → _formatwarnmsg → linecache
@@ -416,7 +418,7 @@ class TestReentrancyGuard:
         src_file.write_text("x = 1\n")
         inner_open_calls = 0
 
-        def custom_showwarning(*_args, **_kwargs):
+        def custom_showwarning(*_args, **_kwargs) -> None:
             # Stand in for the real formatter reading a source line — on the loop thread,
             # through the patched builtins.open. Without the guard this recurses to death.
             nonlocal inner_open_calls
@@ -432,7 +434,7 @@ class TestReentrancyGuard:
         # If we reach here, no RecursionError. The inner open fired once (no nesting).
         assert inner_open_calls == 1
 
-    def test_reentrant_call_passes_through_without_warning(self):
+    def test_reentrant_call_passes_through_without_warning(self) -> None:
         """While the guard is active (mid-detection), a patched call passes through unflagged."""
         tid = threading.get_ident()
         h = _make_hassette(behavior=BlockingIOBehavior.WARN)
@@ -452,7 +454,7 @@ class TestReentrancyGuard:
 
 
 class TestMonkeypatchEvent:
-    def test_event_is_frozen_dataclass(self):
+    def test_event_is_frozen_dataclass(self) -> None:
         """MonkeypatchEvent is a frozen dataclass — direct attribute assignment raises."""
         event = MonkeypatchEvent(
             primitive="time.sleep",
@@ -467,7 +469,7 @@ class TestMonkeypatchEvent:
         with pytest.raises((AttributeError, TypeError)):
             event.primitive = "changed"  # pyright: ignore[reportAttributeAccessIssue]
 
-    def test_event_has_required_fields(self):
+    def test_event_has_required_fields(self) -> None:
         """MonkeypatchEvent has all the fields T05 needs."""
         field_names = {f.name for f in fields(MonkeypatchEvent)}
         assert "primitive" in field_names
@@ -479,7 +481,7 @@ class TestMonkeypatchEvent:
         assert "tier" in field_names
         assert "detected_at" in field_names
 
-    def test_event_tier_is_monkeypatch(self):
+    def test_event_tier_is_monkeypatch(self) -> None:
         """MonkeypatchEvent tier is always 'monkeypatch' for Tier 2 events."""
         event = MonkeypatchEvent(
             primitive="os.listdir",
@@ -493,7 +495,7 @@ class TestMonkeypatchEvent:
         )
         assert event.tier == "monkeypatch"
 
-    def test_event_populated_on_warning(self):
+    def test_event_populated_on_warning(self) -> None:
         """The warning message includes the primitive name and app key."""
         tid = threading.get_ident()
         h = _make_hassette()
@@ -510,7 +512,7 @@ class TestMonkeypatchEvent:
         assert "my_cool_app" in msg
         assert "monkeypatch" in msg.lower() or "Tier 2" in msg
 
-    def test_unknown_app_uses_framework_label(self):
+    def test_unknown_app_uses_framework_label(self) -> None:
         """When marker has no app_key, the warning labels it <framework>."""
         tid = threading.get_ident()
         h = _make_hassette()
@@ -527,7 +529,7 @@ class TestMonkeypatchEvent:
 
 
 class TestSocketMethodPatch:
-    def test_socket_connect_on_loop_thread_warns(self):
+    def test_socket_connect_on_loop_thread_warns(self) -> None:
         """socket.socket.connect on loop thread triggers warning."""
         tid = threading.get_ident()
         h = _make_hassette()

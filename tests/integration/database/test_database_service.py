@@ -112,6 +112,9 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         assert "idx_lr_time" in indexes
         assert "idx_lr_exec" in indexes
         assert "idx_lr_app_time" in indexes
+        assert "idx_be_ts" in indexes
+        assert "idx_be_app_ts" in indexes
+        assert "idx_be_session" in indexes
 
         # No uq_* unique indexes in the unified schema (natural-key uniqueness is
         # handled by idx_listeners_natural / idx_scheduled_jobs_natural); execution_id
