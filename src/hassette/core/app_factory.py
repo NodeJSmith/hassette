@@ -51,7 +51,10 @@ class AppFactory:
             self.registry.record_failure(app_key, 0, load_error)
             return
 
-        # Set manifest on class
+        # Set manifest on class for class-level metadata. When one App subclass is
+        # shared across two [apps.*] sections, this ends up holding the last section
+        # processed — app_key is per-instance (App._app_key) so it is unaffected, but
+        # other manifest fields reflect only the last section.
         app_class.app_manifest = manifest
         app_configs = self.normalize_configs(manifest.app_config)
 
@@ -70,6 +73,7 @@ class AppFactory:
                     hassette=self.hassette,
                     app_config=validated,
                     index=idx,
+                    app_key=app_key,
                 )
                 self.registry.register_app(app_key, idx, app_instance)
             except Exception as e:

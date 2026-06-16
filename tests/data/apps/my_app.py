@@ -44,7 +44,7 @@ class MyApp(App[MyAppUserConfig]):
             self.logger.info("Test button exists: %s", self.test_button)
 
     async def test_reload_app(self):
-        await self.hassette._app_handler.reload_app(self.app_manifest.app_key)
+        await self.hassette._app_handler.reload_app(self.app_key)
 
     async def test_stuff(self) -> None:
         if self.office_light_exists:

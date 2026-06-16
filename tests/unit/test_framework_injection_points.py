@@ -155,7 +155,7 @@ class TestAppApiFactory:
             return original_add_child(self, cls, *args, **kwargs)
 
         with patch.object(Resource, "add_child", spy_add_child):
-            _TestApp(hassette, app_config=config, index=0)
+            _TestApp(hassette, app_config=config, index=0, app_key="test_app")
 
         assert Api in created_classes, f"Expected Api to be created, got: {created_classes}"
 
@@ -186,7 +186,7 @@ class TestAppApiFactory:
             return original_add_child(self, cls, *args, **kwargs)
 
         with patch.object(Resource, "add_child", spy_add_child):
-            app = _TestApp(hassette, app_config=config, index=0, api_factory=_FakeApi)
+            app = _TestApp(hassette, app_config=config, index=0, app_key="test_app", api_factory=_FakeApi)
 
         assert _FakeApi in created_classes, f"Expected _FakeApi, got: {created_classes}"
         assert Api not in created_classes, "Api should not be created when api_factory is passed"
