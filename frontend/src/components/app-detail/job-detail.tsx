@@ -41,6 +41,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStat
     { label: "Timed Out", value: job.timed_out, tone: job.timed_out > 0 ? "warn" : undefined },
     { label: "Mode", value: job.mode },
   ];
+  if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
   if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count });
   if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count });
   cells.push(
