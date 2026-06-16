@@ -65,7 +65,8 @@ CREATE TABLE scheduled_jobs (
     job_name              TEXT NOT NULL DEFAULT '',
     handler_method        TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
-    retired_at            REAL
+    retired_at            REAL,
+    mode                  TEXT NOT NULL DEFAULT 'single'
 );
 
 CREATE TABLE executions (

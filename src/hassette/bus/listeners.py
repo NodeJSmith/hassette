@@ -30,6 +30,10 @@ STALL_THRESHOLD_SECONDS: float = 60.0
 Independent of the per-listener ``timeout`` (which still ultimately releases the guard via the
 command executor). This is the ONLY WARNING in the execution-mode feature — suppressions and
 drops stay at DEBUG.
+
+The scheduler keeps its own ``STALL_THRESHOLD_SECONDS`` (``core/scheduler_service.py``) at the
+same value so it does not import from the bus layer; ``test_stall_threshold_in_sync`` asserts the
+two stay equal. Update both together.
 """
 
 # In-memory routing ID, assigned at listener creation. This is the dispatch/dedup key

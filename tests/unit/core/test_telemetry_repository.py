@@ -76,7 +76,9 @@ CREATE TABLE scheduled_jobs (
     retired_at            REAL,
     "group"               TEXT,
     cancelled_at          REAL,
-    name_auto             INTEGER NOT NULL DEFAULT 0
+    name_auto             INTEGER NOT NULL DEFAULT 0,
+    mode                  TEXT    NOT NULL DEFAULT 'single'
+        CHECK (mode IN ('single', 'restart', 'queued', 'parallel'))
 );
 
 CREATE UNIQUE INDEX idx_scheduled_jobs_natural

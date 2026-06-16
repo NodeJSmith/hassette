@@ -34,6 +34,41 @@ def test_job_summary_new_fields_defaults() -> None:
     assert "cancelled" not in JobSummary.model_fields
 
 
+def test_job_summary_mode_default() -> None:
+    """mode defaults to 'single'; suppressed_count and dropped_count default to 0."""
+    summary = JobSummary(
+        job_id=10,
+        app_key="my_app",
+        instance_index=0,
+        job_name="test_job",
+        handler_method="MyApp.my_job",
+        trigger_type=None,
+        trigger_label="",
+        trigger_detail=None,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location=TEST_SOURCE_LOCATION,
+        registration_source=None,
+        total_executions=0,
+        successful=0,
+        failed=0,
+        last_executed_at=None,
+        total_duration_ms=0.0,
+        avg_duration_ms=0.0,
+    )
+
+    assert summary.mode == "single"
+    assert summary.suppressed_count == 0
+    assert summary.dropped_count == 0
+
+
+def test_job_summary_mode_field_in_model_fields() -> None:
+    """mode, suppressed_count, dropped_count are declared model fields."""
+    assert "mode" in JobSummary.model_fields
+    assert "suppressed_count" in JobSummary.model_fields
+    assert "dropped_count" in JobSummary.model_fields
+
+
 def test_job_summary_repeat_field_removed() -> None:
     """The repeat field has been removed from JobSummary."""
     assert not hasattr(JobSummary.model_fields, "repeat"), "repeat field must not exist on JobSummary"

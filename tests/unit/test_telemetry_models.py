@@ -8,6 +8,7 @@ from hassette.core.telemetry_models import (
     ListenerSummary,
     SessionSummary,
 )
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
 class TestAppHealthSummary:
@@ -207,6 +208,59 @@ class TestJobSummary:
         assert model.job_id == 5
         assert model.total_executions == 3
         assert model.total_duration_ms == 75.0
+
+    def test_job_summary_mode_default(self) -> None:
+        """mode defaults to 'single' when not supplied."""
+        data = {
+            "job_id": 6,
+            "app_key": "test_app",
+            "instance_index": 0,
+            "job_name": "my_job",
+            "handler_method": "run_job",
+            "trigger_type": None,
+            "args_json": "[]",
+            "kwargs_json": "{}",
+            "source_location": "app.py:10",
+            "registration_source": None,
+            "total_executions": 0,
+            "successful": 0,
+            "failed": 0,
+            "last_executed_at": None,
+            "total_duration_ms": 0.0,
+            "avg_duration_ms": 0.0,
+        }
+        model = JobSummary.model_validate(data)
+        assert model.mode == DEFAULT_OVERLAP_MODE
+        assert model.suppressed_count == 0
+        assert model.dropped_count == 0
+
+    def test_job_summary_mode_explicit_values(self) -> None:
+        """mode, suppressed_count, dropped_count round-trip correctly."""
+        data = {
+            "job_id": 7,
+            "app_key": "test_app",
+            "instance_index": 0,
+            "job_name": "my_job",
+            "handler_method": "run_job",
+            "trigger_type": "interval",
+            "args_json": "[]",
+            "kwargs_json": "{}",
+            "source_location": "app.py:20",
+            "registration_source": None,
+            "total_executions": 10,
+            "successful": 8,
+            "failed": 2,
+            "last_executed_at": 1700000000.0,
+            "total_duration_ms": 100.0,
+            "avg_duration_ms": 10.0,
+            "mode": "queued",
+            "suppressed_count": 3,
+            "dropped_count": 1,
+        }
+        model = JobSummary.model_validate(data)
+        assert model.mode == "queued"
+        assert model.suppressed_count == 3
+        assert model.dropped_count == 1
 
 
 class TestGlobalSummary:

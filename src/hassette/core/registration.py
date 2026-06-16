@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 from hassette.types.types import SourceTier
 
 
@@ -60,7 +61,7 @@ class ListenerRegistration:
     entity_id: str | None = None
     """The entity this listener monitors, if applicable."""
 
-    mode: str = "single"
+    mode: str = DEFAULT_OVERLAP_MODE
     """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
     the ``listeners.mode`` column. The tier-aware default is already applied in the options."""
 
@@ -113,3 +114,7 @@ class ScheduledJobRegistration:
 
     name_auto: bool = False
     """Whether the job name was auto-generated from the callable and trigger ID."""
+
+    mode: str = DEFAULT_OVERLAP_MODE
+    """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
+    the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""

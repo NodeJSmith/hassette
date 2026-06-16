@@ -75,6 +75,7 @@ from hassette.core.await_guard import guard_await
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
 from hassette.types import TriggerProtocol
+from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.source_capture import capture_registration_source
 
@@ -368,6 +369,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -395,6 +397,15 @@ class Scheduler(Resource):
                 A positive ``float`` overrides the default.
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
                 job regardless of the global default.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                occurrence becomes due. One of ``"single"`` (skip the re-fire), ``"restart"``
+                (cancel the running invocation and start fresh), ``"queued"`` (serialize
+                re-fires in arrival order, up to the cap), or ``"parallel"`` (run concurrently).
+                A raw string is coerced to ``ExecutionMode``; an invalid string raises
+                ``ValueError`` naming the valid values. Omitted (``None``) resolves
+                tier-aware: ``"single"`` for app-tier jobs, ``"parallel"`` for framework-tier
+                jobs. Accepted on one-shot schedules (``run_in``/``run_once``) for API
+                uniformity, but has no overlap effect since one-shots never re-fire.
             on_error: Optional per-job error handler. When set, this handler is
                 invoked if the job raises an exception (including ``TimeoutError``,
                 but excluding ``CancelledError``). Overrides the app-level handler
@@ -423,6 +434,20 @@ class Scheduler(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
+        # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework jobs
+        # and ``single`` for app jobs. An explicit mode always wins. A raw string is coerced here
+        # so an invalid value raises a clear ValueError at scheduling time.
+        if mode is None:
+            resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
+        elif isinstance(mode, ExecutionMode):
+            resolved_mode = mode
+        else:
+            try:
+                resolved_mode = ExecutionMode(mode)
+            except ValueError as exc:
+                valid = ", ".join(repr(m.value) for m in ExecutionMode)
+                raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+
         run_at = trigger.first_run_time(date_utils.now())
 
         job = ScheduledJob(
@@ -441,6 +466,7 @@ class Scheduler(Resource):
             app_key=app_key,
             instance_index=instance_index,
             source_tier=source_tier,
+            mode=resolved_mode,
         )
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
@@ -457,6 +483,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -476,6 +503,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap mode. Accepted for API uniformity; has no overlap effect for
+                one-shot jobs since they never re-fire. See ``schedule()`` for the four
+                values, tier-aware default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -495,6 +526,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -512,6 +544,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -536,6 +569,10 @@ class Scheduler(Resource):
                 time. ``"tomorrow"`` (default) defers by one day. ``"error"`` raises
                 ``ValueError``. For ``ZonedDateTime`` inputs, ``if_past`` has no
                 effect — the job always fires immediately if the instant is in the past.
+            mode: Overlap mode. Accepted for API uniformity; has no overlap effect for
+                one-shot jobs since they never re-fire. See ``schedule()`` for the four
+                values, tier-aware default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -555,6 +592,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -573,6 +611,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -594,6 +633,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -613,6 +656,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -629,6 +673,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -648,6 +693,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -669,6 +718,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -685,6 +735,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -704,6 +755,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -725,6 +780,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -741,6 +797,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -763,6 +820,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -782,6 +843,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,
@@ -798,6 +860,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -821,6 +884,10 @@ class Scheduler(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -843,6 +910,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            mode=mode,
             on_error=on_error,
             if_exists=if_exists,
             args=args,

@@ -103,3 +103,99 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
         assert row["next_run"] is None
         assert row["fire_at"] is None
         assert row["jitter"] is None
+
+
+class TestAppJobsModeAndLiveCounts:
+    """mode and suppressed/dropped counts surface correctly from the live heap."""
+
+    async def test_mode_from_db_flows_through_to_response(self, client, mock_hassette) -> None:
+        """mode from DB row appears in the API response."""
+        db_summary = make_job_summary(job_id=10, job_name="queued_job", handler_method="MyApp.on_run")
+        # Simulate DB row having mode='queued' via model_copy
+        db_summary = db_summary.model_copy(update={"mode": "queued"})
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+
+        response = await client.get("/api/telemetry/app/my_app/jobs")
+
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["mode"] == "queued"
+        assert row["suppressed_count"] == 0
+        assert row["dropped_count"] == 0
+
+    async def test_live_suppressed_and_dropped_from_guard(self, client, mock_hassette) -> None:
+        """suppressed_count and dropped_count are read from the live job's guard."""
+        db_summary = make_job_summary(job_id=20, job_name="single_job", handler_method="MyApp.on_run")
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+
+        # Build a real job with db_id=20 and simulate guard activity
+        trigger = Every(hours=1)
+        live_job = make_real_job(name="single_job", trigger=trigger)
+        live_job.mark_registered(20)
+        # Manually set guard counters to simulate prior suppression
+        live_job.guard.suppressed = 5
+        live_job.guard.dropped = 2
+
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        response = await client.get("/api/telemetry/app/my_app/jobs")
+
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["suppressed_count"] == 5
+        assert row["dropped_count"] == 2
+
+    async def test_fresh_job_no_guard_activity_reports_zero_counts(self, client, mock_hassette) -> None:
+        """A job with no guard activity reports (0, 0) for suppressed/dropped counts."""
+        db_summary = make_job_summary(job_id=30, job_name="fresh_job", handler_method="MyApp.on_run")
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+
+        trigger = Every(hours=1)
+        live_job = make_real_job(name="fresh_job", trigger=trigger)
+        live_job.mark_registered(30)
+        # guard starts at (0, 0) by default
+
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        response = await client.get("/api/telemetry/app/my_app/jobs")
+
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["suppressed_count"] == 0
+        assert row["dropped_count"] == 0
+
+    async def test_no_live_match_counts_default_to_zero(self, client, mock_hassette) -> None:
+        """When a job has no live heap entry, suppressed/dropped default to 0."""
+        db_summary = make_job_summary(job_id=40, job_name="offline_job", handler_method="MyApp.on_run")
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+
+        response = await client.get("/api/telemetry/app/my_app/jobs")
+
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["suppressed_count"] == 0
+        assert row["dropped_count"] == 0
+
+    async def test_global_jobs_route_returns_mode_and_counts(self, client, mock_hassette) -> None:
+        """GET /api/scheduler/jobs also surfaces mode and live counts."""
+        db_summary = make_job_summary(job_id=50, job_name="global_job", handler_method="MyApp.on_run")
+        db_summary = db_summary.model_copy(update={"mode": "restart"})
+        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+
+        trigger = Every(hours=1)
+        live_job = make_real_job(name="global_job", trigger=trigger)
+        live_job.mark_registered(50)
+        live_job.guard.suppressed = 3
+        live_job.guard.dropped = 0
+
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        response = await client.get("/api/scheduler/jobs")
+
+        assert response.status_code == 200
+        row = response.json()[0]
+        assert row["mode"] == "restart"
+        assert row["suppressed_count"] == 3
+        assert row["dropped_count"] == 0

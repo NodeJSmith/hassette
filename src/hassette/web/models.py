@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import DEFAULT_OVERLAP_MODE, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
 
 ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
@@ -329,7 +329,7 @@ class ListenerWithSummary(BaseModel):
     immediate: int = 0
     duration: float | None = None
     entity_id: str | None = None
-    mode: str = "single"
+    mode: str = DEFAULT_OVERLAP_MODE
     suppressed_count: int = 0
     dropped_count: int = 0
 

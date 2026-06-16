@@ -1046,6 +1046,21 @@ export interface components {
             min_duration_ms?: number | null;
             /** Max Duration Ms */
             max_duration_ms?: number | null;
+            /**
+             * Mode
+             * @default single
+             */
+            mode: string;
+            /**
+             * Suppressed Count
+             * @default 0
+             */
+            suppressed_count: number;
+            /**
+             * Dropped Count
+             * @default 0
+             */
+            dropped_count: number;
         };
         /**
          * LifecycleConfigResponse

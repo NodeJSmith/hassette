@@ -18,6 +18,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if typing.TYPE_CHECKING:
     from hassette import Hassette, Scheduler
     from hassette.types import JobCallable, TriggerProtocol
+    from hassette.types.enums import ExecutionMode
     from hassette.types.types import SchedulerErrorHandlerType
 
 
@@ -86,6 +87,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -113,6 +115,15 @@ class SchedulerSyncFacade(Resource):
                 A positive ``float`` overrides the default.
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
                 job regardless of the global default.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                occurrence becomes due. One of ``"single"`` (skip the re-fire), ``"restart"``
+                (cancel the running invocation and start fresh), ``"queued"`` (serialize
+                re-fires in arrival order, up to the cap), or ``"parallel"`` (run concurrently).
+                A raw string is coerced to ``ExecutionMode``; an invalid string raises
+                ``ValueError`` naming the valid values. Omitted (``None``) resolves
+                tier-aware: ``"single"`` for app-tier jobs, ``"parallel"`` for framework-tier
+                jobs. Accepted on one-shot schedules (``run_in``/``run_once``) for API
+                uniformity, but has no overlap effect since one-shots never re-fire.
             on_error: Optional per-job error handler. When set, this handler is
                 invoked if the job raises an exception (including ``TimeoutError``,
                 but excluding ``CancelledError``). Overrides the app-level handler
@@ -134,6 +145,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -151,6 +163,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -170,6 +183,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap mode. Accepted for API uniformity; has no overlap effect for
+                one-shot jobs since they never re-fire. See ``schedule()`` for the four
+                values, tier-aware default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -187,6 +204,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -205,6 +223,7 @@ class SchedulerSyncFacade(Resource):
         timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -229,6 +248,10 @@ class SchedulerSyncFacade(Resource):
                 time. ``"tomorrow"`` (default) defers by one day. ``"error"`` raises
                 ``ValueError``. For ``ZonedDateTime`` inputs, ``if_past`` has no
                 effect — the job always fires immediately if the instant is in the past.
+            mode: Overlap mode. Accepted for API uniformity; has no overlap effect for
+                one-shot jobs since they never re-fire. See ``schedule()`` for the four
+                values, tier-aware default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -247,6 +270,7 @@ class SchedulerSyncFacade(Resource):
                 timeout,
                 timeout_disabled,
                 if_past,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -266,6 +290,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -287,6 +312,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -306,6 +335,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -323,6 +353,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -342,6 +373,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -359,6 +394,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -376,6 +412,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -395,6 +432,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -412,6 +453,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -429,6 +471,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -451,6 +494,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -468,6 +515,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,
@@ -485,6 +533,7 @@ class SchedulerSyncFacade(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -508,6 +557,10 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
+            mode: Overlap behavior when a prior invocation is still running as the next
+                tick becomes due. See ``schedule()`` for the four values, tier-aware
+                default, and string coercion rules.
+            on_error: Optional per-job error handler. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -528,6 +581,7 @@ class SchedulerSyncFacade(Resource):
                 jitter,
                 timeout,
                 timeout_disabled,
+                mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
                 args=args,

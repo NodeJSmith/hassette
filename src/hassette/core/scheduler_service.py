@@ -17,7 +17,7 @@ from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import RestartType
+from hassette.types.enums import ExecutionMode, Outcome, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.serialization import safe_json_serialize
 
@@ -28,6 +28,13 @@ if typing.TYPE_CHECKING:
 
 
 T = TypeVar("T")
+
+STALL_THRESHOLD_SECONDS: float = 60.0
+"""Seconds a non-parallel job may hold its execution-mode guard before the stall watchdog warns.
+
+Kept in sync with the bus's own ``STALL_THRESHOLD_SECONDS`` (same value, separate constant) so the
+scheduler does not import from the bus layer. ``test_stall_threshold_in_sync`` asserts the two stay
+equal — update both together."""
 
 
 class SchedulerService(Service):
@@ -118,6 +125,11 @@ class SchedulerService(Service):
 
         if removed:
             self.kick()
+            # Release guards for all removed jobs.
+            for job in removed:
+                await job.guard.release()
+                # Drain any pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang.
+                self.drain_pending_done(job)
             self.fire_removal_callbacks(removed)
 
     def register_removal_callback(self, owner_id: str, callback: Callable[["ScheduledJob"], None]) -> None:
@@ -180,10 +192,14 @@ class SchedulerService(Service):
     async def _remove_job(self, job: "ScheduledJob") -> None:
         """Remove a specific job via the async path (acquires lock) and wake the scheduler.
 
-        Used by the serve loop for job exhaustion and trigger errors in reschedule_job.
-        The callback is fired unconditionally because the serve loop has already
-        popped the job from the queue before reschedule_job calls _remove_job —
-        remove_job would return False and the callback would silently drop.
+        Used by the serve loop for job exhaustion and trigger errors in dispatch_and_log.
+        The serve loop pops the job from the heap before dispatch_and_log calls this, so
+        ``remove_job`` often returns False (the job is already absent). Removal callbacks
+        fire unconditionally regardless, so the Scheduler still clears ``_jobs_by_name``
+        and ``_jobs_by_group``.
+
+        Releases the job's guard so any in-flight or queued invocations are cancelled
+        and dropped.
 
         Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
         instead. Both paths fire ``fire_removal_callbacks`` unconditionally.
@@ -193,6 +209,12 @@ class SchedulerService(Service):
 
         if removed:
             self.kick()
+
+        # Release guard (cancels in-flight invocation, drops queued factories), then drain
+        # pending done-futures so QUEUED_ACCEPTED dispatch tasks don't hang. See
+        # drain_pending_done for the drain_next/release interleave caveat.
+        await job.guard.release()
+        self.drain_pending_done(job)
 
         self.fire_removal_callbacks([job])
 
@@ -272,12 +294,21 @@ class SchedulerService(Service):
             source_tier=job.source_tier,
             group=job.group,
             name_auto=job.name_auto,
+            mode=job.mode.value,
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
 
     async def dispatch_and_log(self, job: "ScheduledJob") -> None:
         """Dispatch a job and log its execution.
+
+        Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
+        run-through-guard → remove-if-marked.
+
+        The current due fire ALWAYS runs once popped. Computing the next occurrence
+        happens first so the next tick is on the heap before the run completes, enabling
+        overlap for recurring jobs. A trigger that raises or returns None marks the job for
+        removal after the current fire — the current fire is never skipped.
 
         Args:
             job: The job to dispatch.
@@ -288,21 +319,147 @@ class SchedulerService(Service):
 
         self.logger.debug("Dispatching job: %s", job)
 
-        # Run inline — no extra spawn/yield before execution
+        # Step 1: Compute next occurrence and either enqueue it or mark for removal.
+        # For one-shots (trigger is None or next_run_time() → None) nothing is enqueued.
+        # The current fire ALWAYS runs regardless of the trigger outcome.
+        remove_after_fire = False
+        if job.trigger is not None:
+            try:
+                next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
+            except Exception:
+                self.logger.exception(
+                    "dispatch_and_log: trigger raised for db_id=%s callable=%s trigger=%r — "
+                    "running current fire then removing job",
+                    job.db_id,
+                    getattr(job.job, "__qualname__", str(job.job)),
+                    job.trigger,
+                )
+                next_run = None
+                remove_after_fire = True
+
+            if next_run is not None:
+                curr_next_run = job.next_run
+                job.set_next_run(next_run)
+                delta_to_now = (job.next_run - date_utils.now()).in_seconds()
+                if delta_to_now <= 0:
+                    self.logger.warning(
+                        "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s",
+                        -delta_to_now,
+                    )
+                    job.set_next_run(date_utils.now().add(seconds=1))
+                self.logger.debug(
+                    "Rescheduling repeating job %s from %s to %s",
+                    job,
+                    curr_next_run,
+                    job.next_run,
+                )
+                # Enqueue next occurrence BEFORE running — enables overlap.
+                # The in-lock _dequeued re-check inside _job_queue.add guards
+                # against a cancel landing between here and the push.
+                await self.enqueue_job(job)
+            elif not remove_after_fire:
+                # next_run_time() returned None (trigger exhausted) — remove after fire.
+                remove_after_fire = True
+        # else: no trigger → one-shot, remove after fire
+        else:
+            remove_after_fire = True
+
+        # Step 2: Run the current due fire through the mode guard.
         try:
-            await self.run_job(job)
+            await self.run_job_with_guard(job)
         except asyncio.CancelledError:
+            # Step 3 is skipped on cancellation: a job marked for removal stays in
+            # _jobs_by_name until Scheduler.on_shutdown clears it unconditionally. This
+            # only happens during shutdown-driven task cancellation.
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
-        # Always reschedule after completion, even if the job failed
+        # Step 3: Remove if marked (trigger exhausted or raised, or one-shot).
+        if remove_after_fire:
+            try:
+                await self._remove_job(job)
+            except Exception:
+                self.logger.exception("Error removing exhausted job %s", job)
+
+    async def run_job_with_guard(self, job: "ScheduledJob") -> None:
+        """Route one job invocation through the job's execution-mode guard.
+
+        Mirrors ``HandlerInvoker.run_with_mode``:
+        - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
+          spawning a fresh dispatch task per due-pop. No stall watch, no guard state.
+        - ``single``/``restart``/``queued``: builds a ``run_and_track`` callable that
+          spawns the invocation via ``task_bucket.spawn``, wraps it in a stall watchdog,
+          and returns the task. Calls ``await job.guard.run(run_and_track)`` and bridges
+          completion with a per-invocation future so the dispatch task stays pending until
+          the invocation finishes. A ``restart`` cancellation surfaces as
+          ``CancelledError`` inside the child only — swallowed here so the dispatch task
+          does not crash.
+
+        Args:
+            job: The job to invoke.
+        """
+        if job.mode is ExecutionMode.PARALLEL:
+            await self.run_job(job)
+            return
+
+        loop = asyncio.get_running_loop()
+        done: asyncio.Future[None] = loop.create_future()
+        job.pending_done.add(done)
+
+        def resolve_done() -> None:
+            job.pending_done.discard(done)
+            if not done.done():
+                done.set_result(None)
+
+        def run_and_track() -> asyncio.Task[None]:
+            task = self.task_bucket.spawn(
+                self.invocation_with_stall_watch(job),
+                name="scheduler:mode_invocation",
+            )
+            task.add_done_callback(lambda _t: resolve_done())
+            return task
+
+        outcome = await job.guard.run(run_and_track)
+
+        if outcome in (Outcome.SUPPRESSED, Outcome.DROPPED):
+            resolve_done()
+            return
+        # RAN: child already spawned — done resolves when it finishes.
+        # QUEUED_ACCEPTED: child spawns at drain time — done resolves via done_callback.
+        # If the job is cancelled before drain time, dequeue_job/_remove_job drain pending_done
+        # after guard.release(), so this await does not hang forever.
+        await done
+
+    async def invocation_with_stall_watch(self, job: "ScheduledJob") -> None:
+        """Run one job invocation, emitting a WARNING if it holds the guard past the threshold.
+
+        Mirrors ``HandlerInvoker.invocation_with_stall_watch`` from ``bus/listeners.py``.
+        Uses this module's own ``STALL_THRESHOLD_SECONDS`` (same value as the bus constant).
+
+        Args:
+            job: The job to invoke.
+        """
+        watchdog = asyncio.get_running_loop().call_later(STALL_THRESHOLD_SECONDS, self.warn_stalled_job, job)
         try:
-            await self.reschedule_job(job)
-        except asyncio.CancelledError:
-            self.logger.debug("Reschedule cancelled for job %s", job)
-            raise
-        except Exception:
-            self.logger.exception("Error rescheduling job %s", job)
+            await self.run_job(job)
+        finally:
+            watchdog.cancel()
+
+    def warn_stalled_job(self, job: "ScheduledJob") -> None:
+        """Emit the stall WARNING: a non-parallel job is still holding its guard.
+
+        Called by the stall watchdog after STALL_THRESHOLD_SECONDS. Named after the job
+        and its mode so the operator can identify the stuck invocation.
+
+        Args:
+            job: The job whose invocation is stalled.
+        """
+        self.logger.warning(
+            "Job '%s' has held its %s execution-mode guard for over %.0fs and is still running",
+            job.name,
+            job.mode.value,
+            STALL_THRESHOLD_SECONDS,
+        )
 
     async def run_job(self, job: "ScheduledJob") -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
@@ -348,52 +505,6 @@ class SchedulerService(Service):
         )
         await self._executor.execute(cmd)
 
-    async def reschedule_job(self, job: "ScheduledJob") -> None:
-        """Reschedule a job based on its trigger's next_run_time().
-
-        If the trigger raises or returns None, the job is treated as exhausted and removed. If the trigger
-        returns a non-future time (delta ≤ 0), a WARNING is logged and the next run
-        is advanced by 1 second. Exceptions from next_run_time() are caught, logged,
-        and treated as exhaustion — the scheduler must never crash due to a
-        misbehaving trigger.
-
-        Args:
-            job: The job to reschedule.
-        """
-
-        try:
-            next_run = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None
-        except Exception:
-            self.logger.exception(
-                "reschedule_job: trigger raised for db_id=%s callable=%s trigger=%r",
-                job.db_id,
-                getattr(job.job, "__qualname__", str(job.job)),
-                job.trigger,
-            )
-            await self._remove_job(job)
-            return
-
-        if next_run is None:
-            await self._remove_job(job)
-            return
-
-        curr_next_run = job.next_run
-        job.set_next_run(next_run)
-        delta_to_now = (job.next_run - date_utils.now()).in_seconds()
-        if delta_to_now <= 0:
-            self.logger.warning(
-                "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s", -delta_to_now
-            )
-            job.set_next_run(date_utils.now().add(seconds=1))
-
-        self.logger.debug(
-            "Rescheduling repeating job %s from %s to %s",
-            job,
-            curr_next_run,
-            job.next_run,
-        )
-        await self.enqueue_job(job)
-
     async def trigger_due_jobs(self) -> int:
         """Fire all jobs due at the current time.
 
@@ -402,6 +513,14 @@ class SchedulerService(Service):
         ``task_bucket.spawn``). Jobs re-enqueued during dispatch (repeating jobs)
         are not included in this invocation — only the initial snapshot is
         processed, preventing infinite loops when the clock is frozen.
+
+        For ``queued`` jobs that return ``QUEUED_ACCEPTED``, ``dispatch_and_log``
+        blocks on the completion bridge until the queued invocation drains. Under a
+        frozen clock this can deadlock when the drain callback fires synchronously
+        within the same sequential loop. Tests that rely on ``queued`` multi-tick
+        behavior must advance the loop with ``await asyncio.sleep(0)`` and assert
+        via the guard state directly, rather than calling ``trigger_due_jobs`` twice
+        back-to-back on the same blocked bridge.
 
         This method bypasses the ``serve()`` loop's timing and wakeup logic.
         Intended for controlled test dispatch via ``AppTestHarness.trigger_due_jobs()``
@@ -457,8 +576,37 @@ class SchedulerService(Service):
         # from the heap by the serve loop. This prevents the dispatch race
         # (guard in dispatch_and_log) and makes cancel idempotent.
         job._dequeued = True
+
+        # Release guard: cancels in-flight invocation, drops queued factories.
+        # dequeue_job is synchronous, so spawn the release as a fire-and-forget task.
+        # drain_pending_done runs after the release task completes so the QUEUED_ACCEPTED
+        # hang fix (pending_done drain) fires on the same event-loop turn as guard.release().
+        # Note: drain_next/release interleave edge — a task spawned by drain_next
+        # concurrently with release() may detach rather than cancel; not fixed here
+        # because the guard is reused unmodified from the bus.
+        async def _release_and_drain() -> None:
+            await job.guard.release()
+            self.drain_pending_done(job)
+
+        self.task_bucket.spawn(_release_and_drain(), name="scheduler:guard_release")
         self.fire_removal_callbacks([job])
         return removed
+
+    def drain_pending_done(self, job: "ScheduledJob") -> None:
+        """Resolve every unresolved per-invocation completion future on the job.
+
+        Mirrors ``HandlerInvoker.release_guard`` (bus/listeners.py:347-351). Called after
+        ``guard.release()`` in every cancel/removal path so dispatch tasks parked on
+        ``await done`` (QUEUED_ACCEPTED with a factory that was dropped without ever being
+        called) unwind instead of hanging forever.
+
+        Args:
+            job: The job whose pending_done set should be drained.
+        """
+        for done in list(job.pending_done):
+            job.pending_done.discard(done)
+            if not done.done():
+                done.set_result(None)
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
@@ -493,9 +641,19 @@ class _ScheduledJobQueue(Resource):
         return self.hassette.config.logging.scheduler_service
 
     async def add(self, job: "ScheduledJob") -> None:
-        """Add a job to the queue."""
+        """Add a job to the queue.
+
+        The ``_dequeued`` flag is re-checked inside the lock, atomic with the heap
+        push, to guard against a cancel arriving at any await point after the entry-level
+        check in ``dispatch_and_log`` and before the push here. ``dequeue_job``
+        sets ``_dequeued`` lock-free but on the same event-loop thread, so the in-lock
+        read here sees any set that preceded this lock acquisition.
+        """
 
         async with self._lock:
+            if job._dequeued:
+                self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push", job)
+                return
             self._queue.push(job)
 
         if job.fire_at != job.next_run:

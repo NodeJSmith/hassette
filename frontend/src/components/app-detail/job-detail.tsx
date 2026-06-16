@@ -33,16 +33,22 @@ function ScheduleChips({ job }: { job: JobData }) {
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStatsCell[] {
-  return [
+  const cells: DetailStatsCell[] = [
     { label: "Runs", value: job.total_executions },
     { label: "Successful", value: job.successful },
     { label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" },
     { label: "Failed", value: job.failed, tone: job.failed > 0 ? "err" : undefined },
     { label: "Timed Out", value: job.timed_out, tone: job.timed_out > 0 ? "warn" : undefined },
+    { label: "Mode", value: job.mode },
+  ];
+  if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count });
+  if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count });
+  cells.push(
     { label: "Min", value: formatOptionalDuration(job.min_duration_ms) },
     { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
     { label: "Max", value: formatOptionalDuration(job.max_duration_ms) },
-  ];
+  );
+  return cells;
 }
 
 interface Props {

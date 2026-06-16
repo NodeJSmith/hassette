@@ -58,13 +58,32 @@ A job can cancel itself from inside its own handler. The `ScheduledJob` referenc
 
 ## Prevent overlapping executions
 
-The scheduler fires each tick independently — it does not track whether the previous execution has finished. When a handler takes longer than its interval, a new execution starts before the previous one finishes. An `asyncio.Lock` prevents concurrent runs:
+App jobs run in `single` mode by default, which prevents a recurring job from
+running twice at once. When the next tick becomes due while the prior invocation
+is still running, the scheduler drops the re-fire and logs it at DEBUG.
+Framework-internal jobs default to `parallel` — see
+[Execution Modes](execution-modes.md#default-mode-tier-aware).
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_every.py"
 ```
 
-The locked check at entry skips the tick rather than queuing behind it.
+No manual lock is needed. App jobs default to `single`, so the example above
+already prevents overlap. [Execution Modes](execution-modes.md) covers all four
+overlap behaviors — `single`, `restart`, `queued`, and `parallel` — including
+how to serialize every tick (`queued`) or allow concurrent runs (`parallel`).
+
+??? note "Manual lock pattern (pre-1.0)"
+    Before execution modes were introduced, the recommended approach was an
+    `asyncio.Lock` to prevent concurrent runs:
+
+    ```python
+    --8<-- "pages/core-concepts/scheduler/snippets/scheduler_overlapping_jobs.py"
+    ```
+
+    The `single` default makes this unnecessary for new code. The lock pattern
+    remains valid if you need it, but the mode parameter is simpler and surfaces
+    overlap activity in the monitoring UI.
 
 ## Handle errors
 
