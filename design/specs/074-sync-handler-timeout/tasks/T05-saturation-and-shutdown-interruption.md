@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add saturation warnings and shutdown interruption behavior"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#4", "FR#6", "FR#7", "AC#3", "AC#4", "AC#5", "AC#6"]
 ---

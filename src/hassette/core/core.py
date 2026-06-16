@@ -267,6 +267,17 @@ class Hassette(Resource):
         return self._loop
 
     @property
+    def sync_executor_service(self) -> SyncExecutorService:
+        """The SyncExecutorService instance that owns the dedicated sync thread pool.
+
+        Used by TaskBucket.run_in_thread to track active submissions and emit
+        rate-limited pool-saturation warnings.
+        """
+        if self._sync_executor_service is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._sync_executor_service
+
+    @property
     def sync_executor(self) -> InterruptibleThreadPoolExecutor:
         """Dedicated thread-pool executor for sync user code.
 

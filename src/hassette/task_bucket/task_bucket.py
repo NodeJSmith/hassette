@@ -209,6 +209,19 @@ class TaskBucket(Resource):
         # for the in-flight call.  cell[0] is set as the first statement of _call
         # on the worker thread; it remains None if the job never dequeued.
         future._sync_thread_cell = cell  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Submission-time saturation check: track the active worker count and emit a
+        # rate-limited WARNING if the pool is approaching its ceiling.
+        # The periodic probe in SyncExecutorService.serve() covers the case where
+        # submissions stop (fully-starved pool); this check catches the rising-load
+        # signal on each new submission.
+        try:
+            svc = self.hassette.sync_executor_service
+        except RuntimeError:
+            svc = None
+        if svc is not None:
+            svc.track_submission(cast("asyncio.Future[Any]", future))
+
         return future
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
