@@ -369,12 +369,12 @@ class LoopWatchdog:
         event; ``"displaced"``/``"framework"`` withhold app_key/instance/execution so a freeze that
         the marker's task did not cause is recorded honestly as unattributed rather than blamed.
         """
-        attributed = reason == "attributed"
+        is_attributed = reason == "attributed"
         event = WatchdogEvent(
-            app_key=marker.app_key if attributed else None,
-            instance_name=marker.instance_name if attributed else None,
-            instance_index=marker.instance_index if attributed else None,
-            execution_id=marker.execution_id if attributed else None,
+            app_key=marker.app_key if is_attributed else None,
+            instance_name=marker.instance_name if is_attributed else None,
+            instance_index=marker.instance_index if is_attributed else None,
+            execution_id=marker.execution_id if is_attributed else None,
             stall_duration_ms=stall_seconds * 1000.0,
             tier="watchdog",
             stack_text=stack_text,
