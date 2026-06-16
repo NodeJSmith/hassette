@@ -314,7 +314,7 @@ A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and 
 
 ### Synchronous Registration
 
-`BusService` and `SchedulerService` declare `depends_on: [DatabaseService, SyncExecutorService]`. The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives both services so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
+`BusService` and `SchedulerService` declare `depends_on: [DatabaseService, SyncExecutorService]` (and `AppHandler` also declares `SyncExecutorService`). The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives Bus, Scheduler, and the App lifecycle hooks so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
 
 ### Retention
 

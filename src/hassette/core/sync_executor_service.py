@@ -189,6 +189,11 @@ class SyncExecutorService(Service):
         shutdown wave finish.  The budget is capped at ``resource_shutdown_timeout_seconds``
         — the per-wave bound on how long this hook may run — so the join/interrupt phase
         cannot push the wave (and thus the total shutdown) past its budget.
+
+        Note: at default config the two values are equal (both 10s), so the cap is a no-op
+        and the per-wave timeout is the effective backstop. Set
+        ``sync_executor_shutdown_timeout_seconds`` below ``resource_shutdown_timeout_seconds``
+        to give the wave explicit headroom.
         """
         lifecycle = self.hassette.config.lifecycle
         budget = min(

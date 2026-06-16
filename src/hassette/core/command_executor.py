@@ -290,6 +290,9 @@ class CommandExecutor(Service):
                     result.duration_ms,
                     _cell[0].name,
                 )
+            # Clear the cell so a future invocation that reuses this asyncio context cannot
+            # read a stale worker reference and report a false thread_leaked.
+            SYNC_WORKER_CELL.set(None)
             if cmd.effective_timeout is not None:
                 self.log_timeout_rate_limited(cmd, result)
             else:
