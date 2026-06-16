@@ -424,6 +424,30 @@ class TestRaiseBeforeSleep:
 
         assert not any(issubclass(w.category, HassetteBlockingIOWarning) for w in caught)
 
+    def test_intercepted_framework_io_does_not_escalate_under_suite_config(self) -> None:
+        """A guard interception on the loop thread must NOT be escalated to a fatal error by the
+        suite's filterwarnings config.
+
+        Under pytest the event loop runs on the main thread, so while the guard is installed an
+        open()/socket call made by pytest, coverage, or xdist's execnet transport on that thread is
+        intercepted. With the suite-wide ``filterwarnings=["error"]`` and no per-category exception,
+        that interception raised HassetteBlockingIOWarning inside framework code and crashed xdist
+        workers. This test sets NO local filter — it relies on the suite default — so it fails (the
+        open() raises) without the ``default::HassetteBlockingIOWarning`` exception in pyproject.
+        """
+        h = _make_hassette(dev_mode=True)
+        ex = _make_executor()
+        install(h, loop_thread_id=threading.get_ident(), executor=ex)
+        try:
+            # builtins.open is patched and we are on the loop thread — exactly what coverage /
+            # linecache / pytest do. Must emit a (non-fatal) warning and proceed, never raise.
+            with open(__file__) as f:
+                first = f.readline()
+        finally:
+            uninstall()
+
+        assert first, "open() should have read the file rather than being escalated to an error"
+
 
 class TestReentrancyGuard:
     def test_warning_display_reading_source_does_not_recurse(self, tmp_path: Path) -> None:

@@ -132,6 +132,13 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 filterwarnings = [
     "error",
+    # Do NOT escalate HassetteBlockingIOWarning to a fatal error suite-wide. The Tier 2 guard
+    # patches process-global builtins/socket/os; under pytest the event loop runs on the main
+    # thread, so while the guard is installed in a test, an open()/socket call made by pytest,
+    # coverage, or xdist's execnet transport on that same thread is intercepted. Escalated to an
+    # error inside framework code, that raise killed xdist workers (INTERNALERROR, no traceback).
+    # Tests that assert the guard raises opt in locally via filterwarnings("error", ...).
+    "default::hassette.exceptions.HassetteBlockingIOWarning",
     "default:.*does not declare restart_spec.*:UserWarning",
     "default::ResourceWarning:anyio\\.streams\\.memory",
     "default::ResourceWarning:aiohttp\\.client",
