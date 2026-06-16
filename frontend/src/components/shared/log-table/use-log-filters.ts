@@ -85,6 +85,16 @@ export function useLogFilters({
   const localFunc = useSignal("");
   const localSort = useSignal<LogSortState>(DEFAULT_SORT);
 
+  // localTier is seeded from defaultTier once at mount, but defaultTier is reactive: on the
+  // global /logs page, adding execution_id to the URL flips useLocalState true and recomputes
+  // defaultTier "app"->"all" without remounting. Re-sync so a stale "app" doesn't keep hiding
+  // framework rows. Clears the app filter too when leaving the "app" tier.
+  useEffect(() => {
+    if (!useLocalState) return;
+    localTier.value = defaultTier;
+    if (defaultTier !== "app") localApp.value = "";
+  }, [useLocalState, defaultTier]);
+
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
