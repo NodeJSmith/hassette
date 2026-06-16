@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0](https://github.com/NodeJSmith/hassette/compare/v0.43.0...v0.44.0) (2026-06-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* app-tier bus listeners now default to `single` execution mode instead of overlapping concurrently. A trigger that fires while a prior invocation of the same handler is still running is dropped by default. App authors who rely on concurrent/overlapping invocations must set `mode="parallel"` explicitly on the registration (e.g. `self.bus.on_state_change(..., mode="parallel")`). Framework-tier listeners are unchanged — they default to `parallel`.
+
+### Features
+
+* add execution overlap modes to bus handlers ([#1028](https://github.com/NodeJSmith/hassette/issues/1028)) ([79f4d1a](https://github.com/NodeJSmith/hassette/commit/79f4d1acb7a4afe9b76e54092ffa11204f92bb2f))
+* add execution overlap modes to scheduled jobs ([#1046](https://github.com/NodeJSmith/hassette/issues/1046)) ([ebd193e](https://github.com/NodeJSmith/hassette/commit/ebd193e90b677e08a9c8c6936020af51da6a067b))
+* contain timed-out sync handlers with a dedicated executor ([#1042](https://github.com/NodeJSmith/hassette/issues/1042)) ([c0fdd73](https://github.com/NodeJSmith/hassette/commit/c0fdd7324cbf3559b1621a4a81fe5e515c6e6e91))
+* detect and attribute blocking I/O on the shared event loop ([#1040](https://github.com/NodeJSmith/hassette/issues/1040)) ([566ae06](https://github.com/NodeJSmith/hassette/commit/566ae0635a19a3c351f9decaaf2ea5224e78de55))
+
 ## [0.43.0](https://github.com/NodeJSmith/hassette/compare/v0.42.0...v0.43.0) (2026-06-13)
 
 
