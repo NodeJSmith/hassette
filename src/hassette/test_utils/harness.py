@@ -26,6 +26,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.core import Hassette
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.loop_watchdog import LoopWatchdog
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -540,6 +541,30 @@ class HassetteHarness:
         self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
+        # Install Tier 1 loop-responsiveness watchdog when a real CommandExecutor is present.
+        # The harness uses mock executors by default; the watchdog only activates when the
+        # executor has a live current_execution attribute (i.e., it is a real CommandExecutor).
+        executor = getattr(self.hassette, "_command_executor", None)
+        if (
+            executor is not None
+            and isinstance(executor, CommandExecutor)
+            and self.hassette.config.blocking_io.watchdog_enabled
+        ):
+            _loop = self.hassette._loop
+            self.hassette._loop_watchdog = LoopWatchdog(
+                self.hassette,
+                loop=_loop,
+                loop_thread_id=self.hassette._loop_thread_id,
+                executor=executor,
+                # Mirror core.py: marshal record_blocking_event onto the loop thread so integration
+                # tests exercise the same Tier 1 persistence path as production. Without on_stall the
+                # watchdog warns but drops telemetry. Gate on is_running() like core does.
+                on_stall=lambda ev: (
+                    _loop.call_soon_threadsafe(executor.record_blocking_event, ev) if _loop.is_running() else None
+                ),
+            )
+            self.hassette._loop_watchdog.start()
+
         # Start components in dependency order
         for component in STARTUP_ORDER:
             if not self.has_component(component):
@@ -581,9 +606,19 @@ class HassetteHarness:
 
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
+        shutdown_errors: list[Exception] = []
+
+        # Stop the loop watchdog before shutting down children — avoids spurious stall
+        # warnings during teardown and ensures no daemon thread outlives the test. A failed
+        # stop() can leave a daemon thread alive across tests, so surface it like the rest.
+        if self.hassette._loop_watchdog is not None:
+            try:
+                self.hassette._loop_watchdog.stop()
+            except Exception as exc:
+                shutdown_errors.append(exc)
+            self.hassette._loop_watchdog = None
 
         # Shut down in reverse order so dependents stop before their dependencies.
-        shutdown_errors: list[Exception] = []
         for resource in reversed(self.hassette.children):
             try:
                 await shutdown_resource(resource)

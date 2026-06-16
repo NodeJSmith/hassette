@@ -17,6 +17,8 @@ from pydantic import BaseModel
 
 from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus, SourceTier
 
+_BlockingTier = Literal["watchdog", "monkeypatch"]
+
 
 class AppLastError(NamedTuple):
     error_message: str
@@ -354,3 +356,42 @@ class LogRecord(BaseModel):
     UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."""
     source_tier: SourceTier | None = None
     """``'app'`` for user automation logs, ``'framework'`` for internal service logs."""
+
+
+class BlockingEvent(BaseModel):
+    """A single blocking event row from the ``blocking_events`` table.
+
+    Written by ``TelemetryRepository.insert_blocking_event`` for every detected
+    Tier 1 (watchdog) or Tier 2 (monkeypatch) event. ``app_key`` is nullable so
+    unresolved (framework-attributed) owners are recorded, not dropped.
+    """
+
+    session_id: int | None
+    """Session that was running when the event was detected. None when no session exists yet."""
+
+    app_key: str | None
+    """App key of the owner, or ``None`` for unresolved/framework stalls."""
+
+    instance_name: str | None
+    instance_index: int | None
+
+    execution_id: str | None
+    """UUIDv7 execution that froze the loop. None when no marker was live (Tier 2 off-handler)."""
+
+    tier: _BlockingTier
+    """``'watchdog'`` for Tier 1 events; ``'monkeypatch'`` for Tier 2 events."""
+
+    primitive: str | None
+    """Blocking primitive name (Tier 2 only, e.g. ``'time.sleep'``). None for Tier 1."""
+
+    source_location: str | None
+    """Call-site location string (Tier 2) or loop-thread stack text (Tier 1, when captured)."""
+
+    stall_duration_ms: float | None
+    """Stall duration in milliseconds (Tier 1 only). None for Tier 2 events."""
+
+    detected_ts: float
+    """Unix epoch seconds when the event was detected (``time.time()``)."""
+
+    source_tier: SourceTier
+    """``'app'`` when ``app_key`` is set; ``'framework'`` for unresolved owners."""

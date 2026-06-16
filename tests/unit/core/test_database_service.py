@@ -272,19 +272,20 @@ def test_retention_tables_contains_expected_tables() -> None:
     assert "job_executions" not in table_names
 
 
-def test_retention_tables_has_two_entries() -> None:
-    assert len(_RETENTION_TABLES) == 2
+def test_retention_tables_has_three_entries() -> None:
+    assert len(_RETENTION_TABLES) == 3
 
 
 def test_retention_tables_priority_ordering() -> None:
     by_table = {t.table: t for t in _RETENTION_TABLES}
-    assert by_table["log_records"].priority < by_table["executions"].priority
+    assert by_table["log_records"].priority < by_table["executions"].priority < by_table["blocking_events"].priority
 
 
 def test_retention_target_timestamp_columns() -> None:
     by_table = {t.table: t for t in _RETENTION_TABLES}
     assert by_table["log_records"].timestamp_col == "timestamp"
     assert by_table["executions"].timestamp_col == "execution_start_ts"
+    assert by_table["blocking_events"].timestamp_col == "detected_ts"
 
 
 def test_retention_days_getter_for_log_records(mock_hassette: MagicMock) -> None:
@@ -297,6 +298,12 @@ def test_retention_days_getter_for_executions(mock_hassette: MagicMock) -> None:
     mock_hassette.config.database.retention_days = 14
     by_table = {t.table: t for t in _RETENTION_TABLES}
     assert by_table["executions"].retention_days_getter(mock_hassette.config) == 14
+
+
+def test_retention_days_getter_for_blocking_events(mock_hassette: MagicMock) -> None:
+    mock_hassette.config.database.retention_days = 21
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["blocking_events"].retention_days_getter(mock_hassette.config) == 21
 
 
 def test_retention_target_is_frozen() -> None:

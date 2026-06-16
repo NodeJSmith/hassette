@@ -17,10 +17,13 @@ import uuid_utils
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.context import CURRENT_EXECUTION_ID
+from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
+from hassette.core.loop_watchdog import WatchdogEvent
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry_models import BlockingEvent
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent
@@ -44,6 +47,32 @@ _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
 _BATCH_DRAIN_CAP = 100
 _RETRY_BACKOFF_BASE_SECONDS = 1.0
+
+
+@dataclass(frozen=True)
+class ExecutionMarker:
+    """Immutable snapshot of the execution currently holding the loop thread.
+
+    Published to ``CommandExecutor.current_execution`` via a single atomic attribute
+    assignment so an off-loop watchdog thread can read it without a lock. A separate OS
+    thread cannot read another thread's ``ContextVar``, so the blocking-IO watchdog reads
+    this plain attribute instead of ``CURRENT_EXECUTION_ID``. Frozen (immutable) so a reader
+    can never observe a half-mutated marker — replacement is always a whole-object rebind.
+
+    Single-slot semantics: the marker reflects the most recent ``bind_execution_context``
+    that has not yet been unbound. While the loop thread is *frozen* by a blocking call no
+    interleaving occurs, so the marker names exactly the execution that froze it. A handler
+    that yields (``await``) and is then displaced by another execution running to completion
+    loses its marker — but the loop is responsive across an ``await``, so the watchdog is not
+    consulted in that window. ``started_at`` is ``time.monotonic()`` (process-wide, readable
+    across threads) for measuring how long the execution has held the loop.
+    """
+
+    app_key: str | None
+    instance_name: str | None
+    execution_id: str
+    started_at: float
+    instance_index: int | None = None
 
 
 @dataclass
@@ -109,6 +138,18 @@ class CommandExecutor(Service):
     Maps in-memory ID (listener_id or job_id) to the monotonic timestamp of the
     last timeout WARNING. Entries older than 60s are lazily evicted during
     rate-limit checks.
+    """
+
+    current_execution: ExecutionMarker | None = None
+    """Thread-visible marker of the execution currently on the loop thread, or None when idle.
+
+    Read by the off-loop blocking-IO watchdog (Tier 1) to attribute a loop freeze to the app
+    that caused it. Published via atomic attribute assignment in ``bind_execution_context`` and
+    cleared in ``unbind_execution_context``. Each assignment creates an instance-level attribute
+    that shadows this class-level default, so instances never share marker state. The class-level
+    ``None`` default exists only so the attribute is safe to read before the first execution and
+    on instances built via ``__new__`` in test helpers (which bypass ``__init__`` — see
+    ``tests/unit/core/conftest.py``).
     """
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
@@ -449,15 +490,33 @@ class CommandExecutor(Service):
             app_inst = self.hassette.app_handler.get(app_key, instance_index)
             if app_inst is not None:
                 instance_name = app_inst.app_config.instance_name
+        resolved_app_key = app_key or None
         structlog.contextvars.bind_contextvars(
-            app_key=app_key or None,
+            app_key=resolved_app_key,
             instance_name=instance_name,
+            instance_index=instance_index,
+        )
+        # Publish the thread-visible marker last, as a single atomic assignment, so the off-loop
+        # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
+        self.current_execution = ExecutionMarker(
+            app_key=resolved_app_key,
+            instance_name=instance_name,
+            execution_id=execution_id,
+            started_at=time.monotonic(),
             instance_index=instance_index,
         )
         return execution_id, token
 
-    @staticmethod
-    def unbind_execution_context(token: Token[str | None]) -> None:
+    def unbind_execution_context(self, token: Token[str | None]) -> None:
+        """Clear the execution marker and reset the ContextVar/structlog binding on exit.
+
+        Paired with ``bind_execution_context``. Was a ``@staticmethod``; it takes ``self`` now
+        so it can clear ``current_execution``. Clearing the marker first (to ``None`` = idle) is
+        deliberate: the off-loop watchdog reads only ``current_execution``, so a clear-first order
+        means it can never attribute a stale execution once this returns. ``CURRENT_EXECUTION_ID``
+        is thread-local, so its reset order relative to the marker is invisible to other threads.
+        """
+        self.current_execution = None
         CURRENT_EXECUTION_ID.reset(token)
         structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -896,6 +955,73 @@ class CommandExecutor(Service):
                 await self.hassette.send_event(exec_event)
         except Exception:
             self.logger.debug("Failed to emit completion events — ignoring", exc_info=True)
+
+    def record_blocking_event(self, event: WatchdogEvent | MonkeypatchEvent) -> None:
+        """Persist a blocking event row. Must be called on the loop thread.
+
+        Tier 1 (watchdog): the daemon thread marshals via ``loop.call_soon_threadsafe``
+        so this method always runs on the loop thread regardless of which tier detected
+        the event. Tier 2 (monkeypatch) calls this directly from the wrapper, which
+        already executes on the loop thread.
+
+        Enqueues the DB write fire-and-forget via ``database_service.enqueue()``, which
+        returns immediately and drops on a full write queue rather than accumulating
+        suspended tasks under a detection storm.
+
+        Args:
+            event: A ``WatchdogEvent`` (tier='watchdog') or ``MonkeypatchEvent``
+                (tier='monkeypatch') describing the detected blocking call.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        if isinstance(event, WatchdogEvent):
+            blocking_event = BlockingEvent(
+                session_id=session_id,
+                app_key=event.app_key,
+                instance_name=event.instance_name,
+                instance_index=event.instance_index,
+                execution_id=event.execution_id,
+                tier="watchdog",
+                primitive=None,
+                # Store the stack text in source_location (Tier 1 has no call-site location,
+                # but the captured stack is the closest equivalent).
+                source_location=event.stack_text,
+                stall_duration_ms=event.stall_duration_ms,
+                detected_ts=event.detected_at,
+                source_tier="app" if event.app_key is not None else "framework",
+            )
+        else:
+            blocking_event = BlockingEvent(
+                session_id=session_id,
+                app_key=event.app_key,
+                instance_name=event.instance_name,
+                instance_index=event.instance_index,
+                execution_id=event.execution_id,
+                tier="monkeypatch",
+                primitive=event.primitive,
+                source_location=event.source_location,
+                stall_duration_ms=None,
+                detected_ts=event.detected_at,
+                source_tier="app" if event.app_key is not None else "framework",
+            )
+
+        # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the
+        # drop) rather than suspending an unbounded number of spawned tasks under a Tier 2
+        # detection storm. Blocking-event rows are diagnostic, not a completion contract.
+        #
+        # enqueue() raises RuntimeError if the database service queue isn't live yet (before
+        # on_initialize) or after shutdown. The Tier 2 monkeypatch guard can fire in exactly
+        # those windows — and it runs inside the wrapped primitive (e.g. socket.send), where a
+        # raised exception would crash the caller. The detection path is observational, so a
+        # not-yet-ready queue drops the row instead of propagating.
+        try:
+            self.hassette.database_service.enqueue(self.repository.insert_blocking_event(blocking_event))
+        except RuntimeError:
+            # enqueue() is the only RuntimeError source here, raised when the queue isn't live.
+            self.logger.debug("Database service not ready — dropping blocking-event row")
 
     async def handle_fk_violation(
         self,

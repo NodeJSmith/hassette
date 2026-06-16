@@ -95,6 +95,13 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         retention_days_getter=lambda cfg: cfg.database.retention_days,
         failsafe_label="execution records",
     ),
+    RetentionTarget(
+        table="blocking_events",
+        timestamp_col="detected_ts",
+        priority=2,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="blocking events",
+    ),
 ]
 
 

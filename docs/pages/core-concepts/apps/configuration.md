@@ -65,7 +65,7 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 ## Developer Settings {#developer-settings}
 
-`AppConfig` includes one developer-facing field:
+`AppConfig` includes two developer-facing fields:
 
 - **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
 
@@ -74,6 +74,14 @@ The values supplied under `config` are validated at startup against an [`AppConf
     ```
 
     `ForgottenAwaitBehavior` is imported from `hassette` — the snippet above shows the full import. Use `"error"` for apps under active development to surface forgotten `await` calls at runtime. Use `"warn"` (or `None` to inherit the global default) for production apps. See [Global Settings](../configuration/index.md#developer-settings) for the global default.
+
+- **`blocking_io_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for blocking-IO detection behavior. `None` (the default) falls back to the global `blocking_io.behavior` setting in `hassette.toml`, which itself defaults to `"warn"`.
+
+    ```python
+    --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.py"
+    ```
+
+    `BlockingIOBehavior` is imported from `hassette`. Set to `"ignore"` to suppress both the warning and the `blocking_events` DB row for this app — useful when migrating legacy code that uses synchronous I/O. Set to `"error"` to escalate detections to raised exceptions (via `filterwarnings("error")`). See [Blocking-IO Detection](../blocking-io-detection.md) for context and [Global Settings](../configuration/index.md#blocking-io-detection) for the global defaults.
 
 ## Next Steps
 
