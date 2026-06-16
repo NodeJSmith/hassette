@@ -8,6 +8,7 @@ import pytest
 import tomli_w
 from pydantic import Field
 
+import hassette.core.block_io_guard as block_io_guard
 from hassette import HassetteConfig
 from hassette.config.models import (
     AppsConfig,
@@ -44,6 +45,20 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 # this wants package.nested_directories.final_file_name
 # do not include the name of the fixture
 pytest_plugins = ["hassette.test_utils.fixtures"]
+
+
+@pytest.fixture(autouse=True)
+def _ensure_block_io_guard_uninstalled():
+    """Guarantee the Tier 2 blocking-IO guard never leaks across tests.
+
+    The guard patches process-global builtins/socket/os. A test that installs it and fails to
+    restore — or whose async teardown races under xdist — would leave the patches active for later
+    tests on the same worker, intercepting their I/O on the loop (== main) thread. Force-restore
+    around every test so this process-global state can never leak between tests.
+    """
+    block_io_guard.uninstall()
+    yield
+    block_io_guard.uninstall()
 
 
 def build_file_watcher_config() -> FileWatcherConfig:

@@ -214,7 +214,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 5 after all migrations run."""
+        """PRAGMA user_version is 6 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -224,7 +224,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 5
+        assert version == 6
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""
@@ -248,7 +248,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_scheduled_jobs_has_mode_column_default_single(self, tmp_path: Path) -> None:
-        """005.sql adds a mode column to scheduled_jobs defaulting to 'single'."""
+        """006.sql adds a mode column to scheduled_jobs defaulting to 'single'."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 

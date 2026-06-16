@@ -27,12 +27,15 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
 from .app_handler import AppHandler
+from .block_io_guard import install as install_block_io_guard
+from .block_io_guard import uninstall as uninstall_block_io_guard
 from .bus_service import BusService
 from .command_executor import CommandExecutor
 from .database_service import DatabaseService
 from .event_stream_service import EventStreamService
 from .file_watcher import FileWatcherService
 from .logging_service import LoggingService
+from .loop_watchdog import LoopWatchdog
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
@@ -118,6 +121,9 @@ class Hassette(Resource):
         # Fatal-exit observability: set by shutdown_if_crashed or startup-failure branches.
         # When set, run_forever() raises FatalError after teardown instead of returning normally.
         self._fatal_shutdown_reason: str | None = None
+
+        # Tier 1 loop-responsiveness watchdog — installed in run_forever(), torn down in before_shutdown().
+        self._loop_watchdog: LoopWatchdog | None = None
 
     def startup_tasks(self) -> None:
         """Perform one-time startup tasks.
@@ -483,11 +489,58 @@ class Hassette(Resource):
         # pyright ignore is to handle what seems like another 3.11 bug/type issue
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
 
-        await self.on_initialize()
+        # Install Tier 1 loop-responsiveness watchdog after the loop thread id is captured.
+        # Gated on watchdog_enabled (default True); executor is required for marker attribution.
+        if self.config.blocking_io.watchdog_enabled and self._command_executor is not None:
+            _executor = self._command_executor
+            _loop = self._loop
+            self._loop_watchdog = LoopWatchdog(
+                self,
+                loop=_loop,
+                loop_thread_id=self._loop_thread_id,
+                executor=_executor,
+                # The watchdog daemon thread calls on_stall from off-loop; marshal onto the
+                # loop thread via call_soon_threadsafe so record_blocking_event always runs
+                # on the loop thread (T05 threading invariant). Gate on is_running(): a loop
+                # that is stopped-but-not-closed during shutdown still reports is_closed()
+                # False, yet call_soon_threadsafe would schedule a callback that never runs.
+                # Residual races after the check: if the loop CLOSES, call_soon_threadsafe
+                # raises RuntimeError, caught and debug-logged by LoopWatchdog._emit; if it
+                # merely STOPS, the callback is enqueued but never runs — one blocking_events
+                # row is silently dropped, which is acceptable for fire-and-forget telemetry.
+                on_stall=lambda ev: (
+                    _loop.call_soon_threadsafe(_executor.record_blocking_event, ev) if _loop.is_running() else None
+                ),
+            )
+            self._loop_watchdog.start()
 
-        # Phase 1: Start database and create session before anything else.
-        # This guarantees a valid session_id exists before any handler can fire.
-        self.database_service.start()
+        # Install Tier 2 call-site interception (monkeypatch). The dev/prod enablement decision
+        # lives inside install_block_io_guard (_should_install): dev_mode on by default, prod
+        # requires the explicit allow_deep_detection_in_prod flag (FR#6, AC#10). install() no-ops
+        # when disabled, so the only gate here is that an executor exists for marker attribution.
+        if self._command_executor is not None:
+            install_block_io_guard(
+                self,
+                loop_thread_id=self._loop_thread_id,
+                executor=self._command_executor,
+            )
+
+        # on_initialize() and database_service.start() run AFTER the watchdog + Tier 2 guard are
+        # installed but BEFORE the managed startup try below. A raise here would otherwise skip
+        # before_shutdown(), leaking the watchdog daemon thread and the process-global monkeypatches
+        # into the process. Route any failure through shutdown() so both detectors are torn down.
+        try:
+            await self.on_initialize()
+
+            # Phase 1: Start database and create session before anything else.
+            # This guarantees a valid session_id exists before any handler can fire.
+            self.database_service.start()
+        except Exception:
+            self.logger.exception("Startup failed during initialization")
+            self.record_fatal_reason("startup failure: initialization raised before service startup")
+            await self.shutdown()
+            self._raise_if_fatal_shutdown()
+            return
 
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
@@ -671,7 +724,23 @@ class Hassette(Resource):
             self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:
-        """Remove bus listeners and finalize session before child shutdown."""
+        """Remove bus listeners, stop the loop watchdog, and finalize session before child shutdown."""
+        # Stop the Tier 1 watchdog first so no spurious stall warnings fire during teardown.
+        # stop() joins the daemon thread; log rather than swallow if it raises, so a teardown
+        # hang is visible instead of silent.
+        if self._loop_watchdog is not None:
+            try:
+                self._loop_watchdog.stop()
+            except Exception:
+                self.logger.warning("Loop watchdog stop raised during shutdown", exc_info=True)
+            self._loop_watchdog = None
+        # Uninstall Tier 2 call-site interception so no patches remain after shutdown (FR#12/AC#9).
+        # Pass self so a non-owning instance's shutdown cannot remove the owner's process-global
+        # patches (Tier 2 has a single owner; uninstall no-ops for non-owners).
+        try:
+            uninstall_block_io_guard(self)
+        except Exception:
+            self.logger.warning("Tier 2 block IO guard uninstall raised during shutdown", exc_info=True)
         try:
             if self._bus is not None:
                 self._bus.remove_all_listeners()

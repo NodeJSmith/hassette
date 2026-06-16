@@ -15,12 +15,12 @@ from .conversion import (
 from .core.core import Hassette
 from .event_handling import accessors, conditions, dependencies, predicates
 from .events import RawStateChangeEvent
-from .exceptions import HassetteForgottenAwaitWarning
+from .exceptions import HassetteBlockingIOWarning, HassetteForgottenAwaitWarning
 from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
-from .types.enums import ExecutionMode, ForgottenAwaitBehavior
+from .types.enums import BlockingIOBehavior, ExecutionMode, ForgottenAwaitBehavior
 
 A = accessors
 C = conditions
@@ -40,12 +40,14 @@ __all__ = [
     "App",
     "AppConfig",
     "AppSync",
+    "BlockingIOBehavior",
     "Bus",
     "C",
     "D",
     "ExecutionMode",
     "ForgottenAwaitBehavior",
     "Hassette",
+    "HassetteBlockingIOWarning",
     "HassetteConfig",
     "HassetteForgottenAwaitWarning",
     "P",

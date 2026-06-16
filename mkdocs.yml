@@ -75,6 +75,7 @@ nav:
           - Overview: pages/core-concepts/cache/index.md
           - Patterns & Examples: pages/core-concepts/cache/patterns.md
       - Database & Telemetry: pages/core-concepts/database-telemetry.md
+      - Blocking-IO Detection: pages/core-concepts/blocking-io-detection.md
       - Configuration:
           - Overview: pages/core-concepts/configuration/index.md
       - System Internals:

@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
-from hassette.types.enums import ForgottenAwaitBehavior
+from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
 
 
@@ -35,6 +35,13 @@ class AppConfig(BaseSettings):
     When ``None`` (default), the global ``HassetteConfig.forgotten_await_behavior`` is used,
     which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress warnings for this app,
     or ``"error"`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
+
+    blocking_io_behavior: BlockingIOBehavior | None = None
+    """Per-app control for blocking-IO detection behavior.
+
+    When ``None`` (default), the global ``HassetteConfig.blocking_io.behavior`` is used,
+    which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress detection for this app,
+    or ``"error"`` to escalate via ``filterwarnings("error")``."""
 
     @field_validator("app_key")
     @classmethod
