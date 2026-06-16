@@ -41,6 +41,7 @@
   --warn-bg: #f5eedd;
   --err: #b53024;
   --err-bg: #f5dedc;
+  --cancel: #1f6f9a;
   --mute: #9097a0;
   --mute-bg: #eff0ec;
 
@@ -201,6 +202,7 @@
   --warn-bg: #272219;
   --err: #e08278;
   --err-bg: #28191a;
+  --cancel: #6fb8d9;
   --mute: #6a707a;
   --mute-bg: #1d1f23;
 

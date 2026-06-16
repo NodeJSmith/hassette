@@ -40,6 +40,13 @@
   white-space: nowrap;
 }
 
+.cancelledType {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--cancel);
+  white-space: nowrap;
+}
+
 .detailCell {
   padding: 0;
 }

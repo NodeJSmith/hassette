@@ -19,6 +19,7 @@ const toneClass: Record<StatusKind, string> = {
   err: styles.valueErr,
   warn: styles.valueWarn,
   ok: styles.valueOk,
+  cancel: styles.valueCancel,
   mute: styles.valueMute,
 };
 

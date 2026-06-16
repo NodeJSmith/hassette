@@ -29,6 +29,15 @@ describe("StatusShape", () => {
     expect(Number(rx)).toBeGreaterThan(0);
   });
 
+  it("renders a diamond (4-point polygon) for kind=cancel", () => {
+    const { container } = render(<StatusShape kind="cancel" />);
+    const diamond = container.querySelector("polygon");
+    expect(diamond).not.toBeNull();
+    expect(diamond!.getAttribute("fill")).toBe("var(--cancel)");
+    // Diamond has four vertices (vs the warn triangle's three)
+    expect(diamond!.getAttribute("points")!.trim().split(/\s+/)).toHaveLength(4);
+  });
+
   it("renders a ring (stroke-only circle) for kind=mute", () => {
     const { container } = render(<StatusShape kind="mute" />);
     const circle = container.querySelector("circle");
@@ -70,6 +79,11 @@ describe("StatusShape", () => {
   it("uses correct color token for err", () => {
     const { container } = render(<StatusShape kind="err" />);
     expect(container.querySelector("rect")!.getAttribute("fill")).toBe("var(--err)");
+  });
+
+  it("uses correct color token for cancel", () => {
+    const { container } = render(<StatusShape kind="cancel" />);
+    expect(container.querySelector("polygon")!.getAttribute("fill")).toBe("var(--cancel)");
   });
 
   it("uses correct color token for mute", () => {

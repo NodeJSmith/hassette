@@ -50,6 +50,16 @@ filename = "demo_stimulator.py"
 class_name = "DemoStimulator"
 config = { instance_name = "demo_stimulator", enable_failure = true }
 
+[hassette.apps.scheduler_overlap]
+filename = "scheduler_overlap.py"
+class_name = "SchedulerOverlapDemo"
+config = { instance_name = "scheduler_overlap" }
+
+[hassette.apps.bus_overlap]
+filename = "bus_overlap.py"
+class_name = "BusOverlapDemo"
+config = { instance_name = "bus_overlap" }
+
 [hassette.database]
 retention_days = 14
 max_size_mb = 100

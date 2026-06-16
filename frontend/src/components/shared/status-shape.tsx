@@ -9,10 +9,11 @@ interface Props {
 /**
  * SVG status shape indicator.
  *
- * - ok   → filled circle (green)
- * - warn → filled triangle (amber)
- * - err  → filled rounded square (red)
- * - mute → ring / stroke-only circle (muted)
+ * - ok     → filled circle (green)
+ * - warn   → filled triangle (amber)
+ * - err    → filled rounded square (red)
+ * - cancel → filled diamond (info blue)
+ * - mute   → ring / stroke-only circle (muted)
  */
 export function StatusShape({ kind, size = 12, muted = false }: Props) {
   const half = size / 2;
@@ -76,6 +77,23 @@ export function StatusShape({ kind, size = 12, muted = false }: Props) {
         style={{ flexShrink: 0 }}
       >
         <rect x="1" y="1" width={size - 2} height={size - 2} rx={r} ry={r} fill="var(--err)" />
+      </svg>
+    );
+  }
+
+  if (kind === "cancel") {
+    // Diamond (square rotated 45°), centered in bounding box
+    const pts = `${half},1 ${size - 1},${half} ${half},${size - 1} 1,${half}`;
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        aria-hidden="true"
+        focusable="false"
+        style={{ flexShrink: 0 }}
+      >
+        <polygon points={pts} fill="var(--cancel)" />
       </svg>
     );
   }

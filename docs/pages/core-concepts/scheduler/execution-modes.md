@@ -54,9 +54,9 @@ then starts a fresh one.
 ```
 
 The cancelled invocation receives `CancelledError` at its next `await`.
-Making jobs cancellation-safe is the author's responsibility — the
-framework cancels the task, but cleanup logic inside the job must be
-idiomatic Python (`try/finally` or `contextlib.suppress`).
+Making jobs cancellation-safe is the author's responsibility. The framework
+cancels the task; `try/finally` runs cleanup as the cancellation propagates.
+Suppressing the `CancelledError` keeps the task alive and defeats the restart.
 
 `restart` is the right choice for "latest wins" patterns: a report
 refresh where only the most recent run matters, or a cache reload where
@@ -65,9 +65,8 @@ a stale in-flight run should give way to a fresher one.
 !!! warning "Cancelled invocations have side effects"
     A job cancelled mid-run may have already mutated state or called a
     service. The framework provides no automatic rollback. Jobs that
-    mutate state mid-run need cancellation handling (`try/finally` or
-    `contextlib.suppress`). `single` or `queued` avoid partial execution
-    entirely.
+    mutate state mid-run need cancellation handling with `try/finally`.
+    `single` or `queued` avoid partial execution entirely.
 
 ### `queued` — serialize in arrival order
 
@@ -147,6 +146,21 @@ persisted to the database.
 A non-zero suppressed count on a `single` job indicates ticks arrive
 faster than the job completes. If that represents lost work, consider
 `queued`. If it represents expected deduplication, `single` is correct.
+
+### Cancelled counts
+
+`restart` cancels the running invocation on every re-fire, so a busy
+`restart` job accumulates cancelled executions. Cancelled is a persisted
+execution status, not a live counter. The telemetry database records each
+one, and the monitoring UI surfaces a cancelled count separate from
+failures.
+
+A `restart` job working as designed shows a high cancelled count and a 100%
+success rate. Cancellation is the intended outcome, so it never counts
+against the success rate. The cancelled column appears in the Handlers table
+for both jobs and event handlers.
+
+![Cancelled column in the monitoring UI handlers and jobs table](../../../_static/web_ui_handlers_cancelled.png)
 
 ### Stall detection
 

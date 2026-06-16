@@ -60,6 +60,11 @@ describe("listenerToRow", () => {
     expect(row.timed_out).toBe(2);
   });
 
+  it("maps cancelled", () => {
+    const row = listenerToRow(createListener({ cancelled: 5 }));
+    expect(row.cancelled).toBe(5);
+  });
+
   it("maps avg_duration_ms", () => {
     const row = listenerToRow(createListener({ avg_duration_ms: 150 }));
     expect(row.avg_duration_ms).toBe(150);
@@ -136,6 +141,11 @@ describe("jobToRow", () => {
     expect(row.timed_out).toBe(4);
   });
 
+  it("maps cancelled", () => {
+    const row = jobToRow(createJob({ cancelled: 7 }));
+    expect(row.cancelled).toBe(7);
+  });
+
   it("maps avg_duration_ms", () => {
     const row = jobToRow(createJob({ avg_duration_ms: 200 }));
     expect(row.avg_duration_ms).toBe(200);
@@ -180,6 +190,7 @@ function row(overrides: Partial<UnifiedRow>): UnifiedRow {
     runs: 10,
     failed: 0,
     timed_out: 0,
+    cancelled: 0,
     avg_duration_ms: 50,
     next_run_ts: null,
     source_tier: "app",
@@ -299,6 +310,20 @@ describe("compareHandlerRows — timed_out", () => {
     const a = row({ timed_out: 0 });
     const b = row({ timed_out: 3 });
     expect(compareHandlerRows(a, b, desc("timed_out"))).toBeGreaterThan(0);
+  });
+});
+
+describe("compareHandlerRows — cancelled", () => {
+  it("asc: fewer cancellations first", () => {
+    const a = row({ cancelled: 0 });
+    const b = row({ cancelled: 3 });
+    expect(compareHandlerRows(a, b, asc("cancelled"))).toBeLessThan(0);
+  });
+
+  it("desc: more cancellations first", () => {
+    const a = row({ cancelled: 0 });
+    const b = row({ cancelled: 3 });
+    expect(compareHandlerRows(a, b, desc("cancelled"))).toBeGreaterThan(0);
   });
 });
 

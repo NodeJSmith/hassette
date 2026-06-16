@@ -12,6 +12,7 @@ const kindClassMap: Record<ChipKind, string> = {
   ok: styles.kindOk,
   warn: styles.kindWarn,
   err: styles.kindErr,
+  cancel: styles.kindCancel,
   mute: styles.kindMute,
 };
 

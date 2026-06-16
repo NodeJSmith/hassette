@@ -80,6 +80,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
             const rowKey = record.execution_id ?? `${kind}-${i}`;
             const isError = record.status === "error";
             const isTimeout = record.status === "timed_out";
+            const isCancelled = record.status === "cancelled";
             const threadLeaked = record.thread_leaked;
 
             return [
@@ -103,6 +104,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                     <StatusShape kind={executionStatusKind(record.status)} size={STATUS_DOT_SIZE} />
                     {isError && record.error_type && <span class={styles.errorType}>{record.error_type}</span>}
                     {isTimeout && <span class={styles.timeoutType}>timed out</span>}
+                    {isCancelled && <span class={styles.cancelledType}>cancelled</span>}
                     {threadLeaked && (
                       <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
                         thread leaked

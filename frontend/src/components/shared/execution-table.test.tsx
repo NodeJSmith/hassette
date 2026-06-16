@@ -207,6 +207,29 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("thread leaked");
   });
 
+  // ── Cancelled rows ──
+
+  it("shows a cancelled label on a cancelled row", () => {
+    const { container } = render(
+      <ExecutionTable records={[createExecution("job", { status: "cancelled" })]} kind="job" tableId="t" />,
+    );
+    expect(container.textContent).toContain("cancelled");
+  });
+
+  it("renders cancelled detail as 'cancelled after', not 'completed'", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "cancelled", duration_ms: 20000 })]}
+        kind="job"
+        tableId="t"
+      />,
+    );
+    fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
+    const detail = container.querySelector("[data-testid='execution-detail']")!;
+    expect(detail.textContent).toContain("cancelled after");
+    expect(detail.textContent).not.toContain("completed in");
+  });
+
   // ── Show More ──
 
   it("shows Show More button when records exceed 5", () => {

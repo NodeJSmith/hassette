@@ -22,6 +22,7 @@ from hassette.logging_ import (
     add_execution_id,
     enable_basic_logging,
 )
+from hassette.web.models import LogWsMessage
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -959,3 +960,48 @@ class TestLogCaptureHandlerShutdownGuard:
         handler.emit(record)
 
         loop.call_soon_threadsafe.assert_called_once()
+
+
+def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broadcast_fn: MagicMock) -> dict:
+    """Emit one record and return the envelope dict passed to the broadcast fn.
+
+    emit() schedules a closure via call_soon_threadsafe; this runs it so broadcast_fn(payload) fires.
+    """
+    record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "live msg", (), None)
+    handler.emit(record)
+
+    scheduled = loop.call_soon_threadsafe.call_args.args[0]
+    scheduled()
+
+    broadcast_fn.assert_called_once()
+    return broadcast_fn.call_args.args[0]
+
+
+class TestLogCaptureHandlerBroadcastEnvelope:
+    """The live log broadcast envelope matches the LogWsMessage schema the frontend validates against."""
+
+    def test_broadcast_envelope_includes_top_level_timestamp(self) -> None:
+        """The envelope carries a top-level 'timestamp' — without it the frontend drops the message."""
+        handler = LogCaptureHandler(buffer_size=100)
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        broadcast_fn = MagicMock()
+        handler.set_broadcast(broadcast_fn, loop)
+
+        payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
+
+        assert payload["type"] == "log"
+        assert "timestamp" in payload, "log WS envelope missing top-level timestamp"
+        assert isinstance(payload["timestamp"], float)
+
+    def test_broadcast_envelope_validates_against_log_ws_message(self) -> None:
+        """The envelope round-trips through LogWsMessage, the model the frontend schema is generated from."""
+        handler = LogCaptureHandler(buffer_size=100)
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        broadcast_fn = MagicMock()
+        handler.set_broadcast(broadcast_fn, loop)
+
+        payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
+
+        LogWsMessage.model_validate(payload)

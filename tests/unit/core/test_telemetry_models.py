@@ -31,7 +31,7 @@ def test_job_summary_new_fields_defaults() -> None:
     assert summary.next_run is None
     assert summary.fire_at is None
     assert summary.jitter is None
-    assert "cancelled" not in JobSummary.model_fields
+    assert summary.cancelled == 0
 
 
 def test_job_summary_mode_default() -> None:
@@ -103,9 +103,10 @@ def test_job_summary_group_can_be_set() -> None:
     assert summary.group == "morning"
 
 
-def test_job_summary_cancelled_field_removed() -> None:
-    """cancelled field has been removed — cancelled jobs are filtered at the SQL layer."""
-    assert "cancelled" not in JobSummary.model_fields
+def test_job_summary_cancelled_field_present() -> None:
+    """cancelled field surfaces cancelled execution counts; defaults to 0."""
+    assert "cancelled" in JobSummary.model_fields
+    assert JobSummary.model_fields["cancelled"].default == 0
 
 
 def test_job_summary_next_run_and_fire_at_are_floats() -> None:
