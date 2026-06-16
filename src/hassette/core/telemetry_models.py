@@ -176,6 +176,10 @@ class JobSummary(BaseModel):
     successful: int
     failed: int
     timed_out: int = 0
+    thread_leaked: int = 0
+    """Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
+    Aggregated from the ``executions`` table; a non-zero value flags a job leaking worker threads.
+    Mirrors the ``timed_out`` aggregate naming — the bare participle, not a ``_count`` suffix."""
     last_executed_at: float | None
     total_duration_ms: float
     avg_duration_ms: float

@@ -2660,6 +2660,11 @@
             "title": "Timed Out",
             "default": 0
           },
+          "thread_leaked": {
+            "type": "integer",
+            "title": "Thread Leaked",
+            "default": 0
+          },
           "last_executed_at": {
             "anyOf": [
               {

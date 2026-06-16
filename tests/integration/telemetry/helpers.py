@@ -108,13 +108,15 @@ async def insert_execution(
     execution_start_ts: float | None = None,
     source_tier: str = "app",
     is_di_failure: int = 0,
+    thread_leaked: int = 0,
 ) -> int:
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
         """INSERT INTO executions
                (kind, job_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message, error_traceback, source_tier, is_di_failure)
-           VALUES ('job', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                status, error_type, error_message, error_traceback, source_tier, is_di_failure,
+                thread_leaked)
+           VALUES ('job', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             job_id,
             session_id,
@@ -126,6 +128,7 @@ async def insert_execution(
             error_traceback,
             source_tier,
             is_di_failure,
+            thread_leaked,
         ),
     )
     await db_svc.db.commit()
