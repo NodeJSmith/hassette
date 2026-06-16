@@ -90,6 +90,10 @@ class TestBudgetValues:
         assert SchedulerService.restart_spec.budget_intensity == 2
         assert SchedulerService.restart_spec.budget_period_seconds == 30
 
+    def test_sync_executor_service_budget(self) -> None:
+        assert SyncExecutorService.restart_spec.budget_intensity == 2
+        assert SyncExecutorService.restart_spec.budget_period_seconds == 30
+
     def test_websocket_service_budget(self) -> None:
         assert WebsocketService.restart_spec.budget_intensity == 5
         assert WebsocketService.restart_spec.budget_period_seconds == 300
