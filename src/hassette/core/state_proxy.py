@@ -90,10 +90,13 @@ class StateProxy(Resource):
             name="hassette.state_proxy.on_state_change",
         )
         if not self.hassette.config.disable_state_proxy_polling:
+            # Pin to single so the framework→parallel default never allows concurrent
+            # load_cache polls within one scheduler lifecycle (FR#15).
             self.poll_job = await self.scheduler.run_every(
                 self.load_cache,
                 seconds=self.hassette.config.state_proxy_poll_interval_seconds,
                 if_exists="skip",
+                mode="single",
             )
         else:
             self.poll_job = None

@@ -901,3 +901,102 @@ class TestStateProxyConcurrency:
         # All reads should return valid brightness values
         assert all(isinstance(b, (int, float)) for b in read_results)
         assert len(read_results) > 0
+
+
+class TestStateProxyPollNonOverlap:
+    """AC#13 / FR#15: the state-proxy poll job never runs load_cache concurrently.
+
+    Asserts scheduler-level single-mode suppression, not just the internal
+    lock serializing concurrent entries. When a poll invocation is still in
+    flight as the next tick becomes due, the guard's suppressed counter
+    increments and load_cache is not entered a second time.
+    """
+
+    async def test_overrunning_poll_does_not_run_load_cache_concurrently(
+        self, hassette_with_state_proxy: "HassetteHarness", monkeypatch
+    ) -> None:
+        """AC#13: an overrunning load_cache poll is suppressed at the scheduler level.
+
+        Drives an overrun by holding load_cache open (asyncio.Event gate),
+        dispatching a second tick while the first is in flight, and asserting:
+        - guard.suppressed >= 1 (scheduler-level suppression, not just lock)
+        - concurrent entry count never exceeds 1
+        """
+        monkeypatch.setattr(hassette_with_state_proxy.hassette.config, "disable_state_proxy_polling", False)
+
+        proxy = hassette_with_state_proxy.state_proxy
+        # The poll job is registered via the state proxy's own child Scheduler,
+        # which shares the harness's top-level SchedulerService.
+        scheduler_service = proxy.scheduler.scheduler_service
+
+        # A proper shutdown/initialize cycle with polling now enabled ensures a
+        # fresh ScheduledJob with _dequeued=False.  Calling on_initialize() directly
+        # a second time hits if_exists="skip" which returns the old dequeued job
+        # (whose _dequeued flag is True), making dispatch_and_log a no-op.
+        await proxy.shutdown()
+        await proxy.initialize()
+
+        assert proxy.poll_job is not None, "poll_job should be registered when polling is enabled"
+        poll_job = proxy.poll_job
+
+        # Instrument load_cache to gate execution and count concurrent entries.
+        gate = asyncio.Event()
+        entered = asyncio.Event()
+        concurrent_entries = [0]
+        max_concurrent_entries = [0]
+
+        original_job_callable = poll_job.job
+
+        async def gated_load_cache() -> None:
+            concurrent_entries[0] += 1
+            max_concurrent_entries[0] = max(max_concurrent_entries[0], concurrent_entries[0])
+            entered.set()
+            try:
+                await gate.wait()
+                await original_job_callable()
+            finally:
+                concurrent_entries[0] -= 1
+
+        # Replace the stored callable on the job object so dispatch_and_log invokes
+        # our instrumented version (job.job is the bound method stored at registration).
+        poll_job.job = gated_load_cache
+
+        # Freeze time at the first due tick.
+        frozen_time = poll_job.next_run.add(seconds=1)
+
+        with patch("hassette.utils.date_utils.now", side_effect=lambda: frozen_time):
+            # Dispatch tick 1 in a background task — will block inside gated_load_cache.
+            dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(poll_job))
+
+            # Wait until gated_load_cache is actually executing (spawned task has started).
+            await asyncio.wait_for(entered.wait(), timeout=2.0)
+            assert concurrent_entries[0] == 1, "First poll should be in flight"
+
+            # After dispatch-time reschedule, poll_job is re-enqueued on the heap.
+            # Get it — it's the same object cycled back.
+            all_jobs = await scheduler_service.get_all_jobs()
+            next_poll = next((j for j in all_jobs if j is poll_job), None)
+            assert next_poll is not None, "poll_job should have been re-enqueued (dispatch-time reschedule, FR#1)"
+
+            # Move time forward past the second tick.
+            frozen_time = next_poll.next_run.add(seconds=1)
+
+            # Dispatch tick 2 inline — guard should suppress (single mode, AC#13).
+            await scheduler_service.dispatch_and_log(next_poll)
+
+            # The guard suppressed the second invocation at the scheduler level.
+            assert poll_job.guard.suppressed >= 1, (
+                f"Expected guard.suppressed >= 1 (single-mode scheduler suppression, AC#13), "
+                f"got {poll_job.guard.suppressed}"
+            )
+
+            # load_cache was never entered by both ticks concurrently.
+            assert max_concurrent_entries[0] <= 1, (
+                f"load_cache entered concurrently (max_concurrent={max_concurrent_entries[0]}); "
+                "scheduler-level single-mode guard should prevent this (AC#13)"
+            )
+
+            # Unblock the first dispatch and let it finish while the clock is still
+            # frozen, so run_job does not log a spurious behind-schedule warning.
+            gate.set()
+            await asyncio.wait_for(dispatch1, timeout=2.0)
