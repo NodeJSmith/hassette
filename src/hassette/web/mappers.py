@@ -199,6 +199,7 @@ def to_listener_with_summary(
         di_failures=ls.di_failures,
         cancelled=ls.cancelled,
         timed_out=ls.timed_out,
+        thread_leaked=ls.thread_leaked,
         avg_duration_ms=ls.avg_duration_ms,
         min_duration_ms=ls.min_duration_ms,
         max_duration_ms=ls.max_duration_ms,

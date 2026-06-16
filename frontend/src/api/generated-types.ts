@@ -1015,6 +1015,11 @@ export interface components {
              * @default 0
              */
             timed_out: number;
+            /**
+             * Thread Leaked
+             * @default 0
+             */
+            thread_leaked: number;
             /** Last Executed At */
             last_executed_at: number | null;
             /** Total Duration Ms */
@@ -1153,6 +1158,11 @@ export interface components {
              * @default 0
              */
             timed_out: number;
+            /**
+             * Thread Leaked
+             * @default 0
+             */
+            thread_leaked: number;
             /**
              * Source Location
              * @default

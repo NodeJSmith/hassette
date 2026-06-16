@@ -20,6 +20,7 @@ interface UseLogFiltersParams {
   restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
+  executionId?: string | null;
 }
 
 interface UseLogFiltersResult {
@@ -66,12 +67,16 @@ export function useLogFilters({
   restEntries,
   useLocalState = false,
   appKey,
+  executionId,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
   qpRef.current = qp;
 
-  const defaultTier: TierFilter = appKey ? "all" : "app";
+  // An execution_id already scopes rows to a single execution, whose logs can span
+  // both tiers (its app logs plus framework diagnostics about it). Tier-filtering there
+  // would only hide some of the execution's own logs, so default to "all" — same as appKey.
+  const defaultTier: TierFilter = appKey || executionId ? "all" : "app";
 
   const localLevel = useSignal<LevelFilter>(DEFAULT_LEVEL);
   const localTier = useSignal<TierFilter>(defaultTier);
@@ -79,6 +84,16 @@ export function useLogFilters({
   const localSearch = useSignal("");
   const localFunc = useSignal("");
   const localSort = useSignal<LogSortState>(DEFAULT_SORT);
+
+  // localTier is seeded from defaultTier once at mount, but defaultTier is reactive: on the
+  // global /logs page, adding execution_id to the URL flips useLocalState true and recomputes
+  // defaultTier "app"->"all" without remounting. Re-sync so a stale "app" doesn't keep hiding
+  // framework rows. Clears the app filter too when leaving the "app" tier.
+  useEffect(() => {
+    if (!useLocalState) return;
+    localTier.value = defaultTier;
+    if (defaultTier !== "app") localApp.value = "";
+  }, [useLocalState, defaultTier]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(

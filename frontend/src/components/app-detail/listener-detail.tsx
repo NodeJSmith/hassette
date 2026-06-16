@@ -54,6 +54,7 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
   ];
   if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled });
   cells.push({ label: "Mode", value: listener.mode });
+  if (listener.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: listener.thread_leaked, tone: "warn" });
   if (listener.suppressed_count > 0) cells.push({ label: "Suppressed", value: listener.suppressed_count });
   if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count });
   cells.push(
