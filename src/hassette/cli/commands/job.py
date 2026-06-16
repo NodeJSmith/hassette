@@ -14,6 +14,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("job_name", "Handler", max_width=22),
     Column("trigger_type", "Trigger", max_width=10),
     Column("trigger_detail", "Schedule", max_width=20),
+    Column("mode", "Mode", max_width=9),
     Column("total_executions", "Total", max_width=7),
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),

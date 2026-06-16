@@ -191,6 +191,13 @@ class JobSummary(BaseModel):
     """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     max_duration_ms: float | None = None
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
+    mode: str = "single"
+    """Resolved overlap mode for this job (``'single'``, ``'restart'``, ``'queued'``, ``'parallel'``).
+    Persisted at registration; sourced from the DB column ``scheduled_jobs.mode``."""
+    suppressed_count: int = 0
+    """Live count of re-fires suppressed by the guard (``single`` mode). In-memory only; resets on restart."""
+    dropped_count: int = 0
+    """Live count of re-fires dropped due to queue cap (``queued`` mode). In-memory only; resets on restart."""
 
 
 class ListenerGlobalStats(BaseModel):

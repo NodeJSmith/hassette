@@ -175,6 +175,9 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     last_error_traceback: null,
     min_duration_ms: null,
     max_duration_ms: null,
+    mode: "single",
+    suppressed_count: 0,
+    dropped_count: 0,
     ...overrides,
   } satisfies JobSummary;
 }
