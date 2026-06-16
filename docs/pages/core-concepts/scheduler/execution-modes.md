@@ -148,6 +148,21 @@ A non-zero suppressed count on a `single` job indicates ticks arrive
 faster than the job completes. If that represents lost work, consider
 `queued`. If it represents expected deduplication, `single` is correct.
 
+### Cancelled counts
+
+`restart` cancels the running invocation on every re-fire, so a busy
+`restart` job accumulates cancelled executions. Cancelled is a persisted
+execution status, not a live counter — the telemetry database records each
+one, and the monitoring UI surfaces a cancelled count separate from
+failures.
+
+A `restart` job working as designed shows a high cancelled count and a 100%
+success rate. Cancellation is the intended outcome, so it never counts
+against the success rate. The cancelled column appears in the Handlers table
+for both jobs and event handlers.
+
+![Cancelled column in the monitoring UI handlers and jobs table](../../../_static/web_ui_handlers_cancelled.png)
+
 ### Stall detection
 
 A job that holds its execution-mode guard — any mode except `parallel` —

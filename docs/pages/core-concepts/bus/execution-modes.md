@@ -135,6 +135,24 @@ A non-zero suppressed count on a `single` handler indicates re-fires are
 arriving faster than the handler completes. If that represents lost work,
 consider `queued`. If it represents expected deduplication, `single` is correct.
 
+### Cancelled counts
+
+`restart` cancels the running invocation on every re-fire, so a busy `restart`
+handler accumulates cancelled invocations. Cancelled is a persisted execution
+status, not a live counter — the telemetry database records each one, and the
+monitoring UI surfaces a cancelled count separate from failures.
+
+A `restart` handler working as designed shows a high cancelled count and a
+100% success rate. Cancellation is the intended outcome, so it never counts
+against the success rate.
+
+![Handler strip showing a cancelled count beside a 100% success rate](../../../_static/web_ui_cancelled_strip.png)
+
+The handler detail pane marks each cancelled invocation with a blue diamond and
+a `cancelled` label, distinct from the red square of an error.
+
+![Restart handler detail with cancelled invocations](../../../_static/web_ui_cancelled_detail.png)
+
 ### Stall detection
 
 A handler that holds its execution-mode guard — any mode except `parallel` —

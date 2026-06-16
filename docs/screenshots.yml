@@ -180,3 +180,39 @@
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"log-detail-drawer\"]')"
   javascript: "document.querySelector('tbody tr')?.click()"
+
+# ===========================================================================
+# Cancelled execution status (restart/replace overlap modes)
+# The bus_overlap and scheduler_overlap example apps self-drive restart-mode
+# handlers/jobs, so their restart entry accumulates cancelled executions.
+# Longer waits give the self-driving bursts time to accumulate cancellations
+# before capture.
+# ===========================================================================
+
+# App handlers strip: cancelled count alongside a 100% success rate
+- url: "http://localhost:{port}/apps/bus_overlap/handlers"
+  output: docs/_static/web_ui_cancelled_strip.png
+  selector: "[data-testid='handlers-health-strip']"
+  width: 1400
+  height: 900
+  wait: 6000
+
+# Bus restart handler detail — blue diamond invocation rows, "cancelled"
+# labels, and the Cancelled stat cell
+- url: "http://localhost:{port}/apps/bus_overlap/handlers"
+  output: docs/_static/web_ui_cancelled_detail.png
+  selector: "[data-testid^='listener-detail-']"
+  width: 1400
+  height: 1300
+  wait: 6000
+  wait_for: "document.querySelector('[data-testid^=\"listener-detail-\"]')"
+  javascript: "const click=()=>{const c=[...document.querySelectorAll('[data-testid=\"handler-row-mode-chip\"]')].find(e=>e.getAttribute('aria-label')==='mode: restart');if(c){c.closest('[data-testid^=\"unified-row-\"]').click();return true}return false};if(!click()){const i=setInterval(()=>{if(click())clearInterval(i)},200)}"
+
+# Global handlers table with the cancelled column populated. Captured last so
+# the self-driving apps have accumulated cancellations by this point.
+- url: "http://localhost:{port}/handlers"
+  output: docs/_static/web_ui_handlers_cancelled.png
+  selector: "[data-testid='handlers-table-container']"
+  width: 1400
+  height: 900
+  wait: 6000
