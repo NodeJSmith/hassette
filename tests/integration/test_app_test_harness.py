@@ -650,7 +650,7 @@ async def test_simulate_app_running():
     async with AppTestHarness(AppRunningApp, config={}) as harness:
         await harness.simulate_app_running()
         # Filter by harness app key — startup may emit RUNNING for the app itself
-        app_key = harness.app.app_manifest.app_key
+        app_key = harness.app.app_key
         my_events = [e for e in received if e.payload.data.app_key == app_key]
         # At least one from our simulate call (startup may also produce one)
         assert len(my_events) >= 1
@@ -757,7 +757,7 @@ async def test_simulate_app_state_changed_typed_di():
 
     async with AppTestHarness(AppStateDiApp, config={}) as harness:
         await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
-        expected_key = harness.app.app_manifest.app_key
+        expected_key = harness.app.app_key
 
     assert len(received) == 1
     assert received[0].payload.data.app_key == expected_key

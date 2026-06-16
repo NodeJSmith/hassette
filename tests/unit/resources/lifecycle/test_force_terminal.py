@@ -84,7 +84,7 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     hassette.config.lifecycle.app_shutdown_timeout_seconds = 5
     hassette.config.logging.apps = "DEBUG"
 
-    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0)
+    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0, app_key="test_app")
 
     await app.initialize()
 

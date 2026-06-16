@@ -135,7 +135,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     ) -> "HassetteAppStateEvent":
         exc_str, exc_type, exc_tb = _extract_exception_fields(exception)
         payload = AppStateChangePayload(
-            app_key=app.app_manifest.app_key,
+            app_key=app.app_key,
             index=app.index,
             status=status,
             previous_status=previous_status,

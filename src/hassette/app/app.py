@@ -56,7 +56,12 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     source_tier: ClassVar[SourceTier] = "app"
 
     app_manifest: ClassVar[AppManifest]
-    "Manifest for the app itself, not used by app instances."
+    """Class-level metadata for the app, set by the factory.
+
+    Not used for per-instance identity: app_key is stored per instance (see the
+    app_key property). When one App subclass is shared across two config sections,
+    this holds whichever section was processed last.
+    """
 
     app_config_cls: ClassVar[type[AppConfig]]
     """Config class to use for instances of the created app. Configuration from hassette.toml or
@@ -89,6 +94,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         *,
         app_config: AppConfigT,
         index: int,
+        app_key: str,
         api_factory: type[Resource] | None = None,
         parent: Resource | None = None,
     ) -> None:
@@ -96,6 +102,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         # unique_name (used by the logger) depends on app_config
         self.app_config = app_config
         self.index = index
+        self._app_key = app_key
         super().__init__(hassette, parent=parent)
         self.api = cast("Api", self.add_child(api_factory or Api))
         self.scheduler = self.add_child(Scheduler)
@@ -119,8 +126,13 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     @property
     def app_key(self) -> str:
-        """Key for this app in the hassette.toml configuration."""
-        return self.app_manifest.app_key
+        """Key for this app in the hassette.toml configuration.
+
+        Set per instance at construction. Two config sections can point at the same
+        App subclass, so this overrides the class-shared app_manifest rather than
+        reading from it — otherwise the last section loaded would clobber it for all.
+        """
+        return self._app_key
 
     @property
     def instance_name(self) -> str:

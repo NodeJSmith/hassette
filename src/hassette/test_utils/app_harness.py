@@ -350,11 +350,16 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         exit_stack.push_async_callback(self._restore_manifest)
 
-        # Step 10: Instantiate the app with RecordingApi injected via constructor
+        # Step 10: Instantiate the app with RecordingApi injected via constructor.
+        # The harness owns exactly one synthesized manifest per class, so its app_key
+        # is authoritative for the test. Read it off the class attribute (not a local
+        # `manifest`) because that variable is only bound on the first-harness branch
+        # above — a concurrent harness reusing the class takes the else branch.
         app = self._app_cls(
             hassette=harness.hassette,  # pyright: ignore[reportArgumentType]
             app_config=validated_config,
             index=0,
+            app_key=self._app_cls.app_manifest.app_key,
             api_factory=RecordingApi,
         )
 
