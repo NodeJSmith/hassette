@@ -1,7 +1,7 @@
 # Design: Blocking-I/O Detection for the Shared Event Loop
 
 **Date:** 2026-06-15
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-15-blocking-io-detection/research.md
 
