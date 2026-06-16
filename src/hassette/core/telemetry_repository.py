@@ -49,6 +49,7 @@ def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "attempt_number": record.attempt_number,
         "args_json": record.args_json,
         "kwargs_json": record.kwargs_json,
+        "thread_leaked": 1 if record.thread_leaked else 0,
     }
 
 

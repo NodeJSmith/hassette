@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Record thread-leaked observability on execution records"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#3", "AC#1"]
 ---

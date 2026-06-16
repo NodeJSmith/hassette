@@ -29,6 +29,7 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution
@@ -274,6 +275,21 @@ class CommandExecutor(Service):
             pass
         # result is available for both success and error paths
         if result.is_timed_out:
+            # Check whether the sync worker thread is still alive after the timeout.
+            # The cell was set by run_in_thread on this same asyncio task (same context),
+            # so SYNC_WORKER_CELL.get() returns the same list object the worker mutates.
+            # cell[0] is None when: (a) the handler is async (no worker), or (b) the
+            # timeout fired before the worker dequeued _call (not-started timeout).
+            # Neither case is a leak; only a live cell[0] after the await is cancelled is.
+            _cell = SYNC_WORKER_CELL.get()
+            if _cell is not None and _cell[0] is not None and _cell[0].is_alive():
+                result.thread_leaked = True
+                self.logger.warning(
+                    "Sync worker thread still alive after timeout (%.1fms elapsed, thread=%s) — "
+                    "worker will run to completion on the dedicated executor",
+                    result.duration_ms,
+                    _cell[0].name,
+                )
             if cmd.effective_timeout is not None:
                 self.log_timeout_rate_limited(cmd, result)
             else:
@@ -393,6 +409,7 @@ class CommandExecutor(Service):
                     instance_index=cmd.listener.identity.instance_index,
                     source_tier=cmd.source_tier,
                     is_di_failure=result.is_di_failure,
+                    thread_leaked=result.thread_leaked,
                     error_type=result.error_type,
                     error_message=result.error_message,
                     error_traceback=result.error_traceback,
@@ -413,6 +430,7 @@ class CommandExecutor(Service):
                     instance_index=cmd.job.instance_index,
                     source_tier=cmd.source_tier,
                     is_di_failure=result.is_di_failure,
+                    thread_leaked=result.thread_leaked,
                     error_type=result.error_type,
                     error_message=result.error_message,
                     error_traceback=result.error_traceback,

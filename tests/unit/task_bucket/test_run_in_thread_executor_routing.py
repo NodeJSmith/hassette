@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL, TaskBucket
 from hassette.test_utils import make_mock_hassette
 
 # ---------------------------------------------------------------------------
@@ -59,10 +59,10 @@ async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None
 
 
 async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> None:
-    """The _sync_thread_cell on the returned future holds the worker Thread after completion.
+    """SYNC_WORKER_CELL holds the worker Thread after run_in_thread completes.
 
     T06 reads cell[0].is_alive() at the timeout site — this test confirms the cell
-    is populated and points at a Thread object (not still None).
+    is populated via SYNC_WORKER_CELL and points at a Thread object (not still None).
     """
 
     def slow_fn() -> str:
@@ -70,7 +70,9 @@ async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> 
         return "done"
 
     future = bucket.run_in_thread(slow_fn)
-    cell: list[threading.Thread | None] = future._sync_thread_cell  # pyright: ignore[reportAttributeAccessIssue]
+    # Capture the cell reference immediately after run_in_thread sets SYNC_WORKER_CELL.
+    cell = SYNC_WORKER_CELL.get()
+    assert cell is not None, "SYNC_WORKER_CELL should be set after run_in_thread"
 
     # Before the future resolves, cell[0] may or may not be set yet (race) — but after
     # awaiting, it must be a Thread.
