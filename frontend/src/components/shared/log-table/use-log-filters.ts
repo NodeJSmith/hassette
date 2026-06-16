@@ -20,6 +20,7 @@ interface UseLogFiltersParams {
   restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
+  executionId?: string | null;
 }
 
 interface UseLogFiltersResult {
@@ -66,12 +67,16 @@ export function useLogFilters({
   restEntries,
   useLocalState = false,
   appKey,
+  executionId,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
   qpRef.current = qp;
 
-  const defaultTier: TierFilter = appKey ? "all" : "app";
+  // An execution_id already scopes rows to a single execution, whose logs can span
+  // both tiers (its app logs plus framework diagnostics about it). Tier-filtering there
+  // would only hide some of the execution's own logs, so default to "all" — same as appKey.
+  const defaultTier: TierFilter = appKey || executionId ? "all" : "app";
 
   const localLevel = useSignal<LevelFilter>(DEFAULT_LEVEL);
   const localTier = useSignal<TierFilter>(defaultTier);

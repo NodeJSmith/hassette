@@ -105,6 +105,7 @@ export function useLogTable({
     // Execution-scoped views always use local state — URL params are owned by the parent page.
     useLocalState: useLocal || !!executionId,
     appKey,
+    executionId,
   });
 
   useSignalEffect(() => {
@@ -184,7 +185,12 @@ export function useLogTable({
       },
     };
 
-    if (!appKey) {
+    // Execution-scoped panels show every log for one execution; a tier toggle there would
+    // only hide some of that execution's own lines, so the tier/app filter is omitted.
+    // Note the asymmetry with defaultTier (keyed on executionId): the global /logs page
+    // filtered by execution_id still defaults to "all" but keeps this toggle, so a user can
+    // narrow further by tier/app. Only the dedicated execution panel removes the toggle.
+    if (!appKey && context !== "execution") {
       filters.app = {
         active: state.tier !== defaultTier || state.app !== "",
         label: "App",
@@ -230,6 +236,7 @@ export function useLogTable({
     defaultTier,
     appKey,
     appKeys,
+    context,
     setLevel,
     setTier,
     setApp,

@@ -39,24 +39,25 @@ interface RenderLocalProps {
   entries: LogEntry[];
   rest: LogEntry[];
   appKey?: string;
+  executionId?: string | null;
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
-function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
+function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak }),
-    { initialProps: { entries, rest, appKey } },
+    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak, executionId: eid }),
+    { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
 }
 
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
-function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
+function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak }),
-    { initialProps: { entries, rest, appKey } },
+    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak, executionId: eid }),
+    { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
 }
@@ -78,6 +79,11 @@ describe("defaultTier", () => {
 
   it('is "all" when appKey is provided', () => {
     const { hook } = renderLocal([], [], "my_app");
+    expect(hook.result.current.defaultTier).toBe("all");
+  });
+
+  it('is "all" when executionId is provided (no appKey)', () => {
+    const { hook } = renderLocal([], [], undefined, "exec-1");
     expect(hook.result.current.defaultTier).toBe("all");
   });
 });
@@ -173,6 +179,19 @@ describe("tier filtering", () => {
     act(() => hook.result.current.setTier("framework"));
     const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).not.toContain("from app");
+    expect(messages).toContain("from framework");
+  });
+
+  it("defaults to showing framework entries when executionId is provided", () => {
+    // An execution_id scopes rows to one execution; its logs can be framework-tier
+    // (e.g. CommandExecutor timeout warnings) even when the execution itself is app-tier.
+    const entries = [
+      entry({ source_tier: "app", message: "from app" }),
+      entry({ source_tier: "framework", message: "from framework" }),
+    ];
+    const { hook } = renderLocal(entries, [], undefined, "exec-1");
+    const messages = hook.result.current.filtered.map((e) => e.message);
+    expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
   });
 
