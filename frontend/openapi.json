@@ -3049,6 +3049,11 @@
             "title": "Timed Out",
             "default": 0
           },
+          "thread_leaked": {
+            "type": "integer",
+            "title": "Thread Leaked",
+            "default": 0
+          },
           "source_location": {
             "type": "string",
             "title": "Source Location",

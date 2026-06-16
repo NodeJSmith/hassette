@@ -334,6 +334,19 @@ def test_to_listener_with_summary_mode_passthrough():
     assert result.mode == "queued"
 
 
+def test_to_listener_with_summary_thread_leaked_passthrough():
+    """thread_leaked passes through from the DB summary to the response model (#1049 parity).
+
+    Guards the listener-only mapper layer: a field added to ListenerSummary but not copied
+    here would be silently 0 in the API.
+    """
+    summary = make_listener_summary(thread_leaked=4)
+
+    result = to_listener_with_summary(summary)
+
+    assert result.thread_leaked == 4
+
+
 def test_to_listener_with_summary_merges_live_counts_by_db_id():
     """suppressed/dropped come from the live snapshot keyed by listener db_id."""
     summary = make_listener_summary(listener_id=42)

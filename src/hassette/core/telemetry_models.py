@@ -90,6 +90,10 @@ class ListenerSummary(BaseModel):
     di_failures: int
     cancelled: int
     timed_out: int = 0
+    thread_leaked: int = 0
+    """Number of invocations whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
+    Aggregated from the ``executions`` table; a non-zero value flags a handler leaking worker threads.
+    Mirrors the ``timed_out`` aggregate naming — the bare participle, not a ``_count`` suffix."""
     total_duration_ms: float
     avg_duration_ms: float
     min_duration_ms: float | None = None

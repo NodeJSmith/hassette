@@ -1159,6 +1159,11 @@ export interface components {
              */
             timed_out: number;
             /**
+             * Thread Leaked
+             * @default 0
+             */
+            thread_leaked: number;
+            /**
              * Source Location
              * @default
              */

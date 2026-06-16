@@ -322,6 +322,7 @@ class ListenerWithSummary(BaseModel):
     last_error_type: str | None = None
     last_error_traceback: str | None = None
     timed_out: int = 0
+    thread_leaked: int = 0
     source_location: str = ""
     registration_source: str | None = None
     handler_summary: str = ""

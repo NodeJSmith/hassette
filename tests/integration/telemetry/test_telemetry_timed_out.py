@@ -39,6 +39,45 @@ class TestListenerSummaryTimedOut:
         assert s.cancelled == 0
 
 
+class TestListenerSummaryThreadLeaked:
+    async def test_listener_summary_counts_thread_leaked(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """thread_leaked aggregates leaked-worker invocations onto the listener summary (#1049 parity)."""
+        db_svc, session_id = db
+        lid = await insert_listener(db_svc)
+        # Two timed-out invocations whose sync worker outlived the timeout, one clean timeout,
+        # and one success — only the two leaked workers should count.
+        await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=1)
+        await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=1)
+        await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=0)
+        await insert_invocation(db_svc, lid, session_id, status="success")
+
+        summaries = await query_service.get_listener_summary("test_app", 0)
+        assert len(summaries) == 1
+        assert summaries[0].thread_leaked == 2
+
+    async def test_all_listeners_summary_counts_thread_leaked(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """thread_leaked also aggregates in the no-app-filter (global) listener summary (#1049 parity)."""
+        db_svc, session_id = db
+        lid = await insert_listener(db_svc)
+        await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=1)
+        await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=0)
+        await insert_invocation(db_svc, lid, session_id, status="success")
+
+        summaries = await query_service.get_all_listeners_summary()
+        match = [s for s in summaries if s.listener_id == lid]
+        assert len(match) == 1
+        # Only the leaked-worker invocation counts; the clean timeout is excluded.
+        assert match[0].thread_leaked == 1
+
+
 class TestJobSummaryTimedOut:
     async def test_job_summary_counts_timed_out(
         self,
