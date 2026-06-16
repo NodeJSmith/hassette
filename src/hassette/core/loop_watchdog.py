@@ -219,9 +219,8 @@ class LoopWatchdog:
                 self._emit_stall(self._stall_marker, time.monotonic() - self._stall_frozen_since, self._stall_stack)
             except Exception as exc:
                 LOGGER.debug("Failed to flush open stall episode at shutdown: %s", exc)
-        # Always clear the episode refs. When daemon_done is False we skip the flush above but
-        # still release the marker — the daemon is daemonic and will be killed at process exit,
-        # so there is no surviving reader to race the clear.
+        # Release the episode refs even when daemon_done is False (flush skipped above): the
+        # daemon is daemonic and dies at process exit, so no surviving reader can race the clear.
         self._stall_marker = None
         self._stall_stack = None
 

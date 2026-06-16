@@ -1,8 +1,8 @@
 """TelemetryRepository: encapsulates all SQL writes for CommandExecutor telemetry."""
 
-import logging
 import sqlite3
 import time
+from logging import Logger, getLogger
 from typing import TYPE_CHECKING, Any
 
 from hassette.core.execution_record import ExecutionRecord
@@ -10,7 +10,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.telemetry_models import BlockingEvent
 from hassette.types.types import is_framework_key
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -113,7 +113,7 @@ async def _insert_row_with_fk_fallback(
     db: "aiosqlite.Connection",
     record_params: dict,
     fk_field: str,
-    logger: logging.Logger,
+    logger: Logger,
 ) -> bool:
     """Try to INSERT one row into executions; on FK violation, null the FK field and retry.
 
