@@ -321,6 +321,9 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
         watchdog.start()
         try:
             time.sleep(_BLOCK)  # noqa: ASYNC251
+            # Handler done — clear the marker so a CPU-starvation tick lag during recovery opens
+            # no second episode (which would call on_stall twice and fail assert_called_once).
+            executor.current_execution = None
             await asyncio.sleep(_INTERVAL * 2)
             # The daemon must still be alive after the escalated warning (not killed).
             assert watchdog._daemon_thread is not None
