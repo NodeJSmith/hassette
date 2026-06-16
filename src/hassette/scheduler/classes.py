@@ -15,6 +15,7 @@ from hassette.types.types import SourceTier
 MAX_CRON_ITERATIONS = 10_000
 
 if typing.TYPE_CHECKING:
+    import asyncio
     from collections.abc import Callable
 
     from hassette.scheduler.scheduler import Scheduler
@@ -240,6 +241,17 @@ class ScheduledJob:
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
+
+    pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False, repr=False, compare=False)
+    """Unresolved per-invocation completion futures for non-parallel modes.
+
+    Mirrors ``HandlerInvoker.pending_done`` (bus/listeners.py:178). Each ``run_job_with_guard``
+    call for single/restart/queued parks the outer dispatch task on a future that resolves when
+    the invocation actually runs (or is dropped/released). A queued invocation accepted into the
+    guard deque has no live child until drain time, so its future would hang forever if the job
+    is cancelled first. ``dequeue_job``, ``_remove_job``, and ``_remove_jobs_by_owner`` resolve
+    every remaining future here (after ``guard.release()``) so those dispatch tasks unwind.
+    """
 
     def __hash__(self) -> int:
         # Hashing on object identity is safe: each ScheduledJob is a unique object,

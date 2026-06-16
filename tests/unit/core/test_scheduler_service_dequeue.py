@@ -46,6 +46,16 @@ def make_scheduler_service() -> SchedulerService:
     queue.logger = MagicMock()
     svc._job_queue = queue
 
+    # task_bucket is needed by dequeue_job (spawns guard release) and run_job_with_guard.
+    # spawn() receives a coroutine; close it immediately to avoid unawaited-coroutine warnings.
+    def _spawn(coro, **_kwargs):
+        if hasattr(coro, "close"):
+            coro.close()
+        return MagicMock()
+
+    svc.task_bucket = MagicMock()
+    svc.task_bucket.spawn = _spawn
+
     return svc
 
 
@@ -186,7 +196,10 @@ class TestDispatchRaceGuard:
 
     Scenario: serve loop pops a job into due_jobs, then cancel_job runs
     before dispatch_and_log executes. The _dequeued guard must prevent
-    the handler from firing.
+    the handler from firing. dispatch_and_log now routes through
+    run_job_with_guard (the guard-aware entry point) rather than directly
+    to run_job, so the spy in test_dispatch_runs_non_dequeued_job targets
+    run_job_with_guard.
     """
 
     async def test_dispatch_skips_dequeued_job(self) -> None:
@@ -219,11 +232,11 @@ class TestDispatchRaceGuard:
 
         run_called = False
 
-        async def spy_run_job(_j):
+        async def spy_run_job_with_guard(_j):
             nonlocal run_called
             run_called = True
 
-        svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job_with_guard = spy_run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
-        assert run_called, "run_job must be called when job._dequeued is False"
+        assert run_called, "run_job_with_guard must be called when job._dequeued is False"
