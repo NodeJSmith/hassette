@@ -229,9 +229,15 @@ def _make_method_wrapper(
         if threading.get_ident() != loop_thread_id or getattr(_in_wrapper, "active", False):
             return original(self, *args, **kwargs)
         # Non-blocking sockets (asyncio transports) never stall the loop — pass through.
-        with contextlib.suppress(Exception):
-            if not self.getblocking():
-                return original(self, *args, **kwargs)
+        # A closed or errored socket (getblocking() raises, e.g. OSError "Bad file descriptor"
+        # on a closed asyncio internal socket) also passes through: it cannot be meaningfully
+        # stalling the loop. Catch broadly so a getblocking failure never becomes a false positive.
+        try:
+            blocking = self.getblocking()
+        except Exception:
+            return original(self, *args, **kwargs)
+        if not blocking:
+            return original(self, *args, **kwargs)
         _in_wrapper.active = True
         try:
             _detect(primitive_name, hassette, executor)

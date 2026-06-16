@@ -86,6 +86,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         )
         tables = sorted(row[0] for row in cursor.fetchall())
         assert tables == [
+            "blocking_events",
             "executions",
             "listeners",
             "log_records",
@@ -95,8 +96,9 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        # 001.sql defines 13 idx_* indexes (2 listeners, 2 scheduled_jobs, 6 executions, 3 log_records)
-        assert len(indexes) == 13
+        # 001.sql defines 13 idx_* indexes (2 listeners, 2 scheduled_jobs, 6 executions, 3 log_records);
+        # 004.sql adds 3 more (idx_be_ts, idx_be_app_ts, idx_be_session) → 16 total.
+        assert len(indexes) == 16
         assert "idx_listeners_app" in indexes
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes

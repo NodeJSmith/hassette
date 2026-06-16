@@ -1,0 +1,18 @@
+[hassette]
+# Global default: "warn" (default), "ignore", or "error".
+# blocking_io.behavior = "warn"
+
+[hassette.blocking_io]
+# Tier 1: always-on responsiveness watchdog.
+watchdog_enabled = true          # default
+lag_threshold_seconds = 0.1      # report stalls ≥ 100ms (default)
+watchdog_interval_seconds = 0.25 # check every 250ms (default)
+capture_stack_on_block = true    # snapshot stack on detection (default)
+
+# Tier 2: call-site interception (dev-default, prod-opt-in).
+# deep_detection_enabled = true  # explicit override; default follows dev_mode
+allow_deep_detection_in_prod = false  # default
+
+# Per-app override — suppress detection for a specific app:
+[hassette.apps.legacy_app]
+blocking_io_behavior = "ignore"

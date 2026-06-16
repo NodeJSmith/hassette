@@ -129,6 +129,28 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
     See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis and [Pyright](../../troubleshooting.md#enabling-pyright) for the earliest static signal.
 
+## Blocking-IO Detection {#blocking-io-detection}
+
+`[hassette.blocking_io]` controls both detection tiers. See [Blocking-IO Detection](../blocking-io-detection.md) for how the two tiers work and how to fix detected calls.
+
+- **`behavior`** (string or `null`): Global default behavior when blocking I/O is detected. Valid values: `"ignore"`, `"warn"`, `"error"`. Default: not set (effective: `"warn"`). Per-app `blocking_io_behavior` overrides this — see [App Configuration](../apps/configuration.md#developer-settings).
+
+- **`watchdog_enabled`** (bool): Whether to run the Tier 1 loop-responsiveness watchdog. Default: `true`.
+
+- **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. Default: `0.1` (100ms).
+
+- **`watchdog_interval_seconds`** (float): How often the Tier 1 watchdog polls in seconds. Smaller values reduce detection latency at a small overhead cost. Default: `0.25` (250ms).
+
+- **`capture_stack_on_block`** (bool): Whether to capture a loop-thread stack snapshot when a Tier 1 stall is detected. Disable on memory-constrained systems. Default: `true`.
+
+- **`deep_detection_enabled`** (bool or `null`): Whether to enable Tier 2 call-site interception. `null` (default) follows `dev_mode` — on in development, off in production. Set explicitly to override.
+
+- **`allow_deep_detection_in_prod`** (bool): Enable Tier 2 in production even when `dev_mode` is `false`. Mirrors `allow_reload_in_prod` semantics. Default: `false`.
+
+```toml
+--8<-- "pages/core-concepts/configuration/snippets/blocking_io_config.toml"
+```
+
 ## Verify the Configuration
 
 Run `hassette status` to confirm Hassette can reach Home Assistant with the current config:
