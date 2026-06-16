@@ -38,6 +38,14 @@ LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
 
+BlockingAttributionReason = Literal["attributed", "framework", "displaced"]
+"""Why a blocking event's ``app_key`` is what it is. All non-``"attributed"`` reasons have a NULL
+``app_key``. ``"attributed"`` — the named app's task was the one frozen on / calling from the loop.
+``"framework"`` — no app execution was responsible: Tier 2 had no marker bound (a genuine
+framework/library call), or Tier 1 found the loop running its own machinery with no task in flight
+(e.g. idle in ``select()``). ``"displaced"`` — an execution was bound but a *different* task was
+frozen/calling, so the app_key was withheld rather than blaming the most-recently-bound app."""
+
 
 class ExecutionStatus(StrEnum):
     """Status values for handler invocations and job executions.

@@ -61,11 +61,16 @@ class ExecutionMarker:
 
     Single-slot semantics: the marker reflects the most recent ``bind_execution_context``
     that has not yet been unbound. While the loop thread is *frozen* by a blocking call no
-    interleaving occurs, so the marker names exactly the execution that froze it. A handler
-    that yields (``await``) and is then displaced by another execution running to completion
-    loses its marker — but the loop is responsive across an ``await``, so the watchdog is not
-    consulted in that window. ``started_at`` is ``time.monotonic()`` (process-wide, readable
-    across threads) for measuring how long the execution has held the loop.
+    interleaving occurs, so the marker usually names the execution that froze it. But a handler
+    that yields (``await``) and is then displaced by another execution leaves a stale marker:
+    the loop is responsive across the ``await``, yet a later synchronous block by the *displacing*
+    execution (or by framework code) makes the single slot name the wrong owner. ``task_id`` guards
+    against this — a reader compares it against the task actually running on the loop during the
+    freeze and refuses to attribute when they differ (see ``LoopWatchdog`` and the Tier 2 guard).
+
+    ``started_at`` is ``time.monotonic()`` (process-wide, readable across threads) for measuring
+    how long the execution has held the loop. ``task_id`` is ``id(asyncio.current_task())`` captured
+    at bind — the identity of the asyncio Task that owns this execution.
     """
 
     app_key: str | None
@@ -73,6 +78,8 @@ class ExecutionMarker:
     execution_id: str
     started_at: float
     instance_index: int | None = None
+    task_id: int | None = None
+    """``id()`` of the owning ``asyncio.Task``, or ``None`` if bound outside a task."""
 
 
 @dataclass
@@ -496,6 +503,14 @@ class CommandExecutor(Service):
             instance_name=instance_name,
             instance_index=instance_index,
         )
+        # Capture the owning task identity so a cross-thread reader can confirm this marker
+        # names the task actually frozen on the loop, not a displaced one. This runs inside an
+        # execute_handler/execute_job task in production; guard the no-running-loop case so a
+        # direct synchronous call (tests) does not raise.
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
         # Publish the thread-visible marker last, as a single atomic assignment, so the off-loop
         # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
         self.current_execution = ExecutionMarker(
@@ -504,6 +519,7 @@ class CommandExecutor(Service):
             execution_id=execution_id,
             started_at=time.monotonic(),
             instance_index=instance_index,
+            task_id=id(current_task) if current_task is not None else None,
         )
         return execution_id, token
 
@@ -992,6 +1008,7 @@ class CommandExecutor(Service):
                 stall_duration_ms=event.stall_duration_ms,
                 detected_ts=event.detected_at,
                 source_tier="app" if event.app_key is not None else "framework",
+                reason=event.reason,
             )
         else:
             blocking_event = BlockingEvent(
@@ -1006,6 +1023,7 @@ class CommandExecutor(Service):
                 stall_duration_ms=None,
                 detected_ts=event.detected_at,
                 source_tier="app" if event.app_key is not None else "framework",
+                reason=event.reason,
             )
 
         # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the

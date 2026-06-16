@@ -78,8 +78,9 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     """Build an unsealed MagicMock hassette wired so the real resolver returns IGNORE.
 
     The per-app resolution path is what these tests exercise: a live execution marker carries an
-    ``app_key``, ``_resolve_owner`` resolves it to the owning app via ``app_handler.get(app_key)``,
-    and ``resolve_blocking_io_behavior`` reads ``owner.app_config.blocking_io_behavior``.
+    ``app_key``, the guard confirms attribution and resolves it to the owning app via
+    ``app_handler.get(app_key)``, and ``resolve_blocking_io_behavior`` reads
+    ``owner.app_config.blocking_io_behavior``.
 
     ``app_handler.get`` returns a per-app owner whose ``app_config.blocking_io_behavior`` is IGNORE,
     so the tests run the genuine owner-lookup + resolution path (a broken ``app_handler.get`` or
@@ -432,12 +433,15 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         # The watchdog only acts when an execution marker is live (it attributes the stall to the
         # running execution). Set one so the stall is actually detected and attributed — without
         # it the watchdog skips detection entirely and the test would pass for the wrong reason.
+        # task_id is stamped with this task so the watchdog confirms the marker (it freezes the loop
+        # in this same task below) and resolves the app's IGNORE behavior rather than global config.
         ignore_executor.current_execution = ExecutionMarker(
             app_key="ignored_app",
             instance_name=None,
             execution_id="exec-ignore",
             started_at=time.monotonic(),
             instance_index=0,
+            task_id=id(asyncio.current_task()),
         )
 
         stall_events: list[object] = []

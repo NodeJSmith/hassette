@@ -39,24 +39,25 @@ interface RenderLocalProps {
   entries: LogEntry[];
   rest: LogEntry[];
   appKey?: string;
+  executionId?: string | null;
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
-function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
+function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak }),
-    { initialProps: { entries, rest, appKey } },
+    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak, executionId: eid }),
+    { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
 }
 
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
-function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
+function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak }),
-    { initialProps: { entries, rest, appKey } },
+    ({ entries: allEntries, rest: restEntries, appKey: ak, executionId: eid }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak, executionId: eid }),
+    { initialProps: { entries, rest, appKey, executionId } },
   );
   return { hook };
 }
@@ -78,6 +79,11 @@ describe("defaultTier", () => {
 
   it('is "all" when appKey is provided', () => {
     const { hook } = renderLocal([], [], "my_app");
+    expect(hook.result.current.defaultTier).toBe("all");
+  });
+
+  it('is "all" when executionId is provided (no appKey)', () => {
+    const { hook } = renderLocal([], [], undefined, "exec-1");
     expect(hook.result.current.defaultTier).toBe("all");
   });
 });
@@ -176,12 +182,63 @@ describe("tier filtering", () => {
     expect(messages).toContain("from framework");
   });
 
+  it("defaults to showing framework entries when executionId is provided", () => {
+    // An execution_id scopes rows to one execution; its logs can be framework-tier
+    // (e.g. CommandExecutor timeout warnings) even when the execution itself is app-tier.
+    const entries = [
+      entry({ source_tier: "app", message: "from app" }),
+      entry({ source_tier: "framework", message: "from framework" }),
+    ];
+    const { hook } = renderLocal(entries, [], undefined, "exec-1");
+    const messages = hook.result.current.filtered.map((e) => e.message);
+    expect(messages).toContain("from app");
+    expect(messages).toContain("from framework");
+  });
+
   it('defaults to "all" when appKey is provided', () => {
     const entries = [entry({ source_tier: "framework", message: "from framework" })];
     const { hook } = renderLocal(entries, [], "my_app");
     // "all" tier means framework entries pass through
     const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("from framework");
+  });
+
+  it("re-syncs tier to default when executionId appears after mount (local state)", () => {
+    // Regression: on the global /logs page, useLocalState flips true once execution_id
+    // is added to the URL in-place (same mounted hook). defaultTier recomputes "app"->"all",
+    // but a stale localTier="app" would keep hiding framework rows — the exact bug this PR fixes.
+    const entries = [
+      entry({ source_tier: "app", message: "from app" }),
+      entry({ source_tier: "framework", message: "from framework" }),
+    ];
+    const { hook } = renderLocal(entries, [], undefined, null);
+    // No execution scope yet: tier defaults to "app", framework hidden.
+    expect(hook.result.current.filtered.map((e) => e.message)).not.toContain("from framework");
+
+    // Execution scope applied to the same mounted hook.
+    act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-1" }));
+
+    const messages = hook.result.current.filtered.map((e) => e.message);
+    expect(messages).toContain("from app");
+    expect(messages).toContain("from framework");
+  });
+
+  it("preserves a manual tier selection across same-scope rerenders (exec -> exec)", () => {
+    // The re-sync must fire only when defaultTier actually flips (scope gained/lost), not on
+    // every prop change. Navigating between two executions keeps defaultTier "all", so a user's
+    // explicit "framework" choice must survive.
+    const entries = [
+      entry({ source_tier: "app", message: "from app" }),
+      entry({ source_tier: "framework", message: "from framework" }),
+    ];
+    const { hook } = renderLocal(entries, [], undefined, "exec-1");
+    act(() => hook.result.current.setTier("framework"));
+    expect(hook.result.current.filtered.map((e) => e.message)).toEqual(["from framework"]);
+
+    // Same scope kind (still execution-scoped), different id — defaultTier stays "all".
+    act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-2" }));
+
+    expect(hook.result.current.filtered.map((e) => e.message)).toEqual(["from framework"]);
   });
 
   it("clears app filter when tier is changed away from app", () => {

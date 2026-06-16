@@ -55,11 +55,12 @@ def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 25
         app_key=app_key,
         instance_name="my_app_instance" if app_key else None,
         instance_index=0 if app_key else None,
-        execution_id="exec-uuid-watchdog",
+        execution_id="exec-uuid-watchdog" if app_key else None,
         stall_duration_ms=stall_ms,
         tier="watchdog",
         stack_text='  File "my_app.py", line 42, in on_event (my_app)',
         detected_at=time.time(),
+        reason="attributed" if app_key else "framework",
     )
 
 
@@ -73,6 +74,7 @@ def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEve
         execution_id="exec-uuid-monkeypatch" if app_key else None,
         tier="monkeypatch",
         detected_at=time.time(),
+        reason="attributed" if app_key else "framework",
     )
 
 
@@ -127,6 +129,7 @@ class TestTier1Persistence:
         assert row["source_tier"] == "app"
         assert row["session_id"] == session_id
         assert row["execution_id"] == "exec-uuid-watchdog"
+        assert row["reason"] == "attributed"
 
     async def test_watchdog_stack_stored_in_source_location(
         self,
@@ -145,6 +148,7 @@ class TestTier1Persistence:
             tier="watchdog",
             stack_text=stack,
             detected_at=time.time(),
+            reason="attributed",
         )
 
         executor.record_blocking_event(event)
@@ -170,6 +174,7 @@ class TestTier1Persistence:
             tier="watchdog",
             stack_text=None,
             detected_at=time.time(),
+            reason="attributed",
         )
 
         executor.record_blocking_event(event)
@@ -209,6 +214,7 @@ class TestTier2Persistence:
         assert row["source_tier"] == "app"
         assert row["session_id"] == session_id
         assert row["execution_id"] == "exec-uuid-monkeypatch"
+        assert row["reason"] == "attributed"
 
     async def test_two_events_two_rows(
         self,
@@ -251,9 +257,11 @@ class TestUnresolvedOwnerPersistence:
 
         row = rows[0]
         assert row["app_key"] is None
+        assert row["execution_id"] is None
         assert row["source_tier"] == "framework"
         assert row["tier"] == "watchdog"
         assert row["stall_duration_ms"] is not None
+        assert row["reason"] == "framework"
 
     async def test_monkeypatch_unresolved_owner_recorded_as_framework(
         self,
@@ -272,9 +280,11 @@ class TestUnresolvedOwnerPersistence:
 
         row = rows[0]
         assert row["app_key"] is None
+        assert row["execution_id"] is None
         assert row["source_tier"] == "framework"
         assert row["tier"] == "monkeypatch"
         assert row["primitive"] == "time.sleep"
+        assert row["reason"] == "framework"
 
     async def test_both_unresolved_events_are_framework_attributed(
         self,
