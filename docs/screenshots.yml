@@ -210,9 +210,12 @@
 
 # Global handlers table with the cancelled column populated. Captured last so
 # the self-driving apps have accumulated cancellations by this point.
+# Crop to the scroll wrapper, not the inner table container: the container
+# sizes to the full row set (~35 rows) and overflows into empty space, while
+# the scroll wrapper is bounded by its max-height to the visible rows.
 - url: "http://localhost:{port}/handlers"
   output: docs/_static/web_ui_handlers_cancelled.png
-  selector: "[data-testid='handlers-table-container']"
+  selector: ".ht-table-card-scroll"
   width: 1400
   height: 900
   wait: 6000
