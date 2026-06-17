@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Relocate build_fake_ws to test_utils and fix test_history vacuous stub"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#2"]
 ---

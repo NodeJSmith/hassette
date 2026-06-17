@@ -1,11 +1,11 @@
 import asyncio
 import time
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from aiohttp import ClientWebSocketResponse, WSMsgType
+from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError, ClientConnectorError
 
 import hassette.core.websocket_service as websocket_module
@@ -18,6 +18,7 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import ResourceStatus
+from hassette.test_utils import build_fake_ws
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -30,17 +31,6 @@ def websocket_service(hassette_with_bus: "HassetteHarness") -> WebsocketService:
     """Create a fresh websocket service instance for each test."""
     hassette = hassette_with_bus.hassette
     return WebsocketService(hassette, parent=hassette)
-
-
-def build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
-    """Return a lightweight websocket stub with adjustable state."""
-    fake_ws = SimpleNamespace()
-    fake_ws.closed = is_closed
-    fake_ws.send_json = AsyncMock()
-    fake_ws.receive_json = AsyncMock()
-    fake_ws.receive = AsyncMock()
-    fake_ws.close = AsyncMock()
-    return cast("ClientWebSocketResponse", fake_ws)
 
 
 async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:
