@@ -123,15 +123,17 @@ Lifecycle:        start_app, stop_app, reload_app, resolve_only_app,
                   handle_crash, detect_changes, refresh_config
 ```
 
+`task_bucket.spawn` is deliberately **excluded** from this set — it is a method on a different object (the task bucket), not on the service/proxy/lifecycle under guard, so the guard does not match it even though A2 tests stub it as a collaborator.
+
 "Short-circuit readiness" means patching `mark_ready`/`_emit_readiness_event` so the real method does not run (letting the test reach a "ready" state without the real machinery) — distinct from a call-count spy on a method that still runs. The former converts to a bus-event assertion; the latter, in an isolation test, annotates.
 
 **Sequencing.**
 0. Move `build_fake_ws()` from `tests/integration/test_websocket_service.py` to `src/hassette/test_utils/`; update the definition site to re-import from there (it is the only current user). Subsequent steps add imports in the unit-test files as they are converted. Suite stays green.
 1. `test_history.py:78` one-line fix (lands the #1036 named spot early).
-2. Add `tools/check_internal_patches.py` + wire into lint workflow (initially allowing the existing annotated exemptions). This makes regressions visible as conversion proceeds.
-3. Cluster A — annotate A2 collaborator stubs, convert A1 MUT patches. Three files.
-4. Cluster B (StateProxy).
-5. Cluster C (lifecycle).
+2. Cluster A — annotate A2 collaborator stubs, convert A1 MUT patches. Three files.
+3. Cluster B (StateProxy).
+4. Cluster C (lifecycle).
+5. **Capstone:** add `tools/check_internal_patches.py` + wire into the lint workflow, and document the convention in `tests/TESTING.md`. The guard lands **last**, not mid-conversion: a guard introduced before the clusters are converted would fail CI on every not-yet-converted MUT patch. By the capstone, all in-scope files are converted or annotated, so the guard passes on a clean tree. The `# boundary-exempt:` annotations are written during steps 2–4 as each collaborator stub is classified; the guard simply codifies them at the end.
 Keep the suite green after each file.
 
 ## Replacement Targets

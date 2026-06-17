@@ -13,7 +13,9 @@ Convert the app lifecycle tests across three files so they mock the lifecycle's 
 - modify: `tests/unit/core/test_app_lifecycle_service.py` — convert `resolve_only_app`/`handle_crash` MUT patches
 - modify: `tests/unit/core/test_app_lifecycle_service_operations.py` — convert `stop_app`/`reload_app`/`start_app` MUT patches
 - modify: `tests/integration/test_apps.py` — convert `detect_changes`/`refresh_config` MUT patches
-- read: `src/hassette/app/` and the AppHandler/AppLifecycleService implementation — `apply_changes`, `handle_change_event`, and the collaborators
+- read: `src/hassette/core/app_lifecycle_service.py` — defines `apply_changes`, `stop_app`/`reload_app`/`start_app`/`resolve_only_app`/`handle_crash`/`refresh_config`
+- read: `src/hassette/core/app_handler.py` — defines `handle_change_event` (the public entry point)
+- read: `src/hassette/core/app_factory.py`, `src/hassette/core/app_registry.py`, `src/hassette/core/app_change_detector.py` — the collaborators to mock (incl. `detect_changes`)
 - read: `design/specs/075-mock-at-boundaries-test-refactor/tasks/context.md`
 - read: `design/specs/075-mock-at-boundaries-test-refactor/design.md`
 
@@ -34,7 +36,7 @@ First read the AppHandler/AppLifecycleService source to confirm the exact names 
 - Test-only; gap check clean.
 
 ## Verify
-- [ ] FR#1: No test in the three files patches its own MUT among the lifecycle methods; mocks are limited to collaborators (`AppFactory`/`AppRegistry`/`AppChangeDetector`/config boundary), each annotated where it's a deliberate collaborator stub.
+- [ ] FR#1: No test in the three files patches its own MUT among the lifecycle methods; mocks are limited to collaborators (`AppFactory`/`AppRegistry`/`AppChangeDetector`/config boundary), and any deliberate collaborator stub of a prohibited symbol (e.g. `detect_changes` when `handle_change_event` is the MUT) carries a `# boundary-exempt: collaborator of <MUT>` annotation so the T05 guard accepts it.
 - [ ] FR#5: Lifecycle-operation tests drive the real method through `apply_changes()`/`handle_change_event()` with collaborators mocked, rather than patching `start_app`/`stop_app`/`reload_app`/`resolve_only_app`/`handle_crash`/`detect_changes`/`refresh_config` as the MUT.
 - [ ] FR#8: Every changed test asserts an observable outcome; no configured-but-unasserted mocks remain.
 - [ ] AC#5: Breaking `stop_app` (a representative method) causes at least one in-scope lifecycle test to fail.
