@@ -13,7 +13,7 @@ import re
 from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import ClassVar
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fair_async_rlock import FairAsyncRLock
@@ -128,6 +128,52 @@ class TestSetGlobalHassetteReturnsToken:
 
         # Clean up
         fresh_instance.reset(first_token)
+
+
+class TestHarnessTeardownClearsSingletonOnError:
+    """Harness teardown clears the global Hassette singleton even when teardown raises.
+
+    Regression for #1059: on Python 3.11, an exception escaping ``HassetteHarness.stop()``
+    before the contextvar reset leaked HASSETTE_INSTANCE, poisoning every later test on the
+    xdist worker with "Hassette instance is already set" errors. The reset must run in a
+    ``finally`` so it survives any escape, on any Python version.
+    """
+
+    async def test_singleton_reset_runs_when_teardown_raises(
+        self, tmp_path: Path, clean_hassette_context, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fresh_instance = clean_hassette_context  # the isolated HASSETTE_INSTANCE ContextVar
+
+        config = make_test_config(data_dir=tmp_path)
+        harness = HassetteHarness(config, skip_global_set=False)
+        harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
+
+        api_mock = AsyncMock()
+        api_mock.sync = AsyncMock()
+        api_mock.get_states_raw = AsyncMock(return_value=[])
+        harness.hassette._api = api_mock
+
+        await harness.start()
+        # The harness set the global singleton on the isolated contextvar.
+        assert fresh_instance.get(None) is harness.hassette
+
+        class _TeardownBoom(BaseException):
+            """A BaseException is guaranteed to escape stop()'s ``except Exception`` collectors,
+            so the test pins the invariant for any escape — not just the specific 3.11 exception."""
+
+        async def _boom() -> None:
+            raise _TeardownBoom("forced teardown failure after children stopped")
+
+        # Inject an escape into the teardown body, after children are cleanly stopped. Before the
+        # fix this skipped the singleton reset and leaked HASSETTE_INSTANCE; the fix's ``finally``
+        # must now reset it regardless of the escape.
+        monkeypatch.setattr(harness._exit_stack, "aclose", _boom)
+
+        with pytest.raises(_TeardownBoom):
+            await harness.stop()
+
+        # Core invariant: the singleton was reset despite the teardown failure.
+        assert fresh_instance.get(None) is None
 
 
 class TestAppApiFactory:

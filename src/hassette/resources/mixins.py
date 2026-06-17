@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from hassette.events import HassetteServiceEvent
 from hassette.exceptions import InvalidLifecycleTransitionError
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
 from hassette.types.types import CoroLikeT
 
 LOGGER = logging.getLogger(__name__)
@@ -278,6 +278,27 @@ class LifecycleMixin(_LifecycleHostP):
     async def handle_failed(self, exception: Exception | BaseException) -> None:
         if self.status == ResourceStatus.FAILED:
             self.logger.debug("%s already in failed state", self.unique_name, stacklevel=2)
+            return
+
+        if self.status in TERMINAL_STATUSES:
+            # The resource already reached a terminal end-state: STOPPED (clean finish) or
+            # EXHAUSTED_DEAD (permanent restart-budget failure). A late error does not retroactively
+            # un-stop it, so failing it is benign — and VALID_TRANSITIONS forbids both → FAILED.
+            # This happens during teardown when a submit-after-shutdown error ("cannot schedule new
+            # futures after shutdown") surfaces on an already-stopped resource; driving it to FAILED
+            # would raise InvalidLifecycleTransitionError under strict_lifecycle — the error that
+            # escaped harness teardown and leaked the global Hassette singleton on Python 3.11.
+            # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
+            # RUNNING, STOPPING, EXHAUSTED_COOLING) keep failing normally — a failure there is real,
+            # and callers do invoke handle_failed() on a not-yet-started resource.
+            self.logger.debug(
+                "%s already terminal (%s); ignoring failure: %s - %s",
+                self.unique_name,
+                self.status,
+                type(exception).__name__,
+                exception,
+                stacklevel=2,
+            )
             return
 
         self.logger.exception("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
