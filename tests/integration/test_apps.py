@@ -44,6 +44,7 @@ class TestApps:
 
         app = self.app_handler.get("my_app", 0)
         assert app is not None, "App instance should be found"
+        assert app.app_manifest is not None, "Factory-created app should carry its manifest"
 
         my_app_class = load_app_class_from_manifest(app.app_manifest)
 

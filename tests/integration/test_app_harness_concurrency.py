@@ -43,18 +43,19 @@ async def test_concurrent_same_class_no_deadlock():
     assert all(r == "concurrency_app" for r in results)
 
 
-async def test_concurrent_same_class_manifest_restored():
-    """app_manifest is restored after concurrent harnesses exit."""
-    original = getattr(ConcurrencyApp, "app_manifest", AppTestHarness._UNSET)
+async def test_concurrent_same_class_no_class_pollution():
+    """Concurrent harnesses never write app_manifest onto the shared class."""
 
     async def run_harness() -> None:
-        async with AppTestHarness(ConcurrencyApp, config={}):
-            pass
+        async with AppTestHarness(ConcurrencyApp, config={}) as harness:
+            # The instance carries its own synthesized manifest...
+            assert harness.app.app_manifest is not None
+            assert harness.app.app_manifest.app_key == "concurrency_app"
 
     await asyncio.wait_for(asyncio.gather(run_harness(), run_harness()), timeout=15)
 
-    restored = getattr(ConcurrencyApp, "app_manifest", AppTestHarness._UNSET)
-    assert restored is original
+    # ...and the class itself is never mutated.
+    assert "app_manifest" not in ConcurrencyApp.__dict__
 
 
 async def test_concurrent_same_class_app_key_isolation():

@@ -20,7 +20,7 @@ Harness startup timeouts raise `TimeoutError`, not a `DrainFailure` subclass. A 
 
 ## Same-Class Concurrency (Always Applies)
 
-`AppTestHarness` acquires a per-App-class `asyncio.Lock` around the `app_manifest` read-modify-write. A reference counter sets `app_manifest` on the first entry and restores it only when the last harness exits. Multiple harnesses for the same [App][hassette.app.app.App] class can run concurrently via `asyncio.gather()`. Harnesses for different `App` classes never share a lock.
+`AppTestHarness` synthesizes a fresh manifest for each app instance and passes it to the constructor. Nothing is written to the shared [App][hassette.app.app.App] class, so multiple harnesses for the same class run concurrently via `asyncio.gather()` without interfering. No lock guards this path — there is no shared mutable state to protect.
 
 ## Time-Control Concurrency (freeze_time Only)
 
