@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Cluster A: convert WebsocketService MUT patches, annotate collaborators"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#8", "AC#5"]
 ---
