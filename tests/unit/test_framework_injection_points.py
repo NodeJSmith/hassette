@@ -141,7 +141,6 @@ class TestAppApiFactory:
 
         class _TestApp(App[_TestConfig]):
             app_config_cls = _TestConfig
-            app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
         hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")
@@ -173,7 +172,6 @@ class TestAppApiFactory:
 
         class _TestApp(App[_TestConfig]):
             app_config_cls = _TestConfig
-            app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
         hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")

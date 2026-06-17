@@ -135,17 +135,13 @@ async def test_sequential_tests_dont_collide():
         assert harness2.app is not None
 
 
-async def test_manifest_restored_after_exit():
-    """SensorApp.app_manifest is restored (or removed) to its original value after exit."""
-    original = getattr(SensorApp, "app_manifest", AppTestHarness._UNSET)
-
-    async with AppTestHarness(SensorApp, config={}):
-        # Inside the context, app_manifest is set to the synthesized one
-        assert hasattr(SensorApp, "app_manifest")
-
-    # After exit, should be restored to original
-    restored = getattr(SensorApp, "app_manifest", AppTestHarness._UNSET)
-    assert restored is original
+async def test_manifest_is_per_instance_not_on_class():
+    """The harness gives the app instance its own manifest without touching the class."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        assert harness.app.app_manifest is not None
+        assert harness.app.app_manifest.class_name == "SensorApp"
+        # The synthesized manifest lives on the instance, never on the shared class.
+        assert "app_manifest" not in SensorApp.__dict__
 
 
 async def test_recording_api_injected_via_constructor():

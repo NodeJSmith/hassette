@@ -167,13 +167,14 @@ class TestAppFactoryCreateInstances:
         mock_registry.register_app.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_create_instances_sets_manifest_on_class(self, mock_load_class, factory: AppFactory, mock_manifest):
-        """Verifies app_class.app_manifest = manifest is called."""
+    def test_create_instances_passes_manifest_to_constructor(self, mock_load_class, factory: AppFactory, mock_manifest):
+        """Passes the section's manifest to the App constructor per instance (regression #1062)."""
         mock_load_class.return_value = mock_app_class = Mock()
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]
 
         factory.create_instances("test_app", mock_manifest)
 
-        assert mock_app_class.app_manifest is mock_manifest
+        assert mock_app_class.call_args.kwargs["app_manifest"] is mock_manifest
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_passes_app_key_to_constructor(

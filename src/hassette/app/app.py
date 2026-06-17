@@ -55,12 +55,15 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     source_tier: ClassVar[SourceTier] = "app"
 
-    app_manifest: ClassVar[AppManifest]
-    """Class-level metadata for the app, set by the factory.
+    app_manifest: AppManifest | None
+    """Manifest describing this app instance, set at construction from its config section.
 
-    Not used for per-instance identity: app_key is stored per instance (see the
-    app_key property). When one App subclass is shared across two config sections,
-    this holds whichever section was processed last.
+    Stored per instance, not on the class: two config sections can point at the same
+    App subclass, so each instance carries its own manifest rather than reading a
+    class-shared one — otherwise the section loaded last would overwrite display_name,
+    enabled, and auto_loaded for every instance. Mirrors how app_key is stored per
+    instance. None only when an App is constructed directly without a manifest; the
+    factory and the test harness both pass one.
     """
 
     app_config_cls: ClassVar[type[AppConfig]]
@@ -95,6 +98,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         app_config: AppConfigT,
         index: int,
         app_key: str,
+        app_manifest: AppManifest | None = None,
         api_factory: type[Resource] | None = None,
         parent: Resource | None = None,
     ) -> None:
@@ -103,6 +107,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.app_config = app_config
         self.index = index
         self._app_key = app_key
+        self.app_manifest = app_manifest
         super().__init__(hassette, parent=parent)
         self.api = cast("Api", self.add_child(api_factory or Api))
         self.scheduler = self.add_child(Scheduler)
@@ -129,8 +134,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Key for this app in the hassette.toml configuration.
 
         Set per instance at construction. Two config sections can point at the same
-        App subclass, so this overrides the class-shared app_manifest rather than
-        reading from it — otherwise the last section loaded would clobber it for all.
+        App subclass, so each instance stores its own key — reading it from a
+        class-shared attribute would let the last section loaded clobber it for all.
         """
         return self._app_key
 
