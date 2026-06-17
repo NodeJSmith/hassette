@@ -321,3 +321,28 @@ async def test_running_to_stopped_direct_is_valid():
 
     resource.status = ResourceStatus.STOPPED
     assert resource.status == ResourceStatus.STOPPED
+
+
+@pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD])
+async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
+    """handle_failed() on an already-terminal resource is a no-op, even in strict mode.
+
+    Regression for #1059: during teardown a late submit-after-shutdown error
+    (``RuntimeError("cannot schedule new futures after shutdown")``) could surface on a
+    resource that had already reached STOPPED. handle_failed() then drove a STOPPED → FAILED
+    transition, which VALID_TRANSITIONS forbids — raising InvalidLifecycleTransitionError under
+    strict_lifecycle. On Python 3.11 that error escaped harness teardown before the global
+    singleton was reset, poisoning every later test on the xdist worker.
+
+    Terminal states (STOPPED, EXHAUSTED_DEAD) cannot transition to FAILED, so failing one is
+    benign — handle_failed() must leave the status unchanged instead of raising.
+    """
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
+    resource = SimpleResource(hassette)
+    # Set _status directly: the setter would reject NOT_STARTED → terminal as an invalid transition.
+    resource._status = terminal
+
+    # Must not raise and must not move off the terminal state.
+    await resource.handle_failed(RuntimeError("cannot schedule new futures after shutdown"))
+
+    assert resource.status == terminal
