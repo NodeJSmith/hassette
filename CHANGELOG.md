@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0](https://github.com/NodeJSmith/hassette/compare/v0.44.0...v0.45.0) (2026-06-16)
+
+
+### Monitoring UI
+
+- Cancelled executions are now surfaced across the monitoring UI — handlers and jobs dropped, restarted, or queued out by overlap modes show a cancelled count and status in the summary tables and detail panes. (#1057)
+- Job and handler summaries now show a `thread_leaked` count, surfacing sync work whose worker thread leaked (e.g. a timed-out handler that never returned its thread to the pool). (#1052)
+- Execution-scoped log views now include framework logs alongside app logs, so a single execution's full log context is visible in one place. (#1051)
+
+
+### Bug Fixes
+
+- Two config sections that share the same `App` class now resolve to distinct `app_key`s instead of colliding, so telemetry and lookups no longer attribute both instances to one key. (#1064)
+- Blocking-I/O detection now attributes the offending app correctly under load; a busy event loop previously could blame the wrong app for blocking calls. (#1054)
+
 ## [0.44.0](https://github.com/NodeJSmith/hassette/compare/v0.43.0...v0.44.0) (2026-06-16)
 
 
