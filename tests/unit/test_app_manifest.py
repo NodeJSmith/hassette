@@ -16,10 +16,10 @@ from hassette.test_utils import create_app_manifest, make_mock_hassette
 
 
 class TestAppManifest:
-    def test_app_manifest_is_per_instance(self) -> None:
+    def test_app_manifest_is_per_instance(self, tmp_path: Path) -> None:
         """Each instance reports the manifest it was constructed with."""
         hassette = make_mock_hassette(sealed=False)
-        manifest = create_app_manifest("kitchen", app_dir=Path("/tmp/apps"))
+        manifest = create_app_manifest("kitchen", app_dir=tmp_path)
 
         app = App(
             hassette,
@@ -31,12 +31,12 @@ class TestAppManifest:
 
         assert app.app_manifest is manifest
 
-    def test_app_manifest_ignores_shared_class_attr(self) -> None:
+    def test_app_manifest_ignores_shared_class_attr(self, tmp_path: Path) -> None:
         """Two instances sharing one App subclass keep their own manifest, even
         after a clobbering class-level attribute is written for the last section."""
         hassette = make_mock_hassette(sealed=False)
-        manifest_a = create_app_manifest("a", app_dir=Path("/tmp/apps"))
-        manifest_b = create_app_manifest("b", app_dir=Path("/tmp/apps"))
+        manifest_a = create_app_manifest("a", app_dir=tmp_path)
+        manifest_b = create_app_manifest("b", app_dir=tmp_path)
 
         app_a = App(
             hassette,
@@ -53,11 +53,8 @@ class TestAppManifest:
             app_manifest=manifest_b,
         )
 
-        # Mimic the old factory writing a shared class attr for the last section loaded.
-        # The clobber value matches neither instance's display_name, so each assertion
-        # below fails if the instance read falls through to the class attribute. App has
-        # no app_manifest in its own __dict__ now, so deleting (not restoring an original)
-        # is the correct cleanup for the attribute this test adds.
+        # Clobber a shared class attr with a value matching neither instance, so the
+        # assertions below fail if an instance read falls through to the class.
         App.app_manifest = SimpleNamespace(display_name="CLOBBERED")  # pyright: ignore[reportAttributeAccessIssue]
         try:
             assert app_a.app_manifest is manifest_a
