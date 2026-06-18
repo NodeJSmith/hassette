@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Cluster B: drive StateProxy tests through the HA boundary"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#4", "FR#8", "AC#5"]
 ---
