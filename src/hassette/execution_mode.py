@@ -95,7 +95,7 @@ class ExecutionModeGuard:
             task.cancel()
             # gather(return_exceptions=True) captures the child's CancelledError as a result rather
             # than propagating it into this awaiting coroutine — the lock stays held throughout so no
-            # third trigger interleaves the cancel-and-replace (FR#13).
+            # third trigger interleaves the cancel-and-replace.
             await asyncio.gather(task, return_exceptions=True)
         self.current_task = run_and_track()
         return Outcome.RAN

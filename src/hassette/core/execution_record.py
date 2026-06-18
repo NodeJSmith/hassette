@@ -37,14 +37,14 @@ class ExecutionRecord:
     status: str
     """Outcome: 'success', 'error', 'cancelled', or 'timed_out'."""
 
-    # --- FK fields: exactly one will be non-None (matches the DB CHECK constraint) ---
+    # FK fields: exactly one will be non-None (matches the DB CHECK constraint)
     listener_id: int | None = None
     """FK to the listeners table. Set for handler executions; None for job executions."""
 
     job_id: int | None = None
     """FK to the scheduled_jobs table. Set for job executions; None for handler executions."""
 
-    # --- Ownership / attribution ---
+    # Ownership / attribution
     app_key: str = ""
     """App key that owns this execution. Empty string for framework-internal executions."""
 
@@ -54,7 +54,7 @@ class ExecutionRecord:
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 
-    # --- Error details ---
+    # Error details
     is_di_failure: bool = False
     """True when the execution failed due to a DependencyError (or subclass)."""
 
@@ -80,11 +80,11 @@ class ExecutionRecord:
     error_traceback: str | None = None
     """Full traceback string if status is 'error', otherwise None."""
 
-    # --- Execution identity ---
+    # Execution identity
     execution_id: str | None = None
     """UUIDv7 string identifying the specific execution instance. None when not populated."""
 
-    # --- Handler-only fields ---
+    # Handler-only fields
     trigger_context_id: str | None = None
     """event_id from the triggering HA event payload.
 
@@ -97,7 +97,7 @@ class ExecutionRecord:
     None for job executions and when origin is not available.
     """
 
-    # --- Reserved unified-table columns (001.sql) ---
+    # Reserved unified-table columns (001.sql)
     # These columns exist in the schema and round-trip through persistence/queries, but the
     # write path (CommandExecutor) does not populate them yet — they always hold the defaults
     # below. Baked in now so future retry/trigger-mode tracking needs no migration.

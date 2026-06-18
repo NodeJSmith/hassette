@@ -128,6 +128,16 @@ repos:
         types: [python]
         entry: '# type: ignore'
 
+      # ban `from __future__ import annotations` — stringizes annotations at runtime,
+      # breaking Pydantic models, FastAPI deps, and typing.get_type_hints()
+      - id: no-future-annotations
+        name: "Ban from __future__ import annotations (breaks Pydantic)"
+        language: pygrep
+        types: [python]
+        # anchored to line start: a real import is at column 0, so this skips
+        # docstrings/comments that merely mention the statement
+        entry: '^from __future__ import annotations'
+
       # ensure codecov yaml is valid
       - id: check-codecov-yml
         name: Check codecov.yml validity
@@ -151,6 +161,42 @@ repos:
         language: system
         entry: ./tools/check_for_missing_attribute.py
         pass_filenames: false
+        stages:
+          - pre-push
+
+      - id: check-lazy-imports
+        name: Ban lazy imports in src (use '# lazy-import:' to defend circular-import cases)
+        language: system
+        entry: ./tools/check_lazy_imports.py
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages:
+          - pre-push
+
+      - id: check-spec-tokens
+        name: Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#) in src
+        language: system
+        entry: ./tools/check_spec_tokens.py
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages:
+          - pre-push
+
+      - id: check-llm-cruft
+        name: Ban AI-writing tells (section dividers, filler phrases) in src
+        language: system
+        entry: ./tools/check_llm_cruft.py
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages:
+          - pre-push
+
+      - id: check-module-boundaries
+        name: Enforce import boundaries (test_utils isolation) in src
+        language: system
+        entry: ./tools/check_module_boundaries.py
+        pass_filenames: false
+        files: ^src/.*\.py$
         stages:
           - pre-push
 

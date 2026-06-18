@@ -113,7 +113,7 @@ class ListenerOptions:
 
     def __post_init__(self) -> None:
         # Coerce a raw string mode (arriving via the Options TypedDict or str ergonomics) into
-        # the enum. An unknown value fails coercion — surface it as a clear ValueError (FR#12).
+        # the enum. An unknown value fails coercion — surface it as a clear ValueError.
         if not isinstance(self.mode, ExecutionMode):
             try:
                 self.mode = ExecutionMode(self.mode)
@@ -341,7 +341,7 @@ class HandlerInvoker:
         """Release the execution-mode guard: cancel the in-flight task and drop queued factories.
 
         Called when a listener is cancelled or replaced so no event/listener/app references leak
-        (FR#17). ``parallel`` listeners hold no guard state, so this is a cheap no-op for them.
+        ``parallel`` listeners hold no guard state, so this is a cheap no-op for them.
 
         Queued triggers still parked in the guard's deque never spawn a child once released, so
         their outer dispatch tasks are parked on ``done`` futures that nothing else will resolve.
@@ -492,7 +492,7 @@ class Listener:
         child task — spawned asynchronously, so there is a small window before it takes effect.
         Also cancels the rate limiter and duration timer, and releases the execution-mode guard
         (cancelling any in-flight handler task and dropping queued factories) so no event/listener
-        references leak (FR#17).
+        references leak.
 
         Terminal operation: the listener must not be reused after this call.
         """

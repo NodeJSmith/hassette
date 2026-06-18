@@ -160,7 +160,7 @@ Examples:
 """
 
 import typing
-from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for AC#8 annotation inspection
+from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for annotation inspection
 from contextlib import suppress
 from enum import StrEnum
 from http import HTTPStatus

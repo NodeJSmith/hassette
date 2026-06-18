@@ -34,6 +34,8 @@ Frontend changes include:
 
 "The field exists in the DB but isn't shown in the UI" is a bug, not a follow-up. If the data is persisted and queryable, it should be visible.
 
+A PR that changes rendered frontend files (`frontend/src/**/*.tsx`, `*.css`) must carry visual evidence — a Screenshots section or embedded image in the PR body, an updated `docs/**/*.png`, or the `no-visual-change` label. This is enforced structurally by `tools/frontend/check_pr_screenshots.py` (CI workflow `pr-screenshots.yml`) so it does not depend on this rule being read at the right moment.
+
 
 ## Exceptions
 

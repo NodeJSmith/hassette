@@ -564,10 +564,10 @@ class Bus(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
-        # Tier-aware default (FR#3): an omitted mode (None) resolves to ``parallel`` for framework
+        # Tier-aware default: an omitted mode (None) resolves to ``parallel`` for framework
         # listeners — preserving the supervisor/state-cache concurrency — and ``single`` for app
         # listeners. An explicit mode always wins. A raw string is coerced here so an invalid value
-        # raises a clear ValueError at registration time (FR#12).
+        # raises a clear ValueError at registration time.
         if mode is None:
             resolved_mode = ExecutionMode.PARALLEL if source_tier == "framework" else ExecutionMode.SINGLE
         elif isinstance(mode, ExecutionMode):

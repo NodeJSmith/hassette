@@ -16,18 +16,14 @@ from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetr
 from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 
-# ---------------------------------------------------------------------------
 # Version string
-# ---------------------------------------------------------------------------
 
 try:
     _version = version("hassette")
 except PackageNotFoundError:
     _version = "unknown"
 
-# ---------------------------------------------------------------------------
 # Root App
-# ---------------------------------------------------------------------------
 
 app = App(
     name="hassette",
@@ -119,9 +115,7 @@ job_app.default(cmd_job)
 log_app.default(cmd_log)
 execution_app.default(cmd_execution)
 
-# ---------------------------------------------------------------------------
 # Meta app — global options that apply to all commands
-# ---------------------------------------------------------------------------
 
 
 @app.meta.default

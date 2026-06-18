@@ -1,0 +1,27 @@
+name: PR Screenshots
+
+# Dedicated workflow (not a lint.yml job) so it can re-evaluate when the PR body
+# or labels change without re-running the whole lint suite on every edit.
+on:
+    pull_request:
+        branches: [main]
+        types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    screenshots:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
+
+            - name: Require visual evidence on UI-changing PRs
+              run: python3 tools/frontend/check_pr_screenshots.py --pr "${PR_NUMBER}"
+              env:
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  GH_TOKEN: ${{ github.token }}

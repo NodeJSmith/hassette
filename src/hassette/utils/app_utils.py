@@ -196,7 +196,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
     Returns:
         Detected app manifests, keyed by app key.
     """
-    from hassette.app import App, AppSync
+    from hassette.app import App, AppSync  # lazy-import: break circular import — hassette.app imports this module
 
     app_manifests: dict[str, AppDict] = {}
 
@@ -351,7 +351,7 @@ def load_app_class(
     Returns:
         The app class.
     """
-    from hassette.app import App, AppSync
+    from hassette.app import App, AppSync  # lazy-import: break circular import — hassette.app imports this module
 
     display_name = display_name or class_name
 

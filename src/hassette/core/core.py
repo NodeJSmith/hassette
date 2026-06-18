@@ -501,7 +501,7 @@ class Hassette(Resource):
                 executor=_executor,
                 # The watchdog daemon thread calls on_stall from off-loop; marshal onto the
                 # loop thread via call_soon_threadsafe so record_blocking_event always runs
-                # on the loop thread (T05 threading invariant). Gate on is_running(): a loop
+                # on the loop thread (a persistence-layer threading invariant). Gate on is_running(): a loop
                 # that is stopped-but-not-closed during shutdown still reports is_closed()
                 # False, yet call_soon_threadsafe would schedule a callback that never runs.
                 # Residual races after the check: if the loop CLOSES, call_soon_threadsafe
@@ -516,7 +516,7 @@ class Hassette(Resource):
 
         # Install Tier 2 call-site interception (monkeypatch). The dev/prod enablement decision
         # lives inside install_block_io_guard (_should_install): dev_mode on by default, prod
-        # requires the explicit allow_deep_detection_in_prod flag (FR#6, AC#10). install() no-ops
+        # requires the explicit allow_deep_detection_in_prod flag. install() no-ops
         # when disabled, so the only gate here is that an executor exists for marker attribution.
         if self._command_executor is not None:
             install_block_io_guard(
@@ -734,7 +734,7 @@ class Hassette(Resource):
             except Exception:
                 self.logger.warning("Loop watchdog stop raised during shutdown", exc_info=True)
             self._loop_watchdog = None
-        # Uninstall Tier 2 call-site interception so no patches remain after shutdown (FR#12/AC#9).
+        # Uninstall Tier 2 call-site interception so no patches remain after shutdown.
         # Pass self so a non-owning instance's shutdown cannot remove the owner's process-global
         # patches (Tier 2 has a single owner; uninstall no-ops for non-owners).
         try:

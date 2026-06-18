@@ -86,6 +86,7 @@ class StateRegistry:
             light_state = try_convert_state(state_dict)  # Returns LightState instance
             ```
         """
+        # lazy-import: break circular import — models.states.base imports the conversion registry
         from hassette.models.states.base import BaseState
 
         if "event" in data:

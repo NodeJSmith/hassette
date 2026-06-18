@@ -177,13 +177,13 @@ class TaskBucket(Resource):
         loop-default executor.
 
         A shared mutable cell (``list[threading.Thread | None]``) captures the
-        worker thread immediately when ``_call`` starts executing.  T06 reads
-        ``cell[0]`` at the timeout site to check whether the thread outlived its
-        timeout::
+        worker thread immediately when ``_call`` starts executing.  The loop
+        thread reads ``cell[0]`` at the timeout site to check whether the thread
+        outlived its timeout::
 
             cell: list[threading.Thread | None] = [None]
-            # _call (worker): cell[0] = threading.current_thread()   <- set on worker
-            # T06 (loop thread): cell[0].is_alive()                  <- read on loop
+            # _call (worker):  cell[0] = threading.current_thread()  <- set on worker
+            # timeout (loop):  cell[0].is_alive()                    <- read on loop
 
         A ContextVar is NOT used here: ``loop.run_in_executor`` copies the loop
         thread's context one-way into the worker callable, so any write the worker
@@ -192,8 +192,8 @@ class TaskBucket(Resource):
         on the loop thread and closed over by both the loop thread and the worker.
 
         If the timeout fires before the worker has dequeued ``_call``, ``cell[0]``
-        remains ``None`` — a "not-started" timeout, not a thread leak.  T06 relies
-        on this sentinel to distinguish the two cases.
+        remains ``None`` — a "not-started" timeout, not a thread leak.  The timeout
+        site relies on this sentinel to distinguish the two cases.
 
         Args:
             fn: The synchronous function to run.
@@ -204,7 +204,7 @@ class TaskBucket(Resource):
             A coroutine that resolves to the return value of *fn*.
         """
         current_bucket = ctx.CURRENT_BUCKET.get()
-        # Shared mutable cell: set by the worker, read by T06 at the timeout site.
+        # Shared mutable cell: set by the worker, read on the loop thread at the timeout site.
         # The cell is created and owned here (loop thread); the worker mutates cell[0].
         cell: list[threading.Thread | None] = [None]
         # Expose the cell to _execute via a ContextVar set on the loop thread.
@@ -214,7 +214,7 @@ class TaskBucket(Resource):
         SYNC_WORKER_CELL.set(cell)
 
         def _call() -> R:
-            # Record which worker thread picked up this callable — read by T06.
+            # Record which worker thread picked up this callable — read at the timeout site.
             cell[0] = threading.current_thread()
             if current_bucket is not None:
                 with ctx.use_task_bucket(current_bucket):

@@ -233,7 +233,7 @@ class BusService(Service):
         """Return a snapshot of live ``(suppressed, dropped)`` counts keyed by listener ``db_id``.
 
         Reads each active listener's ``ExecutionModeGuard`` from the router. Live and in-memory
-        only — no DB access (FR#15). Listeners not yet assigned a ``db_id`` are skipped; the web
+        only — no DB access. Listeners not yet assigned a ``db_id`` are skipped; the web
         layer treats a missing entry as ``(0, 0)``. The counters reset on guard restart and are
         never persisted.
 
