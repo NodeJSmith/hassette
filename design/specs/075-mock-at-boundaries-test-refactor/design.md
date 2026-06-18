@@ -1,7 +1,7 @@
 # Design: Mock at boundaries in core service tests (issue #1036)
 
 **Date:** 2026-06-17
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-17-mock-at-boundaries-audit/research.md
 
