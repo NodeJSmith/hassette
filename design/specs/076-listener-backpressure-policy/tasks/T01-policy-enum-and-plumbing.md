@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add BackpressurePolicy enum and thread it through subscription plumbing"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#9", "FR#10", "AC#6", "AC#7"]
 ---
