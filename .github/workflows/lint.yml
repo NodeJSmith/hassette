@@ -102,6 +102,9 @@ jobs:
                     exit 1
                   fi
 
+            - name: Check internal MUT patches in core tests
+              run: uv run python tools/check_internal_patches.py
+
     frontend:
         needs: changes
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'

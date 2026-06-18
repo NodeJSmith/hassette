@@ -66,8 +66,8 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_clean())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
 
         await websocket_service.serve()
 
@@ -114,7 +114,7 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_fail())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
 
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()
@@ -136,6 +136,9 @@ class TestWebsocketReadinessEvents:
 
         Runs the real start_recv_and_subscribe() with sub-methods stubbed to isolate
         the mark_ready() → _emit_readiness_event() call that subtask 3 adds.
+
+        Companion: test_websocket_service.py::test_start_recv_and_subscribe_marks_ready asserts
+        the structural side (recv task spawned, _connected_at set) of the same method.
         """
         send_event_calls: list = []
 
@@ -158,8 +161,8 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of start_recv_and_subscribe
+        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of start_recv_and_subscribe
 
         result_task = await websocket_service.start_recv_and_subscribe()
 

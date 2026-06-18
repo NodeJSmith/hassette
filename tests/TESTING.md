@@ -267,6 +267,91 @@ api.assert_call_count("turn_on", 2, entity_id="light.kitchen")  # passes — mat
 
 ---
 
+## Mocking at Boundaries
+
+### The MUT-vs-collaborator rule
+
+Mock external boundaries and the method-under-test's collaborators — never the method under test (MUT) itself. Patching the MUT removes the very code being tested and produces a test that can never fail for the right reason.
+
+**Allowed:** mock `hassette.api.get_states_raw` (an external HA boundary), mock `subscribe_events` when the MUT is `start_recv_and_subscribe` (a collaborator called by the MUT).
+
+**Prohibited:** mock `start_recv_and_subscribe` when testing `serve` (you would be patching away the code under test).
+
+### WebsocketService connection tests — `build_fake_ws`
+
+Connection-layer tests for `WebsocketService` run the real connection method against a fake aiohttp websocket. Import `build_fake_ws` from `hassette.test_utils` and construct the fake session inline:
+
+```python
+from unittest.mock import AsyncMock, MagicMock
+
+from hassette.test_utils import build_fake_ws
+
+
+async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
+    fake_ws = build_fake_ws()
+    fake_session = MagicMock()
+    fake_session.ws_connect = AsyncMock(return_value=fake_ws)
+
+    websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
+
+    await websocket_service.connect_ws(fake_session)  # real connect_ws (the MUT) runs
+
+    assert websocket_service._ws is fake_ws
+```
+
+`build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.test_utils`.
+
+### The `# boundary-exempt:` annotation convention
+
+Some tests legitimately stub a collaborator of the MUT — methods that *feed into* the method under test but are not the thing being tested. These stubs are allowed; they just need to be declared explicitly.
+
+**Canonical form:**
+
+```python
+# boundary-exempt: collaborator of <method_name>
+```
+
+The `<method_name>` is the method under test that the stubbed symbol collaborates with. Trailing parens are optional — both `collaborator of serve()` and `collaborator of on_reconnect` are used in the existing suite, and either is fine. The guard keys only on the `# boundary-exempt:` prefix, not on the method-name format, so the parens are purely a readability choice.
+
+### Three accepted annotation placements
+
+The placement is chosen by line length — trailing when it fits within 120 chars, else preceding or continuation.
+
+**(a) Same physical line** — preferred when the line fits:
+
+```python
+websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
+```
+
+**(b) Continuation line** — when the flagged statement spans multiple lines (unbalanced `(`), the annotation may appear on any line until the parens balance:
+
+```python
+websocket_service.send_connection_established_event = (
+    AsyncMock()
+)  # boundary-exempt: collaborator of start_recv_and_subscribe
+```
+
+**(c) Immediately-preceding comment line** — when a `with patch.object(...)` call is too long to carry a trailing comment:
+
+```python
+# boundary-exempt: collaborator of on_reconnect
+with patch.object(state_proxy, "subscribe_to_events", new_callable=AsyncMock) as mock_sub:
+```
+
+The preceding line must be a comment (`#`-prefixed after optional whitespace) with no blank line between it and the flagged statement. Adjacent annotations in one test may mix placements — that is expected.
+
+### CI guard
+
+`tools/check_internal_patches.py` enforces this rule in CI (wired into the `python` lint job). It scans the seven in-scope test files for un-annotated reassignment or `patch.object`/`monkeypatch.setattr` calls targeting the prohibited MUT symbol set. Re-introducing an un-annotated MUT patch in any of those files fails the lint workflow.
+
+The prohibited symbols cover `WebsocketService`, `StateProxy`, and `LifecycleService` methods. Run the guard locally at any time:
+
+```bash
+uv run python tools/check_internal_patches.py
+```
+
+---
+
 ## E2E Seed Data Resilience Convention
 
 All E2E test assertions that depend on seed data values **must** use computed constants, not hand-written literals.

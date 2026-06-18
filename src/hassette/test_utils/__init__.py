@@ -5,7 +5,8 @@ are stable and documented for end users.
 
 Tier 2 symbols (HassetteHarness, SimpleTestServer, fixtures, web helpers, etc.)
 are re-exported from ``hassette.test_utils._internal`` for backward compatibility
-with hassette's own internal test suite. They are not in ``__all__`` and may
+with hassette's own internal test suite. WebSocket stubs (``build_fake_ws``) come
+from ``hassette.test_utils.ws_mocks``. They are not in ``__all__`` and may
 change without notice.
 """
 
@@ -61,6 +62,7 @@ from .helpers import make_task_bucket as make_task_bucket
 from .mock_hassette import make_mock_hassette as make_mock_hassette
 from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
+from .ws_mocks import build_fake_ws as build_fake_ws
 
 __all__ = [
     # Tier 1 only

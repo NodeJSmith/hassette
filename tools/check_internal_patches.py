@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""CI guard: detect un-annotated MUT patches in core test files.
+
+Scans the seven in-scope test files for reassignment or ``patch.object`` /
+``patch()`` / ``monkeypatch.setattr`` calls that target a prohibited symbol — a
+method on a method-under-test (MUT) that should never be patched from the
+outside. Any such site that lacks a ``# boundary-exempt:`` annotation fails the
+check.
+
+Prohibited symbols (union across WebsocketService, StateProxy, LifecycleService):
+
+    WebsocketService: make_connection, connect_ws, dispatch, respond_if_necessary,
+                      partial_cleanup, authenticate, mark_ready,
+                      _emit_readiness_event, subscribe_events,
+                      send_connection_established_event
+    StateProxy:       load_cache, subscribe_to_events, mark_not_ready,
+                      _emit_readiness_event
+    Lifecycle:        start_app, stop_app, reload_app, resolve_only_app,
+                      handle_crash, detect_changes, refresh_config
+
+Detection is AST-based. The parser resolves statement boundaries, string
+literals, and ``==`` vs ``=`` for free, so the guard matches structure rather
+than text:
+
+    * Direct or annotated assignment — ``ast.Assign`` / ``ast.AnnAssign`` whose
+      target is ``<receiver>.<symbol>`` where the receiver is a known fixture name
+      (``websocket_service``, ``state_proxy``, ``lifecycle_service``). The
+      receiver-name check prevents false positives from mock App instances
+      (e.g. ``app1.mark_ready = Mock()``) that share a method name. The guard
+      does not resolve the receiver's class — the fixture-name allowlist is the
+      heuristic that stands in for type resolution.
+    * ``patch.object(target, "<symbol>")`` / ``monkeypatch.setattr(target,
+      "<symbol>")`` — the prohibited symbol is the quoted second argument; the
+      receiver is irrelevant.
+    * ``patch("dotted.path.<symbol>")`` — the prohibited symbol is the last
+      segment of the quoted import path.
+
+``task_bucket.spawn`` is DELIBERATELY EXCLUDED — it is a method on a different
+object (the task bucket), not on the service/proxy/lifecycle under guard. It is
+simply absent from the prohibited set.
+
+The ``# boundary-exempt:`` annotation is the escape hatch for sites that are
+genuinely mocking a collaborator of the MUT (not the MUT itself). Comments are
+discarded by the AST, so the annotation is matched against the raw source lines
+spanning the flagged statement. Two placements are accepted:
+
+    (a) Anywhere on the flagged statement's own physical line span — the same
+        line as the symbol, or any continuation line of a multi-line call.
+    (b) The comment-only line immediately preceding the flagged statement (no
+        blank line between) — for long ``with patch.object(...)`` statements
+        that cannot carry a trailing comment within the 120-char limit.
+
+Canonical annotation form: ``# boundary-exempt: collaborator of <method_name>``
+
+Usage:
+    python tools/check_internal_patches.py
+"""
+
+import ast
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+IN_SCOPE_FILES: list[Path] = [
+    REPO_ROOT / "tests" / "integration" / "test_websocket_service.py",
+    REPO_ROOT / "tests" / "unit" / "core" / "test_ws_connection_state.py",
+    REPO_ROOT / "tests" / "unit" / "core" / "test_websocket_readiness_events.py",
+    REPO_ROOT / "tests" / "integration" / "test_state_proxy.py",
+    REPO_ROOT / "tests" / "unit" / "core" / "test_app_lifecycle_service.py",
+    REPO_ROOT / "tests" / "unit" / "core" / "test_app_lifecycle_service_operations.py",
+    REPO_ROOT / "tests" / "integration" / "test_apps.py",
+]
+
+# Union of all prohibited symbol names across WebsocketService, StateProxy, LifecycleService.
+# task_bucket.spawn is intentionally excluded — it is on a different object.
+PROHIBITED_SYMBOLS: frozenset[str] = frozenset(
+    [
+        # WebsocketService
+        "make_connection",
+        "connect_ws",
+        "dispatch",
+        "respond_if_necessary",
+        "partial_cleanup",
+        "authenticate",
+        "mark_ready",
+        "_emit_readiness_event",
+        "subscribe_events",
+        "send_connection_established_event",
+        # StateProxy
+        "load_cache",
+        "subscribe_to_events",
+        "mark_not_ready",
+        # _emit_readiness_event already listed above
+        # LifecycleService
+        "start_app",
+        "stop_app",
+        "reload_app",
+        "resolve_only_app",
+        "handle_crash",
+        "detect_changes",
+        "refresh_config",
+    ]
+)
+
+# Known service fixture variable names used as assignment receivers. Direct attribute
+# assignments are only flagged when the receiver matches one of these names. This prevents
+# false positives from mock App instances (e.g. ``app1.mark_ready = Mock()``) that share
+# method names with the services under guard.
+SERVICE_RECEIVERS: frozenset[str] = frozenset(
+    [
+        "websocket_service",
+        "state_proxy",
+        "lifecycle_service",
+    ]
+)
+
+ANNOTATION = "# boundary-exempt:"
+
+
+def func_chain(func: ast.expr) -> list[str]:
+    """Return the trailing dotted name parts of a call target.
+
+    ``patch.object`` -> ``["patch", "object"]``; ``mock.patch`` -> ``["mock", "patch"]``;
+    ``patch`` -> ``["patch"]``. Subscripts/calls in the chain stop the walk.
+    """
+    # Walk the attribute chain from leaf to root, then reverse to root-first order.
+    parts: list[str] = []
+    while isinstance(func, ast.Attribute):
+        parts.append(func.attr)
+        func = func.value
+    if isinstance(func, ast.Name):
+        parts.append(func.id)
+    return list(reversed(parts))
+
+
+def string_arg(node: ast.Call, index: int) -> str | None:
+    """Return the value of the index-th positional argument if it is a string literal."""
+    if index < len(node.args):
+        arg = node.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+    return None
+
+
+def string_arg_or_keyword(node: ast.Call, index: int, keyword: str) -> str | None:
+    """Return the same argument whether passed positionally (at index) or by keyword.
+
+    ``patch.object``/``monkeypatch.setattr`` accept the patched name positionally or as
+    a keyword (``attribute=``/``name=``), so both spellings must resolve to one value.
+    """
+    sym = string_arg(node, index)
+    if sym is not None:
+        return sym
+    for kw in node.keywords:
+        if kw.arg == keyword and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+            return kw.value.value
+    return None
+
+
+def patch_symbol(node: ast.Call) -> str | None:
+    """Return the prohibited symbol targeted by a patch-family call, or None."""
+    chain = func_chain(node.func)
+    if len(chain) < 1:
+        # func is a Call/Subscript (e.g. ``factory()(...)``) — no name to match,
+        # and the ``chain[-1]`` access below would otherwise raise IndexError.
+        return None
+
+    # patch.object(target, "<sym>") / mock.patch.object(target, attribute="<sym>")
+    if chain[-2:] == ["patch", "object"]:
+        sym = string_arg_or_keyword(node, 1, "attribute")
+        return sym if sym in PROHIBITED_SYMBOLS else None
+
+    # monkeypatch.setattr(target, "<sym>") / monkeypatch.setattr(target, name="<sym>")
+    if chain[-2:] == ["monkeypatch", "setattr"]:
+        sym = string_arg_or_keyword(node, 1, "name")
+        return sym if sym in PROHIBITED_SYMBOLS else None
+
+    # patch("dotted.path.<sym>") / mock.patch("dotted.path.<sym>")
+    if chain[-1] == "patch":
+        target = string_arg(node, 0)
+        if target is not None:
+            sym = target.rsplit(".", 1)[-1]
+            return sym if sym in PROHIBITED_SYMBOLS else None
+
+    return None
+
+
+def attribute_targets(target: ast.expr) -> list[ast.Attribute]:
+    """Return the attribute nodes among an assignment target (handles tuple/list unpacking)."""
+    if isinstance(target, ast.Attribute):
+        return [target]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [elt for elt in target.elts if isinstance(elt, ast.Attribute)]
+    return []
+
+
+class PatchVisitor(ast.NodeVisitor):
+    """Collect (lineno, end_lineno, symbol) for every flagged site in a module."""
+
+    def __init__(self) -> None:
+        self.flagged: list[tuple[int, int, str]] = []
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            for attr in attribute_targets(target):
+                if (
+                    isinstance(attr.value, ast.Name)
+                    and attr.value.id in SERVICE_RECEIVERS
+                    and attr.attr in PROHIBITED_SYMBOLS
+                ):
+                    self.flagged.append((node.lineno, node.end_lineno or node.lineno, attr.attr))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        # Annotated assignment (``state_proxy.load_cache: X = ...``) — single target.
+        for attr in attribute_targets(node.target):
+            if (
+                isinstance(attr.value, ast.Name)
+                and attr.value.id in SERVICE_RECEIVERS
+                and attr.attr in PROHIBITED_SYMBOLS
+            ):
+                self.flagged.append((node.lineno, node.end_lineno or node.lineno, attr.attr))
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        sym = patch_symbol(node)
+        if sym is not None:
+            self.flagged.append((node.lineno, node.end_lineno or node.lineno, sym))
+        self.generic_visit(node)
+
+
+def is_exempt(lines: list[str], lineno: int, end_lineno: int) -> bool:
+    """Return True if the statement spanning [lineno, end_lineno] is boundary-exempt.
+
+    Accepts the annotation anywhere on the statement's own physical lines, or on the
+    comment-only line immediately preceding it (1-based line numbers).
+    """
+    # lineno/end_lineno are 1-based; lines is 0-indexed, hence the -1 / -2 offsets.
+    for i in range(lineno - 1, end_lineno):
+        if ANNOTATION in lines[i]:
+            return True
+
+    if lineno >= 2:
+        prev = lines[lineno - 2].strip()
+        if prev.startswith("#") and ANNOTATION in prev:
+            return True
+
+    return False
+
+
+def check_file(path: Path) -> list[tuple[int, str]]:
+    """Return a sorted list of (1-based line number, symbol) for un-exempt flagged sites."""
+    if not path.exists():
+        print(f"WARNING: in-scope file not found: {path}", file=sys.stderr)
+        return []
+
+    source = path.read_text()
+    lines = source.splitlines()
+    visitor = PatchVisitor()
+    visitor.visit(ast.parse(source))
+
+    violations = [
+        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lines, lineno, end_lineno)
+    ]
+    return sorted(violations)
+
+
+def main() -> int:
+    all_violations: list[tuple[Path, int, str]] = []
+
+    for path in IN_SCOPE_FILES:
+        rel = path.relative_to(REPO_ROOT)
+        for lineno, sym in check_file(path):
+            all_violations.append((rel, lineno, sym))
+
+    if all_violations:
+        print(f"ERROR: {len(all_violations)} un-annotated MUT patch(es) found in core test files:")
+        print()
+        for rel, lineno, sym in all_violations:
+            print(f"  {rel}:{lineno} — {sym}")
+        print()
+        print("Each site must carry a '# boundary-exempt: collaborator of <method>' annotation.")
+        print("See tests/TESTING.md — 'Mocking at Boundaries' for annotation placement rules.")
+        return 1
+
+    total_files = len(IN_SCOPE_FILES)
+    print(f"OK: no un-annotated MUT patches found across {total_files} in-scope test files.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
