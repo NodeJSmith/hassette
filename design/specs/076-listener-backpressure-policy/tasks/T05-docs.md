@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Document the backpressure policy on the bus concept page"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04"]
 implements: ["FR#1", "FR#2"]
 ---

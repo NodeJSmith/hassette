@@ -79,13 +79,33 @@ the ``TEXT`` DB columns, not the enum."""
 
 
 class BackpressurePolicy(StrEnum):
-    """What a listener does when the dispatch concurrency semaphore is saturated."""
+    """What a listener does when the *global* dispatch semaphore is saturated.
+
+    The semaphore is shared by all listeners across all apps — saturation means
+    the whole bus is at capacity, not that this listener alone is busy. This is
+    distinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),
+    which operate inside the handler invoker after a dispatch slot is acquired.
+    """
 
     BLOCK = auto()
-    """Wait for a slot — the default; preserves today's blocking behavior unchanged."""
+    """Wait for a dispatch slot — the default for all listeners.
+
+    When the global semaphore is saturated, the dispatch loop blocks until a slot
+    opens, then runs the handler. No events are lost; the cost is added latency.
+    Omitting ``backpressure=`` on a subscription is identical to passing ``BLOCK``.
+    """
 
     DROP_NEWEST = auto()
-    """Skip this event if the semaphore is saturated; never blocks the dispatch loop."""
+    """Skip this event when the global semaphore is saturated; never waits.
+
+    The dispatch loop checks the semaphore without acquiring it. If saturated, no
+    task is spawned, one drop is recorded on the listener, and the loop moves on.
+    Under normal load (semaphore not locked), dispatches identically to ``BLOCK``.
+
+    A ``DROP_NEWEST`` listener may not run at all during a sustained saturation
+    period — every event it receives while the bus is full is dropped. Use ``BLOCK``
+    for handlers that must run at least once, even under load.
+    """
 
 
 DEFAULT_BACKPRESSURE_POLICY: str = BackpressurePolicy.BLOCK.value
