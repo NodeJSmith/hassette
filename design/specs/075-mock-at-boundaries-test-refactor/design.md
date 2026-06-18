@@ -256,3 +256,35 @@ None. Every converted test keeps its intent; assertions are re-expressed or anno
 ## Open Questions
 
 None blocking. (Per-site A1-vs-A2 classification and the "add a seam vs. annotate the stub" call are delegated to PR review; the CI guard makes any missed MUT patch visible rather than silent.)
+
+## Follow-Up / Deferred Work
+
+These items were identified during orchestration of #1036 and are recorded here as a durable committed note. GitHub issues to be filed by the orchestrator.
+
+### Scheduler `__new__` doubles (test_scheduler_service_reschedule.py)
+
+`tests/unit/core/test_scheduler_service_reschedule.py` uses `__new__`-bypassing doubles for `Scheduler` construction in several tests. This pattern pre-dates the mock-at-boundaries work and was not in scope for #1036 (the file does not appear in the seven in-scope files). A follow-up migration review is warranted to apply the same boundary discipline.
+
+GitHub issue to be filed by orchestrator. Labels: `type:enhancement`, `area:testing`, `area:scheduler`, `size:small`.
+
+### Cluster D — `bus_service.add_listener` / `mock_add_listener` conftest helper (~30 sites)
+
+The `mock_add_listener` conftest helper and direct `bus_service.add_listener` stubs across the bus test suite were assessed and deferred. The ROI is lower than Clusters A–C (the bus method is closer to a boundary than a MUT in most of these tests) and the refactor volume (~30 sites) does not justify the risk at this time. Deferred with pragmatic ROI exclusion.
+
+### Cluster E/F remainder
+
+The following files contain stubs or patches that were out of scope for #1036 or assessed as lower-priority:
+
+- `tests/unit/core/test_scheduler_mode.py` — `warn_stalled_job` stub
+- `tests/unit/core/test_service_watcher.py` — `shutdown_safe_sleep` stub
+- `tests/unit/test_duration_hold.py` — `_timer` stub
+- `tests/unit/bus/test_bus_contract.py` — `register_listener` stub
+- `tests/unit/core/test_database_service.py` — `logger` and `get_db_size_mb` stubs
+
+Each of these may benefit from the same boundary treatment in a future pass. No blocking issues identified.
+
+### Pre-existing flaky test (unrelated to #1036)
+
+`tests/integration/test_lifecycle_propagation.py::TestCloseStreamsAfterChildrenStopped::test_children_stopped_before_on_children_stopped_hook` fails occasionally under `-n` parallel load but passes in isolation. This is unrelated to the mock-at-boundaries work. A deflake issue will be filed by the orchestrator.
+
+GitHub issue to be filed by orchestrator. Labels: `type:bug`, `area:testing`, `topic:concurrency`, `size:small`.

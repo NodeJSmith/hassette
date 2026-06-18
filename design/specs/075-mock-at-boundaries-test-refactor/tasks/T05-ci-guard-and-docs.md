@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add CI guard for MUT patches, document convention, file follow-ups"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#7", "AC#1", "AC#3", "AC#4", "AC#6", "AC#7"]
 ---
