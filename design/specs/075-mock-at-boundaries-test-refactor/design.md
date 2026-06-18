@@ -259,13 +259,13 @@ None blocking. (Per-site A1-vs-A2 classification and the "add a seam vs. annotat
 
 ## Follow-Up / Deferred Work
 
-These items were identified during orchestration of #1036 and are recorded here as a durable committed note. GitHub issues to be filed by the orchestrator.
+These items were identified during orchestration of #1036 and are recorded here as a durable committed note. GitHub follow-up issues filed: #1072 (scheduler doubles), #1073 (deflake).
 
 ### Scheduler `__new__` doubles (test_scheduler_service_reschedule.py)
 
 `tests/unit/core/test_scheduler_service_reschedule.py` uses `__new__`-bypassing doubles for `Scheduler` construction in several tests. This pattern pre-dates the mock-at-boundaries work and was not in scope for #1036 (the file does not appear in the seven in-scope files). A follow-up migration review is warranted to apply the same boundary discipline.
 
-GitHub issue to be filed by orchestrator. Labels: `type:enhancement`, `area:testing`, `area:scheduler`, `size:small`.
+Filed as #1072. Labels: `type:enhancement`, `area:testing`, `area:scheduler`, `size:small`.
 
 ### Cluster D — `bus_service.add_listener` / `mock_add_listener` conftest helper (~30 sites)
 
@@ -285,6 +285,6 @@ Each of these may benefit from the same boundary treatment in a future pass. No 
 
 ### Pre-existing flaky test (unrelated to #1036)
 
-`tests/integration/test_lifecycle_propagation.py::TestCloseStreamsAfterChildrenStopped::test_children_stopped_before_on_children_stopped_hook` fails occasionally under `-n` parallel load but passes in isolation. This is unrelated to the mock-at-boundaries work. A deflake issue will be filed by the orchestrator.
+`tests/integration/test_lifecycle_propagation.py::TestCloseStreamsAfterChildrenStopped::test_children_stopped_before_on_children_stopped_hook` fails occasionally under `-n` parallel load but passes in isolation. This is unrelated to the mock-at-boundaries work.
 
-GitHub issue to be filed by orchestrator. Labels: `type:bug`, `area:testing`, `topic:concurrency`, `size:small`.
+Filed as #1073. Labels: `type:bug`, `area:testing`, `topic:concurrency`, `size:small`.
