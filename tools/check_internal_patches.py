@@ -206,25 +206,9 @@ def _flagged_symbol(text: str) -> str | None:
     Used on a single physical line and, for multi-line patch-family calls, on the
     joined logical statement so a symbol on a continuation line is still detected.
     """
-    # Assignment on a known service receiver
-    m = _ASSIGN_PATTERN.search(text)
-    if m:
-        return m.group("sym")
-
-    # patch.object(<obj>, "<sym>", ...)
-    m = _PATCH_OBJECT_PATTERN.search(text)
-    if m:
-        return m.group("sym")
-
-    # monkeypatch.setattr(<obj>, "<sym>", ...)
-    m = _MONKEYPATCH_PATTERN.search(text)
-    if m:
-        return m.group("sym")
-
-    # patch("module.sym", ...)
-    m = _PATCH_STR_PATTERN.search(text)
-    if m:
-        return m.group("sym")
+    for pattern in (_ASSIGN_PATTERN, _PATCH_OBJECT_PATTERN, _MONKEYPATCH_PATTERN, _PATCH_STR_PATTERN):
+        if m := pattern.search(text):
+            return m.group("sym")
 
     return None
 

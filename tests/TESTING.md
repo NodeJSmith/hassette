@@ -277,15 +277,29 @@ Mock external boundaries and the method-under-test's collaborators — never the
 
 **Prohibited:** mock `start_recv_and_subscribe` when testing `serve` (you would be patching away the code under test).
 
-### WebsocketService connection tests — `fake_session`/`build_fake_ws`
+### WebsocketService connection tests — `build_fake_ws`
 
-Connection-layer tests for `WebsocketService` that need a real aiohttp session and WebSocket object use the boundary helpers from `hassette.test_utils`:
+Connection-layer tests for `WebsocketService` run the real connection method against a fake aiohttp websocket. Import `build_fake_ws` from `hassette.test_utils` and construct the fake session inline:
 
 ```python
-from hassette.test_utils import build_fake_ws, fake_session
+from unittest.mock import AsyncMock, MagicMock
+
+from hassette.test_utils import build_fake_ws
+
+
+async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
+    fake_ws = build_fake_ws()
+    fake_session = MagicMock()
+    fake_session.ws_connect = AsyncMock(return_value=fake_ws)
+
+    websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
+
+    await websocket_service.connect_ws(fake_session)  # real connect_ws (the MUT) runs
+
+    assert websocket_service._ws is fake_ws
 ```
 
-`build_fake_ws()` returns a `FakeClientWebSocketResponse` whose `receive` / `send_str` / `close` methods are `AsyncMock`s. This keeps the real `make_connection` running while the underlying I/O is controlled. Tests do not need to patch `make_connection` directly when this helper is available.
+`build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.test_utils`.
 
 ### The `# boundary-exempt:` annotation convention
 
