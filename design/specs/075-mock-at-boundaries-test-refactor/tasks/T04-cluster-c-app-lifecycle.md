@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Cluster C: drive AppLifecycle/AppHandler tests through public entry points"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#5", "FR#8", "AC#5"]
 ---

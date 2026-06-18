@@ -120,6 +120,7 @@ class TestApps:
             )
         )
 
+        # boundary-exempt: collaborator of handle_change_event
         with patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect:
             mock_detect.return_value = ChangeSet(
                 orphans=frozenset({"my_app"}),
@@ -160,7 +161,9 @@ class TestApps:
         )
 
         with (
+            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
+            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)

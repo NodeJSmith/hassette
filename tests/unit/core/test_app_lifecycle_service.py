@@ -354,8 +354,9 @@ class TestBootstrapApps:
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls handle_crash and re-raises on exception."""
         mock_registry.manifests = {"app_a": MagicMock()}
+        # boundary-exempt: collaborator of bootstrap_apps
         lifecycle_service.resolve_only_app = AsyncMock(side_effect=RuntimeError("crash"))
-        lifecycle_service.handle_crash = AsyncMock()
+        lifecycle_service.handle_crash = AsyncMock()  # boundary-exempt: collaborator of bootstrap_apps
 
         with pytest.raises(RuntimeError, match="crash"):
             await lifecycle_service.bootstrap_apps()

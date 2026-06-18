@@ -11,9 +11,9 @@ from hassette.types.enums import BlockReason, ResourceStatus
 class TestApplyChanges:
     async def test_routes_changes_to_correct_methods(self, lifecycle_service: AppLifecycleService) -> None:
         """Routes orphans/reimport/reload/new to correct methods."""
-        lifecycle_service.stop_app = AsyncMock()
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service.start_app = AsyncMock()
+        lifecycle_service.stop_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
             orphans=frozenset({"orphan_app"}),
