@@ -93,6 +93,13 @@ def e2e(session: "Session"):
         "--output",
         "test-results",
         "--tb=line",
+        # Browser tests can stall on a never-resolving wait; fail the test instead
+        # of letting the whole job run to its timeout. 120s is well above the
+        # slowest real e2e test (single digits of seconds). See `tests` session.
+        "--timeout",
+        "120",
+        "--timeout-method",
+        "thread",
         external=True,
     )
 
@@ -148,6 +155,13 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "-n",
         "0",
         "--tb=short",
+        # Fail a hung test (e.g. a reconnect that never completes) instead of
+        # stalling the job. 120s covers docker restart + reconnect backoff. See
+        # `tests` session for why the thread method is used.
+        "--timeout",
+        "120",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         "--reruns-delay",
