@@ -7,8 +7,14 @@ on:
         branches: [main]
         types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
+concurrency:
+    group: pr-screenshots-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
 permissions:
+    # Needed by actions/checkout.
     contents: read
+    # Needed for `gh pr view` in tools/frontend/check_pr_screenshots.py.
     pull-requests: read
 
 jobs:

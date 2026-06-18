@@ -69,7 +69,12 @@ def layer_of(path: Path) -> str:
 
 
 def type_checking_ranges(tree: ast.AST) -> list[tuple[int, int]]:
-    """Return line spans of ``if TYPE_CHECKING:`` blocks (their imports are exempt)."""
+    """Return line spans of the statements inside ``if TYPE_CHECKING:`` blocks.
+
+    Imports within these spans are exempt. Only the ``if`` body is collected — an
+    ``else`` branch runs at runtime, so spanning the whole ``if`` node (which would
+    cover the ``else``) would wrongly exempt runtime imports there.
+    """
     ranges: list[tuple[int, int]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
@@ -79,7 +84,7 @@ def type_checking_ranges(tree: ast.AST) -> list[tuple[int, int]]:
             isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
         )
         if is_tc:
-            ranges.append((node.lineno, node.end_lineno or node.lineno))
+            ranges.extend((stmt.lineno, stmt.end_lineno or stmt.lineno) for stmt in node.body)
     return ranges
 
 
@@ -92,8 +97,13 @@ def runtime_imports(tree: ast.AST) -> list[tuple[int, str]]:
 
     out: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("hassette"):
-            if not in_type_checking(node.lineno):
+        if isinstance(node, ast.ImportFrom) and node.module and not in_type_checking(node.lineno):
+            if node.module == "hassette":
+                # For ``from hassette import test_utils``, ast records node.module as
+                # "hassette" and the real target as the alias name. Reassemble the
+                # dotted path per alias so this form is checked like ``hassette.test_utils``.
+                out.extend((node.lineno, f"hassette.{alias.name}") for alias in node.names if alias.name != "*")
+            elif node.module.startswith("hassette."):
                 out.append((node.lineno, node.module))
         elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
             out.extend((node.lineno, alias.name) for alias in node.names if alias.name.startswith("hassette."))

@@ -13,7 +13,16 @@ from check_llm_cruft import check_file, iter_paths
 
 def kinds(findings: list[tuple[int, str]]) -> list[str]:
     """Return just the short kind of each finding ('divider' or 'filler')."""
-    return ["divider" if "divider" in f else "filler" for _, f in findings]
+    kinds_out: list[str] = []
+    for _, finding in findings:
+        if "divider" in finding:
+            kinds_out.append("divider")
+            continue
+        if "filler" in finding:
+            kinds_out.append("filler")
+            continue
+        raise AssertionError(f"Unexpected finding format: {finding!r}")
+    return kinds_out
 
 
 def test_pure_rule_divider_flagged(write_sample: Callable[[str], Path]) -> None:

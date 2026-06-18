@@ -66,12 +66,18 @@ def fetch_pr_metadata(pr: str) -> tuple[list[str], str, list[str]]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=30,
         )
     except FileNotFoundError:
         print("ERROR: the GitHub CLI ('gh') is not installed or not on PATH.", file=sys.stderr)
         sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print("ERROR: 'gh pr view' timed out after 30s.", file=sys.stderr)
+        sys.exit(1)
     except subprocess.CalledProcessError as exc:
-        print(f"ERROR: 'gh pr view {pr}' failed: {exc.stderr.strip()}", file=sys.stderr)
+        stderr = (exc.stderr or "").strip()
+        detail = f": {stderr}" if stderr else ""
+        print(f"ERROR: 'gh pr view {pr}' failed{detail}", file=sys.stderr)
         sys.exit(1)
     data = json.loads(result.stdout)
     files = [f["path"] for f in data.get("files", [])]
