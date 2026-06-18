@@ -34,20 +34,20 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
 
-    # ---- Unwrap type aliases (`type Foo = ...`) ----
+    # Unwrap type aliases (`type Foo = ...`)
     value = getattr(tp, "__value__", None)
     if value is not None:
         return normalize_for_isinstance(value)
 
-    # ---- Unwrap Annotated[T, ...] ----
+    # Unwrap Annotated[T, ...]
     if get_origin(tp) is Annotated:
         return normalize_for_isinstance(get_args(tp)[0])
 
-    # ---- typing.Any ----
+    # typing.Any
     if tp is Any:
         return object
 
-    # ---- TypeVar ----
+    # TypeVar
     if isinstance(tp, TypeVar):
         if tp.__constraints__:
             return flatten_types(normalize_for_isinstance(c) for c in tp.__constraints__)
@@ -55,17 +55,17 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
             return normalize_for_isinstance(tp.__bound__)
         return object
 
-    # ---- PEP 604 union: A | B ----
+    # PEP 604 union: A | B
     if isinstance(tp, UnionType):
         return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
 
     origin = get_origin(tp)
 
-    # ---- typing.Union[A, B] ----
+    # typing.Union[A, B]
     if origin is Union:
         return flatten_types(normalize_for_isinstance(arg) for arg in get_args(tp))
 
-    # ---- Parameterized generic: list[int], Sequence[str], Mapping[K,V], etc. ----
+    # Parameterized generic: list[int], Sequence[str], Mapping[K,V], etc.
     if origin is not None:
         # For isinstance, we can only check against the origin
         # (we cannot check args at runtime with isinstance).
@@ -79,7 +79,7 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
             return origin
         return object
 
-    # ---- Base case: should already be a runtime class or tuple of them ----
+    # Base case: should already be a runtime class or tuple of them
     if isinstance(tp, tuple):
         # If someone passed a tuple of types already
         return flatten_types(normalize_for_isinstance(x) for x in tp)
@@ -87,7 +87,7 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     if isinstance(tp, type):
         return tp
 
-    # ---- Things like Literal[...] / Never / etc. ----
+    # Things like Literal[...] / Never / etc.
     return tp
 
 

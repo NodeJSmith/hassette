@@ -6,7 +6,7 @@ def entrypoint() -> None:
     # Pre-config fallback — Hassette.__init__ re-calls with the full config (including log_format)
     enable_basic_logging(get_log_level(), log_format="auto")
 
-    from hassette.cli import app  # deferred to break circular import at module level
+    from hassette.cli import app  # lazy-import: break circular import — cli pulls the full app graph
 
     app.meta()
 

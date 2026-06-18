@@ -35,9 +35,9 @@ class AnnotationConverter:
     """Converts runtime values to match rich annotations (including nested containers)."""
 
     def convert(self, value: Any, annotation: Any) -> Any:
-        # TODO(#892): break circular dependency — conversion/__init__ imports this module
+        # lazy-import: break circular import — conversion/__init__ imports this module (#892)
         from hassette.conversion import TYPE_MATCHER, TYPE_REGISTRY
-        from hassette.models.states import BaseState
+        from hassette.models.states import BaseState  # lazy-import: same circular import (#892)
 
         tp = normalize_annotation(annotation, constructible=True)
 

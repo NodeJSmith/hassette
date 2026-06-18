@@ -843,7 +843,7 @@ class CommandExecutor(Service):
             records: Unified execution records to insert into executions.
             retry_count: The number of times this batch has already been retried.
         """
-        # ---- Drain-time session_id injection ----
+        # Drain-time session_id injection
         # Records enqueued before session creation have session_id=None.
         # Inject the real session_id now at persist time.
         try:

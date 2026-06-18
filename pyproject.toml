@@ -125,7 +125,7 @@ hassette = "hassette.__main__:entrypoint"
 module-name = "hassette"
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "tools", "scripts"]
+pythonpath = ["src", "tools", "tools/frontend", "scripts"]
 norecursedirs = ["codegen", "tests/pyright_probes"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"

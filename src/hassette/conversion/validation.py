@@ -73,8 +73,8 @@ def validate_registries(
 
 def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryValidationIssue]:
     """Run all STATE_REGISTRY checks and return the collected issues."""
-    # Deferred import: models.states.base → conversion → validation → models.states.base.
-    # Safe here because validate_registries() runs after all modules are loaded.
+    # Cycle: models.states.base → conversion → validation → models.states.base.
+    # lazy-import: safe here because validate_registries() runs after all modules are loaded
     from hassette.models.states.base import BaseState
 
     issues: list[RegistryValidationIssue] = []

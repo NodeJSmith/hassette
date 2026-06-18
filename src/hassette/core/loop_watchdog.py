@@ -20,13 +20,13 @@ Two cooperating parts:
 Detection is gated on **tick staleness**, never on marker age. A handler doing
 ``await asyncio.sleep(30)`` keeps the loop free, so the in-loop tick keeps advancing → no
 stall flagged even though the marker has been set for 30s. Only a synchronous block starves
-the tick. This satisfies FR#9 / AC#3.
+the tick.
 
 **Warn-after, one warning per episode.** A freeze is one *episode*: the daemon captures the
 offending marker and a stack snapshot when the stall is first detected (while the loop is
 still frozen, so the snapshot shows the blocking line), then emits exactly one warning when
 the loop **recovers**, reporting the full stall duration (the gap the tick was starved). This
-is "report after the stall" (FR#3) and makes the reported duration ≈ the block length (AC#1).
+is "report after the stall" and makes the reported duration ≈ the block length.
 A block that never recovers before shutdown is flushed once in ``stop()``.
 
 Architecture reference: design/specs/074-blocking-io-detection/design.md §"Tier 1"
@@ -64,12 +64,12 @@ _MAX_STACK_DEPTH = 30
 
 @dataclass(frozen=True)
 class WatchdogEvent:
-    """Detected stall event — structured for T05 DB persistence.
+    """Detected stall event — structured for DB persistence.
 
-    Carries enough attribution that the persistence layer (T05) can write a
+    Carries enough attribution that the persistence layer can write a
     ``blocking_events`` row without re-reading any live state. The watchdog
-    clears ``current_execution`` on the loop thread after the block, so T05
-    must consume this snapshot, not re-read the executor.
+    clears ``current_execution`` on the loop thread after the block, so the
+    persistence layer must consume this snapshot, not re-read the executor.
     """
 
     app_key: str | None
@@ -251,7 +251,7 @@ class LoopWatchdog:
 
         Captures the offending execution (and a stack snapshot) DURING a freeze, while the
         marker is still live, then reports the stall AFTER the loop recovers so the duration
-        reflects the full block (FR#3 warn-after, AC#1 duration ≈ T). One episode → one warning.
+        reflects the full block. One episode → one warning.
         """
         while not self._stop_event.is_set():
             time.sleep(self._check_interval)
@@ -425,7 +425,7 @@ class LoopWatchdog:
         if event.stack_text:
             msg += f"\nLoop thread stack (non-framework frames):\n{event.stack_text}"
 
-        # Persist FIRST (T05), for WARN/ERROR only (IGNORE already returned above): warnings.warn
+        # Persist FIRST, for WARN/ERROR only (IGNORE already returned above): warnings.warn
         # below can raise on a user filterwarnings("error") escalation, which would otherwise skip
         # the row — but a non-ignored stall happened and must be recorded regardless of escalation.
         # on_stall marshals onto the loop; a closed/stopped loop at shutdown raises RuntimeError.
@@ -440,6 +440,6 @@ class LoopWatchdog:
         # Emit on the daemon thread. WARN and ERROR both go through warnings.warn; if the user's
         # filter escalates it to an error, warnings.warn raises — swallow it so the escalation
         # cannot kill the watchdog thread. Tier 1 is warn-after and never propagates a raise
-        # (FR#3); call-site interception is Tier 2's job.
+        # call-site interception is Tier 2's job.
         with contextlib.suppress(HassetteBlockingIOWarning):
             warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)

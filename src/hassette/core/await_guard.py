@@ -34,7 +34,7 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
     The annotation on every protected method stays ``-> Coroutine[Any, Any, T]``
     (the supertype, on purpose): Pyright's ``reportUnusedCoroutine`` fires only
     for the ``Coroutine`` ABC; narrowing to ``RegistrationHandle`` or ``Awaitable``
-    would silently kill the static layer.  AC#8 guards that constraint.
+    would silently kill the static layer.  This guards that constraint.
     """
 
     __slots__ = ("__name__", "_awaited", "_behavior", "_coro", "_display_name", "_owner_identity", "_source_location")
@@ -94,7 +94,7 @@ class RegistrationHandle(Coroutine[Any, Any, T]):
             return
 
         # Always close the inner coroutine FIRST — this suppresses CPython's native
-        # "coroutine '...' was never awaited" RuntimeWarning (FR#4) even during
+        # "coroutine '...' was never awaited" RuntimeWarning even during
         # interpreter shutdown, when the warnings module below may already be gone.
         # Plain try/except, not contextlib: module globals can be None'd at shutdown.
         try:  # noqa: SIM105 — contextlib itself may be torn down when __del__ runs at shutdown
@@ -143,7 +143,7 @@ def guard_await(
     Resolution order:
     1. ``owner.app_config.forgotten_await_behavior`` (per-app, when not ``None``)
     2. ``owner.hassette.config.forgotten_await_behavior`` (global, when not ``None``)
-    3. ``WARN`` (hardcoded default — FR#7)
+    3. ``WARN`` (hardcoded default)
 
     The owner identity string is also captured eagerly for the same reason.
 

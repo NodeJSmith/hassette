@@ -33,7 +33,6 @@ LOGGER = getLogger(__name__)
 # Hardcoded fallback when neither per-app nor global config has a value set.
 DEFAULT_BLOCKING_IO_BEHAVIOR = BlockingIOBehavior.WARN
 
-# ---------------------------------------------------------------------------
 # Saved originals — populated at install, restored at uninstall.
 # Tier 2 patches builtins / socket / os, which are PROCESS-GLOBAL: there can be exactly
 # one active install per process, and its wrappers close over one specific (hassette,
@@ -42,7 +41,6 @@ DEFAULT_BLOCKING_IO_BEHAVIOR = BlockingIOBehavior.WARN
 # track the single owner so a conflicting second install is reported loudly, not silently.
 # Mutated only by install()/uninstall(), which run on the loop thread during
 # startup/shutdown (single-threaded); no lock is needed.
-# ---------------------------------------------------------------------------
 
 _originals: dict[str, Any] = {}
 _installed = False
@@ -61,7 +59,7 @@ def resolve_blocking_io_behavior(owner: object) -> BlockingIOBehavior:
     Resolution order:
     1. ``owner.app_config.blocking_io_behavior`` (per-app, when not ``None``)
     2. ``owner.hassette.config.blocking_io.behavior`` (global, when not ``None``)
-    3. ``WARN`` (hardcoded default — FR#7)
+    3. ``WARN`` (hardcoded default)
 
     Duck-typed: ``owner`` needs ``app_config.blocking_io_behavior`` and
     ``hassette.config.blocking_io.behavior``. Missing or broken accessors are
@@ -98,16 +96,14 @@ def resolve_blocking_io_behavior(owner: object) -> BlockingIOBehavior:
     return behavior
 
 
-# ---------------------------------------------------------------------------
-# Tier 2 event structure (for T05 to consume)
-# ---------------------------------------------------------------------------
+# Tier 2 event structure (consumed by the DB persistence layer)
 
 
 @dataclass(frozen=True)
 class MonkeypatchEvent:
-    """Detected blocking call event — structured for T05 DB persistence.
+    """Detected blocking call event — structured for DB persistence.
 
-    Carries enough attribution that the persistence layer (T05) can write a
+    Carries enough attribution that the persistence layer can write a
     ``blocking_events`` row without re-reading any live state.
 
     ``tier`` is always ``"monkeypatch"`` for Tier 2 events.
@@ -143,9 +139,7 @@ class MonkeypatchEvent:
     withheld), or ``"framework"`` (no execution was bound: a genuine framework/library call)."""
 
 
-# ---------------------------------------------------------------------------
-# Enablement logic (FR#6, AC#10)
-# ---------------------------------------------------------------------------
+# Enablement logic
 
 
 def _should_install(hassette: "Hassette") -> bool:
@@ -161,16 +155,14 @@ def _should_install(hassette: "Hassette") -> bool:
     return cfg.blocking_io.allow_deep_detection_in_prod  # prod: only with explicit opt-in
 
 
-# ---------------------------------------------------------------------------
 # Wrapper factory
-# ---------------------------------------------------------------------------
 
 
 def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecutor") -> None:
     """Resolve attribution for a loop-thread blocking call, build the event, and emit.
 
     On WARN/ERROR this calls ``warnings.warn``, which RAISES if the active filter escalates
-    ``HassetteBlockingIOWarning`` to an error (the dev-mode / AC#5 case). The caller places
+    ``HassetteBlockingIOWarning`` to an error (the dev-mode case). The caller places
     this BEFORE invoking the original primitive, so a raised warning intercepts the call —
     the original never runs. ``IGNORE`` returns without emitting (the original then runs).
     """
@@ -196,7 +188,7 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
         detected_at=time.time(),
         reason=reason,
     )
-    # Persist BEFORE emitting (T05). _emit can raise (a filterwarnings("error") escalation that
+    # Persist BEFORE emitting. _emit can raise (a filterwarnings("error") escalation that
     # intercepts the call), which would otherwise skip the row — but the call was detected and
     # must be recorded. record_blocking_event() is best-effort: it enqueues the write fire-and-forget
     # and drops the row (no raise) if the DB queue isn't live yet. The _in_wrapper.active
@@ -215,7 +207,7 @@ def _make_module_wrapper(
     """Build a wrapper for a module-level blocking function (open, time.sleep, os.*, glob.glob)."""
 
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Off-loop (executor offload, FR#8/AC#4) or re-entrant (inside our own warn/emit path):
+        # Off-loop (executor offload) or re-entrant (inside our own warn/emit path):
         # pass straight through to the original.
         if threading.get_ident() != loop_thread_id or getattr(_in_wrapper, "active", False):
             return original(*args, **kwargs)
@@ -270,9 +262,7 @@ def _make_method_wrapper(
     return wrapper
 
 
-# ---------------------------------------------------------------------------
 # Attribution helper
-# ---------------------------------------------------------------------------
 
 
 class _Attribution(NamedTuple):
@@ -324,9 +314,7 @@ def _resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: in
     return hassette
 
 
-# ---------------------------------------------------------------------------
 # Warning emission
-# ---------------------------------------------------------------------------
 
 
 def _emit(event: MonkeypatchEvent) -> None:
@@ -335,7 +323,7 @@ def _emit(event: MonkeypatchEvent) -> None:
     ERROR is not a distinct code path here: WARN and ERROR both call ``warnings.warn`` with the
     same arguments. Whether the warning escalates to a raised exception depends entirely on the
     user's ``filterwarnings`` config (dev_mode installs ``filterwarnings("error")``); the guard
-    never raises unconditionally (FR#7). Mirrors the Tier 1 watchdog's ``_emit`` method.
+    never raises unconditionally. Mirrors the Tier 1 watchdog's ``_emit`` method.
     """
     app_label = event.app_key or "<framework>"
     inst_label = f" ({event.instance_name})" if event.instance_name else ""
@@ -352,9 +340,7 @@ def _emit(event: MonkeypatchEvent) -> None:
     warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)
 
 
-# ---------------------------------------------------------------------------
 # Curated primitive table
-# ---------------------------------------------------------------------------
 # Two patch styles:
 #   - module-level: (module_obj, attr_name, original_callable)
 #   - method: (class_obj, attr_name, original_callable)  — wrapper needs self
@@ -379,9 +365,7 @@ _SOCKET_METHOD_TABLE: list[tuple[str, str]] = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Install / uninstall (idempotent, reversible, leak-proof)
-# ---------------------------------------------------------------------------
 
 
 def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExecutor") -> bool:

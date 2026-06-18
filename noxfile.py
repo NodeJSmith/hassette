@@ -58,13 +58,20 @@ def tests(session: "Session"):
         "loadscope",
         "-v",
         "--tb=line",
+        # Fail a hung test instead of letting CI hang until the job is cancelled.
+        # thread method dumps every thread's stack then os._exit()s — it catches
+        # C-level/lock hangs that the signal method can't interrupt.
+        "--timeout",
+        "60",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         external=True,
     )
 
 
-@nox.session(python=["3.13", "3.14"])
+@nox.session(python=["3.11", "3.13", "3.14"])
 def e2e(session: "Session"):
     # Build frontend if not already built
     if not _SPA_INDEX.exists():
@@ -86,6 +93,13 @@ def e2e(session: "Session"):
         "--output",
         "test-results",
         "--tb=line",
+        # Browser tests can stall on a never-resolving wait; fail the test instead
+        # of letting the whole job run to its timeout. 120s is well above the
+        # slowest real e2e test (single digits of seconds). See `tests` session.
+        "--timeout",
+        "120",
+        "--timeout-method",
+        "thread",
         external=True,
     )
 
@@ -141,6 +155,13 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "-n",
         "0",
         "--tb=short",
+        # Fail a hung test (e.g. a reconnect that never completes) instead of
+        # stalling the job. 120s covers docker restart + reconnect backoff. See
+        # `tests` session for why the thread method is used.
+        "--timeout",
+        "120",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         "--reruns-delay",
@@ -172,6 +193,13 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=xml",
         "--cov-report=html",
         "--tb=line",
+        # See `tests` session: thread method dumps stacks then os._exit()s, catching
+        # hangs the signal method can't. Safe under coverage — it does not inject
+        # async exceptions (no SetAsyncExc), so it cannot trigger the settrace deadlock.
+        "--timeout",
+        "60",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         external=True,

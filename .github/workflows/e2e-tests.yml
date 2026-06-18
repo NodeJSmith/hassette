@@ -38,6 +38,11 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
 
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.11", "3.13", "3.14"]
+
         env:
             TZ: America/Chicago
 
@@ -50,12 +55,12 @@ jobs:
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
-                  python-version: "3.13"
+                  python-version: ${{ matrix.python-version }}
 
             - run: uv sync
 
             - name: Run e2e tests
-              run: uv run nox -s e2e
+              run: uv run nox -s e2e -p ${{ matrix.python-version }}
 
             - name: Upload test results
               if: failure()

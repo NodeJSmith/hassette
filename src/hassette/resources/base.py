@@ -142,7 +142,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
-        from hassette.task_bucket import TaskBucket
+        from hassette.task_bucket import TaskBucket  # lazy-import: break circular import — task_bucket imports Resource
 
         super().__init__()
 
