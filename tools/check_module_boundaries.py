@@ -68,6 +68,16 @@ def layer_of(path: Path) -> str:
     return rel.parts[0] if len(rel.parts) > 1 else "<root>"
 
 
+def package_of(path: Path) -> str:
+    """Return the dotted package a file's relative imports resolve against.
+
+    ``src/hassette/app/utils.py`` and ``src/hassette/app/__init__.py`` both anchor
+    at ``hassette.app`` — the package is every path part except the file stem.
+    """
+    rel = path.relative_to(SRC.parent).with_suffix("")  # e.g. hassette/app/utils
+    return ".".join(rel.parts[:-1])
+
+
 def type_checking_ranges(tree: ast.AST) -> list[tuple[int, int]]:
     """Return line spans of the statements inside ``if TYPE_CHECKING:`` blocks.
 
@@ -88,8 +98,32 @@ def type_checking_ranges(tree: ast.AST) -> list[tuple[int, int]]:
     return ranges
 
 
-def runtime_imports(tree: ast.AST) -> list[tuple[int, str]]:
-    """Return (lineno, imported hassette.* module) for every runtime import."""
+def resolved_from_module(node: ast.ImportFrom, package: str | None) -> str | None:
+    """Resolve the ``from`` target of an ``ImportFrom`` to an absolute dotted module.
+
+    Absolute imports return ``node.module`` unchanged. Relative imports are resolved
+    against ``package`` (``from ..test_utils import x`` inside ``hassette.core`` →
+    ``hassette.test_utils``). Returns None when there is no package to anchor a
+    relative import or the level climbs above the root.
+    """
+    if node.level == 0:
+        return node.module
+    if package is None:
+        return None
+    base = package.split(".")
+    drop = node.level - 1
+    if drop >= len(base):
+        return None  # climbs to or above the root package — Python rejects this too
+    anchor = base[: len(base) - drop] if drop else base
+    return ".".join([*anchor, *(node.module.split(".") if node.module else [])])
+
+
+def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
+    """Return (lineno, imported hassette.* module) for every runtime import.
+
+    ``package`` is the importing module's dotted package, used to resolve relative
+    imports; when omitted, relative imports are skipped.
+    """
     tc_ranges = type_checking_ranges(tree)
 
     def in_type_checking(lineno: int) -> bool:
@@ -97,25 +131,29 @@ def runtime_imports(tree: ast.AST) -> list[tuple[int, str]]:
 
     out: list[tuple[int, str]] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and not in_type_checking(node.lineno):
-            if node.module == "hassette":
-                # For ``from hassette import test_utils``, ast records node.module as
-                # "hassette" and the real target as the alias name. Reassemble the
-                # dotted path per alias so this form is checked like ``hassette.test_utils``.
+        if isinstance(node, ast.ImportFrom) and not in_type_checking(node.lineno):
+            module = resolved_from_module(node, package)
+            if module == "hassette":
+                # Bare ``hassette`` target (``from hassette import test_utils`` or the
+                # relative ``from .. import test_utils``): the alias names are the
+                # submodules, so reassemble ``hassette.<name>`` per alias.
                 out.extend((node.lineno, f"hassette.{alias.name}") for alias in node.names if alias.name != "*")
-            elif node.module.startswith("hassette."):
-                out.append((node.lineno, node.module))
+            elif module and module.startswith("hassette."):
+                out.append((node.lineno, module))
         elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
             out.extend((node.lineno, alias.name) for alias in node.names if alias.name.startswith("hassette."))
     return out
 
 
-def check_source(source: str, layer: str) -> list[tuple[int, str]]:
-    """Return sorted (1-based line number, message) for boundary violations in a source string."""
+def check_source(source: str, layer: str, package: str | None = None) -> list[tuple[int, str]]:
+    """Return sorted (1-based line number, message) for boundary violations in a source string.
+
+    ``package`` anchors relative imports; pass it to check the relative-import forms.
+    """
     tree = ast.parse(source)
     violations = [
         (lineno, f"{rule.name}: imports {module} — {rule.reason}")
-        for lineno, module in runtime_imports(tree)
+        for lineno, module in runtime_imports(tree, package)
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
@@ -124,7 +162,7 @@ def check_source(source: str, layer: str) -> list[tuple[int, str]]:
 
 def check_file(path: Path) -> list[tuple[int, str]]:
     """Return sorted (1-based line number, message) for every boundary violation in the file."""
-    return check_source(path.read_text(), layer_of(path))
+    return check_source(path.read_text(), layer_of(path), package_of(path))
 
 
 def iter_paths() -> list[Path]:

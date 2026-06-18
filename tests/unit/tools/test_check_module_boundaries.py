@@ -85,6 +85,51 @@ def test_runtime_import_in_type_checking_else_not_exempt() -> None:
     ]
 
 
+def test_relative_import_of_test_utils_module_flagged() -> None:
+    # ``from ..test_utils import x`` inside hassette.core resolves to hassette.test_utils.
+    src = "from ..test_utils import build_fake_ws\n"
+    assert check_source(src, "core", package="hassette.core") == [
+        (
+            1,
+            "test_utils-isolation: imports hassette.test_utils — "
+            "production code must not import test helpers from hassette.test_utils",
+        )
+    ]
+
+
+def test_relative_bare_import_of_test_utils_flagged() -> None:
+    # ``from .. import test_utils`` inside hassette.core: the alias is the submodule.
+    src = "from .. import test_utils\n"
+    assert check_source(src, "core", package="hassette.core") == [
+        (
+            1,
+            "test_utils-isolation: imports hassette.test_utils — "
+            "production code must not import test helpers from hassette.test_utils",
+        )
+    ]
+
+
+def test_relative_import_to_sibling_test_utils_not_flagged() -> None:
+    # ``from .test_utils import x`` resolves to hassette.core.test_utils, a different
+    # package than the real hassette.test_utils — no false positive.
+    src = "from .test_utils import x\n"
+    assert check_source(src, "core", package="hassette.core") == []
+
+
+def test_relative_import_above_root_not_flagged() -> None:
+    # ``from ..test_utils import x`` from a single-component package climbs above the
+    # root — invalid Python, so it resolves to nothing rather than a bogus match.
+    src = "from ..test_utils import build_fake_ws\n"
+    assert check_source(src, "core", package="hassette") == []
+
+
+def test_relative_import_skipped_without_package() -> None:
+    # With no package to anchor resolution, relative imports can't be resolved and
+    # are skipped rather than guessed at.
+    src = "from ..test_utils import build_fake_ws\n"
+    assert check_source(src, "core") == []
+
+
 def test_other_cross_layer_imports_not_yet_governed() -> None:
     # Only test_utils isolation is enforced today; importing core is allowed.
     src = "from hassette.core import Hassette\n"
