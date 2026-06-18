@@ -3,7 +3,7 @@ task_id: "T04"
 title: "Surface backpressure drops through the web API and frontend"
 status: "planned"
 depends_on: ["T02", "T03"]
-implements: ["FR#6", "FR#7", "AC#4"]
+implements: ["FR#6", "FR#7", "AC#4", "AC#11"]
 ---
 
 ## Summary
@@ -89,3 +89,5 @@ Implement the instrumentation surface per the design doc's `## Architecture` §5
   a distinct "Backpressure dropped" cell (as a rate) when `> 0` and a policy chip when non-default.
 - [ ] AC#4: A listener with `bp_dropped > 0` returns a non-zero `backpressure_dropped_count` in its
   summary and the UI renders the cell; `suppressed_count`/`dropped_count` are unaffected.
+- [ ] AC#11: The "Backpressure dropped" cell renders a *rate*
+  (`bp_dropped / (total_invocations + bp_dropped)`, e.g. `"40 (12%)"`), not a bare count.

@@ -3,7 +3,7 @@ task_id: "T02"
 title: "Enforce DROP_NEWEST at the dispatch acquire gate with a bp_dropped counter"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3"]
+implements: ["FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3", "AC#10", "AC#12"]
 ---
 
 ## Summary
@@ -74,8 +74,13 @@ warning-text Edge Case.
 - [ ] FR#4: Under a held-locked semaphore, a `DROP_NEWEST` listener's handler is not invoked and
   `listener.invoker.bp_dropped` increments by one per dropped event.
 - [ ] FR#5: Under the limit (not saturated), a `DROP_NEWEST` listener dispatches normally.
-- [ ] FR#6: `HandlerInvoker.bp_dropped` exists, initializes to 0, and is incremented only at the gate.
+- [ ] FR#6: `HandlerInvoker.bp_dropped` exists, initializes to 0, and is incremented only at the gate
+  (this task creates+increments the counter; T04 surfaces it — FR#6 is fully closed across T02+T04).
 - [ ] AC#1: `test_dispatch_under_limit_runs_all_without_blocking` and the other existing tests pass; a
   `DROP_NEWEST` listener under the limit runs every event.
 - [ ] AC#2: New test: held-locked semaphore → `DROP_NEWEST` skipped, handler not called, counter +1/drop.
 - [ ] AC#3: New test: held-locked semaphore → `BLOCK` listener blocks until a slot frees, then runs.
+- [ ] AC#10: New test asserts a dropped event leaves `_dispatch_pending` unchanged and does not clear
+  `_dispatch_idle_event` — `await_dispatch_idle` returns without hanging after the drop.
+- [ ] AC#12: `warn_dispatch_saturated`'s message no longer asserts "waiting for a slot" — the wording is
+  policy-neutral (assert on the new message text, or that the old phrasing is absent).

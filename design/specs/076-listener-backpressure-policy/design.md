@@ -89,7 +89,8 @@ else, with no opt-out.
 - **FR#6** Each listener exposes a live count of events it dropped due to backpressure, tracked
   separately from the existing suppressed (single-mode) and dropped (queued-cap) counts.
 - **FR#7** The backpressure-drop count is surfaced in the listener's web summary and rendered in the
-  UI when greater than zero, labeled distinctly from "Suppressed" and "Dropped".
+  UI when greater than zero, labeled distinctly from "Suppressed" and "Dropped", and shown as a *rate*
+  (`bp_dropped / (total_invocations + bp_dropped)`) rather than a bare count.
 - **FR#8** The configured policy is persisted with the listener's registration record so it survives
   and is queryable, defaulting to `BLOCK` for listeners written before this change.
 - **FR#9** An invalid `backpressure` string raises a clear `ValueError` at registration time, listing
@@ -147,6 +148,15 @@ else, with no opt-out.
 - **AC#9** (FR#8, upsert path) Registering `name=X` with `BLOCK`, then re-registering `name=X` with
   `DROP_NEWEST` via `if_exists="replace"`, leaves the persisted `listeners` row reading `'drop_newest'`
   — exercising the `ON CONFLICT ... DO UPDATE SET` clause, not just the first INSERT.
+- **AC#10** (FR#4, no-leak) After a `DROP_NEWEST` listener drops an event under a held-locked semaphore,
+  `_dispatch_pending` is unchanged and `_dispatch_idle_event` is not cleared by that drop —
+  `await_dispatch_idle` returns normally (the test does not hang).
+- **AC#11** (FR#7, drop rate) When a listener has backpressure drops, the UI renders the count as a
+  *rate* relative to total activity (`bp_dropped / (total_invocations + bp_dropped)`), not a bare count,
+  so a high-drop listener is distinguishable from an incidental one.
+- **AC#12** (FR#4, warning accuracy) After the change, `warn_dispatch_saturated`'s message does not
+  assert that dispatches are "waiting for a slot" — its wording is policy-neutral, since the warning
+  now fires for both blocking and dropping listeners.
 
 ## Key Constraints
 

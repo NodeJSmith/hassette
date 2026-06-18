@@ -69,6 +69,10 @@ Implement persistence per the design doc's `## Architecture` §6 and `## Migrati
   file. The gate branch (T02) and build_registration (T03) are different functions in the same file.
 - The migration runner applies numbered SQL files in order; `008.sql` is the next number (existing:
   001–007).
+- **Shared file with T04:** T04 also edits `tests/integration/bus/test_execution_modes.py` (it migrates
+  the `live_execution_counts` tuple assertion to a `NamedTuple`). T04 depends on this task and runs
+  after it, so write your new AC#5/AC#9 tests normally — T04 will integrate, not overwrite. Keep your
+  additions clearly separated so the later merge is clean.
 
 ## Verify
 - [ ] FR#8: The configured policy is persisted on the `listeners` row at registration and updated on a
