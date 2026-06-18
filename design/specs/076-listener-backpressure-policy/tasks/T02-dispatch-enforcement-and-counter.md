@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Enforce DROP_NEWEST at the dispatch acquire gate with a bp_dropped counter"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3", "AC#10", "AC#12"]
 ---

@@ -192,6 +192,11 @@ class HandlerInvoker:
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
 
+    bp_dropped: int = 0
+    """Count of events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure.
+    Incremented only in BusService.dispatch — one writer, on the event loop, no await between
+    the locked() check and the increment. Live-only; resets on restart, never persisted."""
+
     fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
 

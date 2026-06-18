@@ -18,7 +18,7 @@ from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import RestartType
+from hassette.types.enums import BackpressurePolicy, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -150,7 +150,8 @@ class BusService(Service):
         self._last_saturation_warn_ts = now
         self.logger.warning(
             "Event dispatch saturated: %d concurrent handlers in flight (max_concurrent_dispatches). "
-            "New dispatches are waiting for a slot; sustained saturation backpressures HA event intake. "
+            "Listeners may wait for a slot or drop events per their backpressure policy; "
+            "sustained saturation backpressures HA event intake. "
             "Raise lifecycle.max_concurrent_dispatches or speed up slow handlers.",
             self.hassette.config.lifecycle.max_concurrent_dispatches,
         )
@@ -388,6 +389,16 @@ class BusService(Service):
                 # acquire here: no await separates the two, so no other task changes the count between.
                 if self._dispatch_semaphore.locked():
                     self.warn_dispatch_saturated()
+                    if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
+                        # Single writer: this loop, on the event loop, NO await between locked() and
+                        # the increment — the same no-await window that makes the saturation check
+                        # race-free. Do not insert an await (e.g. metrics emit) between them.
+                        listener.invoker.bp_dropped += 1
+                        self.logger.debug(
+                            "backpressure drop_newest: skipping event for %s",
+                            listener.identity.name or listener.identity.handler_short_name,
+                        )
+                        continue  # no acquire, no spawn, no pending/idle bookkeeping
                 await self._dispatch_semaphore.acquire()
 
                 self._dispatch_pending += 1
