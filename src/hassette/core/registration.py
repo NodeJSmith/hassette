@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from hassette.types.enums import DEFAULT_OVERLAP_MODE
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 from hassette.types.types import SourceTier
 
 
@@ -64,6 +64,10 @@ class ListenerRegistration:
     mode: str = DEFAULT_OVERLAP_MODE
     """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
     the ``listeners.mode`` column. The tier-aware default is already applied in the options."""
+
+    backpressure: str = DEFAULT_BACKPRESSURE_POLICY
+    """Configured backpressure policy (block/drop_newest) as its string value. Persisted to the
+    ``listeners.backpressure`` column."""
 
 
 @dataclass(frozen=True)

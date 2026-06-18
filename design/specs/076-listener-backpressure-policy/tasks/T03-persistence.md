@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Persist the backpressure policy on the listeners table"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#8", "AC#5", "AC#8", "AC#9"]
 ---

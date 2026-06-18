@@ -228,6 +228,7 @@ class BusService(Service):
             duration=listener.duration_config.duration if listener.duration_config else None,
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
             mode=listener.options.mode.value,
+            backpressure=listener.options.backpressure.value,
         )
 
     def live_execution_counts(self) -> "dict[int, tuple[int, int]]":

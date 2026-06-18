@@ -107,6 +107,7 @@ def _listener_insert_params(registration: ListenerRegistration) -> dict[str, Any
         "duration": registration.duration,
         "entity_id": registration.entity_id,
         "mode": registration.mode,
+        "backpressure": registration.backpressure,
     }
 
 
@@ -294,13 +295,13 @@ class TelemetryRepository:
                 debounce, throttle, once, priority,
                 predicate_description, human_description,
                 source_location, registration_source, name, source_tier,
-                immediate, duration, entity_id, mode
+                immediate, duration, entity_id, mode, backpressure
             ) VALUES (
                 :app_key, :instance_index, :handler_method, :topic,
                 :debounce, :throttle, :once, :priority,
                 :predicate_description, :human_description,
                 :source_location, :registration_source, :name, :source_tier,
-                :immediate, :duration, :entity_id, :mode
+                :immediate, :duration, :entity_id, :mode, :backpressure
             )
             ON CONFLICT(app_key, instance_index, name, topic)
             DO UPDATE SET
@@ -315,6 +316,7 @@ class TelemetryRepository:
                 duration = excluded.duration,
                 entity_id = excluded.entity_id,
                 mode = excluded.mode,
+                backpressure = excluded.backpressure,
                 retired_at = NULL,
                 cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
