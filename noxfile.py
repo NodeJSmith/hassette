@@ -71,7 +71,7 @@ def tests(session: "Session"):
     )
 
 
-@nox.session(python=["3.13", "3.14"])
+@nox.session(python=["3.11", "3.13", "3.14"])
 def e2e(session: "Session"):
     # Build frontend if not already built
     if not _SPA_INDEX.exists():
