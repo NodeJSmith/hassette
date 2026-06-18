@@ -52,6 +52,16 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(1, "dispatch")],
     ),
     (
+        "monkeypatch_setattr_keyword_flagged",
+        'monkeypatch.setattr(ws, name="dispatch")\n',
+        [(1, "dispatch")],
+    ),
+    (
+        "patch_object_keyword_flagged",
+        'patch.object(state_proxy, attribute="load_cache")\n',
+        [(1, "load_cache")],
+    ),
+    (
         "patch_string_form_flagged",
         'patch("hassette.core.websocket_service.WebsocketService.dispatch")\n',
         [(1, "dispatch")],

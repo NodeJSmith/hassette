@@ -143,6 +143,21 @@ def string_arg(node: ast.Call, index: int) -> str | None:
     return None
 
 
+def string_arg_or_keyword(node: ast.Call, index: int, keyword: str) -> str | None:
+    """Return the same argument whether passed positionally (at index) or by keyword.
+
+    ``patch.object``/``monkeypatch.setattr`` accept the patched name positionally or as
+    a keyword (``attribute=``/``name=``), so both spellings must resolve to one value.
+    """
+    sym = string_arg(node, index)
+    if sym is not None:
+        return sym
+    for kw in node.keywords:
+        if kw.arg == keyword and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+            return kw.value.value
+    return None
+
+
 def patch_symbol(node: ast.Call) -> str | None:
     """Return the prohibited symbol targeted by a patch-family call, or None."""
     chain = func_chain(node.func)
@@ -151,14 +166,14 @@ def patch_symbol(node: ast.Call) -> str | None:
         # and the ``chain[-1]`` access below would otherwise raise IndexError.
         return None
 
-    # patch.object(target, "<sym>") / mock.patch.object(target, "<sym>")
+    # patch.object(target, "<sym>") / mock.patch.object(target, attribute="<sym>")
     if chain[-2:] == ["patch", "object"]:
-        sym = string_arg(node, 1)
+        sym = string_arg_or_keyword(node, 1, "attribute")
         return sym if sym in PROHIBITED_SYMBOLS else None
 
-    # monkeypatch.setattr(target, "<sym>")
+    # monkeypatch.setattr(target, "<sym>") / monkeypatch.setattr(target, name="<sym>")
     if chain[-2:] == ["monkeypatch", "setattr"]:
-        sym = string_arg(node, 1)
+        sym = string_arg_or_keyword(node, 1, "name")
         return sym if sym in PROHIBITED_SYMBOLS else None
 
     # patch("dotted.path.<sym>") / mock.patch("dotted.path.<sym>")
