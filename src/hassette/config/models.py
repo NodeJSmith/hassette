@@ -258,6 +258,19 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
     Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
 
+    max_concurrent_dispatches: int = Field(default=50, ge=1)
+    """Ceiling on concurrent event-handler invocations dispatched by the bus.
+
+    The bus fans an event out to one task per matching listener. Without a bound, a state
+    storm hitting many listeners spawns unbounded tasks and can exhaust memory and the event
+    loop. When this many handlers are already in flight, the bus waits for a slot before
+    spawning more — that wait propagates back through the inbound event channel to the
+    Home Assistant WebSocket reader (true backpressure).
+
+    A running handler holds its slot until it returns or hits ``event_handler_timeout_seconds``,
+    so a slow handler can stall dispatch up to that timeout. Read once at startup; changing it
+    requires a restart."""
+
     error_handler_timeout_seconds: float | None = Field(default=5.0)
     """Default timeout in seconds for error handler execution. ``None`` disables the default timeout."""
 
