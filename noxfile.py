@@ -58,6 +58,13 @@ def tests(session: "Session"):
         "loadscope",
         "-v",
         "--tb=line",
+        # Fail a hung test instead of letting CI hang until the job is cancelled.
+        # thread method dumps every thread's stack then os._exit()s — it catches
+        # C-level/lock hangs that the signal method can't interrupt.
+        "--timeout",
+        "60",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         external=True,
@@ -172,6 +179,13 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=xml",
         "--cov-report=html",
         "--tb=line",
+        # See `tests` session: thread method dumps stacks then os._exit()s, catching
+        # hangs the signal method can't. Safe under coverage — it does not inject
+        # async exceptions (no SetAsyncExc), so it cannot trigger the settrace deadlock.
+        "--timeout",
+        "60",
+        "--timeout-method",
+        "thread",
         "--reruns",
         "2",
         external=True,
