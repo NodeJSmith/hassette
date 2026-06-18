@@ -14,7 +14,15 @@ from aiohttp import ClientWebSocketResponse
 
 
 def build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
-    """Return a lightweight websocket stub with adjustable state."""
+    """Return a lightweight websocket stub with adjustable state.
+
+    Args:
+        is_closed: Whether the stub reports itself as closed via `.closed`.
+
+    Returns:
+        A `ClientWebSocketResponse` stub whose `send_json`, `receive_json`,
+        `receive`, and `close` methods are `AsyncMock` instances.
+    """
     fake_ws = SimpleNamespace()
     fake_ws.closed = is_closed
     fake_ws.send_json = AsyncMock()
