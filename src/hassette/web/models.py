@@ -333,6 +333,8 @@ class ListenerWithSummary(BaseModel):
     mode: str = DEFAULT_OVERLAP_MODE
     suppressed_count: int = 0
     dropped_count: int = 0
+    backpressure_dropped_count: int = 0
+    backpressure: str = "block"
 
 
 class ActivityBucket(BaseModel):

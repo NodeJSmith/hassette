@@ -22,6 +22,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.priority) chips.push({ label: "priority", value: String(listener.priority) });
   if (listener.immediate) chips.push({ label: "immediate" });
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
+  if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
   if (chips.length === 0) return null;
   return (
@@ -57,6 +58,12 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
   if (listener.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: listener.thread_leaked, tone: "warn" });
   if (listener.suppressed_count > 0) cells.push({ label: "Suppressed", value: listener.suppressed_count });
   if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count });
+  if (listener.backpressure_dropped_count > 0) {
+    const bp = listener.backpressure_dropped_count;
+    const total = listener.total_invocations;
+    const pct = total + bp > 0 ? Math.round((100 * bp) / (total + bp)) : 0;
+    cells.push({ label: "Backpressure Dropped", value: `${bp} (${pct}%)` });
+  }
   cells.push(
     { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
     { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },

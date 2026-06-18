@@ -1210,6 +1210,16 @@ export interface components {
              * @default 0
              */
             dropped_count: number;
+            /**
+             * Backpressure Dropped Count
+             * @default 0
+             */
+            backpressure_dropped_count: number;
+            /**
+             * Backpressure
+             * @default block
+             */
+            backpressure: string;
         };
         /**
          * LivenessResponse

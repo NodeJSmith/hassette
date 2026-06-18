@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.core.bus_service import BusService
+from hassette.core.bus_service import BusService, LiveCounts
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.events import RawStateChangeEvent
@@ -265,10 +265,32 @@ async def test_live_execution_counts_snapshot_keyed_by_db_id(
     await wait_for(lambda: sub.listener.invoker.guard.suppressed == 1)
 
     counts = harness.bus_service.live_execution_counts()
-    assert counts[db_id] == (1, 0)
+    assert counts[db_id] == LiveCounts(suppressed=1, dropped=0, bp_dropped=0)
 
     gate.set()
     await harness.bus_service.await_dispatch_idle()
+
+
+async def test_live_execution_counts_includes_bp_dropped(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """live_execution_counts() surfaces a listener's backpressure-drop counter by db_id (FR#6)."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "0")
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        pass
+
+    sub = await bus.on_state_change(ENTITY, handler=handler, name="counts_bp", backpressure="drop_newest")
+    db_id = sub.listener.db_id
+    assert db_id is not None
+
+    # The gate increments invoker.bp_dropped under saturation (covered by T02's unit tests);
+    # here we set it directly to assert the snapshot reads the counter, not a hardcoded zero.
+    sub.listener.invoker.bp_dropped = 3
+
+    counts = harness.bus_service.live_execution_counts()
+    assert counts[db_id] == LiveCounts(suppressed=0, dropped=0, bp_dropped=3)
 
 
 async def test_live_execution_counts_omits_retired_listener(

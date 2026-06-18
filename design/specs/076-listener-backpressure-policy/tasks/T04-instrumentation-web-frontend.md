@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Surface backpressure drops through the web API and frontend"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#6", "FR#7", "AC#4", "AC#11"]
 ---

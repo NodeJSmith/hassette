@@ -3,7 +3,7 @@ import time
 import typing
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, ClassVar
+from typing import Any, ClassVar, NamedTuple
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.invocation import build_tracked_invoke_fn
@@ -41,6 +41,22 @@ _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
+
+
+class LiveCounts(NamedTuple):
+    """Live execution count snapshot for a single listener.
+
+    All three counters are in-memory only and reset on restart.
+    """
+
+    suppressed: int
+    """Events dropped by the single-mode guard while a prior invocation was running."""
+
+    dropped: int
+    """Events dropped by the queued-mode guard when the queue cap was reached."""
+
+    bp_dropped: int
+    """Events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure."""
 
 
 class BusService(Service):
@@ -231,27 +247,31 @@ class BusService(Service):
             backpressure=listener.options.backpressure.value,
         )
 
-    def live_execution_counts(self) -> "dict[int, tuple[int, int]]":
-        """Return a snapshot of live ``(suppressed, dropped)`` counts keyed by listener ``db_id``.
+    def live_execution_counts(self) -> "dict[int, LiveCounts]":
+        """Return a snapshot of live execution counts keyed by listener ``db_id``.
 
-        Reads each active listener's ``ExecutionModeGuard`` from the router. Live and in-memory
-        only — no DB access. Listeners not yet assigned a ``db_id`` are skipped; the web
-        layer treats a missing entry as ``(0, 0)``. The counters reset on guard restart and are
-        never persisted.
+        Reads each active listener's ``ExecutionModeGuard`` and ``HandlerInvoker`` from the
+        router. Live and in-memory only — no DB access. Listeners not yet assigned a ``db_id``
+        are skipped; the web layer treats a missing entry as ``LiveCounts(0, 0, 0)``. The
+        counters reset on guard restart and are never persisted.
 
         Returns:
-            A dict mapping listener ``db_id`` to a ``(suppressed, dropped)`` tuple.
+            A dict mapping listener ``db_id`` to a :class:`LiveCounts` NamedTuple.
         """
         # No awaits in this method — safe from asyncio mutation races against add_listener /
         # remove_listener (router.owners is only mutated on the event loop). Do not add an await
         # to this loop without adding synchronization, or the snapshot could tear.
-        counts: dict[int, tuple[int, int]] = {}
+        counts: dict[int, LiveCounts] = {}
         for listeners in self.router.owners.values():
             for listener in listeners:
                 if listener.db_id is None:
                     continue
                 guard = listener.invoker.guard
-                counts[listener.db_id] = (guard.suppressed, guard.dropped)
+                counts[listener.db_id] = LiveCounts(
+                    suppressed=guard.suppressed,
+                    dropped=guard.dropped,
+                    bp_dropped=listener.invoker.bp_dropped,
+                )
         return counts
 
     async def mark_listener_cancelled(self, db_id: int) -> None:

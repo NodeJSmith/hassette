@@ -84,6 +84,9 @@ class ListenerSummary(BaseModel):
     duration: float | None = None
     entity_id: str | None = None
     mode: str = DEFAULT_OVERLAP_MODE
+    backpressure: str = "block"
+    """Configured backpressure policy for this listener (``'block'`` or ``'drop_newest'``).
+    Sourced from the ``listeners.backpressure`` column; defaults to ``'block'``."""
     total_invocations: int
     successful: int
     failed: int

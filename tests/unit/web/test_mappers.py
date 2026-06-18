@@ -1,6 +1,7 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.core.bus_service import LiveCounts
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
@@ -348,25 +349,56 @@ def test_to_listener_with_summary_thread_leaked_passthrough():
 
 
 def test_to_listener_with_summary_merges_live_counts_by_db_id():
-    """suppressed/dropped come from the live snapshot keyed by listener db_id."""
+    """suppressed/dropped/bp_dropped come from the live snapshot keyed by listener db_id."""
     summary = make_listener_summary(listener_id=42)
 
-    result = to_listener_with_summary(summary, {42: (3, 5)})
+    result = to_listener_with_summary(summary, {42: LiveCounts(suppressed=3, dropped=5, bp_dropped=0)})
 
     assert result.suppressed_count == 3
     assert result.dropped_count == 5
+    assert result.backpressure_dropped_count == 0
 
 
 def test_to_listener_with_summary_defaults_counts_to_zero_when_no_live_guard():
     """A listener absent from the live snapshot (retired) reports zero counts."""
     summary = make_listener_summary(listener_id=42)
 
-    result = to_listener_with_summary(summary, {99: (1, 1)})
+    result = to_listener_with_summary(summary, {99: LiveCounts(suppressed=1, dropped=1, bp_dropped=0)})
 
     assert result.suppressed_count == 0
     assert result.dropped_count == 0
+    assert result.backpressure_dropped_count == 0
     # Default-mode summary still maps cleanly with no snapshot at all.
     assert to_listener_with_summary(summary).mode == "single"
+
+
+def test_to_listener_with_summary_bp_dropped_flows_into_backpressure_dropped_count():
+    """bp_dropped > 0 on a live guard flows into backpressure_dropped_count; suppressed/dropped unchanged."""
+    summary = make_listener_summary(listener_id=10)
+
+    result = to_listener_with_summary(summary, {10: LiveCounts(suppressed=2, dropped=1, bp_dropped=7)})
+
+    assert result.backpressure_dropped_count == 7
+    assert result.suppressed_count == 2
+    assert result.dropped_count == 1
+
+
+def test_to_listener_with_summary_backpressure_passthrough():
+    """backpressure policy passes through from the DB summary to the response model."""
+    summary = make_listener_summary(backpressure="drop_newest")
+
+    result = to_listener_with_summary(summary)
+
+    assert result.backpressure == "drop_newest"
+
+
+def test_to_listener_with_summary_backpressure_defaults_to_block():
+    """backpressure defaults to 'block' when ListenerSummary has no override."""
+    summary = make_listener_summary()
+
+    result = to_listener_with_summary(summary)
+
+    assert result.backpressure == "block"
 
 
 def test_to_listener_with_summary_min_max_none_passthrough():
