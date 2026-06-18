@@ -27,7 +27,7 @@ from hassette.events import (
     create_event_from_hass,
 )
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
-from hassette.types.enums import ExecutionMode, ResourceStatus
+from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
@@ -480,6 +480,7 @@ def create_listener(
     timeout_disabled: bool = False,
     priority: int = 0,
     mode: "ExecutionMode | str" = ExecutionMode.PARALLEL,
+    backpressure: "BackpressurePolicy | str" = BackpressurePolicy.BLOCK,
     app_key: str = "",
     instance_index: int = 0,
     name: str | None = None,
@@ -533,6 +534,7 @@ def create_listener(
         timeout_disabled=timeout_disabled,
         priority=priority,
         mode=ExecutionMode(mode),
+        backpressure=BackpressurePolicy(backpressure),
     )
 
     invoker = HandlerInvoker.create(

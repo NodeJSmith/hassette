@@ -11,7 +11,7 @@ from typing import Literal
 
 from typing_extensions import TypedDict
 
-from hassette.types.enums import ExecutionMode
+from hassette.types.enums import BackpressurePolicy, ExecutionMode
 
 
 class Options(TypedDict, total=False):
@@ -39,6 +39,15 @@ class Options(TypedDict, total=False):
 
     timeout_disabled: bool
     """When True, disables timeout enforcement for this listener regardless of config."""
+
+    backpressure: BackpressurePolicy | str
+    """Saturation policy for this listener when the dispatch concurrency semaphore is at capacity.
+
+    ``"block"`` (default) waits for a slot, preserving today's blocking behavior unchanged.
+    ``"drop_newest"`` skips the event immediately when the bus is saturated — the handler is not
+    invoked and one drop is recorded on the listener. When omitted, the effective default is
+    ``"block"``, so existing listeners see no behavior change.
+    """
 
     if_exists: Literal["error", "skip", "replace"]
     """Behavior when a listener with the same natural key ``(app_key, instance_index, name, topic)`` already exists.

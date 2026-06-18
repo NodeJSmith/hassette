@@ -105,7 +105,7 @@ from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
-from hassette.types.enums import ExecutionMode, ResourceStatus
+from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
@@ -439,6 +439,7 @@ class Bus(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
+        backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
@@ -506,6 +507,7 @@ class Bus(Resource):
                 timeout=timeout,
                 timeout_disabled=timeout_disabled,
                 mode=mode,
+                backpressure=backpressure,
                 name=name,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -531,6 +533,7 @@ class Bus(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
+        backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip", "replace"] = "error",
@@ -597,6 +600,20 @@ class Bus(Resource):
             registration_source=registration_source or "",
         )
 
+        # An omitted policy resolves to the flat BLOCK default (no tier-awareness, unlike mode). A raw
+        # string is coerced here so an invalid value raises a clear ValueError at registration time —
+        # mirroring the mode coercion above and ListenerOptions.__post_init__.
+        if backpressure is None:
+            resolved_backpressure = BackpressurePolicy.BLOCK
+        elif isinstance(backpressure, BackpressurePolicy):
+            resolved_backpressure = backpressure
+        else:
+            try:
+                resolved_backpressure = BackpressurePolicy(backpressure)
+            except ValueError as exc:
+                valid = ", ".join(repr(p.value) for p in BackpressurePolicy)
+                raise ValueError(f"Invalid backpressure policy {backpressure!r}; must be one of {valid}") from exc
+
         options = ListenerOptions(
             once=once,
             debounce=debounce,
@@ -605,6 +622,7 @@ class Bus(Resource):
             timeout_disabled=timeout_disabled,
             priority=self.priority,
             mode=resolved_mode,
+            backpressure=resolved_backpressure,
         )
 
         invoker = HandlerInvoker.create(
@@ -752,7 +770,7 @@ class Bus(Resource):
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, and ``mode``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
@@ -763,6 +781,12 @@ class Bus(Resource):
                 (``single``) and dropped (``queued`` cap) events log at DEBUG only.
                 Suppressed/dropped counts are live-only diagnostics, reset on restart.
                 See `Execution Modes <https://hassette.dev/core-concepts/bus/execution-modes/>`_.
+
+                ``backpressure`` controls what this listener does when the dispatch concurrency
+                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
+                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                at the dispatch acquire point (global bus saturation), orthogonal to
+                ``mode``/``debounce``/``throttle``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately. ``sub.cancel()``
@@ -855,13 +879,19 @@ class Bus(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, and ``mode``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
                 ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
                 (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
                 counts are live-only diagnostics, reset on restart.
+
+                ``backpressure`` controls what this listener does when the dispatch concurrency
+                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
+                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                at the dispatch acquire point (global bus saturation), orthogonal to
+                ``mode``/``debounce``/``throttle``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.
@@ -956,13 +986,19 @@ class Bus(Resource):
             name: Required. Stable string identifier for this listener. Omitting it raises
                 ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
-                ``timeout_disabled``, ``if_exists``, and ``mode``.
+                ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
                 ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
                 (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
                 counts are live-only diagnostics, reset on restart.
+
+                ``backpressure`` controls what this listener does when the dispatch concurrency
+                semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
+                today; ``"drop_newest"`` skips the event immediately rather than waiting. It gates
+                at the dispatch acquire point (global bus saturation), orthogonal to
+                ``mode``/``debounce``/``throttle``.
 
         Returns:
             A subscription object. ``sub.listener.db_id`` is set immediately.

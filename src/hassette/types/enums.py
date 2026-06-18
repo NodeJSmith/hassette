@@ -78,6 +78,23 @@ Typed ``str`` (not ``ExecutionMode``) because these model fields hold the string
 the ``TEXT`` DB columns, not the enum."""
 
 
+class BackpressurePolicy(StrEnum):
+    """What a listener does when the dispatch concurrency semaphore is saturated."""
+
+    BLOCK = auto()
+    """Wait for a slot — the default; preserves today's blocking behavior unchanged."""
+
+    DROP_NEWEST = auto()
+    """Skip this event if the semaphore is saturated; never blocks the dispatch loop."""
+
+
+DEFAULT_BACKPRESSURE_POLICY: str = BackpressurePolicy.BLOCK.value
+"""Default backpressure policy persisted on registration/summary models when none is specified.
+
+Typed ``str`` (not ``BackpressurePolicy``) because these model fields hold the string form written
+to the ``TEXT`` DB columns, not the enum."""
+
+
 class Outcome(StrEnum):
     """The result of handing a trigger to an ``ExecutionModeGuard``."""
 
