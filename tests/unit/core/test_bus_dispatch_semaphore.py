@@ -8,10 +8,13 @@ completion path, and behavior under the limit is unchanged.
 import asyncio
 from unittest.mock import MagicMock
 
+from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
 from hassette.events.base import Event
 from hassette.test_utils.helpers import create_listener
 
 from .conftest import make_bus_service
+
+TEST_TIMEOUT = 1.0
 
 
 def make_event() -> Event:
@@ -19,10 +22,17 @@ def make_event() -> Event:
     return MagicMock(spec=Event)
 
 
-def register_listeners(svc, topic: str, count: int) -> None:
+def register_listeners(svc: BusService, topic: str, count: int) -> None:
     for i in range(count):
         listener = create_listener(topic=topic, name=f"listener_{i}", owner_id=f"owner_{i}")
         svc.router.add_route(listener.topic, listener)
+
+
+async def assert_all_slots_reacquirable(svc: BusService, count: int) -> None:
+    """Acquire every dispatch slot without blocking — proves no permit leaked on completion."""
+    for _ in range(count):
+        await asyncio.wait_for(svc._dispatch_semaphore.acquire(), timeout=TEST_TIMEOUT)
+    assert svc._dispatch_semaphore.locked()
 
 
 async def test_dispatch_bounds_concurrent_handlers() -> None:
@@ -55,7 +65,7 @@ async def test_dispatch_bounds_concurrent_handlers() -> None:
     # Two handlers reach their gate. Because acquire is synchronous when a permit is free,
     # the dispatch loop has already reached and blocked on the third acquire by the time both
     # handlers are running — no wall-clock sleep needed.
-    await asyncio.wait_for(two_running.wait(), timeout=1.0)
+    await asyncio.wait_for(two_running.wait(), timeout=TEST_TIMEOUT)
 
     assert running == 2
     assert svc._dispatch_semaphore.locked()
@@ -63,8 +73,8 @@ async def test_dispatch_bounds_concurrent_handlers() -> None:
 
     # Release: remaining handlers drain through the freed slots.
     gate.set()
-    await asyncio.wait_for(dispatch_task, timeout=1.0)
-    await svc.await_dispatch_idle(timeout=1.0)
+    await asyncio.wait_for(dispatch_task, timeout=TEST_TIMEOUT)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     assert completed == 4
     assert peak == 2, "concurrency never exceeded the ceiling"
@@ -84,8 +94,8 @@ async def test_dispatch_under_limit_runs_all_without_blocking() -> None:
 
     svc._dispatch = counting_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=1.0)
-    await svc.await_dispatch_idle(timeout=1.0)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     assert seen == 3
     assert not svc._dispatch_semaphore.locked()
@@ -101,14 +111,10 @@ async def test_slot_released_when_handler_raises() -> None:
 
     svc._dispatch = failing_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=1.0)
-    await svc.await_dispatch_idle(timeout=1.0)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
-    # No permit leaked: both raised handlers returned their slots, so we can re-acquire the
-    # full set of 2 without blocking. locked() afterward just confirms we took them all.
-    for _ in range(2):
-        await asyncio.wait_for(svc._dispatch_semaphore.acquire(), timeout=0.5)
-    assert svc._dispatch_semaphore.locked()
+    await assert_all_slots_reacquirable(svc, 2)
 
 
 async def test_slot_released_when_handler_cancelled() -> None:
@@ -131,18 +137,16 @@ async def test_slot_released_when_handler_cancelled() -> None:
 
     svc._dispatch = hanging_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=1.0)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
     assert svc._dispatch_semaphore.locked()  # both slots held by the hanging handlers
 
     # Cancel the in-flight handler tasks (as shutdown would).
     for task in spawned:
         task.cancel()
-    await svc.await_dispatch_idle(timeout=1.0)
+    await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     # Both slots returned despite cancellation.
-    for _ in range(2):
-        await asyncio.wait_for(svc._dispatch_semaphore.acquire(), timeout=0.5)
-    assert svc._dispatch_semaphore.locked()
+    await assert_all_slots_reacquirable(svc, 2)
 
 
 async def test_saturation_warning_is_rate_limited() -> None:
@@ -155,7 +159,7 @@ async def test_saturation_warning_is_rate_limited() -> None:
 
     assert svc.logger.warning.call_count == 1
 
-    # Simulate the rate-limit window elapsing.
-    svc._last_saturation_warn_ts -= 60.0
+    # Simulate the rate-limit window elapsing (push the last-warn timestamp past the window).
+    svc._last_saturation_warn_ts -= _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS * 2
     svc.warn_dispatch_saturated()
     assert svc.logger.warning.call_count == 2

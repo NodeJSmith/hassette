@@ -126,17 +126,19 @@ class BusService(Service):
             self._dispatch_pending = 0
             self._dispatch_idle_event.set()
             return
+        self.decrement_dispatch_pending()
+
+    def decrement_dispatch_pending(self) -> None:
+        """Decrement the pending-dispatch counter and signal idle when it reaches zero."""
         self._dispatch_pending -= 1
         if self._dispatch_pending == 0:
             self._dispatch_idle_event.set()
 
     def release_dispatch_slot(self, _task: asyncio.Task[Any]) -> None:
-        """Release the dispatch semaphore slot held by a completed fan-out task.
+        """Release one dispatch slot when a fan-out task finishes (success, error, or cancel).
 
-        Attached only to fan-out tasks (one acquire per spawn), so every acquire is paired
-        with exactly one release regardless of how the task finished — success, error, or
-        cancellation. The immediate-fire path in ``add_listener`` spawns without acquiring a
-        slot, so it does not get this callback (it would otherwise over-release).
+        Attached only to fan-out tasks, which each acquire exactly one slot. The immediate-fire
+        path in ``add_listener`` spawns without acquiring, so it must not get this callback.
         """
         self._dispatch_semaphore.release()
 
@@ -381,12 +383,9 @@ class BusService(Service):
             self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
             for listener in listeners:
                 # Acquire a slot before spawning so the fan-out can't outrun handler capacity.
-                # When saturated this await blocks the dispatch loop, which blocks the serve
-                # loop, which fills the inbound channel — backpressure all the way to the WS reader.
-                #
-                # locked() here exactly predicts whether the acquire below blocks: there is no
-                # await between the two lines, so on a single-threaded loop no other task can
-                # release or take a permit in between. locked() True => this acquire will wait.
+                # A blocked acquire stalls the dispatch loop -> serve loop -> inbound channel,
+                # propagating backpressure to the WS reader. locked() exactly predicts a blocking
+                # acquire here: no await separates the two, so no other task changes the count between.
                 if self._dispatch_semaphore.locked():
                     self.warn_dispatch_saturated()
                 await self._dispatch_semaphore.acquire()
@@ -396,12 +395,10 @@ class BusService(Service):
                 try:
                     task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
                 except BaseException:
-                    # Spawn failed: no task will run, so no done-callback fires. Release the slot
-                    # and unwind the pending bookkeeping inline (mirrors on_dispatch_done).
+                    # Spawn failed: no task runs, so no done-callback fires. Release the slot and
+                    # unwind the pending bookkeeping by hand.
                     self._dispatch_semaphore.release()
-                    self._dispatch_pending -= 1
-                    if self._dispatch_pending == 0:
-                        self._dispatch_idle_event.set()
+                    self.decrement_dispatch_pending()
                     raise
                 # Release the slot before decrementing pending so a newly-unblocked waiter sees
                 # a consistent state (slot free, pending still counts the completing task).
