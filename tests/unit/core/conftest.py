@@ -242,11 +242,12 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     return executor
 
 
-def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
+def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dispatches: int = 50) -> BusService:
     """Create a BusService with mocked internals, bypassing Resource.__init__."""
     svc = BusService.__new__(BusService)
     svc.hassette = MagicMock()
     svc.hassette.config.lifecycle.event_handler_timeout_seconds = config_timeout
+    svc.hassette.config.lifecycle.max_concurrent_dispatches = max_concurrent_dispatches
     svc.hassette.config.bus_excluded_domains = ()
     svc.hassette.config.bus_excluded_entities = ()
     svc.hassette.config.logging.all_events = False
@@ -276,4 +277,6 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()
     svc._dispatch_idle_event.set()
+    svc._dispatch_semaphore = asyncio.Semaphore(max_concurrent_dispatches)
+    svc._last_saturation_warn_ts = 0.0
     return svc

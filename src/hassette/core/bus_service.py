@@ -1,4 +1,5 @@
 import asyncio
+import time
 import typing
 from collections import defaultdict
 from functools import cached_property
@@ -33,6 +34,10 @@ if typing.TYPE_CHECKING:
 
 _DISPATCH_STABILITY_SLEEP = 0.005
 _DISPATCH_IDLE_DEFAULT_TIMEOUT = 2.0
+
+# Rate-limit window for the "dispatch saturated" warning so a sustained flood logs once
+# per window, not once per blocked dispatch. Mirrors sync_executor_service saturation warns.
+_DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
@@ -74,6 +79,13 @@ class BusService(Service):
         self._dispatch_pending: int = 0
         self._dispatch_idle_event: asyncio.Event = asyncio.Event()
         self._dispatch_idle_event.set()  # starts idle
+
+        # Bound concurrent handler invocations so a fan-out flood can't spawn unbounded tasks.
+        # Read once at startup — resizing requires a restart (see LifecycleConfig docstring).
+        self._dispatch_semaphore: asyncio.Semaphore = asyncio.Semaphore(
+            hassette.config.lifecycle.max_concurrent_dispatches
+        )
+        self._last_saturation_warn_ts: float = 0.0
 
         self._event_filter = EventFilter(
             excluded_domains=hassette.config.bus_excluded_domains,
@@ -117,6 +129,29 @@ class BusService(Service):
         self._dispatch_pending -= 1
         if self._dispatch_pending == 0:
             self._dispatch_idle_event.set()
+
+    def release_dispatch_slot(self, _task: asyncio.Task[Any]) -> None:
+        """Release the dispatch semaphore slot held by a completed fan-out task.
+
+        Attached only to fan-out tasks (one acquire per spawn), so every acquire is paired
+        with exactly one release regardless of how the task finished — success, error, or
+        cancellation. The immediate-fire path in ``add_listener`` spawns without acquiring a
+        slot, so it does not get this callback (it would otherwise over-release).
+        """
+        self._dispatch_semaphore.release()
+
+    def warn_dispatch_saturated(self) -> None:
+        """Log a rate-limited warning when dispatch is at its concurrency ceiling."""
+        now = time.monotonic()
+        if now - self._last_saturation_warn_ts < _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS:
+            return
+        self._last_saturation_warn_ts = now
+        self.logger.warning(
+            "Event dispatch saturated: %d concurrent handlers in flight (max_concurrent_dispatches). "
+            "New dispatches are waiting for a slot; sustained saturation backpressures HA event intake. "
+            "Raise lifecycle.max_concurrent_dispatches or speed up slow handlers.",
+            self.hassette.config.lifecycle.max_concurrent_dispatches,
+        )
 
     async def add_listener(self, listener: "Listener") -> int:
         """Add a listener to the bus.
@@ -345,9 +380,32 @@ class BusService(Service):
 
             self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
             for listener in listeners:
+                # Acquire a slot before spawning so the fan-out can't outrun handler capacity.
+                # When saturated this await blocks the dispatch loop, which blocks the serve
+                # loop, which fills the inbound channel — backpressure all the way to the WS reader.
+                #
+                # locked() here exactly predicts whether the acquire below blocks: there is no
+                # await between the two lines, so on a single-threaded loop no other task can
+                # release or take a permit in between. locked() True => this acquire will wait.
+                if self._dispatch_semaphore.locked():
+                    self.warn_dispatch_saturated()
+                await self._dispatch_semaphore.acquire()
+
                 self._dispatch_pending += 1
                 self._dispatch_idle_event.clear()
-                task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                try:
+                    task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+                except BaseException:
+                    # Spawn failed: no task will run, so no done-callback fires. Release the slot
+                    # and unwind the pending bookkeeping inline (mirrors on_dispatch_done).
+                    self._dispatch_semaphore.release()
+                    self._dispatch_pending -= 1
+                    if self._dispatch_pending == 0:
+                        self._dispatch_idle_event.set()
+                    raise
+                # Release the slot before decrementing pending so a newly-unblocked waiter sees
+                # a consistent state (slot free, pending still counts the completing task).
+                task.add_done_callback(self.release_dispatch_slot)
                 task.add_done_callback(self.on_dispatch_done)
 
     def expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
