@@ -98,6 +98,8 @@ def check_filename(path: Path) -> list[str]:
 
 
 def main() -> int:
+    # This checker reports two violation kinds with different formats (content lines
+    # and filenames), so it keeps its own runner rather than sharing run_check.
     content_violations: list[tuple[Path, int, str]] = []
     name_violations: list[tuple[Path, str]] = []
 

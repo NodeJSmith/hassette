@@ -15,7 +15,7 @@ if ANY of:
     (c) the PR carries the ``no-visual-change`` label.
 
 It runs only on ``pull_request`` events — it needs PR metadata — and no-ops
-elsewhere. ``evaluate`` is the pure decision core; ``gather_pr`` reads metadata via
+elsewhere. ``evaluate`` is the pure decision core; ``fetch_pr_metadata`` reads metadata via
 the GitHub CLI so the logic can be tested with synthetic inputs.
 
 Usage:
@@ -58,7 +58,7 @@ def evaluate(changed_files: list[str], body: str, labels: list[str]) -> tuple[bo
     return triggered, has_visual_evidence(body, changed_files, labels)
 
 
-def gather_pr(pr: str) -> tuple[list[str], str, list[str]]:
+def fetch_pr_metadata(pr: str) -> tuple[list[str], str, list[str]]:
     """Read changed files, body, and label names for a PR via the GitHub CLI."""
     try:
         result = subprocess.run(
@@ -89,7 +89,7 @@ def main() -> int:
         print("Not a pull_request context (no --pr / $PR_NUMBER) — skipping.")
         return 0
 
-    changed_files, body, labels = gather_pr(args.pr)
+    changed_files, body, labels = fetch_pr_metadata(args.pr)
     triggered, satisfied = evaluate(changed_files, body, labels)
 
     if not triggered:

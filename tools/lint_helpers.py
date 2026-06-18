@@ -8,7 +8,47 @@ both contexts.
 """
 
 import ast
+from collections.abc import Callable
 from pathlib import Path
+
+
+def run_check(
+    paths: list[Path],
+    repo_root: Path,
+    check: Callable[[Path], list[tuple[int, str]]],
+    *,
+    summary: str,
+    ok: str,
+    footer: str | None = None,
+) -> int:
+    """Run ``check`` over ``paths`` and print the standard violation report.
+
+    Both ``summary`` and ``ok`` are the checker-specific remainder after the standard
+    status prefix: ``summary`` is wrapped as ``ERROR: <n> <summary>:`` above the
+    violation list, and ``ok`` as ``OK: <ok>`` when nothing is found. ``footer`` is
+    optional guidance printed after the list. Returns 1 when any violation is found,
+    0 otherwise. Checkers that report a single kind of (line, message) violation share
+    this; ``check_spec_tokens`` reports two kinds (content and filename) and keeps its
+    own runner.
+    """
+    violations: list[tuple[Path, int, str]] = []
+    for path in paths:
+        rel = path.relative_to(repo_root)
+        for lineno, message in check(path):
+            violations.append((rel, lineno, message))
+
+    if violations:
+        print(f"ERROR: {len(violations)} {summary}:")
+        print()
+        for rel, lineno, message in violations:
+            print(f"  {rel}:{lineno} — {message}")
+        if footer:
+            print()
+            print(footer)
+        return 1
+
+    print(f"OK: {ok}")
+    return 0
 
 
 def docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:

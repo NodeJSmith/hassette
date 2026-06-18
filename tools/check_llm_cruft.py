@@ -30,7 +30,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from lint_helpers import docstring_spans, iter_py_files
+from lint_helpers import docstring_spans, iter_py_files, run_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -65,7 +65,7 @@ def comment_body(text: str) -> str:
     return text.lstrip("#").strip()
 
 
-def filler_hits(text: str) -> list[str]:
+def filler_suggestions(text: str) -> list[str]:
     """Return suggestions for every filler pattern that matches the text."""
     return [suggestion for pattern, suggestion in FILLER_PATTERNS if pattern.search(text)]
 
@@ -84,7 +84,7 @@ def check_file(path: Path) -> list[tuple[int, str]]:
             body = comment_body(tok.string)
             if DIVIDER_RULE.match(body) or DIVIDER_WRAPPED.match(body):
                 hits.add((tok.start[0], "section-divider comment — delete the rule, keep any label as a plain comment"))
-            for suggestion in filler_hits(tok.string):
+            for suggestion in filler_suggestions(tok.string):
                 hits.add((tok.start[0], f"filler — {suggestion}"))
     except (tokenize.TokenError, IndentationError):
         pass
@@ -92,7 +92,7 @@ def check_file(path: Path) -> list[tuple[int, str]]:
     # Docstrings: filler phrases only (dividers in docstrings are reST, not cruft).
     for start, end in docstring_spans(ast.parse(source)):
         for lineno in range(start, end + 1):
-            for suggestion in filler_hits(lines[lineno - 1]):
+            for suggestion in filler_suggestions(lines[lineno - 1]):
                 hits.add((lineno, f"filler — {suggestion}"))
 
     return sorted(hits)
@@ -104,21 +104,13 @@ def iter_paths() -> list[Path]:
 
 
 def main() -> int:
-    violations: list[tuple[Path, int, str]] = []
-    for path in iter_paths():
-        rel = path.relative_to(REPO_ROOT)
-        for lineno, finding in check_file(path):
-            violations.append((rel, lineno, finding))
-
-    if violations:
-        print(f"ERROR: {len(violations)} AI-writing tell(s) found in src/:")
-        print()
-        for rel, lineno, finding in violations:
-            print(f"  {rel}:{lineno} — {finding}")
-        return 1
-
-    print(f"OK: no AI-writing tells found under {', '.join(SCAN_DIRS)}/.")
-    return 0
+    return run_check(
+        iter_paths(),
+        REPO_ROOT,
+        check_file,
+        summary="AI-writing tell(s) found in src/",
+        ok=f"no AI-writing tells found under {', '.join(SCAN_DIRS)}/.",
+    )
 
 
 if __name__ == "__main__":

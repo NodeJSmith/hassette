@@ -5,19 +5,11 @@ line numbers, and which annotations exempt them — so the detection internals c
 be reworked without changing what the guard reports.
 """
 
-import textwrap
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from check_lazy_imports import check_file, iter_paths
-
-
-def run(tmp_path: Path, content: str) -> list[tuple[int, str]]:
-    """Write content to a temp file and return the guard's violations."""
-    target = tmp_path / "sample.py"
-    target.write_text(textwrap.dedent(content))
-    return check_file(target)
-
 
 # Each case: (id, source, expected violations as [(lineno, import_text), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
@@ -127,8 +119,8 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
 
 
 @pytest.mark.parametrize(("source", "expected"), [(c[1], c[2]) for c in CASES], ids=[c[0] for c in CASES])
-def test_guard_behavior(tmp_path: Path, source: str, expected: list[tuple[int, str]]) -> None:
-    assert run(tmp_path, source) == expected
+def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expected: list[tuple[int, str]]) -> None:
+    assert check_file(write_sample(source)) == expected
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))

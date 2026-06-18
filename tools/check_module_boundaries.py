@@ -15,8 +15,8 @@ Scope today is the one boundary that is provably clean and highest-value: the
 production code. The full layer DAG and cycle-freedom from the architecture
 issue are NOT enforced here — the codebase currently has cross-layer cycles
 (``core``↔``bus``, ``conversion``↔``models``, …) that must be refactored before
-those rules can pass. ``RULES`` is a list so each boundary is added as it becomes
-clean.
+those rules can pass (tracked in #1079). ``RULES`` is a list so each boundary is
+added as it becomes clean.
 
 These are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
@@ -32,7 +32,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from lint_helpers import iter_py_files
+from lint_helpers import iter_py_files, run_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "src" / "hassette"
@@ -85,17 +85,17 @@ def type_checking_ranges(tree: ast.AST) -> list[tuple[int, int]]:
 
 def runtime_imports(tree: ast.AST) -> list[tuple[int, str]]:
     """Return (lineno, imported hassette.* module) for every runtime import."""
-    tc = type_checking_ranges(tree)
+    tc_ranges = type_checking_ranges(tree)
 
-    def in_tc(lineno: int) -> bool:
-        return any(start <= lineno <= end for start, end in tc)
+    def in_type_checking(lineno: int) -> bool:
+        return any(start <= lineno <= end for start, end in tc_ranges)
 
     out: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("hassette"):
-            if not in_tc(node.lineno):
+            if not in_type_checking(node.lineno):
                 out.append((node.lineno, node.module))
-        elif isinstance(node, ast.Import) and not in_tc(node.lineno):
+        elif isinstance(node, ast.Import) and not in_type_checking(node.lineno):
             out.extend((node.lineno, alias.name) for alias in node.names if alias.name.startswith("hassette."))
     return out
 
@@ -123,21 +123,13 @@ def iter_paths() -> list[Path]:
 
 
 def main() -> int:
-    all_violations: list[tuple[Path, int, str]] = []
-    for path in iter_paths():
-        rel = path.relative_to(REPO_ROOT)
-        for lineno, message in check_file(path):
-            all_violations.append((rel, lineno, message))
-
-    if all_violations:
-        print(f"ERROR: {len(all_violations)} module-boundary violation(s):")
-        print()
-        for rel, lineno, message in all_violations:
-            print(f"  {rel}:{lineno} — {message}")
-        return 1
-
-    print(f"OK: no module-boundary violations across {len(RULES)} rule(s).")
-    return 0
+    return run_check(
+        iter_paths(),
+        REPO_ROOT,
+        check_file,
+        summary="module-boundary violation(s)",
+        ok=f"no module-boundary violations across {len(RULES)} rule(s).",
+    )
 
 
 if __name__ == "__main__":

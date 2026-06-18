@@ -34,7 +34,7 @@ import re
 import sys
 from pathlib import Path
 
-from lint_helpers import iter_py_files
+from lint_helpers import iter_py_files, run_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -116,25 +116,17 @@ def iter_paths() -> list[Path]:
 
 
 def main() -> int:
-    all_violations: list[tuple[Path, int, str]] = []
-
-    for path in iter_paths():
-        rel = path.relative_to(REPO_ROOT)
-        for lineno, text in check_file(path):
-            all_violations.append((rel, lineno, text))
-
-    if all_violations:
-        print(f"ERROR: {len(all_violations)} lazy import(s) found inside function bodies:")
-        print()
-        for rel, lineno, text in all_violations:
-            print(f"  {rel}:{lineno} — {text}")
-        print()
-        print("Move each import to the top of its file. If it genuinely breaks a circular")
-        print("import, annotate the line: '# lazy-import: <reason>' (the reason is required).")
-        return 1
-
-    print(f"OK: no un-annotated lazy imports found under {', '.join(SCAN_DIRS)}/.")
-    return 0
+    return run_check(
+        iter_paths(),
+        REPO_ROOT,
+        check_file,
+        summary="lazy import(s) found inside function bodies",
+        ok=f"no un-annotated lazy imports found under {', '.join(SCAN_DIRS)}/.",
+        footer=(
+            "Move each import to the top of its file. If it genuinely breaks a circular\n"
+            "import, annotate the line: '# lazy-import: <reason>' (the reason is required)."
+        ),
+    )
 
 
 if __name__ == "__main__":
