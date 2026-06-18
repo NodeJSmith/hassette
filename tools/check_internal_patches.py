@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """CI guard: detect un-annotated MUT patches in core test files.
 
-Scans the seven in-scope test files for reassignment or patch.object/patch()
-calls that target a prohibited symbol — a method on a method-under-test (MUT)
-that should never be patched from the outside. Any such site that lacks a
-``# boundary-exempt:`` annotation fails the check.
+Scans the seven in-scope test files for reassignment or ``patch.object`` /
+``patch()`` / ``monkeypatch.setattr`` calls that target a prohibited symbol — a
+method on a method-under-test (MUT) that should never be patched from the
+outside. Any such site that lacks a ``# boundary-exempt:`` annotation fails the
+check.
 
 Prohibited symbols (union across WebsocketService, StateProxy, LifecycleService):
 
@@ -17,31 +18,37 @@ Prohibited symbols (union across WebsocketService, StateProxy, LifecycleService)
     Lifecycle:        start_app, stop_app, reload_app, resolve_only_app,
                       handle_crash, detect_changes, refresh_config
 
-The guard is line/regex-based and does not resolve the receiver's class, but it
-does require that direct attribute assignments use one of the known service
-fixture variable names as the receiver (``websocket_service``, ``state_proxy``,
-or ``lifecycle_service``). This prevents false positives from mock App instances
-(e.g. ``app1.mark_ready = Mock()``) that happen to share a method name.
+Detection is AST-based. The parser resolves statement boundaries, string
+literals, and ``==`` vs ``=`` for free, so the guard matches structure rather
+than text:
 
-For ``patch.object`` and ``monkeypatch.setattr``, the prohibited symbol appears
-as a quoted string literal — the match is already precise regardless of receiver.
-When such a call spans multiple lines (the symbol string on a continuation line),
-the guard re-checks the joined logical statement so the symbol is still detected.
+    * Direct or annotated assignment — ``ast.Assign`` / ``ast.AnnAssign`` whose
+      target is ``<receiver>.<symbol>`` where the receiver is a known fixture name
+      (``websocket_service``, ``state_proxy``, ``lifecycle_service``). The
+      receiver-name check prevents false positives from mock App instances
+      (e.g. ``app1.mark_ready = Mock()``) that share a method name. The guard
+      does not resolve the receiver's class — the fixture-name allowlist is the
+      heuristic that stands in for type resolution.
+    * ``patch.object(target, "<symbol>")`` / ``monkeypatch.setattr(target,
+      "<symbol>")`` — the prohibited symbol is the quoted second argument; the
+      receiver is irrelevant.
+    * ``patch("dotted.path.<symbol>")`` — the prohibited symbol is the last
+      segment of the quoted import path.
 
 ``task_bucket.spawn`` is DELIBERATELY EXCLUDED — it is a method on a different
-object (the task bucket), not on the service/proxy/lifecycle under guard.
+object (the task bucket), not on the service/proxy/lifecycle under guard. It is
+simply absent from the prohibited set.
 
 The ``# boundary-exempt:`` annotation is the escape hatch for sites that are
-genuinely mocking a collaborator of the MUT (not the MUT itself). Three
-annotation placements are accepted:
+genuinely mocking a collaborator of the MUT (not the MUT itself). Comments are
+discarded by the AST, so the annotation is matched against the raw source lines
+spanning the flagged statement. Two placements are accepted:
 
-    (a) Same physical line as the flagged symbol.
-    (b) Any continuation line of the same logical statement — i.e. when the
-        flagged line has unbalanced ``(``, scan forward until parens balance and
-        accept a ``# boundary-exempt:`` on any of those lines.
-    (c) The comment line immediately preceding the flagged statement (no blank
-        line between) — for long ``with patch.object(...)`` statements that
-        cannot carry a trailing comment within the 120-char limit.
+    (a) Anywhere on the flagged statement's own physical line span — the same
+        line as the symbol, or any continuation line of a multi-line call.
+    (b) The comment-only line immediately preceding the flagged statement (no
+        blank line between) — for long ``with patch.object(...)`` statements
+        that cannot carry a trailing comment within the 120-char limit.
 
 Canonical annotation form: ``# boundary-exempt: collaborator of <method_name>``
 
@@ -49,7 +56,7 @@ Usage:
     python tools/check_internal_patches.py
 """
 
-import re
+import ast
 import sys
 from pathlib import Path
 
@@ -96,11 +103,11 @@ PROHIBITED_SYMBOLS: frozenset[str] = frozenset(
     ]
 )
 
-# Known service fixture variable names used as assignment receivers.
-# Direct attribute assignments are only flagged when the receiver matches one of
-# these names. This prevents false positives from mock App instances (e.g.
-# ``app1.mark_ready = Mock()``) that share method names with the services under guard.
-_SERVICE_RECEIVERS: frozenset[str] = frozenset(
+# Known service fixture variable names used as assignment receivers. Direct attribute
+# assignments are only flagged when the receiver matches one of these names. This prevents
+# false positives from mock App instances (e.g. ``app1.mark_ready = Mock()``) that share
+# method names with the services under guard.
+SERVICE_RECEIVERS: frozenset[str] = frozenset(
     [
         "websocket_service",
         "state_proxy",
@@ -108,132 +115,140 @@ _SERVICE_RECEIVERS: frozenset[str] = frozenset(
     ]
 )
 
-_SYM_ALT = "|".join(re.escape(s) for s in sorted(PROHIBITED_SYMBOLS, key=len, reverse=True))
-_RECV_ALT = "|".join(re.escape(r) for r in sorted(_SERVICE_RECEIVERS, key=len, reverse=True))
-
-# Matches: <known_receiver>.<sym> = ...   (direct assignment on service fixture)
-# Excludes == (the zero-width-lookahead ensures the char after = is not =).
-_ASSIGN_PATTERN = re.compile(r"(?:^|[(\[,\s])(?P<recv>" + _RECV_ALT + r")\." + r"(?P<sym>" + _SYM_ALT + r")\s*=(?!=)")
-
-# Matches: patch.object(<anything>, "<sym>" or '<sym>'  (any receiver is fine here)
-_PATCH_OBJECT_PATTERN = re.compile(r"\bpatch\.object\s*\([^,)]*,\s*['\"](?P<sym>" + _SYM_ALT + r")['\"]")
-
-# Matches: monkeypatch.setattr(<anything>, "<sym>" or '<sym>'
-_MONKEYPATCH_PATTERN = re.compile(r"\bmonkeypatch\.setattr\s*\([^,)]*,\s*['\"](?P<sym>" + _SYM_ALT + r")['\"]")
-
-# Matches: patch("<anything>.<sym>"  or patch('<anything>.<sym>'
-_PATCH_STR_PATTERN = re.compile(r"""\bpatch\s*\(\s*['"][^'"]*\.(?P<sym>""" + _SYM_ALT + r""")['"]""")
-
-# A patch-family call opener. When such a call spans multiple lines, the prohibited
-# symbol string may sit on a continuation line — see _flagged_symbol's joined-statement scan.
-_PATCH_FAMILY_OPENER = re.compile(r"\b(?:patch\.object|monkeypatch\.setattr|patch)\s*\(")
-
-# Matches a quoted string literal (single or double), handling escapes — used to blank out
-# string contents before counting parens so a "(" inside a string doesn't skew the depth.
-_STRING_LITERAL = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|\'[^\'\\]*(?:\\.[^\'\\]*)*\'')
-
 ANNOTATION = "# boundary-exempt:"
 
 
-def _has_annotation(text: str) -> bool:
-    return ANNOTATION in text
+def func_chain(func: ast.expr) -> list[str]:
+    """Return the trailing dotted name parts of a call target.
 
-
-def _count_open_parens(line: str) -> int:
-    """Return net open-paren count for the line (open - close), ignoring parens inside strings."""
-    sanitized = _STRING_LITERAL.sub('""', line)
-    return sanitized.count("(") - sanitized.count(")")
-
-
-def _joined_statement(lines: list[str], start_idx: int) -> str:
-    """Return the logical statement starting at start_idx, joined through paren balance.
-
-    Joins the opener line with its continuation lines (until parentheses balance) into a
-    single space-separated string, so the single-line patch patterns can match a prohibited
-    symbol that sits on a continuation line of a multi-line call.
+    ``patch.object`` -> ``["patch", "object"]``; ``mock.patch`` -> ``["mock", "patch"]``;
+    ``patch`` -> ``["patch"]``. Subscripts/calls in the chain stop the walk.
     """
-    depth = _count_open_parens(lines[start_idx])
-    parts = [lines[start_idx]]
-    idx = start_idx + 1
-    while idx < len(lines) and depth > 0:
-        parts.append(lines[idx])
-        depth += _count_open_parens(lines[idx])
-        idx += 1
-    return " ".join(part.strip() for part in parts)
+    # Walk the attribute chain from leaf to root, then reverse to root-first order.
+    parts: list[str] = []
+    while isinstance(func, ast.Attribute):
+        parts.append(func.attr)
+        func = func.value
+    if isinstance(func, ast.Name):
+        parts.append(func.id)
+    return list(reversed(parts))
 
 
-def _is_exempt(lines: list[str], flagged_idx: int) -> bool:
-    """Return True if the flagged line is covered by a boundary-exempt annotation.
-
-    Three accepted placements:
-      (a) Same line as the flagged symbol.
-      (b) Any continuation line (unbalanced parens on flagged line and forward).
-      (c) The comment-only line immediately preceding the flagged statement
-          (no blank line between; the preceding line must start with '#' after
-          optional whitespace).
-    """
-    flagged_line = lines[flagged_idx]
-
-    # (a) Same line
-    if _has_annotation(flagged_line):
-        return True
-
-    # (c) Immediately-preceding comment line — check before (b) so we don't
-    # confuse a preceding comment with a continuation of the prior statement.
-    if flagged_idx > 0:
-        prev_line = lines[flagged_idx - 1]
-        stripped_prev = prev_line.strip()
-        if stripped_prev.startswith("#") and _has_annotation(stripped_prev):
-            return True
-
-    # (b) Continuation lines — scan forward while parens are unbalanced
-    depth = _count_open_parens(flagged_line)
-    if depth > 0:
-        idx = flagged_idx + 1
-        while idx < len(lines) and depth > 0:
-            cont_line = lines[idx]
-            if _has_annotation(cont_line):
-                return True
-            depth += _count_open_parens(cont_line)
-            idx += 1
-
-    return False
+def string_arg(node: ast.Call, index: int) -> str | None:
+    """Return the value of the index-th positional argument if it is a string literal."""
+    if index < len(node.args):
+        arg = node.args[index]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+    return None
 
 
-def _flagged_symbol(text: str) -> str | None:
-    """Return the prohibited symbol if this text is a flagged site, else None.
+def patch_symbol(node: ast.Call) -> str | None:
+    """Return the prohibited symbol targeted by a patch-family call, or None."""
+    chain = func_chain(node.func)
+    if len(chain) < 1:
+        # func is a Call/Subscript (e.g. ``factory()(...)``) — no name to match,
+        # and the ``chain[-1]`` access below would otherwise raise IndexError.
+        return None
 
-    Used on a single physical line and, for multi-line patch-family calls, on the
-    joined logical statement so a symbol on a continuation line is still detected.
-    """
-    for pattern in (_ASSIGN_PATTERN, _PATCH_OBJECT_PATTERN, _MONKEYPATCH_PATTERN, _PATCH_STR_PATTERN):
-        if m := pattern.search(text):
-            return m.group("sym")
+    # patch.object(target, "<sym>") / mock.patch.object(target, "<sym>")
+    if chain[-2:] == ["patch", "object"]:
+        sym = string_arg(node, 1)
+        return sym if sym in PROHIBITED_SYMBOLS else None
+
+    # monkeypatch.setattr(target, "<sym>")
+    if chain[-2:] == ["monkeypatch", "setattr"]:
+        sym = string_arg(node, 1)
+        return sym if sym in PROHIBITED_SYMBOLS else None
+
+    # patch("dotted.path.<sym>") / mock.patch("dotted.path.<sym>")
+    if chain[-1] == "patch":
+        target = string_arg(node, 0)
+        if target is not None:
+            sym = target.rsplit(".", 1)[-1]
+            return sym if sym in PROHIBITED_SYMBOLS else None
 
     return None
 
 
+def attribute_targets(target: ast.expr) -> list[ast.Attribute]:
+    """Return the attribute nodes among an assignment target (handles tuple/list unpacking)."""
+    if isinstance(target, ast.Attribute):
+        return [target]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [elt for elt in target.elts if isinstance(elt, ast.Attribute)]
+    return []
+
+
+class PatchVisitor(ast.NodeVisitor):
+    """Collect (lineno, end_lineno, symbol) for every flagged site in a module."""
+
+    def __init__(self) -> None:
+        self.flagged: list[tuple[int, int, str]] = []
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            for attr in attribute_targets(target):
+                if (
+                    isinstance(attr.value, ast.Name)
+                    and attr.value.id in SERVICE_RECEIVERS
+                    and attr.attr in PROHIBITED_SYMBOLS
+                ):
+                    self.flagged.append((node.lineno, node.end_lineno or node.lineno, attr.attr))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        # Annotated assignment (``state_proxy.load_cache: X = ...``) — single target.
+        for attr in attribute_targets(node.target):
+            if (
+                isinstance(attr.value, ast.Name)
+                and attr.value.id in SERVICE_RECEIVERS
+                and attr.attr in PROHIBITED_SYMBOLS
+            ):
+                self.flagged.append((node.lineno, node.end_lineno or node.lineno, attr.attr))
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        sym = patch_symbol(node)
+        if sym is not None:
+            self.flagged.append((node.lineno, node.end_lineno or node.lineno, sym))
+        self.generic_visit(node)
+
+
+def is_exempt(lines: list[str], lineno: int, end_lineno: int) -> bool:
+    """Return True if the statement spanning [lineno, end_lineno] is boundary-exempt.
+
+    Accepts the annotation anywhere on the statement's own physical lines, or on the
+    comment-only line immediately preceding it (1-based line numbers).
+    """
+    # lineno/end_lineno are 1-based; lines is 0-indexed, hence the -1 / -2 offsets.
+    for i in range(lineno - 1, end_lineno):
+        if ANNOTATION in lines[i]:
+            return True
+
+    if lineno >= 2:
+        prev = lines[lineno - 2].strip()
+        if prev.startswith("#") and ANNOTATION in prev:
+            return True
+
+    return False
+
+
 def check_file(path: Path) -> list[tuple[int, str]]:
-    """Return list of (1-based line number, symbol) for un-exempt flagged sites."""
-    violations: list[tuple[int, str]] = []
+    """Return a sorted list of (1-based line number, symbol) for un-exempt flagged sites."""
     if not path.exists():
         print(f"WARNING: in-scope file not found: {path}", file=sys.stderr)
-        return violations
+        return []
 
-    lines = path.read_text().splitlines()
-    for idx, line in enumerate(lines):
-        sym = _flagged_symbol(line)
-        # Multi-line patch-family call: the symbol string may be on a continuation
-        # line, so the single-line check misses it. When this line opens such a call
-        # and the parens don't close on this line, re-check the joined statement.
-        if sym is None and _PATCH_FAMILY_OPENER.search(line) and _count_open_parens(line) > 0:
-            sym = _flagged_symbol(_joined_statement(lines, idx))
-        if sym is None:
-            continue
-        if not _is_exempt(lines, idx):
-            violations.append((idx + 1, sym))  # 1-based line number
+    source = path.read_text()
+    lines = source.splitlines()
+    visitor = PatchVisitor()
+    visitor.visit(ast.parse(source))
 
-    return violations
+    violations = [
+        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lines, lineno, end_lineno)
+    ]
+    return sorted(violations)
 
 
 def main() -> int:
@@ -241,8 +256,7 @@ def main() -> int:
 
     for path in IN_SCOPE_FILES:
         rel = path.relative_to(REPO_ROOT)
-        violations = check_file(path)
-        for lineno, sym in violations:
+        for lineno, sym in check_file(path):
             all_violations.append((rel, lineno, sym))
 
     if all_violations:
