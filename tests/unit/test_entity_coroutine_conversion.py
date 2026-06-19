@@ -55,9 +55,7 @@ def make_humidifier_entity(api: "Api") -> tuple[HumidifierEntity, "Token[Hassett
     return entity, token
 
 
-# ---------------------------------------------------------------------------
 # FR#13 / AC#11 regen check — generated files use def -> Coroutine[...], not async def
-# ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
@@ -107,9 +105,7 @@ def test_generated_entity_file_imports_coroutine_and_any(filename: str) -> None:
     assert "from typing import Any" in source, f"{filename} missing 'from typing import Any'"
 
 
-# ---------------------------------------------------------------------------
 # FR#13 — service methods are plain def, not async def
-# ---------------------------------------------------------------------------
 
 
 def test_light_entity_turn_on_is_plain_def() -> None:
@@ -147,9 +143,7 @@ def test_base_entity_turn_off_is_plain_def() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
 # FR#13 — return annotation resolves to collections.abc.Coroutine
-# ---------------------------------------------------------------------------
 
 
 def _get_return_annotation_origin(cls, method_name: str):
@@ -187,9 +181,7 @@ def test_base_entity_toggle_return_annotation_is_coroutine() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
 # AC#11 — forgotten await warns; attribution points at caller (this test file)
-# ---------------------------------------------------------------------------
 
 
 def test_light_entity_turn_on_forgotten_await_warns() -> None:
@@ -246,9 +238,7 @@ def test_base_entity_toggle_forgotten_await_warns() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#11 — awaited call acts correctly (no warning, None returned)
-# ---------------------------------------------------------------------------
 
 
 async def test_light_entity_turn_on_awaited_returns_none_no_warning() -> None:
@@ -290,9 +280,7 @@ async def test_base_entity_toggle_awaited_returns_none_no_warning() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# ---------------------------------------------------------------------------
 # AC#11 — entity.sync.turn_on() still registers (now via the domain facade)
-# ---------------------------------------------------------------------------
 
 
 def test_entity_sync_turn_on_registers() -> None:

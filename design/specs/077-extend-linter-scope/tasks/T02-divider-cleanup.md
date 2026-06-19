@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Remove section-divider comments across non-src dirs via codemod"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "AC#6"]
 ---

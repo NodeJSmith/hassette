@@ -59,9 +59,7 @@ skip_c_blocked_under_coverage_py311 = pytest.mark.skipif(
     reason="async_raise into a C-blocked worker deadlocks under coverage's settrace tracer on Python 3.11",
 )
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
@@ -87,9 +85,7 @@ def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExe
     return SyncExecutorService(mock_hassette)
 
 
-# ---------------------------------------------------------------------------
 # Class-level structure tests (no event loop needed)
-# ---------------------------------------------------------------------------
 
 
 class TestSyncExecutorServiceClassAttrs:
@@ -119,9 +115,7 @@ class TestSyncExecutorServiceClassAttrs:
         assert SyncExecutorService in AppHandler.depends_on
 
 
-# ---------------------------------------------------------------------------
 # Executor construction (no event loop needed)
-# ---------------------------------------------------------------------------
 
 
 class TestExecutorConstruction:
@@ -179,9 +173,7 @@ class TestExecutorConstruction:
         svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# ---------------------------------------------------------------------------
 # Dependency graph validation
-# ---------------------------------------------------------------------------
 
 
 class TestDependencyGraph:
@@ -215,9 +207,7 @@ class TestDependencyGraph:
         assert len(SyncExecutorService.depends_on) == 0
 
 
-# ---------------------------------------------------------------------------
 # wire_services() registration and hassette.sync_executor property
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=False)
@@ -320,9 +310,7 @@ class TestWireServicesRegistration:
                 h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
 
 
-# ---------------------------------------------------------------------------
 # Shutdown regression: AppSync hook submits work during shutdown
-# ---------------------------------------------------------------------------
 
 
 class TestShutdownOrderingRegression:
@@ -391,9 +379,7 @@ class TestShutdownOrderingRegression:
             svc.executor.submit(lambda: None)
 
 
-# ---------------------------------------------------------------------------
 # on_shutdown uses configured budget
-# ---------------------------------------------------------------------------
 
 
 class TestOnShutdown:
@@ -429,13 +415,9 @@ class TestOnShutdown:
 # test_service_restart_specs.py (ALL_SERVICES now includes it) — no duplicate here.
 
 
-# ===========================================================================
 # T05: Saturation warnings and shutdown interruption
-# ===========================================================================
 
-# ---------------------------------------------------------------------------
 # Module-level constant relationship (probe interval >= suppress window)
-# ---------------------------------------------------------------------------
 
 
 class TestConstantInvariant:
@@ -478,9 +460,7 @@ class TestConstantInvariant:
         )
 
 
-# ---------------------------------------------------------------------------
 # FR#4 / AC#3: Submission-time saturation WARNING
-# ---------------------------------------------------------------------------
 
 
 class TestSubmissionTimeSaturationWarning:
@@ -638,9 +618,7 @@ class TestSubmissionTimeSaturationWarning:
         svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# ---------------------------------------------------------------------------
 # FR#4 / AC#3: Periodic probe fires when submissions stop
-# ---------------------------------------------------------------------------
 
 
 class TestPeriodicSaturationProbe:
@@ -746,9 +724,7 @@ class TestPeriodicSaturationProbe:
             svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# ---------------------------------------------------------------------------
 # FR#6 / AC#4: Python busy-loop worker interrupted within shutdown budget
-# ---------------------------------------------------------------------------
 
 
 class TestShutdownInterruptsPythonWorker:
@@ -862,9 +838,7 @@ class TestShutdownInterruptsPythonWorker:
         assert terminated.is_set(), "Worker must have received SystemExit via on_shutdown"
 
 
-# ---------------------------------------------------------------------------
 # FR#7 / AC#5: C-blocked worker logged and abandoned; shutdown still completes
-# ---------------------------------------------------------------------------
 
 
 @skip_c_blocked_under_coverage_py311
@@ -957,9 +931,7 @@ class TestShutdownCBlockedWorker:
         assert elapsed < 1.3, f"on_shutdown took {elapsed:.2f}s — expected < 1.3s with 1.0s budget"
 
 
-# ---------------------------------------------------------------------------
 # FR#8 / AC#6: Config drives behavior; defaults apply when unset
-# ---------------------------------------------------------------------------
 
 
 class TestConfigBehavior:
@@ -1014,9 +986,7 @@ class TestConfigBehavior:
             )
 
 
-# ---------------------------------------------------------------------------
 # Submission-time check integration: track_submission increments counter
-# ---------------------------------------------------------------------------
 
 
 class TestTrackSubmission:

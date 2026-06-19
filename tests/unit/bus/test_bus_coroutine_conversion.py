@@ -35,9 +35,7 @@ async def handler(event: object) -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
 # FR#9 — public registration methods are plain def, not async def
-# ---------------------------------------------------------------------------
 
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
 _PUBLIC_REGISTRATION_METHODS = sorted(CANONICAL_PROTECTED[Bus])
@@ -56,9 +54,7 @@ def test_registration_method_is_plain_def(method_name: str) -> None:
 # Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
-# ---------------------------------------------------------------------------
 # AC#2 — await returns Subscription with db_id; no warnings emitted
-# ---------------------------------------------------------------------------
 
 
 async def test_await_on_returns_subscription(bus: "Bus") -> None:
@@ -124,9 +120,7 @@ async def test_await_delegate_on_hassette_service_failed(bus: "Bus") -> None:
         assert isinstance(sub, Subscription)
 
 
-# ---------------------------------------------------------------------------
 # FR#3 — returned handle IS a RegistrationHandle / collections.abc.Coroutine
-# ---------------------------------------------------------------------------
 
 
 async def test_on_returns_registration_handle(bus: "Bus") -> None:
@@ -139,9 +133,7 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
         handle.close()
 
 
-# ---------------------------------------------------------------------------
 # FR#10 — forgotten await on a delegate also emits HassetteForgottenAwaitWarning
-# ---------------------------------------------------------------------------
 
 
 def test_forgotten_await_on_primary_warns(bus: "Bus") -> None:
@@ -176,9 +168,7 @@ def test_forgotten_await_on_hassette_service_failed_warns(bus: "Bus") -> None:
         gc.collect()
 
 
-# ---------------------------------------------------------------------------
 # Source threading — ListenerIdentity.source_location is non-empty
-# ---------------------------------------------------------------------------
 
 
 async def test_source_location_threaded_to_listener(bus: "Bus") -> None:
@@ -202,9 +192,7 @@ async def test_source_location_threaded_via_on_state_change(bus: "Bus") -> None:
         assert sub.listener.identity.source_location, "source_location must be non-empty"
 
 
-# ---------------------------------------------------------------------------
 # Fix 1 — name=None raises ListenerNameRequiredError at call time (not on await)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

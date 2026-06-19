@@ -26,9 +26,7 @@ from hassette.cli.output import (
 )
 from tests.unit.cli.conftest import capture_human
 
-# ---------------------------------------------------------------------------
 # Simple test models
-# ---------------------------------------------------------------------------
 
 
 class SimpleItem(BaseModel):
@@ -56,9 +54,7 @@ class ParentModel(BaseModel):
     sub: SubModel = SubModel(host="localhost", port=8080)
 
 
-# ---------------------------------------------------------------------------
 # Column definition
-# ---------------------------------------------------------------------------
 
 
 class TestColumn:
@@ -93,9 +89,7 @@ class TestColumn:
             col.field = "other"  # pyright: ignore[reportAttributeAccessIssue]
 
 
-# ---------------------------------------------------------------------------
 # _extract_field
-# ---------------------------------------------------------------------------
 
 
 class TestExtractField:
@@ -131,9 +125,7 @@ class TestExtractField:
         assert _extract_field(item, "note.sub") is None
 
 
-# ---------------------------------------------------------------------------
 # Built-in formatters
-# ---------------------------------------------------------------------------
 
 
 class TestFmtRelativeTime:
@@ -205,9 +197,7 @@ class TestFmtDurationS:
         assert fmt_duration_s("invalid") == "invalid"
 
 
-# ---------------------------------------------------------------------------
 # _cell_text
-# ---------------------------------------------------------------------------
 
 
 class TestCellText:
@@ -238,9 +228,7 @@ class TestCellText:
         assert result == "raw"
 
 
-# ---------------------------------------------------------------------------
 # render_table — JSON mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderTableJsonMode:
@@ -296,9 +284,7 @@ class TestRenderTableJsonMode:
         assert parsed[0]["name"] == "x"
 
 
-# ---------------------------------------------------------------------------
 # render_table — human mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderTableHumanMode:
@@ -357,9 +343,7 @@ class TestRenderTableHumanMode:
         assert "gamma" in stdout
 
 
-# ---------------------------------------------------------------------------
 # render_table — pipe detection
-# ---------------------------------------------------------------------------
 
 
 class TestRenderTablePipeDetection:
@@ -398,9 +382,7 @@ class TestRenderTablePipeDetection:
         assert long_name in output
 
 
-# ---------------------------------------------------------------------------
 # render_detail — JSON mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderDetailJsonMode:
@@ -436,9 +418,7 @@ class TestRenderDetailJsonMode:
         assert "\n" in captured.out
 
 
-# ---------------------------------------------------------------------------
 # render_detail — human mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderDetailHumanMode:
@@ -511,9 +491,7 @@ class TestRenderDetailHumanMode:
         assert "—" in stdout
 
 
-# ---------------------------------------------------------------------------
 # render_raw — JSON mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderRawJsonMode:
@@ -537,9 +515,7 @@ class TestRenderRawJsonMode:
         assert captured.err == ""
 
 
-# ---------------------------------------------------------------------------
 # render_raw — human mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderRawHumanMode:
@@ -555,9 +531,7 @@ class TestRenderRawHumanMode:
         assert "light.turn_on" in stdout
 
 
-# ---------------------------------------------------------------------------
 # stdout cleanliness contract (FR#5)
-# ---------------------------------------------------------------------------
 
 
 class TestStdoutCleanliness:
@@ -595,9 +569,7 @@ class TestStdoutCleanliness:
         assert stderr == ""
 
 
-# ---------------------------------------------------------------------------
 # AC#7 — Architectural constraint verification
-# ---------------------------------------------------------------------------
 
 
 class TestArchitecturalConstraint:

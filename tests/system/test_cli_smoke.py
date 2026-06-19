@@ -31,18 +31,14 @@ from hassette.web.models import (
 
 from .conftest import HA_TOKEN, SystemTestConfig, make_web_system_config, startup_context, wait_for_web_server
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
 
 pytestmark = [pytest.mark.system]
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 @contextlib.contextmanager
@@ -77,9 +73,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
     return config, f"http://127.0.0.1:{port}"
 
 
-# ===========================================================================
 # System-status commands
-# ===========================================================================
 
 
 async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -144,9 +138,7 @@ async def test_events_deserializes_and_respects_limit(ha_container: str, tmp_pat
         assert isinstance(evt, EventEntry)
 
 
-# ===========================================================================
 # App commands
-# ===========================================================================
 
 
 async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> None:
@@ -161,9 +153,7 @@ async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> Non
     assert len(result.manifests) > 0
 
 
-# ===========================================================================
 # Listener commands
-# ===========================================================================
 
 
 async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -234,9 +224,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
         assert listener.app_key == app_key
 
 
-# ===========================================================================
 # Job commands
-# ===========================================================================
 
 
 async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -253,9 +241,7 @@ async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
         assert isinstance(job, JobSummary)
 
 
-# ===========================================================================
 # Log commands
-# ===========================================================================
 
 
 async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
@@ -273,9 +259,7 @@ async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
         assert isinstance(entry, LogEntryResponse)
 
 
-# ===========================================================================
 # Error handling
-# ===========================================================================
 
 
 def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:

@@ -38,9 +38,7 @@ def spy_on_get(client: HassetteCLIClient) -> tuple[list[str], Callable[..., obje
     return called_paths, tracking_get
 
 
-# ---------------------------------------------------------------------------
 # cmd_status
-# ---------------------------------------------------------------------------
 
 
 class TestCmdStatus:
@@ -130,9 +128,7 @@ class TestCmdStatus:
         assert "starting" in output
 
 
-# ---------------------------------------------------------------------------
 # cmd_telemetry
-# ---------------------------------------------------------------------------
 
 
 class TestCmdTelemetry:
@@ -206,9 +202,7 @@ class TestCmdTelemetry:
         assert "error" not in parsed
 
 
-# ---------------------------------------------------------------------------
 # cmd_dashboard
-# ---------------------------------------------------------------------------
 
 
 class TestCmdDashboard:

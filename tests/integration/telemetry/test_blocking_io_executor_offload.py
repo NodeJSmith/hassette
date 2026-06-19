@@ -48,9 +48,7 @@ from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
-# ---------------------------------------------------------------------------
 # Shared helpers
-# ---------------------------------------------------------------------------
 
 
 async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
@@ -117,9 +115,7 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     return h
 
 
-# ---------------------------------------------------------------------------
 # Fixtures — AC#4: use the telemetry conftest's sealed db_hassette
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -143,9 +139,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
 # Fixtures — AC#6: unsealed mock with IGNORE wiring + dedicated DB
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -182,9 +176,7 @@ async def ignore_executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
 # AC#4 / FR#8: Sync handler (executor offload) — zero warnings, zero rows
-# ---------------------------------------------------------------------------
 
 
 class TestExecutorOffloadProducesNoBlocking:
@@ -339,9 +331,7 @@ class TestExecutorOffloadProducesNoBlocking:
         assert len(rows) == 0, f"Expected zero blocking_events rows for worker-thread sleep, got {len(rows)}: {rows}"
 
 
-# ---------------------------------------------------------------------------
 # AC#6 / FR#7: Per-app 'ignore' behavior — zero warnings, zero rows
-# ---------------------------------------------------------------------------
 
 
 class TestIgnoreBehaviorSuppressesRowAndWarning:

@@ -21,9 +21,7 @@ import pytest
 from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL, TaskBucket
 from hassette.test_utils import make_mock_hassette
 
-# ---------------------------------------------------------------------------
 # Shared fixture
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -46,9 +44,7 @@ def bucket(hassette_mock) -> TaskBucket:
     return TaskBucket(hassette_mock)
 
 
-# ---------------------------------------------------------------------------
 # FR#1 / AC#2 — sync user code runs on the dedicated pool
-# ---------------------------------------------------------------------------
 
 
 async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None:
@@ -92,9 +88,7 @@ async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> 
     assert isinstance(cell[0], threading.Thread)
 
 
-# ---------------------------------------------------------------------------
 # FR#2 / AC#2 — framework asyncio.to_thread still uses the default pool
-# ---------------------------------------------------------------------------
 
 
 async def test_asyncio_to_thread_uses_default_pool() -> None:
@@ -146,9 +140,7 @@ async def test_pool_split_both_assertions_in_one_pass(bucket: TaskBucket) -> Non
     )
 
 
-# ---------------------------------------------------------------------------
 # FR#9 / AC#7 — timeout signal unchanged
-# ---------------------------------------------------------------------------
 
 
 async def test_slow_sync_handler_timeout_signal_unchanged(bucket: TaskBucket) -> None:

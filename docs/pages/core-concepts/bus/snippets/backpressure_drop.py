@@ -1,9 +1,7 @@
 from hassette import App, AppConfig
 
 
-# ---------------------------------------------------------------------------
 # Composition: drop_newest + single
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:drop_newest_single]
 class ComposedApp(App[AppConfig]):
@@ -21,9 +19,7 @@ class ComposedApp(App[AppConfig]):
 # --8<-- [end:drop_newest_single]
 
 
-# ---------------------------------------------------------------------------
 # DROP_NEWEST — skip if the whole bus is saturated
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:drop_newest_basic]
 class PowerApp(App[AppConfig]):
@@ -43,9 +39,7 @@ class PowerApp(App[AppConfig]):
 # --8<-- [end:drop_newest_basic]
 
 
-# ---------------------------------------------------------------------------
 # BLOCK (default) — must-run handler; always waits for a slot
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:block_explicit]
 class AlertApp(App[AppConfig]):

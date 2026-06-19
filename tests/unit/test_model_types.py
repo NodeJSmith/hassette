@@ -22,9 +22,7 @@ from hassette.web.models import (
     SystemStatusResponse,
 )
 
-# ---------------------------------------------------------------------------
 # ExecutionStatus — Execution.status
-# ---------------------------------------------------------------------------
 
 
 class TestExecutionStatus:
@@ -87,9 +85,7 @@ class TestExecutionStatus:
         assert isinstance(data["status"], str)
 
 
-# ---------------------------------------------------------------------------
 # ManifestStatus — AppManifestResponse.status
-# ---------------------------------------------------------------------------
 
 
 class TestManifestStatus:
@@ -138,9 +134,7 @@ class TestManifestStatus:
             )
 
 
-# ---------------------------------------------------------------------------
 # ResourceStatus — AppInstanceResponse.status
-# ---------------------------------------------------------------------------
 
 
 class TestResourceStatus:
@@ -190,9 +184,7 @@ class TestResourceStatus:
             assert obj.status == value
 
 
-# ---------------------------------------------------------------------------
 # HealthStatus — AppHealthResponse.health_status
-# ---------------------------------------------------------------------------
 
 
 class TestHealthStatus:
@@ -239,9 +231,7 @@ class TestHealthStatus:
             )
 
 
-# ---------------------------------------------------------------------------
 # ErrorRateClass — AppHealthResponse.error_rate_class
-# ---------------------------------------------------------------------------
 
 
 class TestErrorRateClass:
@@ -288,9 +278,7 @@ class TestErrorRateClass:
             )
 
 
-# ---------------------------------------------------------------------------
 # ListenerKind — ListenerWithSummary.listener_kind
-# ---------------------------------------------------------------------------
 
 
 class TestListenerKind:
@@ -340,9 +328,7 @@ class TestListenerKind:
         assert obj.listener_kind == "event"
 
 
-# ---------------------------------------------------------------------------
 # LOG_LEVEL_TYPE — LogRecord.level and LogEntryResponse.level
-# ---------------------------------------------------------------------------
 
 
 class TestLogLevelType:
@@ -422,9 +408,7 @@ class TestLogLevelType:
             assert obj.level == level
 
 
-# ---------------------------------------------------------------------------
 # ExecutionStatus on WebSocket payload models
-# ---------------------------------------------------------------------------
 
 
 class TestWebSocketPayloadStatus:
@@ -468,9 +452,7 @@ class TestWebSocketPayloadStatus:
         assert obj.error_type == "TimeoutError"
 
 
-# ---------------------------------------------------------------------------
 # SystemHealthStatus — SystemStatusResponse.status
-# ---------------------------------------------------------------------------
 
 
 class TestSystemHealthStatus:

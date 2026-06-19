@@ -135,7 +135,7 @@ async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
 
 
 async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatch, hassette_instance: Hassette) -> None:
-    """wait_for_ready leverages the helper with the configured timeout."""
+    """wait_for_ready calls the helper with the configured timeout."""
     waiter = AsyncMock(return_value=True)
     monkeypatch.setattr("hassette.core.core.wait_for_ready", waiter)
 

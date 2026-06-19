@@ -31,9 +31,7 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 
-# ---------------------------------------------------------------------------
 # FR#9 — public scheduling methods are plain def, not async def
-# ---------------------------------------------------------------------------
 
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
 _PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
@@ -52,9 +50,7 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
 # Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
-# ---------------------------------------------------------------------------
 # AC#2 — await returns ScheduledJob with db_id; no warnings emitted
-# ---------------------------------------------------------------------------
 
 
 async def test_await_add_job_returns_scheduled_job() -> None:
@@ -185,9 +181,7 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
         handle_b.close()
 
 
-# ---------------------------------------------------------------------------
 # FR#3 — returned handle IS a RegistrationHandle / collections.abc.Coroutine
-# ---------------------------------------------------------------------------
 
 
 def test_add_job_returns_registration_handle() -> None:
@@ -223,9 +217,7 @@ def test_run_in_returns_registration_handle() -> None:
     handle.close()
 
 
-# ---------------------------------------------------------------------------
 # FR#10 — forgotten await emits HassetteForgottenAwaitWarning
-# ---------------------------------------------------------------------------
 
 
 def test_forgotten_await_on_add_job_warns() -> None:
@@ -299,9 +291,7 @@ def test_forgotten_await_on_remaining_delegates_warns(call) -> None:
         gc.collect()
 
 
-# ---------------------------------------------------------------------------
 # Source threading — ScheduledJob.source_location is non-empty via add_job backfill
-# ---------------------------------------------------------------------------
 
 
 async def test_source_location_backfilled_via_schedule() -> None:
@@ -343,9 +333,7 @@ async def test_source_location_preserved_when_already_set() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
 # TypeError on add_job("not-a-job") — synchronous, at call time
-# ---------------------------------------------------------------------------
 
 
 def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
@@ -357,9 +345,7 @@ def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
             scheduler.add_job("not-a-job")  # pyright: ignore[reportArgumentType]
 
 
-# ---------------------------------------------------------------------------
 # Calling without awaiting does NOT mutate scheduler state (no job registered)
-# ---------------------------------------------------------------------------
 
 
 def test_unawaited_schedule_does_not_register_job() -> None:

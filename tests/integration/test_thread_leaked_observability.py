@@ -26,9 +26,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 from .conftest import make_mock_listener
 
-# ---------------------------------------------------------------------------
 # Shared fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -45,9 +43,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
 # FR#3 / AC#1: not-started sync timeout → thread_leaked=False (cell[0] still None)
-# ---------------------------------------------------------------------------
 
 
 async def test_not_started_sync_timeout_no_false_positive(
@@ -121,9 +117,7 @@ async def test_not_started_sync_timeout_no_false_positive(
     assert record.thread_leaked is False, "thread_leaked must be False when worker never dequeued (cell[0] is None)"
 
 
-# ---------------------------------------------------------------------------
 # FR#3 / AC#1: blocked sync handler → thread_leaked=True
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_handler_timeout_sets_thread_leaked(
@@ -178,9 +172,7 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     assert record.thread_leaked is True, "Expected thread_leaked=True for a sync handler still alive after timeout"
 
 
-# ---------------------------------------------------------------------------
 # FR#3 / AC#1: async handler timeout → thread_leaked=False (no worker)
-# ---------------------------------------------------------------------------
 
 
 async def test_async_handler_timeout_does_not_set_thread_leaked(
@@ -213,9 +205,7 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
     assert record.thread_leaked is False, "thread_leaked must be False for async handlers (no worker thread)"
 
 
-# ---------------------------------------------------------------------------
 # AC#1: distinguishable from clean timeout (thread finishes before check)
-# ---------------------------------------------------------------------------
 
 
 async def test_pure_async_timeout_no_cell_no_thread_leaked(
@@ -256,9 +246,7 @@ async def test_pure_async_timeout_no_cell_no_thread_leaked(
     assert record.thread_leaked is False
 
 
-# ---------------------------------------------------------------------------
 # AC#1: round-trip persistence — thread_leaked column survives write+read back
-# ---------------------------------------------------------------------------
 
 
 async def test_thread_leaked_persists_to_db(

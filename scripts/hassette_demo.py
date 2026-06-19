@@ -57,9 +57,7 @@ _tmp_dir: str | None = None
 _torn_down = False
 
 
-# ---------------------------------------------------------------------------
 # Port allocation
-# ---------------------------------------------------------------------------
 
 
 def find_free_port() -> int:
@@ -74,9 +72,7 @@ def find_free_port() -> int:
         return sock.getsockname()[1]
 
 
-# ---------------------------------------------------------------------------
 # Readiness polling
-# ---------------------------------------------------------------------------
 
 
 def _poll_http(
@@ -125,9 +121,7 @@ def _poll_http(
     return False
 
 
-# ---------------------------------------------------------------------------
 # Teardown
-# ---------------------------------------------------------------------------
 
 
 def _terminate_process_group(proc: "subprocess.Popen[bytes]") -> None:
@@ -179,9 +173,7 @@ def _signal_handler(_signum: int, _frame: object) -> None:
     sys.exit(0)
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -200,25 +192,19 @@ def main() -> None:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    # ------------------------------------------------------------------
     # Step 1: Resolve repo root
-    # ------------------------------------------------------------------
     repo_root = Path(__file__).resolve().parent.parent
 
     if sys.platform == "win32":
         print("DEMO_ERROR=This script requires Unix (Linux/macOS)", flush=True)
         sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 2: Allocate three free ports
-    # ------------------------------------------------------------------
     ha_port = find_free_port()
     hassette_port = find_free_port()
     vite_port = find_free_port()
 
-    # ------------------------------------------------------------------
     # Step 3: Copy demo HA fixture to temp directory
-    # ------------------------------------------------------------------
     fixture_src = repo_root / "tests" / "fixtures" / "demo-ha-config"
     # Keep in sync with tests/system/conftest.py ha_container fixture (same ignore list)
     _ignore = shutil.ignore_patterns(
@@ -240,9 +226,7 @@ def main() -> None:
     _tmp_dir = tempfile.mkdtemp(prefix="hassette-demo-")
     shutil.copytree(str(fixture_src), _tmp_dir, dirs_exist_ok=True, ignore=_ignore)
 
-    # ------------------------------------------------------------------
     # Step 4: Start HA container
-    # ------------------------------------------------------------------
     compose_file = repo_root / "scripts" / "docker" / "ha-demo.yml"
     _ha_compose_file = compose_file
 
@@ -279,12 +263,10 @@ def main() -> None:
         print(f"DEMO_ERROR=docker compose up failed: {result.stderr.decode().strip()}", flush=True)
         sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 5: Poll HA readiness
     # Unlike tests/system/conftest.py wait_for_ha_ready(), this skips the
     # WebSocket probe to stay stdlib-only. The 3-consecutive-200s check is
     # a reasonable approximation for the demo use case.
-    # ------------------------------------------------------------------
     ha_ready = _poll_http(
         f"http://localhost:{ha_port}/api/",
         timeout_seconds=HA_STARTUP_TIMEOUT_SECONDS,
@@ -297,9 +279,7 @@ def main() -> None:
         teardown()
         sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 6: Start hassette subprocess
-    # ------------------------------------------------------------------
     hassette_env = {
         **os.environ,
         "HASSETTE__BASE_URL": f"http://localhost:{ha_port}",
@@ -328,9 +308,7 @@ def main() -> None:
         stderr=subprocess.STDOUT,
     )
 
-    # ------------------------------------------------------------------
     # Step 7: Poll hassette readiness
-    # ------------------------------------------------------------------
     hassette_ready = _poll_http(
         f"http://localhost:{hassette_port}/api/health",
         timeout_seconds=HASSETTE_STARTUP_TIMEOUT_SECONDS,
@@ -349,9 +327,7 @@ def main() -> None:
         teardown()
         sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 8: Check node_modules
-    # ------------------------------------------------------------------
     node_modules_dir = repo_root / "frontend" / "node_modules"
     if not node_modules_dir.exists():
         npm_result = subprocess.run(
@@ -365,9 +341,7 @@ def main() -> None:
             teardown()
             sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 9: Start Vite dev server
-    # ------------------------------------------------------------------
     vite_env = {
         **os.environ,
         "VITE_PROXY_TARGET": f"http://localhost:{hassette_port}",
@@ -394,9 +368,7 @@ def main() -> None:
         teardown()
         sys.exit(1)
 
-    # ------------------------------------------------------------------
     # Step 10: Print structured ready message and block
-    # ------------------------------------------------------------------
     print(f"DEMO_HA_URL=http://localhost:{ha_port}", flush=True)
     print(f"DEMO_HASSETTE_URL=http://localhost:{hassette_port}", flush=True)
     print(f"DEMO_FRONTEND_URL=http://localhost:{vite_port}", flush=True)

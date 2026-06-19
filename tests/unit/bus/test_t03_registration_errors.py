@@ -27,9 +27,7 @@ async def handler_b(event) -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
 # FR#3 / AC#6 — ListenerNameRequiredError
-# ---------------------------------------------------------------------------
 
 
 async def test_registering_without_name_raises(bus: "Bus") -> None:
@@ -75,9 +73,7 @@ async def test_providing_name_does_not_raise(bus: "Bus") -> None:
         assert sub is not None
 
 
-# ---------------------------------------------------------------------------
 # FR#20 / AC#14 — DuplicateListenerError
-# ---------------------------------------------------------------------------
 
 
 async def test_duplicate_name_and_topic_raises(bus: "Bus") -> None:
@@ -135,9 +131,7 @@ async def test_once_listeners_collide_like_durable_listeners(bus: "Bus") -> None
             await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
 
 
-# ---------------------------------------------------------------------------
 # _listener_natural_key canonical shape
-# ---------------------------------------------------------------------------
 
 
 async def test_listener_natural_key_is_canonical_4_tuple(bus: "Bus") -> None:

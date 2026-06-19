@@ -29,10 +29,8 @@ from hassette.core.command_executor import ExecutionMarker
 
 from .conftest import make_executor
 
-# ---------------------------------------------------------------------------
 # Deterministic invariant guard (no timing) — the marker is cross-thread readable
 # while bound and cleared on unbind. This is the stable guarantee T03 inherits.
-# ---------------------------------------------------------------------------
 
 
 def test_marker_published_on_bind_and_cleared_on_unbind() -> None:
@@ -101,11 +99,9 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     assert candidate_a_if_later.execution_id == next_exec_id
 
 
-# ---------------------------------------------------------------------------
 # Realistic spike — a real event loop, a real time.sleep freezing the loop thread,
 # a real loop.call_later heartbeat (Candidate A) and a real daemon thread (Candidate B).
 # This is the empirical evidence behind the design decision.
-# ---------------------------------------------------------------------------
 
 
 # A real time.sleep on the loop thread would freeze a shared session-scoped loop and could

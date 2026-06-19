@@ -38,9 +38,7 @@ from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.types.enums import ExecutionMode
 
-# ---------------------------------------------------------------------------
 # App for AC#2: one-shot with mode= fires exactly once
-# ---------------------------------------------------------------------------
 
 
 class _OneShotModeConfig(AppConfig):
@@ -79,9 +77,7 @@ class _RunOnceModeApp(App[_OneShotModeConfig]):
         self.fired_count += 1
 
 
-# ---------------------------------------------------------------------------
 # AC#2: one-shot with mode= fires exactly once
-# ---------------------------------------------------------------------------
 
 
 async def test_run_in_with_mode_fires_exactly_once() -> None:
@@ -132,9 +128,7 @@ async def test_run_once_with_mode_fires_exactly_once() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # Integration tests via hassette_with_scheduler (framework-tier scheduler)
-# ---------------------------------------------------------------------------
 
 
 class TestSchedulerModeViaHarness:
@@ -218,9 +212,7 @@ class TestSchedulerModeViaHarness:
         hassette_with_scheduler.scheduler.cancel_job(job)
 
 
-# ---------------------------------------------------------------------------
 # One-shot acceptance tests — run_in / run_once accept mode= without error
-# ---------------------------------------------------------------------------
 
 
 class TestOneShotModeAcceptance:
@@ -277,9 +269,7 @@ class TestOneShotModeAcceptance:
         hassette_with_scheduler.scheduler.cancel_job(job)
 
 
-# ---------------------------------------------------------------------------
 # Convenience method forwarding
-# ---------------------------------------------------------------------------
 
 
 class TestConvenienceMethodModeForwarding:
@@ -361,9 +351,7 @@ class TestConvenienceMethodModeForwarding:
             hassette_with_scheduler.scheduler.cancel_job(job)
 
 
-# ---------------------------------------------------------------------------
 # T02 Tests: Dispatch-time reschedule and guard routing
-# ---------------------------------------------------------------------------
 
 
 class _OverlapConfig(AppConfig):
@@ -397,9 +385,7 @@ class _OverrunApp(App[_OverlapConfig]):
         await self.run_gate.wait()
 
 
-# ---------------------------------------------------------------------------
 # AC#1 / FR#1: Dispatch-time reschedule — next occurrence on heap before run completes
-# ---------------------------------------------------------------------------
 
 
 async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -> None:
@@ -440,9 +426,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         await asyncio.wait_for(dispatch_task, timeout=2.0)
 
 
-# ---------------------------------------------------------------------------
 # AC#3 / FR#3: Fire sequence unchanged for non-overrunning jobs
-# ---------------------------------------------------------------------------
 
 
 async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
@@ -480,9 +464,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         assert 9 <= delta <= 11, f"Expected next fire ~10s after first fire, got delta={delta}s"
 
 
-# ---------------------------------------------------------------------------
 # AC#4 / FR#5: single mode suppresses overrun re-fires
-# ---------------------------------------------------------------------------
 
 
 async def test_single_mode_suppresses_overrun() -> None:
@@ -529,9 +511,7 @@ async def test_single_mode_suppresses_overrun() -> None:
         await asyncio.wait_for(dispatch1, timeout=2.0)
 
 
-# ---------------------------------------------------------------------------
 # AC#7 / FR#5: parallel mode runs invocations concurrently
-# ---------------------------------------------------------------------------
 
 
 async def test_parallel_mode_runs_invocations_concurrently() -> None:
@@ -584,9 +564,7 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # AC#5 / FR#5: queued mode serializes overruns
-# ---------------------------------------------------------------------------
 
 
 async def test_queued_mode_serializes_overrun() -> None:
@@ -644,9 +622,7 @@ async def test_queued_mode_serializes_overrun() -> None:
         assert run_order.index(1) < run_order.index(2), "Invocations should run in arrival order"
 
 
-# ---------------------------------------------------------------------------
 # FR#14 / queued: QUEUED_ACCEPTED + cancel does not hang dispatch task
-# ---------------------------------------------------------------------------
 
 
 async def test_queued_accepted_then_cancel_does_not_hang() -> None:
@@ -709,9 +685,7 @@ async def test_queued_accepted_then_cancel_does_not_hang() -> None:
             await asyncio.wait_for(dispatch1, timeout=2.0)
 
 
-# ---------------------------------------------------------------------------
 # AC#6 / FR#5: restart mode cancels in-flight and starts fresh
-# ---------------------------------------------------------------------------
 
 
 async def test_restart_mode_cancels_and_starts_fresh() -> None:
@@ -805,9 +779,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
             await asyncio.wait_for(dispatch2, timeout=1.0)
 
 
-# ---------------------------------------------------------------------------
 # AC#14 / FR#16: trigger error still runs current fire, then removes job
-# ---------------------------------------------------------------------------
 
 
 async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
@@ -873,9 +845,7 @@ async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
         assert not any(j.name == "bad_trigger_job" for j in remaining), "Job should be removed after trigger raises"
 
 
-# ---------------------------------------------------------------------------
 # AC#15 / FR#17: dequeued race — in-lock re-check prevents spurious re-push
-# ---------------------------------------------------------------------------
 
 
 async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
@@ -933,9 +903,7 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # AC#12 / FR#14: guard release on cancel clears in-flight invocation
-# ---------------------------------------------------------------------------
 
 
 async def test_guard_release_on_cancel_clears_in_flight() -> None:
@@ -988,9 +956,7 @@ async def test_guard_release_on_cancel_clears_in_flight() -> None:
             await asyncio.wait_for(dispatch_task, timeout=1.0)
 
 
-# ---------------------------------------------------------------------------
 # AC#16 / FR#18: stall watchdog emits WARNING for non-parallel; parallel does not
-# ---------------------------------------------------------------------------
 
 
 async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:

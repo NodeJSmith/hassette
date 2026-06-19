@@ -30,10 +30,8 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
 from tests.unit.conftest import make_api, make_mock_parent
 
-# ---------------------------------------------------------------------------
 # Canonical protected-method list (FR#9, AC#6)
 # Single source of truth consumed by every guard in this file.
-# ---------------------------------------------------------------------------
 
 #: Every public registration/scheduling/fire-and-forget method across Bus,
 #: Scheduler, and Api that is protected by the forgotten-await mechanism.
@@ -205,9 +203,7 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Detection helper (same OR-semantics as the parity tests and T05)
-# ---------------------------------------------------------------------------
 
 
 def _is_detected(cls: type, name: str) -> bool:
@@ -242,9 +238,7 @@ def _is_detected(cls: type, name: str) -> bool:
     return getattr(ret, "__origin__", None) is collections.abc.Coroutine
 
 
-# ---------------------------------------------------------------------------
 # Canonical list completeness/disjointness guard (AC#6 — part b)
-# ---------------------------------------------------------------------------
 
 
 class TestCompletenessGuard:
@@ -324,9 +318,7 @@ class TestCompletenessGuard:
         )
 
 
-# ---------------------------------------------------------------------------
 # Annotation-origin guard (AC#8) — cross-class, canonical list
-# ---------------------------------------------------------------------------
 
 
 class TestAnnotationOriginGuard:
@@ -370,9 +362,7 @@ class TestAnnotationOriginGuard:
         )
 
 
-# ---------------------------------------------------------------------------
 # Parametrized warning test over the full canonical list (AC#6 — part a)
-# ---------------------------------------------------------------------------
 #
 # Each canonical method must emit HassetteForgottenAwaitWarning when its handle
 # is dropped un-awaited.  The test builds a minimal instance for each class
@@ -386,10 +376,9 @@ class TestAnnotationOriginGuard:
 # deliberate dual-path coverage: per-class tests exercise real fixtures
 # (mock_add_listener/conftest bus), while this guard exercises lean stubs
 # across the full canonical list — catching drift that per-class tests miss.
-# ---------------------------------------------------------------------------
 
 
-# --- Bus fixtures ---
+# Bus fixtures
 
 
 def _make_bus() -> Bus:
@@ -438,7 +427,7 @@ def _bus_call(method_name: str):
 # add_listener is handled separately (requires a Listener object)
 _BUS_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener"]
 
-# --- Scheduler fixtures ---
+# Scheduler fixtures
 
 
 def _make_scheduler() -> Scheduler:
@@ -485,7 +474,7 @@ def _sched_call(method_name: str):
 # add_job is handled separately (requires a ScheduledJob object)
 _SCHED_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job"]
 
-# --- Api fixtures ---
+# Api fixtures
 
 _API_METHOD_CALLS: dict[str, object] = {
     "call_service": lambda api: api.call_service("light", "turn_on"),
@@ -497,7 +486,7 @@ _API_METHOD_CALLS: dict[str, object] = {
 }
 
 
-# --- Build parametrized cases ---
+# Build parametrized cases
 
 
 def _build_warning_cases() -> list[pytest.param]:
@@ -534,7 +523,7 @@ def test_canonical_method_warns_on_forgotten_await(resource: str, call_fn) -> No
         gc.collect()
 
 
-# --- Special-case methods that need different argument construction ---
+# Special-case methods that need different argument construction
 
 
 def test_bus_add_listener_warns_on_forgotten_await() -> None:
@@ -565,7 +554,7 @@ def test_scheduler_add_job_warns_on_forgotten_await() -> None:
         gc.collect()
 
 
-# --- Suppress stray HassetteForgottenAwaitWarning from gc.collect() at teardown ---
+# Suppress stray HassetteForgottenAwaitWarning from gc.collect() at teardown
 
 
 @pytest.fixture(autouse=True)

@@ -21,9 +21,7 @@ from hassette.core.migration_runner import (
     run_migrations,
 )
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _user_version(db_path: Path) -> int:
@@ -52,9 +50,7 @@ def _columns(db_path: Path, table: str) -> set[str]:
         conn.close()
 
 
-# ---------------------------------------------------------------------------
 # _collect_migrations
-# ---------------------------------------------------------------------------
 
 
 def test_collect_migrations_finds_sql_files(tmp_path: Path) -> None:
@@ -92,9 +88,7 @@ def test_collect_migrations_empty_dir(tmp_path: Path) -> None:
     assert result == {}
 
 
-# ---------------------------------------------------------------------------
 # _read_user_version
-# ---------------------------------------------------------------------------
 
 
 def test_read_user_version_fresh_db(tmp_path: Path) -> None:
@@ -116,9 +110,7 @@ def test_read_user_version_after_set(tmp_path: Path) -> None:
     assert _read_user_version(db_path) == 5
 
 
-# ---------------------------------------------------------------------------
 # _set_auto_vacuum
-# ---------------------------------------------------------------------------
 
 
 def test_set_auto_vacuum_sets_incremental(tmp_path: Path) -> None:
@@ -157,9 +149,7 @@ def test_set_auto_vacuum_noop_if_already_incremental(tmp_path: Path) -> None:
     assert mode == 2
 
 
-# ---------------------------------------------------------------------------
 # _apply_migration
-# ---------------------------------------------------------------------------
 
 
 def test_apply_migration_creates_table(tmp_path: Path) -> None:
@@ -200,9 +190,7 @@ def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:
     assert "v2" not in _tables(db_path)
 
 
-# ---------------------------------------------------------------------------
 # run_migrations (integration with real 001.sql)
-# ---------------------------------------------------------------------------
 
 
 def test_run_migrations_applies_001(tmp_path: Path) -> None:
@@ -256,9 +244,7 @@ def test_run_migrations_skips_already_applied(tmp_path: Path) -> None:
         assert _user_version(db_path) == version_after_first
 
 
-# ---------------------------------------------------------------------------
 # Schema content tests (FR#19, FR#17, AC#11)
-# ---------------------------------------------------------------------------
 
 
 def test_new_columns_exist_after_001(tmp_path: Path) -> None:

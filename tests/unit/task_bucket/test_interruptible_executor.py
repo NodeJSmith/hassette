@@ -72,9 +72,7 @@ def capture_warnings(logger_name: str = _EXECUTOR_LOGGER) -> Iterator[list[loggi
         logger.setLevel(prev_level)
 
 
-# ---------------------------------------------------------------------------
 # async_raise — unit-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestAsyncRaise:
@@ -143,9 +141,7 @@ class TestAsyncRaise:
         assert done.is_set(), "Thread should have received SystemExit"
 
 
-# ---------------------------------------------------------------------------
 # _log_thread_running_at_shutdown — verifies logging helper
-# ---------------------------------------------------------------------------
 
 
 class TestLogThreadRunningAtShutdown:
@@ -165,9 +161,7 @@ class TestLogThreadRunningAtShutdown:
         )
 
 
-# ---------------------------------------------------------------------------
 # join_or_interrupt_threads — unit-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestJoinOrInterruptThreads:
@@ -266,9 +260,7 @@ class TestJoinOrInterruptThreads:
         t.join(timeout=2.0)
 
 
-# ---------------------------------------------------------------------------
 # InterruptibleThreadPoolExecutor.shutdown — integration-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestInterruptibleThreadPoolExecutorShutdown:

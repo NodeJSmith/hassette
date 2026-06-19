@@ -28,9 +28,7 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 
-# ---------------------------------------------------------------------------
 # FR#9 — converted public methods are plain def, not async def
-# ---------------------------------------------------------------------------
 
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
 _CONVERTED_METHODS = sorted(CANONICAL_PROTECTED[Api])
@@ -49,9 +47,7 @@ def test_converted_method_is_plain_def(method_name: str) -> None:
 # Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
-# ---------------------------------------------------------------------------
 # AC#2 — await returns expected values; no warnings emitted
-# ---------------------------------------------------------------------------
 
 
 async def test_await_call_service_returns_none() -> None:
@@ -122,9 +118,7 @@ async def test_await_toggle_service_returns_none() -> None:
     assert result is None
 
 
-# ---------------------------------------------------------------------------
 # FR#3 — returned handle IS a RegistrationHandle before awaiting
-# ---------------------------------------------------------------------------
 
 
 def test_call_service_returns_registration_handle() -> None:
@@ -175,9 +169,7 @@ def test_toggle_service_returns_registration_handle() -> None:
     handle.close()
 
 
-# ---------------------------------------------------------------------------
 # FR#10 — forgotten await on a primary AND a delegate emits HassetteForgottenAwaitWarning
-# ---------------------------------------------------------------------------
 
 
 def test_forgotten_await_on_call_service_warns() -> None:

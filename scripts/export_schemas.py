@@ -20,9 +20,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
-# ---------------------------------------------------------------------------
 # Bootstrap a minimal FastAPI app without connecting to Home Assistant
-# ---------------------------------------------------------------------------
 
 
 def _create_stub_hassette() -> MagicMock:
@@ -49,7 +47,7 @@ def main() -> None:
     frontend_dir = repo_root / "frontend"
     frontend_dir.mkdir(exist_ok=True)
 
-    # --- OpenAPI schema ---
+    # OpenAPI schema
     stub = _create_stub_hassette()
     app = create_fastapi_app(stub)
     openapi = app.openapi()
@@ -57,7 +55,7 @@ def main() -> None:
     openapi_path.write_text(json.dumps(openapi, indent=2) + "\n")
     print(f"Wrote {openapi_path}")
 
-    # --- WebSocket message schema ---
+    # WebSocket message schema
     from pydantic import TypeAdapter
 
     adapter = TypeAdapter(WsServerMessage)
@@ -67,7 +65,7 @@ def main() -> None:
     ws_schema_path.write_text(json.dumps(ws_schema, indent=2) + "\n")
     print(f"Wrote {ws_schema_path}")
 
-    # --- TypeScript types (optional) ---
+    # TypeScript types (optional)
     if args.types:
         scripts_dir = repo_root / "scripts"
 

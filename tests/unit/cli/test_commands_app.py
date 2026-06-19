@@ -27,9 +27,7 @@ from hassette.test_utils.web_helpers import (
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
-# ---------------------------------------------------------------------------
 # cmd_app (bare — list all apps)
-# ---------------------------------------------------------------------------
 
 
 class TestCmdApp:
@@ -110,9 +108,7 @@ class TestCmdApp:
         assert len(APP_LIST_COLUMNS) <= 8
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_health
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppHealth:
@@ -243,9 +239,7 @@ class TestCmdAppHealth:
         assert "last_activity_ts" in field_names
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_activity
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppActivity:
@@ -392,9 +386,7 @@ class TestCmdAppActivity:
         assert len(APP_ACTIVITY_COLUMNS) <= 8
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_config
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppConfig:
@@ -448,9 +440,7 @@ class TestCmdAppConfig:
         assert parsed["enabled"] is True
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_source
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppSource:
