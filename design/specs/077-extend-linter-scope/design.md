@@ -1,7 +1,7 @@
 # Design: Extend hand-written linter scope to tests/scripts/tools/codegen/docs + CI enforcement
 
 **Date:** 2026-06-19
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 
 ## Problem
