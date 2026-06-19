@@ -52,6 +52,9 @@ The dispatch semaphore is **global** — shared by all listeners across all
 apps. `drop_newest` does not drop when *this listener alone* is busy. It drops
 when the *whole bus* has no free slots.
 
+The slot count is set by `lifecycle.max_concurrent_dispatches` (default 50).
+The bus is saturated when that many handlers are in flight at once.
+
 This is different from `throttle` and `debounce`, which are per-listener rate
 controls that operate inside the handler invoker. `backpressure` acts at the
 acquire gate, before any handler runs.
@@ -85,7 +88,7 @@ order for equal priorities.
 dispatch queue grow and can react. `drop_newest` converts it into **silent
 loss** visible only as a rising drop count.
 
-A non-zero drop count in the monitoring UI means the bus was saturated when
+A non-zero drop count in the [monitoring UI](../../web-ui/index.md) means the bus was saturated when
 that listener's events arrived. Addressing the root cause — raising
 `lifecycle.max_concurrent_dispatches`, speeding up slow handlers, or reducing
 event volume — is preferable to accepting permanent drop rates.
@@ -99,10 +102,12 @@ tab shows the count for the current process lifetime only.
 
 ## Observability
 
-The monitoring UI's Handlers tab shows a **Backpressure dropped** cell for any
-listener with a non-zero drop count. The count appears as a rate — drops as a
-fraction of total activity — so a chronically-dropping listener is visually
-distinct from one that dropped a single event under a brief spike.
+The monitoring UI's Handlers tab shows a **Backpressure Dropped** cell for any
+listener with a non-zero drop count. The cell pairs the raw count with a rate —
+drops as a fraction of total activity — so a chronically-dropping listener is
+visually distinct from one that dropped a single event under a brief spike.
+
+![Listener detail panel with the Backpressure Dropped cell showing the drop count and rate](../../../_static/web_ui_backpressure_dropped.png)
 
 The `backpressure_dropped_count` field is also available on the listener
 summary returned by the web API. A zero drop count at all policy types means
@@ -112,8 +117,8 @@ the bus has remained below saturation since the last restart.
 
 ### With `mode`
 
-`backpressure` and `mode` operate at different points in the dispatch
-pipeline and do not conflict.
+`backpressure` and [`mode`](execution-modes.md) operate at different points in
+the dispatch pipeline and do not conflict.
 
 - `backpressure` gates at the **semaphore acquire** — before any task is
   spawned.
