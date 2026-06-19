@@ -186,7 +186,7 @@ def to_listener_with_summary(
             in-memory guards. A listener with no live guard (e.g. retired) defaults to
             ``LiveCounts(0, 0, 0)``.
     """
-    suppressed, dropped, bp_dropped = (live_counts or {}).get(ls.listener_id, LiveCounts(0, 0, 0))
+    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(ls.listener_id, LiveCounts(0, 0, 0))
     return ListenerWithSummary(
         listener_id=ls.listener_id,
         app_key=ls.app_key,
@@ -225,6 +225,6 @@ def to_listener_with_summary(
         mode=ls.mode,
         suppressed_count=suppressed,
         dropped_count=dropped,
-        backpressure_dropped_count=bp_dropped,
+        backpressure_dropped_count=backpressure_dropped,
         backpressure=ls.backpressure,
     )

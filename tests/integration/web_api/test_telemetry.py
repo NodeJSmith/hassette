@@ -134,7 +134,7 @@ class TestTelemetryListeners:
         )
         # Live snapshot keyed by listener db_id (== listener_id 7).
         mock_hassette.bus_service.live_execution_counts = MagicMock(
-            return_value={7: LiveCounts(suppressed=2, dropped=4, bp_dropped=5)}
+            return_value={7: LiveCounts(suppressed=2, dropped=4, backpressure_dropped=5)}
         )
 
         response = await client.get("/api/telemetry/app/my_app/listeners")
@@ -144,7 +144,7 @@ class TestTelemetryListeners:
         assert data[0]["mode"] == "single"
         assert data[0]["suppressed_count"] == 2
         assert data[0]["dropped_count"] == 4
-        # The live bp_dropped count and the persisted policy both reach the HTTP response.
+        # The live backpressure_dropped count and the persisted policy both reach the HTTP response.
         assert data[0]["backpressure_dropped_count"] == 5
         assert data[0]["backpressure"] == "drop_newest"
 

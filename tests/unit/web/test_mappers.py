@@ -349,10 +349,10 @@ def test_to_listener_with_summary_thread_leaked_passthrough():
 
 
 def test_to_listener_with_summary_merges_live_counts_by_db_id():
-    """suppressed/dropped/bp_dropped come from the live snapshot keyed by listener db_id."""
+    """suppressed/dropped/backpressure_dropped come from the live snapshot keyed by listener db_id."""
     summary = make_listener_summary(listener_id=42)
 
-    result = to_listener_with_summary(summary, {42: LiveCounts(suppressed=3, dropped=5, bp_dropped=0)})
+    result = to_listener_with_summary(summary, {42: LiveCounts(suppressed=3, dropped=5, backpressure_dropped=0)})
 
     assert result.suppressed_count == 3
     assert result.dropped_count == 5
@@ -363,18 +363,18 @@ def test_to_listener_with_summary_defaults_counts_to_zero_when_no_live_guard():
     """A listener absent from the live snapshot (retired) reports zero counts."""
     summary = make_listener_summary(listener_id=42)
 
-    result = to_listener_with_summary(summary, {99: LiveCounts(suppressed=1, dropped=1, bp_dropped=0)})
+    result = to_listener_with_summary(summary, {99: LiveCounts(suppressed=1, dropped=1, backpressure_dropped=0)})
 
     assert result.suppressed_count == 0
     assert result.dropped_count == 0
     assert result.backpressure_dropped_count == 0
 
 
-def test_to_listener_with_summary_bp_dropped_flows_into_backpressure_dropped_count():
-    """bp_dropped > 0 on a live guard flows into backpressure_dropped_count; suppressed/dropped unchanged."""
+def test_to_listener_with_summary_backpressure_dropped_flows_into_backpressure_dropped_count():
+    """backpressure_dropped > 0 on a live guard flows into backpressure_dropped_count; suppressed/dropped unchanged."""
     summary = make_listener_summary(listener_id=10)
 
-    result = to_listener_with_summary(summary, {10: LiveCounts(suppressed=2, dropped=1, bp_dropped=7)})
+    result = to_listener_with_summary(summary, {10: LiveCounts(suppressed=2, dropped=1, backpressure_dropped=7)})
 
     assert result.backpressure_dropped_count == 7
     assert result.suppressed_count == 2

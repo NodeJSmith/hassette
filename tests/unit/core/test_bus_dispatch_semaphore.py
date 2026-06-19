@@ -168,9 +168,9 @@ async def test_saturation_warning_is_rate_limited() -> None:
 
 
 async def test_drop_newest_skips_handler_when_saturated() -> None:
-    """AC#2: Under a held-locked semaphore, DROP_NEWEST skips the event and increments bp_dropped.
+    """AC#2: Under a held-locked semaphore, DROP_NEWEST skips the event and increments backpressure_dropped.
 
-    Handler is not invoked and bp_dropped increments by exactly one per dropped event.
+    Handler is not invoked and backpressure_dropped increments by exactly one per dropped event.
     """
     svc = make_bus_service(max_concurrent_dispatches=1)
 
@@ -192,7 +192,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
     await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
 
     assert not handler_invoked, "DROP_NEWEST handler must not be invoked under saturation"
-    assert listener.invoker.bp_dropped == 1, "bp_dropped must increment by one per dropped event"
+    assert listener.invoker.backpressure_dropped == 1, "backpressure_dropped must increment by one per dropped event"
     assert svc._dispatch_pending == 0
     assert svc._dispatch_idle_event.is_set()
 
@@ -200,7 +200,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
 
 
 async def test_drop_newest_multiple_drops_increment_counter() -> None:
-    """AC#2: Each dropped event increments bp_dropped by exactly one."""
+    """AC#2: Each dropped event increments backpressure_dropped by exactly one."""
     svc = make_bus_service(max_concurrent_dispatches=1)
     await svc._dispatch_semaphore.acquire()
 
@@ -213,7 +213,7 @@ async def test_drop_newest_multiple_drops_increment_counter() -> None:
     await asyncio.wait_for(svc.dispatch("test.topic", event), timeout=TEST_TIMEOUT)
     await asyncio.wait_for(svc.dispatch("test.topic", event), timeout=TEST_TIMEOUT)
 
-    assert listener.invoker.bp_dropped == 3
+    assert listener.invoker.backpressure_dropped == 3
 
     svc._dispatch_semaphore.release()
 
@@ -237,7 +237,7 @@ async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     assert dispatched == 1
-    assert listener.invoker.bp_dropped == 0
+    assert listener.invoker.backpressure_dropped == 0
 
 
 async def test_block_listener_blocks_then_runs_under_saturation() -> None:

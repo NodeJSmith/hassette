@@ -55,7 +55,7 @@ class LiveCounts(NamedTuple):
     dropped: int
     """Events dropped by the queued-mode guard when the queue cap was reached."""
 
-    bp_dropped: int
+    backpressure_dropped: int
     """Events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure."""
 
 
@@ -270,7 +270,7 @@ class BusService(Service):
                 counts[listener.db_id] = LiveCounts(
                     suppressed=guard.suppressed,
                     dropped=guard.dropped,
-                    bp_dropped=listener.invoker.bp_dropped,
+                    backpressure_dropped=listener.invoker.backpressure_dropped,
                 )
         return counts
 
@@ -414,7 +414,7 @@ class BusService(Service):
                         # Single writer: this loop, on the event loop, NO await between locked() and
                         # the increment — the same no-await window that makes the saturation check
                         # race-free. Do not insert an await (e.g. metrics emit) between them.
-                        listener.invoker.bp_dropped += 1
+                        listener.invoker.backpressure_dropped += 1
                         self.logger.debug(
                             "backpressure drop_newest: skipping event for %s",
                             listener.identity.name or listener.identity.handler_short_name,
