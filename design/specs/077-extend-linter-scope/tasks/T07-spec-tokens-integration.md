@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Reword spec tokens in integration tests (excluding bus)"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#8", "AC#7"]
 ---

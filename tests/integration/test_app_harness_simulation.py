@@ -1,4 +1,4 @@
-"""Integration tests for AppTestHarness time control (WP04).
+"""Integration tests for AppTestHarness time control.
 
 Tests freeze_time, advance_time, trigger_due_jobs, and the _TestClock internals.
 """

@@ -1,4 +1,4 @@
-"""Tests for T04: get_app_health_aggregates() and get_all_listeners_summary().
+"""Tests for get_app_health_aggregates() and get_all_listeners_summary().
 
 Covers:
 - get_app_health_aggregates() returns correct totals matching per-item sums

@@ -1,4 +1,4 @@
-"""Integration tests for T06: thread-leaked observability (FR#3, AC#1).
+"""Integration tests for thread-leaked observability.
 
 Verifies that a sync handler whose worker thread outlives the asyncio timeout
 produces an execution record with ``thread_leaked=True``, and that a "not-started"
@@ -43,7 +43,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-# FR#3 / AC#1: not-started sync timeout → thread_leaked=False (cell[0] still None)
+# Not-started sync timeout → thread_leaked=False (cell[0] still None)
 
 
 async def test_not_started_sync_timeout_no_false_positive(
@@ -117,13 +117,13 @@ async def test_not_started_sync_timeout_no_false_positive(
     assert record.thread_leaked is False, "thread_leaked must be False when worker never dequeued (cell[0] is None)"
 
 
-# FR#3 / AC#1: blocked sync handler → thread_leaked=True
+# Blocked sync handler past timeout → thread_leaked=True
 
 
 async def test_sync_handler_timeout_sets_thread_leaked(
     executor: CommandExecutor,
 ) -> None:
-    """A sync handler blocking past its timeout produces thread_leaked=True (FR#3, AC#1).
+    """A sync handler blocking past its timeout produces thread_leaked=True.
 
     The handler sleeps for much longer than the timeout; when asyncio cancels
     the await the worker thread is still alive, so the liveness check fires.
@@ -172,7 +172,7 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     assert record.thread_leaked is True, "Expected thread_leaked=True for a sync handler still alive after timeout"
 
 
-# FR#3 / AC#1: async handler timeout → thread_leaked=False (no worker)
+# Async handler timeout → thread_leaked=False (no worker thread involved)
 
 
 async def test_async_handler_timeout_does_not_set_thread_leaked(
@@ -205,7 +205,7 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
     assert record.thread_leaked is False, "thread_leaked must be False for async handlers (no worker thread)"
 
 
-# AC#1: distinguishable from clean timeout (thread finishes before check)
+# Thread-leaked distinguishable from clean timeout (thread finishes before check)
 
 
 async def test_pure_async_timeout_no_cell_no_thread_leaked(
@@ -246,7 +246,7 @@ async def test_pure_async_timeout_no_cell_no_thread_leaked(
     assert record.thread_leaked is False
 
 
-# AC#1: round-trip persistence — thread_leaked column survives write+read back
+# Round-trip persistence — thread_leaked column survives write+read back
 
 
 async def test_thread_leaked_persists_to_db(

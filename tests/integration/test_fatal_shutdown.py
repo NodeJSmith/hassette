@@ -1,11 +1,11 @@
-"""Integration tests for fatal-exit observability (T03).
+"""Integration tests for fatal-exit observability.
 
 Verifies the full run_forever() → FatalError exit path using the real Hassette
 instance fixture, and that session telemetry is finalized before the raise.
 
-AC#10: fatal-driven shutdown causes run_forever() to raise FatalError
-AC#11: clean operator shutdown exits 0 (run_forever() returns normally)
-AC#12: session row carries failure status, written before teardown completes
+- Fatal-driven shutdown causes run_forever() to raise FatalError.
+- Clean operator shutdown exits 0 (run_forever() returns normally).
+- Session row carries failure status, written before teardown completes.
 
 Project rule: no log-capture tests. Assert on FatalError / return value / DB row only.
 """
@@ -101,7 +101,7 @@ class TestRunForeverFatalOnCrash:
 
 
 class TestSessionTelemetryOrdering:
-    """Session finalization happens before FatalError is raised (AC#12)."""
+    """Session finalization happens before FatalError is raised."""
 
     async def test_session_finalized_before_fatal_raise(self, hassette_instance: Hassette):
         """finalize_session is called before FatalError propagates out of run_forever().
@@ -147,7 +147,7 @@ class TestSessionTelemetryOrdering:
 
 
 class TestFinalizePersistsFatalFailure:
-    """finalize_session persists a failure status when a fatal reason is set (AC#12).
+    """finalize_session persists a failure status when a fatal reason is set.
 
     Regression for the persistence race: on a real fatal crash, the async on_service_crashed
     handler may not record the failure before finalize runs during teardown. finalize must use the

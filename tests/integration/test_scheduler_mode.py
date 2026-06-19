@@ -1,6 +1,6 @@
-"""Integration tests for T01 + T02: scheduler mode parameter, resolution, guard, and dispatch routing.
+"""Integration tests for scheduler mode parameter, resolution, guard, and dispatch routing.
 
-T01 tests verify:
+Mode resolution tests verify:
 - schedule() resolves None -> single for app tier, parallel for framework tier
 - explicit ExecutionMode passthrough
 - string coercion to ExecutionMode
@@ -8,14 +8,14 @@ T01 tests verify:
 - mode= accepted on run_in / run_once without error (no overlap effect — one-shot fires once)
 - convenience methods forward mode= to schedule()
 
-T02 tests verify:
-- dispatch-time reschedule (FR#1, AC#1): next occurrence enqueued before current run completes
-- fire sequence unchanged for non-overrunning jobs (FR#3, AC#3)
-- per-mode overlap (FR#5, AC#4-AC#7): single suppresses, queued serializes, restart cancels+fresh, parallel concurrent
-- current fire always runs on trigger error (FR#16, AC#14)
-- dequeued race (FR#17, AC#15): in-lock re-check prevents spurious re-push
-- guard release on cancel (FR#14, AC#12)
-- stall watchdog (FR#18, AC#16)
+Dispatch routing tests verify:
+- dispatch-time reschedule: next occurrence enqueued before current run completes
+- fire sequence unchanged for non-overrunning jobs
+- per-mode overlap: single suppresses, queued serializes, restart cancels+fresh, parallel concurrent
+- current fire always runs on trigger error
+- dequeued race: in-lock re-check prevents spurious re-push
+- guard release on cancel
+- stall watchdog
 
 These tests use HassetteHarness (framework-tier scheduler) via the hassette_with_scheduler fixture.
 App-tier tests use AppTestHarness.
@@ -38,7 +38,7 @@ from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.types.enums import ExecutionMode
 
-# App for AC#2: one-shot with mode= fires exactly once
+# App for one-shot mode tests: verifies mode= is accepted and fires exactly once
 
 
 class _OneShotModeConfig(AppConfig):
@@ -77,11 +77,11 @@ class _RunOnceModeApp(App[_OneShotModeConfig]):
         self.fired_count += 1
 
 
-# AC#2: one-shot with mode= fires exactly once
+# One-shot mode acceptance: run_in / run_once with mode= fire exactly once
 
 
 async def test_run_in_with_mode_fires_exactly_once() -> None:
-    """AC#2: run_in with mode= set still fires exactly once (mode has no overlap effect)."""
+    """run_in with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
     async with AppTestHarness(_RunInModeApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -106,7 +106,7 @@ async def test_run_in_with_mode_fires_exactly_once() -> None:
 
 
 async def test_run_once_with_mode_fires_exactly_once() -> None:
-    """AC#2: run_once with mode= set still fires exactly once (mode has no overlap effect)."""
+    """run_once with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
     async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
         scheduler = harness.app.scheduler
 
@@ -351,7 +351,7 @@ class TestConvenienceMethodModeForwarding:
             hassette_with_scheduler.scheduler.cancel_job(job)
 
 
-# T02 Tests: Dispatch-time reschedule and guard routing
+# Dispatch-time reschedule and guard routing tests
 
 
 class _OverlapConfig(AppConfig):
@@ -385,12 +385,12 @@ class _OverrunApp(App[_OverlapConfig]):
         await self.run_gate.wait()
 
 
-# AC#1 / FR#1: Dispatch-time reschedule — next occurrence on heap before run completes
+# Dispatch-time reschedule: next occurrence on heap before run completes
 
 
 async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -> None:
-    """AC#1 / FR#1: An overrunning recurring job has its next occurrence on the heap
-    before the current invocation completes.
+    """An overrunning recurring job has its next occurrence on the heap before the current
+    invocation completes.
     """
 
     class _App(_OverrunApp):
@@ -417,21 +417,19 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         # At this point, the job is still running (gate is closed).
         # The next occurrence should already be on the heap.
         all_queued = await harness._harness.hassette._scheduler_service.get_all_jobs()
-        assert any(j is job for j in all_queued), (
-            "Next occurrence should be on the heap before current run completes (FR#1 / AC#1)"
-        )
+        assert any(j is job for j in all_queued), "Next occurrence should be on the heap before current run completes"
 
         # Unblock and clean up
         app.run_gate.set()
         await asyncio.wait_for(dispatch_task, timeout=2.0)
 
 
-# AC#3 / FR#3: Fire sequence unchanged for non-overrunning jobs
+# Fire sequence unchanged for non-overrunning jobs
 
 
 async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
-    """AC#3 / FR#3: A job that completes within its interval produces the same
-    fire-time sequence with dispatch-time reschedule.
+    """A job that completes within its interval produces the same fire-time sequence
+    with dispatch-time reschedule.
     """
     fire_times: list[ZonedDateTime] = []
 
@@ -464,11 +462,11 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         assert 9 <= delta <= 11, f"Expected next fire ~10s after first fire, got delta={delta}s"
 
 
-# AC#4 / FR#5: single mode suppresses overrun re-fires
+# single mode suppresses overrun re-fires
 
 
 async def test_single_mode_suppresses_overrun() -> None:
-    """AC#4: With mode='single', an overrunning recurring job suppresses re-fires;
+    """With mode='single', an overrunning recurring job suppresses re-fires;
     guard.suppressed increments.
     """
 
@@ -511,11 +509,11 @@ async def test_single_mode_suppresses_overrun() -> None:
         await asyncio.wait_for(dispatch1, timeout=2.0)
 
 
-# AC#7 / FR#5: parallel mode runs invocations concurrently
+# parallel mode runs overlapping invocations concurrently
 
 
 async def test_parallel_mode_runs_invocations_concurrently() -> None:
-    """AC#7: With mode='parallel', overlapping invocations run concurrently."""
+    """With mode='parallel', overlapping invocations run concurrently."""
     concurrent_count = [0]
     max_concurrent = [0]
     gate = asyncio.Event()
@@ -564,11 +562,11 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
         )
 
 
-# AC#5 / FR#5: queued mode serializes overruns
+# queued mode serializes overruns
 
 
 async def test_queued_mode_serializes_overrun() -> None:
-    """AC#5: With mode='queued', re-fires run in arrival order after the first completes."""
+    """With mode='queued', re-fires run in arrival order after the first completes."""
     run_order: list[int] = []
     gate = asyncio.Event()
     first_started = asyncio.Event()
@@ -622,12 +620,12 @@ async def test_queued_mode_serializes_overrun() -> None:
         assert run_order.index(1) < run_order.index(2), "Invocations should run in arrival order"
 
 
-# FR#14 / queued: QUEUED_ACCEPTED + cancel does not hang dispatch task
+# queued mode: QUEUED_ACCEPTED + cancel does not hang dispatch task
 
 
 async def test_queued_accepted_then_cancel_does_not_hang() -> None:
-    """FR#14 regression: a queued invocation accepted (QUEUED_ACCEPTED) before the job is
-    cancelled must not leave the dispatch task hanging forever on ``await done``.
+    """A queued invocation accepted (QUEUED_ACCEPTED) before the job is cancelled must not
+    leave the dispatch task hanging forever on ``await done``.
 
     Without pending_done drain: guard.release() drops the queued factory without calling
     run_and_track(); the done-callback is never installed; ``await done`` in
@@ -677,7 +675,7 @@ async def test_queued_accepted_then_cancel_does_not_hang() -> None:
             await asyncio.wait_for(dispatch2, timeout=1.0)
         except TimeoutError:
             dispatch2.cancel()
-            pytest.fail("dispatch2 hung after QUEUED_ACCEPTED + cancel — pending_done not drained (FR#14 regression)")
+            pytest.fail("dispatch2 hung after QUEUED_ACCEPTED + cancel — pending_done not drained")
 
         # Unblock first dispatch and clean up
         gate.set()
@@ -685,18 +683,18 @@ async def test_queued_accepted_then_cancel_does_not_hang() -> None:
             await asyncio.wait_for(dispatch1, timeout=2.0)
 
 
-# AC#6 / FR#5: restart mode cancels in-flight and starts fresh
+# restart mode cancels in-flight and starts fresh
 
 
 async def test_restart_mode_cancels_and_starts_fresh() -> None:
-    """AC#6: With mode='restart', a re-fire cancels the in-flight run and starts a fresh one.
+    """With mode='restart', a re-fire cancels the in-flight run and starts a fresh one.
 
-    FR#13 / AC#6: The cancelled invocation must reach CommandExecutor.execute() with a
-    CancelledError — the real executor enqueues a status='cancelled' row there
-    (command_executor.py:270-272). Here the executor is a mock stub, so we verify the
-    cancel path by capturing whether CancelledError propagated out of the callable passed
-    to execute(). That is the exact signal the real executor checks before calling
-    enqueue_record(). Delivery is best-effort by design (FR#13).
+    The cancelled invocation must reach CommandExecutor.execute() with a CancelledError —
+    the real executor enqueues a status='cancelled' row there (command_executor.py:270-272).
+    Here the executor is a mock stub, so we verify the cancel path by capturing whether
+    CancelledError propagated out of the callable passed to execute(). That is the exact
+    signal the real executor checks before calling enqueue_record(). Delivery is
+    best-effort by design.
     """
     cancelled_count = [0]
     completed_count = [0]
@@ -721,7 +719,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
         mock_executor = scheduler_service._executor
 
         # Wrap execute() to capture CancelledError exits — this is the signal the real
-        # CommandExecutor uses to enqueue a status='cancelled' execution row (FR#13).
+        # CommandExecutor uses to enqueue a status='cancelled' execution row.
         original_execute_side_effect = mock_executor.execute.side_effect
 
         async def _tracking_execute(cmd: object) -> None:
@@ -763,10 +761,10 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
             f"Expected first invocation to be cancelled, cancelled_count={cancelled_count[0]}"
         )
 
-        # FR#13 / AC#6: CancelledError must have propagated through execute() —
+        # CancelledError must have propagated through execute() —
         # the real CommandExecutor enqueues status='cancelled' on that signal.
         assert cancelled_in_execute[0] >= 1, (
-            f"Expected CancelledError to exit execute() at least once (FR#13), "
+            f"Expected CancelledError to exit execute() at least once, "
             f"got cancelled_in_execute={cancelled_in_execute[0]}"
         )
 
@@ -779,12 +777,12 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
             await asyncio.wait_for(dispatch2, timeout=1.0)
 
 
-# AC#14 / FR#16: trigger error still runs current fire, then removes job
+# Trigger error: current fire runs, then job is removed
 
 
 async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
-    """AC#14 / FR#16: A recurring job whose trigger raises on a given cycle still
-    runs the current due fire, then is removed with no future fires.
+    """A recurring job whose trigger raises on a given cycle still runs the current
+    due fire, then is removed with no future fires.
     """
     fired = asyncio.Event()
 
@@ -845,16 +843,16 @@ async def test_trigger_error_runs_current_fire_then_removes_job() -> None:
         assert not any(j.name == "bad_trigger_job" for j in remaining), "Job should be removed after trigger raises"
 
 
-# AC#15 / FR#17: dequeued race — in-lock re-check prevents spurious re-push
+# Dequeued race: in-lock re-check prevents spurious re-push
 
 
 async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
-    """AC#15 / FR#17: A job cancelled between dispatch entry and the dispatch-time
-    re-enqueue is not pushed back onto the heap.
+    """A job cancelled between dispatch entry and the dispatch-time re-enqueue is not
+    pushed back onto the heap.
 
     Exercises the race window: job passes dispatch entry check (not yet dequeued),
     but _dequeued is set by the time enqueue_job calls _job_queue.add. The in-lock
-    _dequeued re-check inside _ScheduledJobQueue.add (FR#17) must reject the push.
+    _dequeued re-check inside _ScheduledJobQueue.add must reject the push.
 
     Technique: patch enqueue_job to set job._dequeued=True mid-flight (atomically
     between the entry check and the lock acquisition), simulating a cancel_job call
@@ -899,15 +897,15 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         # Heap must not have a re-pushed copy of the cancelled job
         all_jobs = await scheduler_service.get_all_jobs()
         assert not any(j is job for j in all_jobs), (
-            "A job cancelled during the re-enqueue window must not appear on the heap (FR#17 / AC#15)"
+            "A job cancelled during the re-enqueue window must not appear on the heap"
         )
 
 
-# AC#12 / FR#14: guard release on cancel clears in-flight invocation
+# Guard release on cancel clears in-flight invocation
 
 
 async def test_guard_release_on_cancel_clears_in_flight() -> None:
-    """AC#12 / FR#14: Cancelling a job with an in-flight invocation releases its guard."""
+    """Cancelling a job with an in-flight invocation releases its guard."""
 
     class _HoldingApp(App[_OverlapConfig]):
         started: asyncio.Event
@@ -956,12 +954,12 @@ async def test_guard_release_on_cancel_clears_in_flight() -> None:
             await asyncio.wait_for(dispatch_task, timeout=1.0)
 
 
-# AC#16 / FR#18: stall watchdog emits WARNING for non-parallel; parallel does not
+# Stall watchdog emits WARNING for non-parallel modes; parallel mode has no watchdog
 
 
 async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
-    """AC#16 / FR#18: A single/restart/queued invocation held past the stall threshold
-    emits a WARNING naming the job and mode. Parallel does not get a watchdog.
+    """A single/restart/queued invocation held past the stall threshold emits a WARNING
+    naming the job and mode. Parallel mode does not get a stall watchdog.
     """
     started = asyncio.Event()
     gate = asyncio.Event()
@@ -982,7 +980,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
         job = next(j for j in jobs if j.name == "stalled_job")
 
         # Patch STALL_THRESHOLD_SECONDS to a tiny value so the watchdog fires quickly.
-        # Spy on warn_stalled_job to assert the watchdog actually fires (FR#18 / AC#16) —
+        # Spy on warn_stalled_job to assert the watchdog actually fires —
         # checking dispatch_task.done() only proves the job is still running, not that the
         # watchdog called warn_stalled_job. A deleted call_later registration would pass the
         # weaker check but fail this spy assertion.
@@ -1006,7 +1004,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
 
 
 async def test_parallel_mode_has_no_stall_watchdog() -> None:
-    """AC#16 / FR#18: parallel mode invocations do not get a stall watchdog."""
+    """Parallel mode invocations do not get a stall watchdog."""
     started = asyncio.Event()
     gate = asyncio.Event()
 
@@ -1026,7 +1024,7 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
         job = next(j for j in jobs if j.name == "parallel_stalled_job")
 
         # Parallel runs inline (no stall watch installed). Spy on warn_stalled_job to assert
-        # it is never called even when the invocation outlasts the patched threshold (AC#16).
+        # it is never called even when the invocation outlasts the patched threshold.
         with (
             unittest.mock.patch.object(scheduler_service_module, "STALL_THRESHOLD_SECONDS", 0.05),
             unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,

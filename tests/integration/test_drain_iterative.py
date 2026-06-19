@@ -315,7 +315,7 @@ def test_drain_error_message_multiple_exceptions() -> None:
 
 
 def test_drain_uses_public_accessors_not_private_attributes() -> None:
-    """Drain implementation uses only public accessors from WP03, not private fields.
+    """Drain implementation uses only public accessors, not private fields.
 
     Introspects the source of drain_task_bucket to confirm no direct access to
     private BusService or TaskBucket internals. This acts as a regression guard

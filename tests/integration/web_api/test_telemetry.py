@@ -98,7 +98,7 @@ class TestTelemetryListeners:
         assert data[0]["listener_id"] == 1
 
     async def test_returns_mode_and_live_counts(self, client: "AsyncClient", mock_hassette) -> None:
-        """The endpoint surfaces persisted mode and live suppressed/dropped counts (FR#14, FR#15, AC#10)."""
+        """The endpoint surfaces persisted mode and live suppressed/dropped counts."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             return_value=[
                 ListenerSummary(
@@ -149,7 +149,7 @@ class TestTelemetryListeners:
         assert data[0]["backpressure"] == "drop_newest"
 
     async def test_listener_with_no_live_guard_reports_zero_counts(self, client: "AsyncClient", mock_hassette) -> None:
-        """A listener absent from the live snapshot (retired) reports zero counts (FR#15)."""
+        """A listener absent from the live snapshot (retired) reports zero counts."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             return_value=[
                 ListenerSummary(

@@ -90,7 +90,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 async def test_restart_cancellation_persists_cancelled_row(
     executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
 ) -> None:
-    """A cancelled invocation lands as a status='cancelled' execution row (FR#16, AC#11).
+    """A cancelled invocation lands as a status='cancelled' execution row.
 
     ``restart`` mode cancels the in-flight child task, surfacing as ``CancelledError`` inside the
     handler invocation. ``test_cancelled_error_reraises`` proves that path queues a
@@ -424,7 +424,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     """build_record() reads session_id from self.hassette.session_id directly.
 
-    _safe_session_id() was removed in WP03. session_id is now always read directly.
+    _safe_session_id() was removed; session_id is now always read directly.
     The phased startup contract guarantees a valid session_id exists before any
     handler can fire, so RuntimeError from session_id is a programming error.
     """

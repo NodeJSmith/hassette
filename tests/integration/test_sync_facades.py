@@ -6,9 +6,9 @@ directly. ``self.bus.sync``, ``self.scheduler.sync``, and ``self.api.sync``
 bridge the gap by running each coroutine on the event loop via
 ``task_bucket.run_sync``.
 
-These tests confirm registration works from ``on_initialize_sync`` (AC#7 /
-FR#11: the handle passes ``asyncio.iscoroutine`` and ``run_sync`` drives it to
-completion), and that calling a facade from inside the event loop fails fast.
+These tests confirm registration works from ``on_initialize_sync`` (the handle
+passes ``asyncio.iscoroutine`` and ``run_sync`` drives it to completion), and
+that calling a facade from inside the event loop fails fast.
 """
 
 from unittest.mock import MagicMock
@@ -92,7 +92,7 @@ async def test_scheduler_sync_facade_raises_inside_event_loop():
 async def test_api_sync_facade_fires_service_from_sync_init() -> None:
     """A service fired via self.api.sync in on_initialize_sync is recorded by RecordingApi.
 
-    AC#7 / FR#11: the RegistrationHandle passes ``asyncio.iscoroutine`` and
+    The RegistrationHandle passes ``asyncio.iscoroutine`` and
     ``task_bucket.run_sync`` drives it to completion, so the call reaches
     RecordingApi and is appended to api_recorder.calls.
     """

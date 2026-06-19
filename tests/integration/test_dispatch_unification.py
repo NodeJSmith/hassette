@@ -1,4 +1,4 @@
-"""Integration tests for WP04 — unified dispatch paths and framework listener registration.
+"""Integration tests for unified dispatch paths and framework listener registration.
 
 Tests verify:
 1. All listeners produce telemetry (ExecutionRecord queued), regardless of db_id state.
