@@ -1066,7 +1066,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1127,7 +1127,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1182,7 +1182,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1208,7 +1208,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1234,7 +1234,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1270,7 +1270,7 @@ class Bus(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1326,7 +1326,7 @@ class Bus(Resource):
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
                 deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
                 at call time.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1353,7 +1353,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1380,7 +1380,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1407,7 +1407,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1439,7 +1439,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1479,7 +1479,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1537,7 +1537,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
@@ -1572,7 +1572,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
-            **opts: Additional options like `once`, `debounce`, `throttle`, and `mode`.
+            **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
