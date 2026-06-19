@@ -547,7 +547,10 @@ async def test_framework_tier_listener_processes_concurrent_events(
 
 
 @pytest.fixture
-async def real_executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
+async def real_executor(
+    db_hassette: AsyncMock,
+    initialized_db: tuple[DatabaseService, int],  # noqa: ARG001
+) -> CommandExecutor:
     """CommandExecutor wired to a real migrated DB — for persistence assertions."""
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()

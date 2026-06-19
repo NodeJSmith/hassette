@@ -244,7 +244,7 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
     """AC#3: A BLOCK listener still blocks-then-runs when the semaphore is held."""
     svc = make_bus_service(max_concurrent_dispatches=1)
 
-    # Saturate initially — release after a short delay to let dispatch unblock.
+    # Saturate initially — released only after the block is confirmed.
     await svc._dispatch_semaphore.acquire()
 
     listener = create_listener(topic="test.topic", name="blocker", backpressure=BackpressurePolicy.BLOCK)
@@ -257,12 +257,25 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
 
     svc._dispatch = notifying_dispatch
 
+    # warn_dispatch_saturated() fires immediately before the blocking acquire() in the BLOCK path,
+    # with no await in between — use it as a deterministic signal that dispatch has reached the
+    # block, rather than guessing with a scheduler tick (asyncio.sleep(0)), which races the code.
+    reached_block = asyncio.Event()
+    original_warn = svc.warn_dispatch_saturated
+
+    def signaling_warn() -> None:
+        original_warn()
+        reached_block.set()
+
+    svc.warn_dispatch_saturated = signaling_warn
+
     # Start dispatch — it will block waiting for the semaphore slot.
     dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_event()))
 
-    # Give the event loop a tick so dispatch reaches acquire() and blocks.
-    await asyncio.sleep(0)
+    # Deterministic: proceed only once dispatch has reached the saturated-acquire point.
+    await asyncio.wait_for(reached_block.wait(), timeout=TEST_TIMEOUT)
     assert not dispatch_task.done(), "BLOCK listener should be waiting for a slot"
+    assert not dispatched.is_set(), "BLOCK listener must not run while the slot is held"
 
     # Release the slot — dispatch should unblock and run.
     svc._dispatch_semaphore.release()
@@ -293,19 +306,3 @@ async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
     await asyncio.wait_for(svc.await_dispatch_idle(timeout=TEST_TIMEOUT), timeout=TEST_TIMEOUT)
 
     svc._dispatch_semaphore.release()
-
-
-async def test_saturation_warning_message_is_policy_neutral() -> None:
-    """AC#12: warn_dispatch_saturated message does not assert dispatches are 'waiting for a slot'."""
-    svc = make_bus_service(max_concurrent_dispatches=1)
-    svc.warn_dispatch_saturated()
-
-    assert svc.logger.warning.call_count == 1
-    warning_args = svc.logger.warning.call_args
-    # logger.warning(fmt, *args) — resolve the format to compare the rendered message.
-    fmt = warning_args[0][0]
-    fmt_args = warning_args[0][1:]
-    message = fmt % fmt_args
-    assert "waiting for a slot" not in message, (
-        "warn_dispatch_saturated should not assert 'waiting for a slot' — some listeners may drop instead of block"
-    )

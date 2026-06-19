@@ -409,6 +409,10 @@ class BusService(Service):
                 # propagating backpressure to the WS reader. locked() exactly predicts a blocking
                 # acquire here: no await separates the two, so no other task changes the count between.
                 if self._dispatch_semaphore.locked():
+                    # Keep this call before the `await acquire()` below: the BLOCK-path test
+                    # `test_block_listener_blocks_then_runs_under_saturation` hooks
+                    # `warn_dispatch_saturated` as a deterministic signal that dispatch has reached
+                    # the block. Moving it after the acquire would make that test pass vacuously.
                     self.warn_dispatch_saturated()
                     if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
                         # Single writer: this loop, on the event loop, NO await between locked() and
