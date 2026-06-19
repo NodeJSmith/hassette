@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Widen SCAN_DIRS, hook patterns, and CI filter; update docs"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08"]
 implements: ["FR#1", "FR#2", "FR#9", "FR#10", "FR#11", "FR#12", "AC#1", "AC#2", "AC#8", "AC#9", "AC#11", "AC#12"]
 ---

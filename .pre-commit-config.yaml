@@ -165,29 +165,29 @@ repos:
           - pre-push
 
       - id: check-lazy-imports
-        name: Ban lazy imports in src (use '# lazy-import:' to defend circular-import cases)
+        name: Ban lazy imports (use '# lazy-import:' to defend circular-import cases)
         language: system
         entry: ./tools/check_lazy_imports.py
         pass_filenames: false
-        files: ^src/.*\.py$
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
         stages:
           - pre-push
 
       - id: check-spec-tokens
-        name: Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#) in src
+        name: Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#)
         language: system
         entry: ./tools/check_spec_tokens.py
         pass_filenames: false
-        files: ^src/.*\.py$
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
         stages:
           - pre-push
 
       - id: check-llm-cruft
-        name: Ban AI-writing tells (section dividers, filler phrases) in src
+        name: Ban AI-writing tells (section dividers, filler phrases)
         language: system
         entry: ./tools/check_llm_cruft.py
         pass_filenames: false
-        files: ^src/.*\.py$
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
         stages:
           - pre-push
 

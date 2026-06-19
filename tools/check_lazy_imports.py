@@ -39,7 +39,7 @@ from lint_helpers import iter_py_files, run_check
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories scanned for lazy imports, relative to the repo root.
-SCAN_DIRS: list[str] = ["src"]
+SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
 ANNOTATION = "# lazy-import:"
 

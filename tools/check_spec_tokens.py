@@ -19,7 +19,7 @@ Detection is text-based but scoped to human-readable text only:
 Arbitrary string literals are deliberately NOT scanned. A data string like
 ``value + "T00:00:00"`` is not human prose, and scanning it would flag the ISO
 timestamp. The token pattern adds a second layer of safety: ``T\\d{2,}`` followed
-by ``:`` (a clock time) never matches.
+by ``:`` and then a digit (a clock time like ``HH:MM``) never matches.
 
 Tokens are leaked planning artifacts, not legitimate code references, so there is
 no escape hatch — a match is always removed, never annotated. If the pattern
@@ -42,15 +42,18 @@ from lint_helpers import docstring_spans, iter_py_files
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories scanned, relative to the repo root.
-SCAN_DIRS: list[str] = ["src"]
+SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
 # Leaked spec-artifact codes:
-#   AC/FR/NFR/WP, an optional '#', then digits — unambiguous planning prefixes, in
-#   both the bare (FR<n>) and literal-hash (FR#<n>) forms the docs use interchangeably.
-#   T followed by 2+ digits, not followed by ':' — task IDs (T<nn>), excluding clock
-#   times (the HH:MM:SS shape). Case-sensitive: these codes are always uppercase, so
-#   prose words like "tofu" or "frame" never match.
-TOKEN_RE = re.compile(r"\b(?:AC|FR|NFR|WP)#?\d+\b|\bT\d{2,}\b(?!:)")
+#   Criterion prefixes (AC, FR, NFR, WP) followed by an optional '#', one or more
+#   digits, and an optional lowercase letter — covering the bare, hash, and
+#   sub-criterion suffix forms the docs use interchangeably.
+#   Task prefix (T) followed by 2+ digits, not followed by ':' and a digit — catches
+#   task IDs while skipping clock times (colon+digit, as in HH:MM:SS timestamps).
+#   A colon followed by a non-digit (a planning label colon) IS caught.
+#   Case-sensitive: these codes are always uppercase, so prose words like "tofu" or
+#   "frame" never match.
+TOKEN_RE = re.compile(r"\b(?:AC|FR|NFR|WP)#?\d+[a-z]?\b|\bT\d{2,}\b(?!:\d)")
 
 # Filenames have no clock times and use '.', '_', '-' as separators — and '_' is a
 # word character, so '\b' would miss 'T05_notes.py'. Match a whole separated segment
