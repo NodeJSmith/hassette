@@ -1,7 +1,7 @@
 # Design: Per-Listener Backpressure Overflow Policy (BLOCK + DROP_NEWEST)
 
 **Date:** 2026-06-18
-**Status:** approved
+**Status:** archived
 **Scope-mode:** reduce
 **Research:** design/research/2026-06-18-listener-backpressure-policy/research.md
 
