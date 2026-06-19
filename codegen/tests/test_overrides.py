@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hassette_codegen.overrides import get_override, load_overrides, validate_overrides
+from hassette_codegen.overrides import DomainOverride, get_override, load_overrides, validate_overrides
 
 
 class TestLoadOverrides:
@@ -50,7 +50,5 @@ class TestLoadOverrides:
 
 class TestValidateOverrides:
     def test_warns_on_unknown_domain(self, capsys: object) -> None:
-        from hassette_codegen.overrides import DomainOverride
-
         overrides = {"fake_domain": DomainOverride(domain="fake_domain")}
         validate_overrides(overrides, {"light", "fan"})

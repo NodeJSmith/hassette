@@ -20,6 +20,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from pydantic import TypeAdapter
+
 # Bootstrap a minimal FastAPI app without connecting to Home Assistant
 
 
@@ -40,8 +42,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from hassette.web.app import create_fastapi_app
-    from hassette.web.models import WsServerMessage
+    from hassette.web.app import create_fastapi_app  # lazy-import: defers heavy hassette.web app import to call time
+    from hassette.web.models import WsServerMessage  # lazy-import: defers heavy hassette.web app import to call time
 
     repo_root = Path(__file__).resolve().parent.parent
     frontend_dir = repo_root / "frontend"
@@ -56,8 +58,6 @@ def main() -> None:
     print(f"Wrote {openapi_path}")
 
     # WebSocket message schema
-    from pydantic import TypeAdapter
-
     adapter = TypeAdapter(WsServerMessage)
     ws_schema = adapter.json_schema()
 

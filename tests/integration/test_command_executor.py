@@ -3,7 +3,7 @@
 import asyncio
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import pytest
 
@@ -478,15 +478,13 @@ async def test_persist_batch_drops_presession_records(
     )
 
     # Patch session_id to raise RuntimeError so the "session not ready" path is triggered
-    import unittest.mock
-
-    executor.hassette.session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
-    type(executor.hassette).session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
+    executor.hassette.session_id = PropertyMock(side_effect=RuntimeError("no session"))
+    type(executor.hassette).session_id = PropertyMock(side_effect=RuntimeError("no session"))
 
     await executor.persist_batch([valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
-    type(executor.hassette).session_id = unittest.mock.PropertyMock(return_value=session_id)
+    type(executor.hassette).session_id = PropertyMock(return_value=session_id)
 
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",

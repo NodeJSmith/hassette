@@ -24,10 +24,12 @@ import pytest
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
+from hassette.bus.listeners import Listener
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
+from hassette.utils.date_utils import now
 from tests.unit.conftest import make_api, make_mock_parent
 
 # Canonical protected-method list (FR#9, AC#6)
@@ -528,8 +530,6 @@ def test_canonical_method_warns_on_forgotten_await(resource: str, call_fn) -> No
 
 def test_bus_add_listener_warns_on_forgotten_await() -> None:
     """AC#6a (Bus.add_listener): dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
-    from hassette.bus.listeners import Listener
-
     bus = _make_bus()
     # Pass a MagicMock as the Listener — add_listener only uses it in _resolve_and_register's
     # async body (the handle wraps that coroutine); the forgotten-await check fires
@@ -544,8 +544,6 @@ def test_bus_add_listener_warns_on_forgotten_await() -> None:
 
 def test_scheduler_add_job_warns_on_forgotten_await() -> None:
     """AC#6a (Scheduler.add_job): dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
-    from hassette.utils.date_utils import now
-
     sched = _make_scheduler()
     job = ScheduledJob(owner_id="test_app.0", next_run=now(), job=_sched_noop, name="completeness_add_job")
     with pytest.warns(HassetteForgottenAwaitWarning):

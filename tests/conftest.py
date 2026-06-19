@@ -222,6 +222,7 @@ def my_app_class() -> type:
     Provide the MyApp class for testing.
     This is used to ensure the MyApp class is available for tests that require it.
     """
+    # lazy-import: data.apps resolves via pytest's rootdir sys.path insertion, not at conftest module load
     from data.apps.my_app import MyApp
 
     return MyApp

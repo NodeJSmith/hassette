@@ -21,6 +21,7 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from hassette.utils.date_utils import now
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import make_scheduler, noop
@@ -55,8 +56,6 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
 
 async def test_await_add_job_returns_scheduled_job() -> None:
     """AC#2: awaiting Scheduler.add_job() returns a ScheduledJob with db_id set, no warning."""
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -164,8 +163,6 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
     the handle is awaited. This test pins that: calling add_job() twice with the same
     name must not raise at call time.
     """
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     job_a = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
     job_b = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
@@ -186,8 +183,6 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
 
 def test_add_job_returns_registration_handle() -> None:
     """FR#3: Scheduler.add_job() returns a RegistrationHandle before it is awaited."""
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -222,8 +217,6 @@ def test_run_in_returns_registration_handle() -> None:
 
 def test_forgotten_await_on_add_job_warns() -> None:
     """FR#1 / FR#10: dropping un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -315,8 +308,6 @@ async def test_source_location_backfilled_via_run_in() -> None:
 
 async def test_source_location_preserved_when_already_set() -> None:
     """add_job backfill does NOT overwrite source_location already set on the job."""
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     pre_set = "custom_file.py:42"
     job = ScheduledJob(

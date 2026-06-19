@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Resolve lazy imports across non-src dirs (hoist or annotate)"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#6", "AC#5"]
 ---

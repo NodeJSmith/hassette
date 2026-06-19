@@ -26,6 +26,7 @@ import os
 import sys
 import threading
 import time
+from contextvars import ContextVar
 from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
 
@@ -33,9 +34,16 @@ import coverage
 import pytest
 from pydantic import ValidationError
 
+import hassette.context as ctx_module
+import hassette.task_bucket.interruptible_executor as ie_module
 from hassette.config import HassetteConfig
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
+from hassette.core.command_executor import (  # pyright: ignore[reportPrivateUsage]
+    _CAPACITY_WARN_RATE_LIMIT_SECS,
+    _CAPACITY_WARN_THRESHOLD,
+)
+from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.sync_executor_service import (
     _SATURATION_PROBE_INTERVAL_SECS,
@@ -218,10 +226,6 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
     bleed between tests running in the same process.  monkeypatch restores them
     automatically after the test.
     """
-    from contextvars import ContextVar
-
-    import hassette.context as ctx_module
-
     fresh_instance: ContextVar = ContextVar("HASSETTE_INSTANCE")
     fresh_config: ContextVar = ContextVar("HASSETTE_CONFIG")
     monkeypatch.setattr(ctx_module, "HASSETTE_INSTANCE", fresh_instance)
@@ -238,8 +242,6 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_service_registered_after_wire_services(self, isolated_hassette_context: object) -> None:
         """After wire_services(), _sync_executor_service is populated."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         try:
@@ -252,8 +254,6 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_property_returns_executor(self, isolated_hassette_context: object) -> None:
         """hassette.sync_executor returns the InterruptibleThreadPoolExecutor."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         try:
@@ -266,8 +266,6 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor raises RuntimeError when wire_services() hasn't been called."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
@@ -275,8 +273,6 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_service_property_returns_service(self, isolated_hassette_context: object) -> None:
         """hassette.sync_executor_service returns the SyncExecutorService instance."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         try:
@@ -289,8 +285,6 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_service_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor_service raises RuntimeError before wire_services()."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
@@ -298,8 +292,6 @@ class TestWireServicesRegistration:
 
     def test_wire_services_graph_validates_without_error(self, isolated_hassette_context: object) -> None:
         """wire_services() completes without ValueError from the dependency graph validator."""
-        from hassette.core.core import Hassette
-
         config = make_test_config()
         h = Hassette(config)
         try:
@@ -445,11 +437,6 @@ class TestConstantInvariant:
         Both modules define the same values independently.  This test catches drift —
         if an operator tunes one, they must tune the other.
         """
-        from hassette.core.command_executor import (  # pyright: ignore[reportPrivateUsage]
-            _CAPACITY_WARN_RATE_LIMIT_SECS,
-            _CAPACITY_WARN_THRESHOLD,
-        )
-
         assert _SATURATION_WARN_THRESHOLD == _CAPACITY_WARN_THRESHOLD, (
             f"sync_executor threshold ({_SATURATION_WARN_THRESHOLD}) must match "
             f"command_executor threshold ({_CAPACITY_WARN_THRESHOLD})"
@@ -766,8 +753,6 @@ class TestShutdownInterruptsPythonWorker:
         Patches _log_thread_running_at_shutdown directly — avoids structlog/caplog
         ordering sensitivity (project uses structlog, which bypasses caplog).
         """
-        import hassette.task_bucket.interruptible_executor as ie_module
-
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="hassette-sync")
         ready = threading.Event()
         log_calls: list[tuple] = []
@@ -884,8 +869,6 @@ class TestShutdownCBlockedWorker:
 
     def test_c_blocked_worker_straggler_is_logged(self) -> None:
         """C-blocked worker that survives the budget is logged at shutdown (AC#5)."""
-        import hassette.task_bucket.interruptible_executor as ie_module
-
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="hassette-sync")
         ready = threading.Event()
         log_calls: list[tuple] = []

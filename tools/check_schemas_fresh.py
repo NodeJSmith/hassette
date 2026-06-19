@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from pydantic import TypeAdapter
+
 
 def _create_stub_hassette() -> MagicMock:
     stub = MagicMock()
@@ -23,10 +25,8 @@ def _create_stub_hassette() -> MagicMock:
 
 
 def main() -> int:
-    from pydantic import TypeAdapter
-
-    from hassette.web.app import create_fastapi_app
-    from hassette.web.models import WsServerMessage
+    from hassette.web.app import create_fastapi_app  # lazy-import: defers heavy hassette.web app import to call time
+    from hassette.web.models import WsServerMessage  # lazy-import: defers heavy hassette.web app import to call time
 
     repo_root = Path(__file__).resolve().parent.parent
     frontend_dir = repo_root / "frontend"

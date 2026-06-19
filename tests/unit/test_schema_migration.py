@@ -1,5 +1,6 @@
 """Tests for the migration runner and schema produced by 001.sql."""
 
+import asyncio
 import sqlite3
 from pathlib import Path
 from typing import get_args
@@ -334,8 +335,6 @@ class TestFreshMigration:
 class TestDbVersionMismatch:
     def test_db_version_mismatch_recreates(self, tmp_path: Path) -> None:
         """When DB version != expected head, DatabaseService deletes and recreates the DB."""
-        import asyncio
-
         db_path = tmp_path / "test.db"
         db_path.touch()  # Simulate existing DB file
 
