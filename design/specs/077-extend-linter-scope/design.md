@@ -81,6 +81,7 @@ The net effect: the rules are real for `src/` but cosmetic everywhere else, and 
 - **FR#9** The pre-push hooks for all three checkers trigger on changes to any covered directory, not just `src/`.
 - **FR#10** The CI `python` job is triggered for changes under `codegen/`, `docs/`, and `scripts/`, so PRs touching only those directories run the checkers. (`tests/` and `tools/` already trigger it.)
 - **FR#11** User-facing `src/`-hardcoded strings reflect the widened scope: the `ERROR: ... in src/` summary in `check_spec_tokens.main`, the `summary="AI-writing tell(s) found in src/"` in `check_llm_cruft`, and the module docstrings that state the checker guards `src/`. (`check_lazy_imports` has no `src/` output literal — its `ok=` is already `SCAN_DIRS`-dynamic and its `summary=` names no directory — so only its `SCAN_DIRS` and docstring change.)
+- **FR#12** The content `TOKEN_RE` catches two planning-code forms its original pattern missed, while still skipping real clock times: a planning-ID followed by a colon and non-digit (`T05: Saturation` — but not `T05:30`), and a sub-criterion letter suffix (`AC#6a`, `FR#3b`). (Added after review found these leak through the `(?!:)` clock-guard and the `\b...\d+\b` word-boundary.)
 
 ## Edge Cases
 
@@ -105,11 +106,12 @@ The net effect: the rules are real for `src/` but cosmetic everywhere else, and 
 - **AC#9** The CI `python` paths-filter includes `codegen/**`, `docs/**`, and `scripts/**`. (FR#10)
 - **AC#10** No `src/`-specific scope wording remains in the three checkers' `OK:`/`ERROR:` output or module docstrings. (FR#11)
 - **AC#11** A full `prek run --all-files --hook-stage pre-push` (eslint/tsc/prettier skipped) passes. (FR#2, FR#9)
+- **AC#12** A unit test asserts `check_file` flags `T05: foo` and `AC#6a` (in a comment/docstring) and does NOT flag a real clock time `T05:30:00`; the tightened `TOKEN_RE` reports zero hits across the full widened scope after cleanup. (FR#12)
 
 ## Key Constraints
 
 - **No escape hatch for spec-tokens or cruft.** Both checkers are designed with no suppression mechanism — a match is always cleaned, never annotated. Do not add exemption comments or loosen the regexes to make violations pass; reword the text. The only annotation that exists in this system is `# lazy-import:` for `check_lazy_imports`.
-- **Do not weaken the content `TOKEN_RE`.** Keep it case-sensitive and keep the `T\d{2,}(?!:)` clock-time guard. Only `FILENAME_TOKEN_RE` becomes case-insensitive.
+- **Tighten, don't weaken, the content `TOKEN_RE`.** Keep it case-sensitive. The clock-time guard tightens from `(?!:)` to `(?!:\d)` so planning-ID-colon forms (`T05: foo`) are caught while real times (`T05:30`) are still skipped; the criterion alternation gains an optional trailing letter (`\d+[a-z]?`) so sub-criteria (`AC#6a`) are caught. `FILENAME_TOKEN_RE` becomes case-insensitive (T01). No suppression is added — the checker still has no escape hatch.
 - **Behavior-preserving lazy-import fixes only.** Hoisting must not change runtime behavior. If an import is lazy to break a cycle or control timing, annotate — do not hoist and hope.
 - **Reworded docstrings must stay accurate.** When removing a planning token from a test docstring, the replacement must describe what the test actually verifies — do not invent behavior to fill the sentence.
 

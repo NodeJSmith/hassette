@@ -3,7 +3,7 @@ task_id: "T09"
 title: "Widen SCAN_DIRS, hook patterns, and CI filter; update docs"
 status: "planned"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08"]
-implements: ["FR#1", "FR#2", "FR#9", "FR#10", "FR#11", "AC#1", "AC#2", "AC#8", "AC#9", "AC#11"]
+implements: ["FR#1", "FR#2", "FR#9", "FR#10", "FR#11", "FR#12", "AC#1", "AC#2", "AC#8", "AC#9", "AC#11", "AC#12"]
 ---
 
 ## Summary
@@ -25,6 +25,12 @@ The flip and final GREEN checkpoint. Now that every violation is cleaned and the
 Perform the scope flip per the design doc (`design/specs/077-extend-linter-scope/design.md`, `## Architecture` layers 1 and 3, FR#1/FR#2/FR#9/FR#10/FR#11).
 
 1. **Widen `SCAN_DIRS`** in all three checkers to `["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]`. No other logic change — `iter_py_files` already `rglob`s each dir.
+
+1b. **Tighten `TOKEN_RE`** in `tools/check_spec_tokens.py` (FR#12) to close two blind spots review found:
+   - Clock guard: change `\bT\d{2,}\b(?!:)` to `\bT\d{2,}\b(?!:\d)` so `T05: Saturation` (planning, colon+non-digit) is caught while `T05:30` (real time, colon+digit) is still skipped.
+   - Sub-criterion letter: change `\b(?:AC|FR|NFR|WP)#?\d+\b` to `\b(?:AC|FR|NFR|WP)#?\d+[a-z]?\b` so `AC#6a`/`FR#3b` are caught (the trailing letter no longer breaks the word boundary).
+   Keep the rest of `TOKEN_RE` and its case-sensitivity unchanged. Update the regex's explanatory comment to describe the new forms. Add a unit test in `tests/unit/tools/test_check_spec_tokens.py` asserting: a comment `# T05: foo` is flagged; a comment/docstring with `AC#6a` is flagged; a data/string line with a real time `"T05:30:00"` is NOT flagged (the existing clock-time case); the content case-sensitivity is unchanged.
+   IMPORTANT: after tightening, re-scan the ALREADY-cleaned dirs — the tightened regex may surface residuals the prior tasks' checker missed. Run `check_spec_tokens` over the full widened scope (step 6) and clean any new hit it now reports (reword per FR#8). The 5 known residuals from earlier review were already cleaned manually, so expect few or none.
 
 2. **Update the checker tests** `test_real_src_files_pass` in all three `tests/unit/tools/test_check_*.py` files: rename to a scope-agnostic name (e.g. `test_real_repo_files_pass`) and update the `"""The guard must stay green on the actual repo files it polices."""`-style docstrings so they don't say "src". These tests are parametrized over `iter_paths()`, so widening `SCAN_DIRS` makes them assert every file in the new dirs is clean — they are the oracle for this task.
 
@@ -52,6 +58,7 @@ If any checker reports residual violations, those are stragglers the cleanup tas
 ## Verify
 - [ ] FR#1 / AC#2: `SCAN_DIRS` in all three checkers equals `["src","tests","scripts","tools","codegen","docs","examples"]` and `iter_paths()` resolves files under each.
 - [ ] FR#2 / AC#1: each of the three checkers run from the repo root prints `OK` and exits 0.
+- [ ] FR#12 / AC#12: `TOKEN_RE` is `\bT\d{2,}\b(?!:\d)` for the clock guard and `\d+[a-z]?` for the criterion suffix; a unit test asserts `# T05: foo` and `AC#6a` are flagged while a real time `T05:30:00` is not; the tightened checker still reports 0 across the full widened scope.
 - [ ] FR#9 / AC#8: the three hooks' `files:` regex is `^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$`, so a push touching only a `tests/` file triggers them.
 - [ ] FR#10 / AC#9: the CI `python` paths-filter includes `codegen/**`, `docs/**`, and `scripts/**`.
 - [ ] FR#11: the `test_real_src_files_pass` tests are renamed scope-agnostically with updated docstrings; `CLAUDE.md` no longer describes the checkers as `src/`-only; and grepping the three `tools/check_*.py` files finds no residual `in src/`/`under src` scope wording in output strings or docstrings (the literal fixes from T01/AC#10 are present — this re-confirms them at the flip).
