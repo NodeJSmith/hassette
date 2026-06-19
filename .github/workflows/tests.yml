@@ -16,10 +16,10 @@ jobs:
         outputs:
             code: ${{ steps.filter.outputs.code }}
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
-            - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+            - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
               id: filter
               with:
                   filters: |
@@ -39,19 +39,19 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8
               with:
                   python-version: "3.13"
 
             - run: uv sync
 
             - name: Set up Node.js
-              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
               with:
                   node-version: "22"
                   cache: "npm"
@@ -66,7 +66,7 @@ jobs:
               working-directory: frontend
 
             - name: Upload frontend coverage
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: frontend-coverage
                   path: frontend/coverage/lcov.info
@@ -109,7 +109,7 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
 
@@ -117,7 +117,7 @@ jobs:
               run: sudo apt-get update && sudo apt-get install -y fd-find
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8
               with:
                   python-version: ${{ matrix.python-version }}
 
@@ -127,7 +127,7 @@ jobs:
               run: uv run nox -t coverage -p ${{ matrix.python-version }}
 
             - name: Upload coverage data
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: .coverage.${{ matrix.python-version }}
                   path: .coverage.${{ matrix.python-version }}
@@ -149,12 +149,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
 
             - name: Install uv
-              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8
               with:
                   python-version: ${{ matrix.python-version }}
 
@@ -164,7 +164,7 @@ jobs:
               run: uv run nox -s system_with_coverage -p ${{ matrix.python-version }}
 
             - name: Upload coverage data
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: .coverage.system.${{ matrix.python-version }}
                   path: .coverage.system.${{ matrix.python-version }}
@@ -179,12 +179,12 @@ jobs:
             (needs.frontend.result == 'success' || needs.test.result == 'success' || needs.system.result == 'success')
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8
               with:
                   python-version: 3.11
 
@@ -193,14 +193,14 @@ jobs:
                   uv venv
                   uv pip install -U 'coverage[toml]'
 
-            - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
               with:
                   path: coverage-parts
                   pattern: .coverage.*
                   merge-multiple: true
 
             - name: Download frontend coverage
-              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
               with:
                   name: frontend-coverage
                   path: frontend-coverage
@@ -212,13 +212,13 @@ jobs:
                   uv run coverage report
 
             - name: Upload HTML report (artifact)
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: coverage-html
                   path: htmlcov
 
             - name: Upload XML for integrations
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: coverage-xml
                   path: coverage.xml
