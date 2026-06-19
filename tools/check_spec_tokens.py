@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""CI guard: detect leaked spec-artifact tokens in src/ comments, docstrings, and filenames.
+"""CI guard: detect leaked spec-artifact tokens in comments, docstrings, and filenames.
 
 Design and work-package documents reference acceptance criteria, requirements,
 tasks, and work packages by short codes — an ``AC``/``FR``/``NFR``/``WP`` prefix
 followed by a number, or ``T`` followed by a task number. Those codes are
 scaffolding for planning. They mean nothing to a reader of the shipped source and
-should never survive into ``src/``.
+should never survive into scanned source files.
 
 Detection is text-based but scoped to human-readable text only:
 
@@ -55,7 +55,7 @@ TOKEN_RE = re.compile(r"\b(?:AC|FR|NFR|WP)#?\d+\b|\bT\d{2,}\b(?!:)")
 # Filenames have no clock times and use '.', '_', '-' as separators — and '_' is a
 # word character, so '\b' would miss 'T05_notes.py'. Match a whole separated segment
 # instead, which also keeps embedded look-alike tokens (BAT05) from matching.
-FILENAME_TOKEN_RE = re.compile(r"^(?:(?:AC|FR|NFR|WP)#?\d+|T\d{2,})$")
+FILENAME_TOKEN_RE = re.compile(r"^(?:(?:AC|FR|NFR|WP)#?\d+|T\d{2,})$", re.IGNORECASE)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
@@ -111,7 +111,7 @@ def main() -> int:
 
     if content_violations or name_violations:
         total = len(content_violations) + len(name_violations)
-        print(f"ERROR: {total} leaked spec-artifact token(s) found in src/:")
+        print(f"ERROR: {total} leaked spec-artifact token(s) found:")
         print()
         for rel, lineno, token in content_violations:
             print(f"  {rel}:{lineno} — {token}")

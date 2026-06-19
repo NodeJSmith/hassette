@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Make filename token matching case-insensitive; scope-agnostic messages"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#4", "AC#3", "AC#10"]
 ---

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI guard: detect lazy imports (imports inside function bodies) in src/.
+"""CI guard: detect lazy imports (imports inside function bodies) in scanned source files.
 
 The house rule is that all imports live at the top of the file. Lazy imports
 obscure dependencies, break ``patch("module.lib")`` mocking, and hide import

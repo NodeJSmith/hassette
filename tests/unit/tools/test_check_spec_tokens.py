@@ -92,7 +92,8 @@ def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expect
         ("normal_module.py", []),
         ("T05_notes.py", ["T05"]),
         ("design_AC1.md", ["AC1"]),
-        ("test_t1_helpers.py", []),  # lowercase + single digit
+        ("test_t1_helpers.py", []),  # single digit — T\d{2,} requires 2+ digits
+        ("test_t03_x.py", ["t03"]),  # lowercase 2-digit task-ID segment must be flagged
     ],
 )
 def test_filename_check(tmp_path: Path, name: str, expected: list[str]) -> None:
