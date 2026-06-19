@@ -1,4 +1,4 @@
-"""Tests for Scheduler error handler registration (WP03)."""
+"""Tests for Scheduler error handler registration."""
 
 from unittest.mock import MagicMock, patch
 

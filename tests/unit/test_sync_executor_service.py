@@ -1,6 +1,6 @@
-"""Unit tests for SyncExecutorService (T03 + T05).
+"""Unit tests for SyncExecutorService.
 
-T03 covers:
+Executor construction and wiring covers:
 - Executor is constructed in __init__ (no None window)
 - Service is registered in wire_services() and reachable via hassette.sync_executor
 - depends_on=[] (leaf dependency — no DB or other service required)
@@ -9,13 +9,13 @@ T03 covers:
 - Regression: AppSync shutdown hook submitting sync work during shutdown completes
   without RuntimeError: cannot schedule new futures after shutdown
 
-T05 covers:
-- FR#4 / AC#3: submission-time saturation WARNING fires near pool ceiling, rate-limited.
-- FR#4 / AC#3: periodic probe emits saturation WARNING even when submissions have stopped.
-- FR#6 / AC#4: Python busy-loop worker interrupted within shutdown budget; name+stack logged.
-- FR#7 / AC#4: shutdown does not raise; completes cleanly after interrupting Python worker.
-- FR#7 / AC#5: C-blocked worker (time.sleep) logged and abandoned; shutdown completes.
-- FR#8 / AC#6: custom max_workers and shutdown_timeout change behavior; defaults apply when unset.
+Saturation and shutdown covers:
+- Submission-time saturation WARNING fires near pool ceiling, rate-limited.
+- Periodic probe emits saturation WARNING even when submissions have stopped.
+- Python busy-loop worker interrupted within shutdown budget; name+stack logged.
+- Shutdown does not raise; completes cleanly after interrupting Python worker.
+- C-blocked worker (time.sleep) logged and abandoned; shutdown completes.
+- Custom max_workers and shutdown_timeout change behavior; defaults apply when unset.
 
 Uses the asyncio.Event gate pattern from CLAUDE.md to hold workers across boundaries.
 """
@@ -407,7 +407,7 @@ class TestOnShutdown:
 # test_service_restart_specs.py (ALL_SERVICES now includes it) — no duplicate here.
 
 
-# T05: Saturation warnings and shutdown interruption
+# Saturation warnings and shutdown interruption
 
 # Module-level constant relationship (probe interval >= suppress window)
 
@@ -447,7 +447,7 @@ class TestConstantInvariant:
         )
 
 
-# FR#4 / AC#3: Submission-time saturation WARNING
+# Submission-time saturation WARNING
 
 
 class TestSubmissionTimeSaturationWarning:
@@ -605,7 +605,7 @@ class TestSubmissionTimeSaturationWarning:
         svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# FR#4 / AC#3: Periodic probe fires when submissions stop
+# Periodic probe fires when submissions stop
 
 
 class TestPeriodicSaturationProbe:
@@ -711,7 +711,7 @@ class TestPeriodicSaturationProbe:
             svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# FR#6 / AC#4: Python busy-loop worker interrupted within shutdown budget
+# Python busy-loop worker interrupted within shutdown budget
 
 
 class TestShutdownInterruptsPythonWorker:
@@ -748,7 +748,7 @@ class TestShutdownInterruptsPythonWorker:
         assert elapsed < budget * 1.5, f"Shutdown took {elapsed:.2f}s — expected < {budget * 1.5:.2f}s"
 
     def test_python_worker_name_and_stack_logged(self) -> None:
-        """Straggler thread name and stack are logged before interruption (FR#6 / AC#4).
+        """Straggler thread name and stack are logged before interruption.
 
         Patches _log_thread_running_at_shutdown directly — avoids structlog/caplog
         ordering sensitivity (project uses structlog, which bypasses caplog).
@@ -780,7 +780,7 @@ class TestShutdownInterruptsPythonWorker:
         )
 
     def test_shutdown_does_not_raise(self) -> None:
-        """Shutdown never propagates an exception from the interrupt loop (FR#7 / AC#4)."""
+        """Shutdown never propagates an exception from the interrupt loop."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         ready = threading.Event()
 
@@ -800,7 +800,7 @@ class TestShutdownInterruptsPythonWorker:
 
     @pytest.mark.anyio
     async def test_on_shutdown_with_busy_worker_completes(self, caplog: pytest.LogCaptureFixture) -> None:
-        """SyncExecutorService.on_shutdown() completes with a Python busy-loop worker (AC#4)."""
+        """SyncExecutorService.on_shutdown() completes with a Python busy-loop worker."""
         svc = make_service(max_workers=1, shutdown_timeout=3.0)
         ready = threading.Event()
         terminated = threading.Event()
@@ -823,7 +823,7 @@ class TestShutdownInterruptsPythonWorker:
         assert terminated.is_set(), "Worker must have received SystemExit via on_shutdown"
 
 
-# FR#7 / AC#5: C-blocked worker logged and abandoned; shutdown still completes
+# C-blocked worker logged and abandoned; shutdown still completes
 
 
 @skip_c_blocked_under_coverage_py311
@@ -831,7 +831,7 @@ class TestShutdownCBlockedWorker:
     """C-blocked workers (time.sleep) are abandoned at budget expiry; shutdown completes."""
 
     def test_c_blocked_worker_shutdown_completes_within_budget(self) -> None:
-        """Shutdown returns within budget even when a worker is blocked in time.sleep (AC#5)."""
+        """Shutdown returns within budget even when a worker is blocked in time.sleep."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         ready = threading.Event()
 
@@ -853,7 +853,7 @@ class TestShutdownCBlockedWorker:
         )
 
     def test_c_blocked_worker_does_not_raise(self) -> None:
-        """Shutdown with a C-blocked worker must not propagate any exception (FR#7 / AC#5)."""
+        """Shutdown with a C-blocked worker must not propagate any exception."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         ready = threading.Event()
 
@@ -868,7 +868,7 @@ class TestShutdownCBlockedWorker:
         executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
 
     def test_c_blocked_worker_straggler_is_logged(self) -> None:
-        """C-blocked worker that survives the budget is logged at shutdown (AC#5)."""
+        """C-blocked worker that survives the budget is logged at shutdown."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="hassette-sync")
         ready = threading.Event()
         log_calls: list[tuple] = []
@@ -914,14 +914,14 @@ class TestShutdownCBlockedWorker:
         assert elapsed < 1.3, f"on_shutdown took {elapsed:.2f}s — expected < 1.3s with 1.0s budget"
 
 
-# FR#8 / AC#6: Config drives behavior; defaults apply when unset
+# Config drives behavior; defaults apply when unset
 
 
 class TestConfigBehavior:
     """Custom max_workers and shutdown_timeout change behavior; defaults apply when unset."""
 
     def test_custom_max_workers_is_respected(self) -> None:
-        """Executor uses the configured max_workers ceiling (AC#6)."""
+        """Executor uses the configured max_workers ceiling."""
         svc = make_service(max_workers=3)
         assert svc.executor._max_workers == 3  # pyright: ignore[reportAttributeAccessIssue]
         svc.executor.shutdown(join_threads_or_timeout=False)
@@ -933,7 +933,7 @@ class TestConfigBehavior:
         assert config.lifecycle.sync_executor_max_workers == expected
 
     def test_custom_shutdown_timeout_is_used_in_on_shutdown(self) -> None:
-        """on_shutdown passes the configured budget to executor.shutdown (AC#6)."""
+        """on_shutdown passes the configured budget to executor.shutdown."""
         svc = make_service(max_workers=2, shutdown_timeout=3.7)
 
         shutdown_kwargs: list[dict[str, Any]] = []

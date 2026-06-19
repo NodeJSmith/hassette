@@ -1,4 +1,4 @@
-"""Unit tests for T01: mode parameter and ScheduledJob field-level behaviour.
+"""Unit tests for the mode parameter and ScheduledJob field-level behaviour.
 
 Tests verify:
 - ScheduledJob carries mode and guard fields (both compare=False)

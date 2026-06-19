@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Reword spec tokens in scheduler + coroutine-conversion + sync-executor tests"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#8", "AC#7"]
 ---
