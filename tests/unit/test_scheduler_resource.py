@@ -621,7 +621,7 @@ class TestIdentityPassThrough:
 
 
 class TestDbIdSetImmediately:
-    """AC#7 analog for scheduler: job.db_id is set before run_*() returns."""
+    """job.db_id is set before run_*() returns."""
 
     async def test_db_id_set_immediately_after_run_in_returns(self) -> None:
         """job.db_id is a valid integer immediately after await run_in() returns.

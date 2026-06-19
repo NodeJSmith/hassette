@@ -25,12 +25,12 @@ pytestmark = pytest.mark.e2e
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#11: Tab deep-links — path segments drive active tab
+# Tab deep-links — path segments drive active tab
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_logs_tab_deep_link(page: Page, base_url: str) -> None:
-    """Direct navigation to /apps/:key/logs activates the logs tab (AC#1, AC#11)."""
+    """Direct navigation to /apps/:key/logs activates the logs tab."""
     page.goto(base_url + "/apps/my_app/logs")
     page.wait_for_load_state("networkidle")
     # Logs tab content should be visible, not the handlers tab
@@ -42,7 +42,7 @@ def test_logs_tab_deep_link(page: Page, base_url: str) -> None:
 
 
 def test_code_tab_deep_link(page: Page, base_url: str) -> None:
-    """Direct navigation to /apps/:key/code activates the code tab (AC#1, AC#11)."""
+    """Direct navigation to /apps/:key/code activates the code tab."""
     page.goto(base_url + "/apps/my_app/code")
     page.wait_for_load_state("networkidle")
     code_content = page.locator("[data-testid='code-tab-content']")
@@ -52,7 +52,7 @@ def test_code_tab_deep_link(page: Page, base_url: str) -> None:
 
 
 def test_handlers_tab_deep_link(page: Page, base_url: str) -> None:
-    """Direct navigation to /apps/:key/handlers activates the handlers tab (AC#1, AC#11)."""
+    """Direct navigation to /apps/:key/handlers activates the handlers tab."""
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     handler_list = page.locator("[data-testid='handler-list']")
@@ -60,12 +60,12 @@ def test_handlers_tab_deep_link(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#2: Handler deep-links select the handler
+# Handler deep-links select the handler
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/handlers/listener/{id} selects the handler (AC#2)."""
+    """Navigating to /apps/:key/handlers/listener/{id} selects the handler."""
     # listener_id=1 in seed data (on_light_change)
     page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
@@ -75,7 +75,7 @@ def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
 
 
 def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/handlers/job/{id} selects the job (AC#2)."""
+    """Navigating to /apps/:key/handlers/job/{id} selects the job."""
     # job_id=1 in seed data (check_lights)
     page.goto(base_url + "/apps/my_app/handlers/job/1")
     page.wait_for_load_state("networkidle")
@@ -84,7 +84,7 @@ def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
 
 
 def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) -> None:
-    """After navigating to a handler deep-link, refreshing keeps handler selected (AC#1)."""
+    """After navigating to a handler deep-link, refreshing keeps handler selected."""
     page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
     # Verify handler is selected
@@ -97,12 +97,12 @@ def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) ->
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#3: Logs tab with query params
+# Logs tab with query params
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None:
-    """Navigating to /logs?level=ERROR shows logs filtered to ERROR (AC#3, AC#1)."""
+    """Navigating to /logs?level=ERROR shows logs filtered to ERROR."""
     page.goto(base_url + "/logs?level=ERROR")
     page.wait_for_load_state("networkidle")
     page.locator("[data-testid='log-table']").wait_for(timeout=5000)
@@ -115,7 +115,7 @@ def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None
 
 
 def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Setting log level filter and refreshing restores the filter (AC#1, AC#3)."""
+    """Setting log level filter and refreshing restores the filter."""
     page.goto(base_url + "/logs")
     page.wait_for_load_state("networkidle")
     # Open the level filter popover and set to ERROR
@@ -138,12 +138,12 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#1: Filter persistence on /apps page
+# Filter persistence on /apps page
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Setting status filter on /apps and refreshing restores the filter (AC#1)."""
+    """Setting status filter on /apps and refreshing restores the filter."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     # Open status filter popover, then click "Running"
@@ -162,12 +162,12 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#1, AC#6: Sort persistence — replace history, no new entry
+# Sort persistence — replace history, no new entry
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_handlers_page_sort_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Sort params on /handlers persist on refresh and do not create history (AC#1, AC#6)."""
+    """Sort params on /handlers persist on refresh and do not create history."""
     page.goto(base_url + "/handlers?sort=runs&dir=desc")
     page.wait_for_load_state("networkidle")
     # Page should load with the sort applied
@@ -180,7 +180,7 @@ def test_handlers_page_sort_persists_on_refresh(page: Page, base_url: str) -> No
 
 
 def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
-    """Changing sort column replaces history, not pushes (AC#6).
+    """Changing sort column replaces history, not pushes.
 
     Strategy: navigate to a page, change sort, then press back — should go
     back to the page before /handlers, not to the pre-sort state.
@@ -212,12 +212,12 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#5: Browser back/forward for tab navigation
+# Browser back/forward for tab navigation
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_browser_back_after_tab_switch(page: Page, base_url: str) -> None:
-    """Pressing back after switching tabs returns to the previous tab (AC#5)."""
+    """Pressing back after switching tabs returns to the previous tab."""
     # Start on handlers tab
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
@@ -239,7 +239,7 @@ def test_browser_back_after_tab_switch(page: Page, base_url: str) -> None:
 
 
 def test_browser_forward_after_back(page: Page, base_url: str) -> None:
-    """Browser forward works after going back through tab history (AC#5)."""
+    """Browser forward works after going back through tab history."""
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     # Switch to code tab
@@ -261,12 +261,12 @@ def test_browser_forward_after_back(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#9 / AC#13: Default params are omitted from URL
+# Default params are omitted from URL
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_apps_page_default_state_has_no_query_params(page: Page, base_url: str) -> None:
-    """Navigating to /apps with default filters produces /apps with no query params (AC#9, AC#13)."""
+    """Navigating to /apps with default filters produces /apps with no query params."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     # URL should be exactly /apps with no query string
@@ -275,7 +275,7 @@ def test_apps_page_default_state_has_no_query_params(page: Page, base_url: str) 
 
 
 def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) -> None:
-    """Resetting filter to 'all' removes the filter query param (AC#9)."""
+    """Resetting filter to 'all' removes the filter query param."""
     page.goto(base_url + "/apps?filter=running")
     page.wait_for_load_state("networkidle")
     # Open status filter popover, then click "All" to reset
@@ -291,12 +291,12 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#7, AC#8: Time window override via ?window=
+# Time window override via ?window=
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_window_param_applied_to_handlers_page(page: Page, base_url: str) -> None:
-    """Navigating to /handlers?window=24h shows the 24h time preset active (AC#7)."""
+    """Navigating to /handlers?window=24h shows the 24h time preset active."""
     page.goto(base_url + "/handlers?window=24h")
     page.wait_for_load_state("networkidle")
     # The time preset button/label should show 24h
@@ -308,7 +308,7 @@ def test_window_param_applied_to_handlers_page(page: Page, base_url: str) -> Non
 
 
 def test_window_param_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Bookmarked ?window=24h URL restores the 24h window on refresh (AC#7, AC#1)."""
+    """Bookmarked ?window=24h URL restores the 24h window on refresh."""
     page.goto(base_url + "/handlers?window=24h")
     page.wait_for_load_state("networkidle")
     # Reload
@@ -319,7 +319,7 @@ def test_window_param_persists_on_refresh(page: Page, base_url: str) -> None:
 
 
 def test_no_window_param_uses_stored_preference(page: Page, base_url: str) -> None:
-    """Page without ?window= uses the localStorage timePreset (AC#7).
+    """Page without ?window= uses the localStorage timePreset.
 
     The autouse fixture sets timePreset='1h', so a page without ?window=
     should show 1h as the active preset.
@@ -335,7 +335,7 @@ def test_no_window_param_uses_stored_preference(page: Page, base_url: str) -> No
 
 
 def test_time_preset_button_updates_url_and_preference(page: Page, base_url: str) -> None:
-    """AC#8: Clicking the time preset button updates both URL and persisted preference."""
+    """Clicking the time preset button updates both URL and persisted preference."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     # Click the 24h preset button
@@ -348,12 +348,12 @@ def test_time_preset_button_updates_url_and_preference(page: Page, base_url: str
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#10: Invalid handler ID correction
+# Invalid handler ID correction
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> None:
-    """Navigating to an invalid handler ID shows handlers tab with no selection (AC#10)."""
+    """Navigating to an invalid handler ID shows handlers tab with no selection."""
     page.goto(base_url + "/apps/my_app/handlers/listener/99999")
     page.wait_for_load_state("networkidle")
     # Handler list should be visible (on handlers tab)
@@ -365,7 +365,7 @@ def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> Non
 
 
 def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
-    """After loading with an invalid handler ID, URL is corrected (AC#10)."""
+    """After loading with an invalid handler ID, URL is corrected."""
     page.goto(base_url + "/apps/my_app/handlers/listener/99999")
     page.wait_for_load_state("networkidle")
     # Wait for URL correction to happen (after data fetch confirms handler doesn't exist)
@@ -378,12 +378,12 @@ def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#12: Multi-instance routing
+# Multi-instance routing
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
-    """Navigating to /apps/multi_app?instance=1 loads instance 1 (AC#12)."""
+    """Navigating to /apps/multi_app?instance=1 loads instance 1."""
     page.goto(base_url + "/apps/multi_app?instance=1")
     page.wait_for_load_state("networkidle")
     # Instance switcher should be visible (we're in instance detail mode, not overview)
@@ -394,7 +394,7 @@ def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
 
 
 def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> None:
-    """Navigating to /apps/multi_app (no instance) shows the parent overview grid (AC#12)."""
+    """Navigating to /apps/multi_app (no instance) shows the parent overview grid."""
     page.goto(base_url + "/apps/multi_app")
     page.wait_for_load_state("networkidle")
     overview = page.locator("[data-testid='multi-instance-overview']")
@@ -404,7 +404,7 @@ def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> N
 
 
 def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Instance selection via ?instance= persists on page refresh (AC#1, AC#12)."""
+    """Instance selection via ?instance= persists on page refresh."""
     page.goto(base_url + "/apps/multi_app?instance=1")
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=5000)
@@ -417,12 +417,12 @@ def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#14: Out-of-range instance correction
+# Out-of-range instance correction
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> None:
-    """Navigating to ?instance=99 on an app with 3 instances corrects to ?instance=0 (AC#14)."""
+    """Navigating to ?instance=99 on an app with 3 instances corrects to ?instance=0."""
     page.goto(base_url + "/apps/multi_app?instance=99")
     page.wait_for_load_state("networkidle")
     # Wait for URL correction
@@ -439,12 +439,12 @@ def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> N
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#4: View in code — ?line= param
+# View in code — ?line= param
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_code_tab_with_line_param(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/code?line=N loads code tab (AC#4, AC#1)."""
+    """Navigating to /apps/:key/code?line=N loads the code tab."""
     page.goto(base_url + "/apps/my_app/code?line=15")
     page.wait_for_load_state("networkidle")
     # Code tab should be active
@@ -453,7 +453,7 @@ def test_code_tab_with_line_param(page: Page, base_url: str) -> None:
 
 
 def test_code_tab_line_param_persists_on_refresh(page: Page, base_url: str) -> None:
-    """Line param on code tab persists after refresh (AC#4, AC#1)."""
+    """Line param on code tab persists after refresh."""
     page.goto(base_url + "/apps/my_app/code?line=15")
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='code-tab-content']")).to_be_visible(timeout=5000)
@@ -465,7 +465,7 @@ def test_code_tab_line_param_persists_on_refresh(page: Page, base_url: str) -> N
 
 
 def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) -> None:
-    """Clicking 'view in code' from a handler navigates to code tab with ?line= (AC#4)."""
+    """Clicking 'view in code' from a handler navigates to code tab with ?line=."""
     # Select a handler that has source_location defined
     page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
@@ -484,12 +484,12 @@ def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) ->
 
 
 # ──────────────────────────────────────────────────────────────────────
-# AC#11: All navigation sources produce new-format URLs
+# All navigation sources produce new-format URLs
 # ──────────────────────────────────────────────────────────────────────
 
 
 def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str) -> None:
-    """Clicking a handler row produces /apps/:key/handlers/listener/{id} URL (AC#11)."""
+    """Clicking a handler row produces /apps/:key/handlers/listener/{id} URL."""
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     # Click listener row 1
@@ -502,7 +502,7 @@ def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str)
 
 
 def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str) -> None:
-    """Clicking a tab button produces /apps/:key/{tab} URL format (AC#11)."""
+    """Clicking a tab button produces /apps/:key/{tab} URL format."""
     page.goto(base_url + "/apps/my_app")
     page.wait_for_load_state("networkidle")
     # Click Logs tab
@@ -512,7 +512,7 @@ def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str
 
 
 def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str) -> None:
-    """Instance links in sidebar use ?instance=N format, not path segment (AC#11)."""
+    """Instance links in sidebar use ?instance=N format, not path segment."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")

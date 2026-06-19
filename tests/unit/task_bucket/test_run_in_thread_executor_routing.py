@@ -1,12 +1,12 @@
-"""Tests for T04: TaskBucket.run_in_thread routes sync user code to the dedicated executor.
+"""Tests for TaskBucket.run_in_thread routing sync user code to the dedicated executor.
 
 Covers:
-- FR#1 / AC#2: sync user code submitted via run_in_thread runs on the dedicated pool
+- Sync user code submitted via run_in_thread runs on the dedicated pool
   (worker thread name carries the "hassette-sync" prefix).
-- FR#2 / AC#2: framework asyncio.to_thread calls run on the default pool (no
+- Framework asyncio.to_thread calls run on the default pool (no
   "hassette-sync" prefix).
-- FR#9 / AC#7: a slow sync handler under a short asyncio.timeout still surfaces
-  TimeoutError / status='timed_out' to the caller — the timeout signal is unchanged.
+- A slow sync handler under a short asyncio.timeout still surfaces
+  TimeoutError to the caller — the timeout signal is unchanged.
 - Thread cell capture: cell[0] is set to the worker thread before _call returns.
 """
 
@@ -44,14 +44,14 @@ def bucket(hassette_mock) -> TaskBucket:
     return TaskBucket(hassette_mock)
 
 
-# FR#1 / AC#2 — sync user code runs on the dedicated pool
+# Sync user code runs on the dedicated pool
 
 
 async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None:
     """Worker thread name starts with 'hassette-sync' (the dedicated pool's prefix).
 
-    This is the primary AC#2 assertion: sync user code submitted through
-    run_in_thread must land on the dedicated executor, not asyncio's default pool.
+    Sync user code submitted through run_in_thread must land on the dedicated
+    executor, not asyncio's default pool.
     """
     worker_name: list[str] = []
 
@@ -67,7 +67,7 @@ async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None
 async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> None:
     """SYNC_WORKER_CELL holds the worker Thread after run_in_thread completes.
 
-    T06 reads cell[0].is_alive() at the timeout site — this test confirms the cell
+    The timeout site reads cell[0].is_alive() — this test confirms the cell
     is populated via SYNC_WORKER_CELL and points at a Thread object (not still None).
     """
 
@@ -88,14 +88,14 @@ async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> 
     assert isinstance(cell[0], threading.Thread)
 
 
-# FR#2 / AC#2 — framework asyncio.to_thread still uses the default pool
+# Framework asyncio.to_thread still uses the default pool
 
 
 async def test_asyncio_to_thread_uses_default_pool() -> None:
     """asyncio.to_thread runs on the loop-default pool, NOT the 'hassette-sync' pool.
 
-    This confirms FR#2: framework-internal calls that use asyncio.to_thread directly
-    are unaffected by the routing change in run_in_thread.
+    Framework-internal calls that use asyncio.to_thread directly are unaffected
+    by the routing change in run_in_thread.
     """
     default_pool_thread_name: list[str] = []
 
@@ -113,9 +113,9 @@ async def test_asyncio_to_thread_uses_default_pool() -> None:
 async def test_pool_split_both_assertions_in_one_pass(bucket: TaskBucket) -> None:
     """Single test demonstrating the pool split: dedicated vs. default.
 
-    AC#2 canonical test — both assertions in one pass so the comparison is direct
-    and not spread across separate test runs that could land on different machines
-    with different pool configs.
+    Both assertions in one pass so the comparison is direct and not spread
+    across separate test runs that could land on different machines with
+    different pool configs.
     """
     dedicated_name: list[str] = []
     default_name: list[str] = []
@@ -140,13 +140,13 @@ async def test_pool_split_both_assertions_in_one_pass(bucket: TaskBucket) -> Non
     )
 
 
-# FR#9 / AC#7 — timeout signal unchanged
+# Timeout signal unchanged
 
 
 async def test_slow_sync_handler_timeout_signal_unchanged(bucket: TaskBucket) -> None:
     """A slow sync handler under asyncio.timeout still raises TimeoutError to the caller.
 
-    AC#7: the caller-visible timeout contract is preserved after the routing change.
+    The caller-visible timeout contract is preserved after the routing change.
     The handler sleeps longer than the timeout; the await must unblock with TimeoutError.
     """
     handler_ran_to_completion = threading.Event()

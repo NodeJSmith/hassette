@@ -1,7 +1,7 @@
 """Unit tests confirming Pydantic rejects out-of-range values for constrained types.
 
-FR#1 / AC#1 coverage: every field with an enumerated value set uses a constrained
-type that rejects values outside that set at validation time.
+Every field with an enumerated value set uses a constrained type that rejects
+values outside that set at validation time.
 """
 
 import pytest

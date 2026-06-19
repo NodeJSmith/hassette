@@ -102,7 +102,7 @@ class TestBusSourceTierPropagation:
 
 
 class TestExecutionModeTierDefault:
-    """The tier-aware default for ``mode`` (FR#3, AC#2): app→single, framework→parallel."""
+    """The tier-aware default for ``mode``: app→single, framework→parallel."""
 
     async def test_app_registration_without_mode_defaults_to_single(self, app_bus: "Bus") -> None:
         """An app-tier registration without an explicit mode resolves to single."""
@@ -125,7 +125,7 @@ class TestExecutionModeTierDefault:
         assert sub.listener.options.mode is ExecutionMode.SINGLE
 
     async def test_invalid_mode_raises_at_registration(self, app_bus: "Bus") -> None:
-        """An invalid mode string is rejected at registration time (FR#12, AC#9)."""
+        """An invalid mode string is rejected at registration time."""
         with pytest.raises(ValueError, match="Invalid execution mode"):
             await app_bus.on(topic="test.topic", handler=handler, name="bad_mode", mode="bogus")
 

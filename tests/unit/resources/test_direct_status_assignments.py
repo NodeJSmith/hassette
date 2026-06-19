@@ -1,4 +1,4 @@
-"""Tests for direct status assignments (WP02, Subtask 5).
+"""Tests for direct status assignments.
 
 Verifies:
 - app_lifecycle_service timeout path: STARTING → STOPPED is a valid transition

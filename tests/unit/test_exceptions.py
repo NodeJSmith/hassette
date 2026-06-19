@@ -45,8 +45,7 @@ def test_failed_message_error_stores_kwargs() -> None:
 def test_failed_message_error_from_error_response_forwards_all_fields() -> None:
     """``from_error_response`` forwards every field AND fixes the typo.
 
-    This is the primary implementation gate for WP03: if the classmethod
-    body still reads ``return cls(msg)`` instead of
+    If the classmethod body still reads ``return cls(msg)`` instead of
     ``return cls(msg, code=code, original_data=original_data)``, the
     ``e.code`` / ``e.original_data`` assertions below will fail.
 
@@ -82,11 +81,10 @@ def test_failed_message_error_from_error_response_defaults_code_to_none() -> Non
 def test_failed_message_error_chain_preserves_original() -> None:
     """Chaining via ``raise ... from e`` preserves ``code`` on both frames.
 
-    This is a regression test for the ``_ws_helper_call`` wrapper that WP04
-    will add. The wrapper catches ``FailedMessageError`` and re-raises a new
-    one with contextualized message, forwarding ``code`` and
-    ``original_data`` from the caught exception. Both the wrapped exception
-    and ``__cause__`` must surface the same ``code``.
+    This is a regression test for the ``_ws_helper_call`` wrapper. The wrapper
+    catches ``FailedMessageError`` and re-raises a new one with a contextualized
+    message, forwarding ``code`` and ``original_data`` from the caught exception.
+    Both the wrapped exception and ``__cause__`` must surface the same ``code``.
     """
 
     def _chain_and_reraise() -> None:

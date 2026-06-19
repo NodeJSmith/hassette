@@ -1,4 +1,4 @@
-"""Pyright probe fixture: forgotten-await detection (FR#5, AC#3).
+"""Pyright probe fixture: forgotten-await detection.
 
 This file is INTENTIONALLY WRONG — every call is a bare un-awaited call
 that should trigger reportUnusedCoroutine in Pyright.
@@ -13,7 +13,6 @@ directory and asserts that every expected diagnostic is reported.
 
 Empirically verified 2026-06-11: def -> Coroutine[Any, Any, T] fires
 reportUnusedCoroutine for simple, overloaded, and None-returning methods.
-See design/071 FR#5, AC#3.
 """
 
 # ruff: noqa

@@ -1,7 +1,7 @@
 """Parity test: RecordingApi must implement every write method that Api does.
 
 This test is in a separate file from test_recording_sync_facade_drift.py so
-that WP04's deletion of the old drift test does not accidentally remove this
+that deletion of the old drift test does not accidentally remove this
 parity check as collateral damage.
 """
 

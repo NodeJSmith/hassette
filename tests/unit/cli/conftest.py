@@ -1,4 +1,4 @@
-"""Shared CLI test fixtures for CLI client and command tests (T03, T05-T08)."""
+"""Shared CLI test fixtures for CLI client and command tests."""
 
 import json
 from contextlib import contextmanager

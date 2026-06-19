@@ -531,7 +531,7 @@ class TestRenderRawHumanMode:
         assert "light.turn_on" in stdout
 
 
-# stdout cleanliness contract (FR#5)
+# stdout cleanliness contract
 
 
 class TestStdoutCleanliness:
@@ -569,7 +569,7 @@ class TestStdoutCleanliness:
         assert stderr == ""
 
 
-# AC#7 — Architectural constraint verification
+# Architectural constraint verification
 
 
 class TestArchitecturalConstraint:

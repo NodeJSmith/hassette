@@ -270,7 +270,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_listeners_backpressure_backfills_pre_migration_rows(self, tmp_path: Path) -> None:
-        """A listener row written before 008 reads 'block' after the migration runs (AC#8 upgrade path)."""
+        """A listener row written before migration 008 reads 'block' after the migration runs."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path, target=7)  # schema before the backpressure column existed
 
