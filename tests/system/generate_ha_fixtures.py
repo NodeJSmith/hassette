@@ -107,7 +107,10 @@ def write_auth() -> None:
                     "last_used_ip": None,
                     "expire_at": None,
                     "credential_id": None,
-                    "version": "2025.3.4",
+                    # Cosmetic: the HA version that minted this token. HA records it
+                    # but does not use it for JWT/bcrypt validation. Keep loosely in
+                    # sync with the image tag in tests/system/docker-compose.yml.
+                    "version": "2026.6.3",
                 }
             ],
         },

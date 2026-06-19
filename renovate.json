@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Per-repo Renovate config, processed by the self-hosted runner on smithfamily.",
+    "docker-compose managerFilePatterns lists both patterns explicitly: the standard compose pattern (covers tests/system/docker-compose.yml) and ha-demo.yml (covers scripts/docker/ha-demo.yml, which is not named compose* and would otherwise be missed).",
+    "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
+    "chore(deps) commits keep dependency bumps out of the release-please changelog."
+  ],
+  "extends": ["config:recommended"],
+  "schedule": ["before 9am on monday"],
+  "timezone": "America/New_York",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "prConcurrentLimit": 5,
+  "ignorePaths": ["docs/**", "**/node_modules/**"],
+  "docker-compose": {
+    "managerFilePatterns": [
+      "/(^|/)(docker-)?compose[^/]*\\.ya?ml$/",
+      "/(^|/)ha-demo\\.ya?ml$/"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Group both compose files' HA image bumps into one PR",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["homeassistant/home-assistant"],
+      "groupName": "home-assistant image"
+    },
+    {
+      "description": "Major HA jumps (year rollover) wait for dashboard approval",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["homeassistant/home-assistant"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
