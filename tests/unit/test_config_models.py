@@ -53,7 +53,7 @@ from hassette.test_utils.config import TEST_TOKEN
     ],
 )
 def test_nested_models_are_base_model_not_base_settings(model_cls):
-    """AC#9: All 8 nested model classes are BaseModel subclasses, not BaseSettings subclasses."""
+    """All 8 nested model classes are BaseModel subclasses, not BaseSettings subclasses."""
     assert issubclass(model_cls, BaseModel), f"{model_cls.__name__} must inherit BaseModel"
     assert not issubclass(model_cls, BaseSettings), f"{model_cls.__name__} must NOT inherit BaseSettings"
 
@@ -600,7 +600,7 @@ class TestEnvVarPartialUpdate:
 
         config = _EnvConfig2()
         assert config.database.retention_days == 14
-        # Other database defaults are preserved (FR#5 / AC#4)
+        # Other database defaults are preserved
         assert config.database.max_size_mb == 500
         assert config.database.write_queue_max == 2000
 

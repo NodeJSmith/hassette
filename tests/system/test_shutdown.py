@@ -58,11 +58,11 @@ async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str,
     the end-to-end fatal-exit contract that mocks cannot:
 
     1. ``run_forever()`` raises ``FatalError`` (which maps to a non-zero process exit via run.py), so
-       an external supervisor restarts after a fatal crash (FR#7/AC#10). startup_context re-raises the
+       an external supervisor restarts after a fatal crash. startup_context re-raises the
        background task's exception on exit, so the crash surfaces here as ``FatalError``.
     2. The fatal reason is recorded synchronously at the exhaustion decision site, naming the cause.
     3. The crash is persisted to the telemetry session before teardown, so the session is NOT recorded
-       as a clean success (FR#9/AC#12).
+       as a clean success.
     """
 
     class _AlwaysFailingService(Service):

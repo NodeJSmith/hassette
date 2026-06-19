@@ -7,9 +7,9 @@ remove and add operations were independent background tasks that could
 execute in any order.
 
 Tests:
-- AC#1: Cancel-then-add ordering — exactly one handler routed after cancel+replace
-- AC#3: Query after registration — handler immediately visible without task yield
-- AC#4: Bulk remove then query — routing table empty immediately after remove_all_listeners()
+- Cancel-then-add ordering — exactly one handler routed after cancel+replace
+- Query after registration — handler immediately visible without task yield
+- Bulk remove then query — routing table empty immediately after remove_all_listeners()
 """
 
 import typing
@@ -55,7 +55,7 @@ def bus(ordering_harness: "HassetteHarness") -> "Bus":
 
 
 async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
-    """AC#1: Cancelling a subscription and immediately registering a replacement results in
+    """Cancelling a subscription and immediately registering a replacement results in
     exactly one handler routed, not zero or two.
 
     Under the old async-task design, remove and add were independent background tasks
@@ -124,7 +124,7 @@ async def test_cancel_multiple_then_add_replacement(bus: "Bus") -> None:
 
 
 async def test_get_listeners_immediately_visible_after_registration(bus: "Bus") -> None:
-    """AC#3: A handler registered via bus.on() is immediately visible in get_listeners()."""
+    """A handler registered via bus.on() is immediately visible in get_listeners()."""
     topic = "test.ordering.immediate_visibility"
 
     sub = await bus.on(topic=topic, handler=handler_alpha, name="alpha")
@@ -138,7 +138,7 @@ async def test_get_listeners_immediately_visible_after_registration(bus: "Bus") 
 
 
 async def test_multiple_registrations_all_immediately_visible(bus: "Bus") -> None:
-    """AC#3: Multiple handlers registered sequentially are all immediately visible."""
+    """Multiple handlers registered sequentially are all immediately visible."""
     await bus.on(topic="test.ordering.vis_a", handler=handler_alpha, name="va")
     await bus.on(topic="test.ordering.vis_b", handler=handler_beta, name="vb")
     await bus.on(topic="test.ordering.vis_c", handler=handler_gamma, name="vc")
@@ -148,12 +148,12 @@ async def test_multiple_registrations_all_immediately_visible(bus: "Bus") -> Non
 
 
 async def test_get_listeners_empty_before_any_registration(bus: "Bus") -> None:
-    """AC#3 baseline: No handlers registered → get_listeners() returns empty list immediately."""
+    """No handlers registered → get_listeners() returns empty list immediately."""
     assert bus.get_listeners() == []
 
 
 async def test_remove_all_listeners_then_query_is_empty(bus: "Bus") -> None:
-    """AC#4: remove_all_listeners() followed immediately by get_listeners() returns empty list."""
+    """remove_all_listeners() followed immediately by get_listeners() returns empty list."""
     topic = "test.ordering.bulk_remove"
 
     await bus.on(topic=topic, handler=handler_alpha, name="r1")
@@ -174,13 +174,13 @@ async def test_remove_all_listeners_then_query_is_empty(bus: "Bus") -> None:
 
 
 async def test_remove_all_listeners_idempotent(bus: "Bus") -> None:
-    """AC#4: Calling remove_all_listeners() on an already-empty bus is a no-op."""
+    """Calling remove_all_listeners() on an already-empty bus is a no-op."""
     bus.remove_all_listeners()
     assert bus.get_listeners() == []
 
 
 async def test_register_after_bulk_remove_works(bus: "Bus") -> None:
-    """AC#4: After remove_all_listeners(), new registrations are accepted normally."""
+    """After remove_all_listeners(), new registrations are accepted normally."""
     await bus.on(topic="test.ordering.post_remove", handler=handler_alpha, name="first")
     bus.remove_all_listeners()
 
@@ -193,7 +193,7 @@ async def test_register_after_bulk_remove_works(bus: "Bus") -> None:
 
 
 async def test_interleaved_add_remove_preserves_count(bus: "Bus") -> None:
-    """AC#1 + AC#4: Interleaved adds and removes maintain correct count at each step."""
+    """Interleaved adds and removes maintain correct count at each step."""
     sub1 = await bus.on(topic="test.ordering.interleaved", handler=handler_alpha, name="i1")
     assert len(bus.get_listeners()) == 1
 

@@ -85,6 +85,6 @@ def test_filler_not_in_data_string(write_sample: Callable[[str], Path]) -> None:
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))
-def test_real_src_files_pass(path: Path) -> None:
+def test_real_repo_files_pass(path: Path) -> None:
     """The guard must stay green on the actual repo files it polices."""
     assert check_file(path) == []

@@ -1,4 +1,4 @@
-"""Tests for LifecycleMixin transition validation (WP01) and shutdown STOPPING path (WP02).
+"""Tests for LifecycleMixin transition validation and shutdown STOPPING path.
 
 Verifies:
 - Valid transitions go through without error and emit DEBUG logs
@@ -11,7 +11,7 @@ Verifies:
 - hasattr guard: no hassette attribute → no error (construction-time guard)
 - handle_running() idempotency is preserved (already RUNNING → early return, no setter)
 
-WP02 additions:
+Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Resource)
 - shutdown() sets STOPPING before hooks run (Service)
 - Full shutdown sequence: RUNNING → STOPPING → STOPPED

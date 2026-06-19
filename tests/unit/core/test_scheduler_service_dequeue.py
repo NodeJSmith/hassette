@@ -1,4 +1,4 @@
-"""Unit tests for SchedulerService.dequeue_job and _ScheduledJobQueue.remove_item_sync (WP01).
+"""Unit tests for SchedulerService.dequeue_job and _ScheduledJobQueue.remove_item_sync.
 
 Tests verify:
 - dequeue_job removes job from heap synchronously

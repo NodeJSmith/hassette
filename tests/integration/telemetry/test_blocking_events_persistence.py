@@ -1,9 +1,9 @@
-"""Integration tests for blocking_events persistence (T05).
+"""Integration tests for blocking_events persistence.
 
 Covers:
-    AC#7 (FR#10): one detected event → exactly one blocking_events row with correct
+    One detected event → exactly one blocking_events row with correct
         tier and tier-appropriate columns populated/null.
-    AC#8 (FR#11): event with unresolved owner (app_key=None) → one row with
+    Event with unresolved owner (app_key=None) → one row with
         source_tier='framework' and null app_key, NOT dropped.
 
 Threading invariant: record_blocking_event() always runs on the loop thread.
@@ -21,9 +21,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import WatchdogEvent
 
-# ---------------------------------------------------------------------------
 # Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -45,9 +43,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 250.0) -> WatchdogEvent:
@@ -100,9 +96,7 @@ async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-# ---------------------------------------------------------------------------
-# AC#7 / FR#10: Tier 1 (watchdog) — exactly one row, correct columns
-# ---------------------------------------------------------------------------
+# Tier 1 (watchdog) persistence — exactly one row, correct columns
 
 
 class TestTier1Persistence:
@@ -111,7 +105,7 @@ class TestTier1Persistence:
         executor: CommandExecutor,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """AC#7: one WatchdogEvent → exactly one blocking_events row."""
+        """One WatchdogEvent → exactly one blocking_events row."""
         db_svc, session_id = db
         event = _make_watchdog_event(stall_ms=300.0)
 
@@ -184,9 +178,7 @@ class TestTier1Persistence:
         assert rows[0]["source_location"] is None
 
 
-# ---------------------------------------------------------------------------
-# AC#7 / FR#10: Tier 2 (monkeypatch) — exactly one row, correct columns
-# ---------------------------------------------------------------------------
+# Tier 2 (monkeypatch) persistence — exactly one row, correct columns
 
 
 class TestTier2Persistence:
@@ -195,7 +187,7 @@ class TestTier2Persistence:
         executor: CommandExecutor,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """AC#7: one MonkeypatchEvent → exactly one blocking_events row."""
+        """One MonkeypatchEvent → exactly one blocking_events row."""
         db_svc, session_id = db
         event = _make_monkeypatch_event()
 
@@ -234,9 +226,7 @@ class TestTier2Persistence:
         assert tiers == {"watchdog", "monkeypatch"}
 
 
-# ---------------------------------------------------------------------------
-# AC#8 / FR#11: Unresolved owner → source_tier='framework', not dropped
-# ---------------------------------------------------------------------------
+# Unresolved owner → source_tier='framework', not dropped
 
 
 class TestUnresolvedOwnerPersistence:
@@ -245,7 +235,7 @@ class TestUnresolvedOwnerPersistence:
         executor: CommandExecutor,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """AC#8: WatchdogEvent with app_key=None → row with source_tier='framework', NOT dropped."""
+        """WatchdogEvent with app_key=None → row with source_tier='framework', NOT dropped."""
         db_svc, _ = db
         event = _make_watchdog_event(app_key=None)
 
@@ -268,7 +258,7 @@ class TestUnresolvedOwnerPersistence:
         executor: CommandExecutor,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """AC#8: MonkeypatchEvent with app_key=None → row with source_tier='framework', NOT dropped."""
+        """MonkeypatchEvent with app_key=None → row with source_tier='framework', NOT dropped."""
         db_svc, _ = db
         event = _make_monkeypatch_event(app_key=None)
 

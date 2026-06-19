@@ -92,7 +92,8 @@ def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expect
         ("normal_module.py", []),
         ("T05_notes.py", ["T05"]),
         ("design_AC1.md", ["AC1"]),
-        ("test_t1_helpers.py", []),  # lowercase + single digit
+        ("test_t1_helpers.py", []),  # single digit — T\d{2,} requires 2+ digits
+        ("test_t03_x.py", ["t03"]),  # lowercase 2-digit task-ID segment must be flagged
     ],
 )
 def test_filename_check(tmp_path: Path, name: str, expected: list[str]) -> None:
@@ -100,7 +101,27 @@ def test_filename_check(tmp_path: Path, name: str, expected: list[str]) -> None:
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))
-def test_real_src_files_pass(path: Path) -> None:
+def test_real_repo_files_pass(path: Path) -> None:
     """The guard must stay green on the actual repo files it polices."""
     assert check_file(path) == []
     assert check_filename(path) == []
+
+
+def test_task_label_colon_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A task ID followed by a planning-label colon (not a clock digit) must be caught."""
+    assert check_file(write_sample("# T05: Saturation handling\n")) == [(1, "T05")]
+
+
+def test_sub_criterion_letter_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A criterion token with a trailing lowercase letter must be caught."""
+    assert check_file(write_sample("# see AC#6a for details\n")) == [(1, "AC#6a")]
+
+
+def test_clock_time_in_data_string_not_flagged(write_sample: Callable[[str], Path]) -> None:
+    """A real HH:MM:SS timestamp in a string literal must not be flagged."""
+    assert check_file(write_sample('value = "2020-01-01T05:30:00"\n')) == []
+
+
+def test_clock_time_in_comment_not_flagged_tightened(write_sample: Callable[[str], Path]) -> None:
+    """A real clock time (colon+digit) in a comment must not be flagged."""
+    assert check_file(write_sample("# parse value + T05:30 boundary\n")) == []

@@ -125,7 +125,7 @@ async def test_listener_registration_persists_mode(
     initialized_db: tuple[DatabaseService, int],
     mode: str,
 ) -> None:
-    """register_listener() persists the resolved execution mode (FR#14, AC#1)."""
+    """register_listener() persists the resolved execution mode."""
     db_service, _ = initialized_db
     reg = ListenerRegistration(
         app_key="my_app",
@@ -155,7 +155,7 @@ async def test_listener_mode_updates_on_reregistration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """A mode-only change updates the persisted mode on the same row via the upsert (FR#14)."""
+    """A mode-only change updates the persisted mode on the same row via the upsert."""
     db_service, _ = initialized_db
 
     def make_reg(mode: str) -> ListenerRegistration:
@@ -258,7 +258,7 @@ async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> 
     reg_arg = executor_mock.register_job.call_args.args[0]
     assert reg_arg.app_key == "my_app"
     assert reg_arg.instance_index == 3
-    # mode threads through from job.mode.value to the registration (FR#10)
+    # mode threads through from job.mode.value to the registration
     assert reg_arg.mode == "single"
 
 
@@ -344,7 +344,7 @@ async def test_job_registration_persists_mode(
     initialized_db: tuple[DatabaseService, int],
     mode_str: str,
 ) -> None:
-    """register_job() persists the resolved execution mode to scheduled_jobs.mode (FR#10, AC#10).
+    """register_job() persists the resolved execution mode to scheduled_jobs.mode.
 
     Memory→DB only: mode is written via the upsert and is display/telemetry only.
     The column is never read back to reconstruct the guard.
@@ -380,7 +380,7 @@ async def test_job_mode_updates_on_reregistration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """A mode-only change updates the persisted mode on the same row via the upsert (AC#10)."""
+    """A mode-only change updates the persisted mode on the same row via the upsert."""
     db_service, _ = initialized_db
 
     def make_reg(mode: str) -> ScheduledJobRegistration:

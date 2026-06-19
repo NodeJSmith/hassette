@@ -14,9 +14,7 @@ from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_execution, make_job_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
-# ---------------------------------------------------------------------------
 # cmd_job (bare — list all jobs)
-# ---------------------------------------------------------------------------
 
 
 class TestCmdJob:

@@ -1,4 +1,4 @@
-"""Tests for source_tier propagation through data models and related changes (WP02)."""
+"""Tests for source_tier propagation through data models."""
 
 from unittest.mock import AsyncMock, MagicMock
 

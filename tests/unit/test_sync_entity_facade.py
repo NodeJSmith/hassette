@@ -1,14 +1,14 @@
 """Runtime dispatch tests for generated domain entity sync facades.
 
 Covers:
-    AC#2 — CoverEntity.sync, ClimateEntity.sync, LightEntity.sync are instances of
-            their respective {Domain}EntitySyncFacade, not BaseEntitySyncFacade.
-    AC#3 — CoverEntity.sync.open_cover() dispatches to api.sync.call_service with
-            the correct domain/service/target and no extra kwargs.
-    AC#4 — ClimateEntity.sync.set_temperature(temperature=21.0) passes the param through.
-    AC#5 — LightEntity.sync.turn_on(brightness=128) and .turn_off() route through
-            call_service (generated override); isinstance(..., BaseEntitySyncFacade)
-            holds (inheritance chain intact).
+    — CoverEntity.sync, ClimateEntity.sync, LightEntity.sync are instances of
+      their respective {Domain}EntitySyncFacade, not BaseEntitySyncFacade.
+    — CoverEntity.sync.open_cover() dispatches to api.sync.call_service with
+      the correct domain/service/target and no extra kwargs.
+    — ClimateEntity.sync.set_temperature(temperature=21.0) passes the param through.
+    — LightEntity.sync.turn_on(brightness=128) and .turn_off() route through
+      call_service (generated override); isinstance(..., BaseEntitySyncFacade)
+      holds (inheritance chain intact).
 """
 
 from typing import TYPE_CHECKING
@@ -61,11 +61,11 @@ def make_climate_entity(api: "Api") -> tuple[ClimateEntity, "Token[Hassette]"]:
 # local here since they have no second consumer.
 
 
-# AC#2 — .sync returns the domain-specific facade type
+# .sync returns the domain-specific facade type
 
 
 def test_cover_sync_is_cover_entity_sync_facade() -> None:
-    """AC#2: CoverEntity.sync is a CoverEntitySyncFacade instance, not the base."""
+    """CoverEntity.sync is a CoverEntitySyncFacade instance, not the base."""
     api = make_api()
     entity, token = make_cover_entity(api)
     try:
@@ -76,7 +76,7 @@ def test_cover_sync_is_cover_entity_sync_facade() -> None:
 
 
 def test_climate_sync_is_climate_entity_sync_facade() -> None:
-    """AC#2: ClimateEntity.sync is a ClimateEntitySyncFacade instance, not the base."""
+    """ClimateEntity.sync is a ClimateEntitySyncFacade instance, not the base."""
     api = make_api()
     entity, token = make_climate_entity(api)
     try:
@@ -87,7 +87,7 @@ def test_climate_sync_is_climate_entity_sync_facade() -> None:
 
 
 def test_light_sync_is_light_entity_sync_facade() -> None:
-    """AC#2: LightEntity.sync is a LightEntitySyncFacade instance, not the base."""
+    """LightEntity.sync is a LightEntitySyncFacade instance, not the base."""
     api = make_api()
     entity, token = make_light_entity(api)
     try:
@@ -97,11 +97,11 @@ def test_light_sync_is_light_entity_sync_facade() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# AC#3 — no-param dispatch: CoverEntity.sync.open_cover()
+# No-param dispatch: CoverEntity.sync.open_cover()
 
 
 def test_cover_sync_open_cover_dispatches_call_service() -> None:
-    """AC#3: open_cover() calls api.sync.call_service once with correct domain/service/target, no extra kwargs."""
+    """open_cover() calls api.sync.call_service once with correct domain/service/target, no extra kwargs."""
     api = make_api()
     entity, token = make_cover_entity(api)
     try:
@@ -122,11 +122,11 @@ def test_cover_sync_open_cover_dispatches_call_service() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# AC#4 — required-param dispatch: ClimateEntity.sync.set_temperature()
+# Required-param dispatch: ClimateEntity.sync.set_temperature()
 
 
 def test_climate_sync_set_temperature_passes_param_through() -> None:
-    """AC#4: set_temperature(temperature=21.0) passes the temperature param through to call_service."""
+    """set_temperature(temperature=21.0) passes the temperature param through to call_service."""
     api = make_api()
     entity, token = make_climate_entity(api)
     try:
@@ -148,16 +148,15 @@ def test_climate_sync_set_temperature_passes_param_through() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# AC#5 — optional-param dispatch + inheritance intact: LightEntity.sync.turn_on/turn_off
+# Optional-param dispatch + inheritance intact: LightEntity.sync.turn_on/turn_off
 #
 # The turn_on dispatch is also exercised by
 # test_entity_coroutine_conversion.test_entity_sync_turn_on_registers. The overlap is
-# intentional — that test pins it under AC#11 (forgotten-await work); this one pins it
-# under AC#5 (entity sync facade) alongside turn_off and the inheritance check.
+# intentional — that test pins the same dispatch path alongside turn_off and the inheritance check.
 
 
 def test_light_sync_turn_on_dispatches_via_call_service() -> None:
-    """AC#5: LightEntity.sync.turn_on(brightness=128) routes through call_service (generated override)."""
+    """LightEntity.sync.turn_on(brightness=128) routes through call_service (generated override)."""
     api = make_api()
     entity, token = make_light_entity(api)
     try:
@@ -184,7 +183,7 @@ def test_light_sync_turn_on_dispatches_via_call_service() -> None:
 
 
 def test_light_sync_turn_off_dispatches_via_call_service() -> None:
-    """AC#5: LightEntity.sync.turn_off() routes through call_service (generated override)."""
+    """LightEntity.sync.turn_off() routes through call_service (generated override)."""
     api = make_api()
     entity, token = make_light_entity(api)
     try:
@@ -203,7 +202,7 @@ def test_light_sync_turn_off_dispatches_via_call_service() -> None:
 
 
 def test_light_sync_inherits_base_entity_sync_facade() -> None:
-    """AC#5: LightEntitySyncFacade is a subclass of BaseEntitySyncFacade (FR#5 inheritance chain)."""
+    """LightEntitySyncFacade is a subclass of BaseEntitySyncFacade (inheritance chain intact)."""
     api = make_api()
     entity, token = make_light_entity(api)
     try:
@@ -212,7 +211,7 @@ def test_light_sync_inherits_base_entity_sync_facade() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# AC#5 — .sync caching: same instance returned on repeated access
+# .sync caching: same instance returned on repeated access
 
 
 def test_sync_property_caches_facade_instance() -> None:

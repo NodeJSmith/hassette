@@ -1,4 +1,4 @@
-"""Pyright probe assertion: forgotten-await detection (FR#5, AC#3).
+"""Pyright probe assertion: forgotten-await detection.
 
 Runs pyright on tests/pyright_probes/forgotten_await_probe.py via a dedicated
 pyrightconfig that enables reportUnusedCoroutine as an error, then asserts
@@ -58,7 +58,7 @@ def test_probe_marker_count() -> None:
 
 
 def test_pyright_probe_fires_unused_coroutine() -> None:
-    """FR#5/AC#3: pyright reports reportUnusedCoroutine on all bare probe calls.
+    """Pyright reports reportUnusedCoroutine on all bare probe calls.
 
     Covers:
       - Simple bus method: on_state_change
@@ -99,7 +99,7 @@ def test_pyright_probe_fires_unused_coroutine() -> None:
         f"Expected at least {EXPECTED_PROBE_COUNT} reportUnusedCoroutine diagnostics, "
         f"got {unused_coro_count}.\n\nPyright output:\n{output}\n\n"
         f"A return annotation may have been changed from Coroutine[...] to Awaitable or a "
-        f"concrete type, silently killing Pyright's static detection. See design/071 FR#5/AC#3."
+        f"concrete type, silently killing Pyright's static detection. See design/071."
     )
 
     # Verify each probe line is flagged (line number present in output + reportUnusedCoroutine)

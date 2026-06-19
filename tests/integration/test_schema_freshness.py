@@ -72,7 +72,7 @@ class TestSchemaFreshness:
         assert "timestamp" in msg_schema.get("required", []), f"{msg_type} is missing 'timestamp' in required fields"
 
     def test_execution_completed_has_kind_field(self) -> None:
-        """ExecutionCompletedData must include 'kind' in its required fields (FR#11)."""
+        """ExecutionCompletedData must include 'kind' in its required fields."""
         adapter = TypeAdapter(WsServerMessage)
         schema = adapter.json_schema()
 

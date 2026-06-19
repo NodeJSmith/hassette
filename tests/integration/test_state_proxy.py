@@ -952,7 +952,7 @@ class TestStateProxyConcurrency:
 
 
 class TestStateProxyPollNonOverlap:
-    """AC#13 / FR#15: the state-proxy poll job never runs load_cache concurrently.
+    """The state-proxy poll job never runs load_cache concurrently.
 
     Asserts scheduler-level single-mode suppression, not just the internal
     lock serializing concurrent entries. When a poll invocation is still in
@@ -963,7 +963,7 @@ class TestStateProxyPollNonOverlap:
     async def test_overrunning_poll_does_not_run_load_cache_concurrently(
         self, hassette_with_state_proxy: "HassetteHarness", monkeypatch
     ) -> None:
-        """AC#13: an overrunning load_cache poll is suppressed at the scheduler level.
+        """An overrunning load_cache poll is suppressed at the scheduler level.
 
         Drives an overrun by holding load_cache open (asyncio.Event gate),
         dispatching a second tick while the first is in flight, and asserting:
@@ -1024,24 +1024,24 @@ class TestStateProxyPollNonOverlap:
                 # Get it — it's the same object cycled back.
                 all_jobs = await scheduler_service.get_all_jobs()
                 next_poll = next((j for j in all_jobs if j is poll_job), None)
-                assert next_poll is not None, "poll_job should have been re-enqueued (dispatch-time reschedule, FR#1)"
+                assert next_poll is not None, "poll_job should have been re-enqueued (dispatch-time reschedule)"
 
                 # Move time forward past the second tick.
                 frozen_time = next_poll.next_run.add(seconds=1)
 
-                # Dispatch tick 2 inline — guard should suppress (single mode, AC#13).
+                # Dispatch tick 2 inline — guard should suppress (single mode).
                 await scheduler_service.dispatch_and_log(next_poll)
 
                 # The guard suppressed the second invocation at the scheduler level.
                 assert poll_job.guard.suppressed >= 1, (
-                    f"Expected guard.suppressed >= 1 (single-mode scheduler suppression, AC#13), "
+                    f"Expected guard.suppressed >= 1 (single-mode scheduler suppression), "
                     f"got {poll_job.guard.suppressed}"
                 )
 
                 # load_cache was never entered by both ticks concurrently.
                 assert max_concurrent_entries[0] <= 1, (
                     f"load_cache entered concurrently (max_concurrent={max_concurrent_entries[0]}); "
-                    "scheduler-level single-mode guard should prevent this (AC#13)"
+                    "scheduler-level single-mode guard should prevent this"
                 )
             finally:
                 # Always unblock and drain the first dispatch, even if an assertion

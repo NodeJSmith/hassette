@@ -142,8 +142,6 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
 def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, live_server_ws_inject) -> None:
     """An execution_completed WS message carrying kind triggers an activity refetch.
 
-    FR#11 — unified execution_completed message.
-
     Uses live_server_ws_inject (WebSocket enabled) to:
     1. Navigate to the app detail overview, which renders RecentActivitySection.
     2. Wait for the WS indicator to reach 'Connected' (uptime_seconds received).

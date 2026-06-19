@@ -3,7 +3,7 @@
 import asyncio
 import time
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import pytest
 
@@ -90,7 +90,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 async def test_restart_cancellation_persists_cancelled_row(
     executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]
 ) -> None:
-    """A cancelled invocation lands as a status='cancelled' execution row (FR#16, AC#11).
+    """A cancelled invocation lands as a status='cancelled' execution row.
 
     ``restart`` mode cancels the in-flight child task, surfacing as ``CancelledError`` inside the
     handler invocation. ``test_cancelled_error_reraises`` proves that path queues a
@@ -424,7 +424,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     """build_record() reads session_id from self.hassette.session_id directly.
 
-    _safe_session_id() was removed in WP03. session_id is now always read directly.
+    _safe_session_id() was removed; session_id is now always read directly.
     The phased startup contract guarantees a valid session_id exists before any
     handler can fire, so RuntimeError from session_id is a programming error.
     """
@@ -478,15 +478,13 @@ async def test_persist_batch_drops_presession_records(
     )
 
     # Patch session_id to raise RuntimeError so the "session not ready" path is triggered
-    import unittest.mock
-
-    executor.hassette.session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
-    type(executor.hassette).session_id = unittest.mock.PropertyMock(side_effect=RuntimeError("no session"))
+    executor.hassette.session_id = PropertyMock(side_effect=RuntimeError("no session"))
+    type(executor.hassette).session_id = PropertyMock(side_effect=RuntimeError("no session"))
 
     await executor.persist_batch([valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
-    type(executor.hassette).session_id = unittest.mock.PropertyMock(return_value=session_id)
+    type(executor.hassette).session_id = PropertyMock(return_value=session_id)
 
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",

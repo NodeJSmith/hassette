@@ -1,6 +1,7 @@
 """Tests for CLI detail rendering: helpers, formatters, and CliFormat integration."""
 
 import json
+import time
 from typing import Annotated
 
 import pytest
@@ -149,8 +150,6 @@ class TestFmtNextRun:
         assert fmt_next_run(None) == "done"
 
     def test_delegates_to_relative_time(self) -> None:
-        import time
-
         result = fmt_next_run(time.time() - 120)
         assert "ago" in result
 

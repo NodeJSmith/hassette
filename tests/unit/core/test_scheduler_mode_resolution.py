@@ -1,4 +1,4 @@
-"""Unit tests for T01: mode parameter and ScheduledJob field-level behaviour.
+"""Unit tests for the mode parameter and ScheduledJob field-level behaviour.
 
 Tests verify:
 - ScheduledJob carries mode and guard fields (both compare=False)
@@ -14,9 +14,7 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler.classes import ScheduledJob
 from hassette.types.enums import ExecutionMode
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def _make_raw_job(**kwargs) -> ScheduledJob:
@@ -29,9 +27,7 @@ def _make_raw_job(**kwargs) -> ScheduledJob:
     )
 
 
-# ---------------------------------------------------------------------------
 # ScheduledJob field-level tests (pure unit, no async needed)
-# ---------------------------------------------------------------------------
 
 
 class TestScheduledJobModeAndGuard:

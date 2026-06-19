@@ -1215,8 +1215,8 @@ async def test_persist_execution_batch_rollback_on_exception(
     assert row[0] == 0, "No rows should be committed after rollback"
 
 
-async def test_fr4_on_conflict_target_matches_index(db: aiosqlite.Connection) -> None:
-    """FR#4 structural test: idx_listeners_natural columns exactly match ON CONFLICT target.
+async def test_on_conflict_target_matches_index(db: aiosqlite.Connection) -> None:
+    """Structural test: idx_listeners_natural columns exactly match ON CONFLICT target.
 
     Queries sqlite_master for idx_listeners_natural and asserts:
     (a) its column list is exactly (app_key, instance_index, name, topic)

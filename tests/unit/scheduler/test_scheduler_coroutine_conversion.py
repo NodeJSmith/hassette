@@ -1,13 +1,13 @@
 """Tests for Scheduler scheduling methods converted to def -> Coroutine[Any, Any, ScheduledJob].
 
 Covers:
-    FR#3  — await returns ScheduledJob with db_id set
-    FR#4  — no HassetteForgottenAwaitWarning or native coroutine warning when awaited
-    FR#9  — every public scheduling method is a plain def (not async def)
-    FR#10 — forgotten await on a delegate emits HassetteForgottenAwaitWarning
-    AC#2  — awaited method returns ScheduledJob with db_id; no warning
-    Source threading — ScheduledJob.source_location populated after conversion (add_job backfill)
-    TypeError — add_job("not-a-job") raises synchronously at call time, before handle is constructed
+    - Awaiting returns ScheduledJob with db_id set
+    - No HassetteForgottenAwaitWarning or native coroutine warning when awaited
+    - Every public scheduling method is a plain def (not async def)
+    - Forgotten await on a delegate emits HassetteForgottenAwaitWarning
+    - Awaited method returns ScheduledJob with db_id; no warning
+    - ScheduledJob.source_location populated after conversion (add_job backfill)
+    - add_job("not-a-job") raises synchronously at call time, before handle is constructed
 """
 
 import gc
@@ -21,6 +21,7 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from hassette.utils.date_utils import now
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import make_scheduler, noop
@@ -31,9 +32,7 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 
-# ---------------------------------------------------------------------------
-# FR#9 — public scheduling methods are plain def, not async def
-# ---------------------------------------------------------------------------
+# Public scheduling methods must be plain def, not async def
 
 # Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
 _PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
@@ -41,26 +40,22 @@ _PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
 
 @pytest.mark.parametrize("method_name", _PUBLIC_SCHEDULING_METHODS)
 def test_scheduling_method_is_plain_def(method_name: str) -> None:
-    """FR#9: every public scheduler scheduling method must be a plain def, not async def."""
+    """Every public scheduler scheduling method must be a plain def, not async def."""
     method = getattr(Scheduler, method_name)
     assert not inspect.iscoroutinefunction(method), (
-        f"Scheduler.{method_name} must be a plain def (not async def) after T03 conversion, "
+        f"Scheduler.{method_name} must be a plain def (not async def) after conversion, "
         f"but inspect.iscoroutinefunction returned True."
     )
 
 
-# Annotation-origin guard (AC#8) lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
+# Annotation-origin guard lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
 
 
-# ---------------------------------------------------------------------------
-# AC#2 — await returns ScheduledJob with db_id; no warnings emitted
-# ---------------------------------------------------------------------------
+# Awaiting returns ScheduledJob with db_id; no warnings emitted
 
 
 async def test_await_add_job_returns_scheduled_job() -> None:
-    """AC#2: awaiting Scheduler.add_job() returns a ScheduledJob with db_id set, no warning."""
-    from hassette.utils.date_utils import now
-
+    """Awaiting Scheduler.add_job() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -77,7 +72,7 @@ async def test_await_add_job_returns_scheduled_job() -> None:
 
 
 async def test_await_schedule_returns_scheduled_job() -> None:
-    """AC#2: awaiting Scheduler.schedule() returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting Scheduler.schedule() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -88,7 +83,7 @@ async def test_await_schedule_returns_scheduled_job() -> None:
 
 
 async def test_await_run_in_returns_scheduled_job() -> None:
-    """AC#2 (run_in): awaiting Scheduler.run_in() returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting Scheduler.run_in() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -99,7 +94,7 @@ async def test_await_run_in_returns_scheduled_job() -> None:
 
 
 async def test_await_run_every_returns_scheduled_job() -> None:
-    """AC#2 (run_every): awaiting Scheduler.run_every() returns a ScheduledJob with db_id set."""
+    """Awaiting Scheduler.run_every() returns a ScheduledJob with db_id set."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -109,7 +104,7 @@ async def test_await_run_every_returns_scheduled_job() -> None:
 
 
 async def test_await_run_daily_returns_scheduled_job() -> None:
-    """AC#2 (run_daily): awaiting Scheduler.run_daily() returns a ScheduledJob with db_id set."""
+    """Awaiting Scheduler.run_daily() returns a ScheduledJob with db_id set."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -119,7 +114,7 @@ async def test_await_run_daily_returns_scheduled_job() -> None:
 
 
 async def test_await_run_cron_returns_scheduled_job() -> None:
-    """AC#2 (run_cron): awaiting Scheduler.run_cron() returns a ScheduledJob with db_id set."""
+    """Awaiting Scheduler.run_cron() returns a ScheduledJob with db_id set."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -129,7 +124,7 @@ async def test_await_run_cron_returns_scheduled_job() -> None:
 
 
 async def test_await_run_once_returns_scheduled_job() -> None:
-    """AC#2 (run_once): awaiting Scheduler.run_once() returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting Scheduler.run_once() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -140,7 +135,7 @@ async def test_await_run_once_returns_scheduled_job() -> None:
 
 
 async def test_await_run_minutely_returns_scheduled_job() -> None:
-    """AC#2 (run_minutely): awaiting Scheduler.run_minutely() returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting Scheduler.run_minutely() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -151,7 +146,7 @@ async def test_await_run_minutely_returns_scheduled_job() -> None:
 
 
 async def test_await_run_hourly_returns_scheduled_job() -> None:
-    """AC#2 (run_hourly): awaiting Scheduler.run_hourly() returns a ScheduledJob with db_id set, no warning."""
+    """Awaiting Scheduler.run_hourly() returns a ScheduledJob with db_id set, no warning."""
     scheduler = make_scheduler()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -168,8 +163,6 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
     the handle is awaited. This test pins that: calling add_job() twice with the same
     name must not raise at call time.
     """
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     job_a = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
     job_b = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="duplicate_name")
@@ -185,15 +178,11 @@ def test_add_job_existing_name_no_valueerror_at_call_time() -> None:
         handle_b.close()
 
 
-# ---------------------------------------------------------------------------
-# FR#3 — returned handle IS a RegistrationHandle / collections.abc.Coroutine
-# ---------------------------------------------------------------------------
+# Returned handle is a RegistrationHandle / collections.abc.Coroutine
 
 
 def test_add_job_returns_registration_handle() -> None:
-    """FR#3: Scheduler.add_job() returns a RegistrationHandle before it is awaited."""
-    from hassette.utils.date_utils import now
-
+    """Scheduler.add_job() returns a RegistrationHandle before it is awaited."""
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -208,7 +197,7 @@ def test_add_job_returns_registration_handle() -> None:
 
 
 def test_schedule_returns_registration_handle() -> None:
-    """FR#3: Scheduler.schedule() returns a RegistrationHandle before it is awaited."""
+    """Scheduler.schedule() returns a RegistrationHandle before it is awaited."""
     scheduler = make_scheduler()
     handle = scheduler.schedule(noop, Every(hours=1), name="test_handle_schedule")
     assert isinstance(handle, RegistrationHandle)
@@ -216,22 +205,18 @@ def test_schedule_returns_registration_handle() -> None:
 
 
 def test_run_in_returns_registration_handle() -> None:
-    """FR#3: Scheduler.run_in() returns a RegistrationHandle before it is awaited."""
+    """Scheduler.run_in() returns a RegistrationHandle before it is awaited."""
     scheduler = make_scheduler()
     handle = scheduler.run_in(noop, 30, name="test_handle_run_in")
     assert isinstance(handle, RegistrationHandle)
     handle.close()
 
 
-# ---------------------------------------------------------------------------
-# FR#10 — forgotten await emits HassetteForgottenAwaitWarning
-# ---------------------------------------------------------------------------
+# Dropping un-awaited handle emits HassetteForgottenAwaitWarning
 
 
 def test_forgotten_await_on_add_job_warns() -> None:
-    """FR#1 / FR#10: dropping un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
-    from hassette.utils.date_utils import now
-
+    """Dropping un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     job = ScheduledJob(
         owner_id="test_owner",
@@ -246,7 +231,7 @@ def test_forgotten_await_on_add_job_warns() -> None:
 
 
 def test_forgotten_await_on_schedule_warns() -> None:
-    """FR#10: dropping un-awaited Scheduler.schedule() handle emits HassetteForgottenAwaitWarning."""
+    """Dropping un-awaited Scheduler.schedule() handle emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = scheduler.schedule(noop, Every(hours=1), name="forgot_schedule")
@@ -255,7 +240,7 @@ def test_forgotten_await_on_schedule_warns() -> None:
 
 
 def test_forgotten_await_on_run_in_warns() -> None:
-    """FR#10: forgotten await on run_in (two-hop delegate) emits HassetteForgottenAwaitWarning."""
+    """Forgotten await on run_in (two-hop delegate) emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = scheduler.run_in(noop, 30, name="forgot_run_in")
@@ -264,7 +249,7 @@ def test_forgotten_await_on_run_in_warns() -> None:
 
 
 def test_forgotten_await_on_run_every_warns() -> None:
-    """FR#10: forgotten await on run_every emits HassetteForgottenAwaitWarning."""
+    """Forgotten await on run_every emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = scheduler.run_every(noop, minutes=5, name="forgot_run_every")
@@ -273,7 +258,7 @@ def test_forgotten_await_on_run_every_warns() -> None:
 
 
 def test_forgotten_await_on_run_daily_warns() -> None:
-    """FR#10: forgotten await on run_daily emits HassetteForgottenAwaitWarning."""
+    """Forgotten await on run_daily emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = scheduler.run_daily(noop, at="08:00", name="forgot_run_daily")
@@ -291,7 +276,7 @@ def test_forgotten_await_on_run_daily_warns() -> None:
     ],
 )
 def test_forgotten_await_on_remaining_delegates_warns(call) -> None:
-    """FR#10: forgotten await on every remaining run_* delegate emits HassetteForgottenAwaitWarning."""
+    """Forgotten await on every remaining run_* delegate emits HassetteForgottenAwaitWarning."""
     scheduler = make_scheduler()
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = call(scheduler)
@@ -299,9 +284,7 @@ def test_forgotten_await_on_remaining_delegates_warns(call) -> None:
         gc.collect()
 
 
-# ---------------------------------------------------------------------------
 # Source threading — ScheduledJob.source_location is non-empty via add_job backfill
-# ---------------------------------------------------------------------------
 
 
 async def test_source_location_backfilled_via_schedule() -> None:
@@ -325,8 +308,6 @@ async def test_source_location_backfilled_via_run_in() -> None:
 
 async def test_source_location_preserved_when_already_set() -> None:
     """add_job backfill does NOT overwrite source_location already set on the job."""
-    from hassette.utils.date_utils import now
-
     scheduler = make_scheduler()
     pre_set = "custom_file.py:42"
     job = ScheduledJob(
@@ -343,9 +324,7 @@ async def test_source_location_preserved_when_already_set() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
 # TypeError on add_job("not-a-job") — synchronous, at call time
-# ---------------------------------------------------------------------------
 
 
 def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
@@ -357,9 +336,7 @@ def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
             scheduler.add_job("not-a-job")  # pyright: ignore[reportArgumentType]
 
 
-# ---------------------------------------------------------------------------
 # Calling without awaiting does NOT mutate scheduler state (no job registered)
-# ---------------------------------------------------------------------------
 
 
 def test_unawaited_schedule_does_not_register_job() -> None:

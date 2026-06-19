@@ -16,7 +16,7 @@ DEBUG = bool(os.environ.get("GEN_REF_DEBUG"))
 # Seeded from hassette.__all__ (Tier A) plus curated additions (Tier B).
 PUBLIC_MODULES: frozenset[str] = frozenset(
     {
-        # --- Tier A: hassette.__all__ entries ---
+        # Tier A: hassette.__all__ entries
         "hassette.app",  # App, AppConfig, AppSync, only_app
         "hassette.api",  # Api
         "hassette.api.sync",  # ApiSyncFacade
@@ -36,11 +36,11 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.event_handling.conditions",  # C / conditions
         "hassette.event_handling.dependencies",  # D / dependencies
         "hassette.event_handling.predicates",  # P / predicates
-        # --- Tier B: curated additions beyond __all__ ---
+        # Tier B: curated additions beyond __all__
         "hassette.models.states.base",  # BaseState, StringBaseState, NumericBaseState, etc.
         "hassette.scheduler.classes",  # ScheduledJob
         "hassette.test_utils",  # AppTestHarness, RecordingApi, event factories, etc.
-        # --- Tier C: autoref targets in narrative docs ---
+        # Tier C: autoref targets in narrative docs
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
         # ForgottenAwaitBehavior, ResourceStatus, RestartType, and other framework enums
         "hassette.types.enums",

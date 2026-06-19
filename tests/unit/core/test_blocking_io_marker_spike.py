@@ -1,7 +1,7 @@
-"""Watchdog-attribution spike for blocking-IO detection (T02).
+"""Watchdog-attribution spike for blocking-IO detection.
 
-Resolves the make-or-break design question (design.md `## Open Questions` → "watchdog
-mechanism"): which Tier 1 mechanism attributes a loop freeze to the *correct* app.
+Resolves the make-or-break design question: which Tier 1 mechanism attributes a loop
+freeze to the *correct* app.
 
 - **Candidate A** — an in-loop ``loop.call_later`` heartbeat. It can only run when the loop
   is free, so it fires *after* the freeze clears, by which point the marker is already cleared
@@ -9,14 +9,14 @@ mechanism"): which Tier 1 mechanism attributes a loop freeze to the *correct* ap
 - **Candidate B** — an off-loop daemon thread. It reads the thread-visible marker *during* the
   freeze (the handler's ``finally`` has not run), so it names the blocker by construction.
 
-These tests prove B wins under the AC#2 condition (another execution scheduled immediately
-after the blocking one) and pin the marker invariants T03 builds on. The Candidate-A code here
-is test-scoped contrast, not a production prototype — T03 ships only the daemon watchdog.
+These tests prove B wins when another execution is scheduled immediately after a blocking one,
+and pin the marker invariants the daemon watchdog builds on. The Candidate-A code here
+is test-scoped contrast, not a production prototype — only the daemon watchdog is shipped.
 
 Covers:
-    FR#4 — attribution names the execution that held the loop during the stall, not the next one
-    AC#2 — a time.sleep block with another execution scheduled immediately after is attributed
-           to the time.sleep caller's app
+    - attribution names the execution that held the loop during the stall, not the next one
+    - a time.sleep block with another execution scheduled immediately after is attributed
+      to the time.sleep caller's app
 """
 
 import asyncio
@@ -29,10 +29,8 @@ from hassette.core.command_executor import ExecutionMarker
 
 from .conftest import make_executor
 
-# ---------------------------------------------------------------------------
 # Deterministic invariant guard (no timing) — the marker is cross-thread readable
-# while bound and cleared on unbind. This is the stable guarantee T03 inherits.
-# ---------------------------------------------------------------------------
+# while bound and cleared on unbind. This is the stable guarantee the daemon watchdog inherits.
 
 
 def test_marker_published_on_bind_and_cleared_on_unbind() -> None:
@@ -55,7 +53,7 @@ def test_marker_published_on_bind_and_cleared_on_unbind() -> None:
 
 def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     """A reader that samples the marker *during* a block sees the blocker; a reader that samples
-    *after* unbind sees None, then the next execution — never the blocker (FR#4, AC#2).
+    *after* unbind sees None, then the next execution — never the blocker.
 
     Models the timing difference between the two candidates with deterministic gates rather than
     wall-clock sleeps, so the invariant is pinned without flakiness.
@@ -101,11 +99,9 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     assert candidate_a_if_later.execution_id == next_exec_id
 
 
-# ---------------------------------------------------------------------------
 # Realistic spike — a real event loop, a real time.sleep freezing the loop thread,
 # a real loop.call_later heartbeat (Candidate A) and a real daemon thread (Candidate B).
 # This is the empirical evidence behind the design decision.
-# ---------------------------------------------------------------------------
 
 
 # A real time.sleep on the loop thread would freeze a shared session-scoped loop and could
@@ -113,7 +109,7 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
     """With a real time.sleep freezing the loop, the daemon thread (B) names the blocker and the
-    in-loop heartbeat (A) cannot — it is starved during the freeze (FR#4, AC#2)."""
+    in-loop heartbeat (A) cannot — it is starved during the freeze."""
     executor = make_executor()
     executor.hassette.app_handler.get.return_value = None
     loop = asyncio.get_running_loop()

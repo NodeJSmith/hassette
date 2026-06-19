@@ -11,7 +11,7 @@ Tests cover:
 - ApiCall extraction to api_call module
 - StrEnum coercion for turn_on, turn_off, toggle_service
 - Tailored __getattr__ messages
-- get_entity_or_none BaseEntity subclass path (regression for WP01 inline refactor)
+- get_entity_or_none BaseEntity subclass path (regression for inline refactor)
 """
 
 from enum import StrEnum
@@ -490,7 +490,7 @@ async def test_reset_replaces_calls_list_not_in_place():
 async def test_get_entity_or_none_returns_base_entity_subclass():
     """get_entity_or_none with a BaseEntity subclass model returns an instance of that subclass.
 
-    Regression test for the WP01 inline refactor — pins the issubclass(model, BaseEntity)
+    Regression test for the inline refactor — pins the issubclass(model, BaseEntity)
     branch behavior that was previously delegated via await self.get_entity().
     """
     state_dict = make_state_dict(entity_id="light.kitchen", state="on", attributes={"brightness": 200})

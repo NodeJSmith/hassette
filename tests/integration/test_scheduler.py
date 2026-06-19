@@ -443,7 +443,7 @@ def test_resolve_trigger_none_job() -> None:
 async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: HassetteHarness) -> None:
     """job.cancel() delegates to Scheduler.cancel_job(), which spawns mark_job_cancelled(db_id).
 
-    Verifies AC6: the back-reference cancel path produces a durable DB write
+    The back-reference cancel path produces a durable DB write
     (cancelled_at IS NOT NULL). Verified via the mock_executor call record since
     the integration harness uses a mock executor at the repository boundary.
     """
@@ -481,7 +481,7 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
 async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: HassetteHarness) -> None:
     """job.cancel() does not raise when db_id is None (registration not yet complete).
 
-    Verifies AC5: the cancel path is safe to call before DB registration completes.
+    The cancel path is safe to call before DB registration completes.
     No mark_job_cancelled DB write should be spawned when db_id is None.
     """
     scheduler_service = hassette_with_scheduler.scheduler_service

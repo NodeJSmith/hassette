@@ -1,28 +1,29 @@
 """End-to-end integration tests for blocking-IO detection: executor-offload and ignore behavior.
 
 Covers:
-    AC#4 (FR#8): A sync handler — run by the framework on a WORKER thread via the executor —
+    Executor offload: A sync handler — run by the framework on a WORKER thread via the executor —
         that performs blocking I/O must produce ZERO HassetteBlockingIOWarnings AND ZERO
         blocking_events rows.  The thread-id gate in both Tier 1 and Tier 2 is what makes
         this true; this test proves that gate holds end-to-end.
 
-    AC#6 (row-suppression half, FR#7): An app configured with blocking_io_behavior='ignore'
+    Ignore behavior (row-suppression): An app configured with blocking_io_behavior='ignore'
         that genuinely blocks the loop (time.sleep on the loop thread, inside an async handler)
         produces NEITHER a warning NOR a blocking_events row.  The resolver unit-tests live in
-        T01; this test is the end-to-end persistence half.
+        a separate suite; this test is the end-to-end persistence half.
 
 Threading model:
-    Both tests run on the same asyncio event loop (loop thread = the test thread).  For AC#4
-    the blocking time.sleep is explicitly dispatched onto a worker thread (mimicking what
-    make_async_adapter does for sync handlers); for AC#6 the sleep fires on the loop thread
-    itself but the behavior resolver returns IGNORE so nothing is recorded.
+    Both tests run on the same asyncio event loop (loop thread = the test thread).  For the
+    executor-offload tests the blocking time.sleep is explicitly dispatched onto a worker thread
+    (mimicking what make_async_adapter does for sync handlers); for the ignore-behavior tests
+    the sleep fires on the loop thread itself but the behavior resolver returns IGNORE so
+    nothing is recorded.
 
 Mock strategy:
-    AC#4 tests use the telemetry conftest's ``db``/``db_hassette`` fixtures (sealed mock)
-    because they only need the thread-id gate to exclude worker-thread calls — the resolver
-    is never invoked at all.
+    Executor-offload tests use the telemetry conftest's ``db``/``db_hassette`` fixtures (sealed
+    mock) because they only need the thread-id gate to exclude worker-thread calls — the
+    resolver is never invoked at all.
 
-    AC#6 tests use an unsealed MagicMock with explicit resolver wiring so that
+    Ignore-behavior tests use an unsealed MagicMock with explicit resolver wiring so that
     ``resolve_blocking_io_behavior`` can traverse the mock's attribute chain and return
     IGNORE.  This mirrors the unit-test approach in ``test_protect_loop_monkeypatch.py``.
 """
@@ -48,9 +49,7 @@ from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
-# ---------------------------------------------------------------------------
 # Shared helpers
-# ---------------------------------------------------------------------------
 
 
 async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
@@ -117,9 +116,7 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     return h
 
 
-# ---------------------------------------------------------------------------
-# Fixtures — AC#4: use the telemetry conftest's sealed db_hassette
-# ---------------------------------------------------------------------------
+# Fixtures — executor-offload tests: use the telemetry conftest's sealed db_hassette
 
 
 @pytest.fixture
@@ -143,14 +140,12 @@ async def executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
-# Fixtures — AC#6: unsealed mock with IGNORE wiring + dedicated DB
-# ---------------------------------------------------------------------------
+# Fixtures — ignore-behavior tests: unsealed mock with IGNORE wiring + dedicated DB
 
 
 @pytest.fixture
 async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseService, "MagicMock", int]]:
-    """DatabaseService + unsealed hassette mock + session_id for AC#6 tests."""
+    """DatabaseService + unsealed hassette mock + session_id for ignore-behavior tests."""
     h = _make_ignore_hassette(premigrated_db_path)
     db_service = DatabaseService(h, parent=None)
     await db_service.on_initialize()
@@ -182,13 +177,11 @@ async def ignore_executor(
         await exc.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
-# AC#4 / FR#8: Sync handler (executor offload) — zero warnings, zero rows
-# ---------------------------------------------------------------------------
+# Executor offload: sync handler on worker thread — zero warnings, zero rows
 
 
 class TestExecutorOffloadProducesNoBlocking:
-    """Executor-offloaded sync handlers must never trigger detection (FR#8, AC#4).
+    """Executor-offloaded sync handlers must never trigger blocking-IO detection.
 
     The mechanism: both Tier 1 and Tier 2 gate on the loop thread id.  A sync
     handler runs on a worker thread via run_in_executor, not the loop thread, so
@@ -201,7 +194,7 @@ class TestExecutorOffloadProducesNoBlocking:
         db: tuple[DatabaseService, int],
         loop_thread_id: int,
     ) -> None:
-        """time.sleep on a WORKER thread produces zero warnings and zero DB rows (AC#4).
+        """time.sleep on a WORKER thread produces zero warnings and zero DB rows.
 
         Tier 2 is installed with the loop_thread_id of the test (= the loop thread).
         A worker thread runs time.sleep — the thread-id gate excludes it, so no
@@ -264,7 +257,7 @@ class TestExecutorOffloadProducesNoBlocking:
         db: tuple[DatabaseService, int],
         loop_thread_id: int,
     ) -> None:
-        """Worker-thread sleep keeps the loop responsive — Tier 1 never fires (AC#4, FR#9).
+        """Worker-thread sleep keeps the loop responsive — Tier 1 never fires.
 
         The loop thread is free while the executor runs the sleep.  The watchdog's
         in-loop tick callback keeps advancing, so no lag episode is opened.
@@ -339,17 +332,15 @@ class TestExecutorOffloadProducesNoBlocking:
         assert len(rows) == 0, f"Expected zero blocking_events rows for worker-thread sleep, got {len(rows)}: {rows}"
 
 
-# ---------------------------------------------------------------------------
-# AC#6 / FR#7: Per-app 'ignore' behavior — zero warnings, zero rows
-# ---------------------------------------------------------------------------
+# Per-app 'ignore' behavior — zero warnings, zero rows
 
 
 class TestIgnoreBehaviorSuppressesRowAndWarning:
-    """Per-app blocking_io_behavior='ignore' suppresses both the warning and the DB row (AC#6).
+    """Per-app blocking_io_behavior='ignore' suppresses both the warning and the DB row.
 
-    The resolver unit-tests (T01) prove resolution order.  This test proves the
-    end-to-end persistence half: even when a blocking call genuinely occurs on the
-    loop thread, 'ignore' means nothing is recorded.
+    The resolver unit-tests prove resolution order.  This test proves the end-to-end
+    persistence half: even when a blocking call genuinely occurs on the loop thread,
+    'ignore' means nothing is recorded.
 
     The hassette mock is wired with ``app_config.blocking_io_behavior = IGNORE`` so
     the resolver finds IGNORE on the per-app path without needing to traverse the

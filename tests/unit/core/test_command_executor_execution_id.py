@@ -1,4 +1,4 @@
-"""Tests for ContextVar execution_id wiring in CommandExecutor (WP02)."""
+"""Tests for ContextVar execution_id wiring in CommandExecutor."""
 
 import asyncio
 import uuid

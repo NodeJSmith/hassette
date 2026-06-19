@@ -20,9 +20,9 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
-# ---------------------------------------------------------------------------
+from pydantic import TypeAdapter
+
 # Bootstrap a minimal FastAPI app without connecting to Home Assistant
-# ---------------------------------------------------------------------------
 
 
 def _create_stub_hassette() -> MagicMock:
@@ -42,14 +42,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from hassette.web.app import create_fastapi_app
-    from hassette.web.models import WsServerMessage
+    from hassette.web.app import create_fastapi_app  # lazy-import: defers heavy hassette.web app import to call time
+    from hassette.web.models import WsServerMessage  # lazy-import: defers heavy hassette.web app import to call time
 
     repo_root = Path(__file__).resolve().parent.parent
     frontend_dir = repo_root / "frontend"
     frontend_dir.mkdir(exist_ok=True)
 
-    # --- OpenAPI schema ---
+    # OpenAPI schema
     stub = _create_stub_hassette()
     app = create_fastapi_app(stub)
     openapi = app.openapi()
@@ -57,9 +57,7 @@ def main() -> None:
     openapi_path.write_text(json.dumps(openapi, indent=2) + "\n")
     print(f"Wrote {openapi_path}")
 
-    # --- WebSocket message schema ---
-    from pydantic import TypeAdapter
-
+    # WebSocket message schema
     adapter = TypeAdapter(WsServerMessage)
     ws_schema = adapter.json_schema()
 
@@ -67,7 +65,7 @@ def main() -> None:
     ws_schema_path.write_text(json.dumps(ws_schema, indent=2) + "\n")
     print(f"Wrote {ws_schema_path}")
 
-    # --- TypeScript types (optional) ---
+    # TypeScript types (optional)
     if args.types:
         scripts_dir = repo_root / "scripts"
 

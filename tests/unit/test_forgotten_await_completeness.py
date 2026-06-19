@@ -1,13 +1,13 @@
 """Completeness guard and annotation-origin guard for the forgotten-await protection feature.
 
 Covers:
-    FR#9  — canonical protected-method list; completeness/drift test (AC#6)
-    AC#6  — parametrized warning test over the full canonical list (primaries + delegates)
-            PLUS the two-set completeness check:
-              detected is a subset of (canonical | DOCUMENTED_EXCLUSIONS)
-              canonical and DOCUMENTED_EXCLUSIONS are disjoint
-    AC#8  — annotation-origin guard: every canonical method's return annotation
-            __origin__ is collections.abc.Coroutine
+    - Canonical protected-method list; completeness/drift test
+    - Parametrized warning test over the full canonical list (primaries + delegates)
+      PLUS the two-set completeness check:
+        detected is a subset of (canonical | DOCUMENTED_EXCLUSIONS)
+        canonical and DOCUMENTED_EXCLUSIONS are disjoint
+    - Annotation-origin guard: every canonical method's return annotation
+      __origin__ is collections.abc.Coroutine
 
 This file is the single source of truth for the canonical protected-method list.
 The per-class conversion tests (test_bus_coroutine_conversion.py, etc.) complement
@@ -24,21 +24,20 @@ import pytest
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
+from hassette.bus.listeners import Listener
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
+from hassette.utils.date_utils import now
 from tests.unit.conftest import make_api, make_mock_parent
 
-# ---------------------------------------------------------------------------
-# Canonical protected-method list (FR#9, AC#6)
-# Single source of truth consumed by every guard in this file.
-# ---------------------------------------------------------------------------
+# Canonical protected-method list — single source of truth consumed by every guard in this file.
 
 #: Every public registration/scheduling/fire-and-forget method across Bus,
 #: Scheduler, and Api that is protected by the forgotten-await mechanism.
 #: Includes primaries (Shape A, hold the guard_await) and delegates (Shape B,
-#: thread the handle up from the primary).  See design/071 FR#9 for the
+#: thread the handle up from the primary).  See design/071 for the
 #: full membership rationale.
 CANONICAL_PROTECTED: dict[type, set[str]] = {
     Bus: {
@@ -205,9 +204,7 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Detection helper (same OR-semantics as the parity tests and T05)
-# ---------------------------------------------------------------------------
+# Detection helper (same OR-semantics as the parity tests)
 
 
 def _is_detected(cls: type, name: str) -> bool:
@@ -242,13 +239,11 @@ def _is_detected(cls: type, name: str) -> bool:
     return getattr(ret, "__origin__", None) is collections.abc.Coroutine
 
 
-# ---------------------------------------------------------------------------
-# Canonical list completeness/disjointness guard (AC#6 — part b)
-# ---------------------------------------------------------------------------
+# Canonical list completeness/disjointness guard
 
 
 class TestCompletenessGuard:
-    """FR#9/AC#6 — enumeration-based drift guard.
+    """Enumeration-based drift guard for the canonical protected-method list.
 
     Fails if:
     (a) A new public method on Bus/Scheduler/Api is detected but absent from
@@ -324,14 +319,11 @@ class TestCompletenessGuard:
         )
 
 
-# ---------------------------------------------------------------------------
-# Annotation-origin guard (AC#8) — cross-class, canonical list
-# ---------------------------------------------------------------------------
+# Annotation-origin guard — cross-class, canonical list
 
 
 class TestAnnotationOriginGuard:
-    """AC#8 — every method in the canonical list must have return annotation
-    __origin__ == collections.abc.Coroutine.
+    """Every method in the canonical list must have return annotation __origin__ == collections.abc.Coroutine.
 
     Fails if a future edit narrows an annotation to Awaitable or a concrete type,
     which would silently kill Pyright's reportUnusedCoroutine.  See design/071.
@@ -366,13 +358,11 @@ class TestAnnotationOriginGuard:
         assert origin is collections.abc.Coroutine, (
             f"{cls.__name__}.{method_name} return annotation __origin__ is {origin!r}, "
             f"expected collections.abc.Coroutine.  Narrowing to Awaitable or a concrete "
-            f"type silently kills Pyright's reportUnusedCoroutine.  See design/071 AC#8."
+            f"type silently kills Pyright's reportUnusedCoroutine.  See design/071."
         )
 
 
-# ---------------------------------------------------------------------------
-# Parametrized warning test over the full canonical list (AC#6 — part a)
-# ---------------------------------------------------------------------------
+# Parametrized warning test over the full canonical list
 #
 # Each canonical method must emit HassetteForgottenAwaitWarning when its handle
 # is dropped un-awaited.  The test builds a minimal instance for each class
@@ -386,10 +376,9 @@ class TestAnnotationOriginGuard:
 # deliberate dual-path coverage: per-class tests exercise real fixtures
 # (mock_add_listener/conftest bus), while this guard exercises lean stubs
 # across the full canonical list — catching drift that per-class tests miss.
-# ---------------------------------------------------------------------------
 
 
-# --- Bus fixtures ---
+# Bus fixtures
 
 
 def _make_bus() -> Bus:
@@ -438,7 +427,7 @@ def _bus_call(method_name: str):
 # add_listener is handled separately (requires a Listener object)
 _BUS_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener"]
 
-# --- Scheduler fixtures ---
+# Scheduler fixtures
 
 
 def _make_scheduler() -> Scheduler:
@@ -485,7 +474,7 @@ def _sched_call(method_name: str):
 # add_job is handled separately (requires a ScheduledJob object)
 _SCHED_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job"]
 
-# --- Api fixtures ---
+# Api fixtures
 
 _API_METHOD_CALLS: dict[str, object] = {
     "call_service": lambda api: api.call_service("light", "turn_on"),
@@ -497,7 +486,7 @@ _API_METHOD_CALLS: dict[str, object] = {
 }
 
 
-# --- Build parametrized cases ---
+# Build parametrized cases
 
 
 def _build_warning_cases() -> list[pytest.param]:
@@ -516,7 +505,7 @@ def _build_warning_cases() -> list[pytest.param]:
 
 @pytest.mark.parametrize(("resource", "call_fn"), _build_warning_cases())
 def test_canonical_method_warns_on_forgotten_await(resource: str, call_fn) -> None:
-    """AC#6a: every canonical method emits HassetteForgottenAwaitWarning when dropped un-awaited.
+    """Every canonical method emits HassetteForgottenAwaitWarning when dropped un-awaited.
 
     Single assertion per method — no warning-type split.  Primaries and
     two-hop delegates alike must fire the attributed runtime warning.
@@ -534,13 +523,11 @@ def test_canonical_method_warns_on_forgotten_await(resource: str, call_fn) -> No
         gc.collect()
 
 
-# --- Special-case methods that need different argument construction ---
+# Special-case methods that need different argument construction
 
 
 def test_bus_add_listener_warns_on_forgotten_await() -> None:
-    """AC#6a (Bus.add_listener): dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
-    from hassette.bus.listeners import Listener
-
+    """Dropping an un-awaited Bus.add_listener() handle emits HassetteForgottenAwaitWarning."""
     bus = _make_bus()
     # Pass a MagicMock as the Listener — add_listener only uses it in _resolve_and_register's
     # async body (the handle wraps that coroutine); the forgotten-await check fires
@@ -554,9 +541,7 @@ def test_bus_add_listener_warns_on_forgotten_await() -> None:
 
 
 def test_scheduler_add_job_warns_on_forgotten_await() -> None:
-    """AC#6a (Scheduler.add_job): dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
-    from hassette.utils.date_utils import now
-
+    """Dropping an un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
     sched = _make_scheduler()
     job = ScheduledJob(owner_id="test_app.0", next_run=now(), job=_sched_noop, name="completeness_add_job")
     with pytest.warns(HassetteForgottenAwaitWarning):
@@ -565,7 +550,7 @@ def test_scheduler_add_job_warns_on_forgotten_await() -> None:
         gc.collect()
 
 
-# --- Suppress stray HassetteForgottenAwaitWarning from gc.collect() at teardown ---
+# Suppress stray HassetteForgottenAwaitWarning from gc.collect() at teardown
 
 
 @pytest.fixture(autouse=True)

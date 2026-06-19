@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI guard: detect deterministic AI-writing tells in src/ comments and docstrings.
+"""CI guard: detect deterministic AI-writing tells in comments and docstrings.
 
 This is the mechanizable subset of a clean-code review — the textual tells that a
 regex can catch with high precision, not the structural judgment a human (or LLM)
@@ -35,7 +35,7 @@ from lint_helpers import docstring_spans, iter_py_files, run_check
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories scanned, relative to the repo root.
-SCAN_DIRS: list[str] = ["src"]
+SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
 # A comment whose content (after the leading '#') is a bare rule of decoration. The
 # 4+ floor avoids flagging a stray '# ---' a writer might use as a light separator.
@@ -108,7 +108,7 @@ def main() -> int:
         iter_paths(),
         REPO_ROOT,
         check_file,
-        summary="AI-writing tell(s) found in src/",
+        summary="AI-writing tell(s) found:",
         ok=f"no AI-writing tells found under {', '.join(SCAN_DIRS)}/.",
     )
 

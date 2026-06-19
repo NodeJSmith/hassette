@@ -1,6 +1,7 @@
 """HA core source resolution, startup checks, and domain discovery."""
 
 import ast
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,8 +27,6 @@ class HASource:
 
     def cleanup(self) -> None:
         if self._cleanup_dir is not None:
-            import shutil
-
             shutil.rmtree(self._cleanup_dir, ignore_errors=True)
 
 

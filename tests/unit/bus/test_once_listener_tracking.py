@@ -1,12 +1,12 @@
-"""Tests for T04: once-listener collision tracking and fire-time removal callback.
+"""Tests for once-listener collision tracking and fire-time removal callback.
 
 Verify criteria:
-- FR#6 / AC#5: Two once=True listeners with same name+topic and default if_exists raise
+- Two once=True listeners with same name+topic and default if_exists raise
   DuplicateListenerError; the once-exemption in _resolve_collision is removed.
-- FR#7 / AC#6: After a once-listener fires, its natural key is released from
+- After a once-listener fires, its natural key is released from
   _registered_listeners (a subsequent registration under the same key succeeds).
-- FR#7: Bus.on_shutdown deregisters the removal callback from BusService.
-- FR#9 / AC#8: When a once-listener fires, its database row has cancelled_at set.
+- Bus.on_shutdown deregisters the removal callback from BusService.
+- When a once-listener fires, its database row has cancelled_at set.
 """
 
 import typing
@@ -31,11 +31,11 @@ async def handler_b(event) -> None:
     pass
 
 
-# FR#6 / AC#5 — once-listeners participate in collision tracking
+# once-listeners participate in collision tracking
 
 
 async def test_once_listeners_collide_with_duplicate_error(bus: "Bus") -> None:
-    """AC#5: Two once=True listeners with same name+topic raise DuplicateListenerError."""
+    """Two once=True listeners with same name+topic raise DuplicateListenerError."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
         with pytest.raises(DuplicateListenerError):
@@ -43,7 +43,7 @@ async def test_once_listeners_collide_with_duplicate_error(bus: "Bus") -> None:
 
 
 async def test_once_listener_key_tracked_in_registered_listeners(bus: "Bus") -> None:
-    """FR#6: A once=True listener's natural key is stored in _registered_listeners."""
+    """A once=True listener's natural key is stored in _registered_listeners."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
 
@@ -52,7 +52,7 @@ async def test_once_listener_key_tracked_in_registered_listeners(bus: "Bus") -> 
 
 
 async def test_once_if_exists_replace_works(bus: "Bus") -> None:
-    """FR#6: once=True with if_exists='replace' cancels old and registers new."""
+    """once=True with if_exists='replace' cancels old and registers new."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="once_listener", once=True)
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True, if_exists="replace")
@@ -61,7 +61,7 @@ async def test_once_if_exists_replace_works(bus: "Bus") -> None:
     assert sub2.listener is not sub1.listener
 
 
-# FR#7 / AC#6 — once-fire releases the key (new registration succeeds)
+# once-fire releases the key (new registration succeeds)
 
 
 def _get_bus_removal_callback(bus: "Bus"):
@@ -78,7 +78,7 @@ def _get_bus_removal_callback(bus: "Bus"):
 
 
 async def test_once_key_released_after_fire(bus: "Bus") -> None:
-    """AC#6: After a once-listener fires, a new registration under the same key succeeds."""
+    """After a once-listener fires, a new registration under the same key succeeds."""
     cancelled_db_ids: list[int] = []
     call_count = 0
 
@@ -134,11 +134,11 @@ async def test_once_key_released_after_fire(bus: "Bus") -> None:
         bus.bus_service.mark_listener_cancelled = original_mark
 
 
-# FR#9 / AC#8 — once-fire spawns mark_listener_cancelled
+# once-fire spawns mark_listener_cancelled
 
 
 async def test_once_fire_spawns_mark_listener_cancelled(bus: "Bus") -> None:
-    """AC#8: When a once-listener fires (removal callback invoked), cancelled_at is set."""
+    """When a once-listener fires (removal callback invoked), cancelled_at is set."""
     cancelled_db_ids: list[int] = []
     db_id_assigned = 77
 
@@ -187,7 +187,7 @@ async def test_once_fire_spawns_mark_listener_cancelled(bus: "Bus") -> None:
 
 
 async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
-    """FR#7: Removal callback does not crash or spawn when db_id is not set."""
+    """Removal callback does not crash or spawn when db_id is not set."""
     spawned_coros: list = []
     original_spawn = bus.bus_service.task_bucket.spawn
 
@@ -224,11 +224,11 @@ async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
     assert len(spawned_coros) == 0, "No spawn when db_id is None"
 
 
-# FR#7 — on_shutdown deregisters the removal callback
+# on_shutdown deregisters the removal callback
 
 
 async def test_shutdown_deregisters_removal_callback(bus: "Bus") -> None:
-    """FR#7: Bus.on_shutdown deregisters the removal callback from BusService."""
+    """Bus.on_shutdown deregisters the removal callback from BusService."""
     # The bus should have registered its callback in __init__
     callback_before = _get_bus_removal_callback(bus)
     assert callback_before is not None, "Bus must register a removal callback on BusService in __init__"
@@ -241,7 +241,7 @@ async def test_shutdown_deregisters_removal_callback(bus: "Bus") -> None:
 
 
 async def test_callback_no_op_when_key_already_gone(bus: "Bus") -> None:
-    """FR#7: Invoking the removal callback after its key is already gone is a safe no-op.
+    """Invoking the removal callback after its key is already gone is a safe no-op.
 
     This is the tolerance that makes orphaned once-fires after hot-reload safe: when a
     listener's natural key has already been popped (by a prior removal, or because a new

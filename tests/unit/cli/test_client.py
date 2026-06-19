@@ -14,9 +14,7 @@ from hassette.test_utils.web_helpers import make_manifest_list_response, make_ma
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import capture_stderr
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 class SimpleModel(BaseModel):
@@ -58,9 +56,7 @@ def _make_manifest_list(instances: list[AppInstanceResponse]):
     return make_manifest_list_response(manifests=[manifest])
 
 
-# ---------------------------------------------------------------------------
 # Base URL construction & address substitution
-# ---------------------------------------------------------------------------
 
 
 class TestBaseUrl:
@@ -85,9 +81,7 @@ class TestBaseUrl:
         assert client.base_url == "http://192.168.1.5:9000"
 
 
-# ---------------------------------------------------------------------------
 # Successful deserialization
-# ---------------------------------------------------------------------------
 
 
 class TestSuccessfulRequests:
@@ -109,9 +103,7 @@ class TestSuccessfulRequests:
         assert "web_api" in result
 
 
-# ---------------------------------------------------------------------------
 # tolerate_503: 503 with a valid body is deserialized, not treated as an error
-# ---------------------------------------------------------------------------
 
 
 class TestTolerate503:
@@ -161,9 +153,7 @@ class TestTolerate503:
         assert exc_info.value.code == 1
 
 
-# ---------------------------------------------------------------------------
 # HTTP error handling (human mode)
-# ---------------------------------------------------------------------------
 
 
 class TestHttpErrorsHumanMode:
@@ -201,9 +191,7 @@ class TestHttpErrorsHumanMode:
         assert captured.out == ""
 
 
-# ---------------------------------------------------------------------------
 # HTTP error handling (json mode)
-# ---------------------------------------------------------------------------
 
 
 class TestHttpErrorsJsonMode:
@@ -232,9 +220,7 @@ class TestHttpErrorsJsonMode:
         assert parsed["error"] is True
 
 
-# ---------------------------------------------------------------------------
 # Network errors (connection refused / timeout)
-# ---------------------------------------------------------------------------
 
 
 class TestNetworkErrors:
@@ -287,9 +273,7 @@ class TestNetworkErrors:
         assert parsed["status"] is None
 
 
-# ---------------------------------------------------------------------------
 # App-key URL routing
-# ---------------------------------------------------------------------------
 
 
 class TestAppKeyRouting:
@@ -328,9 +312,7 @@ class TestAppKeyRouting:
         assert any("/api/telemetry/app/my_app/listeners" in u for u in captured_urls)
 
 
-# ---------------------------------------------------------------------------
 # --instance flag
-# ---------------------------------------------------------------------------
 
 
 class TestInstanceRouting:
@@ -448,9 +430,7 @@ class TestInstanceRouting:
         assert "--app" in buf.getvalue()
 
 
-# ---------------------------------------------------------------------------
 # --debug flag
-# ---------------------------------------------------------------------------
 
 
 class TestDebugMode:

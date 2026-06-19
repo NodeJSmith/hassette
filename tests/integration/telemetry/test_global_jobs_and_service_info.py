@@ -1,4 +1,4 @@
-"""Tests for T03: global jobs endpoint, ServiceInfoResponse extension.
+"""Tests for global jobs endpoint and ServiceInfoResponse extension.
 
 Covers:
 - get_all_jobs_summary() returns jobs from multiple apps, no app_key filter

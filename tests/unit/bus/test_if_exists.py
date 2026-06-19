@@ -1,19 +1,19 @@
-"""Tests for if_exists="error"|"skip"|"replace" on bus registration (T03).
+"""Tests for if_exists="error"|"skip"|"replace" on bus registration.
 
 Covers:
-- FR#1: if_exists accepted on on(), add_listener, and **opts methods (on_call_service)
-- FR#2: if_exists="error" (and omission) raises DuplicateListenerError
-- FR#3: if_exists="skip" with matching config returns subscription; one listener left
-- FR#4: if_exists="skip" with differing config raises ValueError naming changed fields
-- FR#5: if_exists="replace" cancels old, registers new on same row; returns new subscription
-- FR#9: Bus.remove_listener spawns mark_listener_cancelled when db_id is set
-- FR#10: add_listener returns a Subscription; skip-returns-existing case
-- AC#1: Two identical skip calls return subscription both times, one listener total
-- AC#2: skip after same-name-different-config raises ValueError listing changed fields
-- AC#3: replace leaves one routed listener (new) with unchanged db_id; cancelled_at cleared
-- AC#4: error/default raises DuplicateListenerError
-- AC#7: Subscription.cancel() without re-registration triggers mark_listener_cancelled
-- AC#9: add_listener returns Subscription including skip-returns-existing case
+- if_exists accepted on on(), add_listener, and **opts methods (on_call_service)
+- if_exists="error" (and omission) raises DuplicateListenerError
+- if_exists="skip" with matching config returns subscription; one listener left
+- if_exists="skip" with differing config raises ValueError naming changed fields
+- if_exists="replace" cancels old, registers new on same row; returns new subscription
+- Bus.remove_listener spawns mark_listener_cancelled when db_id is set
+- add_listener returns a Subscription; skip-returns-existing case
+- Two identical skip calls return subscription both times, one listener total
+- skip after same-name-different-config raises ValueError listing changed fields
+- replace leaves one routed listener (new) with unchanged db_id; cancelled_at cleared
+- error/default raises DuplicateListenerError
+- Subscription.cancel() without re-registration triggers mark_listener_cancelled
+- add_listener returns Subscription including skip-returns-existing case
 """
 
 import asyncio
@@ -41,7 +41,7 @@ async def handler_b(event) -> None:
 
 
 async def test_error_default_raises_on_duplicate(bus: "Bus") -> None:
-    """AC#4: Omitting if_exists under an existing key raises DuplicateListenerError."""
+    """Omitting if_exists under an existing key raises DuplicateListenerError."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         with pytest.raises(DuplicateListenerError):
@@ -49,7 +49,7 @@ async def test_error_default_raises_on_duplicate(bus: "Bus") -> None:
 
 
 async def test_error_explicit_raises_on_duplicate(bus: "Bus") -> None:
-    """FR#2: if_exists='error' explicitly raises DuplicateListenerError."""
+    """if_exists='error' explicitly raises DuplicateListenerError."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         with pytest.raises(DuplicateListenerError):
@@ -57,18 +57,18 @@ async def test_error_explicit_raises_on_duplicate(bus: "Bus") -> None:
 
 
 async def test_error_via_on_call_service(bus: "Bus") -> None:
-    """FR#1: if_exists reaches **opts methods like on_call_service."""
+    """if_exists reaches **opts methods like on_call_service."""
     with mock_add_listener(bus):
         await bus.on_call_service(handler=handler_a, name="svc_listener")
         with pytest.raises(DuplicateListenerError):
             await bus.on_call_service(handler=handler_b, name="svc_listener", if_exists="error")
 
 
-# FR#3 / AC#1 — skip idempotent re-registration
+# skip idempotent re-registration
 
 
 async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
-    """FR#3 / AC#1: skip with identical config returns a subscription."""
+    """skip with identical config returns a subscription."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -78,7 +78,7 @@ async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
 
 
 async def test_skip_returns_existing_listener(bus: "Bus") -> None:
-    """FR#3: skip returns a subscription wrapping the existing listener."""
+    """skip returns a subscription wrapping the existing listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -88,7 +88,7 @@ async def test_skip_returns_existing_listener(bus: "Bus") -> None:
 
 
 async def test_skip_leaves_one_listener_in_registry(bus: "Bus") -> None:
-    """AC#1: Two skip calls leave exactly one listener in the per-bus registry."""
+    """Two skip calls leave exactly one listener in the per-bus registry."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -156,7 +156,7 @@ async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus")
 
 
 async def test_skip_does_not_call_add_listener_twice(bus: "Bus") -> None:
-    """FR#3: skip does not register a second listener (add_listener called once)."""
+    """skip does not register a second listener (add_listener called once)."""
     with mock_add_listener(bus) as add_mock:
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -165,7 +165,7 @@ async def test_skip_does_not_call_add_listener_twice(bus: "Bus") -> None:
 
 
 async def test_skip_via_on_call_service(bus: "Bus") -> None:
-    """FR#1: if_exists='skip' reaches on_call_service via **opts."""
+    """if_exists='skip' reaches on_call_service via **opts."""
     with mock_add_listener(bus):
         sub1 = await bus.on_call_service(handler=handler_a, name="svc_listener")
         sub2 = await bus.on_call_service(handler=handler_a, name="svc_listener", if_exists="skip")
@@ -173,11 +173,11 @@ async def test_skip_via_on_call_service(bus: "Bus") -> None:
     assert sub2.listener is sub1.listener
 
 
-# FR#4 / AC#2 — skip with drift raises ValueError
+# skip with drift raises ValueError
 
 
 async def test_skip_drift_raises_value_error(bus: "Bus") -> None:
-    """FR#4 / AC#2: skip with different handler raises ValueError."""
+    """skip with different handler raises ValueError."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         with pytest.raises(ValueError, match="configuration has changed"):
@@ -185,7 +185,7 @@ async def test_skip_drift_raises_value_error(bus: "Bus") -> None:
 
 
 async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
-    """AC#2: ValueError names the changed fields."""
+    """ValueError names the changed fields when skip detects config drift."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         with pytest.raises(ValueError, match="configuration has changed") as exc_info:
@@ -195,11 +195,11 @@ async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
     assert "handler" in msg
 
 
-# FR#5 / AC#3 — replace cancels old, registers new
+# replace cancels old, registers new
 
 
 async def test_replace_cancels_old_listener(bus: "Bus") -> None:
-    """FR#5: replace cancels the existing listener."""
+    """replace cancels the existing listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         old_listener = sub1.listener
@@ -209,7 +209,7 @@ async def test_replace_cancels_old_listener(bus: "Bus") -> None:
 
 
 async def test_replace_leaves_one_routed_listener(bus: "Bus") -> None:
-    """AC#3: replace leaves exactly one listener in the registry (the new one)."""
+    """replace leaves exactly one listener in the registry (the new one)."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
@@ -223,7 +223,7 @@ async def test_replace_leaves_one_routed_listener(bus: "Bus") -> None:
 
 
 async def test_replace_returns_subscription_to_new_listener(bus: "Bus") -> None:
-    """FR#5: replace returns a subscription to the new listener."""
+    """replace returns a subscription to the new listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
@@ -235,7 +235,7 @@ async def test_replace_returns_subscription_to_new_listener(bus: "Bus") -> None:
 
 
 async def test_replace_db_id_preserved(bus: "Bus") -> None:
-    """AC#3: replace preserves the db_id of the natural-key row (row-id preservation)."""
+    """replace preserves the db_id of the natural-key row (row-id preservation)."""
     # Use a mock that returns db_id=42 on first call
     first_call_made = False
 
@@ -261,11 +261,11 @@ async def test_replace_db_id_preserved(bus: "Bus") -> None:
         bus.bus_service.add_listener = original
 
 
-# FR#9 / AC#7 — cancel path spawns mark_listener_cancelled
+# cancel path spawns mark_listener_cancelled
 
 
 async def test_cancel_subscription_spawns_mark_cancelled(bus: "Bus") -> None:
-    """AC#7: Subscription.cancel() spawns mark_listener_cancelled when db_id is set."""
+    """Subscription.cancel() spawns mark_listener_cancelled when db_id is set."""
     cancelled_db_ids: list[int] = []
 
     async def mock_add(listener):
@@ -308,7 +308,7 @@ async def test_cancel_subscription_spawns_mark_cancelled(bus: "Bus") -> None:
 
 
 async def test_cancel_no_db_id_no_spawn(bus: "Bus") -> None:
-    """FR#9: If db_id is not set (None), mark_listener_cancelled is not spawned."""
+    """If db_id is not set (None), mark_listener_cancelled is not spawned."""
     spawn_calls: list = []
 
     async def mock_add(_listener):
@@ -340,7 +340,7 @@ async def test_cancel_no_db_id_no_spawn(bus: "Bus") -> None:
 
 
 async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
-    """FR#9: replace's cancel-old step spawns mark_listener_cancelled."""
+    """replace's cancel-old step spawns mark_listener_cancelled."""
     cancelled_db_ids: list[int] = []
     call_count = 0
 
@@ -385,11 +385,11 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
     assert old_db_id in cancelled_db_ids, f"mark_listener_cancelled should have been called with db_id={old_db_id}"
 
 
-# FR#10 / AC#9 — add_listener returns Subscription
+# add_listener returns Subscription
 
 
 async def test_add_listener_returns_subscription(bus: "Bus") -> None:
-    """FR#10 / AC#9: add_listener returns a Subscription."""
+    """add_listener returns a Subscription."""
     with mock_add_listener(bus):
         listener = create_listener(
             handler=handler_a,
@@ -405,7 +405,7 @@ async def test_add_listener_returns_subscription(bus: "Bus") -> None:
 
 
 async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> None:
-    """AC#9: add_listener with if_exists='skip' returns subscription to existing listener."""
+    """add_listener with if_exists='skip' returns subscription to existing listener."""
     with mock_add_listener(bus):
         listener1 = create_listener(
             handler=handler_a,
@@ -428,11 +428,11 @@ async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> No
     assert sub2.listener is sub1.listener, "skip should return existing listener's subscription"
 
 
-# FR#1 — if_exists accepted on on() explicitly
+# if_exists accepted on on() explicitly
 
 
 async def test_if_exists_accepted_on_on_method(bus: "Bus") -> None:
-    """FR#1: on() accepts if_exists parameter."""
+    """on() accepts if_exists parameter."""
     with mock_add_listener(bus):
         # Should not raise TypeError — if_exists is a valid param on on()
         sub = await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="error")
@@ -440,7 +440,7 @@ async def test_if_exists_accepted_on_on_method(bus: "Bus") -> None:
 
 
 async def test_if_exists_skip_accepted_on_on_method(bus: "Bus") -> None:
-    """FR#1: on() accepts if_exists='skip'."""
+    """on() accepts if_exists='skip'."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         # Should not raise
@@ -449,7 +449,7 @@ async def test_if_exists_skip_accepted_on_on_method(bus: "Bus") -> None:
 
 
 async def test_if_exists_replace_accepted_on_on_method(bus: "Bus") -> None:
-    """FR#1: on() accepts if_exists='replace'."""
+    """on() accepts if_exists='replace'."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")

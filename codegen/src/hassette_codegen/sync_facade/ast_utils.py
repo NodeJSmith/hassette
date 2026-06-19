@@ -158,8 +158,8 @@ _ASYNC_SENTENCE_MID_PARAGRAPH = re.compile(r"\s*This method is\s+``async`` and m
 # A phrase mutation, not a sentence removal: rewrite the scheduler's "awaited inline" wording.
 _AWAITED_INLINE_PHRASE = re.compile(r"is awaited inline")
 
-# T02/T03/T04 added new "Must be awaited" sentences to Bus/Scheduler/Api docstrings.
-# Three distinct phrasings require three patterns; order in desync_docstring is load-bearing.
+# Bus, Scheduler, and Api docstrings each use a distinct "Must be awaited" phrasing.
+# Three distinct patterns are required; order in desync_docstring is load-bearing.
 
 # Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` is
 # reported per ``forgotten_await_behavior`` (default: warn)." Consume the surrounding blank

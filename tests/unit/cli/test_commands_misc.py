@@ -12,9 +12,7 @@ from hassette.test_utils.web_helpers import (
 )
 from tests.unit.cli.conftest import CLIClientFactory, capture_stdout
 
-# ---------------------------------------------------------------------------
 # cmd_config
-# ---------------------------------------------------------------------------
 
 
 class TestCmdConfig:
@@ -68,9 +66,7 @@ class TestCmdConfig:
         assert parsed["web_api"]["port"] == 8126
 
 
-# ---------------------------------------------------------------------------
 # cmd_event
-# ---------------------------------------------------------------------------
 
 
 class TestCmdEvent:

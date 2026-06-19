@@ -421,9 +421,7 @@ def test_to_listener_with_summary_min_max_numeric_passthrough():
     assert result.max_duration_ms == 100.0
 
 
-# ---------------------------------------------------------------------------
 # LivenessResponse and ReadinessResponse
-# ---------------------------------------------------------------------------
 
 
 def test_liveness_response_has_live_status():

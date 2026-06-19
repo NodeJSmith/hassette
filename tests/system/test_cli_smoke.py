@@ -31,18 +31,14 @@ from hassette.web.models import (
 
 from .conftest import HA_TOKEN, SystemTestConfig, make_web_system_config, startup_context, wait_for_web_server
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
 
 pytestmark = [pytest.mark.system]
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 @contextlib.contextmanager
@@ -77,9 +73,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
     return config, f"http://127.0.0.1:{port}"
 
 
-# ===========================================================================
 # System-status commands
-# ===========================================================================
 
 
 async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -144,9 +138,7 @@ async def test_events_deserializes_and_respects_limit(ha_container: str, tmp_pat
         assert isinstance(evt, EventEntry)
 
 
-# ===========================================================================
 # App commands
-# ===========================================================================
 
 
 async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> None:
@@ -161,9 +153,7 @@ async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> Non
     assert len(result.manifests) > 0
 
 
-# ===========================================================================
 # Listener commands
-# ===========================================================================
 
 
 async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -181,7 +171,7 @@ async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None
 
 
 async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: Path) -> None:
-    """Per-app listener endpoint returns only listeners belonging to that app (AC#4)."""
+    """Per-app listener endpoint returns only listeners belonging to that app."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
@@ -208,7 +198,7 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
 
 
 async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> None:
-    """Per-app listener endpoint with instance_index=0 returns a valid subset (AC#11)."""
+    """Per-app listener endpoint with instance_index=0 returns a valid subset."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
@@ -234,9 +224,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
         assert listener.app_key == app_key
 
 
-# ===========================================================================
 # Job commands
-# ===========================================================================
 
 
 async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
@@ -253,13 +241,11 @@ async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
         assert isinstance(job, JobSummary)
 
 
-# ===========================================================================
 # Log commands
-# ===========================================================================
 
 
 async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/logs/recent?limit=10 returns ≤10 entries and deserializes to LogEntryResponse (AC#5)."""
+    """GET /api/logs/recent?limit=10 returns ≤10 entries and deserializes to LogEntryResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
@@ -273,13 +259,11 @@ async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
         assert isinstance(entry, LogEntryResponse)
 
 
-# ===========================================================================
 # Error handling
-# ===========================================================================
 
 
 def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:
-    """Querying a non-existent server exits with code 2 (AC#8)."""
+    """Querying a non-existent server exits with code 2."""
     config = SystemTestConfig(
         base_url="http://localhost:18123",
         token="dummy",

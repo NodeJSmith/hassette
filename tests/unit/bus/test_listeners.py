@@ -19,7 +19,7 @@ def fn_other() -> None:
 
 
 class TestListenerConfigMatches:
-    """Tests for Listener.config_matches() and diff_fields() — FR#8."""
+    """Tests for Listener.config_matches() and diff_fields()."""
 
     def test_identical_config_matches(self) -> None:
         """Two listeners with the same config return config_matches=True."""
@@ -57,7 +57,7 @@ class TestListenerConfigMatches:
         assert "once" in a.diff_fields(b)
 
     def test_different_mode_not_matching(self) -> None:
-        """A mode-only change → config_matches=False, 'mode' in diff_fields (FR#14)."""
+        """A mode-only change → config_matches=False, 'mode' in diff_fields."""
         a = create_listener(handler=fn, mode="single")
         b = create_listener(handler=fn, mode="queued")
         assert a.config_matches(b) is False
@@ -267,7 +267,7 @@ class TestListenerErrorHandlerField:
 
 
 class TestCreateCancelListener:
-    """Tests for Listener.create_cancel_listener() (FR#10, AC#9)."""
+    """Tests for Listener.create_cancel_listener()."""
 
     def test_source_tier_is_framework(self) -> None:
         """cancel_listener.identity.source_tier is 'framework'."""
@@ -373,7 +373,7 @@ class TestCreateCancelListener:
         assert listener.listener_id > 0
 
     def test_cancel_subscription_has_no_registration_task(self) -> None:
-        """A Subscription for a cancel-listener has no registration_task field (AC#7).
+        """A Subscription for a cancel-listener has no registration_task field.
 
         Under synchronous registration, Subscription has no registration_task.
         Cancel-listeners bypass DB registration entirely.
@@ -386,10 +386,10 @@ class TestCreateCancelListener:
 
 
 class TestBackpressurePolicy:
-    """Tests for BackpressurePolicy plumbing — FR#1, FR#2, FR#9, FR#10, AC#6, AC#7."""
+    """Tests for BackpressurePolicy plumbing."""
 
     def test_default_backpressure_is_block(self) -> None:
-        """Omitting backpressure results in ListenerOptions.backpressure == BLOCK (FR#2)."""
+        """Omitting backpressure results in ListenerOptions.backpressure == BLOCK."""
         opts = ListenerOptions()
         assert opts.backpressure is BackpressurePolicy.BLOCK
 
@@ -414,7 +414,7 @@ class TestBackpressurePolicy:
         assert opts.backpressure is BackpressurePolicy.DROP_NEWEST
 
     def test_invalid_backpressure_string_raises_value_error(self) -> None:
-        """An invalid backpressure string raises ValueError naming the valid policies (FR#9, AC#6)."""
+        """An invalid backpressure string raises ValueError naming the valid policies."""
         with pytest.raises(ValueError, match="bogus") as exc_info:
             ListenerOptions(backpressure="bogus")
         error_msg = str(exc_info.value)
@@ -422,7 +422,7 @@ class TestBackpressurePolicy:
         assert "drop_newest" in error_msg
 
     def test_invalid_backpressure_string_lists_valid_values(self) -> None:
-        """The ValueError message lists all valid policy values (AC#6)."""
+        """The ValueError message lists all valid policy values."""
         with pytest.raises(ValueError, match="invalid_policy") as exc_info:
             ListenerOptions(backpressure="invalid_policy")
         error_msg = str(exc_info.value)
@@ -430,13 +430,13 @@ class TestBackpressurePolicy:
             assert repr(policy.value) in error_msg
 
     def test_backpressure_drift_detected_by_diff_fields(self) -> None:
-        """A changed backpressure value is reported in diff_fields (FR#10, AC#7)."""
+        """A changed backpressure value is reported in diff_fields."""
         a = create_listener(handler=fn, backpressure=BackpressurePolicy.BLOCK)
         b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
         assert "backpressure" in a.diff_fields(b)
 
     def test_backpressure_drift_detected_by_config_matches(self) -> None:
-        """A changed backpressure value causes config_matches to return False (FR#10, AC#7)."""
+        """A changed backpressure value causes config_matches to return False."""
         a = create_listener(handler=fn, backpressure=BackpressurePolicy.BLOCK)
         b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
         assert a.config_matches(b) is False

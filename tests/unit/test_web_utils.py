@@ -65,6 +65,6 @@ class TestResolveTrigger:
         assert resolve_trigger(job) == ("custom", "every 60s")
 
 
-# TestJobToDictFireAtJitter was removed in spec 2039 WP02 — _job_to_dict was
-# deleted along with the /scheduler/jobs route. Live job serialisation now
-# happens in the app_jobs route handler enrichment path.
+# TestJobToDictFireAtJitter was removed when _job_to_dict was deleted along
+# with the /scheduler/jobs route. Live job serialisation now happens in the
+# app_jobs route handler enrichment path.

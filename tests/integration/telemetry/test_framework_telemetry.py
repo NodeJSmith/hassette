@@ -1,4 +1,4 @@
-"""Integration tests for telemetry source tier feature (WP08).
+"""Integration tests for telemetry source tier feature.
 
 Tests the full telemetry pipeline for framework-internal listeners and jobs,
 including error handling, pre-DB queue drain, orphan records, reconciliation,

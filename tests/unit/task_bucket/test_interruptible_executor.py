@@ -2,11 +2,11 @@
 
 Tests are scoped to the standalone primitive — no Hassette imports required.
 
-Coverage targets (from T01 Verify section):
-- FR#6: async_raise terminates a Python busy-loop thread; straggler name+stack logged
+Coverage targets:
+- async_raise terminates a Python busy-loop thread; straggler name+stack logged
   before interrupt (captured via a handler attached directly to the executor logger,
   so the assertion does not depend on global ``propagate`` state).
-- FR#7: join_threads_or_timeout completes within timeout even when a worker is blocked
+- join_threads_or_timeout completes within timeout even when a worker is blocked
   in a C call (time.sleep); res==0 (ValueError) and res>1 (SystemError) paths are
   handled and no exception propagates out of shutdown.
 """
@@ -72,9 +72,7 @@ def capture_warnings(logger_name: str = _EXECUTOR_LOGGER) -> Iterator[list[loggi
         logger.setLevel(prev_level)
 
 
-# ---------------------------------------------------------------------------
 # async_raise — unit-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestAsyncRaise:
@@ -143,9 +141,7 @@ class TestAsyncRaise:
         assert done.is_set(), "Thread should have received SystemExit"
 
 
-# ---------------------------------------------------------------------------
 # _log_thread_running_at_shutdown — verifies logging helper
-# ---------------------------------------------------------------------------
 
 
 class TestLogThreadRunningAtShutdown:
@@ -165,9 +161,7 @@ class TestLogThreadRunningAtShutdown:
         )
 
 
-# ---------------------------------------------------------------------------
 # join_or_interrupt_threads — unit-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestJoinOrInterruptThreads:
@@ -266,9 +260,7 @@ class TestJoinOrInterruptThreads:
         t.join(timeout=2.0)
 
 
-# ---------------------------------------------------------------------------
 # InterruptibleThreadPoolExecutor.shutdown — integration-level tests
-# ---------------------------------------------------------------------------
 
 
 class TestInterruptibleThreadPoolExecutorShutdown:
@@ -280,7 +272,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
         time.sleep() is a C call that cannot be interrupted by async_raise until it
         returns to Python. The executor must abandon the thread and complete shutdown
-        within the budget (FR#7 / AC#5).
+        within the budget.
         """
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         started = threading.Event()
@@ -318,7 +310,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
 
     def test_python_busy_loop_worker_terminated_within_budget(self) -> None:
         """A Python busy-loop worker must be interrupted by async_raise(SystemExit)
-        within the shutdown budget (FR#6 / AC#4).
+        within the shutdown budget.
         """
         executor = InterruptibleThreadPoolExecutor(max_workers=1)
         ready = threading.Event()
@@ -342,7 +334,7 @@ class TestInterruptibleThreadPoolExecutorShutdown:
         assert terminated.is_set(), "Worker thread must have received SystemExit"
 
     def test_stack_logged_for_python_straggler(self) -> None:
-        """Straggler thread name and stack must be logged before interrupt (FR#6 / AC#4)."""
+        """Straggler thread name and stack must be logged before interrupt."""
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="test-worker")
         ready = threading.Event()
 

@@ -1,4 +1,4 @@
-"""Tests for registry validation — WP04.
+"""Tests for registry validation.
 
 The global _isolate_registries fixture in conftest.py snapshots/restores both
 StateRegistry and TypeRegistry before/after every test, so mutations here do

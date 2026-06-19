@@ -1,9 +1,7 @@
 from hassette import App, AppConfig
 
 
-# ---------------------------------------------------------------------------
 # single (default for app jobs)
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:single_implicit]
 class PollApp(App[AppConfig]):
@@ -26,9 +24,7 @@ class PollApp(App[AppConfig]):
 # --8<-- [end:single_implicit]
 
 
-# ---------------------------------------------------------------------------
 # restart — latest trigger wins
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:restart]
 class RefreshApp(App[AppConfig]):
@@ -51,9 +47,7 @@ class RefreshApp(App[AppConfig]):
 # --8<-- [end:restart]
 
 
-# ---------------------------------------------------------------------------
 # queued — serialize every tick in arrival order
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:queued]
 class AuditApp(App[AppConfig]):
@@ -76,9 +70,7 @@ class AuditApp(App[AppConfig]):
 # --8<-- [end:queued]
 
 
-# ---------------------------------------------------------------------------
 # parallel — concurrent (opt-in for app jobs)
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:parallel]
 class MetricApp(App[AppConfig]):
@@ -101,9 +93,7 @@ class MetricApp(App[AppConfig]):
 # --8<-- [end:parallel]
 
 
-# ---------------------------------------------------------------------------
 # Intro: the mode= parameter
-# ---------------------------------------------------------------------------
 
 class IntroApp(App[AppConfig]):
     async def on_initialize(self):
@@ -120,9 +110,7 @@ class IntroApp(App[AppConfig]):
         pass
 
 
-# ---------------------------------------------------------------------------
 # One-shot: mode= accepted, no overlap effect
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:one_shot_mode]
 class CleanupApp(App[AppConfig]):

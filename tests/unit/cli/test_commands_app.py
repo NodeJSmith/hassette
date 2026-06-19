@@ -24,12 +24,10 @@ from hassette.test_utils.web_helpers import (
     make_manifest_list_response,
     make_manifest_response,
 )
-from hassette.web.models import AppInstanceResponse
+from hassette.web.models import AppInstanceResponse, AppManifestListResponse
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
-# ---------------------------------------------------------------------------
 # cmd_app (bare — list all apps)
-# ---------------------------------------------------------------------------
 
 
 class TestCmdApp:
@@ -110,9 +108,7 @@ class TestCmdApp:
         assert len(APP_LIST_COLUMNS) <= 8
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_health
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppHealth:
@@ -173,8 +169,6 @@ class TestCmdAppHealth:
             status="running",  # pyright: ignore[reportArgumentType]
         )
         manifest_resp = make_manifest_response(app_key="my-app", instances=[instance_resp])
-        from hassette.web.models import AppManifestListResponse
-
         manifest_list = AppManifestListResponse(
             total=1, running=1, failed=0, stopped=0, disabled=0, blocked=0, manifests=[manifest_resp]
         )
@@ -243,9 +237,7 @@ class TestCmdAppHealth:
         assert "last_activity_ts" in field_names
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_activity
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppActivity:
@@ -392,9 +384,7 @@ class TestCmdAppActivity:
         assert len(APP_ACTIVITY_COLUMNS) <= 8
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_config
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppConfig:
@@ -448,9 +438,7 @@ class TestCmdAppConfig:
         assert parsed["enabled"] is True
 
 
-# ---------------------------------------------------------------------------
 # cmd_app_source
-# ---------------------------------------------------------------------------
 
 
 class TestCmdAppSource:

@@ -1,5 +1,5 @@
 """Unit tests for SchedulerService dispatch_and_log reschedule logic, jitter,
-removal callbacks, and _enqueue_then_register protocol dispatch (WP04).
+removal callbacks, and _enqueue_then_register protocol dispatch.
 
 Tests cover:
 - dispatch_and_log(): None exhaustion removes job
@@ -422,7 +422,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         assert reg.trigger_detail == "3600s"
 
     async def test_enqueue_then_register_no_isinstance_import(self) -> None:
-        """IntervalTrigger and CronTrigger are not imported in scheduler_service after WP04."""
+        """IntervalTrigger and CronTrigger are not imported in the scheduler_service module."""
         src = inspect.getsource(hassette_svc_module)
         # The isinstance dispatch using IntervalTrigger/CronTrigger must be gone
         assert "isinstance(trigger, IntervalTrigger)" not in src, (

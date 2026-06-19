@@ -1,4 +1,4 @@
-"""Unit tests for fatal-exit observability (T03).
+"""Unit tests for fatal-exit observability.
 
 Tests shutdown_if_crashed behavior in isolation: that it sets
 _fatal_shutdown_reason and calls request_shutdown instead of shutdown.

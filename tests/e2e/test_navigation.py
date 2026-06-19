@@ -38,7 +38,7 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
 # Sidebar nav items
 # ──────────────────────────────────────────────────────────────────────
 
-# Sidebar nav links: Apps, Logs, Config (overview removed in T01)
+# Sidebar nav links: Apps, Logs, Config (overview page removed)
 SIDEBAR_LINKS = [
     ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),

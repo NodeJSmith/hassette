@@ -190,7 +190,7 @@ class TestWebsocketReadinessEvents:
 
 
 class TestEverConnectedLatch:
-    """FR#1: ever_connected latch starts False, flips True on CONNECTED, stays True after disconnect."""
+    """ever_connected latch starts False, flips True on CONNECTED, stays True after disconnect."""
 
     def test_ever_connected_starts_false(self, websocket_service: WebsocketService) -> None:
         """ever_connected is False before any connection transition."""

@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager, compute_elapsed
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
@@ -571,8 +572,6 @@ class TestComputeElapsed:
 
     def test_elapsed_clamped_to_duration(self) -> None:
         """compute_elapsed clamps result to [0.0, duration]."""
-        import hassette.utils.date_utils as _date_utils
-
         # Use a last_changed far in the past (1 hour ago) with duration=60s
         old_time = _date_utils.now().subtract(hours=1)
         state: dict[str, Any] = {
@@ -587,8 +586,6 @@ class TestComputeElapsed:
 
     def test_elapsed_non_zero_for_recent_change(self) -> None:
         """compute_elapsed returns a positive value for a recent state change."""
-        import hassette.utils.date_utils as _date_utils
-
         # last_changed 5 seconds ago
         recent_time = _date_utils.now().subtract(seconds=5)
         state: dict[str, Any] = {

@@ -712,7 +712,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 
 
 # test_cancel_before_add_task_completes_* tests deleted — the add-before-cancel race they
-# guarded is eliminated by sync routing. See test_bus_ordering.py AC#1 for the replacement.
+# guarded is eliminated by sync routing. See test_bus_ordering.py cancel-then-add tests for the replacement.
 
 
 async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:

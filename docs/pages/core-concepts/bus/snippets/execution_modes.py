@@ -1,9 +1,7 @@
 from hassette import App, AppConfig, D, states
 
 
-# ---------------------------------------------------------------------------
 # single (default for app handlers)
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:single_implicit]
 class LockApp(App[AppConfig]):
@@ -26,9 +24,7 @@ class LockApp(App[AppConfig]):
 # --8<-- [end:single_implicit]
 
 
-# ---------------------------------------------------------------------------
 # restart — latest trigger wins
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:restart]
 class SearchApp(App[AppConfig]):
@@ -56,9 +52,7 @@ class SearchApp(App[AppConfig]):
 # --8<-- [end:restart]
 
 
-# ---------------------------------------------------------------------------
 # queued — process every trigger in arrival order
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:queued]
 class AuditApp(App[AppConfig]):
@@ -81,9 +75,7 @@ class AuditApp(App[AppConfig]):
 # --8<-- [end:queued]
 
 
-# ---------------------------------------------------------------------------
 # parallel — concurrent (opt-in for app handlers)
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:parallel]
 class MetricApp(App[AppConfig]):
@@ -105,9 +97,7 @@ class MetricApp(App[AppConfig]):
 # --8<-- [end:parallel]
 
 
-# ---------------------------------------------------------------------------
 # Composition: debounce + single
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:debounce_single]
 class TempApp(App[AppConfig]):
@@ -131,9 +121,7 @@ class TempApp(App[AppConfig]):
 # --8<-- [end:debounce_single]
 
 
-# ---------------------------------------------------------------------------
 # Composition: once + mode
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:once_mode]
 class StartupApp(App[AppConfig]):
@@ -153,9 +141,7 @@ class StartupApp(App[AppConfig]):
 # --8<-- [end:once_mode]
 
 
-# ---------------------------------------------------------------------------
 # Composition: duration + single
-# ---------------------------------------------------------------------------
 
 # --8<-- [start:duration_single]
 class OccupancyApp(App[AppConfig]):
@@ -178,9 +164,7 @@ class OccupancyApp(App[AppConfig]):
 # --8<-- [end:duration_single]
 
 
-# ---------------------------------------------------------------------------
 # Intro: the mode= parameter
-# ---------------------------------------------------------------------------
 
 class DoorApp(App[AppConfig]):
     async def on_initialize(self):
@@ -201,9 +185,7 @@ class DoorApp(App[AppConfig]):
         await self.api.call_service("lock", "lock", entity_id="lock.front")
 
 
-# ---------------------------------------------------------------------------
 # Migration: restore pre-1.0 concurrent behavior
-# ---------------------------------------------------------------------------
 
 class ReadingApp(App[AppConfig]):
     async def on_initialize(self):

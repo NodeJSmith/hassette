@@ -23,7 +23,7 @@ class TestRouterImport:
         assert Router is not None
 
     def test_router_has_no_core_imports(self) -> None:
-        """AC#8: router.py has zero imports from hassette.core or any service-layer module."""
+        """router.py has zero imports from hassette.core or any service-layer module."""
         spec = importlib.util.find_spec("hassette.bus.router")
         assert spec is not None
         assert spec.origin is not None

@@ -29,9 +29,7 @@ DOCS_DIR = REPO_ROOT / "docs" / "pages"
 MIN_INLINE_CODE_LINES = 2
 
 
-# ---------------------------------------------------------------------------
 # Page classification
-# ---------------------------------------------------------------------------
 
 
 def classify_page(rel_path: str) -> str:
@@ -63,9 +61,7 @@ def classify_page(rel_path: str) -> str:
     return "other"
 
 
-# ---------------------------------------------------------------------------
 # Section detection within a page
-# ---------------------------------------------------------------------------
 
 
 def current_heading(lines: list[str], line_idx: int) -> str:
@@ -85,9 +81,7 @@ def lines_since_heading(lines: list[str], line_idx: int) -> int:
     return line_idx
 
 
-# ---------------------------------------------------------------------------
 # Fence tracking (computed once per page)
-# ---------------------------------------------------------------------------
 
 
 def compute_code_block_lines(lines: list[str]) -> set[int]:
@@ -102,9 +96,7 @@ def compute_code_block_lines(lines: list[str]) -> set[int]:
     return inside
 
 
-# ---------------------------------------------------------------------------
 # Findings
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -124,9 +116,7 @@ class AuditResult:
         self.findings.append(Finding(file=file, line=line, rule=rule, message=message, snippet=snippet))
 
 
-# ---------------------------------------------------------------------------
 # Pattern checks
-# ---------------------------------------------------------------------------
 
 COPULA_AVOIDANCE = re.compile(r"\b(serves?\s+as|acts?\s+as|functions?\s+as)\b", re.IGNORECASE)
 SIGNIFICANCE_INFLATION = re.compile(
@@ -320,7 +310,7 @@ def audit_page(path: Path, result: AuditResult) -> None:
         def flag(rule: str, message: str, _ln: int = line_num, _snip: str = snip) -> None:
             result.add(rel_path, _ln, rule, message, snippet=_snip)
 
-        # --- Prose anti-patterns (all page types) ---
+        # Prose anti-patterns (all page types)
 
         m = COPULA_AVOIDANCE.search(stripped)
         if m:
@@ -354,12 +344,12 @@ def audit_page(path: Path, result: AuditResult) -> None:
         if m:
             flag("negative-parallelism", "State the point directly")
 
-        # --- Em dashes (per-line) ---
+        # Em dashes (per-line)
 
         if EM_DASH.search(stripped):
             flag("em-dash", "Em dash — use period, comma, or parentheses")
 
-        # --- Tense and voice (concept/recipe/cli/testing/operating pages) ---
+        # Tense and voice (concept/recipe/cli/testing/operating pages)
 
         if page_type not in ("getting-started", "migration"):
             m = WILL_FUTURE.search(stripped)
@@ -374,21 +364,21 @@ def audit_page(path: Path, result: AuditResult) -> None:
             if m:
                 flag("passive-voice", '"is able to" — rephrase directly')
 
-        # --- Category definitions (concept pages, first 3 prose lines of each section) ---
+        # Category definitions (concept pages, first 3 prose lines of each section)
 
         if is_concept_like and lines_since_heading(lines, i) <= 3:
             m = CATEGORY_DEFINITION.search(stripped)
             if m:
                 flag("category-definition", f'Define by function, not category: "{m.group()}"')
 
-        # --- "You/your" in concept pages ---
+        # "You/your" in concept pages
 
         if is_concept_like:
             m = YOU_YOUR.search(stripped)
             if m and not is_in_admonition(lines, i):
                 flag("you-in-concept", f'"{m.group()}" in concept page — use system-as-subject')
 
-        # --- "You/your" in recipe "How It Works" (system-as-subject required) ---
+        # "You/your" in recipe "How It Works" (system-as-subject required)
 
         if page_type == "recipe":
             heading = current_heading(lines, i).lower()
@@ -397,14 +387,14 @@ def audit_page(path: Path, result: AuditResult) -> None:
                 if m and not is_in_admonition(lines, i):
                     flag("you-in-how-it-works", f'"{m.group()}" in "How It Works" — use system-as-subject')
 
-        # --- Transition openers ---
+        # Transition openers
 
         if stripped and stripped[0].isupper():
             m = TRANSITION_OPENERS.match(stripped)
             if m:
                 flag("transition-opener", f'Transition opener: "{m.group()}" — start directly')
 
-        # --- Reassurance in concept and recipe pages ---
+        # Reassurance in concept and recipe pages
 
         if checks_reassurance:
             m = REASSURANCE.search(stripped)
@@ -412,9 +402,7 @@ def audit_page(path: Path, result: AuditResult) -> None:
                 flag("reassurance", f'Reassurance: "{m.group()}" — assume capable reader')
 
 
-# ---------------------------------------------------------------------------
 # Output
-# ---------------------------------------------------------------------------
 
 
 def format_findings(result: AuditResult) -> str:
@@ -453,9 +441,7 @@ def format_summary(result: AuditResult, page_count: int) -> str:
     return "\n".join(parts)
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 
 def main() -> int:

@@ -1,4 +1,4 @@
-"""Tests for SchedulerService dispatch carrying app_level_error_handler on ExecuteJob (WP04)."""
+"""Tests for SchedulerService dispatch carrying app_level_error_handler on ExecuteJob."""
 
 from unittest.mock import AsyncMock, MagicMock
 

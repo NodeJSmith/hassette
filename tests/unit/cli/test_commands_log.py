@@ -15,9 +15,7 @@ from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
-# ---------------------------------------------------------------------------
 # cmd_log — recent log entries
-# ---------------------------------------------------------------------------
 
 
 class TestCmdLog:
@@ -200,9 +198,7 @@ class TestCmdLog:
         assert len(LOG_COLUMNS) <= 8
 
 
-# ---------------------------------------------------------------------------
 # cmd_execution — logs for a specific execution context
-# ---------------------------------------------------------------------------
 
 
 class TestCmdExecution:

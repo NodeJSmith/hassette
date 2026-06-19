@@ -1,4 +1,4 @@
-"""Tests for HassetteConfig with optional token field (T01).
+"""Tests for HassetteConfig with optional token field.
 
 Covers the new None-guard behaviors only. Non-None token behavior
 (auth_headers, truncated_token) is covered by TestAuthHeaders in test_config.py.

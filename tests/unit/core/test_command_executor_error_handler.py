@@ -1,4 +1,4 @@
-"""Tests for CommandExecutor error handler invocation path (WP04)."""
+"""Tests for CommandExecutor error handler invocation path."""
 
 import asyncio
 from collections.abc import Callable

@@ -1,4 +1,4 @@
-"""Unit tests for WebsocketService connection state machine (WP03).
+"""Unit tests for WebsocketService connection state machine.
 
 Tests for the three-state ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED),
 set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
