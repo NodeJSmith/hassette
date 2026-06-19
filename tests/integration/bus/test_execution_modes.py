@@ -571,7 +571,6 @@ async def test_backpressure_policy_persisted_on_registration(
     async def handler(event: object) -> None:
         pass
 
-    # Register a DROP_NEWEST listener and check the persisted value.
     drop_listener = create_listener(
         handler,
         topic="state_changed.sensor.power",
@@ -591,7 +590,6 @@ async def test_backpressure_policy_persisted_on_registration(
     assert row is not None
     assert row[0] == "drop_newest", f"Expected 'drop_newest', got {row[0]!r}"
 
-    # Register a BLOCK (default) listener and check the persisted value.
     block_listener = create_listener(
         handler,
         topic="state_changed.sensor.power",
@@ -629,7 +627,6 @@ async def test_backpressure_policy_updated_on_replace_registration(
     async def handler(event: object) -> None:
         pass
 
-    # First registration: BLOCK.
     first = create_listener(
         handler,
         topic="state_changed.sensor.replace_test",

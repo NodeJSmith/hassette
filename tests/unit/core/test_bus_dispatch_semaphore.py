@@ -167,11 +167,6 @@ async def test_saturation_warning_is_rate_limited() -> None:
     assert svc.logger.warning.call_count == 2
 
 
-# ---------------------------------------------------------------------------
-# DROP_NEWEST backpressure tests (#1076, Layer 2)
-# ---------------------------------------------------------------------------
-
-
 async def test_drop_newest_skips_handler_when_saturated() -> None:
     """AC#2: Under a held-locked semaphore, DROP_NEWEST skips the event and increments bp_dropped.
 
@@ -198,11 +193,9 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
 
     assert not handler_invoked, "DROP_NEWEST handler must not be invoked under saturation"
     assert listener.invoker.bp_dropped == 1, "bp_dropped must increment by one per dropped event"
-    # Pending/idle bookkeeping must be untouched.
     assert svc._dispatch_pending == 0
     assert svc._dispatch_idle_event.is_set()
 
-    # Release the held slot so we don't affect subsequent tests.
     svc._dispatch_semaphore.release()
 
 
@@ -293,7 +286,6 @@ async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
 
-    # pending must not change; idle must not be cleared.
     assert svc._dispatch_pending == pending_before
     assert svc._dispatch_idle_event.is_set() == idle_was_set
 
@@ -310,8 +302,7 @@ async def test_saturation_warning_message_is_policy_neutral() -> None:
 
     assert svc.logger.warning.call_count == 1
     warning_args = svc.logger.warning.call_args
-    # Extract the formatted message string from the call args.
-    # warning is called as logger.warning(fmt, *args) — join to get the full message.
+    # logger.warning(fmt, *args) — resolve the format to compare the rendered message.
     fmt = warning_args[0][0]
     fmt_args = warning_args[0][1:]
     message = fmt % fmt_args

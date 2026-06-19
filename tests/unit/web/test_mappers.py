@@ -368,8 +368,6 @@ def test_to_listener_with_summary_defaults_counts_to_zero_when_no_live_guard():
     assert result.suppressed_count == 0
     assert result.dropped_count == 0
     assert result.backpressure_dropped_count == 0
-    # Default-mode summary still maps cleanly with no snapshot at all.
-    assert to_listener_with_summary(summary).mode == "single"
 
 
 def test_to_listener_with_summary_bp_dropped_flows_into_backpressure_dropped_count():

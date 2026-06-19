@@ -85,8 +85,7 @@ class ListenerSummary(BaseModel):
     entity_id: str | None = None
     mode: str = DEFAULT_OVERLAP_MODE
     backpressure: str = DEFAULT_BACKPRESSURE_POLICY
-    """Configured backpressure policy for this listener (``'block'`` or ``'drop_newest'``).
-    Sourced from the ``listeners.backpressure`` column; defaults to ``'block'``."""
+    """Sourced from the ``listeners.backpressure`` column; ``'block'`` (default) or ``'drop_newest'``."""
     total_invocations: int
     successful: int
     failed: int
