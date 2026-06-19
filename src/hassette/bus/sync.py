@@ -127,6 +127,9 @@ class BusSyncFacade(Resource):
                 effective default is tier-aware: ``parallel`` for framework listeners, ``single``
                 for app listeners. Suppressed/dropped counts are live-only diagnostics, reset on
                 restart.
+            backpressure: Saturation policy when the global dispatch concurrency semaphore is full.
+                ``"block"`` (default) waits for a slot; ``"drop_newest"`` skips the event immediately
+                and records one drop on the listener. When omitted, the effective default is ``block``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
