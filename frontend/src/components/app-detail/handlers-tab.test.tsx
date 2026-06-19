@@ -248,6 +248,22 @@ describe("HandlersTab", () => {
     expect(warnValue?.textContent).toBe("5 (50%)");
   });
 
+  it("handler stats row: shows 100% rate when every event was dropped", async () => {
+    const listener = createListener({
+      listener_id: 25,
+      backpressure: "drop_newest",
+      backpressure_dropped_count: 5,
+      total_invocations: 0,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/25");
+    await waitFor(() => getByTestId("handler-stats-row"));
+    const statsRow = getByTestId("handler-stats-row");
+    const warnValue = statsRow.querySelector("[data-tone='warn']");
+    expect(warnValue?.textContent).toBe("5 (100%)");
+  });
+
   it("handler stats row: shows — for min/max when null (no executions)", async () => {
     const listener = createListener({
       listener_id: 23,

@@ -60,10 +60,10 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     cells.push({ label: "Suppressed", value: listener.suppressed_count, tone: "mute" });
   if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count, tone: "warn" });
   if (listener.backpressure_dropped_count > 0) {
-    const bp = listener.backpressure_dropped_count;
-    const total = listener.total_invocations;
-    const pct = total + bp > 0 ? Math.round((100 * bp) / (total + bp)) : 0;
-    cells.push({ label: "Backpressure Dropped", value: `${bp} (${pct}%)`, tone: "warn" });
+    const dropped = listener.backpressure_dropped_count;
+    const attempted = listener.total_invocations + dropped;
+    const pct = Math.round((100 * dropped) / attempted);
+    cells.push({ label: "Backpressure Dropped", value: `${dropped} (${pct}%)`, tone: "warn" });
   }
   cells.push(
     { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
