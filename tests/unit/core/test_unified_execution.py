@@ -1,10 +1,10 @@
-"""Unit tests for the unified Execution model and ExecutionRecord dataclass (T07).
+"""Unit tests for the unified Execution model and ExecutionRecord dataclass.
 
 Covers:
-- FR#1: Execution model has a kind discriminator
-- FR#17: kind only accepts 'handler' or 'job'
-- AC#11: invalid kind values are rejected by Pydantic
-- AC#12: new columns exist with correct defaults
+- Execution model has a kind discriminator
+- kind only accepts 'handler' or 'job'
+- invalid kind values are rejected by Pydantic
+- new columns exist with correct defaults
 """
 
 import pytest
@@ -98,7 +98,7 @@ class TestExecutionModelKindHandler:
 
 class TestExecutionModelInvalidKind:
     def test_invalid_kind_raises_validation_error(self) -> None:
-        """kind rejects values other than 'handler' or 'job' (AC#11, FR#17)."""
+        """kind rejects values other than 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             Execution(
                 kind="invocation",  # pyright: ignore[reportArgumentType]
@@ -135,7 +135,7 @@ class TestExecutionModelInvalidKind:
 
 
 class TestExecutionModelNewColumns:
-    """AC#12: new columns exist with correct defaults."""
+    """New columns on Execution exist with correct defaults."""
 
     def test_trigger_mode_defaults_none(self) -> None:
         model = Execution(
@@ -260,7 +260,7 @@ class TestExecutionRecordKind:
         assert record.trigger_origin is None
 
     def test_app_key_and_instance_index_present(self) -> None:
-        """app_key and instance_index fields exist (added in T06)."""
+        """app_key and instance_index fields exist on ExecutionRecord."""
         record = ExecutionRecord(
             kind="handler",
             session_id=1,
@@ -276,7 +276,7 @@ class TestExecutionRecordKind:
 
 
 class TestExecutionRecordNewColumns:
-    """AC#12: new columns on ExecutionRecord with correct defaults."""
+    """New columns on ExecutionRecord exist with correct defaults."""
 
     def test_trigger_mode_defaults_none(self) -> None:
         record = ExecutionRecord(

@@ -2,8 +2,8 @@
 and resolve_blocking_io_behavior.
 
 Covers:
-    FR#7 — per-app value wins over global; global wins over hardcoded default; default is WARN
-    AC#6 — per-app blocking_io_behavior overrides global; 'ignore' resolves to IGNORE
+    - per-app value wins over global; global wins over hardcoded default; default is WARN
+    - per-app blocking_io_behavior overrides global; 'ignore' resolves to IGNORE
 """
 
 import types
@@ -69,7 +69,7 @@ def test_default_blocking_io_behavior_is_warn() -> None:
 
 
 def test_resolve_default_when_both_none() -> None:
-    """With no per-app and no global config set, resolve returns WARN (FR#7)."""
+    """With no per-app and no global config set, resolve returns WARN."""
     _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=None))
     _hass = types.SimpleNamespace(config=_cfg)
 
@@ -82,7 +82,7 @@ def test_resolve_default_when_both_none() -> None:
 
 
 def test_resolve_per_app_wins_over_global() -> None:
-    """Per-app blocking_io_behavior overrides global config (FR#7, AC#6)."""
+    """Per-app blocking_io_behavior overrides global config."""
     _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.WARN))
     _hass = types.SimpleNamespace(config=_cfg)
 
@@ -95,7 +95,7 @@ def test_resolve_per_app_wins_over_global() -> None:
 
 
 def test_resolve_global_wins_when_per_app_none() -> None:
-    """Global blocking_io.behavior is used when per-app is None (FR#7)."""
+    """Global blocking_io.behavior is used when per-app is None."""
     _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
     _hass = types.SimpleNamespace(config=_cfg)
 
@@ -108,7 +108,7 @@ def test_resolve_global_wins_when_per_app_none() -> None:
 
 
 def test_resolve_per_app_ignore_suppresses_global_error() -> None:
-    """Per-app IGNORE overrides a global ERROR setting (AC#6)."""
+    """Per-app IGNORE overrides a global ERROR setting."""
     _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
     _hass = types.SimpleNamespace(config=_cfg)
 
@@ -169,7 +169,7 @@ def test_app_config_blocking_io_behavior_accepts_string() -> None:
 
 
 def test_app_config_blocking_io_behavior_ignore_resolves(tmp_path: Path) -> None:
-    """Setting blocking_io_behavior='ignore' on AppConfig resolves to IGNORE (AC#6)."""
+    """Setting blocking_io_behavior='ignore' on AppConfig resolves to IGNORE."""
     app_config = AppConfig(blocking_io_behavior=BlockingIOBehavior.IGNORE)
     _hass = types.SimpleNamespace(config=make_test_config(data_dir=tmp_path))
 

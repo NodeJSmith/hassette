@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Reword spec tokens in tests/unit/core"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#8", "AC#7"]
 ---

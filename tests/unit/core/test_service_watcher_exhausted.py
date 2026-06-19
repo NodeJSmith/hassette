@@ -1,4 +1,4 @@
-"""Unit tests for ServiceWatcher.handle_exhaustion and cooldown_and_retry (WP02).
+"""Unit tests for ServiceWatcher.handle_exhaustion and cooldown_and_retry.
 
 Verifies:
 - handle_exhaustion sets EXHAUSTED_COOLING on the service instance for TRANSIENT services

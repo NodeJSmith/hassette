@@ -76,7 +76,7 @@ def make_logging_service(
 
 
 class TestLogPersistenceHandlerConstructor:
-    """Verify FR#4: constructor injection, no set_database()."""
+    """LogPersistenceHandler accepts db_service and loop via constructor; no set_database()."""
 
     def test_constructor_accepts_db_service_and_loop(self) -> None:
         db_service = make_db_service()
@@ -126,7 +126,7 @@ class TestLogPersistenceHandlerConstructor:
 
 
 class TestLoggingServiceOnInitialize:
-    """Verify FR#1, FR#2, AC#1, AC#2, AC#10."""
+    """LoggingService.on_initialize creates and starts the async logging pipeline."""
 
     @pytest.mark.asyncio
     async def test_on_initialize_creates_queue_listener_and_starts_it(self) -> None:
@@ -279,7 +279,7 @@ class TestLoggingServiceOnInitialize:
 
 
 class TestLoggingServiceOnShutdown:
-    """Verify FR#3, AC#3."""
+    """LoggingService.on_shutdown stops the QueueListener and restores the stream handler."""
 
     @pytest.mark.asyncio
     async def test_on_shutdown_stops_listener_and_restores_stream_handler(self) -> None:
@@ -391,7 +391,7 @@ class TestDroppedCount:
                 svc._queue_listener.stop()
 
 
-# Tests: sync→async swap — no record loss (FR#6, AC#5)
+# Tests: sync→async swap — no record loss
 
 
 class TestSyncToAsyncSwap:

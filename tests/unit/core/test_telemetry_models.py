@@ -5,7 +5,7 @@ from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 
 def test_job_summary_new_fields_defaults() -> None:
-    """New fields added in WP01 have correct default values."""
+    """New fields on JobSummary have correct default values."""
     summary = JobSummary(
         job_id=1,
         app_key="my_app",

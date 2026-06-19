@@ -168,7 +168,7 @@ async def test_saturation_warning_is_rate_limited() -> None:
 
 
 async def test_drop_newest_skips_handler_when_saturated() -> None:
-    """AC#2: Under a held-locked semaphore, DROP_NEWEST skips the event and increments backpressure_dropped.
+    """Under a held-locked semaphore, DROP_NEWEST skips the event and increments backpressure_dropped.
 
     Handler is not invoked and backpressure_dropped increments by exactly one per dropped event.
     """
@@ -200,7 +200,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
 
 
 async def test_drop_newest_multiple_drops_increment_counter() -> None:
-    """AC#2: Each dropped event increments backpressure_dropped by exactly one."""
+    """Each dropped event increments backpressure_dropped by exactly one."""
     svc = make_bus_service(max_concurrent_dispatches=1)
     await svc._dispatch_semaphore.acquire()
 
@@ -219,7 +219,7 @@ async def test_drop_newest_multiple_drops_increment_counter() -> None:
 
 
 async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
-    """AC#1 / FR#5: A DROP_NEWEST listener dispatches normally when the semaphore is free."""
+    """A DROP_NEWEST listener dispatches normally when the semaphore is free."""
     svc = make_bus_service(max_concurrent_dispatches=10)
 
     listener = create_listener(topic="test.topic", name="dropper", backpressure=BackpressurePolicy.DROP_NEWEST)
@@ -241,7 +241,7 @@ async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
 
 
 async def test_block_listener_blocks_then_runs_under_saturation() -> None:
-    """AC#3: A BLOCK listener still blocks-then-runs when the semaphore is held."""
+    """A BLOCK listener still blocks-then-runs when the semaphore is held."""
     svc = make_bus_service(max_concurrent_dispatches=1)
 
     # Saturate initially — released only after the block is confirmed.
@@ -286,7 +286,7 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
 
 
 async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
-    """AC#10: A dropped event leaves _dispatch_pending unchanged and await_dispatch_idle returns."""
+    """A dropped event leaves _dispatch_pending unchanged and await_dispatch_idle returns."""
     svc = make_bus_service(max_concurrent_dispatches=1)
     await svc._dispatch_semaphore.acquire()
 

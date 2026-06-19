@@ -1,10 +1,10 @@
 """Unit tests for the PRAGMA user_version migration runner.
 
 Covers:
-- FR#7: migrations applied in order, user_version set atomically
-- FR#9: crash mid-migration leaves DB at previous version
-- FR#19: new columns (trigger_mode, retry_count, etc.) exist after 001
-- FR#17 / AC#11: kind CHECK constraint rejects invalid values at the SQL level
+- migrations applied in order, user_version set atomically
+- crash mid-migration leaves DB at previous version
+- new columns (trigger_mode, retry_count, etc.) exist after 001
+- kind CHECK constraint rejects invalid values at the SQL level
 """
 
 import sqlite3
@@ -167,7 +167,7 @@ def test_apply_migration_creates_table(tmp_path: Path) -> None:
 def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:
     """Simulated crash mid-migration leaves DB at previous user_version.
 
-    FR#9: each migration is atomic — crash leaves DB at previous version.
+    Each migration is atomic — crash leaves DB at previous version.
     """
     db_path = tmp_path / "test.db"
 
@@ -244,11 +244,11 @@ def test_run_migrations_skips_already_applied(tmp_path: Path) -> None:
         assert _user_version(db_path) == version_after_first
 
 
-# Schema content tests (FR#19, FR#17, AC#11)
+# Schema content tests
 
 
 def test_new_columns_exist_after_001(tmp_path: Path) -> None:
-    """Known future columns exist in executions table after 001 applies (FR#19)."""
+    """Known future columns exist in executions table after 001 applies."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -262,7 +262,7 @@ def test_new_columns_exist_after_001(tmp_path: Path) -> None:
 
 
 def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
-    """kind CHECK constraint rejects values other than 'handler' and 'job' (FR#17, AC#11)."""
+    """kind CHECK constraint rejects values other than 'handler' and 'job'."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 

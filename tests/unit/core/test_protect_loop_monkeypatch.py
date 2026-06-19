@@ -1,13 +1,13 @@
-"""Unit tests for the Tier 2 protect-loop monkeypatch (T04).
+"""Unit tests for the Tier 2 protect-loop monkeypatch.
 
 Covers:
-    FR#5  — each patched primitive responds per behavior before the call proceeds
-    FR#8/AC#4  — off-loop calls pass through unflagged
-    FR#6/AC#10 — enablement matrix: dev→ON, prod default→OFF, prod+flag→ON
-    FR#12/AC#9 — idempotent install; uninstall restores originals; re-install is clean
-    AC#5  — dev_mode + filterwarnings("error") causes loop-thread time.sleep to RAISE
-            BEFORE sleeping (the sleep never happens); prod without flag → no patch
-    MonkeypatchEvent — dataclass fields are populated correctly
+    - each patched primitive responds per behavior before the call proceeds
+    - off-loop calls pass through unflagged
+    - enablement matrix: dev→ON, prod default→OFF, prod+flag→ON
+    - idempotent install; uninstall restores originals; re-install is clean
+    - dev_mode + filterwarnings("error") causes loop-thread time.sleep to RAISE
+      BEFORE sleeping (the sleep never happens); prod without flag → no patch
+    - MonkeypatchEvent dataclass fields are populated correctly
 """
 
 import asyncio
@@ -103,7 +103,7 @@ class TestEnablementMatrix:
         assert time.sleep is not _REAL_SLEEP
 
     def test_prod_default_does_not_install(self) -> None:
-        """Production without flag → NOT patched (AC#10)."""
+        """Production without flag → NOT patched."""
         h = _make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
         ex = _make_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
@@ -267,7 +267,7 @@ class TestIdempotencyAndLeak:
 
 class TestOffLoopGate:
     def test_time_sleep_off_loop_thread_passes_through(self) -> None:
-        """time.sleep called from a worker thread is not flagged (FR#8/AC#4)."""
+        """time.sleep called from a worker thread is not flagged."""
         fake_loop_thread_id = threading.get_ident() + 9999  # different from current thread
         h = _make_hassette()
         ex = _make_executor()
@@ -520,7 +520,7 @@ class TestMonkeypatchEvent:
             event.primitive = "changed"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_event_has_required_fields(self) -> None:
-        """MonkeypatchEvent has all the fields T05 needs."""
+        """MonkeypatchEvent has all the fields needed for blocking event persistence."""
         field_names = {f.name for f in fields(MonkeypatchEvent)}
         assert "primitive" in field_names
         assert "source_location" in field_names

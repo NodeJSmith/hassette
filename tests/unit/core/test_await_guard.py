@@ -1,16 +1,16 @@
 """Unit tests for RegistrationHandle, guard_await, ForgottenAwaitBehavior, and source_capture.
 
 Covers:
-    FR#1 — un-awaited drop + gc.collect() emits HassetteForgottenAwaitWarning
-    FR#2 — warning message contains app identity + file:line
-    FR#4 — awaited handle does NOT warn; no native double-warning
-    FR#6 — IGNORE/WARN/ERROR behavior
-    FR#7 — default is WARN
-    FR#8 — attribution uses module-name check; source_capture uses module-name check
-    FR#12 — handle held alive does not warn until collected
-    AC#1 — gc.collect() + pytest.warns with app id + file:line
-    AC#4 — parametrized IGNORE/WARN/ERROR/per-app override
-    AC#5 — attribution from non-hassette module frame
+    - un-awaited drop + gc.collect() emits HassetteForgottenAwaitWarning
+    - warning message contains app identity + file:line
+    - awaited handle does NOT warn; no native double-warning
+    - IGNORE/WARN/ERROR behavior
+    - default is WARN
+    - attribution uses module-name check; source_capture uses module-name check
+    - handle held alive does not warn until collected
+    - gc.collect() + pytest.warns with app id + file:line
+    - parametrized IGNORE/WARN/ERROR/per-app override
+    - attribution from non-hassette module frame
 """
 
 import asyncio
@@ -68,7 +68,7 @@ def _make_handle(
     )
 
 
-# FR#1 / AC#1 — drop + gc.collect() emits warning
+# drop + gc.collect() emits warning
 
 
 def test_drop_unawaited_emits_warning():
@@ -79,7 +79,7 @@ def test_drop_unawaited_emits_warning():
         gc.collect()
 
 
-# FR#2 — warning message contains owner identity + source location
+# warning message contains owner identity + source location
 
 
 def test_warning_message_contains_app_identity():
@@ -114,7 +114,7 @@ def test_warning_message_falls_back_to_inner_coro_name():
         gc.collect()
 
 
-# FR#4 — awaited handle does NOT warn, no native double-warning
+# awaited handle does NOT warn, no native double-warning
 
 
 async def test_awaited_handle_does_not_warn():
@@ -164,7 +164,7 @@ async def test_unawaited_no_native_double_warning():
     assert native_warns == [], f"Got unexpected native warning(s): {native_warns}"
 
 
-# FR#4 — all four drive/teardown entry points set _awaited = True
+# all four drive/teardown entry points set _awaited = True
 
 
 async def test_send_sets_awaited():
@@ -234,7 +234,7 @@ def test_handle_is_instantiable_all_abc_methods():
     h.close()
 
 
-# FR#6, FR#7, AC#4 — IGNORE / WARN / ERROR / per-app override / default WARN
+# IGNORE / WARN / ERROR / per-app override / default WARN
 
 
 @pytest.mark.parametrize(
@@ -285,7 +285,7 @@ def test_behavior_error_with_filterwarnings_error_raises():
 
 
 def test_default_behavior_is_warn():
-    """With no explicit config, resolved behavior is WARN (FR#7)."""
+    """With no explicit config, resolved behavior is WARN."""
     coro = _make_inner_coro()
 
     _cfg = types.SimpleNamespace(forgotten_await_behavior=None)
@@ -302,7 +302,7 @@ def test_default_behavior_is_warn():
 
 
 def test_per_app_override_beats_global_default():
-    """Per-app forgotten_await_behavior overrides global default (FR#6, AC#4)."""
+    """Per-app forgotten_await_behavior overrides the global default."""
     coro = _make_inner_coro()
 
     _cfg = types.SimpleNamespace(forgotten_await_behavior=ForgottenAwaitBehavior.WARN)
@@ -335,7 +335,7 @@ def test_global_default_used_when_per_app_none():
     h.close()
 
 
-# FR#8, AC#5 — module-name attribution
+# module-name attribution
 
 
 def test_source_capture_no_longer_uses_path_fragments():
@@ -357,7 +357,7 @@ def test_source_capture_is_internal_frame_module_name():
 
 
 def test_source_capture_skips_hassette_frames(monkeypatch):
-    """capture_registration_source walks past hassette.* frames to user frame (FR#8, AC#5)."""
+    """capture_registration_source walks past hassette.* frames to the first user frame."""
     # Inject a fake stack: first frame is our own (skipped by [1:]),
     # next two are hassette internals, last is user code.
     fake_frames = [
@@ -462,7 +462,7 @@ def test_source_capture_limit_too_small_falls_back(monkeypatch):
     assert source_location == "/site-packages/hassette/bus/bus.py:350"
 
 
-# FR#12 — handle held alive does not warn until collected
+# handle held alive does not warn until collected
 
 
 def test_handle_held_alive_does_not_warn_immediately():

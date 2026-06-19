@@ -1,11 +1,11 @@
-"""Unit tests for the Tier 1 loop-responsiveness watchdog (T03).
+"""Unit tests for the Tier 1 loop-responsiveness watchdog.
 
 Covers:
-    AC#1  — blocking handler trips exactly one warning naming the app, duration ≈ T
-    AC#3  — await asyncio.sleep(T) trips ZERO warnings (responsiveness-based, not wall-clock)
-    FR#3  — default config never raises; ERROR escalates only via filterwarnings("error")
-    FR#12 / AC#9 — double start is no-op; stop leaves no thread alive; re-start works
-    FR#1  — no loop.set_debug anywhere in the watchdog path
+    - blocking handler trips exactly one warning naming the app, duration ≈ T
+    - await asyncio.sleep(T) trips ZERO warnings (responsiveness-based, not wall-clock)
+    - default config never raises; ERROR escalates only via filterwarnings("error")
+    - double start is no-op; stop leaves no thread alive; re-start works
+    - no loop.set_debug anywhere in the watchdog path
 
 Each async test that does a real time.sleep pins its own function-scoped loop so a
 synchronous freeze does not starve the session-scoped loop and trip neighbouring tests.
@@ -97,7 +97,7 @@ def _make_watchdog(
 
 
 def test_watchdog_does_not_call_set_debug() -> None:
-    """LoopWatchdog must never call loop.set_debug(True) — FR#1."""
+    """LoopWatchdog must never call loop.set_debug(True)."""
     src = inspect.getsource(loop_watchdog_module)
     assert "set_debug" not in src, "loop_watchdog.py must not reference set_debug"
 
@@ -121,7 +121,7 @@ async def test_double_start_is_noop() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_stop_cleans_up_thread_and_handle() -> None:
-    """After stop(), no daemon thread is alive and the tick handle is cancelled — FR#12/AC#9."""
+    """After stop(), no daemon thread is alive and the tick handle is cancelled."""
     loop = asyncio.get_running_loop()
     executor = _make_executor()
     executor.current_execution = None
@@ -150,7 +150,7 @@ async def test_stop_before_start_is_noop() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_restart_after_stop_works() -> None:
-    """After stop(), a second start() re-installs cleanly — FR#12/AC#9."""
+    """After stop(), a second start() re-installs cleanly."""
     loop = asyncio.get_running_loop()
     executor = _make_executor()
     executor.current_execution = None
@@ -170,7 +170,7 @@ async def test_restart_after_stop_works() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_blocking_sleep_emits_exactly_one_warning() -> None:
-    """A time.sleep > threshold on the loop thread produces exactly ONE warning — AC#1.
+    """A time.sleep > threshold on the loop thread produces exactly ONE warning.
 
     A real time.sleep is required to produce a genuine tick stall; the function-scoped
     loop keeps that freeze from starving other tests.
@@ -206,7 +206,7 @@ async def test_blocking_sleep_emits_exactly_one_warning() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_blocking_sleep_warning_reports_full_duration() -> None:
-    """The reported stall duration approximates the full block T, not the detection latency — AC#1.
+    """The reported stall duration approximates the full block T, not the detection latency.
 
     Warn-after means the duration is measured across the whole freeze (tick-starvation span),
     so it must be close to T (~550ms), not the old first-detection value (~threshold ≈ 167ms).
@@ -236,7 +236,7 @@ async def test_blocking_sleep_warning_reports_full_duration() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_async_sleep_produces_no_warning() -> None:
-    """await asyncio.sleep(T) for T >> threshold MUST produce zero warnings — AC#3/FR#9.
+    """await asyncio.sleep(T) for T >> threshold MUST produce zero warnings.
 
     The central correctness test: the loop stays responsive across an await, so the tick
     keeps advancing and no stall is ever detected.
@@ -264,7 +264,7 @@ async def test_async_sleep_produces_no_warning() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_default_config_emits_warning_not_exception() -> None:
-    """Under default config (WARN), a stall emits a warning — never an unconditional raise — FR#3."""
+    """Under default config (WARN), a stall emits a warning — never an unconditional raise."""
     loop = asyncio.get_running_loop()
     executor = _make_executor("any_app")
 
@@ -282,7 +282,7 @@ async def test_default_config_emits_warning_not_exception() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_error_behavior_emits_via_warnings_not_unconditional_raise() -> None:
-    """ERROR behavior still routes through warnings.warn; the watchdog never raises itself — FR#3.
+    """ERROR behavior still routes through warnings.warn; the watchdog never raises itself.
 
     ERROR differs from IGNORE (it emits) but not from WARN at the watchdog: both call
     warnings.warn. Escalation to an exception is the user's filterwarnings("error"), applied by
@@ -387,8 +387,8 @@ async def test_deduplication_one_warning_per_stall_episode() -> None:
     assert len(record) == 1, f"expected 1 warning for one stall, got {len(record)}"
 
 
-def test_watchdog_event_fields_for_t05() -> None:
-    """WatchdogEvent carries all fields T05 needs for blocking_events persistence."""
+def test_watchdog_event_fields() -> None:
+    """WatchdogEvent carries all fields needed for blocking_events persistence."""
     event = WatchdogEvent(
         app_key="lights_app",
         instance_name="office",
@@ -443,7 +443,7 @@ async def test_classify_attribution_distinguishes_outcomes() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_displaced_block_not_attributed_to_innocent_app() -> None:
     """A freeze whose marker was bound by a different task records NULL + reason='displaced',
-    and the warning labels it <framework> rather than blaming the marker's app — FR#4 / #1048."""
+    and the warning labels it <framework> rather than blaming the marker's app."""
     loop = asyncio.get_running_loop()
     executor = MagicMock()
     # Marker bound by a different task than the one that will freeze the loop. id() is never

@@ -132,7 +132,7 @@ class TestMigration001LogRecords:
 
 
 class TestRestartPersistence:
-    """AC#6: After a simulated restart (new DB connection), previously-persisted records are queryable."""
+    """After a simulated restart (new DB connection), previously-persisted records are queryable."""
 
     async def test_records_survive_connection_close_and_reopen(self, tmp_path: Path) -> None:
         """Write records, close the connection, reopen, and confirm they're queryable."""
