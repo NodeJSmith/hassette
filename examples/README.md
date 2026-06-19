@@ -34,6 +34,12 @@ Demonstrates: `AppSync`, `on_initialize_sync`, `on_call_service` with domain fil
 
 Monitors lock service calls (lock, unlock) and moisture sensor alerts using synchronous patterns (`AppSync`). The moisture handler is throttled to fire at most once per 5 minutes.
 
+### backpressure_demo.py — Load shedding with drop_newest backpressure
+
+Demonstrates: `backpressure=BackpressurePolicy.DROP_NEWEST`, dispatch-semaphore saturation, `bus.emit`, self-driving event burst.
+
+Registers one slow parallel handler and drives a burst larger than `lifecycle.max_concurrent_dispatches`. Once the dispatch semaphore is saturated, the `drop_newest` policy sheds the newest events at the acquire gate instead of waiting for a slot. The dropped count and rate surface as the "Backpressure Dropped" stat in the listener detail panel.
+
 ## Running the Demo Environment
 
 ```bash

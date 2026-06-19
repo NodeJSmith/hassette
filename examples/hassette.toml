@@ -60,6 +60,11 @@ filename = "bus_overlap.py"
 class_name = "BusOverlapDemo"
 config = { instance_name = "bus_overlap" }
 
+[hassette.apps.backpressure_demo]
+filename = "backpressure_demo.py"
+class_name = "BackpressureDemo"
+config = { instance_name = "backpressure_demo" }
+
 [hassette.database]
 retention_days = 14
 max_size_mb = 100
