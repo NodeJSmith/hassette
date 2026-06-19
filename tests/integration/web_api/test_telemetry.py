@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.core.bus_service import LiveCounts
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.core.telemetry_models import (
     Execution,
@@ -115,6 +116,7 @@ class TestTelemetryListeners:
                     source_location="my_app.py:10",
                     registration_source=None,
                     mode="single",
+                    backpressure="drop_newest",
                     total_invocations=3,
                     successful=3,
                     failed=0,
@@ -131,7 +133,9 @@ class TestTelemetryListeners:
             ]
         )
         # Live snapshot keyed by listener db_id (== listener_id 7).
-        mock_hassette.bus_service.live_execution_counts = MagicMock(return_value={7: (2, 4)})
+        mock_hassette.bus_service.live_execution_counts = MagicMock(
+            return_value={7: LiveCounts(suppressed=2, dropped=4, backpressure_dropped=5)}
+        )
 
         response = await client.get("/api/telemetry/app/my_app/listeners")
         assert response.status_code == 200
@@ -140,6 +144,9 @@ class TestTelemetryListeners:
         assert data[0]["mode"] == "single"
         assert data[0]["suppressed_count"] == 2
         assert data[0]["dropped_count"] == 4
+        # The live backpressure_dropped count and the persisted policy both reach the HTTP response.
+        assert data[0]["backpressure_dropped_count"] == 5
+        assert data[0]["backpressure"] == "drop_newest"
 
     async def test_listener_with_no_live_guard_reports_zero_counts(self, client: "AsyncClient", mock_hassette) -> None:
         """A listener absent from the live snapshot (retired) reports zero counts (FR#15)."""

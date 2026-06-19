@@ -43,8 +43,8 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStat
   if (job.cancelled > 0) cells.push({ label: "Cancelled", value: job.cancelled, tone: "cancel" });
   cells.push({ label: "Mode", value: job.mode });
   if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
-  if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count });
-  if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count });
+  if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count, tone: "mute" });
+  if (job.dropped_count > 0) cells.push({ label: "Dropped", value: job.dropped_count, tone: "warn" });
   cells.push(
     { label: "Min", value: formatOptionalDuration(job.min_duration_ms) },
     { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },

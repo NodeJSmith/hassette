@@ -46,5 +46,6 @@ Run `hassette listener --app <key>` to see registered listeners and invocation c
 - [Writing Handlers](handlers.md): start here — handler signature patterns and choosing the right one
 - [Subscription Methods](methods.md): full method reference, parameters, error handling, timeouts, and registration
 - [Execution Modes](execution-modes.md): control what happens when a trigger fires while the handler is still running
+- [Backpressure Policy](backpressure.md): control what a listener does when the bus dispatch semaphore is saturated
 - [Filtering & Predicates](filtering.md): predicates, conditions, and accessors for complex event matching
 - [Dependency Injection](dependency-injection.md): the full `D.*` annotation reference and how Hassette resolves handler parameters

@@ -22,6 +22,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.priority) chips.push({ label: "priority", value: String(listener.priority) });
   if (listener.immediate) chips.push({ label: "immediate" });
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
+  if (listener.backpressure === "drop_newest") chips.push({ label: "backpressure", value: "drop_newest" });
 
   if (chips.length === 0) return null;
   return (
@@ -55,8 +56,15 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
   if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled, tone: "cancel" });
   cells.push({ label: "Mode", value: listener.mode });
   if (listener.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: listener.thread_leaked, tone: "warn" });
-  if (listener.suppressed_count > 0) cells.push({ label: "Suppressed", value: listener.suppressed_count });
-  if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count });
+  if (listener.suppressed_count > 0)
+    cells.push({ label: "Suppressed", value: listener.suppressed_count, tone: "mute" });
+  if (listener.dropped_count > 0) cells.push({ label: "Dropped", value: listener.dropped_count, tone: "warn" });
+  if (listener.backpressure_dropped_count > 0) {
+    const dropped = listener.backpressure_dropped_count;
+    const attempted = listener.total_invocations + dropped;
+    const pct = Math.round((100 * dropped) / attempted);
+    cells.push({ label: "Backpressure Dropped", value: `${dropped} (${pct}%)`, tone: "warn" });
+  }
   cells.push(
     { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
     { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },

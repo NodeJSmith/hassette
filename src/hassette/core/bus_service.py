@@ -3,7 +3,7 @@ import time
 import typing
 from collections import defaultdict
 from functools import cached_property
-from typing import Any, ClassVar
+from typing import Any, ClassVar, NamedTuple
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.invocation import build_tracked_invoke_fn
@@ -18,7 +18,7 @@ from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import RestartType
+from hassette.types.enums import BackpressurePolicy, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -41,6 +41,22 @@ _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
+
+
+class LiveCounts(NamedTuple):
+    """Live execution count snapshot for a single listener.
+
+    All three counters are in-memory only and reset on restart.
+    """
+
+    suppressed: int
+    """Events dropped by the single-mode guard while a prior invocation was running."""
+
+    dropped: int
+    """Events dropped by the queued-mode guard when the queue cap was reached."""
+
+    backpressure_dropped: int
+    """Events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure."""
 
 
 class BusService(Service):
@@ -150,7 +166,8 @@ class BusService(Service):
         self._last_saturation_warn_ts = now
         self.logger.warning(
             "Event dispatch saturated: %d concurrent handlers in flight (max_concurrent_dispatches). "
-            "New dispatches are waiting for a slot; sustained saturation backpressures HA event intake. "
+            "Listeners may wait for a slot or drop events per their backpressure policy; "
+            "sustained saturation backpressures HA event intake. "
             "Raise lifecycle.max_concurrent_dispatches or speed up slow handlers.",
             self.hassette.config.lifecycle.max_concurrent_dispatches,
         )
@@ -227,29 +244,34 @@ class BusService(Service):
             duration=listener.duration_config.duration if listener.duration_config else None,
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
             mode=listener.options.mode.value,
+            backpressure=listener.options.backpressure.value,
         )
 
-    def live_execution_counts(self) -> "dict[int, tuple[int, int]]":
-        """Return a snapshot of live ``(suppressed, dropped)`` counts keyed by listener ``db_id``.
+    def live_execution_counts(self) -> "dict[int, LiveCounts]":
+        """Return a snapshot of live execution counts keyed by listener ``db_id``.
 
-        Reads each active listener's ``ExecutionModeGuard`` from the router. Live and in-memory
-        only — no DB access. Listeners not yet assigned a ``db_id`` are skipped; the web
-        layer treats a missing entry as ``(0, 0)``. The counters reset on guard restart and are
-        never persisted.
+        Reads each active listener's ``ExecutionModeGuard`` and ``HandlerInvoker`` from the
+        router. Live and in-memory only — no DB access. Listeners not yet assigned a ``db_id``
+        are skipped; the web layer treats a missing entry as ``LiveCounts(0, 0, 0)``. The
+        counters reset on guard restart and are never persisted.
 
         Returns:
-            A dict mapping listener ``db_id`` to a ``(suppressed, dropped)`` tuple.
+            A dict mapping listener ``db_id`` to a :class:`LiveCounts` NamedTuple.
         """
         # No awaits in this method — safe from asyncio mutation races against add_listener /
         # remove_listener (router.owners is only mutated on the event loop). Do not add an await
         # to this loop without adding synchronization, or the snapshot could tear.
-        counts: dict[int, tuple[int, int]] = {}
+        counts: dict[int, LiveCounts] = {}
         for listeners in self.router.owners.values():
             for listener in listeners:
                 if listener.db_id is None:
                     continue
                 guard = listener.invoker.guard
-                counts[listener.db_id] = (guard.suppressed, guard.dropped)
+                counts[listener.db_id] = LiveCounts(
+                    suppressed=guard.suppressed,
+                    dropped=guard.dropped,
+                    backpressure_dropped=listener.invoker.backpressure_dropped,
+                )
         return counts
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
@@ -387,7 +409,21 @@ class BusService(Service):
                 # propagating backpressure to the WS reader. locked() exactly predicts a blocking
                 # acquire here: no await separates the two, so no other task changes the count between.
                 if self._dispatch_semaphore.locked():
+                    # Keep this call before the `await acquire()` below: the BLOCK-path test
+                    # `test_block_listener_blocks_then_runs_under_saturation` hooks
+                    # `warn_dispatch_saturated` as a deterministic signal that dispatch has reached
+                    # the block. Moving it after the acquire would make that test pass vacuously.
                     self.warn_dispatch_saturated()
+                    if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
+                        # Single writer: this loop, on the event loop, NO await between locked() and
+                        # the increment — the same no-await window that makes the saturation check
+                        # race-free. Do not insert an await (e.g. metrics emit) between them.
+                        listener.invoker.backpressure_dropped += 1
+                        self.logger.debug(
+                            "backpressure drop_newest: skipping event for %s",
+                            listener.identity.name or listener.identity.handler_short_name,
+                        )
+                        continue  # no acquire, no spawn, no pending/idle bookkeeping
                 await self._dispatch_semaphore.acquire()
 
                 self._dispatch_pending += 1

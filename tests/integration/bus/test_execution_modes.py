@@ -9,14 +9,17 @@ rules: assert the counter increment, not log capture).
 
 import asyncio
 import typing
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hassette.core.bus_service import BusService, LiveCounts
+from hassette.core.command_executor import CommandExecutor
+from hassette.core.database_service import DatabaseService
 from hassette.events import RawStateChangeEvent
 from hassette.execution_mode import DEFAULT_QUEUE_DEPTH
 from hassette.test_utils import wait_for
-from hassette.test_utils.helpers import create_state_change_event
+from hassette.test_utils.helpers import create_listener, create_state_change_event
 
 from .helpers import seed
 
@@ -262,10 +265,32 @@ async def test_live_execution_counts_snapshot_keyed_by_db_id(
     await wait_for(lambda: sub.listener.invoker.guard.suppressed == 1)
 
     counts = harness.bus_service.live_execution_counts()
-    assert counts[db_id] == (1, 0)
+    assert counts[db_id] == LiveCounts(suppressed=1, dropped=0, backpressure_dropped=0)
 
     gate.set()
     await harness.bus_service.await_dispatch_idle()
+
+
+async def test_live_execution_counts_includes_backpressure_dropped(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """live_execution_counts() surfaces a listener's backpressure-drop counter by db_id (FR#6)."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "0")
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        pass
+
+    sub = await bus.on_state_change(ENTITY, handler=handler, name="counts_bp", backpressure="drop_newest")
+    db_id = sub.listener.db_id
+    assert db_id is not None
+
+    # The gate increments invoker.backpressure_dropped under saturation (covered by T02's unit tests);
+    # here we set it directly to assert the snapshot reads the counter, not a hardcoded zero.
+    sub.listener.invoker.backpressure_dropped = 3
+
+    counts = harness.bus_service.live_execution_counts()
+    assert counts[db_id] == LiveCounts(suppressed=0, dropped=0, backpressure_dropped=3)
 
 
 async def test_live_execution_counts_omits_retired_listener(
@@ -519,3 +544,127 @@ async def test_framework_tier_listener_processes_concurrent_events(
         await harness.bus_service.await_dispatch_idle()
     finally:
         bus.parent = original_parent
+
+
+@pytest.fixture
+async def real_executor(
+    db_hassette: AsyncMock,
+    initialized_db: tuple[DatabaseService, int],  # noqa: ARG001
+) -> CommandExecutor:
+    """CommandExecutor wired to a real migrated DB — for persistence assertions."""
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
+    await exc.on_initialize()
+    return exc
+
+
+async def test_backpressure_policy_persisted_on_registration(
+    real_executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+    db_hassette: AsyncMock,
+) -> None:
+    """AC#5: persisted backpressure column matches the configured policy at registration time.
+
+    A DROP_NEWEST listener writes 'drop_newest'; a BLOCK/omitted listener writes 'block'.
+    Uses a real CommandExecutor + migrated DB (bus_harness uses a mock executor with no DB).
+    """
+    db_service, _ = initialized_db
+    stream = Mock()
+    bus_service = BusService(db_hassette, stream=stream, executor=real_executor, parent=db_hassette)
+
+    async def handler(event: object) -> None:
+        pass
+
+    drop_listener = create_listener(
+        handler,
+        topic="state_changed.sensor.power",
+        app_key="test_app",
+        instance_index=0,
+        name="bp_test_drop_newest",
+        backpressure="drop_newest",
+    )
+    reg_drop = bus_service.build_registration(drop_listener)
+    await real_executor.register_listener(reg_drop)
+
+    cursor = await db_service.db.execute(
+        "SELECT backpressure FROM listeners WHERE name = ?",
+        ("bp_test_drop_newest",),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "drop_newest", f"Expected 'drop_newest', got {row[0]!r}"
+
+    block_listener = create_listener(
+        handler,
+        topic="state_changed.sensor.power",
+        app_key="test_app",
+        instance_index=0,
+        name="bp_test_block",
+        backpressure="block",
+    )
+    reg_block = bus_service.build_registration(block_listener)
+    await real_executor.register_listener(reg_block)
+
+    cursor = await db_service.db.execute(
+        "SELECT backpressure FROM listeners WHERE name = ?",
+        ("bp_test_block",),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "block", f"Expected 'block', got {row[0]!r}"
+
+
+async def test_backpressure_policy_updated_on_replace_registration(
+    real_executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+    db_hassette: AsyncMock,
+) -> None:
+    """AC#9: re-registering with if_exists='replace' and a changed policy updates the persisted row.
+
+    Exercises the ON CONFLICT ... DO UPDATE SET backpressure = excluded.backpressure clause.
+    Without that clause, the upsert would leave the old 'block' value in place.
+    """
+    db_service, _ = initialized_db
+    stream = Mock()
+    bus_service = BusService(db_hassette, stream=stream, executor=real_executor, parent=db_hassette)
+
+    async def handler(event: object) -> None:
+        pass
+
+    first = create_listener(
+        handler,
+        topic="state_changed.sensor.replace_test",
+        app_key="test_app",
+        instance_index=0,
+        name="bp_replace_test",
+        backpressure="block",
+    )
+    reg_first = bus_service.build_registration(first)
+    await real_executor.register_listener(reg_first)
+
+    cursor = await db_service.db.execute(
+        "SELECT backpressure FROM listeners WHERE name = ?",
+        ("bp_replace_test",),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "block"
+
+    # Re-register with the same name + topic (triggers ON CONFLICT) but with DROP_NEWEST.
+    second = create_listener(
+        handler,
+        topic="state_changed.sensor.replace_test",
+        app_key="test_app",
+        instance_index=0,
+        name="bp_replace_test",
+        backpressure="drop_newest",
+    )
+    reg_second = bus_service.build_registration(second)
+    await real_executor.register_listener(reg_second)
+
+    cursor = await db_service.db.execute(
+        "SELECT backpressure FROM listeners WHERE name = ?",
+        ("bp_replace_test",),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "drop_newest", f"Expected 'drop_newest' after replace, got {row[0]!r}"

@@ -1,6 +1,7 @@
 from .enums import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
+    BackpressurePolicy,
     ConnectionState,
     ExecutionMode,
     Outcome,
@@ -40,6 +41,7 @@ __all__ = [
     "TERMINAL_STATUSES",
     "AppConfigT",
     "AsyncHandlerType",
+    "BackpressurePolicy",
     "BusErrorHandlerType",
     "ChangeType",
     "ComparisonCondition",

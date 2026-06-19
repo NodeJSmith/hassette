@@ -15,7 +15,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from hassette.types.enums import DEFAULT_OVERLAP_MODE
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, ExecutionStatus, SourceTier
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
@@ -84,6 +84,8 @@ class ListenerSummary(BaseModel):
     duration: float | None = None
     entity_id: str | None = None
     mode: str = DEFAULT_OVERLAP_MODE
+    backpressure: str = DEFAULT_BACKPRESSURE_POLICY
+    """Sourced from the ``listeners.backpressure`` column; ``'block'`` (default) or ``'drop_newest'``."""
     total_invocations: int
     successful: int
     failed: int

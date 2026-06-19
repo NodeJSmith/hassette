@@ -40,6 +40,7 @@ CREATE TABLE listeners (
     once                  INTEGER NOT NULL DEFAULT 0,
     priority              INTEGER NOT NULL DEFAULT 0,
     mode                  TEXT    NOT NULL DEFAULT 'single',
+    backpressure          TEXT    NOT NULL DEFAULT 'block' CHECK (backpressure IN ('block', 'drop_newest')),
     predicate_description TEXT,
     human_description     TEXT,
     source_location       TEXT    NOT NULL,

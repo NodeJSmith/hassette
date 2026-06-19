@@ -16,6 +16,7 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 from typing import cast
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.core.bus_service import LiveCounts
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
 from hassette.types.enums import ResourceStatus, Topic
@@ -172,7 +173,7 @@ def listener_kind_from_topic(topic: str) -> ListenerKind:
 
 def to_listener_with_summary(
     ls: ListenerSummary,
-    live_counts: dict[int, tuple[int, int]] | None = None,
+    live_counts: dict[int, LiveCounts] | None = None,
 ) -> ListenerWithSummary:
     """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
 
@@ -181,11 +182,11 @@ def to_listener_with_summary(
 
     Args:
         ls: The persisted listener summary from the telemetry DB.
-        live_counts: Live ``(suppressed, dropped)`` counts keyed by listener ``db_id``, sourced
-            from the bus's in-memory guards. A listener with no live guard (e.g. retired) defaults
-            to ``(0, 0)``.
+        live_counts: Live execution counts keyed by listener ``db_id``, sourced from the bus's
+            in-memory guards. A listener with no live guard (e.g. retired) defaults to
+            ``LiveCounts(0, 0, 0)``.
     """
-    suppressed, dropped = (live_counts or {}).get(ls.listener_id, (0, 0))
+    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(ls.listener_id, LiveCounts(0, 0, 0))
     return ListenerWithSummary(
         listener_id=ls.listener_id,
         app_key=ls.app_key,
@@ -224,4 +225,6 @@ def to_listener_with_summary(
         mode=ls.mode,
         suppressed_count=suppressed,
         dropped_count=dropped,
+        backpressure_dropped_count=backpressure_dropped,
+        backpressure=ls.backpressure,
     )

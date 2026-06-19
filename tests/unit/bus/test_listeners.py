@@ -4,9 +4,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.listeners import Listener, ListenerOptions, Subscription
 from hassette.event_handling.predicates import StateTo
 from hassette.test_utils.helpers import create_listener, make_task_bucket
+from hassette.types.enums import BackpressurePolicy
 
 
 def fn() -> None:
@@ -382,3 +383,67 @@ class TestCreateCancelListener:
             unsubscribe=MagicMock(),
         )
         assert not hasattr(sub, "registration_task"), "Subscription must not have registration_task field"
+
+
+class TestBackpressurePolicy:
+    """Tests for BackpressurePolicy plumbing — FR#1, FR#2, FR#9, FR#10, AC#6, AC#7."""
+
+    def test_default_backpressure_is_block(self) -> None:
+        """Omitting backpressure results in ListenerOptions.backpressure == BLOCK (FR#2)."""
+        opts = ListenerOptions()
+        assert opts.backpressure is BackpressurePolicy.BLOCK
+
+    def test_explicit_block_policy(self) -> None:
+        """backpressure=BackpressurePolicy.BLOCK is accepted and stored."""
+        opts = ListenerOptions(backpressure=BackpressurePolicy.BLOCK)
+        assert opts.backpressure is BackpressurePolicy.BLOCK
+
+    def test_explicit_drop_newest_policy(self) -> None:
+        """backpressure=BackpressurePolicy.DROP_NEWEST is accepted and stored."""
+        opts = ListenerOptions(backpressure=BackpressurePolicy.DROP_NEWEST)
+        assert opts.backpressure is BackpressurePolicy.DROP_NEWEST
+
+    def test_string_coercion_block(self) -> None:
+        """backpressure='block' string is coerced to BackpressurePolicy.BLOCK."""
+        opts = ListenerOptions(backpressure="block")
+        assert opts.backpressure is BackpressurePolicy.BLOCK
+
+    def test_string_coercion_drop_newest(self) -> None:
+        """backpressure='drop_newest' string is coerced to BackpressurePolicy.DROP_NEWEST."""
+        opts = ListenerOptions(backpressure="drop_newest")
+        assert opts.backpressure is BackpressurePolicy.DROP_NEWEST
+
+    def test_invalid_backpressure_string_raises_value_error(self) -> None:
+        """An invalid backpressure string raises ValueError naming the valid policies (FR#9, AC#6)."""
+        with pytest.raises(ValueError, match="bogus") as exc_info:
+            ListenerOptions(backpressure="bogus")
+        error_msg = str(exc_info.value)
+        assert "block" in error_msg
+        assert "drop_newest" in error_msg
+
+    def test_invalid_backpressure_string_lists_valid_values(self) -> None:
+        """The ValueError message lists all valid policy values (AC#6)."""
+        with pytest.raises(ValueError, match="invalid_policy") as exc_info:
+            ListenerOptions(backpressure="invalid_policy")
+        error_msg = str(exc_info.value)
+        for policy in BackpressurePolicy:
+            assert repr(policy.value) in error_msg
+
+    def test_backpressure_drift_detected_by_diff_fields(self) -> None:
+        """A changed backpressure value is reported in diff_fields (FR#10, AC#7)."""
+        a = create_listener(handler=fn, backpressure=BackpressurePolicy.BLOCK)
+        b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
+        assert "backpressure" in a.diff_fields(b)
+
+    def test_backpressure_drift_detected_by_config_matches(self) -> None:
+        """A changed backpressure value causes config_matches to return False (FR#10, AC#7)."""
+        a = create_listener(handler=fn, backpressure=BackpressurePolicy.BLOCK)
+        b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
+        assert a.config_matches(b) is False
+
+    def test_same_backpressure_config_matches(self) -> None:
+        """Same backpressure policy does not cause drift."""
+        a = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
+        b = create_listener(handler=fn, backpressure=BackpressurePolicy.DROP_NEWEST)
+        assert a.config_matches(b) is True
+        assert "backpressure" not in a.diff_fields(b)

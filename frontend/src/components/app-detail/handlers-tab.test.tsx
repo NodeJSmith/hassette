@@ -230,6 +230,40 @@ describe("HandlersTab", () => {
     expect(statsRow.textContent).toContain("3");
   });
 
+  it("handler stats row: shows Backpressure Dropped with warn tone when count > 0", async () => {
+    const listener = createListener({
+      listener_id: 24,
+      backpressure: "drop_newest",
+      backpressure_dropped_count: 5,
+      total_invocations: 5,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/24");
+    await waitFor(() => getByTestId("handler-stats-row"));
+    const statsRow = getByTestId("handler-stats-row");
+    expect(statsRow.textContent).toContain("Backpressure Dropped");
+    // Dropped events are data loss: warns, with drop-rate percentage
+    const warnValue = statsRow.querySelector("[data-tone='warn']");
+    expect(warnValue?.textContent).toBe("5 (50%)");
+  });
+
+  it("handler stats row: shows 100% rate when every event was dropped", async () => {
+    const listener = createListener({
+      listener_id: 25,
+      backpressure: "drop_newest",
+      backpressure_dropped_count: 5,
+      total_invocations: 0,
+      failed: 0,
+      timed_out: 0,
+    });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/25");
+    await waitFor(() => getByTestId("handler-stats-row"));
+    const statsRow = getByTestId("handler-stats-row");
+    const warnValue = statsRow.querySelector("[data-tone='warn']");
+    expect(warnValue?.textContent).toBe("5 (100%)");
+  });
+
   it("handler stats row: shows — for min/max when null (no executions)", async () => {
     const listener = createListener({
       listener_id: 23,
@@ -471,6 +505,9 @@ describe("HandlersTab", () => {
     expect(statsRow.textContent).toContain("Suppressed");
     expect(statsRow.textContent).toContain("3");
     expect(queryByText("Dropped")).toBeNull();
+    // Suppressed is expected single-mode behavior: muted, not a warning
+    const muteValue = statsRow.querySelector("[data-tone='mute']");
+    expect(muteValue?.textContent).toBe("3");
   });
 
   it("job stats row: shows Dropped when dropped_count > 0", async () => {
@@ -481,6 +518,9 @@ describe("HandlersTab", () => {
     expect(statsRow.textContent).toContain("Dropped");
     expect(statsRow.textContent).toContain("2");
     expect(queryByText("Suppressed")).toBeNull();
+    // Dropped is data loss: warns
+    const warnValue = statsRow.querySelector("[data-tone='warn']");
+    expect(warnValue?.textContent).toBe("2");
   });
 
   it("shows placeholder when selectedHandler has invalid format", () => {

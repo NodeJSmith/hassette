@@ -116,16 +116,25 @@ This discipline matters most for startup races, timing bugs, and subtle state is
 
 ### Regression test patterns for this project
 
-**Startup races** — use `asyncio.Event` as a gate to simulate a dependency not yet ready:
+**Startup races** — gate a dependency with `asyncio.Event`, and have the mock signal a second
+event the instant it's awaited. Wait on that signal before asserting the task is blocked. This is
+deterministic; do **not** use `await asyncio.sleep(0)` to "let the task reach the block" — a single
+scheduler tick races the code under test and the assertion passes or fails by luck.
 ```python
 gate = asyncio.Event()
-mock_service.wait_for_ready = AsyncMock(side_effect=lambda _: gate.wait())
+entered = asyncio.Event()
+
+async def blocked_wait(_):
+    entered.set()             # signal the moment the dependency is awaited
+    await gate.wait()
+
+mock_service.wait_for_ready = AsyncMock(side_effect=blocked_wait)
 task = asyncio.create_task(executor.register_listener(...))
-await asyncio.sleep(0)         # let the task run until it blocks on gate
-assert not task.done()         # confirms the gate is actually blocking it
+await asyncio.wait_for(entered.wait(), timeout=1)  # deterministic: task reached the block
+assert not task.done()                             # confirms the gate is actually blocking it
 gate.set()
-await task
-assert result > 0              # confirms registration succeeded after unblocking
+result = await task
+assert result > 0                                  # confirms registration succeeded after unblocking
 ```
 
 **Sentinel filtering** — verify that records with unregistered IDs (listener_id=0, job_id=0, session_id=0) are silently dropped and not written to the database.

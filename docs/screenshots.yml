@@ -219,3 +219,28 @@
   width: 1400
   height: 900
   wait: 6000
+
+# ===========================================================================
+# Backpressure dropped stat (drop_newest policy)
+# The backpressure_demo example app self-drives a slow drop_newest listener
+# past the dispatch semaphore, so its listener detail accumulates a non-zero
+# backpressure-dropped count and rate. The longer wait gives the self-driving
+# bursts time to shed enough events for a representative rate.
+# ===========================================================================
+
+# Listener detail — the "Backpressure Dropped" stat cell (count + rate). JS
+# opens the app's only listener row (retrying until it exists); wait_for gates
+# on the detail panel actually showing the Backpressure Dropped label, since
+# that cell only renders once the drop count is non-zero. The first burst fires
+# one interval (12s) after startup, so the gate — not a fixed wait — is what
+# makes this entry timing-robust against a freshly-started demo. The 6000ms
+# wait (matching the cancelled_detail entries) lets the rate settle past the
+# first-drop instant to a representative value rather than a momentary 100%.
+- url: "http://localhost:{port}/apps/backpressure_demo/handlers"
+  output: docs/_static/web_ui_backpressure_dropped.png
+  selector: "[data-testid^='listener-detail-']"
+  width: 1400
+  height: 1300
+  wait: 6000
+  wait_for: "document.querySelector('[data-testid^=\"listener-detail-\"]')?.textContent.includes('Backpressure Dropped')"
+  javascript: "const click=()=>{const r=document.querySelector('[data-testid^=\"unified-row-listener-\"]');if(r){r.click();return true}return false};if(!click()){const i=setInterval(()=>{if(click())clearInterval(i)},200)}"

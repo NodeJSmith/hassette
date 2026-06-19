@@ -3130,6 +3130,16 @@
             "type": "integer",
             "title": "Dropped Count",
             "default": 0
+          },
+          "backpressure_dropped_count": {
+            "type": "integer",
+            "title": "Backpressure Dropped Count",
+            "default": 0
+          },
+          "backpressure": {
+            "type": "string",
+            "title": "Backpressure",
+            "default": "block"
           }
         },
         "type": "object",

@@ -214,7 +214,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 7 after all migrations run."""
+        """PRAGMA user_version is 8 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -224,7 +224,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 7
+        assert version == 8
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""
@@ -244,6 +244,51 @@ class TestFreshMigration:
             conn.commit()
             row = conn.execute("SELECT mode FROM listeners WHERE name = 'my_listener'").fetchone()
             assert row[0] == "single"
+        finally:
+            conn.close()
+
+    def test_listeners_has_backpressure_column_default_block(self, tmp_path: Path) -> None:
+        """008.sql adds a backpressure column to listeners defaulting to 'block'."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.execute("PRAGMA table_info(listeners)")
+            cols = {row[1] for row in cursor.fetchall()}
+            assert "backpressure" in cols
+
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+            row = conn.execute("SELECT backpressure FROM listeners WHERE name = 'my_listener'").fetchone()
+            assert row[0] == "block"
+        finally:
+            conn.close()
+
+    def test_listeners_backpressure_backfills_pre_migration_rows(self, tmp_path: Path) -> None:
+        """A listener row written before 008 reads 'block' after the migration runs (AC#8 upgrade path)."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path, target=7)  # schema before the backpressure column existed
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'legacy_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        run_migrations(db_path)  # apply 008 onto the populated table
+
+        conn = sqlite3.connect(db_path)
+        try:
+            row = conn.execute("SELECT backpressure FROM listeners WHERE name = 'legacy_listener'").fetchone()
+            assert row[0] == "block"
         finally:
             conn.close()
 

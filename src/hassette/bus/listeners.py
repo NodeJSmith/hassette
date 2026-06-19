@@ -11,7 +11,7 @@ from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
 from hassette.execution_mode import ExecutionModeGuard
-from hassette.types.enums import ExecutionMode, Outcome
+from hassette.types.enums import BackpressurePolicy, ExecutionMode, Outcome
 from hassette.types.types import SourceTier
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
@@ -111,6 +111,15 @@ class ListenerOptions:
     counts are live-only diagnostics held on the per-listener guard, reset on restart.
     """
 
+    backpressure: BackpressurePolicy = BackpressurePolicy.BLOCK
+    """Saturation policy for this listener when the dispatch concurrency semaphore is at capacity.
+
+    ``block`` (default) waits for a slot, preserving today's behavior unchanged.
+    ``drop_newest`` skips the event immediately when the bus is saturated — the handler is not
+    invoked and one drop is recorded. Acts at the dispatch acquire gate, orthogonal to
+    ``mode``/``debounce``/``throttle`` which act inside the invoker.
+    """
+
     def __post_init__(self) -> None:
         # Coerce a raw string mode (arriving via the Options TypedDict or str ergonomics) into
         # the enum. An unknown value fails coercion — surface it as a clear ValueError.
@@ -120,6 +129,13 @@ class ListenerOptions:
             except ValueError as exc:
                 valid = ", ".join(repr(m.value) for m in ExecutionMode)
                 raise ValueError(f"Invalid execution mode {self.mode!r}; must be one of {valid}") from exc
+        # Coerce a raw string backpressure policy the same way.
+        if not isinstance(self.backpressure, BackpressurePolicy):
+            try:
+                self.backpressure = BackpressurePolicy(self.backpressure)
+            except ValueError as exc:
+                valid = ", ".join(repr(m.value) for m in BackpressurePolicy)
+                raise ValueError(f"Invalid backpressure policy {self.backpressure!r}; must be one of {valid}") from exc
         if self.debounce is not None and self.debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
         if self.throttle is not None and self.throttle <= 0:
@@ -175,6 +191,11 @@ class HandlerInvoker:
     once: bool = False
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
+
+    backpressure_dropped: int = 0
+    """Count of events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure.
+    Incremented only in BusService.dispatch — one writer, on the event loop, no await between
+    the locked() check and the increment. Live-only; resets on restart, never persisted."""
 
     fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
@@ -528,6 +549,7 @@ class Listener:
             and self.options.timeout_disabled == other.options.timeout_disabled
             and self.options.priority == other.options.priority
             and self.options.mode == other.options.mode
+            and self.options.backpressure == other.options.backpressure
             and self.invoker.kwargs == other.invoker.kwargs
             and self.invoker.error_handler is other.invoker.error_handler
             and _duration_configs_match(self.duration_config, other.duration_config)
@@ -559,6 +581,8 @@ class Listener:
             changed.append("priority")
         if self.options.mode != other.options.mode:
             changed.append("mode")
+        if self.options.backpressure != other.options.backpressure:
+            changed.append("backpressure")
         if self.invoker.kwargs != other.invoker.kwargs:
             changed.append("kwargs")
         if self.invoker.error_handler is not other.invoker.error_handler:
