@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Reword spec tokens in bus tests; rename the two task-ID test files"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["FR#5", "FR#8", "AC#4", "AC#7"]
 ---

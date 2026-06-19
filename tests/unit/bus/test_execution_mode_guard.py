@@ -54,7 +54,7 @@ async def settle() -> None:
 
 class TestSingleMode:
     async def test_second_trigger_suppressed_while_first_runs(self) -> None:
-        """FR#4/FR#5: a re-fire during a running invocation is dropped; suppressed increments."""
+        """A re-fire during a running invocation is dropped; suppressed increments."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.SINGLE)
@@ -94,7 +94,7 @@ class TestSingleMode:
 
 class TestRestartMode:
     async def test_second_trigger_cancels_first(self) -> None:
-        """FR#6/FR#7: a re-fire cancels the running invocation; the new one runs to completion."""
+        """A re-fire cancels the running invocation; the new one runs to completion."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.RESTART)
@@ -116,7 +116,7 @@ class TestRestartMode:
         assert tracker.run_order == [2]
 
     async def test_no_exception_escapes_on_cancel(self) -> None:
-        """FR#7: the cancellation of the prior invocation does not propagate out of the guard."""
+        """The cancellation of the prior invocation does not propagate out of the guard."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.RESTART)
@@ -130,7 +130,7 @@ class TestRestartMode:
         await settle()
 
     async def test_rapid_abc_never_two_concurrent(self) -> None:
-        """FR#13/AC#5: A->B->C in tight succession never runs two invocations concurrently."""
+        """A->B->C in tight succession never runs two invocations concurrently."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.RESTART)
@@ -152,7 +152,7 @@ class TestRestartMode:
 
 class TestQueuedMode:
     async def test_triggers_run_in_arrival_order(self) -> None:
-        """FR#8: triggers during a run execute in arrival order, one at a time."""
+        """Triggers during a run execute in arrival order, one at a time."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.QUEUED)
@@ -175,7 +175,7 @@ class TestQueuedMode:
         assert guard.dropped == 0
 
     async def test_cap_drops_newest_preserves_queue(self) -> None:
-        """FR#9/FR#10: at cap, the newest trigger is dropped; the existing queue is preserved."""
+        """At cap, the newest trigger is dropped; the existing queue is preserved."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.QUEUED, cap=2)
@@ -222,7 +222,7 @@ class TestQueuedMode:
 
 class TestParallelMode:
     async def test_concurrent_invocations(self) -> None:
-        """FR#11: parallel runs M triggers concurrently (pass-through)."""
+        """Parallel mode runs M triggers concurrently (pass-through)."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.PARALLEL)
@@ -242,7 +242,7 @@ class TestParallelMode:
 
 class TestRelease:
     async def test_release_cancels_running_and_clears_queue(self) -> None:
-        """FR#17/AC#12: release cancels the tracked task and drops pending queued factories."""
+        """release() cancels the tracked task and drops pending queued factories."""
         gate = asyncio.Event()
         tracker = Tracker(gate)
         guard = ExecutionModeGuard(ExecutionMode.QUEUED, cap=DEFAULT_QUEUE_DEPTH)

@@ -47,7 +47,7 @@ async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
 async def test_single_runs_once_and_suppresses_refire(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """single yields exactly one execution on a double-fire; the second is suppressed (AC#3)."""
+    """single yields exactly one execution on a double-fire; the second is suppressed."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -77,7 +77,7 @@ async def test_single_runs_once_and_suppresses_refire(
 async def test_restart_cancels_first_and_runs_second(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """restart cancels the running invocation and runs the new one; the bucket does not error (AC#4)."""
+    """restart cancels the running invocation and runs the new one; the bucket does not error."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -114,7 +114,7 @@ async def test_restart_cancels_first_and_runs_second(
 async def test_queued_runs_all_in_order(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """queued executes N triggers in arrival order after the first completes (AC#6)."""
+    """queued executes N triggers in arrival order after the first completes."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
 
@@ -198,7 +198,7 @@ async def test_await_dispatch_idle_blocks_until_queued_handlers_run(
 async def test_queued_cap_drops_newest(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """queued at cap drops the newest trigger, runs the rest, and counts the drop (AC#7)."""
+    """queued at cap drops the newest trigger, runs the rest, and counts the drop."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
 
@@ -243,7 +243,7 @@ async def test_queued_cap_drops_newest(
 async def test_live_execution_counts_snapshot_keyed_by_db_id(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """live_execution_counts() exposes per-listener (suppressed, dropped) by db_id (FR#15, AC#10)."""
+    """live_execution_counts() exposes per-listener (suppressed, dropped) keyed by db_id."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -274,7 +274,7 @@ async def test_live_execution_counts_snapshot_keyed_by_db_id(
 async def test_live_execution_counts_includes_backpressure_dropped(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """live_execution_counts() surfaces a listener's backpressure-drop counter by db_id (FR#6)."""
+    """live_execution_counts() surfaces a listener's backpressure-drop counter by db_id."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -285,7 +285,7 @@ async def test_live_execution_counts_includes_backpressure_dropped(
     db_id = sub.listener.db_id
     assert db_id is not None
 
-    # The gate increments invoker.backpressure_dropped under saturation (covered by T02's unit tests);
+    # The gate increments invoker.backpressure_dropped under saturation (covered by backpressure unit tests);
     # here we set it directly to assert the snapshot reads the counter, not a hardcoded zero.
     sub.listener.invoker.backpressure_dropped = 3
 
@@ -296,7 +296,7 @@ async def test_live_execution_counts_includes_backpressure_dropped(
 async def test_live_execution_counts_omits_retired_listener(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """A cancelled (retired) listener drops out of the live snapshot; web maps it to 0 (FR#15)."""
+    """A cancelled (retired) listener drops out of the live snapshot; web maps it to 0."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -318,7 +318,7 @@ async def test_live_execution_counts_omits_retired_listener(
 async def test_parallel_runs_concurrently(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """parallel runs M triggers concurrently with no overlap guard (AC#8)."""
+    """parallel runs M triggers concurrently with no overlap guard."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -351,7 +351,7 @@ async def test_parallel_runs_concurrently(
 async def test_invalid_mode_raises_at_registration(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """An invalid mode string is rejected at registration time (AC#9, FR#12)."""
+    """An invalid mode string is rejected at registration time."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -365,7 +365,7 @@ async def test_invalid_mode_raises_at_registration(
 async def test_cancelling_queued_listener_releases_pending(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """Cancelling a queued listener releases the in-flight task and drops queued factories (FR#17)."""
+    """Cancelling a queued listener releases the in-flight task and drops queued factories."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
 
@@ -406,7 +406,7 @@ async def test_cancelling_queued_listener_releases_pending(
 async def test_debounce_with_single_composes(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """debounce + mode='single' compose: debounce governs starts, single overlap of starts (AC#14)."""
+    """debounce + mode='single' compose: debounce governs starts, single governs overlap of starts."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -436,7 +436,7 @@ async def test_debounce_with_single_composes(
 async def test_once_with_non_single_mode_fires_at_most_once(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """A once=True handler fires at most once regardless of mode (AC#15, FR#21)."""
+    """A once=True handler fires at most once regardless of mode."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -460,7 +460,7 @@ async def test_once_with_non_single_mode_fires_at_most_once(
 async def test_duration_hold_with_single_guards_at_expiry(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """A duration-hold handler with mode='single' applies the guard at hold-expiry dispatch (AC#16)."""
+    """A duration-hold handler with mode='single' applies the overlap guard at hold-expiry dispatch."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "off")
 
@@ -562,7 +562,7 @@ async def test_backpressure_policy_persisted_on_registration(
     initialized_db: tuple[DatabaseService, int],
     db_hassette: AsyncMock,
 ) -> None:
-    """AC#5: persisted backpressure column matches the configured policy at registration time.
+    """Persisted backpressure column matches the configured policy at registration time.
 
     A DROP_NEWEST listener writes 'drop_newest'; a BLOCK/omitted listener writes 'block'.
     Uses a real CommandExecutor + migrated DB (bus_harness uses a mock executor with no DB).
@@ -618,7 +618,7 @@ async def test_backpressure_policy_updated_on_replace_registration(
     initialized_db: tuple[DatabaseService, int],
     db_hassette: AsyncMock,
 ) -> None:
-    """AC#9: re-registering with if_exists='replace' and a changed policy updates the persisted row.
+    """Re-registering with if_exists='replace' and a changed policy updates the persisted row.
 
     Exercises the ON CONFLICT ... DO UPDATE SET backpressure = excluded.backpressure clause.
     Without that clause, the upsert would leave the old 'block' value in place.

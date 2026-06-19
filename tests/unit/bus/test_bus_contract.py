@@ -4,10 +4,10 @@ These tests verify the core architectural contract: registration is synchronous 
 db_id is set and the listener is routable before on_state_change() / on() returns.
 
 Tests:
-- AC#7: sub.listener.db_id is a valid integer immediately after on() returns
-- FR#5: listener is routable only after DB registration completes (db_id set before route insertion)
-- AC#5: Router methods are synchronous plain def (no async, no FairAsyncRLock)
-- AC#2 (updated): DB failure propagates out of on() — fails app startup rather than degrading silently
+- sub.listener.db_id is a valid integer immediately after on() returns
+- Listener is routable only after DB registration completes (db_id set before route insertion)
+- Router methods are synchronous plain def (no async, no FairAsyncRLock)
+- DB failure propagates out of on() — fails app startup rather than degrading silently
 """
 
 import importlib.util
@@ -61,7 +61,7 @@ def bus_service(contract_harness: "HassetteHarness") -> "BusService":
 async def test_db_id_set_immediately_after_on_returns(
     bus: "Bus",
 ) -> None:
-    """AC#7: sub.listener.db_id is a valid integer immediately after on() returns.
+    """sub.listener.db_id is a valid integer immediately after on() returns.
 
     Under synchronous registration, the DB INSERT is awaited inline before
     returning to the caller. No background task, no deferred future to await.
@@ -76,7 +76,7 @@ async def test_db_id_set_immediately_after_on_returns(
 async def test_listener_routable_after_registration(
     bus: "Bus",
 ) -> None:
-    """FR#5: Listener is in routing table and has a db_id immediately after on() returns.
+    """Listener is in routing table and has a db_id immediately after on() returns.
 
     Under synchronous registration, both db_id assignment and route insertion
     happen inside add_listener() before returning. The listener must be fully
@@ -99,7 +99,7 @@ async def test_listener_routable_after_registration(
 async def test_subscription_has_no_registration_task(
     bus: "Bus",
 ) -> None:
-    """FR#6: Subscription has no registration_task field.
+    """Subscription has no registration_task field.
 
     The registration_task completion signal is removed. db_id is the only
     identifier and is set synchronously before on() returns.
@@ -113,10 +113,10 @@ async def test_db_failure_propagates_out_of_on(
     bus: "Bus",
     bus_service: "BusService",
 ) -> None:
-    """AC#2 (failure mode shift): DB failure propagates out of on().
+    """DB failure propagates out of on() — no silent degradation.
 
     Under synchronous registration, registration errors propagate out of
-    on_initialize() and mark the app FAILED — no silent degradation.
+    on_initialize() and mark the app FAILED.
     """
     with (
         patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))),
@@ -130,7 +130,7 @@ async def test_db_failure_propagates_out_of_on(
 
 
 class TestRouterSyncContract:
-    """AC#5: Router mutation and query methods are plain def, not coroutines.
+    """Router mutation and query methods are plain def, not coroutines.
 
     These tests prevent silent regression where someone re-adds async to Router
     methods. Checking at the class level catches both instance and unbound forms.
@@ -150,7 +150,7 @@ class TestRouterSyncContract:
     ]
 
     def test_all_router_methods_are_plain_def(self) -> None:
-        """AC#5: All 7 Router mutation and query methods are plain def, not async def."""
+        """All 7 Router mutation and query methods are plain def, not async def."""
         router = Router()
         all_method_names = self.ROUTER_MUTATION_METHODS + self.ROUTER_QUERY_METHODS
 
@@ -162,21 +162,21 @@ class TestRouterSyncContract:
             )
 
     def test_router_mutation_methods_are_plain_def(self) -> None:
-        """AC#5: Router mutation methods are plain def."""
+        """Router mutation methods are plain def."""
         router = Router()
         for name in self.ROUTER_MUTATION_METHODS:
             method = getattr(router, name)
             assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (mutation method)"
 
     def test_router_query_methods_are_plain_def(self) -> None:
-        """AC#5: Router query methods are plain def."""
+        """Router query methods are plain def."""
         router = Router()
         for name in self.ROUTER_QUERY_METHODS:
             method = getattr(router, name)
             assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (query method)"
 
     def test_router_has_no_lock_attribute(self) -> None:
-        """AC#5: Router instance has no lock attribute."""
+        """Router instance has no lock attribute."""
         router = Router()
         assert not hasattr(router, "lock"), (
             "Router must not have a lock attribute. "
@@ -184,7 +184,7 @@ class TestRouterSyncContract:
         )
 
     def test_router_source_has_no_fair_async_rlock(self) -> None:
-        """AC#5: router.py does not import or use FairAsyncRLock."""
+        """router.py does not import or use FairAsyncRLock."""
         spec = importlib.util.find_spec("hassette.bus.router")
         assert spec is not None
         assert spec.origin is not None

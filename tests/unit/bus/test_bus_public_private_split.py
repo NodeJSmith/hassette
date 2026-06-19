@@ -1,12 +1,12 @@
 """Tests for Bus.on() / _on_internal() split and synchronous registration.
 
 Verify criteria:
-- FR#7: Bus.on() signature has no is_attribute_listener, hold_preds, entity_id, immediate, duration, priority
-- FR#6: No registration_task field on Subscription — db_id is the only identifier
-- FR#11: hold_preds list is not mutated after _subscribe()
-- AC#6: Bus.on(is_attribute_listener=True) raises TypeError
-- AC#7: sub.listener.db_id is a valid integer immediately after on() returns
-- AC#11: hold_preds list identity (id()) is unchanged after _subscribe()
+- Bus.on() signature has no is_attribute_listener, hold_preds, entity_id, immediate, duration, priority
+- No registration_task field on Subscription — db_id is the only identifier
+- hold_preds list is not mutated after _subscribe()
+- Bus.on(is_attribute_listener=True) raises TypeError
+- sub.listener.db_id is a valid integer immediately after on() returns
+- hold_preds list identity (id()) is unchanged after _subscribe()
 """
 
 import inspect
@@ -26,7 +26,7 @@ async def handler(event) -> None:
 
 
 def test_bus_on_signature_has_no_internal_params() -> None:
-    """FR#7: Bus.on() signature contains no internal parameters."""
+    """Bus.on() signature contains no internal parameters."""
     sig = inspect.signature(Bus.on)
     param_names = set(sig.parameters.keys())
 
@@ -46,7 +46,7 @@ def test_bus_on_signature_has_no_internal_params() -> None:
     ],
 )
 async def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str, value: object) -> None:
-    """AC#6 / FR#7: Bus.on() raises TypeError for internal-only parameters."""
+    """Bus.on() raises TypeError for internal-only parameters."""
     with mock_add_listener(bus), pytest.raises(TypeError):
         await bus.on(  # pyright: ignore[reportCallIssue]
             topic="test.topic",
@@ -56,7 +56,7 @@ async def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str
 
 
 def test_subscription_has_no_registration_task_field() -> None:
-    """FR#6: Subscription dataclass has no registration_task field.
+    """Subscription dataclass has no registration_task field.
 
     Under synchronous registration, db_id is set before Subscription is returned.
     The registration_task completion signal is no longer needed.
@@ -73,7 +73,7 @@ def test_subscription_default_construction() -> None:
 
 
 async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
-    """FR#11 / AC#11: The hold_preds list passed to _subscribe() is not modified in place."""
+    """The hold_preds list passed to _subscribe() is not modified in place."""
     original_pred = P.EntityMatches("light.test")
     original_hold_preds = [original_pred]
     original_id = id(original_hold_preds)

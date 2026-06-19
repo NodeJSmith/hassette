@@ -1,7 +1,7 @@
 """Parity test: every ListenerRegistration field must have a source on ListenerIdentity or ListenerOptions.
 
 Without this test, future ListenerRegistration additions can silently skip adding the corresponding
-field to the decomposed sub-structs. This test enforces AC#10 from the listener decomposition design.
+field to the decomposed sub-structs.
 
 Uses dataclass field inspection (``dataclasses.fields()``) which works correctly for dataclasses,
 unlike ``__annotations__`` inspection on Protocol classes (which returns an empty dict for pure-method
@@ -47,7 +47,7 @@ def test_listener_registration_fields_have_sub_struct_source() -> None:
     (a) add the field to the appropriate sub-struct (preferred), or
     (b) add it to EXEMPTIONS with a comment explaining why it cannot be on a sub-struct.
 
-    This enforces AC#10: the parity between the registration DTO and the decomposed sub-structs.
+    This enforces the parity between the registration DTO and the decomposed sub-structs.
     """
     reg_fields = {f.name for f in dataclasses.fields(ListenerRegistration)}
     non_exempted = reg_fields - EXEMPTIONS
