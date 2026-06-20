@@ -19,8 +19,8 @@ import pytest
 
 from hassette.bus.bus import Bus
 from hassette.bus.listeners import Subscription
-from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning, ListenerNameRequiredError
+from hassette.utils.await_guard import RegistrationHandle
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import mock_add_listener
@@ -128,7 +128,7 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
     with mock_add_listener(bus):
         handle = bus.on(topic="test.topic", handler=handler, name="handle_test")
         assert isinstance(handle, RegistrationHandle)
-        # Protocol properties (iscoroutine, send, throw, close) covered in tests/unit/core/test_await_guard.py.
+        # Protocol properties (iscoroutine, send, throw, close) covered in tests/unit/utils/test_await_guard.py.
         # Close the handle to suppress HassetteForgottenAwaitWarning in the test.
         handle.close()
 

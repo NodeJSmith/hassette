@@ -16,9 +16,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.api.api import Api
-from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.services import ServiceResponse
+from hassette.utils.await_guard import RegistrationHandle
 from tests.unit.conftest import make_api
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 

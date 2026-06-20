@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Move await_guard to utils, add api->core RULE"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#7", "AC#3", "AC#6"]
 ---

@@ -16,11 +16,11 @@ import warnings
 
 import pytest
 
-from hassette.core.await_guard import RegistrationHandle
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from hassette.utils.await_guard import RegistrationHandle
 from hassette.utils.date_utils import now
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 

@@ -59,6 +59,12 @@ RULES: list[Rule] = [
         forbids=lambda module: module == "hassette.test_utils" or module.startswith("hassette.test_utils."),
         reason="production code must not import test helpers from hassette.test_utils",
     ),
+    Rule(
+        name="api-no-core",
+        applies=lambda layer: layer == "api",
+        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        reason="api must not import core at runtime; core sits above the service layer (#1079)",
+    ),
 ]
 
 
