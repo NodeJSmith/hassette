@@ -378,6 +378,13 @@ class Hassette(Resource):
         return self._state_proxy
 
     @property
+    def api_service(self) -> ApiResource:
+        """ApiResource instance for HA REST/WebSocket transport."""
+        if self._api_service is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._api_service
+
+    @property
     def scheduler_service(self) -> SchedulerService:
         """SchedulerService instance for job scheduling."""
         if self._scheduler_service is None:

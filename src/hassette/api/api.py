@@ -277,8 +277,7 @@ class Api(Resource):
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
-        assert self.hassette._api_service is not None
-        self._api_service = self.hassette._api_service
+        self._api_service = self.hassette.api_service
         self.sync = self.add_child(ApiSyncFacade, api=self)
 
     async def on_initialize(self) -> None:
@@ -798,7 +797,8 @@ class Api(Resource):
         if not entries:
             return []
 
-        assert len(entries) == 1, "Expected a single list of history entries"
+        if len(entries) != 1:
+            raise RuntimeError(f"Expected a single list of history entries from HA, got {len(entries)}")
 
         converted = [HistoryEntry.model_validate(entry) for entry in entries[0]]
 

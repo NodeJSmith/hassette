@@ -2,7 +2,6 @@ import asyncio
 import time
 import typing
 from collections import defaultdict
-from functools import cached_property
 from typing import Any, ClassVar, NamedTuple
 
 from hassette.bus.duration_hold import DurationHoldManager
@@ -130,9 +129,15 @@ class BusService(Service):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.bus_service
 
-    @cached_property
+    @property
     def config_log_all_events(self) -> bool:
-        """Return whether to log all events."""
+        """Return whether to log all events.
+
+        Live read (not cached) so config hot-reload is honored at dispatch time, the same
+        way the sibling ``config_log_level`` property re-reads config on every access. Do
+        not change this back to ``@cached_property`` — it would freeze the value after the
+        first dispatch and silently ignore hot-reload.
+        """
         return self.hassette.config.logging.all_events
 
     def on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:

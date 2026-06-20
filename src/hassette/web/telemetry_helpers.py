@@ -1,7 +1,7 @@
 """Shared helpers for telemetry computation and classification used by the JSON API layer."""
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Protocol
 
 from hassette.web.models import ErrorRateClass, HealthStatus
 
@@ -11,9 +11,6 @@ ERROR_RATE_WARN_THRESHOLD = 5
 ERROR_RATE_BAD_THRESHOLD = 10
 HEALTH_GOOD_THRESHOLD = 95
 HEALTH_WARNING_THRESHOLD = 90
-
-if TYPE_CHECKING:
-    from hassette.core.runtime_query_service import RuntimeQueryService
 
 
 class _ListenerLike(Protocol):
@@ -79,21 +76,6 @@ def classify_health_bar(success_rate: float) -> HealthStatus:
     if success_rate >= HEALTH_WARNING_THRESHOLD:
         return "warning"
     return "critical"
-
-
-def alert_context(runtime: "RuntimeQueryService") -> dict[str, Any]:
-    """Build the alert banner context from current system state."""
-    snapshot = runtime.get_all_manifests_snapshot()
-    failed_apps = [
-        {
-            "app_key": m.app_key,
-            "error_message": m.error_message,
-            "error_traceback": m.error_traceback,
-        }
-        for m in snapshot.manifests
-        if m.status == "failed"
-    ]
-    return {"failed_apps": failed_apps}
 
 
 def extract_entity_from_topic(topic: str) -> str | None:
