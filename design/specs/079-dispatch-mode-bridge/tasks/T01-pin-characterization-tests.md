@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Pin bus stall-watch and release-drain behavior"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["AC#3"]
 ---
