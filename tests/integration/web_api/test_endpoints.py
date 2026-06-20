@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import ListenerSummary
+from hassette.schemas.telemetry_models import ListenerSummary
 
 if TYPE_CHECKING:
     from httpx import AsyncClient

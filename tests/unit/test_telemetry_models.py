@@ -1,6 +1,6 @@
 """Tests for Pydantic telemetry models."""
 
-from hassette.core.telemetry_models import (
+from hassette.schemas.telemetry_models import (
     AppHealthSummary,
     Execution,
     GlobalSummary,

@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry_models import Execution
+from hassette.schemas.telemetry_models import Execution
 
 # Execution model — shared/base field construction
 

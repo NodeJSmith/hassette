@@ -10,13 +10,15 @@ Detection is AST-based and considers runtime imports only — anything inside an
 ``if TYPE_CHECKING:`` block is exempt, since type-only imports do not create a
 runtime dependency.
 
-Scope today is the one boundary that is provably clean and highest-value: the
-``test_utils`` package holds test helpers and must never be imported by
-production code. The full layer DAG and cycle-freedom from the architecture
-issue are NOT enforced here — the codebase currently has cross-layer cycles
-(``core``↔``bus``, ``conversion``↔``models``, …) that must be refactored before
-those rules can pass (tracked in #1079). ``RULES`` is a list so each boundary is
-added as it becomes clean.
+Boundaries enforced today (``RULES``):
+- ``test_utils`` isolation — production code must not import test helpers.
+- ``api → core`` — api is a service layer and must not import core at runtime.
+- ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
+- ``web → core`` — web-facing data types live in hassette.schemas, not core.
+
+The full layer DAG and remaining cycles (``core``↔``bus``, ``conversion``↔``models``, …)
+are NOT enforced here — those require further refactoring (tracked in #1079).
+``RULES`` is a list so each boundary is added as it becomes clean.
 
 These are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
@@ -70,6 +72,12 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "utils",
         forbids=lambda module: module == "hassette.events" or module.startswith("hassette.events."),
         reason="utils sits below events; the only upward dependency (is_event_type) has moved to events/",
+    ),
+    Rule(
+        name="web-no-core",
+        applies=lambda layer: layer == "web",
+        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        reason="web must not runtime-import core; web-facing data types live in hassette.schemas",
     ),
 ]
 

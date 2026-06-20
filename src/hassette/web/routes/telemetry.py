@@ -12,8 +12,8 @@ from typing import Literal, cast
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.telemetry.query_service import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
-from hassette.core.telemetry_models import (
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
     AppLastError,

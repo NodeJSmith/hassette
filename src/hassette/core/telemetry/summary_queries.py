@@ -14,7 +14,7 @@ from hassette.core.telemetry.helpers import (
     _since_clause,
     _source_tier_clause,
 )
-from hassette.core.telemetry_models import AppHealthSummary, SessionRecord
+from hassette.schemas.telemetry_models import AppHealthSummary, SessionRecord
 from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:

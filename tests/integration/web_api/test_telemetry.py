@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.bus_service import LiveCounts
 from hassette.core.telemetry.query_service import AppHealthAggregates
-from hassette.core.telemetry_models import (
+from hassette.schemas.live_counts import LiveCounts
+from hassette.schemas.telemetry_models import (
     Execution,
     ListenerSummary,
 )

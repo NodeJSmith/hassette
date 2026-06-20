@@ -11,9 +11,13 @@ from pydantic import BaseModel
 
 from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
-from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
-from hassette.core.domain_models import (
+from hassette.core.logging_service import LoggingService
+from hassette.core.state_proxy import StateProxy
+from hassette.events import Event, RawStateChangeEvent
+from hassette.resources.base import Resource
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
+from hassette.schemas.domain_models import (
     AppStatusChangedData,
     BootIssue,
     ConnectivityData,
@@ -22,10 +26,6 @@ from hassette.core.domain_models import (
     StateChangedData,
     SystemStatus,
 )
-from hassette.core.logging_service import LoggingService
-from hassette.core.state_proxy import StateProxy
-from hassette.events import Event, RawStateChangeEvent
-from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE

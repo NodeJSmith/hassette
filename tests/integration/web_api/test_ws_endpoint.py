@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from starlette.websockets import WebSocket
 
-from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app

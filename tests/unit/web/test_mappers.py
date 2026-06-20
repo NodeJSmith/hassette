@@ -1,9 +1,9 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
-from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.core.bus_service import LiveCounts
-from hassette.core.domain_models import SystemStatus
-from hassette.core.telemetry_models import ListenerSummary
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.domain_models import SystemStatus
+from hassette.schemas.live_counts import LiveCounts
+from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (

@@ -11,7 +11,8 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.core.app_registry import AppInstanceInfo, AppRegistry
+from hassette.core.app_registry import AppRegistry
+from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.types.enums import ResourceStatus
 from hassette.utils import app_utils
 

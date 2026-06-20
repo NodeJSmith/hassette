@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
-from hassette.core.domain_models import SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
     HassetteServiceEvent,
 )
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.domain_models import SystemStatus
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceRole, ResourceStatus
 

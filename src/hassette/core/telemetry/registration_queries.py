@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any
 
 from hassette.core.telemetry.helpers import DEFAULT_QUERY_LIMIT, _row_to_dict, _since_clause, _source_tier_clause
-from hassette.core.telemetry_models import JobSummary, ListenerSummary, SlowHandlerRecord
+from hassette.schemas.telemetry_models import JobSummary, ListenerSummary, SlowHandlerRecord
 from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:

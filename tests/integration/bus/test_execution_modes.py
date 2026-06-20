@@ -13,11 +13,12 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.core.bus_service import BusService, LiveCounts
+from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.events import RawStateChangeEvent
 from hassette.execution_mode import DEFAULT_QUEUE_DEPTH
+from hassette.schemas.live_counts import LiveCounts
 from hassette.test_utils import wait_for
 from hassette.test_utils.helpers import create_listener, create_state_change_event
 

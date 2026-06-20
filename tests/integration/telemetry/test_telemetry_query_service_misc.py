@@ -13,7 +13,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.helpers import _source_tier_clause
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry_models import (
+from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
 )
 from hassette.test_utils.mock_hassette import make_mock_hassette

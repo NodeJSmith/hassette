@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract web data types to schemas package, add web->core RULE"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#3", "FR#4", "FR#7", "FR#9", "AC#3", "AC#5", "AC#6"]
 ---

@@ -20,10 +20,10 @@ from unittest.mock import MagicMock
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.core.telemetry_models import ActivityFeedEntry, Execution, JobSummary
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppConfigResponse,

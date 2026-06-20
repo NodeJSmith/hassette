@@ -5,11 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from hassette.core.app_registry import (
-    AppInstanceInfo,
-    AppRegistry,
-    AppStatusSnapshot,
-)
+from hassette.core.app_registry import AppRegistry
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason, ResourceStatus
 
 

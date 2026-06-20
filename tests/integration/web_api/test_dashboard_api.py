@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from hassette.core.domain_models import BootIssue, SystemStatus
+from hassette.schemas.domain_models import BootIssue, SystemStatus
 
 
 class TestVersionInHealth:

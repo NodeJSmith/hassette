@@ -6,7 +6,7 @@ from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_handler_short, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.core.telemetry_models import Execution
+from hassette.schemas.telemetry_models import Execution
 from hassette.web.models import ListenerWithSummary
 
 LISTENER_LIST_COLUMNS: list[Column] = [
