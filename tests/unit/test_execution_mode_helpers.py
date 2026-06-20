@@ -4,7 +4,8 @@ Covers: run_with_stall_watch, run_through_guard, drain_pending_done, STALL_THRES
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,7 +25,7 @@ def make_spawn() -> tuple[Callable[..., asyncio.Task[None]], list[asyncio.Task[N
     """Return a spawn callable (wrapping create_task) and the list of tasks it created."""
     tasks: list[asyncio.Task[None]] = []
 
-    def spawn(coro, *, name: str) -> asyncio.Task[None]:
+    def spawn(coro: Coroutine[Any, Any, None], *, name: str) -> asyncio.Task[None]:
         task = asyncio.create_task(coro, name=name)
         tasks.append(task)
         return task
@@ -127,8 +128,11 @@ class TestDrainPendingDone:
         """drain_pending_done sets result on every unresolved future in the set."""
         loop = asyncio.get_running_loop()
         futures = {loop.create_future(), loop.create_future(), loop.create_future()}
+        # drain_pending_done empties the set, so snapshot the futures first —
+        # asserting over the drained set passes vacuously (all() of an empty set is True).
+        snapshot = list(futures)
         drain_pending_done(futures)
-        assert all(f.done() for f in futures)
+        assert all(f.done() for f in snapshot)
 
     async def test_empties_the_set(self) -> None:
         """drain_pending_done discards all futures from the set."""
@@ -287,7 +291,7 @@ class TestRunThroughGuard:
         async def invoke() -> None:
             pass
 
-        def spawn(coro, *, name: str) -> asyncio.Task[None]:
+        def spawn(coro: Coroutine[Any, Any, None], *, name: str) -> asyncio.Task[None]:
             spawn_calls.append({"name": name})
             return asyncio.create_task(coro, name=name)
 
