@@ -40,7 +40,11 @@ None.
    that mutates the caller's `pending_done` after returning; the docstring must say
    this plainly ("stateless" = owns no state between calls, not no ongoing effects).
 7. **Pin-first commit sequence** (verifiable units): pin → add shared code → migrate
-   bus → migrate scheduler → delete sync test. Each step ends green.
+   bus → migrate scheduler → delete sync test. Each step ends green. Note: the pin
+   (T01) and add-shared-code (T02) tasks are independent — they touch disjoint files
+   (T01: the bus test file; T02: `execution_mode.py`) and may run in parallel. The
+   "pin-first" framing is about commit/landing order in the verifiable-units story;
+   the only hard task dependency is that the bus migration (T03) lands after both.
 
 ## Constraints & Anti-Patterns
 

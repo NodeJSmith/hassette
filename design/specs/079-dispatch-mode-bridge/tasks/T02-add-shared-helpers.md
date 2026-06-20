@@ -56,6 +56,12 @@ Docstrings must:
   every caller reaching release through a detached spawn (both bus and scheduler),
   and reference that it is out of scope here, tracked in issue #1099.
 
+Inside `run_and_track`, call the spawn callable with `name` as a **keyword**
+argument — `spawn(coro, name=spawn_name)`, never `spawn(coro, spawn_name)` —
+because callers wrap `TaskBucket.spawn`, whose `name` is keyword-only
+(`spawn(coro, *, name=...)`). Copy the authoritative `## Architecture` code block
+rather than retyping it.
+
 Add no `assert` statements. Keep the module's imports to stdlib +
 `hassette.types.enums` only — do NOT import `TaskBucket`, `bus.*`, `core.*`, or
 `scheduler.*`. `run_through_guard` references `ExecutionModeGuard` (already defined in

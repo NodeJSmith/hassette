@@ -31,9 +31,15 @@ mirroring the conventions in `tests/integration/test_scheduler_mode.py`.
    `test_stall_watchdog_emits_warning_for_non_parallel`
    (`tests/integration/test_scheduler_mode.py:960`). Register a non-parallel
    (`mode="single"`, `timeout_disabled=True`) listener whose handler sets an
-   `asyncio.Event` `started` then awaits a `gate` event. Patch
-   `bus.listeners.STALL_THRESHOLD_SECONDS` to `0.05` and spy on the
-   `HandlerInvoker.warn_stalled` method. Dispatch an event that matches the
+   `asyncio.Event` `started` then awaits a `gate` event. **Patch target setup
+   (load-bearing — get this wrong and the watchdog never fires, giving a
+   false-green pin):** `test_execution_modes.py` does not currently import the
+   `bus.listeners` module object. Add `import hassette.bus.listeners as
+   bus_listeners_module` (mirroring `tests/integration/test_scheduler_mode.py:31`'s
+   `import hassette.core.scheduler_service as scheduler_service_module`). Then patch
+   `bus_listeners_module.STALL_THRESHOLD_SECONDS` to `0.05` and spy on the class
+   method via `unittest.mock.patch.object(bus_listeners_module.HandlerInvoker,
+   "warn_stalled")`. Dispatch an event that matches the
    listener, wait for `started`, then `await asyncio.sleep(0.2)` (longer than the
    patched threshold). Assert the dispatch is still pending and that `warn_stalled`
    fired. **Against the current code, assert `mock_warn.assert_called_once_with()`
