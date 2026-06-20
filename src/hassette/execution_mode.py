@@ -1,13 +1,17 @@
-"""The shared overlap state machine for event-handler (and, later, scheduler) execution.
+"""The shared overlap state machine and dispatch-bridge helpers for the bus and scheduler.
 
 ``ExecutionModeGuard`` owns the four-mode overlap behavior — ``single``, ``restart``,
-``queued``, ``parallel`` — for one listener. It is overlap-only: it does no I/O, holds no
+``queued``, ``parallel`` — for one listener or job. It is overlap-only: it does no I/O, holds no
 telemetry beyond two live counters, and never spawns a detached task. The caller supplies a
-"run-and-track" callable that spawns one handler invocation through the caller's own task
+"run-and-track" callable that spawns one invocation through the caller's own task
 machinery; the guard decides whether and when to call it, retains the returned task as the
 cancellable handle, and (for ``queued``) drains pending factories one at a time.
 
-The scheduler follow-up (#1027) reuses this module unchanged.
+This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
+``run_through_guard``, ``drain_pending_done`` — that both the bus (``HandlerInvoker``) and the
+scheduler (``SchedulerService``) call to wrap the guard with a completion-future bridge, a stall
+watchdog, and the drain. The module stays a dependency-free leaf (stdlib + ``hassette.types.enums``)
+so neither subsystem has to import the other.
 """
 
 import asyncio

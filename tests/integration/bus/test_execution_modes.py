@@ -33,6 +33,17 @@ if typing.TYPE_CHECKING:
 
 ENTITY = "sensor.overlap"
 
+# Yielding to the event loop this many times lets a chain of already-scheduled callbacks
+# (stream → serve → dispatch → guard → child-task spawn) all run without waiting on wall-clock
+# time. Used where there is no completion signal to await on.
+EVENT_LOOP_YIELDS = 10
+
+
+async def pump_event_loop() -> None:
+    """Yield control to the event loop enough times for scheduled callbacks to drain."""
+    for _ in range(EVENT_LOOP_YIELDS):
+        await asyncio.sleep(0)
+
 
 async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
     """Send one state-change event without waiting for dispatch to drain.
@@ -43,8 +54,7 @@ async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
     """
     event = create_state_change_event(entity_id=ENTITY, old_value=old, new_value=new)
     await harness.send_event(event)
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
 
 async def test_single_runs_once_and_suppresses_refire(
@@ -188,8 +198,7 @@ async def test_await_dispatch_idle_blocks_until_queued_handlers_run(
     # Let the first invocation finish and the queued one start, but keep the queued one blocked.
     release_first.set()
     await wait_for(lambda: completed == ["a"])
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
     assert not idle_task.done()  # still pending: the queued handler has not completed
 
     # Releasing the queued handler lets it finish — only now may await_dispatch_idle() return.
@@ -312,8 +321,7 @@ async def test_live_execution_counts_omits_retired_listener(
     assert db_id in harness.bus_service.live_execution_counts()
 
     sub.cancel()
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
     assert db_id not in harness.bus_service.live_execution_counts()
 
@@ -454,8 +462,7 @@ async def test_once_with_non_single_mode_fires_at_most_once(
     await fire(harness, "0", "1")
     await harness.bus_service.await_dispatch_idle()
     await fire(harness, "1", "2")
-    for _ in range(10):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
     assert started == 1  # the once-guard runs before the mode guard
 
