@@ -17,9 +17,11 @@ class StateInfo:
 
 
 def iter_py_files(root: Path):
+    # Canonical exclusion set is lint_helpers.EXCLUDED_PARTS; kept in sync inline here because this
+    # file runs as a standalone `uv run --script` (isolated env — it can't import lint_helpers).
+    excluded = {".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"}
     for path in root.rglob("*.py"):
-        # Skip caches/venv/build-ish
-        if any(part in {".venv", "__pycache__", ".nox"} for part in path.parts):
+        if any(part in excluded for part in path.parts):
             continue
         yield path
 

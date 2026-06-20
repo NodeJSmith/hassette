@@ -11,6 +11,12 @@ import ast
 from collections.abc import Callable
 from pathlib import Path
 
+#: Directory components that are never first-party source: virtualenvs (notably the nested
+#: ``codegen/.venv``), caches, and build output. Without this filter, rglob over the ``codegen``
+#: scan dir pulls in third-party site-packages and reports them as house-style violations — which
+#: fails the linters' own characterization tests on any machine that has a local ``codegen/.venv``.
+EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
+
 
 def run_check(
     paths: list[Path],
@@ -67,8 +73,18 @@ def docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:
 
 
 def iter_py_files(repo_root: Path, scan_dirs: list[str]) -> list[Path]:
-    """Return every .py file under the given repo-relative directories, sorted for stable output."""
-    paths: list[Path] = []
-    for scan_dir in scan_dirs:
-        paths.extend((repo_root / scan_dir).rglob("*.py"))
-    return sorted(paths)
+    """Return every first-party .py file under the given repo-relative directories, sorted.
+
+    Skips virtualenv, cache, and build directories (notably the nested ``codegen/.venv``) so the
+    linters scan first-party source only, never installed third-party packages.
+    """
+    # A file is first-party when none of its repo-relative path components is an excluded dir.
+    # relative_to(repo_root) scopes the check to the repo itself, so an ancestor directory that
+    # happens to share an excluded name (e.g. a checkout under /opt/node_modules/...) can't blank
+    # the scan.
+    return sorted(
+        path
+        for scan_dir in scan_dirs
+        for path in (repo_root / scan_dir).rglob("*.py")
+        if EXCLUDED_PARTS.isdisjoint(path.relative_to(repo_root).parts)
+    )
