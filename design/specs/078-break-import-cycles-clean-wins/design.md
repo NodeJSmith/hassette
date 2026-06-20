@@ -1,7 +1,7 @@
 # Design: Break the Clean-Win Import Cycles (issue #1079, partial)
 
 **Date:** 2026-06-19
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-19-break-import-cycles/research.md
 
