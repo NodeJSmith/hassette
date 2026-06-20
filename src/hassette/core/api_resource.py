@@ -107,8 +107,7 @@ class ApiResource(Resource):
     @property
     def ws_conn(self) -> "WebsocketService":
         """Get the WebSocket connection for this API instance."""
-        assert self.hassette._websocket_service is not None
-        return self.hassette._websocket_service
+        return self.hassette.websocket_service
 
     async def rest_request(
         self,

@@ -184,6 +184,11 @@ class StateProxy(Resource):
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all states for a specific domain.
 
+        This method is deliberately NOT a generator: the readiness check runs eagerly and
+        iteration is delegated to a nested generator. That is required for ``@retry`` to
+        work — a generator body would defer the check past the decorated call, leaving the
+        retry inert. Do not collapse this back into a single generator function.
+
         Args:
             domain: The domain to filter by (e.g., "light").
 
@@ -197,13 +202,16 @@ class StateProxy(Resource):
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
 
-        # Snapshot to avoid RuntimeError if load_cache() mutates the dict mid-iteration
-        for eid, state in list(self.states.items()):
-            try:
-                if extract_domain(eid) == domain:
-                    yield eid, state
-            except ValueError:
-                self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
+        def iter_states() -> Generator[tuple[str, "HassStateDict"], Any, None]:
+            # Snapshot to avoid RuntimeError if load_cache() mutates the dict mid-iteration
+            for eid, state in list(self.states.items()):
+                try:
+                    if extract_domain(eid) == domain:
+                        yield eid, state
+                except ValueError:
+                    self.logger.warning("State for entity %s has invalid 'entity_id' value", eid)
+
+        return iter_states()
 
     @retry(
         retry=retry_if_exception_type(ResourceNotReadyError),
