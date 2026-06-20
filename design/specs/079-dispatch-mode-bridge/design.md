@@ -3,7 +3,6 @@
 **Date:** 2026-06-20
 **Status:** approved
 **Scope-mode:** hold
-**Research:** design/research/2026-06-19-dispatch-mode-bridge/research.md
 
 ## Problem
 
