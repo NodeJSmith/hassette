@@ -8,7 +8,7 @@ ROOT = Path("src")
 # Mirror of lint_helpers.EXCLUDED_PARTS — duplicated (not imported) because this file runs as a
 # standalone `uv run --script` in an isolated env. tests/unit/tools/test_exclusion_parity.py asserts
 # the two stay equal so the copies can't silently drift.
-EXCLUDED_PARTS = {".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"}
+EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
 
 
 class StateInfo:
@@ -23,7 +23,7 @@ class StateInfo:
 
 def iter_py_files(root: Path):
     for path in root.rglob("*.py"):
-        if any(part in EXCLUDED_PARTS for part in path.parts):
+        if any(part in EXCLUDED_PARTS for part in path.relative_to(root).parts):
             continue
         yield path
 
