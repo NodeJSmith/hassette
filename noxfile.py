@@ -37,8 +37,11 @@ def dev(session: "Session"):
         "pytest",
         "-m",
         "not docker and not e2e and not system and not system_destructive",
+        # Explicit worker count, not -n auto: bounds local parallelism so a many-core box
+        # doesn't spawn one heavy worker per core. The CI matrix sessions keep -n auto,
+        # which is right for their small dedicated runners.
         "-n",
-        "auto",
+        "4",
         "--dist",
         "loadscope",
         "-v",
