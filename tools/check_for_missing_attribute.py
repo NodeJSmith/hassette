@@ -5,6 +5,11 @@ from typing import cast
 
 ROOT = Path("src")
 
+# Mirror of lint_helpers.EXCLUDED_PARTS — duplicated (not imported) because this file runs as a
+# standalone `uv run --script` in an isolated env. tests/unit/tools/test_exclusion_parity.py asserts
+# the two stay equal so the copies can't silently drift.
+EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
+
 
 class StateInfo:
     def __init__(self, file, class_name, lineno, has_attributes_field, nested_attr_classes, module_attr_classes):
@@ -18,8 +23,7 @@ class StateInfo:
 
 def iter_py_files(root: Path):
     for path in root.rglob("*.py"):
-        # Skip caches/venv/build-ish
-        if any(part in {".venv", "__pycache__", ".nox"} for part in path.parts):
+        if any(part in EXCLUDED_PARTS for part in path.relative_to(root).parts):
             continue
         yield path
 

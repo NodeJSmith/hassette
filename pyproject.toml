@@ -126,7 +126,9 @@ module-name = "hassette"
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tools", "tools/frontend", "scripts"]
-norecursedirs = ["codegen", "tests/pyright_probes"]
+# ".*" restores pytest's default skip of dot-directories, which a custom norecursedirs otherwise
+# clobbers — without it, collection descends into .claude/worktrees, .venv, .nox from the repo root.
+norecursedirs = [".*", "codegen", "tests/pyright_probes"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"

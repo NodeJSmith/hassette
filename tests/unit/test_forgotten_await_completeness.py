@@ -424,8 +424,12 @@ def _bus_call(method_name: str):
     return _calls[method_name]
 
 
-# add_listener is handled separately (requires a Listener object)
-_BUS_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener"]
+# add_listener is handled separately (requires a Listener object).
+# sorted() pins the parametrize order: CANONICAL_PROTECTED[Bus] is a set, and unsorted set
+# iteration order varies with PYTHONHASHSEED across processes. Without the sort, xdist workers
+# collect these cases in different orders and abort with "Different tests were collected between
+# gw0 and gwN" under `-n` (the suite only survived because pytest-randomly syncs the seed).
+_BUS_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener")
 
 # Scheduler fixtures
 
@@ -471,8 +475,9 @@ def _sched_call(method_name: str):
     return _calls[method_name]
 
 
-# add_job is handled separately (requires a ScheduledJob object)
-_SCHED_METHODS_PARAMETRIZED = [m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job"]
+# add_job is handled separately (requires a ScheduledJob object).
+# sorted() for the same cross-process determinism reason as _BUS_METHODS_PARAMETRIZED above.
+_SCHED_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job")
 
 # Api fixtures
 
