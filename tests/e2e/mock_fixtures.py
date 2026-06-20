@@ -10,8 +10,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.core.app_registry import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.core.telemetry_models import (
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.telemetry_models import (
     AppHealthSummary,
     Execution,
     GlobalSummary,

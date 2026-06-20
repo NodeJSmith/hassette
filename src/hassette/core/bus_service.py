@@ -2,7 +2,7 @@ import asyncio
 import time
 import typing
 from collections import defaultdict
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, ClassVar
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.invocation import build_tracked_invoke_fn
@@ -17,6 +17,7 @@ from hassette.events import Event, HassPayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import BackpressurePolicy, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
@@ -40,22 +41,6 @@ _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
-
-
-class LiveCounts(NamedTuple):
-    """Live execution count snapshot for a single listener.
-
-    All three counters are in-memory only and reset on restart.
-    """
-
-    suppressed: int
-    """Events dropped by the single-mode guard while a prior invocation was running."""
-
-    dropped: int
-    """Events dropped by the queued-mode guard when the queue cap was reached."""
-
-    backpressure_dropped: int
-    """Events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure."""
 
 
 class BusService(Service):

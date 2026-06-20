@@ -23,7 +23,6 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.core.loop_watchdog import WatchdogEvent
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_models import BlockingEvent
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent
@@ -32,6 +31,7 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.schemas.telemetry_models import BlockingEvent
 from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE

@@ -7,8 +7,6 @@ from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_ori
 
 from pydantic._internal._typing_extra import try_eval_type
 
-from hassette.events import Event
-
 NoneType = type(None)
 
 
@@ -235,32 +233,6 @@ def is_annotated_type(annotation: Any) -> bool:
         return is_annotated_type(value)
 
     return get_origin(annotation) is Annotated
-
-
-def is_event_type(annotation: Any) -> bool:
-    """Check if annotation is an Event class or subclass.
-
-    Does NOT handle Union or Optional types. Use explicit Event types instead:
-    - ✅ event: Event
-    - ✅ event: RawStateChangeEvent
-    - ❌ event: Optional[Event]
-    - ❌ event: Event | None
-    - ❌ event: Union[Event, RawStateChangeEvent]
-
-    Args:
-        annotation: The type annotation to check.
-
-    Returns:
-        True if annotation is Event or an Event subclass.
-    """
-    if annotation is inspect.Parameter.empty:
-        return False
-
-    # Get the base class for generic types (Event[T] -> Event)
-    # For non-generic types, this returns None, so we check annotation directly
-    base_type = get_origin(annotation) or annotation
-
-    return inspect.isclass(base_type) and issubclass(base_type, Event)
 
 
 def make_union(types: set[Any]) -> Any:

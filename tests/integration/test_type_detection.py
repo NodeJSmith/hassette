@@ -10,13 +10,9 @@ from typing import Annotated
 
 import pytest
 
-from hassette.bus.extraction import (
-    extract_from_annotated,
-    extract_from_event_type,
-    is_annotated_type,
-    is_event_type,
-)
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
+from hassette.bus.extraction import extract_from_annotated, extract_from_event_type
+from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, is_event_type
+from hassette.utils.type_utils import is_annotated_type
 
 
 class TestTypeDetection:

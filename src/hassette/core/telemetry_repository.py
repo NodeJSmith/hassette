@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_models import BlockingEvent
+from hassette.schemas.telemetry_models import BlockingEvent
 from hassette.types.types import is_framework_key
 
 LOGGER = getLogger(__name__)

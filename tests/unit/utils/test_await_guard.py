@@ -28,8 +28,8 @@ import pytest
 from hassette import ForgottenAwaitBehavior, HassetteForgottenAwaitWarning
 from hassette.app.app_config import AppConfig
 from hassette.config.config import HassetteConfig
-from hassette.core.await_guard import RegistrationHandle, guard_await
 from hassette.utils import source_capture as source_capture_module
+from hassette.utils.await_guard import RegistrationHandle, guard_await
 from hassette.utils.source_capture import capture_registration_source, is_internal_frame
 
 
@@ -349,7 +349,7 @@ def test_source_capture_is_internal_frame_module_name():
     # Simulate frame globals via SimpleNamespace
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "hassette.bus.bus"})) is True
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "hassette.scheduler.scheduler"})) is True
-    assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "hassette.core.await_guard"})) is True
+    assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"})) is True
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "hassette"})) is True
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "my_app"})) is False
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": "user.automation"})) is False
@@ -375,9 +375,9 @@ def test_source_capture_skips_hassette_frames(monkeypatch):
         ),
         # hassette internal
         types.SimpleNamespace(
-            filename="/site-packages/hassette/core/await_guard.py",
+            filename="/site-packages/hassette/utils/await_guard.py",
             lineno=10,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.core.await_guard"}),
+            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"}),
         ),
         # user code (non-hassette)
         types.SimpleNamespace(
@@ -431,9 +431,9 @@ def _fake_stack_frames():
             frame=types.SimpleNamespace(f_globals={"__name__": "hassette.bus.bus"}),
         ),
         types.SimpleNamespace(
-            filename="/site-packages/hassette/core/await_guard.py",
+            filename="/site-packages/hassette/utils/await_guard.py",
             lineno=10,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.core.await_guard"}),
+            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"}),
         ),
         types.SimpleNamespace(
             filename="/home/user/apps/my_automation.py",

@@ -10,11 +10,13 @@ from typing import Any, assert_never
 
 import aiosqlite
 
-from hassette.core.telemetry_models import AppHealthSummary
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.schemas.telemetry_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier, is_framework_key
 
-DEFAULT_QUERY_LIMIT = 50
-"""Default row cap for telemetry list queries. Single source of truth across query modules."""
+# DEFAULT_QUERY_LIMIT and DEFAULT_SPARKLINE_BUCKETS moved to hassette.schemas.query_constants;
+# re-imported above so internal callers (registration_queries, execution_queries, query_service)
+# still resolve via helpers without change.
 
 DEFAULT_SESSION_LIST_LIMIT = 20
 """Default number of recent sessions returned by get_session_list."""
@@ -24,9 +26,6 @@ DEFAULT_LOG_RECORDS_LIMIT = 100
 
 DEFAULT_EXECUTION_LOG_LIMIT = 500
 """Default row cap for log records of a single execution (get_log_records_by_execution)."""
-
-DEFAULT_SPARKLINE_BUCKETS = 12
-"""Default number of time buckets for per-app activity sparklines."""
 
 # Exports the package's public constants plus the clause-builders shared by the query
 # mixins. The clause-builders keep their underscore prefix (package-internal, not for

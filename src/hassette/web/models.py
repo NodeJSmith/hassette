@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
-from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
+from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
 
@@ -36,7 +36,7 @@ Verified against ``listener_kind_from_topic()`` return values in ``mappers.py``.
 SystemHealthStatus = Literal["ok", "degraded", "starting"]
 """System-level health status (3 values).
 
-Mirrors ``SystemStatus.status`` from ``src/hassette/core/domain_models.py:62``.
+Mirrors ``SystemStatus.status`` from ``src/hassette/schemas/domain_models.py``.
 """
 
 

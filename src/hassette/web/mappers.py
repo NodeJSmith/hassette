@@ -1,6 +1,6 @@
 """Mapping functions from core domain objects to web response models.
 
-Each function converts a core domain type (from ``hassette.core``) to the
+Each function converts a domain type (from ``hassette.schemas``) to the
 appropriate Pydantic response model from ``hassette.web.models``. Web routes
 call these instead of receiving pre-mapped response objects from
 ``RuntimeQueryService``.
@@ -15,10 +15,10 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 
 from typing import cast
 
-from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
-from hassette.core.bus_service import LiveCounts
-from hassette.core.domain_models import SystemStatus
-from hassette.core.telemetry_models import ListenerSummary
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.domain_models import SystemStatus
+from hassette.schemas.live_counts import LiveCounts
+from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.types.enums import ResourceStatus, Topic
 from hassette.web.models import (
     AppInstanceResponse,

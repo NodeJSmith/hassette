@@ -11,13 +11,14 @@ from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
+from hassette.core.app_registry import AppRegistry
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
+from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 

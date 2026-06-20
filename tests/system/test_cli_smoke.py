@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from hassette.cli.client import HassetteCLIClient
-from hassette.core.telemetry_models import JobSummary
+from hassette.schemas.telemetry_models import JobSummary
 from hassette.web.models import (
     AppManifestListResponse,
     ConfigResponse,

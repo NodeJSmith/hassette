@@ -9,9 +9,9 @@ from hassette.app.app_config import AppConfig
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_models import HandlerErrorRecord, JobErrorRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
 from hassette.scheduler.classes import ScheduledJob
+from hassette.schemas.telemetry_models import HandlerErrorRecord, JobErrorRecord
 from hassette.test_utils.helpers import create_listener
 from hassette.utils.execution import ExecutionResult, track_execution
 

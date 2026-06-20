@@ -2,7 +2,7 @@
 
 import pytest
 
-from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 

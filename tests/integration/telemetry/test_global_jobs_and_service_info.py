@@ -15,11 +15,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.domain_models import ServiceInfo, SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry_models import JobSummary
 from hassette.scheduler.triggers import Every
+from hassette.schemas.domain_models import ServiceInfo, SystemStatus
+from hassette.schemas.telemetry_models import JobSummary
 from hassette.test_utils.web_helpers import make_job_summary, make_real_job
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus

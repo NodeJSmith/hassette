@@ -7,7 +7,7 @@ from logging import getLogger
 
 from fastapi import APIRouter, Query, Response
 
-from hassette.core.telemetry_models import JobSummary
+from hassette.schemas.telemetry_models import JobSummary
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep
 from hassette.web.utils import enrich_jobs_with_heap

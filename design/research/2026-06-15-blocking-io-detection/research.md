@@ -25,7 +25,7 @@ Hassette already has the scaffolding this feature needs:
 
 - **Loop setup** lives in `Hassette.run_forever()` at `src/hassette/core/core.py:444-453`. The loop is obtained via `asyncio.get_running_loop()` (created by the caller), then `self.loop.set_debug(self.config.asyncio_debug_mode)` (line 450) and `set_task_factory(...)` (line 453) run. The loop thread id is captured at line 449 (`self._loop_thread_id = threading.get_ident()`). No exception handler and no `slow_callback_duration` are set today. This is the natural hook point for any loop-level instrumentation.
 
-- **A runtime-warning precedent exists**: `src/hassette/core/await_guard.py` detects forgotten `await`s. It is the closest existing pattern and the new feature should mirror its shape (Direct — read the file):
+- **A runtime-warning precedent exists**: `src/hassette/utils/await_guard.py` detects forgotten `await`s. It is the closest existing pattern and the new feature should mirror its shape (Direct — read the file):
   - A three-state behavior enum `ForgottenAwaitBehavior` (`IGNORE` / `WARN` / `ERROR`) in `src/hassette/types/enums.py`.
   - Resolution order: per-app `AppConfig.forgotten_await_behavior` overrides global `HassetteConfig.forgotten_await_behavior`, which defaults to `WARN` (`await_guard.py:165-178`).
   - Emission via `warnings.warn(msg, HassetteForgottenAwaitWarning, stacklevel=1)` (`await_guard.py:113-120`). `ERROR` is realized by the user's `filterwarnings("error")`, not by raising directly — the warning class subclasses `RuntimeWarning`.

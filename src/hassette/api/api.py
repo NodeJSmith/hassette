@@ -170,7 +170,6 @@ import aiohttp
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
-from hassette.core.await_guard import guard_await
 from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError, FailedMessageError, UnableToConvertStateError
 from hassette.models.entities import BaseEntity
@@ -204,6 +203,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
@@ -440,7 +440,7 @@ class Api(Resource):
         # Cheap path: no DB-record telemetry on api fire-and-forget methods
         # (unlike bus/scheduler listeners) — only warning attribution needs the location here.
         source_location = capture_source_location()
-        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
             self._fire_event(event_type, event_data),
             owner=self.parent,
@@ -513,7 +513,7 @@ class Api(Resource):
         """
         # Cheap path — see fire_event (same rationale for all api methods)
         source_location = capture_source_location()
-        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
             self._call_service(domain, service, target, return_response, **data),
             owner=self.parent,
@@ -890,7 +890,7 @@ class Api(Resource):
         """
         # Cheap path — see fire_event (same rationale for all api methods)
         source_location = capture_source_location()
-        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
             self._set_state(entity_id, state, attributes),
             owner=self.parent,

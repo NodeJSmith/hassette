@@ -71,12 +71,12 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.core.await_guard import guard_await
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
 from hassette.types import TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.await_guard import guard_await
 from hassette.utils.source_capture import capture_registration_source
 
 from .classes import ScheduledJob
@@ -210,7 +210,7 @@ class Scheduler(Resource):
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _add_job (backfills job.source_location / registration_source for telemetry when empty).
         source_location, registration_source = capture_registration_source()
-        # Coroutine[...] supertype annotation is load-bearing — see hassette/core/await_guard.py / design/071.
+        # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
             self._add_job(
                 job,
