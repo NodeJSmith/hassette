@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Relocate is_event_type to events, add utils->events RULE"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "FR#6", "FR#7", "AC#3"]
 ---

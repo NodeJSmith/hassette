@@ -25,6 +25,7 @@ from .hassette import (
     HassetteSimpleEvent,
     ServiceStatusPayload,
 )
+from .type_checks import is_event_type
 
 __all__ = [
     "AppStateChangePayload",
@@ -57,4 +58,5 @@ __all__ = [
     "UserAddedEvent",
     "UserRemovedEvent",
     "create_event_from_hass",
+    "is_event_type",
 ]

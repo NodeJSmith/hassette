@@ -3,8 +3,9 @@ from typing import Any
 from warnings import warn
 
 from hassette.event_handling.dependencies import AnnotationDetails, identity
+from hassette.events import is_event_type
 from hassette.exceptions import DependencyInjectionError
-from hassette.utils.type_utils import get_type_and_details, is_annotated_type, is_event_type, normalize_annotation
+from hassette.utils.type_utils import get_type_and_details, is_annotated_type, normalize_annotation
 
 
 def extract_from_annotated(annotation: Any) -> None | tuple[Any, AnnotationDetails[Any]]:

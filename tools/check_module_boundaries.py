@@ -65,6 +65,12 @@ RULES: list[Rule] = [
         forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
         reason="api must not import core at runtime; core sits above the service layer (#1079)",
     ),
+    Rule(
+        name="utils-no-events",
+        applies=lambda layer: layer == "utils",
+        forbids=lambda module: module == "hassette.events" or module.startswith("hassette.events."),
+        reason="utils sits below events; the only upward dependency (is_event_type) has moved to events/",
+    ),
 ]
 
 
