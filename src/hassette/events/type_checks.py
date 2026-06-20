@@ -13,12 +13,6 @@ def is_event_type(annotation: Any) -> bool:
     - ❌ event: Optional[Event]
     - ❌ event: Event | None
     - ❌ event: Union[Event, RawStateChangeEvent]
-
-    Args:
-        annotation: The type annotation to check.
-
-    Returns:
-        True if annotation is Event or an Event subclass.
     """
     if annotation is inspect.Parameter.empty:
         return False
