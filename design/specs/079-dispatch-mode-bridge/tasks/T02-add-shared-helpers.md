@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add shared dispatch-bridge helpers to execution_mode"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "AC#6"]
 ---

@@ -673,9 +673,8 @@ async def test_backpressure_policy_updated_on_replace_registration(
     assert row[0] == "drop_newest", f"Expected 'drop_newest' after replace, got {row[0]!r}"
 
 
-# ---------------------------------------------------------------------------
-# Characterization pins (T01) — must pass against current code; gated by T03
-# ---------------------------------------------------------------------------
+# Characterization pins for the dispatch-mode bridge extraction: these must pass
+# against the current code and guard the later bus-migration change.
 
 
 async def test_stall_watchdog_emits_warning_for_non_parallel(
@@ -695,9 +694,10 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
     Patching the wrong target leaves the watchdog armed at 60s and the spy
     never fires — yielding a false-green pin.
 
-    AC#3 assertion: ``mock_warn.assert_called_once_with()`` — no arguments,
-    current signature. T03 will update this to ``assert_called_once_with(0.05)``
-    when ``warn_stalled`` gains the ``threshold`` parameter.
+    Assertion: ``mock_warn.assert_called_once_with()`` — no arguments, matching
+    the current ``warn_stalled`` signature. The later bus migration updates this
+    to ``assert_called_once_with(0.05)`` once ``warn_stalled`` gains a
+    ``threshold`` parameter.
 
     Timing note: the listener is registered OUTSIDE the patch block on purpose.
     The ``call_later(..., self.warn_stalled)`` arm runs inside
@@ -757,7 +757,7 @@ async def test_queued_trigger_pending_done_resolved_on_release(
     rather than hanging.
 
     This pins the drain behaviour in ``HandlerInvoker.release_guard`` before the
-    bus migration in T03 touches that method.
+    bus migration touches that method.
     """
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
