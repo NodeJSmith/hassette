@@ -197,11 +197,20 @@ async def run_through_guard(
 ) -> None:
     """Route one non-parallel invocation through ``guard``, bridging completion via a future.
 
-    Caller handles the ``parallel`` fast-path first — this is the single/restart/queued
-    path only. Installs exactly one done-callback on ``pending_done`` per call; that
-    callback fires when the spawned task completes, which may be after this function
-    returns. Caller must call ``drain_pending_done(pending_done)`` after every
-    ``guard.release()`` to resolve futures whose factory was dropped without running.
+    PRECONDITION: the caller must handle the ``parallel`` fast-path itself — this function is
+    the single/restart/queued path only. There is no guard-rail; passing a parallel guard here
+    would route it through the future bridge instead of awaiting inline.
+
+    The parameters fall into three groups: the overlap state (``guard``, ``pending_done``), the
+    invocation (``invoke``, ``warn``, ``threshold``), and the task machinery (``spawn``,
+    ``spawn_name``). ``spawn`` is a bare callable rather than a ``TaskBucket`` so this module
+    stays a dependency-free leaf.
+
+    Completion bridge: installs exactly one done-callback on ``pending_done`` per call; that
+    callback fires when the spawned task completes, which may be after this function returns.
+    The caller must call ``drain_pending_done(pending_done)`` after every ``guard.release()`` to
+    resolve futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
+    released case), otherwise the parked outer task hangs forever.
 
     Note: the ``drain_next``/``release`` interleave edge (a task spawned by ``drain_next``
     concurrently with ``release()`` may detach rather than cancel) applies to every caller
@@ -231,6 +240,8 @@ async def run_through_guard(
 
 def drain_pending_done(pending_done: "set[asyncio.Future[None]]") -> None:
     """Resolve every unresolved completion future. Call after ``guard.release()``."""
+    # Copy first: resolving discards from the set via each future's resolve_done closure,
+    # so iterating the live set would mutate it mid-iteration.
     for done in list(pending_done):
         pending_done.discard(done)
         if not done.done():

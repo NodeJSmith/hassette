@@ -534,7 +534,8 @@ class SchedulerService(Service):
         # Release guard: cancels in-flight invocation, drops queued factories.
         # dequeue_job is synchronous, so spawn the release as a fire-and-forget task.
         # drain_pending_done runs after the release completes so QUEUED_ACCEPTED dispatch
-        # tasks unwind. Interleave edge tracked in issue #1099.
+        # tasks unwind. The drain_next/release interleave edge this detached release exposes
+        # is described in run_through_guard's docstring (execution_mode.py); fix tracked in #1099.
         async def _release_and_drain() -> None:
             await job.guard.release()
             drain_pending_done(job.pending_done)
