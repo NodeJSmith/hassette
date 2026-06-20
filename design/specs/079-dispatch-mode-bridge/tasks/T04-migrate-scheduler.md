@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate the scheduler call site to the shared helpers"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#8", "FR#9", "AC#2"]
 ---

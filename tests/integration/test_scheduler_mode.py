@@ -996,7 +996,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             await asyncio.sleep(0.2)
 
             assert not dispatch_task.done(), "Dispatch task should still be pending (job still running)"
-            mock_warn.assert_called_once_with(job)
+            mock_warn.assert_called_once_with(job, 0.05)
 
         # Unblock and clean up
         gate.set()
