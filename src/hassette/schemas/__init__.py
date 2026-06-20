@@ -4,8 +4,10 @@ This package contains data types that are consumed by both ``hassette.core``
 (as producers) and ``hassette.web`` (as consumers). Placing them here, below
 both, breaks the ``web → core`` import cycle.
 
-Import policy: ``schemas`` may import ONLY ``hassette.types``, ``hassette.const``,
-and ``hassette.utils``. No ``core``, no service logic.
+Import policy: within ``hassette``, ``schemas`` may import ONLY ``hassette.types``,
+``hassette.const``, and ``hassette.utils`` — no ``core``, no service logic. Third-party
+(pydantic) and stdlib (``importlib.metadata``) imports are fine; the rule is about
+keeping ``schemas`` below ``core``/``web`` in the layer DAG.
 """
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
