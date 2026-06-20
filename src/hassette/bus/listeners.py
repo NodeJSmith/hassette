@@ -1,4 +1,3 @@
-import asyncio
 import itertools
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -10,31 +9,26 @@ from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
-from hassette.execution_mode import ExecutionModeGuard
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, Outcome
+from hassette.execution_mode import (
+    STALL_THRESHOLD_SECONDS,
+    ExecutionModeGuard,
+    drain_pending_done,
+    run_through_guard,
+)
+from hassette.types.enums import BackpressurePolicy, ExecutionMode
 from hassette.types.types import SourceTier
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
+    import asyncio
+
     from hassette import TaskBucket
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
 
 LOGGER = getLogger(__name__)
-
-STALL_THRESHOLD_SECONDS: float = 60.0
-"""How long a ``single``/``queued`` invocation may hold its guard before a stall WARNING fires.
-
-Independent of the per-listener ``timeout`` (which still ultimately releases the guard via the
-command executor). This is the ONLY WARNING in the execution-mode feature — suppressions and
-drops stay at DEBUG.
-
-The scheduler keeps its own ``STALL_THRESHOLD_SECONDS`` (``core/scheduler_service.py``) at the
-same value so it does not import from the bus layer; ``test_stall_threshold_in_sync`` asserts the
-two stay equal. Update both together.
-"""
 
 # In-memory routing ID, assigned at listener creation. This is the dispatch/dedup key
 # used by router.py and bus_service.py — distinct from the database row id (``db_id``),
@@ -295,62 +289,28 @@ class HandlerInvoker:
             await self.run_with_mode(invoke_fn)
 
     async def run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
-        """Apply the overlap mode guard to a single started invocation.
-
-        The outer dispatch task (counted by BusService's ``_dispatch_pending``) must stay pending
-        until the handler ACTUALLY runs — including the ``queued`` case where the child is spawned
-        later, at drain time. A per-invocation ``done`` future bridges that gap: ``run_and_track``
-        resolves it when its spawned child completes; ``release_guard`` resolves any still-unresolved
-        futures so a released-while-queued trigger does not hang the outer task forever.
-        """
+        """Apply the overlap mode guard to a single started invocation."""
         if self.mode is ExecutionMode.PARALLEL:
             await invoke_fn()
             return
 
-        # ``done`` resolves when this trigger's handler finishes (normal or cancelled), is dropped
-        # by the guard, or is released before it ever ran. Awaiting it keeps the outer dispatch task
-        # — and thus _dispatch_pending — counted across the whole wait, including queue time.
-        loop = asyncio.get_running_loop()
-        done: asyncio.Future[None] = loop.create_future()
-        self.pending_done.add(done)
+        await run_through_guard(
+            guard=self.guard,
+            spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
+            pending_done=self.pending_done,
+            invoke=invoke_fn,
+            warn=self.warn_stalled,
+            spawn_name="bus:mode_invocation",
+            threshold=STALL_THRESHOLD_SECONDS,
+        )
 
-        def resolve_done() -> None:
-            self.pending_done.discard(done)
-            if not done.done():
-                done.set_result(None)
-
-        def run_and_track() -> asyncio.Task[None]:
-            # The guard may call this now (RAN) or later at drain time (QUEUED_ACCEPTED). Either way,
-            # resolve ``done`` once the spawned child settles, normally or via restart-cancellation.
-            task = self.task_bucket.spawn(self.invocation_with_stall_watch(invoke_fn), name="bus:mode_invocation")
-            task.add_done_callback(lambda _t: resolve_done())
-            return task
-
-        outcome = await self.guard.run(run_and_track)
-
-        if outcome in (Outcome.SUPPRESSED, Outcome.DROPPED):
-            # The factory was never called — no child will resolve ``done``; resolve it here.
-            resolve_done()
-            return
-        # RAN: child already spawned, ``done`` resolves when it finishes.
-        # QUEUED_ACCEPTED: child spawns at drain time (or release resolves ``done`` first).
-        await done
-
-    async def invocation_with_stall_watch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
-        """Run one handler invocation, emitting a WARNING if it holds the guard past the threshold."""
-        watchdog = asyncio.get_running_loop().call_later(STALL_THRESHOLD_SECONDS, self.warn_stalled)
-        try:
-            await invoke_fn()
-        finally:
-            watchdog.cancel()
-
-    def warn_stalled(self) -> None:
+    def warn_stalled(self, threshold: float) -> None:
         """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
             "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",
             self.handler_short_name,
             self.mode.value,
-            STALL_THRESHOLD_SECONDS,
+            threshold,
         )
 
     def cancel(self) -> None:
@@ -361,19 +321,16 @@ class HandlerInvoker:
     async def release_guard(self) -> None:
         """Release the execution-mode guard: cancel the in-flight task and drop queued factories.
 
-        Called when a listener is cancelled or replaced so no event/listener/app references leak
+        Called when a listener is cancelled or replaced so no event/listener/app references leak.
         ``parallel`` listeners hold no guard state, so this is a cheap no-op for them.
 
         Queued triggers still parked in the guard's deque never spawn a child once released, so
         their outer dispatch tasks are parked on ``done`` futures that nothing else will resolve.
-        Resolve every remaining one here so those tasks unwind and ``_dispatch_pending`` settles.
+        ``drain_pending_done`` resolves every remaining one so those tasks unwind and
+        ``_dispatch_pending`` settles.
         """
         await self.guard.release()
-        # Copy first: resolving discards from the set via the future's resolve_done closure.
-        for done in list(self.pending_done):
-            self.pending_done.discard(done)
-            if not done.done():
-                done.set_result(None)
+        drain_pending_done(self.pending_done)
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler with dependency injection."""

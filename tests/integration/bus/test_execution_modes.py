@@ -694,14 +694,13 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
     Patching the wrong target leaves the watchdog armed at 60s and the spy
     never fires — yielding a false-green pin.
 
-    Assertion: ``mock_warn.assert_called_once_with()`` — no arguments, matching
-    the current ``warn_stalled`` signature. The later bus migration updates this
-    to ``assert_called_once_with(0.05)`` once ``warn_stalled`` gains a
-    ``threshold`` parameter.
+    Assertion: ``mock_warn.assert_called_once_with(0.05)`` — the patched threshold
+    is passed to ``warn_stalled(threshold)`` by the shared ``run_with_stall_watch``
+    helper.
 
     Timing note: the listener is registered OUTSIDE the patch block on purpose.
-    The ``call_later(..., self.warn_stalled)`` arm runs inside
-    ``invocation_with_stall_watch`` — i.e. after ``fire()``, inside the ``with``
+    The ``call_later`` arm runs inside ``run_with_stall_watch`` (in
+    ``hassette.execution_mode``) — i.e. after ``fire()``, inside the ``with``
     block — so it captures ``self.warn_stalled`` after the mock is installed.
     Moving ``fire()`` outside the block would make the spy miss the call.
     """
@@ -738,8 +737,8 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
             "Dispatch should still be pending (handler is blocking on gate)"
         )
         # Assert the watchdog actually fired — not just that the handler is still running.
-        # Current signature: warn_stalled(self) — no extra arguments.
-        mock_warn.assert_called_once_with()
+        # warn_stalled(threshold) — threshold is passed by the shared run_with_stall_watch helper.
+        mock_warn.assert_called_once_with(0.05)
 
     # Unblock and drain.
     gate.set()

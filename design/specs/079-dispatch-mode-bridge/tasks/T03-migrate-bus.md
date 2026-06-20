@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate the bus call site to the shared helpers"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#7", "FR#9", "AC#1"]
 ---
