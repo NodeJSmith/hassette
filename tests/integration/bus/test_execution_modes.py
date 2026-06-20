@@ -9,10 +9,12 @@ rules: assert the counter increment, not log capture).
 
 import asyncio
 import typing
+import unittest.mock
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import hassette.bus.listeners as bus_listeners_module
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -31,6 +33,17 @@ if typing.TYPE_CHECKING:
 
 ENTITY = "sensor.overlap"
 
+# Yielding to the event loop this many times lets a chain of already-scheduled callbacks
+# (stream → serve → dispatch → guard → child-task spawn) all run without waiting on wall-clock
+# time. Used where there is no completion signal to await on.
+EVENT_LOOP_YIELDS = 10
+
+
+async def pump_event_loop() -> None:
+    """Yield control to the event loop enough times for scheduled callbacks to drain."""
+    for _ in range(EVENT_LOOP_YIELDS):
+        await asyncio.sleep(0)
+
 
 async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
     """Send one state-change event without waiting for dispatch to drain.
@@ -41,8 +54,7 @@ async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
     """
     event = create_state_change_event(entity_id=ENTITY, old_value=old, new_value=new)
     await harness.send_event(event)
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
 
 async def test_single_runs_once_and_suppresses_refire(
@@ -186,8 +198,7 @@ async def test_await_dispatch_idle_blocks_until_queued_handlers_run(
     # Let the first invocation finish and the queued one start, but keep the queued one blocked.
     release_first.set()
     await wait_for(lambda: completed == ["a"])
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
     assert not idle_task.done()  # still pending: the queued handler has not completed
 
     # Releasing the queued handler lets it finish — only now may await_dispatch_idle() return.
@@ -310,8 +321,7 @@ async def test_live_execution_counts_omits_retired_listener(
     assert db_id in harness.bus_service.live_execution_counts()
 
     sub.cancel()
-    for _ in range(5):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
     assert db_id not in harness.bus_service.live_execution_counts()
 
@@ -452,8 +462,7 @@ async def test_once_with_non_single_mode_fires_at_most_once(
     await fire(harness, "0", "1")
     await harness.bus_service.await_dispatch_idle()
     await fire(harness, "1", "2")
-    for _ in range(10):
-        await asyncio.sleep(0)
+    await pump_event_loop()
 
     assert started == 1  # the once-guard runs before the mode guard
 
@@ -669,3 +678,135 @@ async def test_backpressure_policy_updated_on_replace_registration(
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == "drop_newest", f"Expected 'drop_newest' after replace, got {row[0]!r}"
+
+
+# Characterization pins for the dispatch-mode bridge extraction: these must pass
+# against the current code and guard the later bus-migration change.
+
+
+async def test_stall_watchdog_emits_warning_for_non_parallel(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """A single/queued invocation held past the stall threshold emits a stall WARNING.
+
+    Mirrors ``test_stall_watchdog_emits_warning_for_non_parallel`` in
+    ``tests/integration/test_scheduler_mode.py``. Spies on
+    ``HandlerInvoker.warn_stalled`` so a deleted ``call_later`` registration
+    (which would still pass a "dispatch is still pending" check) fails the spy
+    assertion — the robust check.
+
+    Patch-target note: patches ``bus_listeners_module.STALL_THRESHOLD_SECONDS``
+    (the module-level constant the ``call_later`` call reads) and spies on the
+    class method via ``patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled")``.
+    Patching the wrong target leaves the watchdog armed at 60s and the spy
+    never fires — yielding a false-green pin.
+
+    Assertion: ``mock_warn.assert_called_once_with(0.05)`` — the patched threshold
+    is passed to ``warn_stalled(threshold)`` by the shared ``run_with_stall_watch``
+    helper.
+
+    Timing note: the listener is registered OUTSIDE the patch block on purpose.
+    The ``call_later`` arm runs inside ``run_with_stall_watch`` (in
+    ``hassette.execution_mode``) — i.e. after ``fire()``, inside the ``with``
+    block — so it captures ``self.warn_stalled`` after the mock is installed.
+    Moving ``fire()`` outside the block would make the spy miss the call.
+    """
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "off")
+
+    started = asyncio.Event()
+    gate = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        started.set()
+        await gate.wait()
+
+    await bus.on_state_change(
+        ENTITY,
+        handler=handler,
+        name="stall_watch_pin",
+        mode="single",
+        timeout_disabled=True,
+    )
+
+    with (
+        unittest.mock.patch.object(bus_listeners_module, "STALL_THRESHOLD_SECONDS", 0.05),
+        unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
+    ):
+        await fire(harness, "off", "on")
+        await asyncio.wait_for(started.wait(), timeout=2.0)
+
+        # Wait deterministically for the watchdog to fire (past the patched 0.05s
+        # threshold) rather than sleeping a fixed interval and hoping.
+        await wait_for(lambda: mock_warn.call_count >= 1)
+
+        assert harness.bus_service.dispatch_pending_count > 0, (
+            "Dispatch should still be pending (handler is blocking on gate)"
+        )
+        # Assert the watchdog actually fired — not just that the handler is still running.
+        # warn_stalled(threshold) — threshold is passed by the shared run_with_stall_watch helper.
+        mock_warn.assert_called_once_with(0.05)
+
+    # Unblock and drain.
+    gate.set()
+    await harness.bus_service.await_dispatch_idle()
+
+
+async def test_queued_trigger_pending_done_resolved_on_release(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """A QUEUED_ACCEPTED trigger's pending_done future resolves when the listener is released.
+
+    Complements ``test_cancelling_queued_listener_releases_pending`` with an
+    explicit assertion that the ``pending_done`` set is empty after release — i.e.
+    release_guard() drains the unresolved futures so outer dispatch tasks unwind
+    rather than hanging.
+
+    This pins the drain behaviour in ``HandlerInvoker.release_guard`` before the
+    bus migration touches that method.
+    """
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "v0")
+
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        if not first_started.is_set():
+            first_started.set()
+            await release_first.wait()
+
+    sub = await bus.on_state_change(
+        ENTITY,
+        handler=handler,
+        name="queued_drain_pin",
+        mode="queued",
+    )
+
+    await fire(harness, "v0", "a")  # starts the first handler — blocks on release_first
+    await asyncio.wait_for(first_started.wait(), timeout=2.0)
+
+    # Queue a second trigger while the first is running.
+    await fire(harness, "a", "b")
+
+    guard = sub.listener.invoker.guard
+    await wait_for(lambda: len(guard.pending) >= 1)
+
+    # Before release: both the running invocation and the queued trigger have
+    # pending_done futures parked (non-parallel modes add one per invocation).
+    assert len(sub.listener.invoker.pending_done) >= 2, (
+        "pending_done must hold futures for both the running and queued invocations"
+    )
+
+    # Cancel/release the listener — must drain all pending_done futures.
+    sub.cancel()
+    await wait_for(lambda: len(guard.pending) == 0 and guard.current_task is None)
+
+    # Unblock the (now cancelled) first invocation.
+    release_first.set()
+    await harness.bus_service.await_dispatch_idle()
+
+    # The drain must have resolved every pending_done future — none should remain.
+    assert len(sub.listener.invoker.pending_done) == 0, (
+        "release_guard() must drain all pending_done futures so outer dispatch tasks unwind"
+    )

@@ -1,3 +1,4 @@
+import os
 import typing
 from pathlib import Path
 
@@ -7,6 +8,13 @@ if typing.TYPE_CHECKING:
     from nox.sessions import Session
 
 nox.options.default_venv_backend = "uv|virtualenv"
+
+# Reuse existing .nox venvs by default (the ``-r`` flag, made the default). This speeds up
+# repeated local runs and avoids the "virtual environment already exists" error when a prior
+# run left a venv behind. It is a no-op on fresh CI runners (no .nox to reuse), and each
+# session's install steps still run, so dependencies stay current. To force a clean rebuild
+# after changing dependencies, pass ``--no-reuse-existing-virtualenvs`` or delete ``.nox/``.
+nox.options.reuse_existing_virtualenvs = True
 
 _SPA_INDEX = Path("src/hassette/web/static/spa/index.html")
 
@@ -29,8 +37,11 @@ def dev(session: "Session"):
         "pytest",
         "-m",
         "not docker and not e2e and not system and not system_destructive",
+        # Explicit worker count, not -n auto: bounds local parallelism so a many-core box
+        # doesn't spawn one heavy worker per core. The CI matrix sessions keep -n auto,
+        # which is right for their small dedicated runners.
         "-n",
-        "auto",
+        "4",
         "--dist",
         "loadscope",
         "-v",
@@ -77,7 +88,12 @@ def e2e(session: "Session"):
     if not _SPA_INDEX.exists():
         session.run("npm", "ci", "--prefix", "frontend", external=True)
         session.run("npm", "run", "build", "--prefix", "frontend", external=True)
-    session.run("uv", "run", "--active", "playwright", "install", "--with-deps", "chromium", external=True)
+    # ``--with-deps`` installs system libraries via apt, which needs root. CI runners have
+    # passwordless sudo, so keep it there; locally it would prompt for a password with no TTY
+    # and fail even when the deps are already present. Locally, install just the browser binary
+    # (idempotent, no root) — system deps are a one-time manual ``sudo playwright install-deps``.
+    deps_flag = ["--with-deps"] if os.environ.get("CI") else []
+    session.run("uv", "run", "--active", "playwright", "install", *deps_flag, "chromium", external=True)
     session.run(
         "uv",
         "run",

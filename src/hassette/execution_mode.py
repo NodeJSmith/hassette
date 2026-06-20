@@ -1,18 +1,22 @@
-"""The shared overlap state machine for event-handler (and, later, scheduler) execution.
+"""The shared overlap state machine and dispatch-bridge helpers for the bus and scheduler.
 
 ``ExecutionModeGuard`` owns the four-mode overlap behavior — ``single``, ``restart``,
-``queued``, ``parallel`` — for one listener. It is overlap-only: it does no I/O, holds no
+``queued``, ``parallel`` — for one listener or job. It is overlap-only: it does no I/O, holds no
 telemetry beyond two live counters, and never spawns a detached task. The caller supplies a
-"run-and-track" callable that spawns one handler invocation through the caller's own task
+"run-and-track" callable that spawns one invocation through the caller's own task
 machinery; the guard decides whether and when to call it, retains the returned task as the
 cancellable handle, and (for ``queued``) drains pending factories one at a time.
 
-The scheduler follow-up (#1027) reuses this module unchanged.
+This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
+``run_through_guard``, ``drain_pending_done`` — that both the bus (``HandlerInvoker``) and the
+scheduler (``SchedulerService``) call to wrap the guard with a completion-future bridge, a stall
+watchdog, and the drain. The module stays a dependency-free leaf (stdlib + ``hassette.types.enums``)
+so neither subsystem has to import the other.
 """
 
 import asyncio
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from logging import getLogger
 from typing import Final
 
@@ -26,6 +30,11 @@ DEFAULT_QUEUE_DEPTH = 10
 Passed to the guard's constructor so a future ``max`` parameter overrides the value with no
 change to the guard's shape.
 """
+
+STALL_THRESHOLD_SECONDS: float = 60.0
+"""Single source of truth. Imported by both subsystems and passed explicitly as
+``threshold=`` at each call site — never used as a helper default argument (a
+default binds at definition time and would defeat test patches)."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
@@ -158,3 +167,82 @@ class ExecutionModeGuard:
                 return
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+async def run_with_stall_watch(
+    invoke: Callable[[], Awaitable[None]],
+    warn: Callable[[float], None],
+    threshold: float,
+) -> None:
+    """Run one invocation; call ``warn(threshold)`` if it holds past ``threshold`` seconds.
+
+    ``warn`` receives the same ``threshold`` the watchdog armed at, so a logged stall
+    message can never disagree with when the watchdog fired.
+    """
+    watchdog = asyncio.get_running_loop().call_later(threshold, warn, threshold)
+    try:
+        await invoke()
+    finally:
+        watchdog.cancel()
+
+
+async def run_through_guard(
+    guard: ExecutionModeGuard,
+    spawn: Callable[..., "asyncio.Task[None]"],
+    pending_done: "set[asyncio.Future[None]]",
+    invoke: Callable[[], Awaitable[None]],
+    warn: Callable[[float], None],
+    spawn_name: str,
+    threshold: float,
+) -> None:
+    """Route one non-parallel invocation through ``guard``, bridging completion via a future.
+
+    PRECONDITION: the caller must handle the ``parallel`` fast-path itself — this function is
+    the single/restart/queued path only. There is no guard-rail; passing a parallel guard here
+    would route it through the future bridge instead of awaiting inline.
+
+    The parameters fall into three groups: the overlap state (``guard``, ``pending_done``), the
+    invocation (``invoke``, ``warn``, ``threshold``), and the task machinery (``spawn``,
+    ``spawn_name``). ``spawn`` is a bare callable rather than a ``TaskBucket`` so this module
+    stays a dependency-free leaf.
+
+    Completion bridge: installs exactly one done-callback on ``pending_done`` per call; that
+    callback fires when the spawned task completes, which may be after this function returns.
+    The caller must call ``drain_pending_done(pending_done)`` after every ``guard.release()`` to
+    resolve futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
+    released case), otherwise the parked outer task hangs forever.
+
+    Note: the ``drain_next``/``release`` interleave edge (a task spawned by ``drain_next``
+    concurrently with ``release()`` may detach rather than cancel) applies to every caller
+    that reaches release through a detached spawn — both the bus and the scheduler. Not
+    fixed here; tracked in issue #1099.
+    """
+    loop = asyncio.get_running_loop()
+    done: asyncio.Future[None] = loop.create_future()
+    pending_done.add(done)
+
+    def resolve_done() -> None:
+        pending_done.discard(done)
+        if not done.done():
+            done.set_result(None)
+
+    def run_and_track() -> "asyncio.Task[None]":
+        task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+        task.add_done_callback(lambda _t: resolve_done())
+        return task
+
+    outcome = await guard.run(run_and_track)
+    if outcome in (Outcome.SUPPRESSED, Outcome.DROPPED):
+        resolve_done()
+        return
+    await done
+
+
+def drain_pending_done(pending_done: "set[asyncio.Future[None]]") -> None:
+    """Resolve every unresolved completion future. Call after ``guard.release()``."""
+    # Copy first: resolving discards from the set via each future's resolve_done closure,
+    # so iterating the live set would mutate it mid-iteration.
+    for done in list(pending_done):
+        pending_done.discard(done)
+        if not done.done():
+            done.set_result(None)
