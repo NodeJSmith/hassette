@@ -16,8 +16,11 @@ Boundaries enforced today (``RULES``):
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
 
-The full layer DAG and remaining cycles (``core``↔``bus``, ``conversion``↔``models``, …)
-are NOT enforced here — those require further refactoring (tracked in #1079).
+The full layer DAG is NOT enforced here yet. The remaining runtime cycles —
+``bus``↔``core`` (``InvokeHandler``), ``scheduler``↔``core`` (``SchedulerService``),
+``state_manager``↔``core`` (``StateProxy``) — import real core logic, not data, so
+breaking them needs a relocate-vs-protocol-inversion decision deferred to an ADR
+(#1079 landed the three clean-win boundaries above; #633 tracks full DAG enforcement).
 ``RULES`` is a list so each boundary is added as it becomes clean.
 
 These are structural violations, not style — there is no escape hatch. A

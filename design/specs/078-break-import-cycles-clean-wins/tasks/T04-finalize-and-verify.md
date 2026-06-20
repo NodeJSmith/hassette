@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Update boundary docstring, record DAG for 633, full verification"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#8", "AC#1", "AC#2", "AC#4", "AC#7"]
 ---
