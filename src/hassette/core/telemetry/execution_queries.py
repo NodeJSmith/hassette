@@ -315,37 +315,6 @@ class ExecutionQueriesMixin:
             for row in rows
         }
 
-    async def get_recent_invocations_1h(
-        self,
-        app_key: str,
-        source_tier: QuerySourceTier = "app",
-    ) -> int:
-        """Return total handler invocations for a specific app in the last hour.
-
-        Args:
-            app_key: The app to query.
-            source_tier: Filter by source tier.
-
-        Returns:
-            Count of handler invocations in the last 3600 seconds.
-        """
-        one_hour_ago = time.time() - SECONDS_PER_HOUR
-        tier_clause, tier_params = _source_tier_clause(source_tier, "e")
-
-        query = f"""
-            SELECT COUNT(e.rowid) AS invocation_count
-            FROM executions e
-            JOIN listeners l ON l.id = e.listener_id
-            WHERE e.kind = 'handler'
-              AND l.app_key = :app_key
-              AND e.execution_start_ts >= :since
-              {tier_clause}
-        """
-        params: dict[str, Any] = {"app_key": app_key, "since": one_hour_ago, **tier_params}
-        async with self.execute(query, params) as cursor:
-            row = await cursor.fetchone()
-        return int(row[0]) if row else 0
-
     async def get_recent_invocations_1h_all_apps(
         self,
         source_tier: QuerySourceTier = "app",
