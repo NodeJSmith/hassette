@@ -1,7 +1,7 @@
 # Design: Stateless dispatch-mode bridge for bus and scheduler
 
 **Date:** 2026-06-20
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
