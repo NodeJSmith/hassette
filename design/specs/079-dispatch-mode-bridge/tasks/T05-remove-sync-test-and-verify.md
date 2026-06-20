@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Delete sync test and verify behavior on the real surface"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#10", "AC#4", "AC#5", "AC#7", "AC#8"]
 ---
