@@ -5,6 +5,11 @@ from typing import cast
 
 ROOT = Path("src")
 
+# Mirror of lint_helpers.EXCLUDED_PARTS — duplicated (not imported) because this file runs as a
+# standalone `uv run --script` in an isolated env. tests/unit/tools/test_exclusion_parity.py asserts
+# the two stay equal so the copies can't silently drift.
+EXCLUDED_PARTS = {".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"}
+
 
 class StateInfo:
     def __init__(self, file, class_name, lineno, has_attributes_field, nested_attr_classes, module_attr_classes):
@@ -17,11 +22,8 @@ class StateInfo:
 
 
 def iter_py_files(root: Path):
-    # Canonical exclusion set is lint_helpers.EXCLUDED_PARTS; kept in sync inline here because this
-    # file runs as a standalone `uv run --script` (isolated env — it can't import lint_helpers).
-    excluded = {".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"}
     for path in root.rglob("*.py"):
-        if any(part in excluded for part in path.parts):
+        if any(part in EXCLUDED_PARTS for part in path.parts):
             continue
         yield path
 

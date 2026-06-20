@@ -75,13 +75,11 @@ def docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:
 def iter_py_files(repo_root: Path, scan_dirs: list[str]) -> list[Path]:
     """Return every first-party .py file under the given repo-relative directories, sorted.
 
-    Skips virtualenv, cache, and build directories (notably the nested ``codegen/.venv``) so the
-    linters scan first-party source only, never installed third-party packages.
+    Skips the dirs in EXCLUDED_PARTS so the linters never scan installed third-party packages —
+    notably the nested ``codegen/.venv``.
     """
-    # A file is first-party when none of its repo-relative path components is an excluded dir.
-    # relative_to(repo_root) scopes the check to the repo itself, so an ancestor directory that
-    # happens to share an excluded name (e.g. a checkout under /opt/node_modules/...) can't blank
-    # the scan.
+    # relative_to(repo_root) scopes the check to repo-internal components, so an ancestor directory
+    # sharing an excluded name (e.g. a checkout under /opt/node_modules/) can't blank the scan.
     return sorted(
         path
         for scan_dir in scan_dirs
