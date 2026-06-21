@@ -425,8 +425,8 @@ class TestCallbackRegistration:
         Regression guard for the removal of the legacy getattr/iscoroutinefunction guard.
         """
         mock_hassette = Mock()
-        mock_hassette._scheduler_service = Mock()
-        mock_hassette._scheduler_service.register_removal_callback = Mock()
+        mock_hassette.scheduler_service = Mock()
+        mock_hassette.scheduler_service.register_removal_callback = Mock()
 
         # Build a subclass that overrides owner_id/parent to avoid touching Resource state.
         mock_parent = make_mock_parent()
@@ -454,8 +454,8 @@ class TestCallbackRegistration:
             _TestScheduler.hassette = property(_hassette)  # pyright: ignore[reportAttributeAccessIssue]
             _TestScheduler(mock_hassette)
 
-        mock_hassette._scheduler_service.register_removal_callback.assert_called_once()
-        call_args = mock_hassette._scheduler_service.register_removal_callback.call_args
+        mock_hassette.scheduler_service.register_removal_callback.assert_called_once()
+        call_args = mock_hassette.scheduler_service.register_removal_callback.call_args
         assert call_args.args[0] == "test_owner"
         assert callable(call_args.args[1])
 
@@ -614,8 +614,8 @@ class TestIdentityPassThrough:
     def test_scheduler_requires_parent(self) -> None:
         """Scheduler.__init__ raises AssertionError when parent is None."""
         mock_hassette = Mock()
-        mock_hassette._scheduler_service = Mock()
-        mock_hassette._scheduler_service.register_removal_callback = Mock()
+        mock_hassette.scheduler_service = Mock()
+        mock_hassette.scheduler_service.register_removal_callback = Mock()
         with pytest.raises(AssertionError, match="Scheduler requires a parent"):
             Scheduler(mock_hassette, parent=None)
 

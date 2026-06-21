@@ -139,7 +139,7 @@ class TaskBucket(Resource):
         self.logger.debug("Spawning task %s in bucket %s", name, self.unique_name)
         current_thread = threading.get_ident()
 
-        if current_thread == self.hassette._loop_thread_id:
+        if current_thread == self.hassette.loop_thread_id:
             # Fast path: already on loop thread
             with ctx.use_task_bucket(self):
                 return asyncio.create_task(coro, name=name)
@@ -150,7 +150,7 @@ class TaskBucket(Resource):
                     "Cross-thread spawn: %s from thread %s (loop thread %s)",
                     name,
                     current_thread,
-                    self.hassette._loop_thread_id,
+                    self.hassette.loop_thread_id,
                 )
             # Cross-thread: create the task on the real loop thread and wait for the handle
             result: Future[asyncio.Task[T]] = Future()

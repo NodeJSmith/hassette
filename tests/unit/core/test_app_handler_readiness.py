@@ -22,7 +22,7 @@ def mock_hassette() -> AsyncMock:
         lifecycle={"app_startup_timeout_seconds": 30},
     )
     hassette.send_event = AsyncMock()
-    hassette._bus_service.router = MagicMock()
+    hassette.bus_service.router = MagicMock()
     hassette.session_id = 1
     return hassette
 

@@ -224,14 +224,16 @@ def test_private_access_in_test_utils_exempt() -> None:
 
 
 def test_allowlisted_path_attr_suppressed() -> None:
-    src = "x = self.hassette._bus_service\n"
-    assert check_source(src, "bus", rel_path="bus/bus.py") == []
+    src = "x = self.hassette._should_skip_dependency_check()\n"
+    assert check_source(src, "resources", rel_path="resources/base.py") == []
 
 
 def test_allowlist_scoped_to_path() -> None:
     # The same attr in a different file is still flagged — the allowlist is (path, attr)-scoped.
-    src = "x = self.hassette._bus_service\n"
-    assert check_source(src, "bus", rel_path="bus/other.py") == [(1, reach_through_msg("_bus_service"))]
+    src = "x = self.hassette._should_skip_dependency_check()\n"
+    assert check_source(src, "resources", rel_path="resources/other.py") == [
+        (1, reach_through_msg("_should_skip_dependency_check"))
+    ]
 
 
 def test_allowlist_not_consulted_without_rel_path() -> None:

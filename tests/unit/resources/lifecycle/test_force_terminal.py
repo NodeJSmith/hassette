@@ -62,7 +62,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     async def _add_job(job: ScheduledJob) -> None:
         job.mark_registered(1)
 
-    hassette._scheduler_service.add_job = AsyncMock(side_effect=_add_job)
+    hassette.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
     scheduler = Scheduler(hassette, parent=hassette)
 
     await scheduler.initialize()
@@ -75,7 +75,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     await scheduler.shutdown()
 
     # remove_jobs_by_owner is called by remove_all_jobs, and it's on the mock service
-    hassette._scheduler_service.remove_jobs_by_owner.assert_awaited_once_with(scheduler.owner_id)
+    hassette.scheduler_service.remove_jobs_by_owner.assert_awaited_once_with(scheduler.owner_id)
 
 
 async def test_app_shutdown_propagates_to_bus_and_scheduler():

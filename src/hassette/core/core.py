@@ -54,6 +54,18 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def _service_not_wired_error(service: str) -> RuntimeError:
+    """Build the error raised when a service accessor is read before ``wire_services()`` ran.
+
+    Names the missing service and the startup-ordering fix, so a premature read during
+    construction (or a misordered embedding) is debuggable from the message alone.
+    """
+    return RuntimeError(
+        f"{service} is unavailable: wire_services() has not been called. "
+        "Construct Hassette(config), call wire_services(), then run_forever()."
+    )
+
+
 class Hassette(Resource):
     """Main class for the Hassette application.
 
@@ -245,7 +257,7 @@ class Hassette(Resource):
             RuntimeError: If no session has been created.
         """
         if self._session_manager is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("SessionManager")
         return self._session_manager.session_id
 
     @property
@@ -273,6 +285,15 @@ class Hassette(Resource):
         return self._loop
 
     @property
+    def loop_thread_id(self) -> int | None:
+        """Thread id of the event-loop thread, or None before run_forever() captures it.
+
+        None is a valid return, not an error. Callers that compare a thread ident against
+        this value treat None as "the loop thread is not running yet".
+        """
+        return self._loop_thread_id
+
+    @property
     def sync_executor_service(self) -> SyncExecutorService:
         """The SyncExecutorService instance that owns the dedicated sync thread pool.
 
@@ -280,7 +301,7 @@ class Hassette(Resource):
         rate-limited pool-saturation warnings.
         """
         if self._sync_executor_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("SyncExecutorService")
         return self._sync_executor_service
 
     @property
@@ -292,14 +313,14 @@ class Hassette(Resource):
         using the loop-default executor and are NOT routed through this property.
         """
         if self._sync_executor_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("SyncExecutorService")
         return self._sync_executor_service.executor
 
     @property
     def command_executor(self) -> CommandExecutor:
         """CommandExecutor for telemetry recording."""
         if self._command_executor is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("CommandExecutor")
         return self._command_executor
 
     def get_drop_counters(self) -> tuple[int, int, int]:
@@ -325,98 +346,107 @@ class Hassette(Resource):
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""
         if self._database_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("DatabaseService")
         return self._database_service
 
     @property
     def logging_service(self) -> LoggingService:
         """LoggingService instance for the async logging pipeline."""
         if self._logging_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("LoggingService")
         return self._logging_service
 
     @property
     def runtime_query_service(self) -> RuntimeQueryService:
         """RuntimeQueryService instance for live in-memory state queries."""
         if self._runtime_query_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("RuntimeQueryService")
         return self._runtime_query_service
 
     @property
     def telemetry_query_service(self) -> TelemetryQueryService:
         """TelemetryQueryService instance for historical DB-backed telemetry queries."""
         if self._telemetry_query_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("TelemetryQueryService")
         return self._telemetry_query_service
 
     @property
     def app_handler(self) -> AppHandler:
         """AppHandler instance for app lifecycle management."""
         if self._app_handler is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("AppHandler")
         return self._app_handler
 
     @property
     def websocket_service(self) -> WebsocketService:
         """WebsocketService instance for HA WebSocket connection."""
         if self._websocket_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("WebsocketService")
         return self._websocket_service
 
     @property
     def bus_service(self) -> BusService:
         """BusService instance for event bus management."""
         if self._bus_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("BusService")
         return self._bus_service
 
     @property
     def state_proxy(self) -> StateProxy:
         """StateProxy instance for entity state caching."""
         if self._state_proxy is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("StateProxy")
+        return self._state_proxy
+
+    def try_state_proxy(self) -> StateProxy | None:
+        """Return the StateProxy if wired, else None — for callers that tolerate its absence.
+
+        Unlike the state_proxy property (which raises before wiring), this returns None so
+        hot paths like BusService.read_entity_state skip silently during early startup
+        instead of catching an exception.
+        """
         return self._state_proxy
 
     @property
     def api_service(self) -> ApiResource:
         """ApiResource instance for HA REST/WebSocket transport."""
         if self._api_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("ApiResource")
         return self._api_service
 
     @property
     def scheduler_service(self) -> SchedulerService:
         """SchedulerService instance for job scheduling."""
         if self._scheduler_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("SchedulerService")
         return self._scheduler_service
 
     @property
     def api(self) -> Api:
         """API service for handling HTTP requests."""
         if self._api is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("Api")
         return self._api
 
     @property
     def states(self) -> StateManager:
         """States manager instance for accessing Home Assistant states."""
         if self._states is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("StateManager")
         return self._states
 
     @property
     def state_registry(self) -> StateRegistry:
         """State registry for managing state class registrations and conversions."""
         if self._state_registry is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("StateRegistry")
         return self._state_registry
 
     @property
     def type_registry(self) -> TypeRegistry:
         """Type registry for managing state value type conversions."""
         if self._type_registry is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("TypeRegistry")
         return self._type_registry
 
     @property
@@ -447,7 +477,7 @@ class Hassette(Resource):
     async def send_event(self, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
         if self._event_stream_service is None:
-            raise RuntimeError("wire_services() has not been called")
+            raise _service_not_wired_error("EventStreamService")
         if self.event_streams_closed:
             self.logger.debug("send_event dropped: streams closed (topic=%s)", event.topic)
             return
@@ -552,7 +582,7 @@ class Hassette(Resource):
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
             if self._session_manager is None:
-                raise RuntimeError("wire_services() has not been called")
+                raise _service_not_wired_error("SessionManager")
             await self._session_manager.mark_orphaned_sessions()
             await self._session_manager.create_session()
         except Exception:

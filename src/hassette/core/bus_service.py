@@ -458,7 +458,7 @@ class BusService(Service):
         caller (DurationHoldManager) never needs to handle state-read failures.
         """
         try:
-            state_proxy = self.hassette._state_proxy
+            state_proxy = self.hassette.try_state_proxy()
             if state_proxy is None:
                 self.logger.debug("read_entity_state: StateProxy not available for entity %s, skipping", entity_id)
                 return None

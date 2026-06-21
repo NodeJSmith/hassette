@@ -122,9 +122,9 @@ def state_proxy():
 
     # Bus.remove_all_listeners() delegates to bus_service.remove_listeners_by_owner()
     # which is now synchronous and returns None.
-    mock_hassette._bus_service.remove_listeners_by_owner.return_value = None
+    mock_hassette.bus_service.remove_listeners_by_owner.return_value = None
     # Bus registration awaits bus_service.add_listener() — must be AsyncMock.
-    mock_hassette._bus_service.add_listener = AsyncMock()
+    mock_hassette.bus_service.add_listener = AsyncMock()
 
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
