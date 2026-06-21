@@ -40,6 +40,26 @@ async def test_set_state_roundtrip(ha_container: str, tmp_path) -> None:
         assert result_off.value is False
 
 
+async def test_set_state_preserves_unnamed_attributes(ha_container: str, tmp_path) -> None:
+    """A second set_state with one attribute keeps the attributes the call did not mention.
+
+    HA's POST /api/states/{id} replaces the attribute set, so Api._set_state reads the current
+    attributes and merges them client-side. This pins that load-bearing behavior — if the merge is
+    ever removed, the un-named attribute would be dropped and this test fails.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        entity = "sensor.attr_merge_probe"
+
+        await hassette.api.set_state(entity, "on", {"a": 1, "b": 2})
+        await hassette.api.set_state(entity, "on", {"a": 9})
+
+        result = await hassette.api.get_state_raw(entity)
+        attrs = result.get("attributes", {})
+        assert attrs.get("a") == 9, attrs
+        assert attrs.get("b") == 2, attrs
+
+
 async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
     """fire_event causes a matching event to arrive on the bus with the expected data."""
     config = make_system_config(ha_container, tmp_path)

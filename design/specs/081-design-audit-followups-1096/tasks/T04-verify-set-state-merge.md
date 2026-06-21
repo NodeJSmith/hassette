@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Verify HA native attribute merge, then conditionally simplify set_state"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#11", "FR#12", "AC#7", "AC#9"]
 ---
