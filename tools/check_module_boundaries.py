@@ -21,7 +21,7 @@ The full layer DAG is NOT enforced here yet. The remaining runtime cycles —
 ``scheduler``↔``core`` (``SchedulerService``),
 ``state_manager``↔``core`` (``StateProxy``) — import real core logic, not data, so
 breaking them needs a relocate-vs-protocol-inversion decision deferred to an ADR
-(#1079 tracks full DAG enforcement).
+(#1079 tracks breaking these cycles; #633 tracks full DAG enforcement).
 ``RULES`` is a list so each boundary is added as it becomes clean.
 
 These are structural violations, not style — there is no escape hatch. A
