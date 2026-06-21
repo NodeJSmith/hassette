@@ -75,11 +75,9 @@ class AppChangeDetector:
         original_keys = set(original_config.keys())
         current_keys = set(current_config.keys())
 
-        # Apply only_app filter to current keys
         if only_app:
             current_keys = {k for k in current_keys if k == only_app}
 
-        # Calculate changes
         orphans = original_keys - current_keys
         new_apps = current_keys - original_keys
 

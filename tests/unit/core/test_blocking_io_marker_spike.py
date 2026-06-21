@@ -109,7 +109,6 @@ async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
     """With a real time.sleep freezing the loop, the daemon thread (B) names the blocker and the
     in-loop heartbeat (A) cannot — it is starved during the freeze."""
     executor = make_executor()
-    executor.hassette.app_handler.get.return_value = None
     loop = asyncio.get_running_loop()
 
     threshold = 0.15

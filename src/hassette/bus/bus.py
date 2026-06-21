@@ -590,9 +590,9 @@ class Bus(Resource):
         if name is None:
             raise ListenerNameRequiredError(handler_method=handler_name, topic=topic)
 
-        # Resolve instance_name once at registration (mirrors Scheduler.schedule) so the executor hot
-        # path reads it off the command instead of traversing app_handler per execution.
-        instance_name: str | None = getattr(getattr(parent, "app_config", None), "instance_name", None)
+        # Resolve instance_name once at registration so the executor hot path reads it off the
+        # command instead of traversing app_handler per execution.
+        instance_name = parent.instance_name
 
         identity = ListenerIdentity(
             owner_id=self.owner_id,

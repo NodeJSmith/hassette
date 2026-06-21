@@ -371,7 +371,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
         executor = make_executor()
         executor.current_execution = None
 
-        # Simulate a listener with a precomputed instance_name
         _execution_id, token = executor.bind_execution_context(
             app_key="my_app",
             instance_index=0,
@@ -388,7 +387,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
             assert marker.app_key == "my_app"
             assert marker.instance_name == "my_instance"
             assert marker.instance_index == 0
-            # Must NOT call app_handler.get during bind
             executor.hassette.app_handler.get.assert_not_called()
         finally:
             executor.unbind_execution_context(token)
@@ -412,7 +410,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
             assert marker is not None
             assert marker.app_key is None
             assert marker.instance_name is None
-            # Must NOT call app_handler.get
             executor.hassette.app_handler.get.assert_not_called()
         finally:
             executor.unbind_execution_context(token)
@@ -429,7 +426,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
 
         cmd = make_invoke_handler_cmd(listener=listener)
 
-        # Spy on bind to capture the precomputed instance_name actually forwarded.
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
@@ -441,7 +437,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
             await executor.execute_handler(cmd)
 
         assert captured == ["precomputed_instance"]
-        # app_handler.get must never be called
         executor.hassette.app_handler.get.assert_not_called()
 
     async def test_execute_job_passes_precomputed_instance_name(self) -> None:
@@ -453,7 +448,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
         cmd.job.instance_index = 0
         cmd.job.instance_name = "precomputed_job_instance"
 
-        # Spy on bind to capture the precomputed instance_name actually forwarded.
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
@@ -465,7 +459,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
             await executor.execute_job(cmd)
 
         assert captured == ["precomputed_job_instance"]
-        # app_handler.get must never be called
         executor.hassette.app_handler.get.assert_not_called()
 
 

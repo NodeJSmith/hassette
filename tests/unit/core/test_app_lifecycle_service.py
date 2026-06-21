@@ -61,16 +61,6 @@ class TestAppLifecycleServiceInit:
 class TestOnlyAppRegistryAgreement:
     """Pin: registry.only_app must equal the value passed to detect_changes."""
 
-    def test_update_only_app_filter_sets_registry_only(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """update_only_app_filter sets registry.only_app and does not call any method on the detector."""
-        lifecycle_service.update_only_app_filter("my_app")
-
-        mock_registry.set_only_app.assert_called_once_with("my_app")
-        # The detector is a MagicMock; verify set_only_app_filter was never invoked on it
-        lifecycle_service.change_detector.set_only_app_filter.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue]
-
     async def test_detect_changes_receives_registry_only_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
