@@ -913,7 +913,12 @@ class Api(Resource):
         if await self.entity_exists(entity_id):
             curr_attributes = (await self.get_state_raw(entity_id)).get("attributes", {}) or {}
 
-        # Merge current attributes with new attributes
+        # Merge current attributes with new attributes.
+        # This client-side merge is load-bearing: HA's POST /api/states/{id} REPLACES the attribute
+        # set rather than merging it (verified against a live instance 2026-06-21 — a partial POST
+        # dropped the un-named attributes). Without this read-then-merge, every partial attribute
+        # write would wipe the attributes it doesn't mention. See tests/system/test_api.py
+        # ::test_set_state_preserves_unnamed_attributes.
         new_attributes = curr_attributes | attributes
 
         url = f"states/{entity_id}"

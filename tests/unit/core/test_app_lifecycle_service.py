@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from hassette.bus import Bus
+from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -44,17 +45,45 @@ class TestAppLifecycleServiceInit:
             detector_cls.assert_called_once()
             assert service.change_detector is detector_cls.return_value
 
-    def test_creates_bus_child(
+    def test_does_not_create_bus_child(
         self, mock_hassette: MagicMock, mock_registry: MagicMock, mock_factory: MagicMock
     ) -> None:
-        """Verify constructor creates a Bus as a child resource."""
+        """Verify constructor does not create a Bus child (file-watcher subscription belongs to AppHandler.bus)."""
         with (
             patch("hassette.core.app_lifecycle_service.AppFactory", return_value=mock_factory),
             patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
         ):
             service = AppLifecycleService(mock_hassette, parent=None, registry=mock_registry)
 
-        assert any(isinstance(child, Bus) for child in service.children)
+        assert not any(isinstance(child, Bus) for child in service.children)
+
+
+class TestOnlyAppRegistryAgreement:
+    """Pin: registry.only_app must equal the value passed to detect_changes."""
+
+    async def test_detect_changes_receives_registry_only_app(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """The value passed as only_app to detect_changes matches registry.only_app at call time."""
+        mock_registry.only_app = "pinned_app"
+
+        captured_only_app: list[str | None] = []
+
+        def capture_only_app(_original, _current, _changed_paths, *, only_app=None):
+            captured_only_app.append(only_app)
+            return ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+
+        lifecycle_service.change_detector.detect_changes = capture_only_app  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.handle_change_event()
+
+        assert len(captured_only_app) == 1
+        assert captured_only_app[0] == mock_registry.only_app
 
 
 class TestAppLifecycleServiceProperties:

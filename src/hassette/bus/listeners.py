@@ -60,6 +60,10 @@ class ListenerIdentity:
     instance_index: int = 0
     """App instance index for DB registration. 0 for non-App owners."""
 
+    instance_name: str | None = None
+    """App instance name, precomputed at registration time from the owning app's app_config.instance_name.
+    None for framework-tier listeners and non-App owners."""
+
     name: str | None = None
     """Optional stable name for the listener (the name= escape hatch on Bus.on())."""
 

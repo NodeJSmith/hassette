@@ -10,7 +10,6 @@ import anyio
 import structlog.contextvars
 
 import hassette.event_handling.accessors as A
-from hassette.bus import Bus
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
@@ -51,7 +50,6 @@ class AppLifecycleService(Resource):
     Owns:
         - ``AppFactory`` (plain utility, created internally)
         - ``AppChangeDetector`` (plain utility, created internally)
-        - ``Bus`` (Resource child, for file-watcher event subscription)
 
     Receives:
         - ``AppRegistry`` (shared reference from AppHandler)
@@ -66,9 +64,6 @@ class AppLifecycleService(Resource):
     change_detector: AppChangeDetector
     """Detector for configuration changes."""
 
-    bus: Bus
-    """Event bus for file-watcher subscription."""
-
     def __init__(
         self,
         hassette: "Hassette",
@@ -81,9 +76,6 @@ class AppLifecycleService(Resource):
         self.registry = registry
         self.factory = AppFactory(hassette, self.registry)
         self.change_detector = AppChangeDetector()
-
-        # Child Resource for file-watcher events
-        self.bus = self.add_child(Bus)
 
     async def on_initialize(self) -> None:
         """Signal readiness immediately — no dependencies to wait for."""
@@ -392,7 +384,9 @@ class AppLifecycleService(Resource):
         original_apps_config, curr_apps_config = await self.refresh_config()
         await self.resolve_only_app(changed_file_paths)
 
-        changes = self.change_detector.detect_changes(original_apps_config, curr_apps_config, changed_file_paths)
+        changes = self.change_detector.detect_changes(
+            original_apps_config, curr_apps_config, changed_file_paths, only_app=self.registry.only_app
+        )
 
         # Reconcile blocked apps — start any that were unblocked
         unblocked = self.reconcile_blocked_apps()
@@ -443,7 +437,7 @@ class AppLifecycleService(Resource):
         """
         self.logger.debug("Setting apps configuration")
         self.registry.set_manifests(deepcopy(apps_config))
-        self.update_only_app_filter(None)  # reset only_app, will be recomputed on next initialize
+        self.registry.set_only_app(None)  # reset only_app, will be recomputed on next initialize
 
         self.logger.debug(
             "Found %d apps in configuration: %s", len(self.registry.manifests), list(self.registry.manifests.keys())
@@ -466,13 +460,13 @@ class AppLifecycleService(Resource):
                 )
 
         if not only_apps:
-            self.update_only_app_filter(None)
+            self.registry.set_only_app(None)
             return
 
         if not self.hassette.config.dev_mode:
             if not self.hassette.config.allow_only_app_in_prod:
                 self.logger.warning("Disallowing use of `only_app` decorator in production mode")
-                self.update_only_app_filter(None)
+                self.registry.set_only_app(None)
                 return
             self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
 
@@ -480,13 +474,8 @@ class AppLifecycleService(Resource):
             keys = ", ".join(app for app in only_apps)
             raise RuntimeError(f"Multiple apps marked as only: {keys}")
 
-        self.update_only_app_filter(only_apps[0])
+        self.registry.set_only_app(only_apps[0])
         self.logger.warning("App %s is marked as only, skipping all others", self.registry.only_app)
-
-    def update_only_app_filter(self, app_key: str | None) -> None:
-        """Update the only_app filter in registry and change detector."""
-        self.registry.set_only_app(app_key)
-        self.change_detector.set_only_app_filter(app_key)
 
     def reconcile_blocked_apps(self) -> set[str]:
         """Synchronize blocked state with current only_app value.

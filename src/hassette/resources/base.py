@@ -219,6 +219,15 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return f"{FRAMEWORK_APP_KEY_PREFIX}{self.class_name}"
 
     @property
+    def instance_name(self) -> str | None:
+        """Owning app instance's name for telemetry, or None for framework resources.
+
+        Resolved from the resource's ``app_config`` when present (App subclasses);
+        plain framework resources have no app config and return None.
+        """
+        return getattr(getattr(self, "app_config", None), "instance_name", None)
+
+    @property
     def owner_id(self) -> str:
         # nearest App's unique_name, else Hassette's unique_name
         if self.parent:

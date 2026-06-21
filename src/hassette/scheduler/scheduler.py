@@ -449,6 +449,10 @@ class Scheduler(Resource):
 
         run_at = trigger.first_run_time(date_utils.now())
 
+        # Resolve instance_name once at registration so the executor hot path reads it off the
+        # command instead of traversing app_handler per execution.
+        instance_name = parent.instance_name
+
         job = ScheduledJob(
             owner_id=self.owner_id,
             next_run=run_at,
@@ -464,6 +468,7 @@ class Scheduler(Resource):
             error_handler=on_error,
             app_key=app_key,
             instance_index=instance_index,
+            instance_name=instance_name,
             source_tier=source_tier,
             mode=resolved_mode,
         )

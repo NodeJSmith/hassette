@@ -488,15 +488,12 @@ class CommandExecutor(Service):
                     execution_id=execution_id,
                 )
 
-    def bind_execution_context(self, app_key: str | None, instance_index: int) -> tuple[str, Token[str | None]]:
+    def bind_execution_context(
+        self, app_key: str | None, instance_index: int, instance_name: str | None
+    ) -> tuple[str, Token[str | None]]:
         """Set CURRENT_EXECUTION_ID and bind structlog context vars for the duration of an execution."""
         execution_id = str(uuid_utils.uuid7())
         token = CURRENT_EXECUTION_ID.set(execution_id)
-        instance_name: str | None = None
-        if app_key:
-            app_inst = self.hassette.app_handler.get(app_key, instance_index)
-            if app_inst is not None:
-                instance_name = app_inst.app_config.instance_name
         resolved_app_key = app_key or None
         structlog.contextvars.bind_contextvars(
             app_key=resolved_app_key,
@@ -539,7 +536,9 @@ class CommandExecutor(Service):
     async def execute_handler(self, cmd: InvokeHandler) -> None:
         """Execute a listener handler invocation and queue the result record."""
         execution_id, token = self.bind_execution_context(
-            cmd.listener.identity.app_key, cmd.listener.identity.instance_index
+            cmd.listener.identity.app_key,
+            cmd.listener.identity.instance_index,
+            cmd.listener.identity.instance_name,
         )
         try:
 
@@ -581,7 +580,9 @@ class CommandExecutor(Service):
 
     async def execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record."""
-        execution_id, token = self.bind_execution_context(cmd.job.app_key, cmd.job.instance_index)
+        execution_id, token = self.bind_execution_context(
+            cmd.job.app_key, cmd.job.instance_index, cmd.job.instance_name
+        )
         try:
 
             def log_error(result: ExecutionResult) -> None:
