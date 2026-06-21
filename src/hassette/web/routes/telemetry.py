@@ -37,6 +37,7 @@ from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
     compute_error_rate,
+    compute_success_rate,
 )
 from hassette.web.utils import enrich_jobs_with_heap
 
@@ -88,20 +89,6 @@ async def telemetry_status(
     )
 
 
-def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
-    """Derive a health status label from an app health summary.
-
-    Zero-invocation apps return ``"excellent"`` — consistent with the 503
-    fallback path at line ~143 and the ``HealthStatus`` Literal (no ``"unknown"``).
-    """
-    total = summary.total_invocations + summary.total_executions
-    if total == 0:
-        return "excellent"
-    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
-    success_rate = ((total - failures) / total) * 100
-    return classify_health_bar(success_rate)
-
-
 def error_rate_from_summary(summary: AppHealthSummary) -> float:
     """Compute error rate percentage from an app health summary."""
     return compute_error_rate(
@@ -110,6 +97,16 @@ def error_rate_from_summary(summary: AppHealthSummary) -> float:
         handler_errors=summary.total_errors + summary.total_timed_out,
         job_errors=summary.total_job_errors + summary.total_job_timed_out,
     )
+
+
+def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
+    """Derive a health status label from an app health summary.
+
+    Zero-invocation apps have a ``0.0`` error rate, so they classify as
+    ``"excellent"`` — the ``HealthStatus`` Literal has no ``"unknown"`` state.
+    """
+    success_rate = compute_success_rate(error_rate_from_summary(summary))
+    return classify_health_bar(success_rate)
 
 
 INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
@@ -144,17 +141,12 @@ async def app_health(
             health_status=classify_health_bar(100.0),
         )
 
-    total = agg.total_invocations + agg.total_executions
-    handler_errors = agg.handler_errors + agg.handler_timed_out
-    job_errors = agg.job_errors + agg.job_timed_out
     error_rate = compute_error_rate(
         total_invocations=agg.total_invocations,
         total_executions=agg.total_executions,
-        handler_errors=handler_errors,
-        job_errors=job_errors,
+        handler_errors=agg.handler_errors + agg.handler_timed_out,
+        job_errors=agg.job_errors + agg.job_timed_out,
     )
-    errors = handler_errors + job_errors
-    success_rate = ((total - errors) / total * 100) if total > 0 else 100.0
 
     return AppHealthResponse(
         error_rate=error_rate,
@@ -162,7 +154,7 @@ async def app_health(
         handler_avg_duration=agg.handler_avg_duration_ms,
         job_avg_duration=agg.job_avg_duration_ms,
         last_activity_ts=agg.last_activity_ts,
-        health_status=classify_health_bar(success_rate),
+        health_status=classify_health_bar(compute_success_rate(error_rate)),
     )
 
 

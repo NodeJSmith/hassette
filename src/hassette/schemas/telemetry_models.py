@@ -41,23 +41,6 @@ class AppHealthSummary(BaseModel):
     avg_duration_ms: float
     last_activity_ts: float | None
 
-    @property
-    def error_rate(self) -> float:
-        """Combined handler + job failure rate as a percentage (0.0-100.0)."""
-        total = self.total_invocations + self.total_executions
-        if total == 0:
-            return 0.0
-        failures = self.total_errors + self.total_timed_out + self.total_job_errors + self.total_job_timed_out
-        return failures / total * 100
-
-    @property
-    def success_rate(self) -> float:
-        """Combined handler + job success rate as a percentage (0.0-100.0)."""
-        total = self.total_invocations + self.total_executions
-        if total == 0:
-            return 100.0
-        return 100.0 - self.error_rate
-
 
 class ListenerSummary(BaseModel):
     """Per-listener summary returned by ``get_listener_summary()``.

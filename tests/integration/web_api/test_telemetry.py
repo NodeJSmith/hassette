@@ -41,6 +41,32 @@ class TestTelemetryAppHealth:
         assert "health_status" in data
         assert data["error_rate"] == pytest.approx(5.0)
         assert data["error_rate_class"] == "warn"
+        # success_rate = 100 - 5 = 95 → "good" (>= 95 threshold). Pins the
+        # success-rate derivation from the clamped error rate.
+        assert data["health_status"] == "good"
+
+    async def test_health_status_critical_for_high_error_rate(self, client: "AsyncClient", mock_hassette) -> None:
+        """20 failures of 100 → 80% success → 'critical'; success derives from the clamped error rate."""
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
+            return_value=AppHealthAggregates(
+                total_invocations=80,
+                handler_errors=10,
+                handler_timed_out=5,
+                handler_avg_duration_ms=50.0,
+                total_executions=20,
+                job_errors=3,
+                job_timed_out=2,
+                job_avg_duration_ms=10.0,
+                last_activity_ts=1234567890.0,
+            )
+        )
+
+        response = await client.get("/api/telemetry/app/my_app/health")
+        assert response.status_code == 200
+        data = response.json()
+        # 20 failures / 100 total = 20% error → 80% success → "critical".
+        assert data["error_rate"] == pytest.approx(20.0)
+        assert data["health_status"] == "critical"
 
     async def test_unknown_app_returns_empty_health(self, client: "AsyncClient") -> None:
         response = await client.get("/api/telemetry/app/nonexistent/health")
