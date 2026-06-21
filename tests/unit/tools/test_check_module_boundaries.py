@@ -5,13 +5,23 @@ utils-no-events, web-no-core, bus-no-core): the governed layer must not import
 the forbidden package at runtime, while type-only imports under
 ``TYPE_CHECKING`` and a layer importing itself are exempt. Still-ungoverned
 cross-layer imports (e.g. ``state_manager → core``) are allowed.
+
+Also pin the private-attr reach-through rule (#1091): ``hassette._foo`` /
+``self.hassette._foo`` is flagged outside ``core/`` and ``test_utils/``, own-private
+``self._foo`` and non-private/dunder access are not, and ``PRIVATE_ATTR_ALLOWLIST``
+entries are suppressed by (path, attr).
 """
 
 import textwrap
 from pathlib import Path
 
 import pytest
-from check_module_boundaries import check_file, check_source, iter_paths
+from check_module_boundaries import PRIVATE_ATTR_REASON, check_file, check_source, iter_paths
+
+
+def reach_through_msg(attr: str) -> str:
+    """Build the expected violation message for a ``hassette.<attr>`` reach-through."""
+    return f"private-attr-reach-through: accesses hassette.{attr} — {PRIVATE_ATTR_REASON}"
 
 
 def test_production_import_of_test_utils_flagged() -> None:
@@ -177,6 +187,65 @@ def test_bus_type_checking_core_import_exempt() -> None:
 
 def test_non_hassette_import_ignored() -> None:
     assert check_source("import os\nfrom collections import abc\n", "core") == []
+
+
+def test_bare_hassette_private_access_flagged() -> None:
+    src = "x = hassette._scheduler_service\n"
+    assert check_source(src, "scheduler") == [(1, reach_through_msg("_scheduler_service"))]
+
+
+def test_self_hassette_private_access_flagged() -> None:
+    # The common shape: a resource reaching through its `self.hassette` reference.
+    src = "x = self.hassette._bus_service\n"
+    assert check_source(src, "bus") == [(1, reach_through_msg("_bus_service"))]
+
+
+def test_own_private_access_not_flagged() -> None:
+    # `self._foo` is ordinary intra-object privacy, not a reach-through into the core object.
+    assert check_source("x = self._bus_service\n", "bus") == []
+
+
+def test_non_private_hassette_attr_not_flagged() -> None:
+    assert check_source("x = self.hassette.config\n", "bus") == []
+
+
+def test_dunder_hassette_attr_not_flagged() -> None:
+    # Dunder/mangled access is not the single-underscore reach-through the rule targets.
+    assert check_source("x = hassette.__class__\n", "bus") == []
+
+
+def test_private_access_in_core_exempt() -> None:
+    # core owns Hassette; reading its private slots there is not a reach-through.
+    assert check_source("x = self.hassette._state_proxy\n", "core") == []
+
+
+def test_private_access_in_test_utils_exempt() -> None:
+    # The test harness assembles real components from private slots — that is its job.
+    assert check_source("x = hassette._loop_thread_id\n", "test_utils") == []
+
+
+def test_allowlisted_path_attr_suppressed() -> None:
+    src = "x = self.hassette._bus_service\n"
+    assert check_source(src, "bus", rel_path="bus/bus.py") == []
+
+
+def test_allowlist_scoped_to_path() -> None:
+    # The same attr in a different file is still flagged — the allowlist is (path, attr)-scoped.
+    src = "x = self.hassette._bus_service\n"
+    assert check_source(src, "bus", rel_path="bus/other.py") == [(1, reach_through_msg("_bus_service"))]
+
+
+def test_allowlist_not_consulted_without_rel_path() -> None:
+    # With no rel_path, nothing can be allowlisted, so even allowlisted content is flagged.
+    # This pins the "flag by default" semantics so they can't drift silently.
+    src = "x = self.hassette._bus_service\n"
+    assert check_source(src, "bus") == [(1, reach_through_msg("_bus_service"))]
+
+
+def test_chained_private_access_flagged_once() -> None:
+    # `hassette._state_proxy.states` — only the private hop is flagged, not the trailing `.states`.
+    src = "x = self.hassette._state_proxy.states\n"
+    assert check_source(src, "state_manager") == [(1, reach_through_msg("_state_proxy"))]
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))

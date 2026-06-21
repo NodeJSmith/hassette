@@ -10,7 +10,7 @@ Detection is AST-based and considers runtime imports only — anything inside an
 ``if TYPE_CHECKING:`` block is exempt, since type-only imports do not create a
 runtime dependency.
 
-Boundaries enforced today (``RULES``):
+Import boundaries enforced today (``RULES``):
 - ``test_utils`` isolation — production code must not import test helpers.
 - ``api → core`` — api is a service layer and must not import core at runtime.
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
@@ -24,9 +24,20 @@ breaking them needs a relocate-vs-protocol-inversion decision deferred to an ADR
 (#1079 tracks breaking these cycles; #633 tracks full DAG enforcement).
 ``RULES`` is a list so each boundary is added as it becomes clean.
 
-These are structural violations, not style — there is no escape hatch. A
+Import rules are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
 boundary to annotate.
+
+This guard also forbids **private-attribute reach-through** into the Hassette core
+object — ``hassette._foo`` / ``self.hassette._foo`` — anywhere outside ``core/``
+and the ``test_utils/`` test harness (#1091). Subsystems should read public
+properties, not private slots: the audit found the reach-throughs guarded null
+state divergently and that ``python -O`` strips their ``assert`` guards. Unlike
+the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_ALLOWLIST``
+— because a few framework internals (a hot-path loop-thread check, a test-harness
+bypass hook) legitimately read private state. Each allowlist entry is a conscious,
+auditable exception with a reason; entries tagged ``TODO`` are removed when the
+public-property fix lands.
 
 Usage:
     python tools/check_module_boundaries.py
@@ -90,6 +101,35 @@ RULES: list[Rule] = [
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
 ]
+
+
+#: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
+#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` is the
+#: test harness, whose whole job is assembling real components from their private slots.
+PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils"})
+
+#: Reason shown for a private-attr reach-through violation.
+PRIVATE_ATTR_REASON = (
+    "subsystem code must not read private attributes of the Hassette core object; "
+    "use a public property (or add a reasoned PRIVATE_ATTR_ALLOWLIST entry for genuine internals)"
+)
+
+#: (src-relative POSIX path, private attr name) pairs allowed to reach into ``hassette._foo``.
+#: Each is a conscious exception. ``TODO`` entries are removed once the corresponding
+#: public-property fix lands (the audit's N1 — service slots that should expose guarded
+#: properties), at which point the rule enforces the boundary on those sites.
+PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
+    {
+        # Hot-path loop-thread identity check — framework fast path, intentionally direct.
+        ("task_bucket/task_bucket.py", "_loop_thread_id"),
+        # Test-harness dependency-check bypass — internal coordination hook between Resource and Hassette.
+        ("resources/base.py", "_should_skip_dependency_check"),
+        # TODO(#1091-followup): route through a guarded public property when the service-slot
+        # public-property fix (audit N1) lands; remove these two entries then.
+        ("scheduler/scheduler.py", "_scheduler_service"),
+        ("bus/bus.py", "_bus_service"),
+    }
+)
 
 
 def layer_of(path: Path) -> str:
@@ -175,10 +215,54 @@ def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int
     return out
 
 
-def check_source(source: str, layer: str, package: str | None = None) -> list[tuple[int, str]]:
+def is_private_attr(name: str) -> bool:
+    """True for a single-underscore private name (``_foo``), not a dunder or mangled name.
+
+    ``_loop_thread_id`` matches; ``__init__`` and ``__slots`` do not. The reach-through the
+    audit documents is single-underscore private slots, not name-mangled or dunder members.
+    """
+    return name.startswith("_") and not name.startswith("__")
+
+
+def value_is_hassette(value: ast.expr) -> bool:
+    """True when an attribute's value refers to the Hassette core object.
+
+    Matches the bare name ``hassette`` and any attribute access ending in ``.hassette``
+    (``self.hassette``, ``app.hassette``) — the documented ``hassette._foo`` reach-through.
+    Own-private access such as ``self._foo`` does not match, so it is never flagged.
+    """
+    if isinstance(value, ast.Name):
+        return value.id == "hassette"
+    return isinstance(value, ast.Attribute) and value.attr == "hassette"
+
+
+def private_hassette_accesses(tree: ast.AST) -> list[tuple[int, str]]:
+    """Return (lineno, attr) for every ``hassette._private`` attribute access in the tree."""
+    return [
+        (node.lineno, node.attr)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute) and is_private_attr(node.attr) and value_is_hassette(node.value)
+    ]
+
+
+def is_allowlisted(rel_path: str | None, attr: str) -> bool:
+    """True when reaching ``hassette.{attr}`` from ``rel_path`` is an explicit allowlist entry.
+
+    A missing ``rel_path`` is never allowlisted, so detection-only callers (which pass no path)
+    see every access flagged — flagging is the safe default, and ``check_file`` always supplies
+    the path in real runs.
+    """
+    return rel_path is not None and (rel_path, attr) in PRIVATE_ATTR_ALLOWLIST
+
+
+def check_source(
+    source: str, layer: str, package: str | None = None, rel_path: str | None = None
+) -> list[tuple[int, str]]:
     """Return sorted (1-based line number, message) for boundary violations in a source string.
 
     ``package`` anchors relative imports; pass it to check the relative-import forms.
+    ``rel_path`` is the src-relative POSIX path used to consult ``PRIVATE_ATTR_ALLOWLIST``;
+    when omitted, no allowlist entry applies (every private-attr access in scope is flagged).
     """
     tree = ast.parse(source)
     violations = [
@@ -187,12 +271,21 @@ def check_source(source: str, layer: str, package: str | None = None) -> list[tu
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
+    if layer not in PRIVATE_ATTR_EXEMPT_LAYERS:
+        violations.extend(
+            (lineno, f"private-attr-reach-through: accesses hassette.{attr} — {PRIVATE_ATTR_REASON}")
+            for lineno, attr in private_hassette_accesses(tree)
+            if not is_allowlisted(rel_path, attr)
+        )
     return sorted(violations)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
-    """Return sorted (1-based line number, message) for every boundary violation in the file."""
-    return check_source(path.read_text(), layer_of(path), package_of(path))
+    """Return sorted (1-based line number, message) for every boundary violation in the file.
+
+    Always passes the file's src-relative path, so ``PRIVATE_ATTR_ALLOWLIST`` is consulted.
+    """
+    return check_source(path.read_text(), layer_of(path), package_of(path), rel_path=path.relative_to(SRC).as_posix())
 
 
 def iter_paths() -> list[Path]:
@@ -206,7 +299,7 @@ def main() -> int:
         REPO_ROOT,
         check_file,
         summary="module-boundary violation(s)",
-        ok=f"no module-boundary violations across {len(RULES)} rule(s).",
+        ok=f"no module-boundary violations across {len(RULES)} import rule(s) + the private-attr rule.",
     )
 
 
