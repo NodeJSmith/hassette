@@ -7,7 +7,7 @@ construction, and executor dispatch into a single reusable factory function.
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from hassette.core.commands import InvokeHandler
+from hassette.commands import InvokeHandler
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener

@@ -1,15 +1,22 @@
-"""Command dataclasses for the command executor."""
+"""Command dataclasses for the command executor.
 
-import typing
+This module is a dependency-free leaf (stdlib + ``hassette.types``) so that
+neither ``bus/`` nor ``scheduler/`` has to import ``core/`` at runtime to get
+these types.  ``Listener``, ``ScheduledJob``, and ``Event`` are used only as
+field type annotations and are therefore imported under ``TYPE_CHECKING`` only —
+their string-literal annotations are safe because these are plain frozen
+dataclasses (no Pydantic, no ``get_type_hints()`` at runtime).
+"""
+
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from hassette.bus.listeners import Listener
-from hassette.events.base import Event
-from hassette.scheduler.classes import ScheduledJob
 from hassette.types import AsyncHandlerType, SourceTier
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
+    from hassette.bus.listeners import Listener
+    from hassette.events.base import Event
+    from hassette.scheduler.classes import ScheduledJob
     from hassette.types.types import BusErrorHandlerType, SchedulerErrorHandlerType
 
 
@@ -17,10 +24,10 @@ if typing.TYPE_CHECKING:
 class InvokeHandler:
     """Command to invoke a listener handler for an event."""
 
-    listener: Listener
+    listener: "Listener"
     """The listener to invoke."""
 
-    event: Event[Any]
+    event: "Event[Any]"
     """The event to pass to the handler."""
 
     topic: str
@@ -61,7 +68,7 @@ class InvokeHandler:
 class ExecuteJob:
     """Command to execute a scheduled job."""
 
-    job: ScheduledJob
+    job: "ScheduledJob"
     """The scheduled job to execute."""
 
     callable: AsyncHandlerType

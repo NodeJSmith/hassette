@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette import HassetteConfig
+from hassette.commands import InvokeHandler
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration

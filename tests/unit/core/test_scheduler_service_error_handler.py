@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as date_utils
-from hassette.core.commands import ExecuteJob
+from hassette.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
 
 

@@ -19,9 +19,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 
+from hassette.commands import InvokeHandler
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
-from hassette.core.commands import InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry_repository import TelemetryRepository
 

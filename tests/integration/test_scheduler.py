@@ -6,7 +6,7 @@ from whenever import ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.core.commands import ExecuteJob
+from hassette.commands import ExecuteJob
 from hassette.scheduler import ScheduledJob
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness

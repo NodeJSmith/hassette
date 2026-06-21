@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.core.commands import InvokeHandler
+from hassette.commands import InvokeHandler
 from hassette.events.base import Event
 from hassette.test_utils.helpers import create_listener
 

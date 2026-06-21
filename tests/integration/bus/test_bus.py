@@ -12,7 +12,7 @@ import pytest
 from hassette import RawStateChangeEvent
 from hassette.bus.listeners import Subscription
 from hassette.bus.rate_limiter import RateLimiter
-from hassette.core.commands import InvokeHandler
+from hassette.commands import InvokeHandler
 from hassette.event_handling.conditions import IsOrContains
 from hassette.event_handling.predicates import (
     AllOf,
