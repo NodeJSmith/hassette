@@ -129,7 +129,7 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "stop"
 
-    async def test_reload_app(self, client: "AsyncClient", mock_hassette) -> None:
+    async def test_reload_app(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Reload returns 202 and forces a fresh re-import from disk.
 
         The force_reload=True assertion guards #1005: without it the endpoint reused the

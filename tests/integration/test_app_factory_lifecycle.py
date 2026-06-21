@@ -235,16 +235,18 @@ class TestAppFactoryIntegration:
 
         # Simulate a prior failed load (e.g. a syntax error the user has since fixed).
         app_utils.FAILED_TO_LOAD_CLASSES[cache_key] = ImportError("boom")
+        try:
+            # Without force_reload the cached failure blocks loading — no instance is created.
+            app_factory.create_instances("my_app", manifest)
+            assert "my_app" not in app_registry.apps
+            assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
 
-        # Without force_reload the cached failure blocks loading — no instance is created.
-        app_factory.create_instances("my_app", manifest)
-        assert "my_app" not in app_registry.apps
-        assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
-
-        # With force_reload the failure is evicted and the app loads from disk.
-        app_factory.create_instances("my_app", manifest, force_reload=True)
-        assert "my_app" in app_registry.apps
-        assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
+            # With force_reload the failure is evicted and the app loads from disk.
+            app_factory.create_instances("my_app", manifest, force_reload=True)
+            assert "my_app" in app_registry.apps
+            assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
+        finally:
+            app_utils.FAILED_TO_LOAD_CLASSES.pop(cache_key, None)
 
 
 class TestAppLifecycleServiceIntegration:
