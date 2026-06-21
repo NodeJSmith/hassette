@@ -44,7 +44,7 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 
 `.get()` returns `None` for missing entities. Bracket access raises `KeyError`.
 
-A *conversion* turns the raw state dict HA returns into a typed state object. When a conversion fails — the dict does not match the domain's expected shape — the behavior depends on the access style. (The third row, `self.states.get(entity_id)`, is the direct-access style covered in [Direct Entity Access](#direct-entity-access) below.)
+A *conversion* turns the raw state dict HA returns into a typed state object. When a conversion fails, behavior depends on the access style. The third row uses direct access, covered in [Direct Entity Access](#direct-entity-access) below.
 
 | Access style | Missing entity | Conversion failure |
 |---|---|---|
@@ -52,9 +52,9 @@ A *conversion* turns the raw state dict HA returns into a typed state object. Wh
 | `self.states.light.get("kitchen")` | returns `None` | raises `UnableToConvertStateError` |
 | `self.states.get("light.kitchen")` | returns `None` | returns `None` |
 
-`UnableToConvertStateError` (from `hassette.exceptions`) carries `entity_id` and `state_class` fields identifying which entity and target type failed. It is the signal that HA returned a state dict that does not match the expected shape for that domain — for example, an attribute typed as `int` arriving as a string that cannot be coerced.
+`UnableToConvertStateError` (from `hassette.exceptions`) carries `entity_id` and `state_class` fields. They identify which entity and target type failed. The error signals a shape mismatch between the HA state dict and the domain model — for example, an `int` attribute arriving as a string that cannot be coerced.
 
-Iteration over a domain (`for entity_id, state in self.states.light`) skips un-convertible entities and logs the error rather than aborting — the good entities still come through.
+Domain iteration (`for entity_id, state in self.states.light`) skips un-convertible entities and logs the error. Valid entities still flow through the iterator.
 
 ### Direct Entity Access
 
