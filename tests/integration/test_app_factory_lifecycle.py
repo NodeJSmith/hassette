@@ -222,6 +222,32 @@ class TestAppFactoryIntegration:
         # After force reload, it should be a different class object
         assert first_class is not second_class
 
+    def test_factory_force_reload_recovers_previously_failed_class(
+        self, app_factory: AppFactory, app_registry: AppRegistry
+    ):
+        """force_reload=True evicts a cached load failure so a fixed app loads again.
+
+        Regression for #1005: a manual reload of a previously-failed app must re-import
+        from disk rather than re-raising the cached failure.
+        """
+        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        cache_key = app_utils.app_cache_key(manifest.full_path, manifest.class_name)
+
+        # Simulate a prior failed load (e.g. a syntax error the user has since fixed).
+        app_utils.FAILED_TO_LOAD_CLASSES[cache_key] = ImportError("boom")
+        try:
+            # Without force_reload the cached failure blocks loading — no instance is created.
+            app_factory.create_instances("my_app", manifest)
+            assert "my_app" not in app_registry.apps
+            assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
+
+            # With force_reload the failure is evicted and the app loads from disk.
+            app_factory.create_instances("my_app", manifest, force_reload=True)
+            assert "my_app" in app_registry.apps
+            assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
+        finally:
+            app_utils.FAILED_TO_LOAD_CLASSES.pop(cache_key, None)
+
 
 class TestAppLifecycleServiceIntegration:
     """Integration tests for AppLifecycleService with real app instances."""

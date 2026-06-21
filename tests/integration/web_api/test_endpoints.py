@@ -129,11 +129,17 @@ class TestAppEndpoints:
         data = response.json()
         assert data["action"] == "stop"
 
-    async def test_reload_app(self, client: "AsyncClient") -> None:
+    async def test_reload_app(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """Reload returns 202 and forces a fresh re-import from disk.
+
+        The force_reload=True assertion guards #1005: without it the endpoint reused the
+        cached (failed) class, so a fix on disk never took effect.
+        """
         response = await client.post("/api/apps/my_app/reload")
         assert response.status_code == 202
         data = response.json()
         assert data["action"] == "reload"
+        mock_hassette.app_handler.reload_app.assert_awaited_once_with("my_app", force_reload=True)
 
     async def test_app_management_works_without_dev_mode(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.config.dev_mode = False
