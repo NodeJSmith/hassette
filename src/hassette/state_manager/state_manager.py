@@ -4,10 +4,11 @@ from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
+from pydantic import ValidationError
 
 from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.core.state_proxy import StateProxy
-from hassette.exceptions import RegistryNotReadyError
+from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
 from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
@@ -83,7 +84,10 @@ class DomainStates(Generic[StateT]):
         if cached is not None and cached.frozen_state == frozen_state:
             return cached.model
 
-        validated = self._model.model_validate(state)
+        try:
+            validated = self._model.model_validate(state)
+        except ValidationError as e:
+            raise UnableToConvertStateError(entity_id, self._model) from e
         self._cache[entity_id] = CacheValue(context_id, frozen_state, validated)
         return validated
 
@@ -94,10 +98,11 @@ class DomainStates(Generic[StateT]):
             entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Returns:
-            The typed state if found and matches domain, None otherwise.
+            The typed state if found and matches domain, None if the entity does not exist.
 
         Raises:
             ValueError: If the entity ID does not belong to this domain.
+            UnableToConvertStateError: If the state dict fails to convert to this domain's state class.
         """
         entity_id = make_entity_id(entity_id, self._domain)
 
@@ -179,7 +184,8 @@ class DomainStates(Generic[StateT]):
             entity_id: The full entity ID (e.g., "light.bedroom") or just the entity name (e.g., "bedroom").
 
         Raises:
-            EntityNotFoundError: If the entity is not found.
+            KeyError: If the entity is not found in this domain.
+            UnableToConvertStateError: If the state dict fails to convert to this domain's state class.
 
         Returns:
             The typed state.
@@ -237,6 +243,14 @@ class StateManager(Resource):
         """Access the underlying StateProxy instance via the public, wiring-checked accessor."""
         return self.hassette.state_proxy
 
+    def _domain_states_for(self, state_class: type[BaseState]) -> "DomainStates[BaseState]":
+        """Get-or-create a DomainStates instance from the cache, keyed by state class."""
+        cached = self._domain_states_cache.get(state_class)
+        if cached is None:
+            cached = self[state_class]
+            self._domain_states_cache[state_class] = cached
+        return cached
+
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":
         """Dynamically access domain states by property name.
 
@@ -279,18 +293,13 @@ class StateManager(Resource):
                 "Ensure state modules are imported before accessing States properties."
             ) from None
 
-        if state_class in self._domain_states_cache:
-            return self._domain_states_cache[state_class]
-
         if state_class is None:
             raise AttributeError(
                 f"Domain '{domain}' is not registered in the state registry. Use `states[<state_class>]` "
                 "if you have a custom state class for this domain."
             )
 
-        # Domain is registered, use its specific class
-        self._domain_states_cache[state_class] = self[state_class]
-        return self._domain_states_cache[state_class]
+        return self._domain_states_for(state_class)
 
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
         """Access domain states using the indexing syntax. This is required if you need
@@ -358,7 +367,7 @@ class StateManager(Resource):
     def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
         """Iterate over all registered state classes with their keys."""
         for key, state_class in STATE_REGISTRY.items():
-            yield key, self[state_class]
+            yield key, self._domain_states_for(state_class)
 
     def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
         """Iterate over all registered state classes with their keys."""
@@ -371,7 +380,7 @@ class StateManager(Resource):
             An iterator over all registered DomainStates instances.
         """
         for state_class in STATE_REGISTRY.values():
-            yield self[state_class]
+            yield self._domain_states_for(state_class)
 
     def keys(self) -> Iterator[StateKey]:
         """Iterate over all registered state keys.

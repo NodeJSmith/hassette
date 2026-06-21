@@ -44,6 +44,18 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 
 `.get()` returns `None` for missing entities. Bracket access raises `KeyError`.
 
+**Conversion failures** surface differently depending on which access style is used:
+
+| Access style | Missing entity | Conversion failure |
+|---|---|---|
+| `self.states.light["kitchen"]` | raises `KeyError` | raises `UnableToConvertStateError` |
+| `self.states.light.get("kitchen")` | returns `None` | raises `UnableToConvertStateError` |
+| `self.states.get("light.kitchen")` | returns `None` | returns `None` |
+
+`UnableToConvertStateError` (from `hassette.exceptions`) carries `entity_id` and `state_class` fields identifying which entity and target type failed. It is the signal that HA returned a state dict that does not match the expected shape for that domain — for example, an attribute typed as `int` arriving as a string that cannot be coerced.
+
+Iteration over a domain (`for entity_id, state in self.states.light`) skips un-convertible entities and logs the error rather than aborting — the good entities still come through.
+
 ### Direct Entity Access
 
 `self.states.get(entity_id)` accepts a full entity ID and resolves to the most specific built-in type for that domain. [`LightState`][hassette.models.states.light.LightState] for `light.*`, [`SensorState`][hassette.models.states.sensor.SensorState] for `sensor.*`, `BaseState` for any domain without a built-in class.

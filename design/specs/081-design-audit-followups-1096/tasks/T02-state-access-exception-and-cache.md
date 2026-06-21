@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Normalize state-conversion error type and route iteration through cache"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "AC#2", "AC#3", "AC#4", "AC#5", "AC#9"]
 ---
