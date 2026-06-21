@@ -302,7 +302,7 @@ class TestExecutorOffloadProducesNoBlocking:
                 # be skipped and the zero-rows assertion could pass vacuously. With it bound, any
                 # false stall is attributed and surfaces — so zero rows genuinely proves the loop
                 # stayed responsive while the sleep ran off-thread.
-                _exec_id, token = executor.bind_execution_context("sync_handler_app", 0)
+                _exec_id, token = executor.bind_execution_context("sync_handler_app", 0, None)
                 try:
                     with ThreadPoolExecutor(max_workers=1) as pool:
                         await loop.run_in_executor(pool, _sleep_on_worker, 0.2)
@@ -365,7 +365,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         h.config.blocking_io.deep_detection_enabled = True
 
         # Live execution: marker.app_key drives app_handler.get(app_key) → the IGNORE owner.
-        _exec_id, token = ignore_executor.bind_execution_context("ignored_app", 0)
+        _exec_id, token = ignore_executor.bind_execution_context("ignored_app", 0, None)
 
         assert not guard_mod.is_installed()
         install(h, loop_thread_id=loop_thread_id, executor=ignore_executor)

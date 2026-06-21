@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Precompute instance_name to drop the executor hot-path lookup"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "AC#1", "AC#9"]
 ---

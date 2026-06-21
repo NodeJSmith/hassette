@@ -166,6 +166,10 @@ class ScheduledJob:
     instance_index: int = field(default=0, compare=False)
     """App instance index for DB registration. 0 for non-App owners."""
 
+    instance_name: str | None = field(default=None, compare=False)
+    """App instance name, precomputed at registration time from the owning app's app_config.instance_name.
+    None for framework-tier jobs and non-App owners."""
+
     trigger: "TriggerProtocol | None" = field(compare=False, default=None)
     """The trigger that determines the job's schedule."""
 

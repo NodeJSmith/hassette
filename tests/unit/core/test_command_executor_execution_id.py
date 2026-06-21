@@ -2,9 +2,10 @@
 
 import asyncio
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog.contextvars
 import uuid_utils
 import whenever
 
@@ -360,6 +361,112 @@ class TestJobRecordFields:
         assert record.kind == "job"
         assert record.trigger_context_id is None
         assert record.trigger_origin is None
+
+
+class TestBindExecutionContextPrecomputedInstanceName:
+    """Verify bind_execution_context uses the precomputed instance_name and skips app_handler.get."""
+
+    def test_bind_execution_context_uses_precomputed_instance_name(self) -> None:
+        """bind_execution_context binds the precomputed instance_name directly without app_handler lookup."""
+        executor = make_executor()
+        executor.current_execution = None
+
+        # Simulate a listener with a precomputed instance_name
+        _execution_id, token = executor.bind_execution_context(
+            app_key="my_app",
+            instance_index=0,
+            instance_name="my_instance",
+        )
+
+        try:
+            ctx = structlog.contextvars.get_contextvars()
+            assert ctx["app_key"] == "my_app"
+            assert ctx["instance_name"] == "my_instance"
+            assert ctx["instance_index"] == 0
+            marker = executor.current_execution
+            assert marker is not None
+            assert marker.app_key == "my_app"
+            assert marker.instance_name == "my_instance"
+            assert marker.instance_index == 0
+            # Must NOT call app_handler.get during bind
+            executor.hassette.app_handler.get.assert_not_called()
+        finally:
+            executor.unbind_execution_context(token)
+
+    def test_bind_execution_context_none_instance_name(self) -> None:
+        """bind_execution_context with instance_name=None binds None (framework-tier path)."""
+        executor = make_executor()
+        executor.current_execution = None
+
+        _execution_id, token = executor.bind_execution_context(
+            app_key="",
+            instance_index=0,
+            instance_name=None,
+        )
+
+        try:
+            ctx = structlog.contextvars.get_contextvars()
+            assert ctx["app_key"] is None
+            assert ctx["instance_name"] is None
+            marker = executor.current_execution
+            assert marker is not None
+            assert marker.app_key is None
+            assert marker.instance_name is None
+            # Must NOT call app_handler.get
+            executor.hassette.app_handler.get.assert_not_called()
+        finally:
+            executor.unbind_execution_context(token)
+
+    async def test_execute_handler_passes_precomputed_instance_name(self) -> None:
+        """execute_handler reads instance_name from listener.identity and forwards it to bind."""
+        executor = make_executor()
+
+        listener = make_listener()
+        listener.identity = MagicMock()
+        listener.identity.app_key = "my_app"
+        listener.identity.instance_index = 0
+        listener.identity.instance_name = "precomputed_instance"
+
+        cmd = make_invoke_handler_cmd(listener=listener)
+
+        # Spy on bind to capture the precomputed instance_name actually forwarded.
+        original_bind = executor.bind_execution_context
+        captured: list[str | None] = []
+
+        def spy_bind(app_key, instance_index, instance_name):
+            captured.append(instance_name)
+            return original_bind(app_key, instance_index, instance_name)
+
+        with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
+            await executor.execute_handler(cmd)
+
+        assert captured == ["precomputed_instance"]
+        # app_handler.get must never be called
+        executor.hassette.app_handler.get.assert_not_called()
+
+    async def test_execute_job_passes_precomputed_instance_name(self) -> None:
+        """execute_job reads instance_name from job and forwards it to bind."""
+        executor = make_executor()
+
+        cmd = make_execute_job_cmd()
+        cmd.job.app_key = "my_app"
+        cmd.job.instance_index = 0
+        cmd.job.instance_name = "precomputed_job_instance"
+
+        # Spy on bind to capture the precomputed instance_name actually forwarded.
+        original_bind = executor.bind_execution_context
+        captured: list[str | None] = []
+
+        def spy_bind(app_key, instance_index, instance_name):
+            captured.append(instance_name)
+            return original_bind(app_key, instance_index, instance_name)
+
+        with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
+            await executor.execute_job(cmd)
+
+        assert captured == ["precomputed_job_instance"]
+        # app_handler.get must never be called
+        executor.hassette.app_handler.get.assert_not_called()
 
 
 class TestErrorHandlerExecutionIdInheritance:

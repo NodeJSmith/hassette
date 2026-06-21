@@ -36,11 +36,10 @@ from .conftest import make_executor
 def test_marker_published_on_bind_and_cleared_on_unbind() -> None:
     """The marker names the bound execution and resets to None on unbind."""
     executor = make_executor()
-    executor.hassette.app_handler.get.return_value = None  # keep instance_name=None
 
     assert executor.current_execution is None  # idle before any execution
 
-    execution_id, token = executor.bind_execution_context("kitchen_lights", 0)
+    execution_id, token = executor.bind_execution_context("kitchen_lights", 0, None)
     marker = executor.current_execution
     assert isinstance(marker, ExecutionMarker)
     assert marker.app_key == "kitchen_lights"
@@ -59,7 +58,6 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     wall-clock sleeps, so the invariant is pinned without flakiness.
     """
     executor = make_executor()
-    executor.hassette.app_handler.get.return_value = None
 
     candidate_b_read: list[ExecutionMarker | None] = []  # off-loop: reads during the block
     block_in_progress = threading.Event()
@@ -74,7 +72,7 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     reader.start()
 
     # The blocking execution holds the loop thread.
-    block_exec_id, block_token = executor.bind_execution_context("blocking_app", 0)
+    block_exec_id, block_token = executor.bind_execution_context("blocking_app", 0, None)
     block_in_progress.set()  # the off-loop reader samples now, mid-block
     assert reader_done.wait(timeout=5), "off-loop reader did not run"
     executor.unbind_execution_context(block_token)
@@ -83,7 +81,7 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
     candidate_a_after_unbind = executor.current_execution
 
     # The next execution, scheduled immediately after the block.
-    next_exec_id, next_token = executor.bind_execution_context("next_app", 0)
+    next_exec_id, next_token = executor.bind_execution_context("next_app", 0, None)
     candidate_a_if_later = executor.current_execution  # if A fires even later -> next_app
     executor.unbind_execution_context(next_token)
 
@@ -152,12 +150,12 @@ async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
 
     # The blocking execution freezes the loop thread with a real time.sleep. ASYNC251 is the very
     # thing under test here — a sync sleep stalling the loop — so the block is deliberate.
-    block_exec_id, block_token = executor.bind_execution_context("blocking_app", 0)
+    block_exec_id, block_token = executor.bind_execution_context("blocking_app", 0, None)
     time.sleep(block_duration)  # noqa: ASYNC251 — intentional loop freeze; this is what we detect
     executor.unbind_execution_context(block_token)
 
     # The next execution, scheduled immediately after.
-    _next_exec_id, next_token = executor.bind_execution_context("next_app", 0)
+    _next_exec_id, next_token = executor.bind_execution_context("next_app", 0, None)
     await asyncio.sleep(0)  # let any pending heartbeat fire now, post-freeze
     executor.unbind_execution_context(next_token)
 
