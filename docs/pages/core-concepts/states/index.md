@@ -44,7 +44,7 @@ The short entity name omits the domain prefix. `self.states.light.get("kitchen")
 
 `.get()` returns `None` for missing entities. Bracket access raises `KeyError`.
 
-**Conversion failures** surface differently depending on which access style is used:
+A *conversion* turns the raw state dict HA returns into a typed state object. When a conversion fails — the dict does not match the domain's expected shape — the behavior depends on the access style. (The third row, `self.states.get(entity_id)`, is the direct-access style covered in [Direct Entity Access](#direct-entity-access) below.)
 
 | Access style | Missing entity | Conversion failure |
 |---|---|---|
