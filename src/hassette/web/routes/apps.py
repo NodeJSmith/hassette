@@ -97,7 +97,9 @@ async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette)
     try:
-        await hassette.app_handler.reload_app(app_key)
+        # Always re-import from disk so a previously-failed app recovers once its
+        # source is fixed -- without force_reload the cached failed class is reused (#1005).
+        await hassette.app_handler.reload_app(app_key, force_reload=True)
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc
