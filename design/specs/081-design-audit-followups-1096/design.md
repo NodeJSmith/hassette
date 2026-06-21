@@ -1,7 +1,7 @@
 # Design: Smaller Design-Audit Follow-Ups (#1096)
 
 **Date:** 2026-06-21
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/audits/2026-06-19-design-audit-bus-scheduler-execution-web/audit.md
 
