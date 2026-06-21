@@ -44,8 +44,7 @@ class ChangeSet:
 class AppChangeDetector:
     """Detects changes between app configurations using DeepDiff."""
 
-    def __init__(self, only_app_filter: str | None = None) -> None:
-        self.only_app_filter = only_app_filter
+    def __init__(self) -> None:
         self.logger = getLogger(f"{__name__}.AppChangeDetector")
 
     def detect_changes(
@@ -53,6 +52,7 @@ class AppChangeDetector:
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
         changed_file_paths: frozenset[Path] | None = None,
+        only_app: str | None = None,
     ) -> ChangeSet:
         """Calculate the difference between two configurations.
 
@@ -60,6 +60,7 @@ class AppChangeDetector:
             original_config: The previous app configuration
             current_config: The new app configuration
             changed_file_paths: Paths of files that triggered the change (if any)
+            only_app: When set, restrict change detection to this app key only
 
         Returns:
             ChangeSet with categorized changes
@@ -75,8 +76,8 @@ class AppChangeDetector:
         current_keys = set(current_config.keys())
 
         # Apply only_app filter to current keys
-        if self.only_app_filter:
-            current_keys = {k for k in current_keys if k == self.only_app_filter}
+        if only_app:
+            current_keys = {k for k in current_keys if k == only_app}
 
         # Calculate changes
         orphans = original_keys - current_keys
@@ -104,7 +105,3 @@ class AppChangeDetector:
             reimport_apps=frozenset(reimport_apps),
             reload_apps=frozenset(reload_apps),
         )
-
-    def set_only_app_filter(self, app_key: str | None) -> None:
-        """Update the only_app filter."""
-        self.only_app_filter = app_key

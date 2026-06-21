@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Make AppChangeDetector stateless and remove dead Bus child"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#9", "FR#10", "FR#13", "AC#6", "AC#8", "AC#9"]
 ---
