@@ -305,11 +305,15 @@ class StateManager(Resource):
         """Access domain states using the indexing syntax. This is required if you need
         to access domain states for a state model class that is not known by the StateRegistry.
 
+        Returns a fresh ``DomainStates`` on every call — it does not share the per-entity validation
+        cache that attribute access (``self.states.light``) and iteration (``values()``) reuse. Prefer
+        those for repeated access in a loop; use indexing for custom state classes not in the registry.
+
         Args:
             model: The state model class representing the domain.
 
         Returns:
-            DomainStates container for the specified domain.
+            DomainStates container for the specified domain (freshly constructed, uncached).
 
         Example:
             ```python

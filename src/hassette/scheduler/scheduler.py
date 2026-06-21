@@ -449,8 +449,8 @@ class Scheduler(Resource):
 
         run_at = trigger.first_run_time(date_utils.now())
 
-        # Resolve instance_name once at registration (mirrors Bus._subscribe) so the executor hot path
-        # reads it off the command instead of traversing app_handler per execution.
+        # Resolve instance_name once at registration (mirrors Bus._on_internal) so the executor hot
+        # path reads it off the command instead of traversing app_handler per execution.
         instance_name: str | None = getattr(getattr(parent, "app_config", None), "instance_name", None)
 
         job = ScheduledJob(
