@@ -268,6 +268,12 @@ class TestStateManagerIterationCache:
         assert LightState in state_manager._domain_states_cache
         assert state_manager._domain_states_cache[LightState] is attr_result
 
+        # values() must return the same cached instance attribute access produced
+        with patch.object(STATE_REGISTRY, "values", return_value=iter([LightState])):
+            values_list = list(state_manager.values())
+        assert values_list == [attr_result]
+        assert values_list[0] is attr_result
+
     def test_iter_returns_cached_domain_states(self, state_manager: StateManager) -> None:
         """__iter__ returns DomainStates from _domain_states_cache."""
 
