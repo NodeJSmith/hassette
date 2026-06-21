@@ -114,6 +114,10 @@ PRIVATE_ATTR_REASON = (
     "use a public property (or add a reasoned PRIVATE_ATTR_ALLOWLIST entry for genuine internals)"
 )
 
+#: Violation message for a private-attr reach-through; ``{attr}`` is the private name accessed.
+#: The single source of truth shared by ``check_source`` and the test suite, so the two cannot drift.
+PRIVATE_ATTR_MSG_TEMPLATE = f"private-attr-reach-through: accesses hassette.{{attr}} — {PRIVATE_ATTR_REASON}"
+
 #: (src-relative POSIX path, private attr name) pairs allowed to reach into ``hassette._foo``.
 #: Each is a conscious exception. ``TODO`` entries are removed once the corresponding
 #: public-property fix lands (the audit's N1 — service slots that should expose guarded
@@ -265,19 +269,22 @@ def check_source(
     when omitted, no allowlist entry applies (every private-attr access in scope is flagged).
     """
     tree = ast.parse(source)
-    violations = [
+    import_violations = [
         (lineno, f"{rule.name}: imports {module} — {rule.reason}")
         for lineno, module in runtime_imports(tree, package)
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
-    if layer not in PRIVATE_ATTR_EXEMPT_LAYERS:
-        violations.extend(
-            (lineno, f"private-attr-reach-through: accesses hassette.{attr} — {PRIVATE_ATTR_REASON}")
+    private_violations = (
+        [
+            (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
             for lineno, attr in private_hassette_accesses(tree)
             if not is_allowlisted(rel_path, attr)
-        )
-    return sorted(violations)
+        ]
+        if layer not in PRIVATE_ATTR_EXEMPT_LAYERS
+        else []
+    )
+    return sorted(import_violations + private_violations)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:

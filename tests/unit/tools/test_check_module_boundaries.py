@@ -16,12 +16,11 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from check_module_boundaries import PRIVATE_ATTR_REASON, check_file, check_source, iter_paths
+from check_module_boundaries import PRIVATE_ATTR_MSG_TEMPLATE, check_file, check_source, iter_paths
 
 
 def reach_through_msg(attr: str) -> str:
-    """Build the expected violation message for a ``hassette.<attr>`` reach-through."""
-    return f"private-attr-reach-through: accesses hassette.{attr} — {PRIVATE_ATTR_REASON}"
+    return PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr)
 
 
 def test_production_import_of_test_utils_flagged() -> None:
