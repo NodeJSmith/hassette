@@ -6,7 +6,7 @@ import pytest
 from whenever import ZonedDateTime
 
 from hassette.app.app_config import AppConfig
-from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.exceptions import DependencyError, DependencyInjectionError

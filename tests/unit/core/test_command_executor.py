@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.utils.execution import ExecutionResult
 
