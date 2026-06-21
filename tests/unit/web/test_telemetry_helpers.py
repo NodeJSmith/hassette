@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from hassette.web.telemetry_helpers import compute_error_rate, format_handler_summary
+from hassette.web.telemetry_helpers import compute_error_rate, compute_success_rate, format_handler_summary
 
 
 def test_compute_error_rate_zero_total_returns_zero() -> None:
@@ -110,6 +110,21 @@ def test_compute_error_rate_clamped_to_100_when_errors_exceed_total() -> None:
         job_errors=7,
     )
     assert result == 100.0
+
+
+def test_compute_success_rate_complements_error_rate() -> None:
+    """Success is the exact complement of the error rate."""
+    assert compute_success_rate(30.0) == pytest.approx(70.0)
+
+
+def test_compute_success_rate_zero_error_is_full() -> None:
+    """No errors means 100% success."""
+    assert compute_success_rate(0.0) == 100.0
+
+
+def test_compute_success_rate_clamped_error_yields_zero() -> None:
+    """A clamped 100% error rate produces 0% success — never negative."""
+    assert compute_success_rate(compute_error_rate(5, 5, 8, 7)) == 0.0
 
 
 def make_listener(

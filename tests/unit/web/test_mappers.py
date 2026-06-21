@@ -1,23 +1,29 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
+from hassette.config import HassetteConfig
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.telemetry_models import ListenerSummary
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,
+    config_response_from,
     connected_payload_from,
+    instance_response_from,
     readiness_response_from,
     system_status_response_from,
     to_listener_with_summary,
 )
 from hassette.web.models import (
+    AppInstanceResponse,
     AppManifestListResponse,
     AppStatusResponse,
+    ConfigResponse,
     ConnectedPayload,
+    ListenerWithSummary,
     LivenessResponse,
     ReadinessResponse,
     SystemStatusResponse,
@@ -32,6 +38,55 @@ def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstan
         class_name="MyApp",
         status=status,
     )
+
+
+def test_instance_response_from_copies_all_fields():
+    """Every response field is copied from the source AppInstanceInfo by name."""
+    info = AppInstanceInfo(
+        app_key="app_a",
+        index=2,
+        instance_name="app_a.2",
+        class_name="MyApp",
+        status=ResourceStatus.RUNNING,
+        error_message="boom",
+        error_traceback="tb",
+        owner_id="owner-1",
+    )
+
+    result = instance_response_from(info)
+
+    assert isinstance(result, AppInstanceResponse)
+    assert result.app_key == "app_a"
+    assert result.index == 2
+    assert result.instance_name == "app_a.2"
+    assert result.class_name == "MyApp"
+    assert result.status == "running"
+    assert result.error_message == "boom"
+    assert result.error_traceback == "tb"
+    assert result.owner_id == "owner-1"
+
+
+def test_instance_response_from_ignores_source_error_attribute():
+    """The source's ``error`` Exception attribute has no response field and is dropped."""
+    info = make_instance("app_a", 0, ResourceStatus.FAILED)
+    info.error = ValueError("kaboom")
+
+    result = instance_response_from(info)
+
+    assert not hasattr(result, "error")
+    assert result.status == "failed"
+
+
+def test_listener_summary_fields_are_subset_of_response():
+    """Every ListenerSummary field exists on ListenerWithSummary.
+
+    Guards the from_attributes mapper: a field added to ListenerSummary but
+    missing from ListenerWithSummary would silently drop instead of surfacing.
+    """
+    summary_fields = set(ListenerSummary.model_fields)
+    response_fields = set(ListenerWithSummary.model_fields)
+    missing = summary_fields - response_fields
+    assert not missing, f"ListenerSummary fields not present on ListenerWithSummary: {missing}"
 
 
 def test_app_status_response_from_merges_running_and_failed():
@@ -459,3 +514,47 @@ def test_readiness_response_from_starting_status():
     result = readiness_response_from(domain)
     assert result.ready is False
     assert result.status == "starting"
+
+
+# config_response_from
+
+
+def test_config_response_from_groups_and_copies_fields(tmp_path):
+    """Top-level and nested config groups are mapped onto the response model."""
+    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
+
+    result = config_response_from(cfg)
+
+    assert isinstance(result, ConfigResponse)
+    assert result.dev_mode == cfg.dev_mode
+    assert result.base_url == cfg.base_url
+    assert result.web_api.host == cfg.web_api.host
+    assert result.web_api.port == cfg.web_api.port
+    assert result.logging.log_level == cfg.logging.log_level
+    assert result.lifecycle.startup_timeout_seconds == cfg.lifecycle.startup_timeout_seconds
+    assert result.scheduler.min_delay_seconds == cfg.scheduler.min_delay_seconds
+    assert result.file_watcher.watch_files == cfg.file_watcher.watch_files
+
+
+def test_config_response_from_coerces_path_fields_to_str(tmp_path):
+    """Path fields (data_dir, config_dir, apps.directory) become strings in the response."""
+    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
+
+    result = config_response_from(cfg)
+
+    assert isinstance(result.data_dir, str)
+    assert result.data_dir == str(cfg.data_dir)
+    assert isinstance(result.config_dir, str)
+    assert result.config_dir == str(cfg.config_dir)
+    assert isinstance(result.apps.directory, str)
+    assert result.apps.directory == str(cfg.apps.directory)
+
+
+def test_config_response_from_copies_cors_origins_into_new_list(tmp_path):
+    """cors_origins is copied into a distinct list, not aliased to the config object."""
+    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
+
+    result = config_response_from(cfg)
+
+    assert result.web_api.cors_origins == list(cfg.web_api.cors_origins)
+    assert result.web_api.cors_origins is not cfg.web_api.cors_origins

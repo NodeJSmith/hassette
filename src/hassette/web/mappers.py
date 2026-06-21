@@ -15,6 +15,7 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 
 from typing import cast
 
+from hassette.config import HassetteConfig
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
@@ -24,31 +25,34 @@ from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
+    AppsConfigResponse,
     AppStatusResponse,
     BootIssueResponse,
+    ConfigResponse,
     ConnectedPayload,
+    FileWatcherConfigResponse,
+    LifecycleConfigResponse,
     ListenerKind,
     ListenerWithSummary,
+    LoggingConfigResponse,
     ManifestStatus,
     ReadinessResponse,
+    SchedulerConfigResponse,
     ServiceInfoResponse,
     SystemStatusResponse,
+    WebApiConfigResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
 
 
 def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
-    """Convert a single ``AppInstanceInfo`` to ``AppInstanceResponse``."""
-    return AppInstanceResponse(
-        app_key=info.app_key,
-        index=info.index,
-        instance_name=info.instance_name,
-        class_name=info.class_name,
-        status=info.status,  # ResourceStatus StrEnum — Pydantic coerces directly
-        error_message=info.error_message,
-        error_traceback=info.error_traceback,
-        owner_id=info.owner_id,
-    )
+    """Convert a single ``AppInstanceInfo`` to ``AppInstanceResponse``.
+
+    Every response field has a same-named attribute on ``AppInstanceInfo``, so
+    ``from_attributes`` copies them directly. The source's extra ``error``
+    attribute is ignored.
+    """
+    return AppInstanceResponse.model_validate(info, from_attributes=True)
 
 
 def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
@@ -187,44 +191,64 @@ def to_listener_with_summary(
             ``LiveCounts(0, 0, 0)``.
     """
     suppressed, dropped, backpressure_dropped = (live_counts or {}).get(ls.listener_id, LiveCounts(0, 0, 0))
-    return ListenerWithSummary(
-        listener_id=ls.listener_id,
-        app_key=ls.app_key,
-        instance_index=ls.instance_index,
-        topic=ls.topic,
-        listener_kind=listener_kind_from_topic(ls.topic),
-        handler_method=ls.handler_method,
-        total_invocations=ls.total_invocations,
-        successful=ls.successful,
-        failed=ls.failed,
-        di_failures=ls.di_failures,
-        cancelled=ls.cancelled,
-        timed_out=ls.timed_out,
-        thread_leaked=ls.thread_leaked,
-        avg_duration_ms=ls.avg_duration_ms,
-        min_duration_ms=ls.min_duration_ms,
-        max_duration_ms=ls.max_duration_ms,
-        total_duration_ms=ls.total_duration_ms,
-        predicate_description=ls.predicate_description,
-        human_description=ls.human_description,
-        debounce=ls.debounce,
-        throttle=ls.throttle,
-        once=ls.once,
-        priority=ls.priority,
-        last_invoked_at=ls.last_invoked_at,
-        last_error_message=ls.last_error_message,
-        last_error_type=ls.last_error_type,
-        last_error_traceback=ls.last_error_traceback,
-        source_tier=ls.source_tier,
-        source_location=ls.source_location,
-        registration_source=ls.registration_source,
-        handler_summary=format_handler_summary(ls),
-        immediate=ls.immediate,
-        duration=ls.duration,
-        entity_id=ls.entity_id,
-        mode=ls.mode,
-        suppressed_count=suppressed,
-        dropped_count=dropped,
-        backpressure_dropped_count=backpressure_dropped,
-        backpressure=ls.backpressure,
+    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so
+    # from_attributes copies them 1:1. The five fields below have no source attribute
+    # (they are computed or sourced from live_counts) and are set via model_copy.
+    return ListenerWithSummary.model_validate(ls, from_attributes=True).model_copy(
+        update={
+            "listener_kind": listener_kind_from_topic(ls.topic),
+            "handler_summary": format_handler_summary(ls),
+            "suppressed_count": suppressed,
+            "dropped_count": dropped,
+            "backpressure_dropped_count": backpressure_dropped,
+        }
+    )
+
+
+def config_response_from(cfg: HassetteConfig) -> ConfigResponse:
+    """Convert a ``HassetteConfig`` to a ``ConfigResponse``.
+
+    Fields are restructured into config-group sub-responses, and ``Path`` fields
+    (``data_dir``, ``config_dir``, ``apps.directory``) are coerced to ``str``.
+    """
+    return ConfigResponse(
+        dev_mode=cfg.dev_mode,
+        base_url=cfg.base_url,
+        asyncio_debug_mode=cfg.asyncio_debug_mode,
+        allow_reload_in_prod=cfg.allow_reload_in_prod,
+        data_dir=str(cfg.data_dir),
+        config_dir=str(cfg.config_dir),
+        web_api=WebApiConfigResponse(
+            run=cfg.web_api.run,
+            run_ui=cfg.web_api.run_ui,
+            ui_hot_reload=cfg.web_api.ui_hot_reload,
+            host=cfg.web_api.host,
+            port=cfg.web_api.port,
+            cors_origins=list(cfg.web_api.cors_origins),
+            event_buffer_size=cfg.web_api.event_buffer_size,
+            log_buffer_size=cfg.web_api.log_buffer_size,
+            job_history_size=cfg.web_api.job_history_size,
+        ),
+        logging=LoggingConfigResponse(
+            log_level=cfg.logging.log_level,
+            web_api=cfg.logging.web_api,
+        ),
+        lifecycle=LifecycleConfigResponse(
+            startup_timeout_seconds=cfg.lifecycle.startup_timeout_seconds,
+            app_startup_timeout_seconds=cfg.lifecycle.app_startup_timeout_seconds,
+            app_shutdown_timeout_seconds=cfg.lifecycle.app_shutdown_timeout_seconds,
+        ),
+        apps=AppsConfigResponse(
+            autodetect=cfg.apps.autodetect,
+            directory=str(cfg.apps.directory),
+        ),
+        scheduler=SchedulerConfigResponse(
+            min_delay_seconds=cfg.scheduler.min_delay_seconds,
+            max_delay_seconds=cfg.scheduler.max_delay_seconds,
+            default_delay_seconds=cfg.scheduler.default_delay_seconds,
+        ),
+        file_watcher=FileWatcherConfigResponse(
+            watch_files=cfg.file_watcher.watch_files,
+            debounce_milliseconds=cfg.file_watcher.debounce_milliseconds,
+        ),
     )

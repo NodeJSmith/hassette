@@ -51,6 +51,16 @@ def compute_error_rate(
     return min((failures / total) * 100, 100.0)
 
 
+def compute_success_rate(error_rate: float) -> float:
+    """Success rate as the complement of the already-clamped error rate.
+
+    This is the single definition of "success = 100 - error".  Callers pass the
+    value returned by :func:`compute_error_rate` rather than re-deriving success
+    from raw counters, so the [0, 100] clamp is preserved in one place.
+    """
+    return 100.0 - error_rate
+
+
 def classify_error_rate(rate: float) -> ErrorRateClass:
     """Map an error-rate percentage to a CSS class name.
 
