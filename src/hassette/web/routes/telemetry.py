@@ -102,10 +102,8 @@ def error_rate_from_summary(summary: AppHealthSummary) -> float:
 def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
     """Derive a health status label from an app health summary.
 
-    Zero-invocation apps return ``"excellent"`` — ``error_rate_from_summary``
-    yields ``0.0`` for them, so success is ``100.0`` and ``classify_health_bar``
-    returns ``"excellent"`` (consistent with the 503 fallback path and the
-    ``HealthStatus`` Literal, which has no ``"unknown"``).
+    Zero-invocation apps have a ``0.0`` error rate, so they classify as
+    ``"excellent"`` — the ``HealthStatus`` Literal has no ``"unknown"`` state.
     """
     success_rate = compute_success_rate(error_rate_from_summary(summary))
     return classify_health_bar(success_rate)
