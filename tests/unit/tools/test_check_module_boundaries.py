@@ -1,8 +1,10 @@
 """Characterization tests for tools/check_module_boundaries.py.
 
-Pin the test_utils-isolation rule: production layers must not import the test
-helper package at runtime, while type-only imports and test_utils itself are
-exempt.
+Pin the boundary rules in ``RULES`` (test_utils-isolation, api-no-core,
+utils-no-events, web-no-core, bus-no-core): the governed layer must not import
+the forbidden package at runtime, while type-only imports under
+``TYPE_CHECKING`` and a layer importing itself are exempt. Still-ungoverned
+cross-layer imports (e.g. ``state_manager → core``) are allowed.
 """
 
 import textwrap
@@ -131,8 +133,44 @@ def test_relative_import_skipped_without_package() -> None:
 
 
 def test_other_cross_layer_imports_not_yet_governed() -> None:
-    # Only test_utils isolation is enforced today; importing core is allowed.
+    # state_manager → core is not yet governed (tracked under #1079); it remains allowed today.
+    src = "from hassette.core.state_proxy import StateProxy\n"
+    assert check_source(src, "state_manager") == []
+
+
+def test_bus_import_of_core_flagged() -> None:
     src = "from hassette.core import Hassette\n"
+    assert check_source(src, "bus") == [
+        (
+            1,
+            "bus-no-core: imports hassette.core — "
+            "bus must not import core at runtime; core sits above the service layer (#1089)",
+        )
+    ]
+
+
+def test_bus_import_of_core_submodule_flagged() -> None:
+    # Exercises the startswith("hassette.core.") branch of the forbids lambda,
+    # which test_bus_import_of_core_flagged (bare hassette.core) does not reach.
+    src = "from hassette.core.logging_service import LoggingService\n"
+    assert check_source(src, "bus") == [
+        (
+            1,
+            "bus-no-core: imports hassette.core.logging_service — "
+            "bus must not import core at runtime; core sits above the service layer (#1089)",
+        )
+    ]
+
+
+def test_bus_type_checking_core_import_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from hassette.core import Hassette
+        """
+    )
     assert check_source(src, "bus") == []
 
 

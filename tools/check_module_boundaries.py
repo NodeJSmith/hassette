@@ -15,12 +15,13 @@ Boundaries enforced today (``RULES``):
 - ``api → core`` — api is a service layer and must not import core at runtime.
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
+- ``bus → core`` — bus is a service layer and must not import core at runtime (#1089).
 
 The full layer DAG is NOT enforced here yet. The remaining runtime cycles —
-``bus``↔``core`` (``InvokeHandler``), ``scheduler``↔``core`` (``SchedulerService``),
+``scheduler``↔``core`` (``SchedulerService``),
 ``state_manager``↔``core`` (``StateProxy``) — import real core logic, not data, so
 breaking them needs a relocate-vs-protocol-inversion decision deferred to an ADR
-(#1079 landed the three clean-win boundaries above; #633 tracks full DAG enforcement).
+(#1079 tracks full DAG enforcement).
 ``RULES`` is a list so each boundary is added as it becomes clean.
 
 These are structural violations, not style — there is no escape hatch. A
@@ -81,6 +82,12 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "web",
         forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
         reason="web must not runtime-import core; web-facing data types live in hassette.schemas",
+    ),
+    Rule(
+        name="bus-no-core",
+        applies=lambda layer: layer == "bus",
+        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
 ]
 

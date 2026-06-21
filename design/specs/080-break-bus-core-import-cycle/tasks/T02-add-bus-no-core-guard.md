@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add bus-no-core boundary guard rule and tests"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "AC#1", "AC#2"]
 ---
