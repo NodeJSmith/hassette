@@ -1,7 +1,7 @@
 # Design: Break the bus→core→bus runtime import cycle
 
 **Date:** 2026-06-20
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Issue:** #1089 (the `#1089` citations in the boundary-tool `reason=` string and
 docstring refer to this tracking issue)

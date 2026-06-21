@@ -132,8 +132,9 @@ def test_relative_import_skipped_without_package() -> None:
     assert check_source(src, "core") == []
 
 
-def test_other_cross_layer_imports_not_yet_governed() -> None:
-    # state_manager → core is not yet governed (tracked under #1079); it remains allowed today.
+def test_state_manager_import_of_core_not_yet_governed() -> None:
+    # state_manager → core is a still-ungoverned cross-layer import (tracked under
+    # #1079); until a rule governs it, the checker returns no violation.
     src = "from hassette.core.state_proxy import StateProxy\n"
     assert check_source(src, "state_manager") == []
 
@@ -150,8 +151,8 @@ def test_bus_import_of_core_flagged() -> None:
 
 
 def test_bus_import_of_core_submodule_flagged() -> None:
-    # Exercises the startswith("hassette.core.") branch of the forbids lambda,
-    # which test_bus_import_of_core_flagged (bare hassette.core) does not reach.
+    # A submodule import must be flagged too, not just a bare ``hassette.core``
+    # import — the two are matched by different parts of the rule, so both are tested.
     src = "from hassette.core.logging_service import LoggingService\n"
     assert check_source(src, "bus") == [
         (
