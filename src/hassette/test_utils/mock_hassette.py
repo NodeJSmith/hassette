@@ -63,14 +63,14 @@ def make_mock_hassette(
         - ``.config``: real :class:`~hassette.config.config.HassetteConfig` instance
         - ``.ready_event``, ``.shutdown_event``: :class:`asyncio.Event` instances
         - ``.event_streams_closed``: ``False``
-        - ``._loop_thread_id``: current thread ident
+        - ``.loop_thread_id``: current thread ident
         - ``.loop``: running event loop (or ``None`` if ``set_loop=False``)
-        - ``._scheduler_service.register_removal_callback``: :class:`~unittest.mock.Mock`
-        - ``._scheduler_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
-        - ``._bus_service.remove_listeners_by_owner``: :class:`~unittest.mock.Mock`
-        - ``._bus_service.get_listeners_by_owner``: :class:`~unittest.mock.Mock` returning ``[]``
-        - ``._bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
-        - ``._bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
+        - ``.scheduler_service.register_removal_callback``: :class:`~unittest.mock.Mock`
+        - ``.scheduler_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
+        - ``.bus_service.remove_listeners_by_owner``: :class:`~unittest.mock.Mock`
+        - ``.bus_service.get_listeners_by_owner``: :class:`~unittest.mock.Mock` returning ``[]``
+        - ``.bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
+        - ``.bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
@@ -118,8 +118,8 @@ def make_mock_hassette(
     # Event stream state
     hassette.event_streams_closed = False
 
-    # Thread / loop identity
-    hassette._loop_thread_id = threading.get_ident()
+    # Thread / loop identity — TaskBucket.spawn reads the public loop_thread_id accessor.
+    hassette.loop_thread_id = threading.get_ident()
     if set_loop:
         try:
             hassette.loop = asyncio.get_running_loop()
@@ -128,15 +128,15 @@ def make_mock_hassette(
     else:
         hassette.loop = None
 
-    # Scheduler service stubs
-    hassette._scheduler_service.register_removal_callback = Mock()
-    hassette._scheduler_service.deregister_removal_callback = Mock()
+    # Scheduler service stubs — production reads the public scheduler_service accessor.
+    hassette.scheduler_service.register_removal_callback = Mock()
+    hassette.scheduler_service.deregister_removal_callback = Mock()
 
-    # Bus service stubs
-    hassette._bus_service.remove_listeners_by_owner = Mock()
-    hassette._bus_service.get_listeners_by_owner = Mock(return_value=[])
-    hassette._bus_service.register_removal_callback = Mock()
-    hassette._bus_service.deregister_removal_callback = Mock()
+    # Bus service stubs — production reads the public bus_service accessor.
+    hassette.bus_service.remove_listeners_by_owner = Mock()
+    hassette.bus_service.get_listeners_by_owner = Mock(return_value=[])
+    hassette.bus_service.register_removal_callback = Mock()
+    hassette.bus_service.deregister_removal_callback = Mock()
 
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)

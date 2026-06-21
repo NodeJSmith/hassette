@@ -113,8 +113,7 @@ class Scheduler(Resource):
         assert self.parent is not None, (
             "Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)"
         )
-        assert self.hassette._scheduler_service is not None, "Scheduler service not initialized"
-        self.scheduler_service = self.hassette._scheduler_service
+        self.scheduler_service = self.hassette.scheduler_service
         self._jobs_by_name = {}
         self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
         self._error_handler: SchedulerErrorHandlerType | None = None

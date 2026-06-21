@@ -438,7 +438,7 @@ def make_task_bucket() -> TaskBucket:
     hassette.config.logging.task_bucket = "DEBUG"
     hassette.config.logging.log_level = "DEBUG"
     hassette.config.dev_mode = False
-    hassette._loop_thread_id = None
+    hassette.loop_thread_id = None
 
     bucket = TaskBucket.__new__(TaskBucket)
     bucket._tasks = set()

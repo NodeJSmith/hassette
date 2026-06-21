@@ -535,6 +535,10 @@ class HassetteHarness:
     async def start(self) -> "HassetteHarness":
         self._resolve_dependencies()
 
+        # Emulate run_forever() on the real Hassette: populate the backing slots that the
+        # public loop / loop_thread_id accessors read. These are read-only properties with no
+        # setter, so the harness writes the private slots directly — the same way run_forever
+        # does — rather than reaching through a public accessor.
         self.hassette._loop = asyncio.get_running_loop()
         self._previous_task_factory = self.hassette._loop.get_task_factory()
         self.hassette._loop_thread_id = threading.get_ident()

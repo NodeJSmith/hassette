@@ -34,10 +34,9 @@ and the ``test_utils/`` test harness (#1091). Subsystems should read public
 properties, not private slots: the audit found the reach-throughs guarded null
 state divergently and that ``python -O`` strips their ``assert`` guards. Unlike
 the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_ALLOWLIST``
-— because a few framework internals (a hot-path loop-thread check, a test-harness
-bypass hook) legitimately read private state. Each allowlist entry is a conscious,
-auditable exception with a reason; entries tagged ``TODO`` are removed when the
-public-property fix lands.
+— because a few framework internals (a Resource/Hassette dependency-check bypass hook)
+legitimately read private state. Each allowlist entry is a conscious, auditable
+exception with a reason.
 
 Usage:
     python tools/check_module_boundaries.py
@@ -119,19 +118,15 @@ PRIVATE_ATTR_REASON = (
 PRIVATE_ATTR_MSG_TEMPLATE = f"private-attr-reach-through: accesses hassette.{{attr}} — {PRIVATE_ATTR_REASON}"
 
 #: (src-relative POSIX path, private attr name) pairs allowed to reach into ``hassette._foo``.
-#: Each is a conscious exception. ``TODO`` entries are removed once the corresponding
-#: public-property fix lands (the audit's N1 — service slots that should expose guarded
-#: properties), at which point the rule enforces the boundary on those sites.
+#: Each is a conscious exception for a genuine framework internal with no guarded public
+#: property to route through. The former service-slot entries (``_loop_thread_id``,
+#: ``_scheduler_service``, ``_bus_service``) were retired in #1092 once Hassette exposed
+#: public accessors for them.
 PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
-        # Hot-path loop-thread identity check — framework fast path, intentionally direct.
-        ("task_bucket/task_bucket.py", "_loop_thread_id"),
-        # Test-harness dependency-check bypass — internal coordination hook between Resource and Hassette.
+        # Dependency-check bypass — internal coordination hook between Resource and Hassette,
+        # not a service slot, so it has no guarded public property to route through.
         ("resources/base.py", "_should_skip_dependency_check"),
-        # TODO(#1091-followup): route through a guarded public property when the service-slot
-        # public-property fix (audit N1) lands; remove these two entries then.
-        ("scheduler/scheduler.py", "_scheduler_service"),
-        ("bus/bus.py", "_bus_service"),
     }
 )
 

@@ -125,7 +125,7 @@ async def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassett
 def test_bus_requires_parent() -> None:
     """Bus.__init__ raises AssertionError when parent is None."""
     mock_hassette = Mock()
-    mock_hassette._bus_service = Mock()
+    mock_hassette.bus_service = Mock()
     with pytest.raises(AssertionError, match="Bus requires a parent"):
         Bus(mock_hassette, parent=None)
 
