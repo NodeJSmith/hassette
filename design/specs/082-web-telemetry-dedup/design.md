@@ -163,8 +163,9 @@ Scope after challenge: **query consolidation + the `telemetry_repository.py` mov
   `call_count` on the four method names, plus the `AsyncMock` attribute assignments in
   `web_mocks.py` and `tests/e2e/mock_fixtures.py`) into argument-based assertions on the unified
   methods — these cannot be mechanically codemod'd.
-- **FR#14** — `core/telemetry_repository.py` moves to `core/telemetry/repository.py` (6 importers:
-  1 prod + 5 test). All importers migrate; no compat shim (`coding-style.md`).
+- **FR#14** — `core/telemetry_repository.py` moves to `core/telemetry/repository.py` (5 importing
+  files: 1 prod + 4 test; `test_telemetry_repository.py` has 2 import lines). All importers migrate;
+  no compat shim (`coding-style.md`).
 
 ## Acceptance Criteria
 
@@ -189,8 +190,8 @@ Scope after challenge: **query consolidation + the `telemetry_repository.py` mov
   callers updated; dispatch-assertion tests rewritten; suite green. (FR#11, FR#13)
 - **AC#9** — `?app_key=` (empty string) returns empty/422, not all-apps data; a test pins this.
   (FR#12)
-- **AC#10** — `telemetry_repository.py` lives under `core/telemetry/`; all 6 importers updated; no
-  shim left behind; Pyright clean. (FR#14)
+- **AC#10** — `telemetry_repository.py` lives under `core/telemetry/`; all 5 importing files
+  updated; no shim left behind; Pyright clean. (FR#14)
 - **AC#11** — Across every unit: zero `scripts/export_schemas.py --types` diff, Pyright clean, and
   `nox -s system` + `nox -s e2e` pass locally. (FR#1–FR#14)
 
@@ -354,8 +355,8 @@ retiring names (plus the `AsyncMock` attribute assignments in `test_utils/web_mo
 `tests/e2e/mock_fixtures.py:629`) and rewrites them as argument-based assertions on the unified
 method.
 
-**Repository move.** `core/telemetry_repository.py` → `core/telemetry/repository.py`: 6 importers
-(`command_executor.py` + 5 test files). Low churn, no layer conflict. Update imports; no shim.
+**Repository move.** `core/telemetry_repository.py` → `core/telemetry/repository.py`: 5 importing
+files (`command_executor.py` + 4 test files). Low churn, no layer conflict. Update imports; no shim.
 (`telemetry_models.py` does **not** move — see Non-Goals.)
 
 ## Test Strategy (pin-behavior)
@@ -395,7 +396,7 @@ Per `refactoring-discipline.md`, behavior is pinned by the existing suite before
 | #1108a | up to 7 (`dependencies.py` + 5 routes) + `web/CLAUDE.md` | ~5 | Medium — control-flow per site; categories C/D excluded |
 | #1108b | 3 (`exceptions.py`, `query_service.py`, `dependencies.py`) + ~5 category-C/D catches | ~3 | Medium — coverage gap (`get_all_app_summaries` bypasses `execute()`); one intended behavior change |
 | #1095 query | 4 (`registration_queries.py` + 3 route callers) | ~25 call sites + `web_mocks.py` + dispatch-assertion rewrites | Medium — wide test churn |
-| #1095 repo move | 1 moved + 1 prod importer | 5 | Low — mechanical, no layer conflict |
+| #1095 repo move | 1 moved + 1 prod importer | 4 | Low — mechanical, no layer conflict |
 
 Dropping the `telemetry_models.py` move (30+ importers) and the SessionManager write-repo removed
 the two highest-cost / highest-risk parts of the original #1095 scope. The added #1108b seam is

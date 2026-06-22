@@ -8,8 +8,9 @@ implements: ["FR#14", "AC#10", "AC#11"]
 
 ## Summary
 Co-locate the misplaced telemetry write helper with the read side: move
-`core/telemetry_repository.py` into `core/telemetry/repository.py` and update its 6 importers (1
-production + 5 test). Pure file relocation + import rewrite, no behavior change, no compat shim.
+`core/telemetry_repository.py` into `core/telemetry/repository.py` and update its 5 importing files
+(1 production + 4 test; `test_telemetry_repository.py` has 2 import lines). Pure file relocation +
+import rewrite, no behavior change, no compat shim.
 Then run the cluster's final cross-cutting verification gate.
 
 ## Target Files
@@ -57,8 +58,8 @@ preserved behavior except the one intended `ValueError → 500` change.
   `core/telemetry/`. Match the package's existing import style.
 
 ## Verify
-- [ ] FR#14: `telemetry_repository.py` lives at `core/telemetry/repository.py`; all 6 importers
-      updated; no compat shim; a repo-wide grep for the old path returns nothing.
+- [ ] FR#14: `telemetry_repository.py` lives at `core/telemetry/repository.py`; all 5 importing
+      files updated; no compat shim; a repo-wide grep for the old path returns nothing.
 - [ ] AC#10: `uv run pyright` is clean after the move.
 - [ ] AC#11: across the cluster — zero `scripts/export_schemas.py --types` diff, Pyright clean, and
       `nox -s system` + `nox -s e2e` pass locally.
