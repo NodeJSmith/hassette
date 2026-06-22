@@ -28,8 +28,8 @@ async def get_listener_metrics(
     # Guard: app_key="" (empty string) must NOT fall through to the all-apps path.
     # The unified get_listener_summary uses `if app_key is not None` internally,
     # so only a genuine None triggers the full-table scan.
-    # Category B: live_execution_counts() + the mapping depend on the query result and must be
-    # skipped on DB failure (matches app_listeners) — keep them inside the with block.
+    # live_execution_counts() and the mapping depend on the query result, so they stay
+    # inside the with block to be skipped on DB failure.
     rows: list[ListenerWithSummary] = []
     with db_degrades_to(response):
         summaries = await telemetry.get_listener_summary(

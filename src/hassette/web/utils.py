@@ -62,6 +62,9 @@ async def enrich_jobs_with_live_heap(
 
     ``context`` labels the warning log so a failed snapshot can be traced to its call site
     (e.g. ``"global enrichment"`` vs ``"enrichment"``).
+
+    ``scheduler_service.get_all_jobs()`` acquires the scheduler's ``FairAsyncRLock``
+    internally and returns a list copy, so callers do not hold the lock during enrichment.
     """
     try:
         live_jobs = await scheduler_service.get_all_jobs()

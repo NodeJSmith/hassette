@@ -326,7 +326,7 @@ class TestTelemetryStatus:
         assert data["degraded"] is False
 
     async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
-        """/api/telemetry/status returns 503 with degraded=true when DB query raises sqlite3.Error."""
+        """/api/telemetry/status returns 503 with degraded=true when the query raises TelemetryUnavailableError."""
         mock_hassette.telemetry_query_service.check_health = AsyncMock(
             side_effect=TelemetryUnavailableError("database is locked")
         )

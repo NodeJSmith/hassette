@@ -673,9 +673,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
             rows = [e for e in rows if e.execution_start_ts >= since]
         return rows[:limit]
 
-    hassette._telemetry_query_service.get_executions = AsyncMock(
-        side_effect=lambda **kw: _executions_side_effect(**kw),
-    )
+    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=_executions_side_effect)
 
 
 def build_app_health_summaries() -> dict[str, AppHealthSummary]:

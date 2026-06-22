@@ -4,6 +4,7 @@ Contains clause-builders, row converters, and the AppHealthAggregates dataclass
 used across registration_queries, execution_queries, and summary_queries.
 """
 
+import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, assert_never
@@ -13,6 +14,11 @@ import aiosqlite
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.telemetry_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier, is_framework_key
+
+# Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
+# Named once here so both the execute() chokepoint and the get_all_app_summaries bypass
+# (which runs a manual BEGIN DEFERRED transaction) catch the identical set.
+STORAGE_ERRORS = (sqlite3.Error, OSError, ValueError, TimeoutError)
 
 # DEFAULT_QUERY_LIMIT and DEFAULT_SPARKLINE_BUCKETS moved to hassette.schemas.query_constants;
 # re-imported above so internal callers (registration_queries, execution_queries, query_service)
@@ -37,6 +43,7 @@ __all__ = [
     "DEFAULT_QUERY_LIMIT",
     "DEFAULT_SESSION_LIST_LIMIT",
     "DEFAULT_SPARKLINE_BUCKETS",
+    "STORAGE_ERRORS",
     "AppHealthAggregates",
     "_build_app_summaries",
     "_row_to_dict",

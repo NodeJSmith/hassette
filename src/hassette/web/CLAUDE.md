@@ -18,7 +18,7 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 
 Storage exceptions (`sqlite3.Error`, `OSError`, `ValueError`, `TimeoutError`) are **translated at the `TelemetryQueryService` boundary** into `TelemetryUnavailableError` (defined in `hassette.exceptions`).  The HTTP layer catches only that narrow domain type — never raw storage exceptions.
 
-- `TelemetryQueryService.execute()` wraps its body in `try/except (sqlite3.Error, OSError, ValueError, TimeoutError)` and re-raises as `TelemetryUnavailableError`.
+- `TelemetryQueryService.execute()` wraps its body in `try/except STORAGE_ERRORS` (the `(sqlite3.Error, OSError, ValueError, TimeoutError)` tuple, named once in `core/telemetry/helpers.py`) and re-raises as `TelemetryUnavailableError`.
 - `get_all_app_summaries` in `summary_queries.py` has its own manual transaction that bypasses `execute()` — it carries the same translation wrapper.
 - A non-DB `ValueError` raised inside a handler body (e.g. from `model_validate`, a key error, application logic) **is not** `TelemetryUnavailableError` and will propagate as HTTP 500.  This is the intended behavior.
 

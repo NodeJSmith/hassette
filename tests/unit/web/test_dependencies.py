@@ -35,46 +35,23 @@ class TestDbDegradesTo:
             pass  # no exception
         assert resp.status_code == 200
 
-    def test_does_not_suppress_unrelated_exception(self) -> None:
-        """Exceptions that are not TelemetryUnavailableError propagate unchanged."""
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            KeyError("unexpected"),
+            RuntimeError("logic error"),
+            sqlite3.OperationalError("disk I/O error"),
+            ValueError("bad model_validate input"),
+            OSError("no such file"),
+            TimeoutError("query timed out"),
+        ],
+    )
+    def test_does_not_suppress_non_domain_exception(self, exc: Exception) -> None:
+        """Only TelemetryUnavailableError is caught; everything else (including raw storage
+        errors, which are translated at the service boundary) propagates unchanged."""
         resp = FakeResponse()
-        with pytest.raises(KeyError), db_degrades_to(resp):
-            raise KeyError("unexpected")
-        assert resp.status_code == 200
-
-    def test_does_not_suppress_runtime_error(self) -> None:
-        """RuntimeError propagates — it is not TelemetryUnavailableError."""
-        resp = FakeResponse()
-        with pytest.raises(RuntimeError), db_degrades_to(resp):
-            raise RuntimeError("logic error")
-        assert resp.status_code == 200
-
-    def test_does_not_suppress_raw_sqlite_error(self) -> None:
-        """Raw sqlite3.Error propagates — translation happens at the service, not here."""
-        resp = FakeResponse()
-        with pytest.raises(sqlite3.OperationalError), db_degrades_to(resp):
-            raise sqlite3.OperationalError("disk I/O error")
-        assert resp.status_code == 200
-
-    def test_does_not_suppress_raw_value_error(self) -> None:
-        """Raw ValueError propagates — it is application logic, not a translated DB error."""
-        resp = FakeResponse()
-        with pytest.raises(ValueError, match="bad model_validate input"), db_degrades_to(resp):
-            raise ValueError("bad model_validate input")
-        assert resp.status_code == 200
-
-    def test_does_not_suppress_raw_oserror(self) -> None:
-        """Raw OSError propagates — translation happens at the service boundary."""
-        resp = FakeResponse()
-        with pytest.raises(OSError, match="no such file"), db_degrades_to(resp):
-            raise OSError("no such file")
-        assert resp.status_code == 200
-
-    def test_does_not_suppress_raw_timeout_error(self) -> None:
-        """Raw TimeoutError propagates — translation happens at the service boundary."""
-        resp = FakeResponse()
-        with pytest.raises(TimeoutError), db_degrades_to(resp):
-            raise TimeoutError("query timed out")
+        with pytest.raises(type(exc)), db_degrades_to(resp):
+            raise exc
         assert resp.status_code == 200
 
     def test_real_response_object(self) -> None:

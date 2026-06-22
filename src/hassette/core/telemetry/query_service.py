@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import sqlite3
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -10,7 +9,12 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, AppHealthAggregates
+from hassette.core.telemetry.helpers import (
+    DEFAULT_QUERY_LIMIT,
+    DEFAULT_SPARKLINE_BUCKETS,
+    STORAGE_ERRORS,
+    AppHealthAggregates,
+)
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
@@ -79,7 +83,7 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
             async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
                 async with self._db.execute(query, params) as cursor:
                     yield cursor
-        except (sqlite3.Error, OSError, ValueError, TimeoutError) as exc:
+        except STORAGE_ERRORS as exc:
             raise TelemetryUnavailableError(str(exc)) from exc
 
     async def check_health(self) -> None:

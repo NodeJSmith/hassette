@@ -241,7 +241,7 @@ class TestGetAppHealthAggregates:
         assert agg1.handler_errors == 1
 
 
-class TestGetAllListenersSummary:
+class TestGetListenerSummaryGlobal:
     async def test_returns_all_listeners_across_apps_and_instances(
         self,
         query_service: TelemetryQueryService,

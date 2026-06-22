@@ -13,7 +13,7 @@ from fastapi import APIRouter, Path, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, MAX_QUERY_LIMIT
 from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
@@ -50,7 +50,6 @@ from hassette.web.telemetry_helpers import (
 from hassette.web.utils import enrich_jobs_with_live_heap
 
 LOGGER = getLogger(__name__)
-MAX_QUERY_LIMIT = 500
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -227,8 +226,6 @@ async def app_jobs(
                 app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
         )
-        # Enrich DB rows with live heap state. INVARIANT: get_all_jobs() acquires
-        # FairAsyncRLock internally and returns a list copy.
         jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service)
     return jobs
 
@@ -331,7 +328,7 @@ async def dashboard_app_grid(
         last_activity_ts=None,
     )
 
-    entries = []
+    entries: list[DashboardAppGridEntry] = []
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
         rate = error_rate_from_summary(health)
