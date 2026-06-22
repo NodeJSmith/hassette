@@ -13,8 +13,8 @@ context manager to `web/dependencies.py` with a unit test. The CM is added but n
 handlers — that is T03 — so the suite stays green (an unused CM changes nothing).
 
 ## Target Files
-- create: classification table — as a section in `src/hassette/web/CLAUDE.md` (or a committed note
-  the T03 executor reads); the table is the planning artifact for T03
+- modify: `src/hassette/web/CLAUDE.md` — add the 17-site classification table as a section; this is
+  the planning artifact T03 reads (commit it here, not a scratch note)
 - modify: `src/hassette/web/dependencies.py` (add `db_degrades_to`)
 - read: `design/specs/082-web-telemetry-dedup/design.md` (`## Architecture → #1108a`)
 - read: all 6 route files (`apps.py`, `bus.py`, `executions.py`, `logs.py`, `scheduler.py`,
@@ -39,8 +39,9 @@ category:
 - **D — EXCLUDED** — multi-failure-mode: `executions.py:get_execution_logs` (503 for the record
   fetch; silent `retention_expired=False` for the retention check via `check_retention_expired_uuid4`).
 
-Commit the table into `web/CLAUDE.md` (or a note T03 reads). Note that `bus.py:get_listener_metrics`
-is category B but is intentionally **deferred to #1095** (T05), not migrated in #1108a.
+Commit the table into the "DB_ERRORS Catch Pattern" area of `web/CLAUDE.md` (T03 reads it there).
+Note that `bus.py:get_listener_metrics` is category B but is intentionally **deferred to #1095**
+(T05), not migrated in #1108a.
 
 **Step 2 — add the CM.** Add `db_degrades_to(response)` to `src/hassette/web/dependencies.py`
 (next to `DB_ERRORS` at line 43). It is a `@contextmanager` that yields, and on `except DB_ERRORS`

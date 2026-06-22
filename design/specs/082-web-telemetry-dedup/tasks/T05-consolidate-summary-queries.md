@@ -24,7 +24,8 @@ the test migration land together so the suite is never red.
 - modify: `tests/e2e/mock_fixtures.py` (direct `AsyncMock` attribute assignment by retiring name,
   ~line 629)
 - modify: the ~25 test call sites across `tests/integration/telemetry/` and
-  `tests/integration/web_api/` (see Focus for the list)
+  `tests/integration/web_api/` (see Focus for the list; includes
+  `tests/integration/telemetry/test_telemetry_timed_out.py`, which calls all four retiring methods)
 - read: `design/specs/082-web-telemetry-dedup/design.md` (`## Architecture → #1095`)
 
 ## Prompt
