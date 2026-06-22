@@ -59,7 +59,9 @@ These sites do **not** use `db_degrades_to`.  They catch `TelemetryUnavailableEr
 
 Categories: **A** = one-line wrap; **B** = post-query work must move inside the `with`; **C** = silent-200 EXCLUDED; **D** = multi-failure EXCLUDED.
 
-| # | File | Line | Endpoint / function | Status on failure | Default returned | Category | Action |
+Line numbers are approximate (captured during planning, pre-migration) — grep the endpoint/function name to navigate.
+
+| # | File | Line (approx) | Endpoint / function | Status on failure | Default returned | Category | Action |
 |---|------|------|---------------------|-------------------|------------------|----------|----------------|
 | 1 | `telemetry.py` | 68 | `telemetry_status` | 503 | `TelemetryStatusResponse(degraded=True)` | **B** | Move drop-counter + error-handler-failure code inside `with`; tail return |
 | 2 | `telemetry.py` | 132 | `app_health` | 503 | `AppHealthResponse(error_rate=0.0, ...)` | **B** | Move `error_rate` computation and success `AppHealthResponse` inside `with`; tail return |
@@ -73,15 +75,15 @@ Categories: **A** = one-line wrap; **B** = post-query work must move inside the 
 | 10 | `telemetry.py` | 328 | `dashboard_app_grid` — `get_per_app_activity_buckets` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same non-DB spine |
 | 11 | `telemetry.py` | 332 | `dashboard_app_grid` — `get_per_app_last_errors` | 200 (no set) | `{}` (default unchanged) | **C** | EXCLUDED — same non-DB spine |
 | 12 | `apps.py` | 61 | `get_app_manifests` — `get_recent_invocations_1h_all_apps` | 200 (no set) | `{}` | **C** | EXCLUDED — non-DB spine from `runtime.get_all_manifests_snapshot()` |
-| 13 | `bus.py` | 38 | `get_listener_metrics` | 503 | `[]` | **B** | **DEFERRED to #1095** — the if/else dispatch collapses in #1095; migrate CM in that step |
+| 13 | `bus.py` | 38 | `get_listener_metrics` | 503 | `[]` | **B** | Migrated in #1095 (T05) — if/else dispatch collapsed to a single unified `get_listener_summary` call + `db_degrades_to`; `live_execution_counts()` + mapping inside the `with` (same shape as `app_listeners`) |
 | 14 | `executions.py` | 41 | `check_retention_expired_uuid4` (helper) | 200 (returns `False`) | `False` | **D** | EXCLUDED — silent false, no 503; part of multi-failure `get_execution_logs` |
 | 15 | `executions.py` | 75 | `get_execution_logs` — record fetch | 503 | `LogsByExecutionResponse(records=[], ...)` | **D** | EXCLUDED — multi-failure: record fetch is 503, retention check is silent-false; separate semantics |
 | 16 | `logs.py` | 54 | `get_logs` | 503 | `[]` | **A** | One-line wrap; list-comp + `return` are both inside the current `try` |
 | 17 | `scheduler.py` | 38 | `all_jobs` | 503 | `[]` | **B** | Move `enrich_jobs_with_live_heap` call inside `with` (must skip on failure); tail return |
 
-**Count:** A: 5, B: 6 (one deferred), C: 4, D: 2 — 17 total.  Sites migrated in #1108a: 10 (5 A + 5 B, excluding the #1095-deferred `get_listener_metrics` at row 13).
+**Count:** A: 5, B: 6, C: 4, D: 2 — 17 total.  All A/B sites are migrated to `db_degrades_to`: 10 in #1108a (rows 1-8, 16, 17) plus row 13 (`get_listener_metrics`) in #1095/T05 (deferred from #1108a to avoid double-touching, since #1095 also collapsed its dispatch) — 11 migrated. Category-C/D sites (rows 9-12, 14, 15) keep their inline `try/except` unchanged.
 
-**B-site criterion:** "does any code after the query need to be skipped when the query fails?"  For sites 3, 5, 17: the post-query call (`live_execution_counts()`, `enrich_jobs_with_live_heap`) runs against an empty list today only because the explicit `return []` exits early — a tail-return CM would run it against the default.  For sites 1, 2: the success-path response construction uses data from the query result directly and must be skipped.
+**B-site criterion:** "does any code after the query need to be skipped when the query fails?"  For sites 3, 5, 13, 17: the post-query call (`live_execution_counts()`, `enrich_jobs_with_live_heap`) runs against an empty list today only because the explicit `return []` exits early — a tail-return CM would run it against the default, so it must move inside the `with`.  For sites 1, 2: the success-path response construction uses data from the query result directly and must be skipped.
 
 ## Route Registration Pattern
 
