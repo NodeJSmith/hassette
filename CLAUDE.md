@@ -173,7 +173,9 @@ System dependencies for Chromium require `sudo`. If `playwright install --with-d
 
 ## Pre-Ship Verification for Core Changes
 
-When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — run the system and e2e test suites locally before pushing the PR, in addition to the standard unit/integration tests:
+When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`ruff`, `pyright`), and the schema-freshness check.
+
+Run the heavy suites locally only when you want a faster signal on a core change you're actively debugging:
 
 ```bash
 # System tests (requires Docker — validates WS, reconnection, service lifecycle)
@@ -183,11 +185,11 @@ uv run nox -s system
 uv run nox -s e2e
 ```
 
-These suites run with the same warning configuration as CI (`filterwarnings` in `pyproject.toml`). Unit and integration tests alone are insufficient for core changes — they mock the very boundaries where regressions hide.
+These suites run with the same warning configuration as CI (`filterwarnings` in `pyproject.toml`).
 
 ### Run fixed tests before committing
 
-When fixing or modifying any test, run that test locally and confirm it passes before committing. For system and e2e tests, use the nox sessions above. For unit/integration tests, run at minimum the affected test file. Do not commit test fixes based on code inspection alone — a test that looks correct can still fail due to marker filtering, warning configuration, fixture scoping, or async timing.
+When fixing or modifying any test, run that test locally and confirm it passes before committing. For unit/integration tests, run at minimum the affected test file. If you actually modified a system or e2e test, verify it with the nox sessions above (or rely on CI, which runs both) — don't commit test fixes based on code inspection alone, since a test that looks correct can still fail due to marker filtering, warning configuration, fixture scoping, or async timing.
 
 ## Pre-Ship Verification for Docs Changes
 
