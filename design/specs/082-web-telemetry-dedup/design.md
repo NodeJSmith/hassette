@@ -1,6 +1,6 @@
 # Design: Collapse web/telemetry duplication (#1107, #1108, #1095, #1114)
 
-**Status:** approved
+**Status:** archived
 **Issues:** #1107, #1108, #1114 (storage-exception seam), #1095
 **Origin:** SPLIT candidates #6 and #7 from the #1094 research brief
 (`design/research/2026-06-21-issue-1094-mapper-rate-cleanup/research.md`), plus a
