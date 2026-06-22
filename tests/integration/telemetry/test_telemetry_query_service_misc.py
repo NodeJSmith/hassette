@@ -1,7 +1,6 @@
 """Integration tests for TelemetryQueryService — source tier, job summary, health, and activity feed."""
 
 import asyncio
-import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -13,6 +12,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.helpers import _source_tier_clause
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
 )
@@ -162,12 +162,12 @@ class TestCheckHealth:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """check_health() raises when the read_db connection is closed."""
+        """check_health() raises TelemetryUnavailableError when the read_db connection is closed."""
         db_svc, _session_id = db
         # Close the read connection to simulate a failed connection
         await db_svc._read_db.close()
         try:
-            with pytest.raises((sqlite3.Error, ValueError)):
+            with pytest.raises(TelemetryUnavailableError):
                 await query_service.check_health()
         finally:
             # Restore so fixture teardown doesn't crash
@@ -218,13 +218,13 @@ class TestReadTimeout:
         short_timeout_query_service: TelemetryQueryService,
         short_timeout_db: tuple[DatabaseService, int],
     ) -> None:
-        """execute() raises TimeoutError when a query exceeds read_timeout_seconds."""
+        """execute() raises TelemetryUnavailableError when a query exceeds read_timeout_seconds."""
         db_svc, _ = short_timeout_db
 
         # Register a custom SQLite function that sleeps, forcing the query to exceed the 100ms timeout
         await db_svc.read_db.create_function("sleep_ms", 1, lambda ms: time.sleep(ms / 1000))
 
-        with pytest.raises(TimeoutError):
+        with pytest.raises(TelemetryUnavailableError):
             async with short_timeout_query_service.execute("SELECT sleep_ms(300)") as cursor:
                 await cursor.fetchone()
 

@@ -8,7 +8,8 @@ import uuid_utils
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.web.dependencies import DB_ERRORS, HassetteDep, TelemetryDep
+from hassette.exceptions import TelemetryUnavailableError
+from hassette.web.dependencies import HassetteDep, TelemetryDep
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", exec
     """Fall back to DB query for non-UUIDv7 execution IDs (historical UUIDv4 IDs)."""
     try:
         return await telemetry.check_execution_predates_retention_cutoff(execution_id, cutoff)
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to check retention for %s — assuming not expired", execution_id, exc_info=True)
         return False
 
@@ -72,7 +73,7 @@ async def get_execution_logs(
             execution_id,
             limit=limit,
         )
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch log records for execution %s", execution_id, exc_info=True)
         response.status_code = 503
         return LogsByExecutionResponse(records=[], truncated=False, retention_expired=False)

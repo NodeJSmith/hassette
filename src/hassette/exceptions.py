@@ -57,6 +57,10 @@ class ConnectionClosedError(HassetteError):
     """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
 
 
+class TelemetryUnavailableError(HassetteError):
+    """The telemetry store could not satisfy a read (down, slow, or closed)."""
+
+
 class SchemaVersionError(HassetteError):
     """Raised when the on-disk database schema version is ahead of the code's expected head.
 

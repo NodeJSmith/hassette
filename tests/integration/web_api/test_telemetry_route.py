@@ -182,7 +182,7 @@ class TestAppJobsModeAndLiveCounts:
         """GET /api/scheduler/jobs also surfaces mode and live counts."""
         db_summary = make_job_summary(job_id=50, job_name="global_job", handler_method="MyApp.on_run")
         db_summary = db_summary.model_copy(update={"mode": "restart"})
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)
         live_job = make_real_job(name="global_job", trigger=trigger)

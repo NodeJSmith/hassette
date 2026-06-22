@@ -9,9 +9,15 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, AppHealthAggregates
+from hassette.core.telemetry.helpers import (
+    DEFAULT_QUERY_LIMIT,
+    DEFAULT_SPARKLINE_BUCKETS,
+    STORAGE_ERRORS,
+    AppHealthAggregates,
+)
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
 
@@ -64,10 +70,21 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
 
     @contextlib.asynccontextmanager
     async def execute(self, query: str, params: dict[str, Any] | None = None) -> AsyncIterator[aiosqlite.Cursor]:
-        """Execute a query with a read timeout."""
-        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
-            async with self._db.execute(query, params) as cursor:
-                yield cursor
+        """Execute a query with a read timeout, translating storage errors to TelemetryUnavailableError.
+
+        The translation `except` wraps the `yield`, so a storage-tuple exception raised by the
+        caller's `async with self.execute(...) as cursor:` body (e.g. from `cursor.fetchall()`) is
+        also translated — which is exactly what the degradation contract needs for the fetch path.
+        Invariant: keep the caller block to DB I/O only (fetch into a local, then transform/validate
+        *outside* the block). Application logic that may raise a non-DB `ValueError` belongs outside,
+        so it surfaces as a 500 rather than being mistaken for a closed-connection storage error.
+        """
+        try:
+            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
+                async with self._db.execute(query, params) as cursor:
+                    yield cursor
+        except STORAGE_ERRORS as exc:
+            raise TelemetryUnavailableError(str(exc)) from exc
 
     async def check_health(self) -> None:
         """Verify the database connection is alive."""

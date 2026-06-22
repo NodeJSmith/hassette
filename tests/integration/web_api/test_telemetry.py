@@ -1,12 +1,12 @@
 """Integration tests for telemetry web API endpoints."""
 
-import sqlite3
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.core.telemetry.query_service import AppHealthAggregates
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.telemetry_models import (
     Execution,
@@ -326,9 +326,9 @@ class TestTelemetryStatus:
         assert data["degraded"] is False
 
     async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
-        """/api/telemetry/status returns 503 with degraded=true when DB query raises sqlite3.Error."""
+        """/api/telemetry/status returns 503 with degraded=true when the query raises TelemetryUnavailableError."""
         mock_hassette.telemetry_query_service.check_health = AsyncMock(
-            side_effect=sqlite3.OperationalError("database is locked")
+            side_effect=TelemetryUnavailableError("database is locked")
         )
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 503
@@ -424,10 +424,24 @@ class TestBusListenersSinceParam:
     ) -> None:
         response = await client.get("/api/bus/listeners?since=1700000020.0")
         assert response.status_code == 200
-        mock_hassette.telemetry_query_service.get_all_listeners_summary.assert_called_once()
-        call_kwargs = mock_hassette.telemetry_query_service.get_all_listeners_summary.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["app_key"] is None
         assert call_kwargs["since"] == pytest.approx(1700000020.0)
-        mock_hassette.telemetry_query_service.get_listener_summary.assert_not_called()
+
+    async def test_bus_listeners_empty_string_app_key_does_not_route_to_all_apps(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """?app_key= (empty string) must not fall through to the all-apps path."""
+        # Wire a non-empty return so we can tell if the all-apps path was taken
+        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(return_value=[])
+        response = await client.get("/api/bus/listeners?app_key=")
+        # An empty app_key is not None — the unified method is called with app_key=""
+        # (which finds nothing in the DB), NOT with app_key=None (full-table scan).
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        assert call_kwargs["app_key"] == ""
+        # Confirm app_key is not None — it did NOT go through the all-apps branch
+        assert call_kwargs["app_key"] is not None
 
 
 class TestSourceTierParameter:

@@ -3,16 +3,12 @@
 Returns all scheduled jobs across all apps, enriched with live heap data.
 """
 
-from logging import getLogger
-
 from fastapi import APIRouter, Query, Response
 
 from hassette.schemas.telemetry_models import JobSummary
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep
-from hassette.web.utils import enrich_jobs_with_heap
-
-LOGGER = getLogger(__name__)
+from hassette.web.dependencies import SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep, db_degrades_to
+from hassette.web.utils import enrich_jobs_with_live_heap
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
@@ -33,20 +29,8 @@ async def all_jobs(
 
     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
     """
-    try:
-        db_jobs = list(await telemetry.get_all_jobs_summary(since=since, source_tier=source_tier))
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch global job summaries", exc_info=True)
-        response.status_code = 503
-        return []
-
-    # Single heap snapshot, never per-app.
-    try:
-        live_jobs = await scheduler_service.get_all_jobs()
-    except (OSError, RuntimeError, ValueError):
-        LOGGER.warning(
-            "Failed to fetch live scheduler jobs for global enrichment; returning DB rows only", exc_info=True
-        )
-        return db_jobs
-
-    return enrich_jobs_with_heap(db_jobs, live_jobs)
+    jobs: list[JobSummary] = []
+    with db_degrades_to(response):
+        db_jobs = list(await telemetry.get_job_summary(since=since, source_tier=source_tier))
+        jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service, context="global enrichment")
+    return jobs

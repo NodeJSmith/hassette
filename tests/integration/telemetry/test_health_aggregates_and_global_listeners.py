@@ -1,12 +1,12 @@
-"""Tests for get_app_health_aggregates() and get_all_listeners_summary().
+"""Tests for get_app_health_aggregates() and get_listener_summary().
 
 Covers:
 - get_app_health_aggregates() returns correct totals matching per-item sums
 - get_app_health_aggregates() returns zero-values for apps with no invocations
 - get_app_health_aggregates() respects the ``since`` parameter
-- get_all_listeners_summary() returns all listeners across multiple apps/instances
-- get_all_listeners_summary() last-error row coherence (ROW_NUMBER CTE)
-- get_all_listeners_summary() respects source_tier filtering
+- get_listener_summary() returns all listeners across multiple apps/instances
+- get_listener_summary() last-error row coherence (ROW_NUMBER CTE)
+- get_listener_summary() respects source_tier filtering
 """
 
 import pytest
@@ -241,7 +241,7 @@ class TestGetAppHealthAggregates:
         assert agg1.handler_errors == 1
 
 
-class TestGetAllListenersSummary:
+class TestGetListenerSummaryGlobal:
     async def test_returns_all_listeners_across_apps_and_instances(
         self,
         query_service: TelemetryQueryService,
@@ -257,7 +257,7 @@ class TestGetAllListenersSummary:
         await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=5.0)
         await insert_invocation(db_svc, l2, session_id, status="error", duration_ms=20.0)
 
-        results = await query_service.get_all_listeners_summary()
+        results = await query_service.get_listener_summary()
 
         assert len(results) == 3
         assert all(isinstance(r, ListenerSummary) for r in results)
@@ -283,7 +283,7 @@ class TestGetAllListenersSummary:
         await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=20.0)
         await insert_invocation(db_svc, l2, session_id, status="error", duration_ms=5.0)
 
-        global_results = await query_service.get_all_listeners_summary(source_tier="all")
+        global_results = await query_service.get_listener_summary(source_tier="all")
 
         per_x = await query_service.get_listener_summary(app_key="app_x", instance_index=0, source_tier="all")
         per_y = await query_service.get_listener_summary(app_key="app_y", instance_index=0, source_tier="all")
@@ -327,7 +327,7 @@ class TestGetAllListenersSummary:
             execution_start_ts=BASE_TS + 10.0,
         )
 
-        results = await query_service.get_all_listeners_summary()
+        results = await query_service.get_listener_summary()
         assert len(results) == 1
         row = results[0]
 
@@ -349,7 +349,7 @@ class TestGetAllListenersSummary:
             db_svc, app_key="__hassette__Internal", handler_method="on_internal", source_tier="framework"
         )
 
-        results = await query_service.get_all_listeners_summary(source_tier="app")
+        results = await query_service.get_listener_summary(source_tier="app")
 
         assert len(results) == 1
         assert results[0].source_tier == "app"
@@ -367,7 +367,7 @@ class TestGetAllListenersSummary:
             db_svc, app_key="__hassette__Internal", handler_method="on_internal", source_tier="framework"
         )
 
-        results = await query_service.get_all_listeners_summary(source_tier="all")
+        results = await query_service.get_listener_summary(source_tier="all")
 
         assert len(results) == 2
         tiers = {r.source_tier for r in results}
@@ -393,7 +393,7 @@ class TestGetAllListenersSummary:
             db_svc, l1, session_id, status="success", duration_ms=20.0, execution_start_ts=BASE_TS + 100.0
         )
 
-        results = await query_service.get_all_listeners_summary(since=since_ts)
+        results = await query_service.get_listener_summary(since=since_ts)
 
         assert len(results) == 1
         row = results[0]
@@ -406,7 +406,7 @@ class TestGetAllListenersSummary:
         db: tuple[DatabaseService, int],
     ) -> None:
         """Empty database returns empty list."""
-        results = await query_service.get_all_listeners_summary()
+        results = await query_service.get_listener_summary()
         assert results == []
 
     async def test_since_filter_scopes_error_cte(
@@ -438,7 +438,7 @@ class TestGetAllListenersSummary:
             execution_start_ts=BASE_TS + 100.0,
         )
 
-        results = await query_service.get_all_listeners_summary(since=since_ts)
+        results = await query_service.get_listener_summary(since=since_ts)
         assert len(results) == 1
         row = results[0]
         assert row.last_error_type == "NewError"

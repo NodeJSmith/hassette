@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 import aiosqlite
 import pytest
 
-import hassette.core.telemetry_repository as telemetry_repository_module
+import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_repository import TelemetryRepository
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 # DDL mirrors 001.sql — unified schema with executions table replacing handler_invocations/job_executions

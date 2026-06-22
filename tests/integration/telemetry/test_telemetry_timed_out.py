@@ -71,7 +71,7 @@ class TestListenerSummaryThreadLeaked:
         await insert_invocation(db_svc, lid, session_id, status="timed_out", thread_leaked=0)
         await insert_invocation(db_svc, lid, session_id, status="success")
 
-        summaries = await query_service.get_all_listeners_summary()
+        summaries = await query_service.get_listener_summary()
         match = [s for s in summaries if s.listener_id == lid]
         assert len(match) == 1
         # Only the leaked-worker invocation counts; the clean timeout is excluded.
@@ -133,7 +133,7 @@ class TestJobSummaryThreadLeaked:
         await insert_execution(db_svc, jid, session_id, status="timed_out", thread_leaked=0)
         await insert_execution(db_svc, jid, session_id, status="success")
 
-        summaries = await query_service.get_all_jobs_summary()
+        summaries = await query_service.get_job_summary()
         match = [s for s in summaries if s.job_id == jid]
         assert len(match) == 1
         # Only the leaked-worker execution counts; the clean timeout is excluded.

@@ -10,7 +10,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry_repository import TelemetryRepository, _execution_insert_params
+from hassette.core.telemetry.repository import TelemetryRepository, _execution_insert_params
 
 from .helpers import (
     insert_job,
@@ -148,7 +148,6 @@ class TestHandlerInvocationExecutionId:
         )
         params = _execution_insert_params(record)
 
-        # Verify params has all expected keys
         assert "kind" in params
         assert "execution_id" in params
         assert "trigger_context_id" in params
@@ -160,18 +159,16 @@ class TestHandlerInvocationExecutionId:
         # is_di_failure must be int-converted (not bool)
         assert isinstance(params["is_di_failure"], int)
 
-        # Build actual column list from keys — same as persist_execution_batch() does
+        # Build the column list from keys — same as persist_execution_batch() does
         cols = ", ".join(params.keys())
         vals = ", ".join(f":{k}" for k in params)
 
-        # Verify the constructed INSERT works against a real DB
         await db_svc.db.execute(
             f"INSERT INTO executions ({cols}) VALUES ({vals})",
             params,
         )
         await db_svc.db.commit()
 
-        # Count rows — should have exactly 1
         async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
             count_row = await cursor.fetchone()
         assert count_row is not None
@@ -210,7 +207,6 @@ class TestJobExecutionExecutionId:
         )
         params = _execution_insert_params(record)
 
-        # Verify params has all expected keys
         assert "kind" in params
         assert "execution_id" in params
         assert "job_id" in params
@@ -220,18 +216,16 @@ class TestJobExecutionExecutionId:
         # is_di_failure must be int-converted (not bool)
         assert isinstance(params["is_di_failure"], int)
 
-        # Build actual column list from keys — same as persist_execution_batch() does
+        # Build the column list from keys — same as persist_execution_batch() does
         cols = ", ".join(params.keys())
         vals = ", ".join(f":{k}" for k in params)
 
-        # Verify the constructed INSERT works against a real DB
         await db_svc.db.execute(
             f"INSERT INTO executions ({cols}) VALUES ({vals})",
             params,
         )
         await db_svc.db.commit()
 
-        # Count rows — should have exactly 1
         async with db_svc.db.execute("SELECT COUNT(*) FROM executions") as cursor:
             count_row = await cursor.fetchone()
         assert count_row is not None

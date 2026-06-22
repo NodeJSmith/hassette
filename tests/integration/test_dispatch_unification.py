@@ -21,7 +21,7 @@ from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry_repository import TelemetryRepository
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.helpers import create_listener
 
 

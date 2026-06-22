@@ -622,18 +622,26 @@ def build_global_summaries() -> tuple[GlobalSummary, GlobalSummary]:
 
 def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummary]]) -> None:
     """Wire listener summary side effects onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_listener_summary = AsyncMock(
-        side_effect=lambda app_key, **_: listeners_by_app.get(app_key, [])
-    )
     all_listeners = [ls for app_listeners in listeners_by_app.values() for ls in app_listeners]
-    hassette._telemetry_query_service.get_all_listeners_summary = AsyncMock(return_value=all_listeners)
+
+    def _listener_side_effect(app_key=None, **_):
+        if app_key is None:
+            return all_listeners
+        return listeners_by_app.get(app_key, [])
+
+    hassette._telemetry_query_service.get_listener_summary = AsyncMock(side_effect=_listener_side_effect)
 
 
 def wire_job_telemetry(hassette, jobs_by_app: dict[str, list[JobSummary]]) -> None:
     """Wire job summary side effects onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_job_summary = AsyncMock(
-        side_effect=lambda app_key, **_: jobs_by_app.get(app_key, [])
-    )
+    all_jobs = [j for app_jobs in jobs_by_app.values() for j in app_jobs]
+
+    def _job_side_effect(app_key=None, **_):
+        if app_key is None:
+            return all_jobs
+        return jobs_by_app.get(app_key, [])
+
+    hassette._telemetry_query_service.get_job_summary = AsyncMock(side_effect=_job_side_effect)
 
 
 def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
@@ -665,9 +673,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
             rows = [e for e in rows if e.execution_start_ts >= since]
         return rows[:limit]
 
-    hassette._telemetry_query_service.get_executions = AsyncMock(
-        side_effect=lambda **kw: _executions_side_effect(**kw),
-    )
+    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=_executions_side_effect)
 
 
 def build_app_health_summaries() -> dict[str, AppHealthSummary]:

@@ -12,7 +12,8 @@ from typing import Literal, cast
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.exceptions import TelemetryUnavailableError
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS, MAX_QUERY_LIMIT
 from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
@@ -21,7 +22,14 @@ from hassette.schemas.telemetry_models import (
     JobSummary,
 )
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
+from hassette.web.dependencies import (
+    SOURCE_TIER_PARAM,
+    HassetteDep,
+    RuntimeDep,
+    SchedulerDep,
+    TelemetryDep,
+    db_degrades_to,
+)
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
     ActivityBucket,
@@ -39,10 +47,9 @@ from hassette.web.telemetry_helpers import (
     compute_error_rate,
     compute_success_rate,
 )
-from hassette.web.utils import enrich_jobs_with_heap
+from hassette.web.utils import enrich_jobs_with_live_heap
 
 LOGGER = getLogger(__name__)
-MAX_QUERY_LIMIT = 500
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -63,30 +70,25 @@ async def telemetry_status(
     Returns 503 with ``degraded: true`` when the database is
     unavailable; 200 with ``degraded: false`` when healthy.
     """
-    try:
+    result: TelemetryStatusResponse = TelemetryStatusResponse(degraded=True)
+    with db_degrades_to(response):
         await telemetry.check_health()
-    except DB_ERRORS:
-        LOGGER.warning("Telemetry database health check failed", exc_info=True)
-        response.status_code = 503
-        return TelemetryStatusResponse(degraded=True)
-
-    try:
-        overflow, exhausted, shutdown = hassette.get_drop_counters()
-    except (AttributeError, RuntimeError):
-        overflow, exhausted, shutdown = 0, 0, 0
-
-    try:
-        error_handler_failures = hassette.get_error_handler_failures()
-    except (AttributeError, RuntimeError):
-        error_handler_failures = 0
-
-    return TelemetryStatusResponse(
-        degraded=False,
-        dropped_overflow=overflow,
-        dropped_exhausted=exhausted,
-        dropped_shutdown=shutdown,
-        error_handler_failures=error_handler_failures,
-    )
+        try:
+            overflow, exhausted, shutdown = hassette.get_drop_counters()
+        except (AttributeError, RuntimeError):
+            overflow, exhausted, shutdown = 0, 0, 0
+        try:
+            error_handler_failures = hassette.get_error_handler_failures()
+        except (AttributeError, RuntimeError):
+            error_handler_failures = 0
+        result = TelemetryStatusResponse(
+            degraded=False,
+            dropped_overflow=overflow,
+            dropped_exhausted=exhausted,
+            dropped_shutdown=shutdown,
+            error_handler_failures=error_handler_failures,
+        )
+    return result
 
 
 def error_rate_from_summary(summary: AppHealthSummary) -> float:
@@ -125,37 +127,33 @@ async def app_health(
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
-    try:
+    result: AppHealthResponse = AppHealthResponse(
+        error_rate=0.0,
+        error_rate_class=classify_error_rate(0.0),
+        handler_avg_duration=0.0,
+        job_avg_duration=0.0,
+        last_activity_ts=None,
+        health_status=classify_health_bar(100.0),
+    )
+    with db_degrades_to(response):
         agg = await telemetry.get_app_health_aggregates(
             app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
         )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch app health for %s", app_key, exc_info=True)
-        response.status_code = 503
-        return AppHealthResponse(
-            error_rate=0.0,
-            error_rate_class=classify_error_rate(0.0),
-            handler_avg_duration=0.0,
-            job_avg_duration=0.0,
-            last_activity_ts=None,
-            health_status=classify_health_bar(100.0),
+        error_rate = compute_error_rate(
+            total_invocations=agg.total_invocations,
+            total_executions=agg.total_executions,
+            handler_errors=agg.handler_errors + agg.handler_timed_out,
+            job_errors=agg.job_errors + agg.job_timed_out,
         )
-
-    error_rate = compute_error_rate(
-        total_invocations=agg.total_invocations,
-        total_executions=agg.total_executions,
-        handler_errors=agg.handler_errors + agg.handler_timed_out,
-        job_errors=agg.job_errors + agg.job_timed_out,
-    )
-
-    return AppHealthResponse(
-        error_rate=error_rate,
-        error_rate_class=classify_error_rate(error_rate),
-        handler_avg_duration=agg.handler_avg_duration_ms,
-        job_avg_duration=agg.job_avg_duration_ms,
-        last_activity_ts=agg.last_activity_ts,
-        health_status=classify_health_bar(compute_success_rate(error_rate)),
-    )
+        result = AppHealthResponse(
+            error_rate=error_rate,
+            error_rate_class=classify_error_rate(error_rate),
+            handler_avg_duration=agg.handler_avg_duration_ms,
+            job_avg_duration=agg.job_avg_duration_ms,
+            last_activity_ts=agg.last_activity_ts,
+            health_status=classify_health_bar(compute_success_rate(error_rate)),
+        )
+    return result
 
 
 @router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
@@ -169,16 +167,14 @@ async def app_listeners(
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
-    try:
+    rows: list[ListenerWithSummary] = []
+    with db_degrades_to(response):
         listeners = await telemetry.get_listener_summary(
             app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
         )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch listeners for %s", app_key, exc_info=True)
-        response.status_code = 503
-        return []
-    live_counts = hassette.bus_service.live_execution_counts()
-    return [to_listener_with_summary(ls, live_counts) for ls in listeners]
+        live_counts = hassette.bus_service.live_execution_counts()
+        rows = [to_listener_with_summary(ls, live_counts) for ls in listeners]
+    return rows
 
 
 @router.get("/app/{app_key}/activity", response_model=list[ActivityFeedEntry])
@@ -195,18 +191,16 @@ async def app_activity(
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     effective_since = since if since is not None else time.time() - SECONDS_PER_DAY
-    try:
-        return await telemetry.get_app_recent_activity(
+    activity: list[ActivityFeedEntry] = []
+    with db_degrades_to(response):
+        activity = await telemetry.get_app_recent_activity(
             app_key=app_key,
             instance_index=instance_index,
             limit=limit,
             since=effective_since,
             source_tier=source_tier,
         )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch activity for %s", app_key, exc_info=True)
-        response.status_code = 503
-        return []
+    return activity
 
 
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
@@ -225,26 +219,15 @@ async def app_jobs(
     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
     returned without enrichment (degraded but functional; logged warning, no 500).
     """
-    try:
+    jobs: list[JobSummary] = []
+    with db_degrades_to(response):
         db_jobs = list(
             await telemetry.get_job_summary(
                 app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
         )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch jobs for %s", app_key, exc_info=True)
-        response.status_code = 503
-        return []
-
-    # Enrich DB rows with live heap state. INVARIANT: get_all_jobs() acquires
-    # FairAsyncRLock internally and returns a list copy.
-    try:
-        live_jobs = await scheduler_service.get_all_jobs()
-    except (OSError, RuntimeError, ValueError):
-        LOGGER.warning("Failed to fetch live scheduler jobs for enrichment; returning DB rows only", exc_info=True)
-        return db_jobs
-
-    return enrich_jobs_with_heap(db_jobs, live_jobs)
+        jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service)
+    return jobs
 
 
 @router.get("/executions", response_model=list[Execution])
@@ -260,12 +243,10 @@ async def list_executions(
     Filter by ``kind=handler`` or ``kind=job`` to restrict to one type.
     Each record includes a ``kind`` field that discriminates the execution type.
     """
-    try:
-        return await telemetry.get_executions(kind=kind, limit=limit, since=since)
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch executions", exc_info=True)
-        response.status_code = 503
-        return []
+    executions: list[Execution] = []
+    with db_degrades_to(response):
+        executions = await telemetry.get_executions(kind=kind, limit=limit, since=since)
+    return executions
 
 
 @router.get("/listener/{listener_id}/executions", response_model=list[Execution])
@@ -277,12 +258,10 @@ async def listener_executions(
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[Execution]:
     """Execution history for a specific listener (handler invocations)."""
-    try:
-        return await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch executions for listener %s", listener_id, exc_info=True)
-        response.status_code = 503
-        return []
+    executions: list[Execution] = []
+    with db_degrades_to(response):
+        executions = await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
+    return executions
 
 
 @router.get("/job/{job_id}/executions", response_model=list[Execution])
@@ -294,12 +273,10 @@ async def job_executions(
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[Execution]:
     """Execution history for a specific job."""
-    try:
-        return await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch executions for job %s", job_id, exc_info=True)
-        response.status_code = 503
-        return []
+    executions: list[Execution] = []
+    with db_degrades_to(response):
+        executions = await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
+    return executions
 
 
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
@@ -316,7 +293,7 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -331,11 +308,11 @@ async def dashboard_app_grid(
                 num_buckets=DEFAULT_SPARKLINE_BUCKETS,
                 source_tier="app",
             )
-        except DB_ERRORS:
+        except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
         try:
             per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
-        except DB_ERRORS:
+        except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
 
     empty = AppHealthSummary(
@@ -351,7 +328,7 @@ async def dashboard_app_grid(
         last_activity_ts=None,
     )
 
-    entries = []
+    entries: list[DashboardAppGridEntry] = []
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
         rate = error_rate_from_summary(health)

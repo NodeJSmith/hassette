@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import DB_ERRORS, HassetteDep, RuntimeDep, TelemetryDep
+from hassette.exceptions import TelemetryUnavailableError
+from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
     ActionResponse,
@@ -58,7 +59,7 @@ async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> App
     invocations_by_key: dict[str, int] = {}
     try:
         invocations_by_key = await telemetry.get_recent_invocations_1h_all_apps()
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app manifests", exc_info=True)
 
     enriched_manifests = [
