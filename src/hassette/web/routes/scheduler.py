@@ -31,6 +31,6 @@ async def all_jobs(
     """
     jobs: list[JobSummary] = []
     with db_degrades_to(response):
-        db_jobs = list(await telemetry.get_all_jobs_summary(since=since, source_tier=source_tier))
+        db_jobs = list(await telemetry.get_job_summary(since=since, source_tier=source_tier))
         jobs = await enrich_jobs_with_live_heap(db_jobs, scheduler_service, context="global enrichment")
     return jobs

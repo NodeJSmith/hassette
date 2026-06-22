@@ -1,7 +1,7 @@
 """Tests for global jobs endpoint and ServiceInfoResponse extension.
 
 Covers:
-- get_all_jobs_summary() returns jobs from multiple apps, no app_key filter
+- get_job_summary() returns jobs from multiple apps when app_key is None
 - GET /api/scheduler/jobs enriches with live heap data when available
 - GET /api/scheduler/jobs returns DB-only data on scheduler failure (degraded)
 - ServiceInfoResponse includes role, ready_phase, retry_at when available
@@ -35,13 +35,13 @@ from .helpers import (
 STUB_TIMESTAMP = 1_700_000_000.0
 
 
-class TestGetAllJobsSummary:
+class TestGetJobSummaryGlobal:
     async def test_returns_jobs_from_multiple_apps(
         self,
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """get_all_jobs_summary() aggregates jobs from multiple apps without app_key filter."""
+        """get_job_summary() aggregates jobs from multiple apps without app_key filter."""
         db_svc, session_id = db
 
         j1 = await insert_job(db_svc, app_key="app_alpha", job_name="alpha_job")
@@ -50,7 +50,7 @@ class TestGetAllJobsSummary:
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, j2, session_id, status="error", duration_ms=50.0, error_type="ValueError")
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
 
         assert len(results) == 2
         app_keys = {r.app_key for r in results}
@@ -68,7 +68,7 @@ class TestGetAllJobsSummary:
         for i in range(5):
             await insert_job(db_svc, app_key=f"app_{i}", job_name=f"job_{i}")
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
         assert len(results) == 5
 
     async def test_includes_error_fields(
@@ -90,7 +90,7 @@ class TestGetAllJobsSummary:
             error_message="something went wrong",
         )
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
         assert len(results) == 1
         row = results[0]
         assert row.last_error_type == "RuntimeError"
@@ -109,7 +109,7 @@ class TestGetAllJobsSummary:
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=50.0)
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
         assert len(results) == 1
         row = results[0]
         assert row.min_duration_ms == pytest.approx(5.0)
@@ -125,7 +125,7 @@ class TestGetAllJobsSummary:
 
         await insert_job(db_svc, app_key="my_app", job_name="idle_job")
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
         assert len(results) == 1
         row = results[0]
         assert row.min_duration_ms is None
@@ -148,7 +148,7 @@ class TestGetAllJobsSummary:
         # After since: should count
         await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 10.0)
 
-        results = await query_service.get_all_jobs_summary(since=since_ts)
+        results = await query_service.get_job_summary(since=since_ts)
         assert len(results) == 1
         row = results[0]
         assert row.total_executions == 1
@@ -164,7 +164,7 @@ class TestGetAllJobsSummary:
         await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
         await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
-        results = await query_service.get_all_jobs_summary(source_tier="app")
+        results = await query_service.get_job_summary(source_tier="app")
         assert len(results) == 1
         assert results[0].source_tier == "app"
 
@@ -179,7 +179,7 @@ class TestGetAllJobsSummary:
         await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
         await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
-        results = await query_service.get_all_jobs_summary(source_tier="all")
+        results = await query_service.get_job_summary(source_tier="all")
         assert len(results) == 2
 
     async def test_last_error_row_coherence(
@@ -213,7 +213,7 @@ class TestGetAllJobsSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        results = await query_service.get_all_jobs_summary()
+        results = await query_service.get_job_summary()
         assert len(results) == 1
         row = results[0]
         # All three error columns must come from the same (most recent) row
@@ -227,7 +227,7 @@ class TestGetAllJobsSummary:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Error before the since window is excluded from last_error_* in get_all_jobs_summary."""
+        """Error before the since window is excluded from last_error_* in get_job_summary."""
         db_svc, session_id = db
         base_ts = 1_000_000.0
         since_ts = base_ts + 50.0
@@ -254,7 +254,7 @@ class TestGetAllJobsSummary:
             execution_start_ts=base_ts + 100.0,
         )
 
-        results = await query_service.get_all_jobs_summary(since=since_ts)
+        results = await query_service.get_job_summary(since=since_ts)
         assert len(results) == 1
         row = results[0]
         assert row.last_error_type == "NewError"
@@ -280,7 +280,7 @@ async def scheduler_client(mock_hassette_scheduler):
 class TestGlobalJobsEndpointExists:
     async def test_endpoint_returns_200(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/scheduler/jobs returns 200 and a list."""
-        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[])
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[])
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
         response = await scheduler_client.get("/api/scheduler/jobs")
@@ -295,7 +295,7 @@ class TestGlobalJobsEndpointMultipleApps:
             make_job_summary(job_id=1, app_key="app_alpha", next_run=None),
             make_job_summary(job_id=2, app_key="app_beta", next_run=None),
         ]
-        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=db_jobs)
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=db_jobs)
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
         response = await scheduler_client.get("/api/scheduler/jobs")
@@ -310,7 +310,7 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
     async def test_enriches_with_live_heap_data(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Global jobs endpoint enriches DB rows with live next_run, fire_at, jitter."""
         db_summary = make_job_summary(job_id=42, app_key="my_app", next_run=None)
-        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)
         live_job = make_real_job(name="test_job", trigger=trigger, jitter=10.0)
@@ -334,7 +334,7 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
     async def test_returns_db_rows_when_heap_unavailable(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Returns DB-only rows (no 500) when get_all_jobs() raises."""
         db_summary = make_job_summary(job_id=55, next_run=None)
-        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
 
         response = await scheduler_client.get("/api/scheduler/jobs")
@@ -346,7 +346,7 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 
     async def test_db_error_returns_503(self, scheduler_client, mock_hassette_scheduler) -> None:
         """TelemetryUnavailableError returns 503 response."""
-        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(
+        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(
             side_effect=TelemetryUnavailableError("disk I/O error")
         )
 

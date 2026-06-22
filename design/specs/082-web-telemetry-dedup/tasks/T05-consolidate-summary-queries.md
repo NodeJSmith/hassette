@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Consolidate summary queries 4→2 + guard + test audit (#1095)"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#11", "FR#12", "FR#13", "AC#8", "AC#9"]
 ---
