@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query, Response
 from hassette.schemas.telemetry_models import JobSummary
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, SchedulerDep, TelemetryDep
-from hassette.web.utils import enrich_jobs_with_heap
+from hassette.web.utils import enrich_jobs_with_live_heap
 
 LOGGER = getLogger(__name__)
 
@@ -40,13 +40,4 @@ async def all_jobs(
         response.status_code = 503
         return []
 
-    # Single heap snapshot, never per-app.
-    try:
-        live_jobs = await scheduler_service.get_all_jobs()
-    except (OSError, RuntimeError, ValueError):
-        LOGGER.warning(
-            "Failed to fetch live scheduler jobs for global enrichment; returning DB rows only", exc_info=True
-        )
-        return db_jobs
-
-    return enrich_jobs_with_heap(db_jobs, live_jobs)
+    return await enrich_jobs_with_live_heap(db_jobs, scheduler_service, context="global enrichment")

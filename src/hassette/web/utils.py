@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from hassette.schemas.telemetry_models import JobSummary
 
 if TYPE_CHECKING:
+    from hassette.core.scheduler_service import SchedulerService
     from hassette.scheduler.classes import ScheduledJob
 
 ONE_SHOT_TRIGGER_TYPE = "one-shot"
@@ -50,6 +51,24 @@ def enrich_jobs_with_heap(
             LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)
             enriched.append(js)
     return enriched
+
+
+async def enrich_jobs_with_live_heap(
+    db_jobs: list[JobSummary],
+    scheduler_service: "SchedulerService",
+    context: str = "enrichment",
+) -> list[JobSummary]:
+    """Enrich DB job rows with live-heap data, falling back to DB rows on snapshot failure.
+
+    ``context`` labels the warning log so a failed snapshot can be traced to its call site
+    (e.g. ``"global enrichment"`` vs ``"enrichment"``).
+    """
+    try:
+        live_jobs = await scheduler_service.get_all_jobs()
+    except (OSError, RuntimeError, ValueError):
+        LOGGER.warning("Failed to fetch live scheduler jobs for %s; returning DB rows only", context, exc_info=True)
+        return db_jobs
+    return enrich_jobs_with_heap(db_jobs, live_jobs)
 
 
 def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:

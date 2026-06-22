@@ -39,7 +39,7 @@ from hassette.web.telemetry_helpers import (
     compute_error_rate,
     compute_success_rate,
 )
-from hassette.web.utils import enrich_jobs_with_heap
+from hassette.web.utils import enrich_jobs_with_live_heap
 
 LOGGER = getLogger(__name__)
 MAX_QUERY_LIMIT = 500
@@ -238,13 +238,7 @@ async def app_jobs(
 
     # Enrich DB rows with live heap state. INVARIANT: get_all_jobs() acquires
     # FairAsyncRLock internally and returns a list copy.
-    try:
-        live_jobs = await scheduler_service.get_all_jobs()
-    except (OSError, RuntimeError, ValueError):
-        LOGGER.warning("Failed to fetch live scheduler jobs for enrichment; returning DB rows only", exc_info=True)
-        return db_jobs
-
-    return enrich_jobs_with_heap(db_jobs, live_jobs)
+    return await enrich_jobs_with_live_heap(db_jobs, scheduler_service)
 
 
 @router.get("/executions", response_model=list[Execution])

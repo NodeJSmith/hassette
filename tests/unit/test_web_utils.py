@@ -1,12 +1,14 @@
-"""Tests for src/hassette/web/utils.py — resolve_trigger protocol dispatch."""
+"""Tests for src/hassette/web/utils.py — resolve_trigger dispatch and enrich_jobs_with_live_heap."""
 
 from typing import Literal
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from whenever import ZonedDateTime
 
 from hassette.scheduler.triggers import After, Daily, Every, Once
-from hassette.web.utils import ONE_SHOT_TRIGGER_TYPE, resolve_trigger
+from hassette.test_utils.web_helpers import make_job_summary
+from hassette.web.utils import ONE_SHOT_TRIGGER_TYPE, enrich_jobs_with_live_heap, resolve_trigger
 
 
 def make_job(trigger: object | None = None) -> MagicMock:
@@ -68,3 +70,66 @@ class TestResolveTrigger:
 # TestJobToDictFireAtJitter was removed when _job_to_dict was deleted along
 # with the /scheduler/jobs route. Live job serialisation now happens in the
 # app_jobs route handler enrichment path.
+
+
+class TestEnrichJobsWithLiveHeap:
+    """Unit tests for enrich_jobs_with_live_heap."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_enriches_db_jobs(self) -> None:
+        """When the snapshot succeeds, enriched rows are returned."""
+        db_summary = make_job_summary(job_id=1, job_name="my_job", handler_method="MyApp.on_run")
+
+        live_job = MagicMock()
+        live_job.db_id = 1
+        live_job.next_run = MagicMock()
+        live_job.next_run.timestamp.return_value = 9999.0
+        live_job.fire_at = None
+        live_job.jitter = None
+        live_job.guard.suppressed = 0
+        live_job.guard.dropped = 0
+
+        scheduler_service = MagicMock()
+        scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+
+        result = await enrich_jobs_with_live_heap([db_summary], scheduler_service)
+
+        assert len(result) == 1
+        assert result[0].next_run == pytest.approx(9999.0)
+        scheduler_service.get_all_jobs.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_oserror(self) -> None:
+        """When get_all_jobs() raises OSError, unenriched DB rows are returned."""
+        db_summary = make_job_summary(job_id=2, job_name="my_job", handler_method="MyApp.on_run")
+
+        scheduler_service = MagicMock()
+        scheduler_service.get_all_jobs = AsyncMock(side_effect=OSError("disk error"))
+
+        result = await enrich_jobs_with_live_heap([db_summary], scheduler_service)
+
+        assert result == [db_summary]
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_runtime_error(self) -> None:
+        """When get_all_jobs() raises RuntimeError, unenriched DB rows are returned."""
+        db_summary = make_job_summary(job_id=3, job_name="my_job", handler_method="MyApp.on_run")
+
+        scheduler_service = MagicMock()
+        scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
+
+        result = await enrich_jobs_with_live_heap([db_summary], scheduler_service)
+
+        assert result == [db_summary]
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_value_error(self) -> None:
+        """When get_all_jobs() raises ValueError, unenriched DB rows are returned."""
+        db_summary = make_job_summary(job_id=4, job_name="my_job", handler_method="MyApp.on_run")
+
+        scheduler_service = MagicMock()
+        scheduler_service.get_all_jobs = AsyncMock(side_effect=ValueError("closed"))
+
+        result = await enrich_jobs_with_live_heap([db_summary], scheduler_service)
+
+        assert result == [db_summary]

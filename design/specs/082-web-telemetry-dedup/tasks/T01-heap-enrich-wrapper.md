@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract enrich_jobs_with_live_heap wrapper (#1107)"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "AC#1"]
 ---
