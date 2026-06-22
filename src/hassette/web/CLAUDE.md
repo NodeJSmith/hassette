@@ -14,13 +14,17 @@ from hassette.web.dependencies import RuntimeDep, TelemetryDep, SchedulerDep, Ha
 - `HassetteDep` — the root Hassette instance (drop counters, ready event)
 - `ApiDep` — Home Assistant REST/WebSocket API
 
-## DB_ERRORS Catch Pattern
+## Telemetry Error Handling Pattern (#1108b / #1114)
 
-`DB_ERRORS = (sqlite3.Error, OSError, ValueError, TimeoutError)` — four raw storage exceptions that propagate from aiosqlite to route handlers.  `ValueError` is included because aiosqlite raises it for closed-connection errors during shutdown; `TimeoutError` covers queries that exceed the configured read timeout.
+Storage exceptions (`sqlite3.Error`, `OSError`, `ValueError`, `TimeoutError`) are **translated at the `TelemetryQueryService` boundary** into `TelemetryUnavailableError` (defined in `hassette.exceptions`).  The HTTP layer catches only that narrow domain type — never raw storage exceptions.
+
+- `TelemetryQueryService.execute()` wraps its body in `try/except (sqlite3.Error, OSError, ValueError, TimeoutError)` and re-raises as `TelemetryUnavailableError`.
+- `get_all_app_summaries` in `summary_queries.py` has its own manual transaction that bypasses `execute()` — it carries the same translation wrapper.
+- A non-DB `ValueError` raised inside a handler body (e.g. from `model_validate`, a key error, application logic) **is not** `TelemetryUnavailableError` and will propagate as HTTP 500.  This is the intended behavior.
 
 ### `db_degrades_to` — the preferred shape (#1108a)
 
-Use `db_degrades_to(response)` for category-A and category-B sites instead of inlining `try/except`.  The CM catches `DB_ERRORS`, logs a warning with `exc_info`, and sets `response.status_code = 503`.  It does **not** force a return — callers pre-initialize the result to the failure default and return at the tail:
+Use `db_degrades_to(response)` for category-A and category-B sites instead of inlining `try/except`.  The CM catches `TelemetryUnavailableError`, logs a warning with `exc_info`, and sets `response.status_code = 503`.  It does **not** force a return — callers pre-initialize the result to the failure default and return at the tail:
 
 ```python
 from hassette.web.dependencies import db_degrades_to
@@ -46,16 +50,16 @@ return result
 
 ### Category-C and category-D sites — intentional exceptions
 
-These sites do **not** use `db_degrades_to`.  Wrapping them would change their HTTP status from 200 to 503, breaking the frontend contract.
+These sites do **not** use `db_degrades_to`.  They catch `TelemetryUnavailableError` inline and return HTTP 200 with partial data — wrapping them in `db_degrades_to` would change their status to 503 and break the frontend contract.
 
 - **Category C (silent-200 partial degradation):** DB failure sets a safe default and the handler continues with non-DB data (e.g. from `runtime.get_all_manifests_snapshot()`).  Status stays 200.  Do not apply `db_degrades_to` to these sites.
 - **Category D (multi-failure-mode):** The handler has two independent failure semantics that cannot be expressed by a single CM.  Handle each failure mode inline.
 
-### Site classification table — all 17 `except DB_ERRORS` sites (#1108a)
+### Site classification table — all 17 `except TelemetryUnavailableError` sites (#1108a + #1108b)
 
 Categories: **A** = one-line wrap; **B** = post-query work must move inside the `with`; **C** = silent-200 EXCLUDED; **D** = multi-failure EXCLUDED.
 
-| # | File | Line | Endpoint / function | Status on failure | Default returned | Category | #1108a action |
+| # | File | Line | Endpoint / function | Status on failure | Default returned | Category | Action |
 |---|------|------|---------------------|-------------------|------------------|----------|----------------|
 | 1 | `telemetry.py` | 68 | `telemetry_status` | 503 | `TelemetryStatusResponse(degraded=True)` | **B** | Move drop-counter + error-handler-failure code inside `with`; tail return |
 | 2 | `telemetry.py` | 132 | `app_health` | 503 | `AppHealthResponse(error_rate=0.0, ...)` | **B** | Move `error_rate` computation and success `AppHealthResponse` inside `with`; tail return |

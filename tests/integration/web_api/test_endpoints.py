@@ -1,13 +1,13 @@
 """Integration tests for core web API endpoints."""
 
 import logging
-import sqlite3
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import ListenerSummary
 
 if TYPE_CHECKING:
@@ -317,7 +317,9 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_returns_503_on_db_error(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(side_effect=sqlite3.Error("db error"))
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(
+            side_effect=TelemetryUnavailableError("db error")
+        )
         response = await client.get("/api/logs/recent")
         assert response.status_code == 503
         assert response.json() == []

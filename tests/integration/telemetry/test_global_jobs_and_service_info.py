@@ -7,7 +7,6 @@ Covers:
 - ServiceInfoResponse includes role, ready_phase, retry_at when available
 """
 
-import sqlite3
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -17,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette.core.database_service import DatabaseService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.scheduler.triggers import Every
 from hassette.schemas.domain_models import ServiceInfo, SystemStatus
 from hassette.schemas.telemetry_models import JobSummary
@@ -345,9 +345,9 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         assert data[0]["fire_at"] is None
 
     async def test_db_error_returns_503(self, scheduler_client, mock_hassette_scheduler) -> None:
-        """DB failure returns 503 response."""
+        """TelemetryUnavailableError returns 503 response."""
         mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(
-            side_effect=sqlite3.OperationalError("disk I/O error")
+            side_effect=TelemetryUnavailableError("disk I/O error")
         )
 
         response = await scheduler_client.get("/api/scheduler/jobs")

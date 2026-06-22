@@ -12,6 +12,7 @@ from typing import Literal, cast
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.telemetry_models import (
     ActivityFeedEntry,
@@ -22,7 +23,6 @@ from hassette.schemas.telemetry_models import (
 )
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import (
-    DB_ERRORS,
     SOURCE_TIER_PARAM,
     HassetteDep,
     RuntimeDep,
@@ -296,7 +296,7 @@ async def dashboard_app_grid(
     snapshot = runtime.get_all_manifests_snapshot()
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
@@ -311,11 +311,11 @@ async def dashboard_app_grid(
                 num_buckets=DEFAULT_SPARKLINE_BUCKETS,
                 source_tier="app",
             )
-        except DB_ERRORS:
+        except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
         try:
             per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
-        except DB_ERRORS:
+        except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
 
     empty = AppHealthSummary(

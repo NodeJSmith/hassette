@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Translate storage errors to TelemetryUnavailableError (#1114)"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#7", "FR#8", "FR#9", "FR#10", "AC#6", "AC#7"]
 ---

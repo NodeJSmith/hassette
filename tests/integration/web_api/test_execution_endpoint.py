@@ -1,12 +1,13 @@
 """Integration tests for GET /api/executions/{execution_id}."""
 
-import sqlite3
 import time
 import uuid
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import uuid_utils
+
+from hassette.exceptions import TelemetryUnavailableError
 
 from .conftest import make_log_record
 
@@ -122,10 +123,10 @@ class TestGetExecutionLogs:
         assert data["retention_expired"] is False
 
     async def test_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Database error → 503 with empty response."""
+        """TelemetryUnavailableError → 503 with empty response."""
         execution_id = str(uuid_utils.uuid7())
         mock_hassette.telemetry_query_service.get_log_records_by_execution = AsyncMock(
-            side_effect=sqlite3.OperationalError("database is locked")
+            side_effect=TelemetryUnavailableError("database is locked")
         )
 
         response = await client.get(f"/api/executions/{execution_id}")

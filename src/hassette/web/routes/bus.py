@@ -5,8 +5,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
 
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import DB_ERRORS, SOURCE_TIER_PARAM, HassetteDep, TelemetryDep
+from hassette.web.dependencies import SOURCE_TIER_PARAM, HassetteDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import ListenerWithSummary
 
@@ -35,7 +36,7 @@ async def get_listener_metrics(
             summaries = await telemetry.get_listener_summary(
                 app_key=app_key, instance_index=instance_index, since=since, source_tier=source_tier
             )
-    except DB_ERRORS:
+    except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch listener metrics", exc_info=True)
         response.status_code = 503
         return []

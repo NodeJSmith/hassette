@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import sqlite3
 from typing import TYPE_CHECKING, Any, assert_never
 
 from hassette.core.telemetry.helpers import (
@@ -14,6 +15,7 @@ from hassette.core.telemetry.helpers import (
     _since_clause,
     _source_tier_clause,
 )
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import AppHealthSummary, SessionRecord
 from hassette.types.types import QuerySourceTier
 
@@ -210,22 +212,25 @@ class SummaryQueriesMixin:
         listener_act_params: dict[str, Any] = {**tier_params, **since_params}
         job_act_params: dict[str, Any] = {**tier_params, **since_params}
 
-        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
-            try:
-                await self._db.execute("BEGIN DEFERRED")
-                async with self._db.execute(listener_reg_query) as cursor:
-                    listener_reg_rows = await cursor.fetchall()
-                async with self._db.execute(listener_act_query, listener_act_params) as cursor:
-                    listener_act_rows = await cursor.fetchall()
-                async with self._db.execute(job_reg_query) as cursor:
-                    job_reg_rows = await cursor.fetchall()
-                async with self._db.execute(job_act_query, job_act_params) as cursor:
-                    job_act_rows = await cursor.fetchall()
-            finally:
-                # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
-                # (e.g. no transaction is open) can never mask an exception from the queries.
-                with contextlib.suppress(Exception):
-                    await self._db.execute("ROLLBACK")
+        try:
+            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
+                try:
+                    await self._db.execute("BEGIN DEFERRED")
+                    async with self._db.execute(listener_reg_query) as cursor:
+                        listener_reg_rows = await cursor.fetchall()
+                    async with self._db.execute(listener_act_query, listener_act_params) as cursor:
+                        listener_act_rows = await cursor.fetchall()
+                    async with self._db.execute(job_reg_query) as cursor:
+                        job_reg_rows = await cursor.fetchall()
+                    async with self._db.execute(job_act_query, job_act_params) as cursor:
+                        job_act_rows = await cursor.fetchall()
+                finally:
+                    # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
+                    # (e.g. no transaction is open) can never mask an exception from the queries.
+                    with contextlib.suppress(Exception):
+                        await self._db.execute("ROLLBACK")
+        except (sqlite3.Error, OSError, ValueError, TimeoutError) as exc:
+            raise TelemetryUnavailableError(str(exc)) from exc
 
         return _build_app_summaries(
             listener_reg_rows=listener_reg_rows,
