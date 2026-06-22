@@ -1,9 +1,13 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from logging import getLogger
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Query, Request
+from starlette.responses import Response
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -47,6 +51,25 @@ Includes ``ValueError`` because aiosqlite raises it for closed-connection
 errors during shutdown and ``TimeoutError`` for queries exceeding the
 configured read timeout.  All types are suppressed uniformly — a degraded
 response is always preferable to an unhandled 500."""
+
+LOGGER = getLogger(__name__)
+
+
+@contextmanager
+def db_degrades_to(response: Response) -> Iterator[None]:
+    """Context manager that degrades a response to 503 on DB failure.
+
+    Catches ``DB_ERRORS``, logs a warning with full traceback, and sets
+    ``response.status_code = 503``.  Non-``DB_ERRORS`` exceptions propagate
+    unchanged.  Callers pre-initialize their result to the failure default and
+    return at the tail so the default is used when the CM suppresses the error.
+    """
+    try:
+        yield
+    except DB_ERRORS:
+        LOGGER.warning("DB query failed; degrading to 503", exc_info=True)
+        response.status_code = 503
+
 
 SOURCE_TIER_PARAM = Query(
     default="app",

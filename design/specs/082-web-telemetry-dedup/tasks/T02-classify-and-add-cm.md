@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Classify 17 DB_ERRORS sites and add db_degrades_to (#1108a)"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#4", "AC#3"]
 ---
