@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Move telemetry_repository.py under core/telemetry/ (#1095)"
-status: "planned"
+status: "done"
 depends_on: ["T05"]
 implements: ["FR#14", "AC#10", "AC#11"]
 ---

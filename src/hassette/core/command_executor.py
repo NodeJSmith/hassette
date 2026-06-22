@@ -23,7 +23,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.core.loop_watchdog import WatchdogEvent
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry_repository import TelemetryRepository
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent
 from hassette.exceptions import DependencyError, HassetteError

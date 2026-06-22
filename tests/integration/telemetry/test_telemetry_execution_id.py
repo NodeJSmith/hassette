@@ -10,7 +10,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry_repository import TelemetryRepository, _execution_insert_params
+from hassette.core.telemetry.repository import TelemetryRepository, _execution_insert_params
 
 from .helpers import (
     insert_job,
