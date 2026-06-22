@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate category-A/B handlers to db_degrades_to + docs (#1108a)"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#5", "FR#6", "AC#2", "AC#4", "AC#5"]
 ---
