@@ -10,7 +10,9 @@ from hassette.test_utils import wait_for
 
 from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, toggle_and_capture, wait_for_ha_ready
 
-pytestmark = [pytest.mark.system_destructive]
+# These tests restart HA mid-run to exercise reconnection. Give each its own event loop so
+# residual tasks cannot bleed across tests on the shared session-scoped loop (see test_shutdown).
+pytestmark = [pytest.mark.system_destructive, pytest.mark.asyncio(loop_scope="function")]
 
 ENTITY = "light.kitchen_lights"
 

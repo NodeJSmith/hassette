@@ -46,6 +46,10 @@ class TestHassetteShutdownSinglePass:
             assert call_count == 1, f"on_shutdown should have been called exactly once, got {call_count}"
         finally:
             bus.on_shutdown = original_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+            # Restore the shared module-scoped bus to RUNNING for the next test. Without this,
+            # a later bus test that assumes a running bus (e.g. test_children_stopped_*) finds
+            # shutdown_completed=True, so its bus.shutdown() no-ops and flakes (#1073).
+            await bus.initialize()
 
     async def test_shutdown_then_initialize_resets_flag(self, hassette_with_bus: "HassetteHarness") -> None:
         """After shutdown + initialize, the resource can be shut down again."""

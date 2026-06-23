@@ -13,7 +13,10 @@ from hassette.types.enums import ResourceStatus, RestartType
 
 from .conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system_destructive]
+# These tests deliberately crash Hassette into a fatal shutdown. Give each its own event
+# loop so a test that leaves residual tasks (e.g. a fatal-cascade teardown) cannot bleed
+# them into the next test on the shared session-scoped loop.
+pytestmark = [pytest.mark.system_destructive, pytest.mark.asyncio(loop_scope="function")]
 
 
 async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
