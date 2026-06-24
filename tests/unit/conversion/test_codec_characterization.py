@@ -13,7 +13,7 @@ from typing import Literal
 from whenever import Time, ZonedDateTime
 
 from hassette.conversion import STATE_REGISTRY
-from hassette.models.states.base import TimeBaseState
+from hassette.models.states.base import BaseState, TimeBaseState
 from hassette.models.states.binary_sensor import BinarySensorState
 from hassette.models.states.input import InputButtonState, InputDatetimeState, InputNumberState
 from hassette.models.states.light import LightState
@@ -202,5 +202,13 @@ class TestTryConvertStateEntryPoint:
     def test_unknown_light_via_registry(self) -> None:
         raw = make_state_dict("light.kitchen", "unknown")
         state = STATE_REGISTRY.try_convert_state(raw)
+        assert type(state) is LightState
         assert state.value is None
         assert state.is_unknown is True
+
+    def test_unregistered_domain_falls_back_to_base_state(self) -> None:
+        raw = make_state_dict("custom_unregistered.demo", "payload")
+        state = STATE_REGISTRY.try_convert_state(raw)
+        assert type(state) is BaseState
+        assert state.value == "payload"
+        assert state.domain == "custom_unregistered"
