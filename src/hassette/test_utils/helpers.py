@@ -4,7 +4,7 @@ import textwrap
 from collections.abc import Mapping, Sequence
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -19,6 +19,7 @@ from hassette.bus.listeners import (
     ListenerOptions,
 )
 from hassette.config.classes import AppManifest
+from hassette.conversion import STATE_REGISTRY
 from hassette.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
@@ -27,13 +28,14 @@ from hassette.events import (
     create_event_from_hass,
 )
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
+from hassette.types import StateT
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
-    from hassette.events import HassEventEnvelopeDict
+    from hassette.events import HassEventEnvelopeDict, HassStateDict
     from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
@@ -257,6 +259,25 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
     attributes.update(extra_attrs)
 
     return make_state_dict(entity_id, state, attributes=attributes, **state_kwargs)
+
+
+def make_typed_state(state_class: type[StateT], state_dict: "dict[str, Any]") -> StateT:
+    """Convert a raw state dict to a typed state via the conversion pipeline.
+
+    Replaces direct ``XState.model_validate(dict)`` calls in tests; routes through
+    the conversion entry point so tests exercise the same path as production.
+
+    Args:
+        state_class: The target state model class (e.g., LightState, SensorState).
+        state_dict: A raw state dict as produced by make_state_dict / make_*_state_dict.
+
+    Returns:
+        The typed state instance.
+    """
+    entity_id: str = state_dict.get("entity_id", "<unknown>")
+    result = STATE_REGISTRY.coerce_and_construct(state_class, cast("HassStateDict", state_dict), entity_id)
+    assert isinstance(result, state_class)
+    return result
 
 
 def make_full_state_change_event(

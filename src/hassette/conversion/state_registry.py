@@ -1,15 +1,32 @@
 import typing
-from collections.abc import Hashable, Iterator
-from dataclasses import dataclass
+from collections.abc import Hashable
+from contextlib import suppress
 from logging import getLogger
-from typing import ClassVar
 
-from hassette.exceptions import InvalidDataForStateConversionError, InvalidEntityIdError, UnableToConvertStateError
+from hassette.conversion.type_registry import TYPE_REGISTRY
+from hassette.exceptions import (
+    InvalidDataForStateConversionError,
+    InvalidEntityIdError,
+    UnableToConvertStateError,
+    UnableToConvertValueError,
+)
+from hassette.models.states.base import BaseState
+from hassette.models.states.catalog import (
+    _STATE_CATALOG,
+    resolve,
+)
+from hassette.models.states.catalog import (
+    StateKey as StateKey,
+)
+from hassette.models.states.catalog import (
+    register_state_converter as register_state_converter,
+)
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from hassette.events import HassStateDict
-    from hassette.models.states.base import BaseState
 
 
 LOGGER = getLogger(__name__)
@@ -17,22 +34,7 @@ CONVERSION_FAIL_TEMPLATE = (
     "Failed to convert state for entity '%s' (domain: '%s') to class '%s'. Data: %s. Error: %s, Traceback: %s"
 )
 STATE_REPR_MAX_LENGTH = 200
-
-
-@dataclass(frozen=True)
-class StateKey:
-    domain: Hashable | None = None
-    """The domain of the entity (e.g., 'light', 'sensor')."""
-
-    device_class: Hashable | None = None
-    """Optional device class of the entity (e.g., 'temperature', 'humidity'). Not yet being used."""
-
-
-def register_state_converter(
-    state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None
-) -> None:
-    """Register a state converter class for a specific domain and optional device class."""
-    StateRegistry.register(state_class, domain=domain, device_class=device_class)
+TRUNCATION_SUFFIX = "...[truncated]"
 
 
 class StateRegistry:
@@ -43,11 +45,13 @@ class StateRegistry:
     by scanning all subclasses of BaseState.
     """
 
-    _registry: ClassVar[dict[StateKey, type["BaseState"]]] = {}
+    @property
+    def _registry(self) -> "dict[StateKey, type[BaseState]]":
+        """Read accessor over the catalog leaf dict — for validation.py and other readers."""
+        return _STATE_CATALOG
 
     def get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
         if not entity_id:
-            # specifically this way so we also handle empty strings/None
             entity_id = data.get("entity_id") or "<unknown>"
 
         if not isinstance(entity_id, str):
@@ -61,11 +65,7 @@ class StateRegistry:
         return entity_id
 
     def try_convert_state(self, data: "HassStateDict", entity_id: str | None = None) -> "BaseState":
-        """Convert a dictionary representation of a state into a specific state type.
-
-        This function uses the state registry to look up the appropriate state class
-        based on the entity's domain. If no specific class is registered for the domain,
-        it falls back to the generic BaseState.
+        """Convert a raw HA state dict to the most specific registered state class, falling back to BaseState.
 
         Args:
             data: Dictionary containing state data from Home Assistant.
@@ -76,19 +76,10 @@ class StateRegistry:
             for unknown domains.
 
         Raises:
-            InvalidDataForStateConversionError: If the provided data is invalid or malformed.
-            InvalidEntityIdError: If the entity_id is invalid or malformed.
-            UnableToConvertStateError: If conversion to the determined state class fails.
-
-        Example:
-            ```python
-            state_dict = {"entity_id": "light.bedroom", "state": "on", ...}
-            light_state = try_convert_state(state_dict)  # Returns LightState instance
-            ```
+            InvalidDataForStateConversionError: If the provided data is an event payload.
+            InvalidEntityIdError: If the entity_id is missing or malformed.
+            UnableToConvertStateError: If conversion to the resolved state class fails.
         """
-        # lazy-import: break circular import — models.states.base imports the conversion registry
-        from hassette.models.states.base import BaseState
-
         if "event" in data:
             LOGGER.error(
                 "Data contains 'event' key, expected state data, not event data. "
@@ -101,7 +92,6 @@ class StateRegistry:
         entity_id = self.get_entity_id(data, entity_id=entity_id)
         domain = entity_id.split(".", 1)[0]
 
-        # Look up the appropriate state class from the registry
         state_class = self.resolve(domain=domain)
 
         classes = [state_class, BaseState] if state_class is not None else [BaseState]
@@ -123,41 +113,71 @@ class StateRegistry:
 
     @classmethod
     def register(
-        cls, state_class: type["BaseState"], *, domain: Hashable | None = None, device_class: Hashable | None = None
+        cls,
+        state_class: type["BaseState"],
+        *,
+        domain: Hashable | None = None,
+        device_class: Hashable | None = None,
     ) -> None:
         """Register a state class for a given domain and optional device_class combination.
 
         Args:
             state_class: The state class to register. Must be a subclass of BaseState.
-            domain: The Home Assistant domain (e.g., "light", "sensor"). If None, matches any domain.
-            device_class: The device class (e.g., "temperature", "motion"). If None, matches any device class.
+            domain: The Home Assistant domain (e.g., "light", "sensor").
+            device_class: The device class (e.g., "temperature", "motion").
         """
-        key = StateKey(domain=domain, device_class=device_class)
-        cls._registry[key] = state_class
+        register_state_converter(state_class, domain=domain, device_class=device_class)
 
     @classmethod
-    def resolve(
-        cls, *, domain: Hashable | None = None, device_class: Hashable | None = None
-    ) -> type["BaseState"] | None:
+    def resolve(cls, *, domain: Hashable | None = None, device_class: Hashable | None = None) -> type[BaseState] | None:
         """Resolve a state class from the registry based on domain and device_class."""
-        candidates = [StateKey(domain=domain, device_class=device_class)]
-        if device_class is not None:
-            candidates.append(StateKey(domain=domain, device_class=None))
+        return resolve(domain=domain, device_class=device_class)
 
-        for k in candidates:
-            if k in cls._registry:
-                return cls._registry[k]
-        return None
+    def coerce_and_construct(
+        self, state_class: "type[BaseState]", data: "HassStateDict", entity_id: str
+    ) -> "BaseState":
+        """Coerce a raw HA state dict to a typed model using a known target class.
+
+        Applies domain extraction and unknown/unavailable normalization before coercing
+        the value, so the pipeline never attempts to coerce "unknown" or "unavailable"
+        against a non-string value_type.
+
+        Args:
+            state_class: The target state model class (e.g., LightState, SensorState).
+            data: Raw state dict from Home Assistant.
+            entity_id: The entity ID for domain extraction and error reporting.
+
+        Returns:
+            The typed state model instance.
+
+        Raises:
+            UnableToConvertStateError: If coercion or validation fails.
+        """
+        domain = entity_id.split(".", 1)[0]
+        return self.conversion_with_error_handling(state_class, data, entity_id, domain)
 
     def conversion_with_error_handling(
-        self, state_class: type["BaseState"], data: "HassStateDict", entity_id: str, domain: str
+        self, state_class: "type[BaseState]", data: "HassStateDict", entity_id: str, domain: str
     ) -> "BaseState":
-        """Convert state data, logging and re-raising as UnableToConvertStateError on failure."""
+        """Convert state data, logging and re-raising as UnableToConvertStateError on failure.
+
+        Args:
+            state_class: The target state model class.
+            data: Raw state dict from Home Assistant.
+            entity_id: The entity ID for error reporting.
+            domain: The HA domain string (e.g., "light", "sensor").
+
+        Returns:
+            The typed state model instance.
+
+        Raises:
+            UnableToConvertStateError: If conversion fails for any reason.
+        """
 
         class_name = state_class.__name__
         truncated_data = repr(data)
         if len(truncated_data) > STATE_REPR_MAX_LENGTH:
-            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + "...[truncated]"
+            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + TRUNCATION_SUFFIX
 
         try:
             return convert_state_dict_to_model(data, state_class)
@@ -175,50 +195,44 @@ class StateRegistry:
             )
             raise UnableToConvertStateError(entity_id, state_class) from e
 
-    def __contains__(self, model: type["BaseState"]) -> bool:
+    def __contains__(self, model: "type[BaseState]") -> bool:
         """Check if the registry contains a state class for the given model."""
-        return any(cls is model for cls in self._registry.values())
+        return any(cls is model for cls in _STATE_CATALOG.values())
 
-    def __iter__(self) -> Iterator[tuple[StateKey, type["BaseState"]]]:
+    def __iter__(self) -> "Iterator[tuple[StateKey, type[BaseState]]]":
         """Iterate over all registered state classes with their keys."""
-        return iter(self._registry.items())
+        return iter(_STATE_CATALOG.items())
 
-    def items(self) -> Iterator[tuple[StateKey, type["BaseState"]]]:
-        return iter(self._registry.items())
+    def items(self) -> "Iterator[tuple[StateKey, type[BaseState]]]":
+        return iter(_STATE_CATALOG.items())
 
-    def values(self) -> Iterator[type["BaseState"]]:
-        return (state_class for state_class in self._registry.values())
+    def values(self) -> "Iterator[type[BaseState]]":
+        return (state_class for state_class in _STATE_CATALOG.values())
 
-    def keys(self) -> Iterator[StateKey]:
-        return (key for key in self._registry)
-
-    @classmethod
-    def snapshot(cls) -> dict[StateKey, type["BaseState"]]:
-        """Return a shallow copy of the current registry state."""
-        return dict(cls._registry)
-
-    @classmethod
-    def restore(cls, snapshot: dict[StateKey, type["BaseState"]]) -> None:
-        """Replace the registry with a previously captured snapshot."""
-        cls._registry = snapshot
+    def keys(self) -> "Iterator[StateKey]":
+        return (key for key in _STATE_CATALOG)
 
 
-def convert_state_dict_to_model(value: typing.Any, model: type["BaseState"]) -> "BaseState":
-    """Convert a raw Home Assistant state dict to a typed state model.
+STATE_REGISTRY = StateRegistry()
 
-    This converter is used by state object extractors (StateNew, StateOld, etc.) to transform
-    the raw state dictionary from Home Assistant into a strongly-typed Pydantic model.
+
+def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> "BaseState":
+    """Convert a raw HA state dict to a typed state model via preprocessing + value coercion.
+
+    Applies the same preprocessing order as the old model validator: domain extraction,
+    then unknown/unavailable normalization (setting state to None before coercion touches it),
+    then TYPE_REGISTRY.convert for the model's value_type.
 
     Args:
-        value: The raw state dict from Home Assistant
-        model: The target state model class (e.g., LightState, SensorState)
+        value: The raw state dict from Home Assistant (or an already-validated model instance).
+        model: The target state model class (e.g., LightState, SensorState).
 
     Returns:
-        The typed state model instance
+        The typed state model instance.
 
     Raises:
-        TypeError: If value is not a dict or model instance
-        ValidationError: If the state dict doesn't match the model schema
+        TypeError: If value is not a dict or model instance.
+        ValidationError: If the state dict doesn't match the model schema.
     """
     if isinstance(value, model):
         return value
@@ -226,4 +240,22 @@ def convert_state_dict_to_model(value: typing.Any, model: type["BaseState"]) -> 
     if not isinstance(value, dict):
         raise TypeError(f"Cannot convert {type(value).__name__} to {model.__name__}, expected dict")
 
-    return model.model_validate(value)
+    prepared = dict(value)
+
+    entity_id = prepared.get("entity_id")
+    if entity_id:
+        prepared["domain"] = str(entity_id).split(".", 1)[0]
+
+    if "state" in prepared:
+        state = prepared["state"]
+        if state == "unknown":
+            prepared["is_unknown"] = True
+            prepared["state"] = state = None
+        elif state == "unavailable":
+            prepared["is_unavailable"] = True
+            prepared["state"] = state = None
+
+        with suppress(UnableToConvertValueError):
+            prepared["state"] = TYPE_REGISTRY.convert(state, model.value_type)
+
+    return model.model_validate(prepared)

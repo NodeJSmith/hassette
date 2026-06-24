@@ -22,6 +22,7 @@ from .binary_sensor import BinarySensorAttributes, BinarySensorDeviceClass, Bina
 from .button import ButtonAttributes, ButtonDeviceClass, ButtonState
 from .calendar import CalendarAttributes, CalendarState
 from .camera import CameraAttributes, CameraEntityFeature, CameraState, CameraStateValue, StreamType
+from .catalog import StateKey
 from .climate import ClimateAttributes, ClimateEntityFeature, ClimateState, HVACAction, HVACMode
 from .counter import CounterAttributes, CounterState
 from .cover import CoverAttributes, CoverDeviceClass, CoverEntityFeature, CoverState, CoverStateValue
@@ -210,6 +211,7 @@ __all__ = [
     "SirenAttributes",
     "SirenEntityFeature",
     "SirenState",
+    "StateKey",
     "StreamType",
     "StringBaseState",
     "SttState",

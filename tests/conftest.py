@@ -19,8 +19,7 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
-from hassette.conversion.state_registry import StateRegistry
-from hassette.conversion.type_registry import TypeRegistry
+from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
 
 if TYPE_CHECKING:
@@ -230,12 +229,13 @@ def my_app_class() -> type:
 
 @pytest.fixture(autouse=True)
 def _isolate_registries():
-    """Snapshot and restore StateRegistry and TypeRegistry to prevent cross-test pollution."""
-    state_snap = StateRegistry.snapshot()
-    type_snap = TypeRegistry.snapshot()
+    """Snapshot and restore the state-class catalog to prevent cross-test pollution.
+
+    TypeRegistry is now a stable read-only global after import — no snapshot needed.
+    """
+    state_snap = snapshot_catalog()
     yield
-    StateRegistry.restore(state_snap)
-    TypeRegistry.restore(type_snap)
+    restore_catalog(state_snap)
 
 
 @pytest.fixture

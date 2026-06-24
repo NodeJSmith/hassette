@@ -4,10 +4,9 @@ from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
-from pydantic import ValidationError
 
 from hassette.conversion import STATE_REGISTRY, StateKey
-from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
+from hassette.exceptions import RegistryNotReadyError
 from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
@@ -83,10 +82,7 @@ class DomainStates(Generic[StateT]):
         if cached is not None and cached.frozen_state == frozen_state:
             return cached.model
 
-        try:
-            validated = self._model.model_validate(state)
-        except ValidationError as e:
-            raise UnableToConvertStateError(entity_id, self._model) from e
+        validated = STATE_REGISTRY.coerce_and_construct(self._model, state, entity_id)
         self._cache[entity_id] = CacheValue(context_id, frozen_state, validated)
         return validated
 
@@ -346,12 +342,10 @@ class StateManager(Resource):
                 print(f"Domain: {test_entity.domain}, Value: {test_entity.value}")
             ```
         """
-        # Get raw state dict from proxy
         state_dict = self._state_proxy.get_state(entity_id)
         if state_dict is None:
             return None
 
-        # Use StateRegistry's try_convert_state which handles fallback to BaseState
         try:
             return self.hassette.state_registry.try_convert_state(state_dict, entity_id)
         except Exception as e:

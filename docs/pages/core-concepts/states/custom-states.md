@@ -28,7 +28,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `NumericBaseState`: numeric value
 
-[`NumericBaseState`][hassette.models.states.base.NumericBaseState] converts the raw state string to a numeric type — whole-number strings become `int`, decimal strings become `float`. It accepts `int`, `float`, and `Decimal` inputs directly.
+[`NumericBaseState`][hassette.models.states.base.NumericBaseState] declares `value_type = (int, float, Decimal, type(None))`. The conversion pipeline converts the raw state string to a numeric type — whole-number strings become `int`, decimal strings become `float`. `int`, `float`, and `Decimal` inputs pass through directly. Unknown or unavailable states produce `None`.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/numeric_base_state.py"
@@ -36,7 +36,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `BoolBaseState`: `bool` value
 
-[`BoolBaseState`][hassette.models.states.base.BoolBaseState] converts `"on"` to `True` and `"off"` to `False` automatically.
+[`BoolBaseState`][hassette.models.states.base.BoolBaseState] declares `value_type = (bool, type(None))`. The conversion pipeline maps `"on"` to `True` and `"off"` to `False` using the registered `str → bool` converter. Unknown or unavailable states produce `None`.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/bool_base_state.py"
@@ -44,7 +44,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `DateTimeBaseState`: `ZonedDateTime`, `PlainDateTime`, or `Date` value
 
-[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). The exact type depends on the string format from Home Assistant.
+[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] declares a datetime `value_type`. The conversion pipeline parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). The exact type depends on the string format from Home Assistant.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
@@ -60,7 +60,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### Custom value type: inherit `BaseState` directly
 
-When no built-in base class fits, a class can inherit from `BaseState[T]` directly. The `value_type` class variable declares the accepted types. Hassette validates state values against `value_type` at runtime.
+When no built-in base class fits, a class can inherit from `BaseState[T]` directly. The `value_type` class variable declares the accepted types. The conversion pipeline coerces state values against `value_type` at runtime using [`TypeRegistry`](conversion.md#value-conversion).
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/define_your_own.py"

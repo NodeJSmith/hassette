@@ -3,8 +3,11 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Literal, get_args, get_origin
 
 from hassette.conversion.state_registry import convert_state_dict_to_model
+from hassette.conversion.type_matcher import TYPE_MATCHER
+from hassette.conversion.type_registry import TYPE_REGISTRY
 from hassette.events.hass.hass import HassPayload, RawStateChangeEvent, TypedStateChangeEvent, TypedStateChangePayload
 from hassette.exceptions import UnableToConvertValueError
+from hassette.models.states.base import BaseState
 from hassette.utils.type_utils import is_union, normalize_annotation
 
 
@@ -35,10 +38,6 @@ class AnnotationConverter:
     """Converts runtime values to match rich annotations (including nested containers)."""
 
     def convert(self, value: Any, annotation: Any) -> Any:
-        # lazy-import: break circular import — conversion/__init__ imports this module (#892)
-        from hassette.conversion import TYPE_MATCHER, TYPE_REGISTRY
-        from hassette.models.states import BaseState  # lazy-import: same circular import (#892)
-
         tp = normalize_annotation(annotation, constructible=True)
 
         # Already correct (deep) => no-op
@@ -192,3 +191,6 @@ def convert_typed_state_change_event(c: "AnnotationConverter", value: Any, tp: A
             context=value.payload.context,
         ),
     )
+
+
+ANNOTATION_CONVERTER = AnnotationConverter()
