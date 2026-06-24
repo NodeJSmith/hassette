@@ -17,20 +17,20 @@ The pipeline runs four steps:
 1. `StateRegistry.resolve(domain="binary_sensor")` looks up the registered class for the domain.
    It returns [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState].
 
-2. The codec normalizes `"unknown"` and `"unavailable"` states to `None` before coercion, then
-   reads `value_type` from the resolved class and delegates to `TypeRegistry`.
+2. The conversion pipeline normalizes `"unknown"` and `"unavailable"` states to `None` before
+   coercion, then reads `value_type` from the resolved class and delegates to `TypeRegistry`.
 
 3. `TypeRegistry` looks up the `(str, bool)` converter and converts `"on"` to `True`.
 
-4. The codec constructs the model from the prepared dict. The result is a fully typed state object:
+4. The pipeline constructs the model from the prepared dict. The result is a fully typed state object:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_converted_output.py"
 ```
 
-`StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?". The state model handles shape normalization — extracting the domain from `entity_id` and mapping `"unknown"`/`"unavailable"` to sentinel flags — but performs no value coercion. The codec owns type conversion: reading `value_type`, selecting the right converter, and constructing the typed state.
+`StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?". The state model handles shape normalization — extracting the domain from `entity_id` and mapping `"unknown"`/`"unavailable"` to sentinel flags — but performs no value coercion. The conversion pipeline owns type conversion: reading `value_type`, selecting the right converter, and constructing the typed state.
 
-Each state class declares a `value_type` class variable — the type (or tuple of types) the `value` field should hold. The codec reads this and selects the right converter:
+Each state class declares a `value_type` class variable — the type (or tuple of types) the `value` field should hold. The conversion pipeline reads this and selects the right converter:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
@@ -247,7 +247,7 @@ and entity name.
 
 #### `UnableToConvertStateError`
 
-Raised when the codec fails to construct a state object for both the resolved state class and the
+Raised when the conversion pipeline fails to construct a state object for both the resolved state class and the
 `BaseState` fallback.
 
 ```python

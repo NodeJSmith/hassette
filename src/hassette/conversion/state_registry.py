@@ -139,7 +139,7 @@ class StateRegistry:
         """Coerce a raw HA state dict to a typed model using a known target class.
 
         Applies domain extraction and unknown/unavailable normalization before coercing
-        the value, so the codec never attempts to coerce "unknown" or "unavailable"
+        the value, so the pipeline never attempts to coerce "unknown" or "unavailable"
         against a non-string value_type.
 
         Args:
@@ -217,7 +217,7 @@ STATE_REGISTRY = StateRegistry()
 
 
 def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> "BaseState":
-    """Convert a raw HA state dict to a typed state model via codec preprocessing + value coercion.
+    """Convert a raw HA state dict to a typed state model via preprocessing + value coercion.
 
     Applies the same preprocessing order as the old model validator: domain extraction,
     then unknown/unavailable normalization (setting state to None before coercion touches it),

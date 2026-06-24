@@ -1,8 +1,8 @@
 """State-class catalog: domain → BaseState subclass mapping.
 
 This leaf module owns the STATE_CATALOG dict, register_state_converter, resolve, and
-StateKey. It imports nothing from hassette.conversion — it sits below the codec in the
-package DAG so that models/states can be imported without pulling in conversion.
+StateKey. It imports nothing from hassette.conversion — it sits below the conversion
+layer in the package DAG so that models/states can be imported without pulling in conversion.
 
 BaseState.__init_subclass__ writes this catalog; StateRegistry (conversion layer) reads it.
 """
