@@ -10,10 +10,14 @@ from hassette.types.enums import BlockReason, ResourceStatus
 
 class TestApplyChanges:
     async def test_routes_changes_to_correct_methods(self, lifecycle_service: AppLifecycleService) -> None:
-        """Routes orphans/reimport/reload/new to correct methods."""
+        """Routes orphans/reimport/reload/new to correct methods when autostart gates pass."""
         lifecycle_service.stop_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
         lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
         lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        # Gates are transparent for autostart=True apps — mock helpers so this test stays
+        # focused on routing, not gating (gating is covered by TestApplyChangesGating).
+        lifecycle_service.should_autostart = Mock(return_value=True)  # boundary-exempt: gate helper
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)  # boundary-exempt: gate helper
 
         changes = ChangeSet(
             orphans=frozenset({"orphan_app"}),

@@ -238,3 +238,198 @@ class TestApps:
             f"my_app_sync instance should have the default instance_name {expected_name},"
             f" found {my_app_sync_instance.app_config.instance_name}"
         )
+
+    async def test_autostart_false_app_absent_after_bootstrap(self) -> None:
+        """After bootstrap, an enabled+autostart=false app has no running instances."""
+        assert "no_autostart_app" not in self.app_handler.apps, (
+            "no_autostart_app should not be running after bootstrap (autostart=false)"
+        )
+
+    def test_autostart_false_app_status_is_stopped(self) -> None:
+        """autostart=false app reports status=stopped and autostart=False in snapshot."""
+        assert "no_autostart_app" not in self.app_handler.apps, (
+            "Precondition: no_autostart_app must not be running for status to read 'stopped'"
+        )
+        snapshot = self.app_handler.registry.get_full_snapshot()
+        manifest_info = next((m for m in snapshot.manifests if m.app_key == "no_autostart_app"), None)
+        assert manifest_info is not None, "no_autostart_app should appear in the snapshot"
+        assert manifest_info.status == "stopped", f"Expected status='stopped', got {manifest_info.status!r}"
+        assert manifest_info.autostart is False, f"Expected autostart=False, got {manifest_info.autostart!r}"
+
+    async def test_start_app_starts_autostart_false_app(self) -> None:
+        """start_app() explicitly starts an autostart=false app."""
+        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+
+        await self.app_handler.lifecycle.start_app("no_autostart_app")
+
+        assert "no_autostart_app" in self.app_handler.apps, (
+            "no_autostart_app should be running after explicit start_app() call"
+        )
+
+    async def test_new_app_changeset_does_not_start_autostart_false_app(self) -> None:
+        """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
+        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+
+        event = asyncio.Event()
+
+        async def handler(**kwargs):  # noqa
+            self.hassette.task_bucket.post_to_loop(event.set)
+
+        await self.hassette.bus_service.add_listener(
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
+                owner_id="test",
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            )
+        )
+
+        new_app_config = deepcopy(self.app_handler.registry.manifests)
+
+        with (
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
+        ):
+            self.app_handler.registry.set_manifests(new_app_config)
+            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
+            mock_detect.return_value = ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset({"no_autostart_app"}),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset(),
+            )
+
+            await self.app_handler.lifecycle.handle_change_event()
+            await asyncio.wait_for(event.wait(), timeout=1)
+
+            assert "no_autostart_app" not in self.app_handler.apps, (
+                "no_autostart_app should remain unstarted after reload with new_apps (autostart=false)"
+            )
+
+    async def test_unrelated_reload_leaves_manually_started_autostart_false_app_running(self) -> None:
+        """A reload that changes an unrelated app leaves an already-running autostart=false app running."""
+        await self.app_handler.lifecycle.start_app("no_autostart_app")
+        assert "no_autostart_app" in self.app_handler.apps, "Precondition: no_autostart_app is manually running"
+
+        event = asyncio.Event()
+
+        async def handler(**kwargs):  # noqa
+            self.hassette.task_bucket.post_to_loop(event.set)
+
+        await self.hassette.bus_service.add_listener(
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
+                owner_id="test",
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            )
+        )
+
+        new_app_config = deepcopy(self.app_handler.registry.manifests)
+        new_app_config["my_app"].app_config = {"test_entity": "light.some_other_light"}
+
+        with (
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
+        ):
+            self.app_handler.registry.set_manifests(new_app_config)
+            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
+            mock_detect.return_value = ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset({"my_app"}),
+            )
+
+            await self.app_handler.lifecycle.handle_change_event()
+            await asyncio.wait_for(event.wait(), timeout=1)
+
+            assert "no_autostart_app" in self.app_handler.apps, (
+                "no_autostart_app should still be running after an unrelated reload"
+            )
+
+    async def test_reload_of_not_running_autostart_false_app_leaves_it_unstarted(self) -> None:
+        """A reload with reload_apps containing an autostart=false app that is not running leaves it unstarted."""
+        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+
+        event = asyncio.Event()
+
+        async def handler(**kwargs):  # noqa
+            self.hassette.task_bucket.post_to_loop(event.set)
+
+        await self.hassette.bus_service.add_listener(
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
+                owner_id="test",
+                topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            )
+        )
+
+        new_app_config = deepcopy(self.app_handler.registry.manifests)
+        new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
+
+        with (
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
+            # boundary-exempt: collaborator of handle_change_event
+            patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
+        ):
+            self.app_handler.registry.set_manifests(new_app_config)
+            mock_refresh_config.return_value = (self.app_handler.registry.manifests, new_app_config)
+            mock_detect.return_value = ChangeSet(
+                orphans=frozenset(),
+                new_apps=frozenset(),
+                reimport_apps=frozenset(),
+                reload_apps=frozenset({"no_autostart_app"}),
+            )
+
+            await self.app_handler.lifecycle.handle_change_event()
+            await asyncio.wait_for(event.wait(), timeout=1)
+
+            assert "no_autostart_app" not in self.app_handler.apps, (
+                "no_autostart_app should remain unstarted after config change reload (autostart=false, not running)"
+            )
+
+    async def test_reload_of_running_autostart_false_app_leaves_it_running(self) -> None:
+        """A reload of a running autostart=false app that had config changes reloads and keeps it running."""
+        await self.app_handler.lifecycle.start_app("no_autostart_app")
+        assert "no_autostart_app" in self.app_handler.apps, "Precondition: no_autostart_app is running"
+
+        new_app_config = deepcopy(self.app_handler.registry.manifests)
+        new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
+        self.app_handler.registry.set_manifests(new_app_config)
+
+        change_set = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset({"no_autostart_app"}),
+        )
+
+        await self.app_handler.apply_changes(change_set)
+        await wait_for(
+            lambda: "no_autostart_app" in self.app_handler.apps,
+            desc="no_autostart_app still running after reload",
+        )
+
+        assert "no_autostart_app" in self.app_handler.apps, (
+            "no_autostart_app should still be running after reload of its config"
+        )
+
+    async def test_autostart_true_apps_start_at_boot(self) -> None:
+        """Apps without an autostart key (default True) still start at boot."""
+        assert "my_app" in self.app_handler.apps, "my_app (no autostart key) should start at boot"
+        assert "my_app_sync" in self.app_handler.apps, "my_app_sync (no autostart key) should start at boot"
+
+    def test_disabled_app_absent_and_disabled_status(self) -> None:
+        """disabled_app is absent from registry.apps and reports disabled status."""
+        assert "disabled_app" not in self.app_handler.apps, "disabled_app should remain absent"
+        snapshot = self.app_handler.registry.get_full_snapshot()
+        manifest_info = next((m for m in snapshot.manifests if m.app_key == "disabled_app"), None)
+        assert manifest_info is not None, "disabled_app should appear in snapshot"
+        assert manifest_info.status == "disabled", f"Expected status='disabled', got {manifest_info.status!r}"

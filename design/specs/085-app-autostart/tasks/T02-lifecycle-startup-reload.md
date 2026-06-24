@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Gate automatic starts on autostart at boot and reload"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "FR#12", "FR#13", "AC#2", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8"]
 ---

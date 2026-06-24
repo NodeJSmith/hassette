@@ -400,13 +400,237 @@ class TestStartApps:
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """Starts all active apps via asyncio.gather."""
+        """Starts only autostart_manifests apps (not all active_manifests) by default."""
         manifest_a = MagicMock()
         manifest_b = MagicMock()
-        mock_registry.active_manifests = {"app_a": manifest_a, "app_b": manifest_b}
+        mock_registry.autostart_manifests = {"app_a": manifest_a, "app_b": manifest_b}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a, "app_b": manifest_b}.get(k))
         mock_registry.get_apps_by_key = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
         assert mock_factory.create_instances.call_count == 2
+
+    async def test_excludes_autostart_false_apps_by_default(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """Apps not in autostart_manifests are not started when no explicit set is passed."""
+        manifest_a = MagicMock()
+        # autostart_manifests only contains app_a; active_manifests also has app_b (autostart=false)
+        mock_registry.autostart_manifests = {"app_a": manifest_a}
+        mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a}.get(k))
+        mock_registry.get_apps_by_key = Mock(return_value={})
+
+        await lifecycle_service.start_apps()
+
+        assert mock_factory.create_instances.call_count == 1
+
+
+class TestShouldAutostart:
+    def test_returns_true_when_manifest_autostart_true(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns True when manifest exists and autostart=True."""
+        manifest = MagicMock()
+        manifest.autostart = True
+        mock_registry.get_manifest = Mock(return_value=manifest)
+
+        assert lifecycle_service.should_autostart("app_a") is True
+
+    def test_returns_false_when_manifest_autostart_false(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns False when manifest exists and autostart=False."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+
+        assert lifecycle_service.should_autostart("app_a") is False
+
+    def test_returns_false_when_manifest_missing(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns False when manifest does not exist."""
+        mock_registry.get_manifest = Mock(return_value=None)
+
+        assert lifecycle_service.should_autostart("unknown_app") is False
+
+
+class TestShouldAutoReconcile:
+    def test_returns_true_when_app_running(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns True for a running app regardless of autostart."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {"app_a": {0: MagicMock()}}
+
+        assert lifecycle_service.should_auto_reconcile("app_a") is True
+
+    def test_returns_true_when_app_not_running_but_autostart_true(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns True for a non-running app when autostart=True."""
+        manifest = MagicMock()
+        manifest.autostart = True
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+
+        assert lifecycle_service.should_auto_reconcile("app_a") is True
+
+    def test_returns_false_when_app_not_running_and_autostart_false(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Returns False for a non-running app when autostart=False."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+
+        assert lifecycle_service.should_auto_reconcile("app_a") is False
+
+
+class TestApplyChangesGating:
+    async def test_new_apps_autostart_false_not_started(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """new_apps with autostart=False are skipped in apply_changes."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset({"app_a"}),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset(),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.start_app.assert_not_called()
+
+    async def test_new_apps_autostart_true_are_started(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """new_apps with autostart=True are started in apply_changes."""
+        manifest = MagicMock()
+        manifest.autostart = True
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset({"app_a"}),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset(),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.start_app.assert_called_once_with("app_a")
+
+    async def test_reload_apps_running_autostart_false_are_reloaded(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """reload_apps for a running app are always reconciled (autostart=False, but running)."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset({"app_a"}),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.reload_app.assert_called_once_with("app_a")
+
+    async def test_reload_apps_not_running_autostart_false_are_skipped(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """reload_apps for a non-running autostart=False app are skipped."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset({"app_a"}),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.reload_app.assert_not_called()
+
+    async def test_reimport_apps_running_autostart_false_are_reloaded(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """reimport_apps for a running autostart=False app are reconciled with force_reload."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset({"app_a"}),
+            reload_apps=frozenset(),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.reload_app.assert_called_once_with("app_a", force_reload=True)
+
+    async def test_reimport_apps_not_running_autostart_false_are_skipped(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """reimport_apps for a non-running autostart=False app are skipped."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset(),
+            new_apps=frozenset(),
+            reimport_apps=frozenset({"app_a"}),
+            reload_apps=frozenset(),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.reload_app.assert_not_called()
+
+    async def test_orphans_stopped_unconditionally(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Orphaned apps are stopped regardless of autostart."""
+        manifest = MagicMock()
+        manifest.autostart = False
+        mock_registry.get_manifest = Mock(return_value=manifest)
+        mock_registry.apps = {}
+        lifecycle_service.stop_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+
+        changes = ChangeSet(
+            orphans=frozenset({"app_a"}),
+            new_apps=frozenset(),
+            reimport_apps=frozenset(),
+            reload_apps=frozenset(),
+        )
+        await lifecycle_service.apply_changes(changes)
+
+        lifecycle_service.stop_app.assert_called_once_with("app_a")

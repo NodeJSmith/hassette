@@ -178,6 +178,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         class_name=app_dict["class_name"],
         app_dir=Path(app_dict["app_dir"]),
         enabled=app_dict.get("enabled", True),
+        autostart=app_dict.get("autostart", True),
         config=config,
         auto_loaded=app_dict.get("auto_loaded", False),
         full_path=full_path,

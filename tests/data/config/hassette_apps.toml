@@ -30,6 +30,15 @@ display_name = "Disabled App"
 app_dir = "tests/data/apps"
 config = { test_entity = "input_button.test", instance_name = "disabled_instance" }
 
+[hassette.apps.no_autostart_app]
+enabled = true
+autostart = false
+filename = "no_autostart_app.py"
+class_name = "NoAutostartApp"
+display_name = "No Autostart App"
+app_dir = "tests/data/apps"
+config = { test_entity = "input_button.test", instance_name = "no_autostart_instance" }
+
 [hassette.apps.non_existent_app]
 enabled = false
 filename = "non_existent_file.py"
