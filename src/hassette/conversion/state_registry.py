@@ -65,7 +65,21 @@ class StateRegistry:
         return entity_id
 
     def try_convert_state(self, data: "HassStateDict", entity_id: str | None = None) -> "BaseState":
-        """Convert a raw HA state dict to the most specific registered state class, falling back to BaseState."""
+        """Convert a raw HA state dict to the most specific registered state class, falling back to BaseState.
+
+        Args:
+            data: Dictionary containing state data from Home Assistant.
+            entity_id: Optional entity ID to assist in domain determination.
+
+        Returns:
+            A properly typed state object (e.g., LightState, SensorState) or BaseState
+            for unknown domains.
+
+        Raises:
+            InvalidDataForStateConversionError: If the provided data is an event payload.
+            InvalidEntityIdError: If the entity_id is missing or malformed.
+            UnableToConvertStateError: If conversion to the resolved state class fails.
+        """
         if "event" in data:
             LOGGER.error(
                 "Data contains 'event' key, expected state data, not event data. "
@@ -105,7 +119,13 @@ class StateRegistry:
         domain: Hashable | None = None,
         device_class: Hashable | None = None,
     ) -> None:
-        """Register a state class for a given domain and optional device_class combination."""
+        """Register a state class for a given domain and optional device_class combination.
+
+        Args:
+            state_class: The state class to register. Must be a subclass of BaseState.
+            domain: The Home Assistant domain (e.g., "light", "sensor").
+            device_class: The device class (e.g., "temperature", "motion").
+        """
         register_state_converter(state_class, domain=domain, device_class=device_class)
 
     @classmethod
@@ -120,7 +140,18 @@ class StateRegistry:
 
         Applies domain extraction and unknown/unavailable normalization before coercing
         the value, so the codec never attempts to coerce "unknown" or "unavailable"
-        against a non-string value_type. Wraps failures as UnableToConvertStateError.
+        against a non-string value_type.
+
+        Args:
+            state_class: The target state model class (e.g., LightState, SensorState).
+            data: Raw state dict from Home Assistant.
+            entity_id: The entity ID for domain extraction and error reporting.
+
+        Returns:
+            The typed state model instance.
+
+        Raises:
+            UnableToConvertStateError: If coercion or validation fails.
         """
         domain = entity_id.split(".", 1)[0]
         return self.conversion_with_error_handling(state_class, data, entity_id, domain)
@@ -128,7 +159,20 @@ class StateRegistry:
     def conversion_with_error_handling(
         self, state_class: "type[BaseState]", data: "HassStateDict", entity_id: str, domain: str
     ) -> "BaseState":
-        """Convert state data, logging and re-raising as UnableToConvertStateError on failure."""
+        """Convert state data, logging and re-raising as UnableToConvertStateError on failure.
+
+        Args:
+            state_class: The target state model class.
+            data: Raw state dict from Home Assistant.
+            entity_id: The entity ID for error reporting.
+            domain: The HA domain string (e.g., "light", "sensor").
+
+        Returns:
+            The typed state model instance.
+
+        Raises:
+            UnableToConvertStateError: If conversion fails for any reason.
+        """
 
         class_name = state_class.__name__
         truncated_data = repr(data)
@@ -173,7 +217,23 @@ STATE_REGISTRY = StateRegistry()
 
 
 def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> "BaseState":
-    """Convert a raw HA state dict to a typed state model via codec preprocessing + value coercion."""
+    """Convert a raw HA state dict to a typed state model via codec preprocessing + value coercion.
+
+    Applies the same preprocessing order as the old model validator: domain extraction,
+    then unknown/unavailable normalization (setting state to None before coercion touches it),
+    then TYPE_REGISTRY.convert for the model's value_type.
+
+    Args:
+        value: The raw state dict from Home Assistant (or an already-validated model instance).
+        model: The target state model class (e.g., LightState, SensorState).
+
+    Returns:
+        The typed state model instance.
+
+    Raises:
+        TypeError: If value is not a dict or model instance.
+        ValidationError: If the state dict doesn't match the model schema.
+    """
     if isinstance(value, model):
         return value
 

@@ -29,13 +29,27 @@ class StateKey:
 def register_state_converter(
     state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None
 ) -> None:
-    """Register a state class for a specific domain and optional device class."""
+    """Register a state class for a specific domain and optional device class.
+
+    Args:
+        state_class: The state class to register. Must be a subclass of BaseState.
+        domain: The Home Assistant domain (e.g., "light", "sensor").
+        device_class: The device class (e.g., "temperature", "motion").
+    """
     key = StateKey(domain=domain, device_class=device_class)
     _STATE_CATALOG[key] = state_class
 
 
 def resolve(*, domain: Hashable | None = None, device_class: Hashable | None = None) -> type["BaseState"] | None:
-    """Resolve a state class from the catalog based on domain and device_class."""
+    """Resolve a state class from the catalog based on domain and device_class.
+
+    Args:
+        domain: The Home Assistant domain (e.g., "light", "sensor").
+        device_class: The device class (e.g., "temperature", "motion").
+
+    Returns:
+        The registered state class, or None if no match is found.
+    """
     candidates = [StateKey(domain=domain, device_class=device_class)]
     if device_class is not None:
         candidates.append(StateKey(domain=domain, device_class=None))

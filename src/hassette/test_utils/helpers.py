@@ -262,7 +262,18 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
 
 
 def make_typed_state(state_class: type[StateT], state_dict: "dict[str, Any]") -> StateT:
-    """Convert a raw state dict to a typed state via the codec coercion path."""
+    """Convert a raw state dict to a typed state via the codec coercion path.
+
+    Replaces direct ``XState.model_validate(dict)`` calls in tests; routes through
+    the codec coercion entry point so tests exercise the same path as production.
+
+    Args:
+        state_class: The target state model class (e.g., LightState, SensorState).
+        state_dict: A raw state dict as produced by make_state_dict / make_*_state_dict.
+
+    Returns:
+        The typed state instance.
+    """
     entity_id: str = state_dict.get("entity_id", "<unknown>")
     result = STATE_REGISTRY.coerce_and_construct(state_class, cast("HassStateDict", state_dict), entity_id)
     assert isinstance(result, state_class)
