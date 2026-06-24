@@ -28,6 +28,19 @@ exclude = [
     "venv",
 ]
 
+# Exclude docs snippets from linting. These are intentional anti-pattern teaching
+# examples (S610, S113, S108) and bare-fragment snippets (F704 await outside a
+# function) that are not real code. CI already excludes them via the ruff-check
+# hook's `exclude: ^docs/.*\.(py|rst)$` in .pre-commit-config.yaml; this keeps a
+# direct `ruff check .` in agreement with CI. Snippets keep Pyright coverage
+# separately via `pyright --project docs` (docs.yml).
+extend-exclude = ["docs/**/*.py"]
+
+# Honor excludes even when a file is passed explicitly (editor "lint this file",
+# explicit paths). Matches the `--force-exclude` the ruff-check hook already uses,
+# so every ruff invocation agrees with CI rather than just directory walks.
+force-exclude = true
+
 # Same as Black.
 line-length = 120
 indent-width = 4
@@ -117,7 +130,6 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "tools/*.py" = ["S603", "S607"]
 "scripts/*.py" = ["S105", "S310", "S603", "S607"]
 "codegen/**/*.py" = ["S108", "S603", "S607", "S701"]
-"docs/**/*.py" = ["S101", "S105", "S106", "S311", "ASYNC110"]
 "src/hassette/core/database_service.py" = ["S608"]
 "src/hassette/core/telemetry_query_service.py" = ["S608"]
 "src/hassette/core/telemetry/*.py" = ["S608"]
