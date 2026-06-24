@@ -71,9 +71,8 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
-from hassette.types import TriggerProtocol
+from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
@@ -92,7 +91,7 @@ if typing.TYPE_CHECKING:
 class Scheduler(Resource):
     """Scheduler resource for managing scheduled jobs."""
 
-    scheduler_service: SchedulerService
+    scheduler_service: SchedulerServiceProtocol
     """The scheduler service instance."""
 
     sync: SchedulerSyncFacade

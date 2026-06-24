@@ -1,15 +1,16 @@
 """Characterization tests for tools/check_module_boundaries.py.
 
 Pin the boundary rules in ``RULES`` (test_utils-isolation, api-no-core,
-utils-no-events, web-no-core, bus-no-core): the governed layer must not import
-the forbidden package at runtime, while type-only imports under
-``TYPE_CHECKING`` and a layer importing itself are exempt. Still-ungoverned
-cross-layer imports (e.g. ``state_manager → core``) are allowed.
+utils-no-events, web-no-core, bus-no-core, resources-no-task_bucket,
+scheduler-no-core, state_manager-no-core): the governed layer must not import
+the forbidden package at runtime, while type-only imports under ``TYPE_CHECKING``
+and a layer importing itself are exempt.
 
 Also pin the private-attr reach-through rule (#1091): ``hassette._foo`` /
 ``self.hassette._foo`` is flagged outside ``core/`` and ``test_utils/``, own-private
 ``self._foo`` and non-private/dunder access are not, and ``PRIVATE_ATTR_ALLOWLIST``
-entries are suppressed by (path, attr).
+entries are suppressed by (path, attr). Ungoverned cross-layer imports still exist
+(e.g. ``conversion`` → ``models``, #892) but are not tested here.
 """
 
 import textwrap
@@ -141,10 +142,37 @@ def test_relative_import_skipped_without_package() -> None:
     assert check_source(src, "core") == []
 
 
-def test_state_manager_import_of_core_not_yet_governed() -> None:
-    # state_manager → core is a still-ungoverned cross-layer import (tracked under
-    # #1079); until a rule governs it, the checker returns no violation.
+def test_state_manager_import_of_core_flagged() -> None:
     src = "from hassette.core.state_proxy import StateProxy\n"
+    assert check_source(src, "state_manager") == [
+        (
+            1,
+            "state_manager-no-core: imports hassette.core.state_proxy — "
+            "state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
+        )
+    ]
+
+
+def test_state_manager_import_of_core_submodule_flagged() -> None:
+    src = "from hassette.core import Hassette\n"
+    assert check_source(src, "state_manager") == [
+        (
+            1,
+            "state_manager-no-core: imports hassette.core — "
+            "state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
+        )
+    ]
+
+
+def test_state_manager_type_checking_core_import_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from hassette.core.state_proxy import StateProxy
+        """
+    )
     assert check_source(src, "state_manager") == []
 
 
@@ -247,6 +275,74 @@ def test_chained_private_access_flagged_once() -> None:
     # `hassette._state_proxy.states` — only the private hop is flagged, not the trailing `.states`.
     src = "x = self.hassette._state_proxy.states\n"
     assert check_source(src, "state_manager") == [(1, reach_through_msg("_state_proxy"))]
+
+
+def test_resources_import_of_task_bucket_flagged() -> None:
+    src = "from hassette.task_bucket import TaskBucket\n"
+    assert check_source(src, "resources") == [
+        (
+            1,
+            "resources-no-task_bucket: imports hassette.task_bucket — "
+            "resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
+        )
+    ]
+
+
+def test_resources_import_of_task_bucket_submodule_flagged() -> None:
+    src = "from hassette.task_bucket.task_bucket import TaskBucket\n"
+    assert check_source(src, "resources") == [
+        (
+            1,
+            "resources-no-task_bucket: imports hassette.task_bucket.task_bucket — "
+            "resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
+        )
+    ]
+
+
+def test_resources_type_checking_task_bucket_import_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from hassette.task_bucket import TaskBucket
+        """
+    )
+    assert check_source(src, "resources") == []
+
+
+def test_scheduler_import_of_core_flagged() -> None:
+    src = "from hassette.core import Hassette\n"
+    assert check_source(src, "scheduler") == [
+        (
+            1,
+            "scheduler-no-core: imports hassette.core — "
+            "scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
+        )
+    ]
+
+
+def test_scheduler_import_of_core_submodule_flagged() -> None:
+    src = "from hassette.core.scheduler_service import SchedulerService\n"
+    assert check_source(src, "scheduler") == [
+        (
+            1,
+            "scheduler-no-core: imports hassette.core.scheduler_service — "
+            "scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
+        )
+    ]
+
+
+def test_scheduler_type_checking_core_import_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from hassette.core.scheduler_service import SchedulerService
+        """
+    )
+    assert check_source(src, "scheduler") == []
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))

@@ -9,12 +9,18 @@ from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
 if TYPE_CHECKING:
+    import asyncio
+    from collections.abc import Generator
+
     from hassette.app.app_config import AppConfig
     from hassette.bus.error_context import BusErrorContext
     from hassette.const.misc import FalseySentinel
+    from hassette.events import HassStateDict
     from hassette.events.base import Event, EventPayload
     from hassette.models.states.base import BaseState
+    from hassette.scheduler.classes import ScheduledJob
     from hassette.scheduler.error_context import SchedulerErrorContext
+    from hassette.task_bucket import TaskBucket
 
 
 CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time"]
@@ -194,6 +200,47 @@ class TriggerProtocol(Protocol):
     def trigger_id(self) -> str:
         """Stable string identifier used for deduplication."""
         ...
+
+
+class SchedulerServiceProtocol(Protocol):
+    """Protocol for the scheduler-service surface consumed by Scheduler.
+
+    Describes the surface Scheduler calls on its scheduler_service: the
+    ``task_bucket`` attribute plus six async/sync methods. SchedulerService
+    satisfies this protocol structurally — no changes to the concrete class
+    are required.
+    """
+
+    task_bucket: "TaskBucket"
+
+    async def add_job(self, job: "ScheduledJob") -> None: ...
+
+    def dequeue_job(self, job: "ScheduledJob") -> bool: ...
+
+    def register_removal_callback(self, owner_id: str, callback: "Callable[[ScheduledJob], None]") -> None: ...
+
+    def deregister_removal_callback(self, owner_id: str) -> None: ...
+
+    async def mark_job_cancelled(self, db_id: int) -> None: ...
+
+    def remove_jobs_by_owner(self, owner: str) -> "asyncio.Task[None]": ...
+
+
+class StateReader(Protocol):
+    """Read-only protocol for the state-proxy surface consumed by StateManager and DomainStates.
+
+    Describes the four members state-manager consumers call on the state proxy.
+    StateProxy satisfies this protocol structurally — no changes to the
+    concrete class are required.
+    """
+
+    def get_state(self, entity_id: str) -> "HassStateDict | None": ...
+
+    def num_domain_states(self, domain: str) -> int: ...
+
+    def yield_domain_states(self, domain: str) -> "Generator[tuple[str, HassStateDict], Any, None]": ...
+
+    def __contains__(self, entity_id: str) -> bool: ...
 
 
 class SyncHandler(Protocol):
