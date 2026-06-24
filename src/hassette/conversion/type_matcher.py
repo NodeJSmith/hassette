@@ -134,3 +134,6 @@ def match_tuple(m: TypeMatcher, value: Any, tp: Any) -> bool:
         return False
 
     return all(m.matches(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))
+
+
+TYPE_MATCHER = TypeMatcher()

@@ -83,8 +83,6 @@ def test_all_domains_registered(
 
     assert not missing_domains, f"Domains not registered: {missing_domains}"
 
-    logger.info("All %d state models are properly registered in the registry.", len(all_models))
-
 
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
@@ -109,8 +107,6 @@ def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
 
     assert not missing_classes, f"Classes not registered: {missing_classes}"
 
-    logger.info("All %d state models are included in the registry.", len(all_models))
-
 
 def test_registry_can_convert_all_domains(
     all_models: dict[str, type[states.BaseState]],
@@ -131,8 +127,6 @@ def test_registry_can_convert_all_domains(
             f"Registry returned {retrieved_class} for domain '{domain}', expected {model_cls}"
         )
 
-    logger.info("Registry can successfully look up all %d state classes by domain.", len(all_models))
-
 
 def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[dict[str, Any]]):
     """Every entity in the JSONL fixture must parse as its registered state class.
@@ -151,7 +145,7 @@ def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[di
             continue
 
         try:
-            state_cls.model_validate(state_dict)
+            STATE_REGISTRY.try_convert_state(state_dict)
         except Exception as e:
             failures.append(f"{entity_id}: {e}")
 

@@ -12,26 +12,25 @@ When state data arrives from Home Assistant, `StateRegistry.try_convert_state()`
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
 ```
 
-The pipeline runs five steps:
+The pipeline runs four steps:
 
 1. `StateRegistry.resolve(domain="binary_sensor")` looks up the registered class for the domain.
    It returns [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState].
 
-2. Pydantic validation begins on `BinarySensorState`.
+2. The codec normalizes `"unknown"` and `"unavailable"` states to `None` before coercion, then
+   reads `value_type` from the resolved class and delegates to `TypeRegistry`.
 
-3. The `_validate_domain_and_state` model validator reads `value_type` from the class and
-   delegates to `TypeRegistry`.
+3. `TypeRegistry` looks up the `(str, bool)` converter and converts `"on"` to `True`.
 
-4. `TypeRegistry` looks up the `(str, bool)` converter and converts `"on"` to `True`.
-
-5. Validation completes. The result is a fully typed state object:
+4. The codec constructs the model from the prepared dict. The result is a fully typed state object:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_converted_output.py"
 ```
 
-`StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?".
-Each state class declares a `value_type` class variable — the type (or tuple of types) the `value` field should hold. `TypeRegistry` reads this and selects the right converter:
+`StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?". The state model handles shape normalization — extracting the domain from `entity_id` and mapping `"unknown"`/`"unavailable"` to sentinel flags — but performs no value coercion. The codec owns type conversion: reading `value_type`, selecting the right converter, and constructing the typed state.
+
+Each state class declares a `value_type` class variable — the type (or tuple of types) the `value` field should hold. The codec reads this and selects the right converter:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
@@ -115,7 +114,7 @@ applies it.
 ```
 
 When no registered converter exists, the registry tries the target type's constructor as a
-fallback. A successful constructor call auto-registers the pair for future calls.
+fallback. A successful constructor call does not register the pair — each miss goes through the constructor directly. Custom converters registered via `register_simple_type_converter` or `@register_type_converter_fn` are added normally.
 
 For union `value_type` declarations (`value_type = (int, float, str)`), conversion is attempted in order and the first success wins. `str` succeeds trivially (no conversion needed), so placing it first would always short-circuit before attempting `int` or `float`. The most specific type must come first: `(int, float, str)` is correct; `(str, int, float)` is not.
 
@@ -248,8 +247,8 @@ and entity name.
 
 #### `UnableToConvertStateError`
 
-Raised when Pydantic validation fails for both the resolved state class and the `BaseState`
-fallback.
+Raised when the codec fails to construct a state object for both the resolved state class and the
+`BaseState` fallback.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/error_unable_to_convert.py"

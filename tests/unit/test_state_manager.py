@@ -115,7 +115,7 @@ class TestDomainStatesCacheValidation:
             context=ctx,
         )
 
-        with patch.object(LightState, "model_validate", wraps=LightState.model_validate) as spy:
+        with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
             first = ds._validate_or_return_from_cache("light.bedroom", state_1)
             second = ds._validate_or_return_from_cache("light.bedroom", state_2)
 
@@ -143,7 +143,7 @@ class TestDomainStatesCacheValidation:
             context={"id": None, "parent_id": None, "user_id": None},
         )
 
-        with patch.object(LightState, "model_validate", wraps=LightState.model_validate) as spy:
+        with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
             first = ds._validate_or_return_from_cache("light.bedroom", state_1)
             second = ds._validate_or_return_from_cache("light.bedroom", state_2)
 
@@ -155,7 +155,7 @@ class TestDomainStatesCacheValidation:
         state_on = make_light_state_dict("light.bedroom", "on", brightness=150)
         state_off = make_light_state_dict("light.bedroom", "off")
 
-        with patch.object(LightState, "model_validate", wraps=LightState.model_validate) as spy:
+        with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
             first = ds._validate_or_return_from_cache("light.bedroom", state_on)
             second = ds._validate_or_return_from_cache("light.bedroom", state_off)
 

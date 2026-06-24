@@ -56,6 +56,7 @@ from .helpers import (
     make_sensor_state_dict,
     make_state_dict,
     make_switch_state_dict,
+    make_typed_state,
 )
 from .helpers import create_listener as create_listener
 from .helpers import make_task_bucket as make_task_bucket
@@ -81,4 +82,5 @@ __all__ = [
     "make_state_dict",
     "make_switch_state_dict",
     "make_test_config",
+    "make_typed_state",
 ]

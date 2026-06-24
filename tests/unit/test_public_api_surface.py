@@ -25,6 +25,7 @@ TIER1_SYMBOLS = {
     "make_state_dict",
     "make_switch_state_dict",
     "make_test_config",
+    "make_typed_state",
 }
 
 

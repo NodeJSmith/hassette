@@ -202,11 +202,8 @@ class TypeRegistry:
                 new_value = to_type(value)
             except Exception as e:
                 raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
-            TypeRegistry.register(
-                TypeConverterEntry(func=to_type, from_type=from_type, to_type=to_type, error_types=(Exception,))
-            )
             LOGGER.debug(
-                "Converted %r (%s) to %r (%s) using constructor (auto-registered)",
+                "Converted %r (%s) to %r (%s) using constructor",
                 value,
                 type(value).__name__,
                 new_value,
@@ -254,7 +251,7 @@ class TypeRegistry:
 
             conversions = TYPE_REGISTRY.list_conversions()
             for from_type, to_type, entry in conversions:
-                print(f"{from_type.__name__} → {to_type.__name__}: {entry.description}")
+                print(f"{from_type.__name__} → {to_type.__name__}: {entry.func.__name__}")
             ```
         """
         items = []
@@ -262,16 +259,6 @@ class TypeRegistry:
             items.append((from_type, to_type, entry))
         items.sort(key=lambda x: (x[0].__name__, x[1].__name__))
         return items
-
-    @classmethod
-    def snapshot(cls) -> dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]:
-        """Return a shallow copy of the current conversion map."""
-        return dict(cls.conversion_map)
-
-    @classmethod
-    def restore(cls, snapshot: dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]) -> None:
-        """Replace the conversion map with a previously captured snapshot."""
-        cls.conversion_map = snapshot
 
 
 # stdlib classes
@@ -338,3 +325,6 @@ def from_string_to_bool(value: str) -> bool:
             return False
         case _:
             raise ValueError
+
+
+TYPE_REGISTRY = TypeRegistry()

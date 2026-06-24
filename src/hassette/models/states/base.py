@@ -7,8 +7,8 @@ from typing import Any, ClassVar, Generic, get_args
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 from whenever import Date, PlainDateTime, Time, ZonedDateTime
 
-from hassette.conversion import TYPE_REGISTRY, register_state_converter
-from hassette.exceptions import NoDomainAnnotationError, UnableToConvertValueError
+from hassette.exceptions import NoDomainAnnotationError
+from hassette.models.states.catalog import register_state_converter
 from hassette.types import StateValueT
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
@@ -170,14 +170,6 @@ class BaseState(BaseModel, Generic[StateValueT]):
         elif state == "unavailable":
             values["is_unavailable"] = True
             values["state"] = state = None
-
-        try:
-            values["state"] = TYPE_REGISTRY.convert(state, cls.value_type)
-        except UnableToConvertValueError as e:
-            LOGGER.error(
-                "Unable to convert state value %r for entity %s: %s", state, values.get("entity_id"), e, stacklevel=2
-            )
-            raise
 
         return values
 

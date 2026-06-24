@@ -19,12 +19,14 @@ Import boundaries enforced today (``RULES``):
 - ``resources → task_bucket`` — task_bucket injects its constructor via register_task_bucket_factory (#1079).
 - ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
 - ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
+- ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
 inversion (``SchedulerServiceProtocol`` and ``StateReader`` in the ``types`` leaf
-layer; #1079). One runtime cycle remains: ``conversion``↔``models`` (#892), tracked
-separately. ``RULES`` is a list so each boundary is added as it becomes clean.
+layer; #1079). The ``conversion``↔``models`` cycle (#892) is resolved by moving
+conversion behavior into the codec and making models/states a leaf below conversion.
+``RULES`` is a list so each boundary is added as it becomes clean.
 
 Import rules are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
@@ -118,6 +120,12 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "state_manager",
         forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
         reason="state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
+    ),
+    Rule(
+        name="models-no-conversion",
+        applies=lambda layer: layer == "models",
+        forbids=lambda module: module == "hassette.conversion" or module.startswith("hassette.conversion."),
+        reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
 ]
 
