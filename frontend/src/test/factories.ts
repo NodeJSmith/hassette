@@ -48,6 +48,7 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
     filename: "test_app.py",
     enabled: true,
     auto_loaded: true,
+    autostart: true,
     status: "running",
     block_reason: null,
     instance_count: 1,

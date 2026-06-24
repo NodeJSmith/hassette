@@ -90,6 +90,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
                 filename=m.filename,
                 enabled=m.enabled,
                 auto_loaded=m.auto_loaded,
+                autostart=m.autostart,
                 status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
                 block_reason=m.block_reason,
                 instance_count=m.instance_count,

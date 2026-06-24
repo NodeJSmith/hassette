@@ -16,6 +16,7 @@ APP_LIST_COLUMNS: list[Column] = [
     Column("instance_count", "Instances", max_width=9),
     Column("recent_invocations_1h", "Invoc/1h", max_width=8),
     Column("enabled", "Enabled", max_width=7),
+    Column("autostart", "Autostart", max_width=9),
     Column("filename", "File", max_width=20),
 ]
 

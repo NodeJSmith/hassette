@@ -126,6 +126,7 @@ class AppManifestResponse(BaseModel):
     filename: str
     enabled: bool
     auto_loaded: bool
+    autostart: bool = True
     status: ManifestStatus
     block_reason: str | None = None
     instance_count: int = Field(

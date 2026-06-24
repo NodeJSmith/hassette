@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Expose autostart on the apps API response and CLI list"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#10", "AC#9"]
 ---

@@ -133,6 +133,31 @@ class TestManifestStatus:
                 error_rate_class="good",
             )
 
+    def test_autostart_defaults_to_true_when_omitted(self) -> None:
+        obj = AppManifestResponse(
+            app_key="my_app",
+            class_name="MyApp",
+            display_name="My App",
+            filename="my_app.py",
+            enabled=True,
+            auto_loaded=False,
+            status="stopped",
+        )
+        assert obj.autostart is True
+
+    def test_autostart_round_trips_false(self) -> None:
+        obj = AppManifestResponse(
+            app_key="my_app",
+            class_name="MyApp",
+            display_name="My App",
+            filename="my_app.py",
+            enabled=True,
+            auto_loaded=False,
+            status="stopped",
+            autostart=False,
+        )
+        assert obj.autostart is False
+
 
 # ResourceStatus — AppInstanceResponse.status
 
