@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add autostart field to manifest, registry property, and snapshot"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#9", "FR#10", "FR#13", "AC#1", "AC#3"]
 ---

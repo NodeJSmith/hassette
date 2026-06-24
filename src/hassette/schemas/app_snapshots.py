@@ -69,6 +69,7 @@ class AppManifestInfo:
     enabled: bool
     auto_loaded: bool
     status: str  # "running", "failed", "stopped", "disabled", "blocked"
+    autostart: bool = True
     block_reason: str | None = None
     instance_count: int = 0
     """Number of currently tracked instances (running or failed). 0 means none are tracked."""

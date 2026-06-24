@@ -130,6 +130,11 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     enabled: bool = Field(default=True)
     """Whether the app is enabled or not, will default to True if not set. Does not consider @only_app decorator."""
 
+    autostart: bool = Field(default=True)
+    """Whether the app starts automatically when Hassette starts. Orthogonal to
+    `enabled`: an enabled app with autostart=false is registered and startable on
+    demand, but is not started at startup or by a live config reload."""
+
     filename: str = Field(default=..., examples=["my_app.py"], validation_alias=AliasChoices("filename", "file_name"))
     """Filename of the app, will be looked for in app_path"""
 
@@ -156,7 +161,10 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Fully resolved path to the app file"""
 
     def __repr__(self) -> str:
-        return f"<AppManifest {self.display_name} ({self.class_name}) - enabled={self.enabled} file={self.filename}>"
+        return (
+            f"<AppManifest {self.display_name} ({self.class_name})"
+            f" - enabled={self.enabled} autostart={self.autostart} file={self.filename}>"
+        )
 
     @model_validator(mode="before")
     @classmethod
