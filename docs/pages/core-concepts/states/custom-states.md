@@ -60,7 +60,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### Custom value type: inherit `BaseState` directly
 
-When no built-in base class fits, a class can inherit from `BaseState[T]` directly. The `value_type` class variable declares the accepted types. The conversion pipeline coerces state values against `value_type` at runtime using `TypeRegistry`.
+When no built-in base class fits, a class can inherit from `BaseState[T]` directly. The `value_type` class variable declares the accepted types. The conversion pipeline coerces state values against `value_type` at runtime using [`TypeRegistry`](conversion.md#value-conversion).
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/define_your_own.py"
