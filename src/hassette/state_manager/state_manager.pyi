@@ -21,11 +21,10 @@ from frozendict import frozendict
 from hassette.conversion import StateKey
 from hassette.models import states
 from hassette.resources.base import Resource
-from hassette.types import StateT
+from hassette.types import StateReader, StateT
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
 
 class CacheValue(Generic[StateT], NamedTuple):
@@ -34,13 +33,13 @@ class CacheValue(Generic[StateT], NamedTuple):
     model: StateT
 
 class DomainStates(typing.Generic[StateT]):
-    _state_proxy: StateProxy
+    _state_proxy: StateReader
     _model: type[StateT]
     _domain: str
     _cache: dict[str, CacheValue[StateT]]
 
     def _validate_or_return_from_cache(self, entity_id: str, state: HassStateDict) -> StateT: ...
-    def __init__(self, state_proxy: StateProxy, model: type[StateT]) -> None: ...
+    def __init__(self, state_proxy: StateReader, model: type[StateT]) -> None: ...
     def __iter__(self) -> typing.Generator[tuple[str, StateT], typing.Any]: ...
     def __len__(self) -> int: ...
     def __getitem__(self, entity_id: str) -> StateT: ...
@@ -57,7 +56,7 @@ class DomainStates(typing.Generic[StateT]):
 
 class StateManager(Resource):
     @property
-    def _state_proxy(self) -> StateProxy: ...
+    def _state_proxy(self) -> StateReader: ...
     def __init__(self, hassette: Hassette, *, parent: Resource | None = None) -> None: ...
 
     # Known domain properties with full typing

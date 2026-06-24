@@ -17,6 +17,8 @@ from hassette.utils.service_utils import wait_for_ready
 from .mixins import LifecycleMixin
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette import Hassette, TaskBucket
 
 _ResourceT = TypeVar("_ResourceT", bound="Resource")
@@ -116,6 +118,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     task_bucket: "TaskBucket"
     """Task bucket for managing tasks owned by this instance."""
 
+    is_task_bucket: ClassVar[bool] = False
+    """True on TaskBucket (and any subclass that keeps it True, since it is inherited); used in
+    __init__ so a Resource that is its own task bucket skips the factory, avoiding a circular import."""
+
+    _default_task_bucket_factory: ClassVar["Callable[[Hassette, Resource], TaskBucket] | None"] = None
+    """Factory registered by hassette.task_bucket at import time; raises if unset."""
+
     parent: "Resource | None" = None
     """Reference to the parent resource, if any."""
 
@@ -139,11 +148,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if "depends_on" not in cls.__dict__:
             cls.depends_on = list(cls.depends_on)
 
+    @classmethod
+    def register_task_bucket_factory(cls, factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:
+        """Register the factory used to create a default TaskBucket for each Resource.
+
+        Called once by hassette.task_bucket at module import time so that Resource.__init__
+        never needs to import TaskBucket directly.
+        """
+        cls._default_task_bucket_factory = factory
+
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
-        from hassette.task_bucket import TaskBucket  # lazy-import: break circular import — task_bucket imports Resource
-
         super().__init__()
 
         self._cache = None  # lazy init
@@ -155,11 +171,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         self._setup_logger()
 
-        if type(self) is TaskBucket:
-            # TaskBucket is special: it is its own task bucket
-            self.task_bucket = self
+        if self.is_task_bucket:
+            # TaskBucket is special: it is its own task bucket. pyright can't narrow `self` to
+            # TaskBucket through the `is_task_bucket: ClassVar[bool]` guard, so the assignment of
+            # `self` to the TaskBucket-typed attribute needs the suppression.
+            self.task_bucket = self  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            self.task_bucket = task_bucket or TaskBucket(self.hassette, parent=self)
+            if task_bucket is not None:
+                self.task_bucket = task_bucket
+            else:
+                factory = Resource._default_task_bucket_factory
+                if factory is None:
+                    raise RuntimeError(
+                        f"Cannot construct {type(self).__name__}: no TaskBucket factory is registered. "
+                        "Ensure hassette.task_bucket is imported before constructing any Resource."
+                    )
+                self.task_bucket = factory(self.hassette, self)
 
     def _get_logger_name(self) -> str:
         if self.class_name == "Hassette":

@@ -7,12 +7,11 @@ from frozendict import deepfreeze, frozendict
 from pydantic import ValidationError
 
 from hassette.conversion import STATE_REGISTRY, StateKey
-from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
 from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
-from hassette.types import StateT
+from hassette.types import StateReader, StateT
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import make_entity_id
 
@@ -33,7 +32,7 @@ class CacheValue(Generic[StateT], NamedTuple):
 class DomainStates(Generic[StateT]):
     """DomainStates provides access to all states within a specific domain, with automatic type validation and caching.
 
-    This class accesses the StateProxy under the hood to provide access to the current states from HomeAssistant,
+    This class reads through a StateReader under the hood to provide access to the current states from HomeAssistant,
     without needing to make direct calls to the Home Assistant API.
 
     Accessed states are automatically validated against the provided model and cached for efficient repeated access.
@@ -61,11 +60,11 @@ class DomainStates(Generic[StateT]):
 
     """
 
-    def __init__(self, state_proxy: "StateProxy", model: type[StateT]) -> None:
+    def __init__(self, state_proxy: StateReader, model: type[StateT]) -> None:
         if not issubclass(model, BaseState):
             raise TypeError(f"Expected a subclass of BaseState, got {model!r}")
 
-        self._state_proxy = state_proxy
+        self._state_proxy: StateReader = state_proxy
         self._model = model
         self._domain = model.get_domain()
         self._cache: dict[str, CacheValue[StateT]] = {}
@@ -239,8 +238,8 @@ class StateManager(Resource):
         return self.hassette.config.logging.state_proxy
 
     @property
-    def _state_proxy(self) -> StateProxy:
-        """Access the underlying StateProxy instance via the public, wiring-checked accessor."""
+    def _state_proxy(self) -> StateReader:
+        """Access the underlying state proxy (as a StateReader) via the public, wiring-checked accessor."""
         return self.hassette.state_proxy
 
     def _domain_states_for(self, state_class: type[BaseState]) -> "DomainStates[BaseState]":

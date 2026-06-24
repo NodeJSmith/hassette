@@ -1,7 +1,7 @@
 # Design: Break Three Subpackage Import Cycles via Dependency Inversion
 
 **Date:** 2026-06-22
-**Status:** approved
+**Status:** archived
 **Scope-mode:** reduce
 **Research:** design/research/2026-06-22-break-import-cycles/research.md
 

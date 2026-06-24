@@ -49,6 +49,8 @@ non-cancellation exception. See :meth:`TaskBucket.install_exception_recorder`.
 class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
 
+    is_task_bucket = True
+
     _tasks: "set[asyncio.Task[Any]]"
 
     _exception_recorders: "list[ExceptionRecorderT]"
@@ -429,3 +431,6 @@ def make_task_factory(
         return t
 
     return factory
+
+
+Resource.register_task_bucket_factory(lambda hassette, owner: TaskBucket(hassette, parent=owner))

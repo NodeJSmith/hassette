@@ -16,13 +16,15 @@ Import boundaries enforced today (``RULES``):
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
 - ``bus → core`` — bus is a service layer and must not import core at runtime (#1089).
+- ``resources → task_bucket`` — task_bucket injects its constructor via register_task_bucket_factory (#1079).
+- ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
+- ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
 
-The full layer DAG is NOT enforced here yet. The remaining runtime cycles —
-``scheduler``↔``core`` (``SchedulerService``),
-``state_manager``↔``core`` (``StateProxy``) — import real core logic, not data, so
-breaking them needs a relocate-vs-protocol-inversion decision deferred to an ADR
-(#1079 tracks breaking these cycles; #633 tracks full DAG enforcement).
-``RULES`` is a list so each boundary is added as it becomes clean.
+The full layer DAG is NOT enforced here yet. The two service-layer core cycles
+(``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
+inversion (``SchedulerServiceProtocol`` and ``StateReader`` in the ``types`` leaf
+layer; #1079). One runtime cycle remains: ``conversion``↔``models`` (#892), tracked
+separately. ``RULES`` is a list so each boundary is added as it becomes clean.
 
 Import rules are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
@@ -98,6 +100,24 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "bus",
         forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
+    ),
+    Rule(
+        name="resources-no-task_bucket",
+        applies=lambda layer: layer == "resources",
+        forbids=lambda module: module == "hassette.task_bucket" or module.startswith("hassette.task_bucket."),
+        reason="resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
+    ),
+    Rule(
+        name="scheduler-no-core",
+        applies=lambda layer: layer == "scheduler",
+        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        reason="scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
+    ),
+    Rule(
+        name="state_manager-no-core",
+        applies=lambda layer: layer == "state_manager",
+        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        reason="state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
     ),
 ]
 
