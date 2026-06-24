@@ -12,7 +12,18 @@ An app block requires two fields: `filename` and `class_name`. `filename` is the
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
 ```
 
-`enabled` disables the app without removing the config block when set to `false`. `display_name` sets a friendly label for logs; it defaults to the class name.
+`enabled` disables the app without removing the config block when set to `false`. `autostart` controls whether the app starts when Hassette starts — it defaults to `true`. `display_name` sets a friendly label for logs; it defaults to the class name.
+
+`enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
+
+```toml
+[hassette.apps.heavy_processor]
+filename = "heavy_processor.py"
+class_name = "HeavyProcessorApp"
+autostart = false
+```
+
+`enabled = false` is the hard off-switch — it marks an app as excluded from Hassette entirely. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
 !!! note "Alternative field names"
     `filename` also accepts `file_name`. `class_name` also accepts `class`, `module`, and `module_name`. `filename` and `class_name` are the recommended names; the alternatives exist for compatibility.
@@ -43,7 +54,7 @@ lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    App registration fields (`filename`, `class_name`, `enabled`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
+    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
 Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 

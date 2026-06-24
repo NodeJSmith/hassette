@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Render autostart marker in UI, regenerate types, update docs"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#11", "AC#9"]
 ---
@@ -29,11 +29,13 @@ Complete the user-facing surface: regenerate the OpenAPI/TS types so `autostart`
 ## Prompt
 Implement the design doc's `## Architecture` section 6 (frontend) and `## Documentation Updates`.
 
-0. **Worktree prep:** `cd frontend && npm install` (worktrees don't share `node_modules`).
+**Already done by T03 (commit 85148d5e) — do NOT redo, just confirm:** the schema/type regeneration already ran (`frontend/openapi.json` + `frontend/src/api/generated-types.ts` already contain `autostart`, which came out as a REQUIRED `autostart: boolean` in the generated TS type), and `frontend/src/test/factories.ts::createManifest` already sets `autostart: true`. So your work is the UI marker + remaining frontend tests + docs.
 
-1. **Regenerate types** (after T03's response change is in): from repo root run
+0. **Worktree prep:** `cd frontend && npm install` (worktrees don't share `node_modules`). (T03 may have already installed; re-running is safe.)
+
+1. **Confirm types are fresh** (should be a no-op): from repo root run
    `uv run python scripts/export_schemas.py --types`
-   This regenerates `openapi.json`, `ws-schema.json`, `frontend/src/api/generated-types.ts`, and `frontend/src/api/ws-types.ts`. `autostart` should now appear on the manifest response type. Do not hand-edit generated files.
+   It should produce NO diff (T03 already regenerated). If it does produce a diff, commit the regenerated files. Do not hand-edit generated files. Note: `autostart` is REQUIRED (not optional) in the generated TS type — any object typed as `AppManifestResponse` / the manifest row must provide it.
 
 2. **`frontend/src/utils/app-data.ts`** — `AppRow` (interface at line 5) and `mergeManifestsAndGrid` (line 33) are manually enumerated and do **not** pass through arbitrary manifest fields. Add `autostart: boolean` to the `AppRow` interface and `autostart: m.autostart` to the mapping in `mergeManifestsAndGrid` (alongside `enabled: m.enabled` / `auto_loaded: m.auto_loaded` at lines 44-45).
 

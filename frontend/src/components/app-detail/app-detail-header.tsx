@@ -66,6 +66,15 @@ export function AppDetailHeader({
             </Chip>
           </>
         )}
+        {manifest?.autostart === false && (
+          <>
+            {" "}
+            &middot;{" "}
+            <Chip variant="muted" data-testid="no-autostart-badge">
+              no autostart
+            </Chip>
+          </>
+        )}
       </p>
 
       {errorMsg && (

@@ -32,6 +32,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     block_reason: null,
     enabled: true,
     auto_loaded: false,
+    autostart: true,
     instance_count: 1,
     instances: [],
     error_message: null,
@@ -229,6 +230,16 @@ describe("AppTableRow", () => {
       app: createAppRow({ instance_count: 3 }),
     });
     expect(getByText(/3 instances/i)).toBeDefined();
+  });
+
+  it("shows 'no autostart' chip when autostart is false", () => {
+    const { getByText } = renderRow({ app: createAppRow({ autostart: false }) });
+    expect(getByText("no autostart")).toBeDefined();
+  });
+
+  it("does not show 'no autostart' chip when autostart is true", () => {
+    const { queryByText } = renderRow({ app: createAppRow({ autostart: true }) });
+    expect(queryByText("no autostart")).toBeNull();
   });
 
   describe("dimmed styling for inactive statuses", () => {

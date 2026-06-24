@@ -61,7 +61,7 @@ The **STATUS** badge on each row reflects the app's current lifecycle state.
 |-------|---------|
 | `STARTING` | The app is running its `on_initialize` hook. |
 | `RUNNING` | The app is processing events normally. |
-| `STOPPED` | The app was stopped via the UI or REST API. It will not process events until started again. |
+| `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
 | `CRASHED` | The app crashed and cannot recover. Check the error details and restart manually. |
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
