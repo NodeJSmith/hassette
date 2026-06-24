@@ -246,15 +246,16 @@ def convert_state_dict_to_model(value: typing.Any, model: "type[BaseState]") -> 
     if entity_id:
         prepared["domain"] = str(entity_id).split(".", 1)[0]
 
-    state = prepared.get("state")
-    if state == "unknown":
-        prepared["is_unknown"] = True
-        prepared["state"] = state = None
-    elif state == "unavailable":
-        prepared["is_unavailable"] = True
-        prepared["state"] = state = None
+    if "state" in prepared:
+        state = prepared["state"]
+        if state == "unknown":
+            prepared["is_unknown"] = True
+            prepared["state"] = state = None
+        elif state == "unavailable":
+            prepared["is_unavailable"] = True
+            prepared["state"] = state = None
 
-    with suppress(UnableToConvertValueError):
-        prepared["state"] = TYPE_REGISTRY.convert(state, model.value_type)
+        with suppress(UnableToConvertValueError):
+            prepared["state"] = TYPE_REGISTRY.convert(state, model.value_type)
 
     return model.model_validate(prepared)

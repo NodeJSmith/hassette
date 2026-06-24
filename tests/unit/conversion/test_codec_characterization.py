@@ -1,9 +1,9 @@
 """Characterization pin for state-conversion typed output.
 
-This test captures the exact typed values produced by the current model_validate
-path across every value_type family. It must stay green before and after the
-refactor — if any assertion fails post-refactor, the codec produced a different
-typed value than the pre-change path.
+Most test classes pin the direct model_validate path. TestTryConvertStateEntryPoint
+pins the STATE_REGISTRY.try_convert_state codec path (domain resolution + type
+coercion). If any assertion fails, the conversion produced a different typed value
+than the expected golden output.
 
 Write golden values from observation, not from calling the same code path twice.
 """
@@ -182,20 +182,20 @@ class TestTryConvertStateEntryPoint:
     def test_light_on_via_registry(self) -> None:
         raw = make_state_dict("light.kitchen", "on")
         state = STATE_REGISTRY.try_convert_state(raw)
-        assert type(state).__name__ == "LightState"
+        assert type(state) is LightState
         assert state.value is True
 
     def test_sensor_string_via_registry(self) -> None:
         raw = make_state_dict("sensor.outdoor_temperature", "23.5")
         state = STATE_REGISTRY.try_convert_state(raw)
-        assert type(state).__name__ == "SensorState"
+        assert type(state) is SensorState
         assert state.value == "23.5"
         assert isinstance(state.value, str)
 
     def test_number_float_via_registry(self) -> None:
         raw = make_state_dict("number.brightness", "23.5")
         state = STATE_REGISTRY.try_convert_state(raw)
-        assert type(state).__name__ == "NumberState"
+        assert type(state) is NumberState
         assert state.value == 23.5
         assert isinstance(state.value, float)
 
