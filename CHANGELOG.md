@@ -7,37 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.46.0](https://github.com/NodeJSmith/hassette/compare/v0.45.0...v0.46.0) (2026-06-25)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **State/type registries moved to `hassette.conversion`** — `STATE_REGISTRY` and `TYPE_REGISTRY` are now owned by `hassette.conversion` instead of `hassette.models`. Imports from `hassette.models` still work via re-exports but are deprecated; update to `from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY`. (#1122)
 
-* `STATE_REGISTRY` and `TYPE_REGISTRY` are now owned by `hassette.conversion` instead of `hassette.models`. Existing imports from `hassette.models` continue to work via re-exports but are deprecated — update imports to `from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY`.
+### Apps
 
-### Features
+- **`autostart` config option** — register an app without starting it at boot. `enabled = true, autostart = false` registers the app, shows it in the dashboard, and leaves it startable on demand, with `enabled` still the hard on/off switch. These apps get a "no autostart" chip in the UI and a new `Autostart` column in `hassette app`. (#1124)
 
-* add autostart option to register an app without auto-starting it ([#1124](https://github.com/NodeJSmith/hassette/issues/1124)) ([c476b3a](https://github.com/NodeJSmith/hassette/commit/c476b3ab95faf9a4bd0d7ea3814571150865be21)), closes [#1061](https://github.com/NodeJSmith/hassette/issues/1061)
-* add per-listener backpressure policy (block, drop_newest) for bus subscriptions ([#1082](https://github.com/NodeJSmith/hassette/issues/1082)) ([0ce0b6d](https://github.com/NodeJSmith/hassette/commit/0ce0b6d3cc7eec8e0bbdbfec8b8445a234362e94))
-* add presence helpers to StateManager ([#1130](https://github.com/NodeJSmith/hassette/issues/1130)) ([ba188fc](https://github.com/NodeJSmith/hassette/commit/ba188fc7c85da6c05d1a0c1884545c1bcaf6ff2c)), closes [#1068](https://github.com/NodeJSmith/hassette/issues/1068)
-* bound concurrent event dispatch to prevent unbounded fan-out ([#1075](https://github.com/NodeJSmith/hassette/issues/1075)) ([cb54455](https://github.com/NodeJSmith/hassette/commit/cb544558f45bc9014f71fd38d8a428721d64b8e1))
+### Bus
 
+- **Per-listener backpressure policy** — each subscription chooses `block` (default; wait for a dispatch slot, unchanged behavior) or `drop_newest` (skip the event when the bus is saturated). Drop counts surface in the listener detail view. (#1082)
+- **Bounded concurrent dispatch** — new `lifecycle.max_concurrent_dispatches` config field (default 50) caps how many handler invocations run at once, so a Home Assistant state storm can no longer fan out into unbounded tasks and exhaust memory. (#1075)
+
+### State Models
+
+- **Presence helpers on `StateManager`** — `anybody_home()`, `everybody_home()`, `nobody_home()`, and `is_home(entity_id)`, accessed via `self.states`. Each reads the local state cache synchronously (no `await`, no network round-trip) and checks the `person` domain, falling back to `device_tracker` when no `person` entities exist. (#1130)
+- Domain-typed state access (`self.states.light["x"]` / `.get("x")`) now raises `UnableToConvertStateError` on a conversion failure instead of leaking a raw `pydantic.ValidationError`. Code catching `ValidationError` from domain-typed access should catch `UnableToConvertStateError` instead. (#1109)
 
 ### Bug Fixes
 
-* correct config hot-reload freeze, cold-start state retry, and -O-stripped wiring guards ([#1088](https://github.com/NodeJSmith/hassette/issues/1088)) ([53dc8ba](https://github.com/NodeJSmith/hassette/commit/53dc8bac9f5358aaee95ab78b266f333b2a2eed2))
-* don't fail resources that already reached a terminal state ([#1071](https://github.com/NodeJSmith/hassette/issues/1071)) ([cb34819](https://github.com/NodeJSmith/hassette/commit/cb3481921dbb3b8eed672d9f92db9d88f9581b04)), closes [#1059](https://github.com/NodeJSmith/hassette/issues/1059)
-* force fresh module re-import on REST app reload ([#1110](https://github.com/NodeJSmith/hassette/issues/1110)) ([b422f3b](https://github.com/NodeJSmith/hassette/commit/b422f3be76c032a33ab3cbd272e72e2127978c3b)), closes [#1005](https://github.com/NodeJSmith/hassette/issues/1005)
-* raise UnableToConvertStateError on domain-typed state conversion failure ([#1109](https://github.com/NodeJSmith/hassette/issues/1109)) ([74cc627](https://github.com/NodeJSmith/hassette/commit/74cc627de2edb3459133a3ee15f5935e871b62d3)), closes [#1096](https://github.com/NodeJSmith/hassette/issues/1096)
-* store app manifest per instance, not on the shared class ([#1069](https://github.com/NodeJSmith/hassette/issues/1069)) ([c7949b7](https://github.com/NodeJSmith/hassette/commit/c7949b7b3d7fea07fe71aa5bb48945024303e3ad))
-
-
-### Refactoring
-
-* break the bus→core→bus runtime import cycle ([#1103](https://github.com/NodeJSmith/hassette/issues/1103)) ([d53807f](https://github.com/NodeJSmith/hassette/commit/d53807f319b156a6fbbc7bc5acea65cb6b1395d5)), closes [#1089](https://github.com/NodeJSmith/hassette/issues/1089)
-* break three import cycles and enforce module boundaries ([#1097](https://github.com/NodeJSmith/hassette/issues/1097)) ([c05c38a](https://github.com/NodeJSmith/hassette/commit/c05c38a26beeb8ff01a833fe9bb3125bb5085c01))
-* collapse web/telemetry duplication and storage-error seam ([#1115](https://github.com/NodeJSmith/hassette/issues/1115)) ([72e2f11](https://github.com/NodeJSmith/hassette/commit/72e2f114d275c82fb2382e2534044544f6e08e6f))
-* decouple state models from conversion logic via codec layer ([#1122](https://github.com/NodeJSmith/hassette/issues/1122)) ([0dc30e4](https://github.com/NodeJSmith/hassette/commit/0dc30e49ec19666c1ec988dd1a1c1504ede1960b)), closes [#1079](https://github.com/NodeJSmith/hassette/issues/1079)
-* extract shared dispatch-mode bridge for bus and scheduler ([#1102](https://github.com/NodeJSmith/hassette/issues/1102)) ([c3c423c](https://github.com/NodeJSmith/hassette/commit/c3c423cda21bd659c7106d00d5c8d4c6eecb0b81)), closes [#1090](https://github.com/NodeJSmith/hassette/issues/1090)
-* name the missing service in wiring-guard errors ([#1105](https://github.com/NodeJSmith/hassette/issues/1105)) ([e6bf39c](https://github.com/NodeJSmith/hassette/commit/e6bf39c36f436a3f40f3cef9e011984b51f7e4f0)), closes [#1092](https://github.com/NodeJSmith/hassette/issues/1092)
-* simplify web response mappers and unify health-rate math ([#1106](https://github.com/NodeJSmith/hassette/issues/1106)) ([060777f](https://github.com/NodeJSmith/hassette/commit/060777f358f991fbf96a3ba4e8d84e89554924c3)), closes [#1094](https://github.com/NodeJSmith/hassette/issues/1094)
+- **Manual app reload picks up fixed code** — the REST/UI Reload action now forces a fresh module re-import, so an app that failed to start no longer keeps failing with the original error after you fix the source on disk. Matches the file-watcher's behavior. (#1110)
+- **`config_log_all_events` respects hot-reload** — it was frozen after the first dispatched event and silently ignored config changes; it now updates live like `config_log_level`. (#1088)
+- **Cold-start state retry now fires** — `StateProxy.yield_domain_states` was retrying a generator object rather than the readiness check, so the `@retry` never re-ran before the state cache was ready. (#1088)
+- **Wiring guards survive `python -O`** — service-wiring `assert` statements (stripped in optimized Docker images) are now real runtime checks. (#1088)
+- **Per-section app manifests no longer clobber each other** — two `[apps.*]` sections referencing the same `App` subclass kept distinct `display_name`/`enabled`/`auto_loaded`; the manifest is now per-instance instead of a shared class attribute. (#1069)
+- Resources that already reached a terminal state are no longer driven to `FAILED` during teardown — a late submit-after-shutdown on an already-`STOPPED` resource is a benign no-op, silencing a spurious strict-mode warning. (#1071)
 
 ## [0.45.0](https://github.com/NodeJSmith/hassette/compare/v0.44.0...v0.45.0) (2026-06-16)
 
