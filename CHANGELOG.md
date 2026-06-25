@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0](https://github.com/NodeJSmith/hassette/compare/v0.45.0...v0.46.0) (2026-06-25)
+
+### Breaking Changes
+
+- **State/type registries moved to `hassette.conversion`** — `STATE_REGISTRY` and `TYPE_REGISTRY` are now owned by `hassette.conversion` instead of `hassette.models`. Imports from `hassette.models` still work via re-exports but are deprecated; update to `from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY`. (#1122)
+
+### Apps
+
+- **`autostart` config option** — register an app without starting it at boot. `enabled = true, autostart = false` registers the app, shows it in the dashboard, and leaves it startable on demand, with `enabled` still the hard on/off switch. These apps get a "no autostart" chip in the UI and a new `Autostart` column in `hassette app`. (#1124)
+
+### Bus
+
+- **Per-listener backpressure policy** — each subscription chooses `block` (default; wait for a dispatch slot, unchanged behavior) or `drop_newest` (skip the event when the bus is saturated). Drop counts surface in the listener detail view. (#1082)
+- **Bounded concurrent dispatch** — new `lifecycle.max_concurrent_dispatches` config field (default 50) caps how many handler invocations run at once, so a Home Assistant state storm can no longer fan out into unbounded tasks and exhaust memory. (#1075)
+
+### State Models
+
+- **Presence helpers on `StateManager`** — `anybody_home()`, `everybody_home()`, `nobody_home()`, and `is_home(entity_id)`, accessed via `self.states`. Each reads the local state cache synchronously (no `await`, no network round-trip) and checks the `person` domain, falling back to `device_tracker` when no `person` entities exist. (#1130)
+- Domain-typed state access (`self.states.light["x"]` / `.get("x")`) now raises `UnableToConvertStateError` on a conversion failure instead of leaking a raw `pydantic.ValidationError`. Code catching `ValidationError` from domain-typed access should catch `UnableToConvertStateError` instead. (#1109)
+
+### Bug Fixes
+
+- **Manual app reload picks up fixed code** — the REST/UI Reload action now forces a fresh module re-import, so an app that failed to start no longer keeps failing with the original error after you fix the source on disk. Matches the file-watcher's behavior. (#1110)
+- **`config_log_all_events` respects hot-reload** — it was frozen after the first dispatched event and silently ignored config changes; it now updates live like `config_log_level`. (#1088)
+- **Cold-start state retry now fires** — `StateProxy.yield_domain_states` was retrying a generator object rather than the readiness check, so the `@retry` never re-ran before the state cache was ready. (#1088)
+- **Wiring guards survive `python -O`** — service-wiring `assert` statements (stripped in optimized Docker images) are now real runtime checks. (#1088)
+- **Per-section app manifests no longer clobber each other** — two `[apps.*]` sections referencing the same `App` subclass kept distinct `display_name`/`enabled`/`auto_loaded`; the manifest is now per-instance instead of a shared class attribute. (#1069)
+- Resources that already reached a terminal state are no longer driven to `FAILED` during teardown — a late submit-after-shutdown on an already-`STOPPED` resource is a benign no-op, silencing a spurious strict-mode warning. (#1071)
+
 ## [0.45.0](https://github.com/NodeJSmith/hassette/compare/v0.44.0...v0.45.0) (2026-06-16)
 
 
