@@ -72,7 +72,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     read. All Pydantic validation still runs.
 
     Defaults:
-        - ``token``: ``"test-token"``
+        - ``token``: ``"test-token"`` (stored as ``SecretStr``; read via
+          ``config.token.get_secret_value()``)
         - ``base_url``: ``"http://test.invalid:8123"`` (unreachable by design)
         - ``disable_state_proxy_polling``: ``True``
         - ``apps``: ``{"autodetect": False}``

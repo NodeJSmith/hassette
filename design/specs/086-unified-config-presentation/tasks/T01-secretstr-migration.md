@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Migrate HassetteConfig.token to SecretStr"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#10", "AC#7", "AC#8"]
 ---
@@ -66,7 +66,7 @@ Do not introduce `model_dump(mode="json")` anywhere on a path that round-trips t
 ## Verify
 - [ ] FR#10: A live Hassette authenticates to Home Assistant over REST and WebSocket with the `SecretStr`
   token (REST `auth_headers` and WS `access_token` carry the real value, not `"**********"`).
-- [ ] AC#7: `nox -s system` and `nox -s e2e` pass (the surfaces that exercise real auth) — not only unit tests.
+- [x] AC#7: `nox -s system` and `nox -s e2e` pass (the surfaces that exercise real auth) — not only unit tests. <!-- RESOLVED 2026-06-25: ran locally — system 5 passed (3.13+3.14, incl. WS reconnection auth), e2e 166 passed (3.11/3.13/3.14). -->
 - [ ] AC#8: the new `tests/integration/test_preserve_config_secretstr.py` asserts `preserve_config`
   restores a `SecretStr` token (via `get_secret_value()`) unchanged across a scope, and the existing
   consumers (`test_hot_reload.py`, `test_service_watcher.py`) still pass.

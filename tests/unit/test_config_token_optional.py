@@ -33,7 +33,7 @@ def test_hassette_token_env_var_is_loaded(monkeypatch, tmp_path) -> None:
         }
 
     config = _EnvConfig(data_dir=tmp_path)
-    assert config.token == "env-token-value"
+    assert config.token.get_secret_value() == "env-token-value"
 
 
 def test_ha_token_env_var_is_loaded(monkeypatch, tmp_path) -> None:
@@ -46,4 +46,4 @@ def test_ha_token_env_var_is_loaded(monkeypatch, tmp_path) -> None:
         }
 
     config = _EnvConfig(data_dir=tmp_path)
-    assert config.token == "ha-token-value"
+    assert config.token.get_secret_value() == "ha-token-value"

@@ -244,7 +244,7 @@ async def test_authenticate_happy_path(websocket_service: WebsocketService) -> N
     sent_payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
     assert sent_payload == {
         "type": "auth",
-        "access_token": websocket_service.hassette.config.token,
+        "access_token": websocket_service.hassette.config.token.get_secret_value(),
     }, "Expected authentication payload to contain the configured token"
 
 

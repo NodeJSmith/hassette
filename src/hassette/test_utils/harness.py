@@ -182,22 +182,20 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
     """Snapshot and restore config values around a test.
 
     Enables module-scoped hassette reuse when tests mutate config.
+
+    Uses :meth:`~pydantic.BaseModel.model_copy` with ``deep=True`` so that
+    ``SecretStr`` fields are preserved as their original objects rather than
+    being serialised to the masked placeholder (``"**********"``).  Restoring
+    via ``model_dump()`` would poison a ``SecretStr`` token to that masked
+    string, which Pydantic would then coerce back to a ``SecretStr`` holding
+    the wrong value under ``validate_assignment=True``.
     """
-    original = config.model_dump()
+    snapshot = config.model_copy(deep=True)
     try:
         yield
     finally:
-        for key, value in original.items():
-            field_info = type(config).model_fields.get(key)
-            if (
-                field_info
-                and field_info.annotation is not None
-                and isinstance(value, dict)
-                and hasattr(field_info.annotation, "model_validate")
-            ):
-                setattr(config, key, field_info.annotation.model_validate(value))
-            else:
-                setattr(config, key, value)
+        for key in type(config).model_fields:
+            setattr(config, key, getattr(snapshot, key))
 
 
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 import tomli_w
-from pydantic import Field
+from pydantic import Field, SecretStr
 
 import hassette.core.block_io_guard as block_io_guard
 from hassette import HassetteConfig
@@ -113,7 +113,7 @@ class TestConfig(HassetteConfig):
         "env_file": ENV_FILE,
     }
 
-    token: str = "test-token"
+    token: SecretStr = SecretStr("test-token")
 
     file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
     websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
