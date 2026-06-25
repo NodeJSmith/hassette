@@ -66,6 +66,8 @@ export function AppDetailHeader({
             </Chip>
           </>
         )}
+        {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
+            loading, and we must not flash the chip before the manifest arrives. */}
         {manifest?.autostart === false && (
           <>
             {" "}
