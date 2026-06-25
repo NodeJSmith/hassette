@@ -133,6 +133,25 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 `StateManager` itself is also iterable: `self.states.items()` yields `(key, DomainStates)` pairs for every registered state class, and `MyState in self.states` checks whether a class is registered. Useful for diagnostics and generic helpers that sweep all domains.
 
+## Presence
+
+Presence is one of the most common conditions in home automation. `StateManager` answers it directly, reading the `person` domain from the local cache — synchronous, no `await`, no API call.
+
+```python
+--8<-- "pages/core-concepts/states/snippets/states_presence.py"
+```
+
+Three quantifiers cover the household, and `is_home` covers one entity:
+
+- **`anybody_home()`** — `True` if at least one tracked person is home.
+- **`everybody_home()`** — `True` if every tracked person is home. `False` when no presence entities are tracked.
+- **`nobody_home()`** — `True` if no tracked person is home. The inverse of `anybody_home()`.
+- **`is_home(entity)`** — `True` if a single `person.*` or `device_tracker.*` entity is home. Takes a full entity ID.
+
+The quantifiers read the `person` domain, falling back to `device_tracker` only when no `person` entities are configured. `person` entities aggregate a real person's devices, so they answer "is this person home?" more reliably than a single device tracker.
+
+`"home"` is the Home Assistant state both domains report when an entity is in the home zone; anything else (`"not_home"`, a named zone like `"Work"`) counts as away.
+
 ## Good to Know
 
 **Startup.** The cache is populated at startup via a full API fetch before `on_initialize` runs. Apps can read current state immediately.
