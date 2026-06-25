@@ -67,4 +67,8 @@ The **STATUS** badge on each row reflects the app's current lifecycle state.
 | `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Another app has the [`@only_app`](../core-concepts/apps/lifecycle.md) decorator (restricts Hassette to running only that app, useful for focused debugging), excluding this app from running. The block resolves automatically when the blocking app is removed or reloaded. |
 
+![A STOPPED app row with the "no autostart" chip](../../_static/web_ui_no_autostart_chip.png)
+
+A row for an app with `autostart = false`. The app stays `STOPPED` until started on demand, and the **no autostart** chip in the APP column marks why.
+
 For the full lifecycle state machine and transition rules, see [Apps lifecycle](../core-concepts/apps/lifecycle.md).

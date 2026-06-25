@@ -137,6 +137,18 @@
   height: 900
   wait: 2000
 
+# cover_scheduler has autostart=false in examples/hassette.toml, so its row
+# stays STOPPED and renders the "no autostart" chip. Crop to the whole row so
+# the chip shows in context (status dot, app key, class, chip, STATUS badge).
+# wait_for gates on the chip existing before the crop.
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_no_autostart_chip.png
+  selector: "[data-testid='app-row-cover_scheduler']"
+  width: 1400
+  height: 900
+  wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"no-autostart-chip\"]')"
+
 # Full viewport capture to show the palette against the darkened backdrop
 - url: "http://localhost:{port}/apps"
   output: docs/_static/web_ui_detail_command_palette.png
