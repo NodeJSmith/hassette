@@ -254,7 +254,7 @@
           "apps"
         ],
         "summary": "Get App Config",
-        "description": "Return the raw app configuration for the given app key.",
+        "description": "Return the app configuration with schema-driven masking for the given app key.\n\nSecret fields are masked by type: any field declared ``SecretStr`` is replaced\nby a masked placeholder; plain ``str`` fields are never masked by name.\nThe ``config_schema`` is fully inlined (no ``$ref`` nodes remain).\n\nMasking needs the app's config schema. It comes from the running instance when the\napp is active, otherwise from the app class if it has already been loaded. When no\nschema can be obtained (a disabled app whose class was never loaded, or a class whose\nschema generation fails), every string value is masked as a safe floor so no secret\nleaks \u2014 the masked path is the only path.",
         "operationId": "get_app_config_api_apps__app_key__config_get",
         "parameters": [
           {

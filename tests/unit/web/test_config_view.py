@@ -4,7 +4,7 @@ import json
 
 from pydantic import BaseModel, SecretStr
 
-from hassette.web.config_view import MASK_SENTINEL, build_config_view
+from hassette.web.config_view import MASK_SENTINEL, build_config_view, mask_all_values
 
 
 class _PlainConfig(BaseModel):
@@ -258,3 +258,32 @@ class TestCyclicSchema:
         result = build_config_view(cyclic_schema, values)
         assert "config_schema" in result
         assert "config_values" in result
+
+
+class TestMaskAllValues:
+    """The schema-less safe floor masks every non-empty string at any depth."""
+
+    def test_strings_masked_non_strings_preserved(self) -> None:
+        values = {"password": "hunter2", "retries": 3, "enabled": True, "ratio": 1.5}
+        result = mask_all_values(values)
+        assert result["password"] == MASK_SENTINEL
+        assert result["retries"] == 3
+        assert result["enabled"] is True
+        assert result["ratio"] == 1.5
+
+    def test_nested_and_list_strings_masked(self) -> None:
+        values = {"group": {"token": "secret"}, "items": ["a", 2, "b"]}
+        result = mask_all_values(values)
+        assert result["group"]["token"] == MASK_SENTINEL
+        assert result["items"] == [MASK_SENTINEL, 2, MASK_SENTINEL]
+
+    def test_empty_string_and_none_left_visible(self) -> None:
+        values = {"empty": "", "missing": None}
+        result = mask_all_values(values)
+        assert result["empty"] == ""
+        assert result["missing"] is None
+
+    def test_does_not_mutate_input(self) -> None:
+        values = {"password": "hunter2"}
+        mask_all_values(values)
+        assert values["password"] == "hunter2"

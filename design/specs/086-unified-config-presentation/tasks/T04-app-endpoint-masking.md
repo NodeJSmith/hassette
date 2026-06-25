@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "App config endpoint: schema-driven masking, remove regex"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#2", "AC#2", "AC#4", "AC#5"]
 ---

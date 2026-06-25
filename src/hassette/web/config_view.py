@@ -111,6 +111,28 @@ def _materialize(obj: Any, seen: frozenset[int] | None = None) -> Any:
     return obj
 
 
+def _mask_leaf(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _mask_leaf(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask_leaf(v) for v in value]
+    if isinstance(value, str) and value != "":
+        return MASK_SENTINEL
+    return value
+
+
+def mask_all_values(values: dict[str, Any]) -> dict[str, Any]:
+    """Mask every non-empty string leaf — the safe floor when no schema is available.
+
+    Type-driven masking needs the field's schema to tell a secret from a plain value.
+    When that schema cannot be obtained (the app class is not loaded), there is no way
+    to know which fields are secret, so every string value is masked rather than risk
+    leaking one. Keys and structure are preserved; non-string scalars (bools, numbers,
+    null) and empty strings are left visible since they can never be a secret.
+    """
+    return {k: _mask_leaf(v) for k, v in values.items()}
+
+
 def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
     """Build the unified config view payload from a JSON schema and a values dict.
 
