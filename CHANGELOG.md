@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0](https://github.com/NodeJSmith/hassette/compare/v0.45.0...v0.46.0) (2026-06-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* `STATE_REGISTRY` and `TYPE_REGISTRY` are now owned by `hassette.conversion` instead of `hassette.models`. Existing imports from `hassette.models` continue to work via re-exports but are deprecated — update imports to `from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY`.
+
+### Features
+
+* add autostart option to register an app without auto-starting it ([#1124](https://github.com/NodeJSmith/hassette/issues/1124)) ([c476b3a](https://github.com/NodeJSmith/hassette/commit/c476b3ab95faf9a4bd0d7ea3814571150865be21)), closes [#1061](https://github.com/NodeJSmith/hassette/issues/1061)
+* add per-listener backpressure policy (block, drop_newest) for bus subscriptions ([#1082](https://github.com/NodeJSmith/hassette/issues/1082)) ([0ce0b6d](https://github.com/NodeJSmith/hassette/commit/0ce0b6d3cc7eec8e0bbdbfec8b8445a234362e94))
+* add presence helpers to StateManager ([#1130](https://github.com/NodeJSmith/hassette/issues/1130)) ([ba188fc](https://github.com/NodeJSmith/hassette/commit/ba188fc7c85da6c05d1a0c1884545c1bcaf6ff2c)), closes [#1068](https://github.com/NodeJSmith/hassette/issues/1068)
+* bound concurrent event dispatch to prevent unbounded fan-out ([#1075](https://github.com/NodeJSmith/hassette/issues/1075)) ([cb54455](https://github.com/NodeJSmith/hassette/commit/cb544558f45bc9014f71fd38d8a428721d64b8e1))
+
+
+### Bug Fixes
+
+* correct config hot-reload freeze, cold-start state retry, and -O-stripped wiring guards ([#1088](https://github.com/NodeJSmith/hassette/issues/1088)) ([53dc8ba](https://github.com/NodeJSmith/hassette/commit/53dc8bac9f5358aaee95ab78b266f333b2a2eed2))
+* don't fail resources that already reached a terminal state ([#1071](https://github.com/NodeJSmith/hassette/issues/1071)) ([cb34819](https://github.com/NodeJSmith/hassette/commit/cb3481921dbb3b8eed672d9f92db9d88f9581b04)), closes [#1059](https://github.com/NodeJSmith/hassette/issues/1059)
+* force fresh module re-import on REST app reload ([#1110](https://github.com/NodeJSmith/hassette/issues/1110)) ([b422f3b](https://github.com/NodeJSmith/hassette/commit/b422f3be76c032a33ab3cbd272e72e2127978c3b)), closes [#1005](https://github.com/NodeJSmith/hassette/issues/1005)
+* raise UnableToConvertStateError on domain-typed state conversion failure ([#1109](https://github.com/NodeJSmith/hassette/issues/1109)) ([74cc627](https://github.com/NodeJSmith/hassette/commit/74cc627de2edb3459133a3ee15f5935e871b62d3)), closes [#1096](https://github.com/NodeJSmith/hassette/issues/1096)
+* store app manifest per instance, not on the shared class ([#1069](https://github.com/NodeJSmith/hassette/issues/1069)) ([c7949b7](https://github.com/NodeJSmith/hassette/commit/c7949b7b3d7fea07fe71aa5bb48945024303e3ad))
+
+
+### Refactoring
+
+* break the bus→core→bus runtime import cycle ([#1103](https://github.com/NodeJSmith/hassette/issues/1103)) ([d53807f](https://github.com/NodeJSmith/hassette/commit/d53807f319b156a6fbbc7bc5acea65cb6b1395d5)), closes [#1089](https://github.com/NodeJSmith/hassette/issues/1089)
+* break three import cycles and enforce module boundaries ([#1097](https://github.com/NodeJSmith/hassette/issues/1097)) ([c05c38a](https://github.com/NodeJSmith/hassette/commit/c05c38a26beeb8ff01a833fe9bb3125bb5085c01))
+* collapse web/telemetry duplication and storage-error seam ([#1115](https://github.com/NodeJSmith/hassette/issues/1115)) ([72e2f11](https://github.com/NodeJSmith/hassette/commit/72e2f114d275c82fb2382e2534044544f6e08e6f))
+* decouple state models from conversion logic via codec layer ([#1122](https://github.com/NodeJSmith/hassette/issues/1122)) ([0dc30e4](https://github.com/NodeJSmith/hassette/commit/0dc30e49ec19666c1ec988dd1a1c1504ede1960b)), closes [#1079](https://github.com/NodeJSmith/hassette/issues/1079)
+* extract shared dispatch-mode bridge for bus and scheduler ([#1102](https://github.com/NodeJSmith/hassette/issues/1102)) ([c3c423c](https://github.com/NodeJSmith/hassette/commit/c3c423cda21bd659c7106d00d5c8d4c6eecb0b81)), closes [#1090](https://github.com/NodeJSmith/hassette/issues/1090)
+* name the missing service in wiring-guard errors ([#1105](https://github.com/NodeJSmith/hassette/issues/1105)) ([e6bf39c](https://github.com/NodeJSmith/hassette/commit/e6bf39c36f436a3f40f3cef9e011984b51f7e4f0)), closes [#1092](https://github.com/NodeJSmith/hassette/issues/1092)
+* simplify web response mappers and unify health-rate math ([#1106](https://github.com/NodeJSmith/hassette/issues/1106)) ([060777f](https://github.com/NodeJSmith/hassette/commit/060777f358f991fbf96a3ba4e8d84e89554924c3)), closes [#1094](https://github.com/NodeJSmith/hassette/issues/1094)
+
 ## [0.45.0](https://github.com/NodeJSmith/hassette/compare/v0.44.0...v0.45.0) (2026-06-16)
 
 
