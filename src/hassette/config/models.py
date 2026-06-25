@@ -11,7 +11,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
@@ -300,13 +300,20 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
 class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     """Web API and UI server host, port, buffer, and feature-flag settings."""
 
+    # A group label (section title) must live on the model's own `model_config`, NOT on the
+    # `Field(json_schema_extra=...)` of the group in HassetteConfig: a nested-model field is
+    # emitted as a `$ref`, and the server-side deref (`jsonref.replace_refs`) drops `$ref`
+    # sibling keys, so a `ui` block placed there is silently lost. Scalar field labels are not
+    # `$ref` nodes and so use `Field(json_schema_extra=...)` as usual.
+    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "Web API"}})
+
     run: bool = Field(default=True)
     """Whether to run the web API service (includes healthcheck and UI backend)."""
 
-    run_ui: bool = Field(default=True)
+    run_ui: bool = Field(default=True, json_schema_extra={"ui": {"label": "Run UI"}})
     """Whether to serve the web UI dashboard. Only used when run is True."""
 
-    ui_hot_reload: bool = Field(default=False)
+    ui_hot_reload: bool = Field(default=False, json_schema_extra={"ui": {"label": "UI Hot Reload"}})
     """Watch web UI static files and templates for changes and push live reloads to the browser."""
 
     host: str = Field(default="0.0.0.0")
@@ -315,7 +322,10 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     port: int = Field(default=DEFAULT_WEB_API_PORT)
     """Port to run the web API server on."""
 
-    cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))
+    cors_origins: tuple[str, ...] = Field(
+        default=("http://localhost:3000", "http://localhost:5173"),
+        json_schema_extra={"ui": {"label": "CORS Origins"}},
+    )
     """Allowed CORS origins for the web API, typically the UI dev server."""
 
     event_buffer_size: int = Field(default=500)
@@ -459,6 +469,10 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     Controls the two-tier detection system: Tier 1 (always-on responsiveness watchdog) and
     Tier 2 (call-site interception of known blocking primitives, dev-default / prod-opt-in).
     """
+
+    # Group label on the model's own config — see WebApiConfig above for why this can't go on
+    # the field reference in HassetteConfig (deref drops `$ref` sibling keys).
+    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "Blocking I/O"}})
 
     behavior: BlockingIOBehavior | None = Field(default=None)
     """Global default behavior for blocking-IO detection.

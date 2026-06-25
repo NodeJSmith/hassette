@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "ui metadata mechanism + nested-group field descriptions"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#11", "AC#10", "AC#12"]
 ---

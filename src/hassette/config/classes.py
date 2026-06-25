@@ -82,6 +82,8 @@ class ExcludeExtrasMixin:
     sensitive values (e.g. tokens, secrets) during serialization.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     def get_extra_keys(self) -> set[str]:
         extras = getattr(self, "model_extra", None)
         return set(extras) if extras else set()

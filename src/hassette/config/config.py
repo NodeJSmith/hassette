@@ -121,10 +121,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Enable developer mode, which may include additional logging and features."""
 
     # Home Assistant connection — cross-cutting
-    base_url: str = Field(default="http://127.0.0.1:8123")
+    base_url: str = Field(default="http://127.0.0.1:8123", json_schema_extra={"ui": {"label": "Base URL"}})
     """Base URL of the Home Assistant instance"""
 
-    verify_ssl: bool = Field(default=True)
+    verify_ssl: bool = Field(default=True, json_schema_extra={"ui": {"label": "Verify SSL"}})
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
     certificates."""
 

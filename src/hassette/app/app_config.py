@@ -17,7 +17,11 @@ class AppConfig(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        extra="allow", arbitrary_types_allowed=True, env_file=ENV_FILE_LOCATIONS, env_ignore_empty=True
+        extra="allow",
+        arbitrary_types_allowed=True,
+        env_file=ENV_FILE_LOCATIONS,
+        env_ignore_empty=True,
+        use_attribute_docstrings=True,
     )
 
     instance_name: str = ""
