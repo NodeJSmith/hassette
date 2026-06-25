@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add shared config-view builder: deref + type-driven masking"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#4", "FR#5"]
 ---
