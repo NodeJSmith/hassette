@@ -52,7 +52,7 @@ async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
 
 
 async def test_config_endpoint(ha_container: str, tmp_path) -> None:
-    """GET /api/config returns 200 and a ConfigResponse-shaped JSON body."""
+    """GET /api/config returns 200 with the ConfigSchemaResponse envelope."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as _hassette:
         await wait_for_web_server(base_url)
@@ -62,10 +62,13 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
 
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
-        assert "web_api" in body
-        assert "logging" in body
-        assert body["web_api"]["run"] is True
-        assert body["web_api"]["port"] > 0
+        assert "config_schema" in body
+        assert "config_values" in body
+        config_values = body["config_values"]
+        assert "web_api" in config_values
+        assert "logging" in config_values
+        assert config_values["web_api"]["run"] is True
+        assert config_values["web_api"]["port"] > 0
 
 
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:

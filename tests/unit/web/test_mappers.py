@@ -1,16 +1,14 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
-from hassette.config import HassetteConfig
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.telemetry_models import ListenerSummary
-from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,
-    config_response_from,
     connected_payload_from,
     instance_response_from,
     readiness_response_from,
@@ -21,7 +19,6 @@ from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppStatusResponse,
-    ConfigResponse,
     ConnectedPayload,
     ListenerWithSummary,
     LivenessResponse,
@@ -537,47 +534,3 @@ def test_readiness_response_from_starting_status():
     result = readiness_response_from(domain)
     assert result.ready is False
     assert result.status == "starting"
-
-
-# config_response_from
-
-
-def test_config_response_from_groups_and_copies_fields(tmp_path):
-    """Top-level and nested config groups are mapped onto the response model."""
-    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
-
-    result = config_response_from(cfg)
-
-    assert isinstance(result, ConfigResponse)
-    assert result.dev_mode == cfg.dev_mode
-    assert result.base_url == cfg.base_url
-    assert result.web_api.host == cfg.web_api.host
-    assert result.web_api.port == cfg.web_api.port
-    assert result.logging.log_level == cfg.logging.log_level
-    assert result.lifecycle.startup_timeout_seconds == cfg.lifecycle.startup_timeout_seconds
-    assert result.scheduler.min_delay_seconds == cfg.scheduler.min_delay_seconds
-    assert result.file_watcher.watch_files == cfg.file_watcher.watch_files
-
-
-def test_config_response_from_coerces_path_fields_to_str(tmp_path):
-    """Path fields (data_dir, config_dir, apps.directory) become strings in the response."""
-    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
-
-    result = config_response_from(cfg)
-
-    assert isinstance(result.data_dir, str)
-    assert result.data_dir == str(cfg.data_dir)
-    assert isinstance(result.config_dir, str)
-    assert result.config_dir == str(cfg.config_dir)
-    assert isinstance(result.apps.directory, str)
-    assert result.apps.directory == str(cfg.apps.directory)
-
-
-def test_config_response_from_copies_cors_origins_into_new_list(tmp_path):
-    """cors_origins is copied into a distinct list, not aliased to the config object."""
-    cfg = HassetteConfig(token=TEST_TOKEN, data_dir=tmp_path, config_dir=tmp_path)
-
-    result = config_response_from(cfg)
-
-    assert result.web_api.cors_origins == list(cfg.web_api.cors_origins)
-    assert result.web_api.cors_origins is not cfg.web_api.cors_origins

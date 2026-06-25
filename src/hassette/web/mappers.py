@@ -15,7 +15,6 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 
 from typing import cast
 
-from hassette.config import HassetteConfig
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
@@ -25,22 +24,15 @@ from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
-    AppsConfigResponse,
     AppStatusResponse,
     BootIssueResponse,
-    ConfigResponse,
     ConnectedPayload,
-    FileWatcherConfigResponse,
-    LifecycleConfigResponse,
     ListenerKind,
     ListenerWithSummary,
-    LoggingConfigResponse,
     ManifestStatus,
     ReadinessResponse,
-    SchedulerConfigResponse,
     ServiceInfoResponse,
     SystemStatusResponse,
-    WebApiConfigResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
 
@@ -203,53 +195,4 @@ def to_listener_with_summary(
             "dropped_count": dropped,
             "backpressure_dropped_count": backpressure_dropped,
         }
-    )
-
-
-def config_response_from(cfg: HassetteConfig) -> ConfigResponse:
-    """Convert a ``HassetteConfig`` to a ``ConfigResponse``.
-
-    Fields are restructured into config-group sub-responses, and ``Path`` fields
-    (``data_dir``, ``config_dir``, ``apps.directory``) are coerced to ``str``.
-    """
-    return ConfigResponse(
-        dev_mode=cfg.dev_mode,
-        base_url=cfg.base_url,
-        asyncio_debug_mode=cfg.asyncio_debug_mode,
-        allow_reload_in_prod=cfg.allow_reload_in_prod,
-        data_dir=str(cfg.data_dir),
-        config_dir=str(cfg.config_dir),
-        web_api=WebApiConfigResponse(
-            run=cfg.web_api.run,
-            run_ui=cfg.web_api.run_ui,
-            ui_hot_reload=cfg.web_api.ui_hot_reload,
-            host=cfg.web_api.host,
-            port=cfg.web_api.port,
-            cors_origins=list(cfg.web_api.cors_origins),
-            event_buffer_size=cfg.web_api.event_buffer_size,
-            log_buffer_size=cfg.web_api.log_buffer_size,
-            job_history_size=cfg.web_api.job_history_size,
-        ),
-        logging=LoggingConfigResponse(
-            log_level=cfg.logging.log_level,
-            web_api=cfg.logging.web_api,
-        ),
-        lifecycle=LifecycleConfigResponse(
-            startup_timeout_seconds=cfg.lifecycle.startup_timeout_seconds,
-            app_startup_timeout_seconds=cfg.lifecycle.app_startup_timeout_seconds,
-            app_shutdown_timeout_seconds=cfg.lifecycle.app_shutdown_timeout_seconds,
-        ),
-        apps=AppsConfigResponse(
-            autodetect=cfg.apps.autodetect,
-            directory=str(cfg.apps.directory),
-        ),
-        scheduler=SchedulerConfigResponse(
-            min_delay_seconds=cfg.scheduler.min_delay_seconds,
-            max_delay_seconds=cfg.scheduler.max_delay_seconds,
-            default_delay_seconds=cfg.scheduler.default_delay_seconds,
-        ),
-        file_watcher=FileWatcherConfigResponse(
-            watch_files=cfg.file_watcher.watch_files,
-            debounce_milliseconds=cfg.file_watcher.debounce_milliseconds,
-        ),
     )

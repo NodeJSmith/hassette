@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Rebuild global config endpoint; delete legacy path; migrate CLI"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#12", "AC#1", "AC#3", "AC#6", "AC#11"]
 ---

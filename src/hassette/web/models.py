@@ -402,72 +402,17 @@ class ActionResponse(BaseModel):
     action: str
 
 
-class WebApiConfigResponse(BaseModel):
-    """Sanitized web API configuration fields."""
+class ConfigSchemaResponse(BaseModel):
+    """Complete Hassette configuration as a JSON schema plus current values.
 
-    run: bool
-    run_ui: bool
-    ui_hot_reload: bool
-    host: str
-    port: int
-    cors_origins: list[str]
-    event_buffer_size: int
-    log_buffer_size: int
-    job_history_size: int
+    ``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)
+    derived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current
+    configuration serialized to JSON with ``SecretStr`` fields replaced by a masked
+    placeholder.  Every field and nested group is present — nothing is omitted.
+    """
 
-
-class LoggingConfigResponse(BaseModel):
-    """Sanitized logging configuration fields."""
-
-    log_level: str
-    web_api: str
-
-
-class LifecycleConfigResponse(BaseModel):
-    """Sanitized lifecycle configuration fields."""
-
-    startup_timeout_seconds: int
-    app_startup_timeout_seconds: int
-    app_shutdown_timeout_seconds: int
-
-
-class AppsConfigResponse(BaseModel):
-    """Sanitized apps configuration fields (config group sub-response)."""
-
-    autodetect: bool
-    directory: str
-
-
-class SchedulerConfigResponse(BaseModel):
-    """Sanitized scheduler configuration fields."""
-
-    min_delay_seconds: int | float
-    max_delay_seconds: int | float
-    default_delay_seconds: int | float
-
-
-class FileWatcherConfigResponse(BaseModel):
-    """Sanitized file watcher configuration fields."""
-
-    watch_files: bool
-    debounce_milliseconds: int
-
-
-class ConfigResponse(BaseModel):
-    """Sanitized configuration response organized by config group."""
-
-    dev_mode: bool
-    base_url: str
-    asyncio_debug_mode: bool
-    allow_reload_in_prod: bool
-    data_dir: str
-    config_dir: str
-    web_api: WebApiConfigResponse
-    logging: LoggingConfigResponse
-    lifecycle: LifecycleConfigResponse
-    apps: AppsConfigResponse
-    scheduler: SchedulerConfigResponse
-    file_watcher: FileWatcherConfigResponse
+    config_schema: dict[str, Any]
+    config_values: dict[str, Any]
 
 
 class AppConfigResponse(BaseModel):

@@ -253,18 +253,54 @@ def render_detail(
     display_title = _humanize_model_name(type(item).__name__)
     data = item.model_dump(mode="json")
     field_formatters = _resolve_cli_formatters(type(item))
+    _render_detail_panel(data, display_title, field_formatters)
+
+
+def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> None:
+    """Render a plain dict as a key-value panel or JSON object.
+
+    Nested dicts render as labeled sections with indented key-value rows.
+    Lists of scalars render inline as comma-separated values.  The caller
+    passes the human-readable title directly (no class-name transformation).
+
+    Args:
+        data: The values dict to render.
+        title: Panel title shown in human mode.
+        json_mode: When ``True``, serialize ``data`` as JSON on stdout.
+    """
+    if json_mode:
+        sys.stdout.write(json.dumps(data, indent=2) + "\n")
+        sys.stdout.flush()
+        return
+
+    _render_detail_panel(data, title)
+
+
+def _render_detail_panel(
+    data: dict[str, Any],
+    title: str,
+    field_formatters: dict[str, Callable[[Any], str]] | None = None,
+) -> None:
+    """Render a values dict as a key-value Rich panel (shared human-mode body).
+
+    Nested non-empty dicts render as labeled sections with indented key-value rows;
+    empty dicts are skipped so no orphaned section header appears. When sections
+    exist, scalar fields are indented under a "General" header. Fields whose key is
+    in ``field_formatters`` are formatted via that callable in place of the default.
+    """
+    formatters = field_formatters or {}
 
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("key", style="bold", no_wrap=True)
     table.add_column("value")
 
-    has_sections = any(isinstance(v, dict) for v in data.values())
-    # When sections exist, scalar fields are indented under a "General" header
-    # to visually separate them from named sub-model sections.
+    has_sections = any(isinstance(v, dict) and v for v in data.values())
     general_header_emitted = False
 
     for key, value in data.items():
         if isinstance(value, dict):
+            if not value:
+                continue
             table.add_row("", "")
             table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]", "")
             for sub_key, sub_value in value.items():
@@ -273,13 +309,13 @@ def render_detail(
             if has_sections and not general_header_emitted:
                 table.add_row("[bold cyan]General[/bold cyan]", "")
                 general_header_emitted = True
-            if key in field_formatters and value is not None:
-                formatted = field_formatters[key](value)
+            if key in formatters and value is not None:
+                formatted = formatters[key](value)
             else:
                 formatted = _format_detail_value(value)
             table.add_row(f"  {key}" if has_sections else key, formatted)
 
-    panel = Panel(table, title=display_title, expand=False)
+    panel = Panel(table, title=title, expand=False)
     stdout_console.print(panel)
 
 
