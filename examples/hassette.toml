@@ -27,6 +27,10 @@ config = { instance_name = "climate_controller", temp_threshold = 24.0, ac_switc
 [hassette.apps.cover_scheduler]
 filename = "cover_scheduler.py"
 class_name = "CoverScheduler"
+# autostart=false is intentional: it leaves this app STOPPED so the demo renders
+# the "no autostart" chip for the docs screenshot (docs/_static/web_ui_no_autostart_chip.png).
+# Don't remove without updating docs/screenshots.yml and manage-apps.md.
+autostart = false
 config = { instance_name = "cover_scheduler" }
 
 [hassette.apps.presence_tracker]

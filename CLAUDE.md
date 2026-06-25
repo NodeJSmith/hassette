@@ -171,6 +171,44 @@ uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
 
 System dependencies for Chromium require `sudo`. If `playwright install --with-deps` fails, run `sudo uv run playwright install-deps chromium` manually.
 
+## Demo Stack & Doc Screenshots
+
+### Live demo stack (visual QA)
+
+For visual/UI work, run the demo stack — **not** the e2e mock server. It starts a real HA container + Hassette (with the example apps) + a Vite dev server with hot reload, so you see real behavior and CSS/TSX edits apply live.
+
+```bash
+# One-command live UI (requires Docker; ~60-90s to come up)
+mise run demo            # or: uv run python scripts/hassette_demo.py
+```
+
+When ready it prints machine-parseable lines: `DEMO_FRONTEND_URL=`, `DEMO_HASSETTE_URL=`, `DEMO_HA_URL=`, log paths, then `DEMO_READY=true`. Stop the process to tear the stack down (it cleans up the container). `mise run demo-verify` does a non-interactive health check (all apps reach running, listeners registered).
+
+Gotchas:
+- **Stale app code:** reloading a *failed* app via the REST API reuses the stale module — after editing app code, restart the whole stack.
+- **Stale telemetry:** `.demo-data/` persists between runs. If the dashboard shows old errors or inflated counts, stop the stack, `rm -rf .demo-data`, and restart.
+
+### Regenerating doc screenshots
+
+The docs site embeds `docs/_static/web_ui_*.png`. These are generated, not hand-captured. `docs/screenshots.yml` is the single source of truth — adding a screenshot needs only a manifest entry, no script change. The capture tool starts its own demo stack, so Docker + Playwright + shot-scraper (`uv sync --group dev`) must be available.
+
+```bash
+# Regenerate all doc screenshots
+uv run python scripts/capture_screenshots.py
+
+# Regenerate only matching outputs (faster) — substring match on the output filename
+uv run python scripts/capture_screenshots.py --only web_ui_apps,web_ui_config
+```
+
+Workflow for a new screenshot:
+1. Add an entry to `docs/screenshots.yml` (URL path, output filename, optional `selector` crop and `wait_for` gate). Always crop via `data-testid` — CSS module classes are hashed at build time and can't be selected here.
+2. Embed `![alt](../../_static/web_ui_<name>.png)` in the relevant `docs/pages/` page.
+3. Run the capture tool (scope with `--only`).
+
+Some UI states need demo setup before they render. The "no autostart" chip, for example, only appears for an app with `autostart = false`, so `examples/hassette.toml` configures one (`cover_scheduler`) to make that state capturable.
+
+After a UI change that alters a view documented with a screenshot, regenerate the affected `web_ui_*.png` (scope with `--only`). This is the mechanism behind the PR visual-evidence requirement in `.claude/rules/design-completeness.md`.
+
 ## Pre-Ship Verification for Core Changes
 
 When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`ruff`, `pyright`), and the schema-freshness check.

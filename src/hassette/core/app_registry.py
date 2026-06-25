@@ -213,6 +213,7 @@ class AppRegistry:
                     enabled=manifest.enabled,
                     auto_loaded=manifest.auto_loaded,
                     status=status,
+                    autostart=manifest.autostart,
                     block_reason=block_reason.value if block_reason else None,
                     instance_count=len(instances),
                     instances=instances,
@@ -253,3 +254,8 @@ class AppRegistry:
         if self.only_app:
             enabled_apps = {k: v for k, v in enabled_apps.items() if k == self.only_app}
         return enabled_apps
+
+    @property
+    def autostart_manifests(self) -> dict[str, "AppManifest"]:
+        """Active manifests that should start automatically at boot."""
+        return {k: v for k, v in self.active_manifests.items() if v.autostart}

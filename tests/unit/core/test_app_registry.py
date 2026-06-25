@@ -362,7 +362,9 @@ class TestAppRegistryGetFullSnapshot:
     def make_registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def make_manifest_obj(self, app_key: str, enabled: bool = True, auto_loaded: bool = False) -> SimpleNamespace:
+    def make_manifest_obj(
+        self, app_key: str, enabled: bool = True, auto_loaded: bool = False, autostart: bool = True
+    ) -> SimpleNamespace:
         """Build a minimal AppManifest-like object for the registry."""
         return SimpleNamespace(
             app_key=app_key,
@@ -371,6 +373,7 @@ class TestAppRegistryGetFullSnapshot:
             filename=f"{app_key}.py",
             enabled=enabled,
             auto_loaded=auto_loaded,
+            autostart=autostart,
         )
 
     def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
@@ -471,3 +474,88 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
         # Disabled takes priority
         assert snap.manifests[0].status == "disabled"
+
+    def test_snapshot_includes_autostart_field(self) -> None:
+        """get_full_snapshot() sets autostart on each AppManifestInfo from the manifest."""
+        reg = self.make_registry()
+        reg.set_manifests(
+            {
+                "auto_app": self.make_manifest_obj("auto_app", autostart=True),
+                "manual_app": self.make_manifest_obj("manual_app", autostart=False),
+            }
+        )
+        snap = reg.get_full_snapshot()
+        by_key = {m.app_key: m for m in snap.manifests}
+        assert by_key["auto_app"].autostart is True
+        assert by_key["manual_app"].autostart is False
+
+    def test_autostart_false_enabled_app_has_status_stopped(self) -> None:
+        """An enabled+autostart=false manifest with no instances derives status 'stopped', not 'disabled'."""
+        reg = self.make_registry()
+        reg.set_manifests({"manual_app": self.make_manifest_obj("manual_app", enabled=True, autostart=False)})
+        snap = reg.get_full_snapshot()
+        assert snap.manifests[0].status == "stopped"
+        assert snap.manifests[0].autostart is False
+        assert snap.stopped == 1
+        assert snap.disabled == 0
+
+
+class TestAppRegistryAutostart:
+    """Tests for autostart_manifests property."""
+
+    @pytest.fixture
+    def registry(self) -> AppRegistry:
+        return AppRegistry()
+
+    def make_manifest(self, enabled: bool = True, autostart: bool = True) -> SimpleNamespace:
+        return SimpleNamespace(enabled=enabled, autostart=autostart)
+
+    def test_autostart_manifests_includes_autostart_true(self, registry: AppRegistry) -> None:
+        """autostart_manifests includes enabled+autostart=true manifests."""
+        registry.set_manifests(
+            {
+                "auto_app": self.make_manifest(enabled=True, autostart=True),
+            }
+        )
+        result = registry.autostart_manifests
+        assert "auto_app" in result
+
+    def test_autostart_manifests_excludes_autostart_false(self, registry: AppRegistry) -> None:
+        """autostart_manifests excludes manifests where autostart=false."""
+        registry.set_manifests(
+            {
+                "auto_app": self.make_manifest(enabled=True, autostart=True),
+                "manual_app": self.make_manifest(enabled=True, autostart=False),
+            }
+        )
+        result = registry.autostart_manifests
+        assert "auto_app" in result
+        assert "manual_app" not in result
+
+    def test_autostart_manifests_excludes_disabled(self, registry: AppRegistry) -> None:
+        """autostart_manifests also excludes disabled apps (via active_manifests)."""
+        registry.set_manifests(
+            {
+                "disabled_app": self.make_manifest(enabled=False, autostart=True),
+            }
+        )
+        result = registry.autostart_manifests
+        assert "disabled_app" not in result
+
+    def test_active_manifests_still_includes_autostart_false(self, registry: AppRegistry) -> None:
+        """active_manifests is unchanged — it still includes autostart=false enabled apps."""
+        registry.set_manifests(
+            {
+                "manual_app": self.make_manifest(enabled=True, autostart=False),
+            }
+        )
+        assert "manual_app" in registry.active_manifests
+
+    def test_enabled_manifests_still_includes_autostart_false(self, registry: AppRegistry) -> None:
+        """enabled_manifests is unchanged — it still includes autostart=false enabled apps."""
+        registry.set_manifests(
+            {
+                "manual_app": self.make_manifest(enabled=True, autostart=False),
+            }
+        )
+        assert "manual_app" in registry.enabled_manifests

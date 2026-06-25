@@ -271,6 +271,23 @@ describe("AppDetailPage", () => {
     expect(queryByTestId("auto-loaded-badge")).toBeNull();
   });
 
+  it("renders no-autostart badge when autostart is false", async () => {
+    const manifest = createManifest({ autostart: false });
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("no-autostart-badge")).toBeDefined();
+  });
+
+  it("does not render no-autostart badge when autostart is true", async () => {
+    const manifest = createManifest({ autostart: true });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("app-title");
+    expect(queryByTestId("no-autostart-badge")).toBeNull();
+  });
+
   it("shows filename in subtitle meta", async () => {
     const manifest = createManifest({
       app_key: "test_app",

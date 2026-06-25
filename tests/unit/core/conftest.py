@@ -142,6 +142,7 @@ def mock_registry() -> MagicMock:
     registry.manifests = {}
     registry.enabled_manifests = {}
     registry.active_manifests = {}
+    registry.autostart_manifests = {}
     registry.only_app = None
     registry.get_snapshot = Mock()
     registry.block_app = Mock()

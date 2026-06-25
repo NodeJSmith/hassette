@@ -679,6 +679,11 @@ export interface components {
             /** Auto Loaded */
             auto_loaded: boolean;
             /**
+             * Autostart
+             * @default true
+             */
+            autostart: boolean;
+            /**
              * Status
              * @enum {string}
              */

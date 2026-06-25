@@ -102,6 +102,7 @@ class TestCmdApp:
         assert "status" in field_names
         assert "display_name" in field_names
         assert "instance_count" in field_names
+        assert "autostart" in field_names
 
     def test_app_list_columns_count_is_compact(self) -> None:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""

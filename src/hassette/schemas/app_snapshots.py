@@ -69,6 +69,9 @@ class AppManifestInfo:
     enabled: bool
     auto_loaded: bool
     status: str  # "running", "failed", "stopped", "disabled", "blocked"
+    # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppManifestResponse)
+    # because dataclass rules forbid a defaulted field before the non-default `status`.
+    autostart: bool = True
     block_reason: str | None = None
     instance_count: int = 0
     """Number of currently tracked instances (running or failed). 0 means none are tracked."""

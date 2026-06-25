@@ -67,6 +67,11 @@ export function AppTableRow({
             <AppLink appKey={app.app_key} />
             <span class={styles.className}>{app.class_name}</span>
             {app.auto_loaded && <Chip variant="muted">auto</Chip>}
+            {!app.autostart && (
+              <Chip variant="muted" data-testid="no-autostart-chip">
+                no autostart
+              </Chip>
+            )}
           </div>
         </td>
         {/* Status */}

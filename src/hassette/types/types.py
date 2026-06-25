@@ -300,6 +300,7 @@ class RawAppDict(TypedDict, total=False):
     class_name: Required[str]
     app_dir: Path | str
     enabled: bool
+    autostart: bool
     config: dict[str, Any] | list[dict[str, Any]]
     auto_loaded: bool
 
@@ -312,6 +313,7 @@ class AppDict(TypedDict, total=False):
     class_name: Required[str]
     app_dir: Required[Path]
     enabled: bool
+    autostart: bool
     config: list[dict[str, Any]]
     auto_loaded: bool
     full_path: Required[Path]

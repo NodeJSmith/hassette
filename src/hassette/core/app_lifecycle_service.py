@@ -332,13 +332,22 @@ class AppLifecycleService(Resource):
         except Exception:
             self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
 
+    def should_autostart(self, app_key: str) -> bool:
+        """A new/not-yet-running app auto-starts only if its manifest allows it."""
+        manifest = self.registry.get_manifest(app_key)
+        return bool(manifest and manifest.autostart)
+
+    def should_auto_reconcile(self, app_key: str) -> bool:
+        """Already-running apps are always reconciled; dormant apps only if autostart."""
+        return app_key in self.registry.apps or self.should_autostart(app_key)
+
     async def start_apps(self, apps: set[str] | None = None) -> None:
         """Create initialization tasks for apps.
 
         Args:
-            apps: Set of app keys to initialize. If None, initialize all enabled apps.
+            apps: Set of app keys to initialize. If None, initialize all autostart-enabled apps.
         """
-        apps = apps if apps is not None else set(self.registry.active_manifests.keys())
+        apps = apps if apps is not None else set(self.registry.autostart_manifests.keys())
 
         results = await asyncio.gather(*[self.start_app(app_key) for app_key in apps], return_exceptions=True)
         exception_results = [r for r in results if isinstance(r, Exception)]
@@ -347,6 +356,13 @@ class AppLifecycleService(Resource):
 
     async def apply_changes(self, changes: ChangeSet) -> None:
         """Apply detected changes by stopping, reloading, or starting apps.
+
+        Precondition: the four change buckets are disjoint, as guaranteed by
+        ``AppChangeDetector.detect_changes`` (orphans are keys absent from the
+        current config; reimport/reload/new are all keys present in it). Orphans
+        are processed first; a key in both ``orphans`` and a reload bucket would
+        be stopped and then skipped. Callers constructing a ``ChangeSet`` by hand
+        (e.g. tests) must keep the buckets disjoint.
 
         Args:
             changes: The set of changes to apply
@@ -358,16 +374,25 @@ class AppLifecycleService(Resource):
             await self.stop_app(app_key)
 
         for app_key in changes.reimport_apps:
-            self.logger.debug("Reloading app %s due to file change", app_key)
-            await self.reload_app(app_key, force_reload=True)
+            if self.should_auto_reconcile(app_key):
+                self.logger.debug("Reloading app %s due to file change", app_key)
+                await self.reload_app(app_key, force_reload=True)
+            else:
+                self.logger.debug("Skipping reimport of autostart=false app %s (not running)", app_key)
 
         for app_key in changes.reload_apps:
-            self.logger.debug("Reloading app %s due to config change", app_key)
-            await self.reload_app(app_key)
+            if self.should_auto_reconcile(app_key):
+                self.logger.debug("Reloading app %s due to config change", app_key)
+                await self.reload_app(app_key)
+            else:
+                self.logger.debug("Skipping reload of autostart=false app %s (not running)", app_key)
 
         for app_key in changes.new_apps:
-            self.logger.debug("Starting new app %s", app_key)
-            await self.start_app(app_key)
+            if self.should_autostart(app_key):
+                self.logger.debug("Starting new app %s", app_key)
+                await self.start_app(app_key)
+            else:
+                self.logger.debug("Skipping autostart of app %s (autostart=false)", app_key)
 
     async def handle_change_event(
         self,

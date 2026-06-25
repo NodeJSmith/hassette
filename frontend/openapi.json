@@ -1884,6 +1884,11 @@
             "type": "boolean",
             "title": "Auto Loaded"
           },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart",
+            "default": true
+          },
           "status": {
             "type": "string",
             "enum": [

@@ -144,7 +144,9 @@ def test_app_status_response_from_coerces_resource_status_enum():
     assert isinstance(result.apps[0].status, str)
 
 
-def make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] | None = None) -> AppManifestInfo:
+def make_manifest(
+    app_key: str, status: str, instances: list[AppInstanceInfo] | None = None, autostart: bool = True
+) -> AppManifestInfo:
     return AppManifestInfo(
         app_key=app_key,
         class_name="MyApp",
@@ -153,6 +155,7 @@ def make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] | 
         enabled=True,
         auto_loaded=True,
         status=status,
+        autostart=autostart,
         instances=instances or [],
         instance_count=len(instances) if instances else 0,
     )
@@ -234,6 +237,26 @@ def test_app_manifest_list_response_from_preserves_counts():
     assert result.stopped == 1
     assert result.disabled == 1
     assert result.blocked == 1
+
+
+def test_app_manifest_list_response_from_passes_autostart_true():
+    """Mapper carries autostart=True from AppManifestInfo to AppManifestResponse."""
+    manifest = make_manifest("app_a", "stopped", autostart=True)
+    full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
+
+    result = app_manifest_list_response_from(full)
+
+    assert result.manifests[0].autostart is True
+
+
+def test_app_manifest_list_response_from_passes_autostart_false():
+    """Mapper carries autostart=False from AppManifestInfo to AppManifestResponse."""
+    manifest = make_manifest("app_b", "stopped", autostart=False)
+    full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
+
+    result = app_manifest_list_response_from(full)
+
+    assert result.manifests[0].autostart is False
 
 
 def make_system_status(**overrides) -> SystemStatus:

@@ -124,6 +124,46 @@ class TestAppManifestModelDump:
         assert "app_key" in result
 
 
+class TestAppManifestAutostart:
+    """Tests for AppManifest.autostart field."""
+
+    def test_autostart_defaults_to_true(self) -> None:
+        """A manifest with no autostart key should have autostart=True."""
+        manifest = make_manifest()
+        assert manifest.autostart is True
+
+    def test_autostart_absent_key_defaults_to_true(self) -> None:
+        """Validating a manifest dict that omits autostart yields autostart=True."""
+        values = {
+            "app_key": "test_app",
+            "filename": "test_app.py",
+            "class_name": "TestApp",
+            "display_name": "Test App",
+            "app_dir": Path("/tmp/apps"),
+            "full_path": Path("/tmp/apps/test_app.py"),
+        }
+        assert "autostart" not in values
+        manifest = AppManifest.model_validate(values)
+        assert manifest.autostart is True
+
+    def test_autostart_false_parses_correctly(self) -> None:
+        """autostart=False parses and round-trips."""
+        manifest = make_manifest(autostart=False)
+        assert manifest.autostart is False
+
+    def test_autostart_false_in_model_dump(self) -> None:
+        """autostart appears in model_dump output."""
+        manifest = make_manifest(autostart=False)
+        result = manifest.model_dump()
+        assert result["autostart"] is False
+
+    def test_autostart_true_in_model_dump(self) -> None:
+        """autostart=True appears in model_dump output."""
+        manifest = make_manifest()
+        result = manifest.model_dump()
+        assert result["autostart"] is True
+
+
 class TestHassetteConfigModelDump:
     """model_dump on HassetteConfig excludes extra fields."""
 

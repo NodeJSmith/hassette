@@ -11,6 +11,7 @@ export interface AppRow {
   block_reason: string | null;
   enabled: boolean;
   auto_loaded: boolean;
+  autostart: boolean;
   instance_count: number;
   instances: AppManifest["instances"];
   error_message: string | null;
@@ -43,6 +44,7 @@ export function mergeManifestsAndGrid(manifests: AppManifest[], gridEntries: Das
       block_reason: m.block_reason ?? null,
       enabled: m.enabled,
       auto_loaded: m.auto_loaded,
+      autostart: m.autostart,
       instance_count: m.instance_count,
       instances: m.instances,
       error_message: g?.last_error_message ?? m.error_message ?? null,
