@@ -36,6 +36,7 @@ Frontend changes include:
 
 A PR that changes rendered frontend files (`frontend/src/**/*.tsx`, `*.css`) must carry visual evidence — a Screenshots section or embedded image in the PR body, an updated `docs/**/*.png`, or the `no-visual-change` label. This is enforced structurally by `tools/frontend/check_pr_screenshots.py` (CI workflow `pr-screenshots.yml`) so it does not depend on this rule being read at the right moment.
 
+When a UI change alters a view that the docs site documents with a screenshot, regenerate the affected `docs/_static/web_ui_*.png` rather than hand-capturing it: `uv run python scripts/capture_screenshots.py --only <name>`. The manifest is `docs/screenshots.yml`. See CLAUDE.md (Demo Stack & Doc Screenshots) for the full workflow, including states that need demo setup to render.
 
 ## Exceptions
 
