@@ -1,7 +1,7 @@
 # Design: Add `autostart` option to register an app without auto-starting it
 
 **Date:** 2026-06-24
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
