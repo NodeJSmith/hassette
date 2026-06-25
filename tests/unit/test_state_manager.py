@@ -7,9 +7,9 @@ from pydantic import ValidationError
 
 from hassette.conversion import STATE_REGISTRY
 from hassette.exceptions import RegistryNotReadyError, UnableToConvertStateError
-from hassette.models.states import BaseState, LightState, SensorState
+from hassette.models.states import BaseState, DeviceTrackerState, LightState, PersonState, SensorState
 from hassette.state_manager.state_manager import DomainStates, StateManager
-from hassette.test_utils import make_light_state_dict, make_mock_hassette
+from hassette.test_utils import make_light_state_dict, make_mock_hassette, make_state_dict
 
 
 @pytest.fixture
@@ -318,3 +318,97 @@ class TestStateManagerIterationCache:
         result = state_manager.items
         assert callable(result)
         assert not isinstance(result, DomainStates)
+
+
+def make_presence_manager(
+    mock_hassette: AsyncMock,
+    *,
+    persons: dict[str, str] | None = None,
+    device_trackers: dict[str, str] | None = None,
+) -> StateManager:
+    """Build a StateManager whose proxy serves person/device_tracker states from the local cache.
+
+    `persons`/`device_trackers` map entity_id -> state value, e.g. {"person.jessica": "home"}.
+    """
+    data = {
+        "person": {eid: make_state_dict(eid, value) for eid, value in (persons or {}).items()},
+        "device_tracker": {eid: make_state_dict(eid, value) for eid, value in (device_trackers or {}).items()},
+    }
+
+    def resolve(*, domain: str) -> type[BaseState] | None:
+        return {"person": PersonState, "device_tracker": DeviceTrackerState}.get(domain)
+
+    proxy = MagicMock()
+    proxy.num_domain_states.side_effect = lambda domain: len(data.get(domain, {}))
+    proxy.yield_domain_states.side_effect = lambda domain: iter(data.get(domain, {}).items())
+    proxy.get_state.side_effect = lambda entity_id: data.get(entity_id.split(".")[0], {}).get(entity_id)
+
+    mock_hassette.state_registry.resolve.side_effect = resolve
+    mock_hassette.state_registry.try_convert_state.side_effect = STATE_REGISTRY.try_convert_state
+    mock_hassette.state_proxy = proxy
+    return StateManager(mock_hassette, parent=mock_hassette)
+
+
+class TestStateManagerPresence:
+    """anybody_home / everybody_home / nobody_home / is_home against the local person cache."""
+
+    def test_anybody_home_true_when_one_person_home(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home", "person.bob": "not_home"})
+        assert sm.anybody_home() is True
+
+    def test_anybody_home_false_when_all_away(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "not_home", "person.bob": "not_home"})
+        assert sm.anybody_home() is False
+
+    def test_everybody_home_true_when_all_home(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home", "person.bob": "home"})
+        assert sm.everybody_home() is True
+
+    def test_everybody_home_false_when_one_away(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home", "person.bob": "not_home"})
+        assert sm.everybody_home() is False
+
+    def test_nobody_home_true_when_all_away(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "not_home"})
+        assert sm.nobody_home() is True
+
+    def test_nobody_home_false_when_one_home(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home", "person.bob": "not_home"})
+        assert sm.nobody_home() is False
+
+    def test_no_presence_entities(self, mock_hassette: AsyncMock) -> None:
+        """With nothing tracked: no one is home, not everyone is home, no one is home."""
+        sm = make_presence_manager(mock_hassette)
+        assert sm.anybody_home() is False
+        assert sm.everybody_home() is False
+        assert sm.nobody_home() is True
+
+    def test_device_tracker_fallback_when_no_persons(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, device_trackers={"device_tracker.phone": "home"})
+        assert sm.anybody_home() is True
+        assert sm.everybody_home() is True
+
+    def test_person_domain_preferred_over_device_tracker(self, mock_hassette: AsyncMock) -> None:
+        """A present device_tracker is ignored when the person domain has entities."""
+        sm = make_presence_manager(
+            mock_hassette,
+            persons={"person.jessica": "not_home"},
+            device_trackers={"device_tracker.phone": "home"},
+        )
+        assert sm.anybody_home() is False
+
+    def test_is_home_true_for_present_person(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home"})
+        assert sm.is_home("person.jessica") is True
+
+    def test_is_home_false_for_absent_person(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "not_home"})
+        assert sm.is_home("person.jessica") is False
+
+    def test_is_home_works_for_device_tracker(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, device_trackers={"device_tracker.phone": "home"})
+        assert sm.is_home("device_tracker.phone") is True
+
+    def test_is_home_false_for_unknown_entity(self, mock_hassette: AsyncMock) -> None:
+        sm = make_presence_manager(mock_hassette, persons={"person.jessica": "home"})
+        assert sm.is_home("person.nobody") is False

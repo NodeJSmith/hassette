@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from logging import getLogger
 from typing import Generic, NamedTuple
 
@@ -20,6 +20,9 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
+
+HOME_STATE = "home"
+"""State value Home Assistant reports for a person or device_tracker that is home."""
 
 
 class CacheValue(Generic[StateT], NamedTuple):
@@ -356,6 +359,76 @@ class StateManager(Resource):
                 stacklevel=2,
             )
             return None
+
+    def anybody_home(self) -> bool:
+        """Return True if at least one tracked person is home.
+
+        Reads the local state cache — no network call. Checks the ``person`` domain,
+        falling back to ``device_tracker`` when no ``person`` entities are configured.
+
+        Returns:
+            True if any tracked entity is home. False otherwise, including when no
+            presence entities are tracked.
+
+        Examples:
+            ```python
+            if self.states.anybody_home():
+                await self.api.turn_on("light.porch")
+            ```
+        """
+        return any(state.value == HOME_STATE for state in self._presence_states())
+
+    def everybody_home(self) -> bool:
+        """Return True if every tracked person is home.
+
+        Reads the local state cache — no network call. Checks the ``person`` domain,
+        falling back to ``device_tracker`` when no ``person`` entities are configured.
+
+        Returns:
+            True if all tracked entities are home. False when no presence entities are
+            tracked — there is no one to be home.
+        """
+        tracked = self._presence_states()
+        if not tracked:
+            return False
+        return all(state.value == HOME_STATE for state in tracked)
+
+    def nobody_home(self) -> bool:
+        """Return True if no tracked person is home.
+
+        Reads the local state cache — no network call. The inverse of
+        :meth:`anybody_home`; returns True when no presence entities are tracked.
+        """
+        return not self.anybody_home()
+
+    def is_home(self, entity_id: str) -> bool:
+        """Return True if a single person or device_tracker entity is home.
+
+        Reads the local state cache — no network call.
+
+        Args:
+            entity_id: Full entity id, e.g. "person.jessica" or "device_tracker.phone".
+
+        Returns:
+            True if the entity exists and its state is home, False otherwise.
+
+        Examples:
+            ```python
+            if self.states.is_home("person.jessica"):
+                await self.api.turn_on("light.office")
+            ```
+        """
+        state = self.get(entity_id)
+        return state is not None and state.value == HOME_STATE
+
+    def _presence_states(self) -> Sequence[BaseState]:
+        """Return the states to evaluate for presence.
+
+        Uses the ``person`` domain, falling back to ``device_tracker`` when no
+        ``person`` entities exist.
+        """
+        domain = self.person or self.device_tracker
+        return domain.values()
 
     def __contains__(self, model: type[StateT]) -> bool:
         """Check the global STATE_REGISTRY, not this proxy's cached instances."""
