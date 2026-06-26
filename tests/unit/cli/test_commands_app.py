@@ -438,6 +438,86 @@ class TestCmdAppConfig:
         assert parsed["app_key"] == "my-app"
         assert parsed["enabled"] is True
 
+    def test_renders_config_values_not_schema_blob(self, cli_client_factory: CLIClientFactory) -> None:
+        """app config shows masked config values but never dumps the inlined config_schema."""
+        cfg = make_app_config_response(
+            app_key="my-app",
+            app_config={"setting_name": "visible_value"},
+            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
+        )
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        with (
+            capture_stdout() as buf,
+            patch("hassette.cli.commands.app.make_client", return_value=client),
+        ):
+            cmd_app_config("my-app")
+        output = buf.getvalue()
+        assert "visible_value" in output
+        assert "SCHEMA_BLOB_MARKER" not in output
+
+    def test_json_mode_omits_schema_blob(self, cli_client_factory: CLIClientFactory) -> None:
+        """app config --json emits values and metadata, not the config_schema envelope."""
+        cfg = make_app_config_response(
+            app_key="my-app",
+            app_config={"setting_name": "visible_value"},
+            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
+        )
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        captured: list[str] = []
+        with (
+            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+        ):
+            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
+
+        parsed = json.loads("".join(captured))
+        assert parsed["app_config"] == {"setting_name": "visible_value"}
+        assert "config_schema" not in parsed
+
+    def test_json_mode_handles_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
+        """app config --json renders a list-shaped (multi-instance) app_config without the schema blob."""
+        cfg = make_app_config_response(
+            app_key="my-app",
+            app_config=[
+                {"setting_name": "first"},
+                {"setting_name": "second"},
+            ],
+            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
+        )
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        captured: list[str] = []
+        with (
+            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+        ):
+            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
+
+        parsed = json.loads("".join(captured))
+        assert parsed["app_config"] == [
+            {"setting_name": "first"},
+            {"setting_name": "second"},
+        ]
+        assert "config_schema" not in parsed
+
+    def test_json_mode_preserves_empty_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
+        """app config --json keeps an empty list as [], not the default dict, when there are no instances."""
+        cfg = make_app_config_response(
+            app_key="my-app",
+            app_config=[],
+            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
+        )
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        captured: list[str] = []
+        with (
+            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+        ):
+            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
+
+        parsed = json.loads("".join(captured))
+        assert parsed["app_config"] == []
+        assert "config_schema" not in parsed
+
 
 # cmd_app_source
 

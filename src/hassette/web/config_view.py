@@ -1,7 +1,9 @@
 """Shared view builder for config endpoints: schema deref and type-driven value masking.
 
-Both the global config endpoint and the per-app config endpoint call ``build_config_view``
-to produce a ``{config_schema, config_values}`` pair where:
+The global config endpoint calls ``build_config_view`` to produce a
+``{config_schema, config_values}`` pair. The per-app endpoint calls ``deref_schema`` and
+``mask_values`` directly so a multi-instance config derefs its schema once and masks each
+instance against it. Both paths produce a pair where:
 
 - ``config_schema`` is the JSON schema with all ``$ref``/``$defs`` resolved inline so the
   frontend never needs to walk a reference.
@@ -59,7 +61,7 @@ def _object_properties(node: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _mask_values(schema_props: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+def mask_values(schema_props: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of ``values`` with secret fields replaced by ``MASK_SENTINEL``.
 
     Walks ``schema_props`` (the ``properties`` dict of a deref'd schema node).
@@ -82,7 +84,7 @@ def _mask_values(schema_props: dict[str, Any], values: dict[str, Any]) -> dict[s
             continue
         nested_props = _object_properties(node)
         if nested_props is not None and isinstance(result.get(key), dict):
-            result[key] = _mask_values(nested_props, result[key])
+            result[key] = mask_values(nested_props, result[key])
     return result
 
 
@@ -133,6 +135,23 @@ def mask_all_values(values: dict[str, Any]) -> dict[str, Any]:
     return {k: _mask_leaf(v) for k, v in values.items()}
 
 
+def deref_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Resolve every ``$ref``/``$defs`` in a JSON schema inline and return a plain dict.
+
+    ``jsonref.replace_refs`` returns lazy proxy objects; ``_materialize`` converts them to
+    concrete dicts/lists so FastAPI and ``json.dumps`` can serialize them. The ``$defs``
+    store is dropped because every reference is now inlined.
+
+    Split out of ``build_config_view`` so the multi-instance app path can deref a schema
+    once and reuse it across instances, rather than re-running the deref per instance.
+    """
+    plain_schema = _materialize(jsonref.replace_refs(schema))
+    if not isinstance(plain_schema, dict):
+        return {}
+    plain_schema.pop("$defs", None)
+    return plain_schema
+
+
 def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
     """Build the unified config view payload from a JSON schema and a values dict.
 
@@ -150,13 +169,6 @@ def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[st
         ``config_values`` has any field marked ``writeOnly: true`` or ``format: "password"``
         replaced with ``MASK_SENTINEL`` when set, left ``None``/absent when unset.
     """
-    deref_result = jsonref.replace_refs(schema)
-    plain_schema = _materialize(deref_result)
-    # Drop $defs — all references are now inlined; the definition store is redundant.
-    if isinstance(plain_schema, dict):
-        plain_schema.pop("$defs", None)
-
-    props = plain_schema.get("properties", {}) if isinstance(plain_schema, dict) else {}
-    masked_values = _mask_values(props, values)
-
+    plain_schema = deref_schema(schema)
+    masked_values = mask_values(plain_schema.get("properties", {}), values)
     return {"config_schema": plain_schema, "config_values": masked_values}
