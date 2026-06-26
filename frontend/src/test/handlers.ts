@@ -15,7 +15,7 @@ import { createSystemConfig } from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
-type ConfigResponse = components["schemas"]["ConfigResponse"];
+type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
@@ -171,7 +171,7 @@ export const handlers = [
 
   // GET /api/config
   http.get("/api/config", () => {
-    return HttpResponse.json<ConfigResponse>(createSystemConfig());
+    return HttpResponse.json<ConfigSchemaResponse>(createSystemConfig());
   }),
 
   // GET /api/health

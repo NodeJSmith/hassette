@@ -45,6 +45,37 @@ Every `AppConfig` includes three built-in fields:
 
 `AppConfig` allows arbitrary extra fields by default. A subclass can tighten this by setting `extra="forbid"` in its own `model_config`.
 
+### Secret Fields
+
+A field declared [`SecretStr`][pydantic.SecretStr] is masked wherever Hassette surfaces the config — the dashboard Config tab shows a masked placeholder, never the value. Masking follows the type, not the name: a `str` named `api_key` renders in full, while a `SecretStr` named anything renders masked.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/app_config_secret.py"
+```
+
+App code reads the real value with `get_secret_value()`. The plaintext stays server-side and never reaches the browser.
+
+!!! warning "Name-based masking is gone"
+    Earlier versions masked fields whose name matched `token`, `password`, `secret`, and similar. That heuristic is removed — it missed names like `pat` or `connection_string` and gave false confidence. Type a field `SecretStr` to mask it.
+
+### Presentation Metadata
+
+Each field sets optional presentation hints under a `ui` namespace through `json_schema_extra`. The dashboard reads them when rendering the Config tab; every hint falls back to a schema-derived default when absent, so annotating is opt-in.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/app_config_ui_metadata.py"
+```
+
+| Key | Effect | Default when unset |
+|---|---|---|
+| `label` | field display name | humanized field name |
+| `group_label` | section title, set on a nested-group field | humanized group name |
+| `order` | sort order within a section | declaration order |
+| `widget` | force a value format, e.g. `"path"` | format derived from the field type |
+
+!!! note "`tier` is reserved"
+    The `ui` namespace also defines a `tier` key (`"common"` / `"advanced"`) for a future show-advanced view. It has no effect yet — don't repurpose the key before that lands.
+
 ### TOML Registration
 
 The `hassette.toml` file registers each app and supplies its config values. See [App Configuration](configuration.md) for the full reference.

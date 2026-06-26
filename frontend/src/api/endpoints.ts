@@ -2,6 +2,7 @@
 
 import { DETAIL_FETCH_LIMIT } from "../utils/constants";
 import { apiFetch, apiPost, apiPut } from "./client";
+import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
 // ---- Generated type aliases ----
@@ -16,7 +17,12 @@ export type JobData = components["schemas"]["JobSummary"];
 export type ExecutionData = components["schemas"]["Execution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
-export type AppConfigData = components["schemas"]["AppConfigResponse"];
+// The config schema rides in a `dict[str, Any]` field, so the generated type is a bare
+// index signature. Narrow it to `SchemaNode` here — the single boundary where the config
+// view's shape is asserted — so consumers read typed fields without per-call-site casts.
+export type AppConfigData = Omit<components["schemas"]["AppConfigResponse"], "config_schema"> & {
+  config_schema?: SchemaNode | null;
+};
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 
@@ -115,7 +121,10 @@ export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetrySt
 
 // ---- System config ----
 
-export type SystemConfig = components["schemas"]["ConfigResponse"];
+export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
+  config_schema: SchemaNode;
+  config_values: ConfigRecord;
+};
 
 export const getConfig = () => apiFetch<SystemConfig>("/config");
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Shared frontend config renderer, both pages, ui consumption, docs"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04", "T05"]
 implements: ["FR#6", "FR#7", "FR#8", "FR#9", "FR#11", "AC#6", "AC#9", "AC#10"]
 ---

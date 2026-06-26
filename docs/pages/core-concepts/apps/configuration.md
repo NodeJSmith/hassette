@@ -72,7 +72,7 @@ Single-instance apps are the default. Most apps never need `[[...]]` blocks. Mul
 
 ## Typed Configuration
 
-The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model.
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model — including [secret fields](index.md#secret-fields) (typed `SecretStr`, masked in the dashboard) and [presentation metadata](index.md#presentation-metadata) (the `ui` hints that control how each field renders).
 
 ## Developer Settings {#developer-settings}
 

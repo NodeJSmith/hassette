@@ -8,7 +8,9 @@ The web UI shows what configuration Hassette is running with and what the app co
 
 ![Global configuration page](../../_static/web_ui_config.png)
 
-The Configuration page displays all `hassette.toml` values in functional groups: `general`, `connection`, `buffers`, `timeouts`, `scheduler`, `file_watcher`, and `paths`. Each group renders as a key-value card. Booleans appear as `true`/`false`, paths as strings, arrays as comma-separated lists.
+The Configuration page renders all `hassette.toml` values in schema-driven sections — one section per nested config group (`Web API`, `Logging`, `Lifecycle`, `Apps`, `Scheduler`, `File Watcher`, and others), plus a `general` section for top-level scalar fields. Section names and field labels come from the schema's `ui` metadata, not hardcoded strings.
+
+Value formatting reflects the field type: booleans appear as `yes`/`no` badges, filesystem paths in monospace code style, arrays as chips, and secret fields as `🔒 ••••••••` (masked server-side before transmission). An unset optional secret shows `not set`.
 
 The page is accessible from the sidebar under **Config**.
 
@@ -20,7 +22,9 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 ![Per-app configuration tab](../../_static/web_ui_app_detail_config.png)
 
-The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance (with secrets redacted). Environment variable overrides and [`AppConfig`](../core-concepts/apps/index.md) field defaults are applied when the app is instantiated, but the tab shows the raw TOML values, not the merged result. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
+The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance. Secret fields (`SecretStr`) are masked server-side and displayed as `🔒 ••••••••` — the plaintext never reaches the browser. When a schema is available for the app's `AppConfig`, the tab uses the shared schema renderer (same groups and formatting as the global Config page); apps without a schema fall back to a flat key-value table.
+
+Environment variable overrides and [`AppConfig`](../core-concepts/apps/index.md) field defaults are applied when the app is instantiated, but the tab shows the raw TOML values, not the merged result. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
 
 The tab is on the app detail page, accessible by selecting an app from the sidebar.
 
