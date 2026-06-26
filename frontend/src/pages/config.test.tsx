@@ -16,15 +16,7 @@ describe("ConfigPage", () => {
     expect(await findByRole("heading", { name: /config/i })).toBeDefined();
   });
 
-  it("renders a table of config key-value pairs", async () => {
-    const { findByText, container } = renderWithAppState(<ConfigPage />);
-    // Wait for a config section label to confirm data loaded
-    await findByText("general");
-    expect(container.querySelector("table")).not.toBeNull();
-  });
-
   it("shows loading state while fetching", () => {
-    // Override to never resolve so the spinner stays visible synchronously
     server.use(http.get("/api/config", () => new Promise(() => {})));
     const { container } = renderWithAppState(<ConfigPage />);
     expect(container.querySelector("[data-testid='spinner']")).not.toBeNull();
@@ -37,49 +29,60 @@ describe("ConfigPage", () => {
     expect(alert.textContent).toBeTruthy();
   });
 
-  it("renders path fields in a Paths group", async () => {
-    server.use(
-      http.get("/api/config", () =>
-        HttpResponse.json(
-          createSystemConfig({
-            apps: { autodetect: true, directory: "/my/apps" },
-            data_dir: "/my/data",
-            config_dir: "/my/config",
-          }),
-        ),
-      ),
-    );
+  it("renders the schema-driven view after loading", async () => {
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    expect(await findByTestId("config-schema-view")).toBeDefined();
+  });
+
+  it("renders a 'general' section for flat top-level fields", async () => {
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    expect(await findByTestId("config-section-general")).toBeDefined();
+  });
+
+  it("renders the web_api group using its ui.group_label", async () => {
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    expect(await findByTestId("config-section-web-api")).toBeDefined();
+  });
+
+  it("renders all expected group sections", async () => {
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    await findByTestId("config-schema-view");
+    for (const section of ["general", "web-api", "logging", "lifecycle", "apps", "scheduler", "file-watcher"]) {
+      expect(await findByTestId(`config-section-${section}`)).toBeDefined();
+    }
+  });
+
+  it("applies ui.label override — 'Base URL' instead of 'Base Url'", async () => {
     const { findByText } = renderWithAppState(<ConfigPage />);
-    expect(await findByText("paths")).toBeDefined();
-    expect(await findByText("app_dir")).toBeDefined();
-    expect(await findByText("data_dir")).toBeDefined();
-    expect(await findByText("config_dir")).toBeDefined();
-    expect(await findByText("/my/apps")).toBeDefined();
+    expect(await findByText("Base URL")).toBeDefined();
+  });
+
+  it("applies ui.group_label override — section heading reads 'Web API' not 'Web Api'", async () => {
+    const { findByRole } = renderWithAppState(<ConfigPage />);
+    // The web_api group heading should use ui.group_label "Web API" (not humanized "Web Api").
+    // Use heading role to disambiguate from field labels that also read "Web API" (logging.web_api).
+    expect(await findByRole("heading", { name: "Web API" })).toBeDefined();
+  });
+
+  it("shows humanized label for un-annotated field — 'Dev Mode'", async () => {
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("Dev Mode")).toBeDefined();
+  });
+
+  it("renders a boolean value as a yes/no badge", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json(createSystemConfig({ dev_mode: true }))));
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    const cell = await findByTestId("config-value-dev_mode");
+    expect(cell.textContent).toContain("yes");
+  });
+
+  it("renders a path value as code-styled text", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json(createSystemConfig({ data_dir: "/my/data" }))));
+    const { findByText } = renderWithAppState(<ConfigPage />);
     expect(await findByText("/my/data")).toBeDefined();
-    expect(await findByText("/my/config")).toBeDefined();
   });
 
-  it("renders connection settings group", async () => {
-    const { findByText } = renderWithAppState(<ConfigPage />);
-    expect(await findByText("connection")).toBeDefined();
-    expect(await findByText("host")).toBeDefined();
-    expect(await findByText("port")).toBeDefined();
-  });
-
-  it("renders general settings group", async () => {
-    const { findByText } = renderWithAppState(<ConfigPage />);
-    expect(await findByText("general")).toBeDefined();
-    expect(await findByText("log_level")).toBeDefined();
-    expect(await findByText("dev_mode")).toBeDefined();
-  });
-
-  it("renders timeouts group", async () => {
-    const { findByText } = renderWithAppState(<ConfigPage />);
-    expect(await findByText("timeouts")).toBeDefined();
-    expect(await findByText("startup_timeout_seconds")).toBeDefined();
-  });
-
-  it("displays numeric config values as text", async () => {
+  it("renders a nested group field value", async () => {
     server.use(
       http.get("/api/config", () =>
         HttpResponse.json(
@@ -99,22 +102,43 @@ describe("ConfigPage", () => {
         ),
       ),
     );
-    const { findByText } = renderWithAppState(<ConfigPage />);
-    expect(await findByText("9000")).toBeDefined();
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    const portCell = await findByTestId("config-value-port");
+    expect(portCell.textContent).toContain("9000");
   });
 
-  it("displays boolean config values as text", async () => {
+  it("masks a secret field — shows mask sentinel, not plaintext", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json(createSystemConfig({ token: "••••••••" }))));
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    const cell = await findByTestId("config-value-token");
+    // Shows the mask placeholder, not a real token value.
+    expect(cell.textContent).toContain("••••••••");
+    // Plaintext should not appear.
+    expect(cell.textContent).not.toContain("realtoken");
+  });
+
+  it("shows 'not set' for an unset secret field", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json(createSystemConfig({ token: null }))));
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    const cell = await findByTestId("config-value-token");
+    expect(cell.textContent).toContain("not set");
+  });
+
+  it("renders directory field under the apps group", async () => {
     server.use(
       http.get("/api/config", () =>
-        HttpResponse.json(createSystemConfig({ dev_mode: true, asyncio_debug_mode: false })),
+        HttpResponse.json(createSystemConfig({ apps: { autodetect: true, directory: "/my/apps" } })),
       ),
     );
-    const { findByText, container } = renderWithAppState(<ConfigPage />);
-    // Wait for a config section label to confirm data loaded
-    await findByText("general");
-    const rows = Array.from(container.querySelectorAll("tr"));
-    const devModeRow = rows.find((r) => r.textContent?.includes("dev_mode"));
-    expect(devModeRow).toBeDefined();
-    expect(devModeRow!.textContent).toContain("true");
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    const dirCell = await findByTestId("config-value-directory");
+    expect(dirCell.textContent).toContain("/my/apps");
+  });
+
+  it("renders startup_timeout_seconds under lifecycle group", async () => {
+    const { findByTestId } = renderWithAppState(<ConfigPage />);
+    await findByTestId("config-section-lifecycle");
+    const cell = await findByTestId("config-value-startup_timeout_seconds");
+    expect(cell.textContent).toContain("30");
   });
 });

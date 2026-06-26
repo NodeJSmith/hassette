@@ -31,23 +31,17 @@ from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
-    AppsConfigResponse,
     AppSourceResponse,
-    ConfigResponse,
+    ConfigSchemaResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
     EventEntry,
-    FileWatcherConfigResponse,
-    LifecycleConfigResponse,
     ListenerWithSummary,
     LogEntryResponse,
-    LoggingConfigResponse,
     LogsByExecutionResponse,
     ManifestStatus,
-    SchedulerConfigResponse,
     SystemStatusResponse,
     TelemetryStatusResponse,
-    WebApiConfigResponse,
 )
 
 SYNTHETIC_TIMESTAMP = 1_700_000_000.0
@@ -382,39 +376,50 @@ def make_event_entry(
     )
 
 
-def make_config_response() -> ConfigResponse:
-    """Build a ConfigResponse with sensible defaults."""
-    return ConfigResponse(
-        dev_mode=False,
-        base_url="http://homeassistant.local:8123",
-        asyncio_debug_mode=False,
-        allow_reload_in_prod=False,
-        data_dir="/home/user/.local/share/hassette",
-        config_dir="/home/user/.config/hassette",
-        web_api=WebApiConfigResponse(
-            run=True,
-            run_ui=True,
-            ui_hot_reload=False,
-            host="0.0.0.0",
-            port=8126,
-            cors_origins=[],
-            event_buffer_size=100,
-            log_buffer_size=500,
-            job_history_size=100,
-        ),
-        logging=LoggingConfigResponse(log_level="INFO", web_api="WARNING"),
-        lifecycle=LifecycleConfigResponse(
-            startup_timeout_seconds=30,
-            app_startup_timeout_seconds=10,
-            app_shutdown_timeout_seconds=10,
-        ),
-        apps=AppsConfigResponse(autodetect=True, directory="apps"),
-        scheduler=SchedulerConfigResponse(
-            min_delay_seconds=0,
-            max_delay_seconds=3600,
-            default_delay_seconds=0,
-        ),
-        file_watcher=FileWatcherConfigResponse(watch_files=True, debounce_milliseconds=500),
+def make_config_schema_response() -> ConfigSchemaResponse:
+    """Build a ConfigSchemaResponse with sensible defaults for testing.
+
+    Returns a representative envelope containing a stub schema and a values dict
+    that covers every config group — including ``database``, ``websocket``, and
+    ``blocking_io``, the groups the old global endpoint omitted.
+    """
+    return ConfigSchemaResponse(
+        config_schema={
+            "type": "object",
+            "properties": {"web_api": {"type": "object"}, "dev_mode": {"type": "boolean"}},
+        },
+        config_values={
+            "dev_mode": False,
+            "base_url": "http://homeassistant.local:8123",
+            "asyncio_debug_mode": False,
+            "allow_reload_in_prod": False,
+            "token": None,
+            "data_dir": "/home/user/.local/share/hassette",
+            "config_dir": "/home/user/.config/hassette",
+            "web_api": {
+                "run": True,
+                "run_ui": True,
+                "ui_hot_reload": False,
+                "host": "0.0.0.0",
+                "port": 8126,
+                "cors_origins": [],
+                "event_buffer_size": 100,
+                "log_buffer_size": 500,
+                "job_history_size": 100,
+            },
+            "logging": {"log_level": "INFO", "web_api": "WARNING"},
+            "lifecycle": {
+                "startup_timeout_seconds": 30,
+                "app_startup_timeout_seconds": 10,
+                "app_shutdown_timeout_seconds": 10,
+            },
+            "apps": {"autodetect": True, "directory": "apps"},
+            "scheduler": {"min_delay_seconds": 0, "max_delay_seconds": 3600, "default_delay_seconds": 0},
+            "file_watcher": {"watch_files": True, "debounce_milliseconds": 500},
+            "database": {"retention_days": 7, "max_size_mb": 500},
+            "websocket": {"reconnect_delay_seconds": 5, "max_reconnect_attempts": 10},
+            "blocking_io": {"enabled": True, "warn_threshold_ms": 100},
+        },
     )
 
 

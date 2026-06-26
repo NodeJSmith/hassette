@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Config Page — Render Mockup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-page: #f2f2f8;
+    --bg-surface: #fcfcfe;
+    --bg-sunken: #ebebf2;
+    --bg-active: #e0e0eb;
+    --line-1: #d4d4dc;
+    --line-2: #e8e8f0;
+    --ink-1: #16181c;
+    --ink-2: #4a4d54;
+    --ink-3: #787c84;
+    --ink-4: #b0b3b8;
+    --accent: #4b55a0;
+    --accent-soft: #f0f0f8;
+    --err-bg: #f5dedc;
+    --err-ink: #9b2a2a;
+    --font-body: system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --fw-normal: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+    --fw-bold: 700;
+    --fs-body: 14px;
+    --fs-small: 12.5px;
+    --fs-micro: 12px;
+    --fs-xs: 11px;
+    --fs-mono-sm: 12px;
+    --fs-display: 28px;
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-7: 32px;
+    --sp-8: 40px;
+    --r-sm: 4px;
+    --r-md: 8px;
+    --r-lg: 12px;
+    --tr-label: 0.05em;
+    --success: #1a7f4b;
+    --success-bg: #d6f0e4;
+    --neutral-bg: #e8e8f0;
+    --neutral-ink: #4a4d54;
+  }
+
+  body {
+    font-family: var(--font-body);
+    font-size: var(--fs-body);
+    color: var(--ink-1);
+    background: var(--bg-page);
+    padding: var(--sp-8);
+    line-height: 1.5;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  .page-header {
+    margin-bottom: var(--sp-7);
+    padding-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--line-1);
+  }
+
+  .page-title {
+    font-size: var(--fs-display);
+    font-weight: var(--fw-bold);
+    letter-spacing: -0.02em;
+    color: var(--ink-1);
+  }
+
+  /* Groups layout */
+  .groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+  }
+
+  .group { }
+
+  .section-label {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--tr-label);
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: var(--sp-3);
+  }
+
+  /* Card */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+
+  /* Config table */
+  .config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-body);
+  }
+
+  .config-table tr {
+    border-bottom: 1px solid var(--line-2);
+  }
+
+  .config-table tr:last-child {
+    border-bottom: none;
+  }
+
+  .config-table td {
+    padding: 10px var(--sp-4);
+    vertical-align: top;
+  }
+
+  .col-label {
+    width: 260px;
+    min-width: 180px;
+  }
+
+  .field-label {
+    font-weight: var(--fw-medium);
+    color: var(--ink-1);
+    font-size: var(--fs-body);
+  }
+
+  .field-help {
+    font-size: var(--fs-xs);
+    color: var(--ink-3);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+
+  .col-value {
+    min-width: 200px;
+  }
+
+  .val-string {
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--ink-1);
+    word-break: break-all;
+  }
+
+  .val-number {
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--ink-1);
+  }
+
+  .val-path {
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--ink-2);
+    background: var(--bg-sunken);
+    padding: 1px var(--sp-2);
+    border-radius: var(--r-sm);
+    word-break: break-all;
+  }
+
+  .val-null {
+    font-size: var(--fs-small);
+    color: var(--ink-4);
+    font-style: italic;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-sm);
+    letter-spacing: 0.02em;
+  }
+
+  .badge-yes { background: var(--success-bg); color: var(--success); }
+  .badge-no  { background: var(--neutral-bg); color: var(--neutral-ink); }
+  .badge-str { background: var(--accent-soft); color: var(--accent); }
+
+  /* Secret field */
+  .val-secret {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-family: var(--font-mono);
+    font-size: var(--fs-mono-sm);
+    color: var(--ink-3);
+    font-style: italic;
+    user-select: none;
+  }
+
+  .val-secret .lock-icon {
+    font-size: var(--fs-xs);
+    opacity: 0.6;
+  }
+
+  .val-secret-unset {
+    font-size: var(--fs-small);
+    color: var(--ink-4);
+    font-style: italic;
+  }
+
+  /* List value */
+  .val-list-empty { color: var(--ink-4); font-style: italic; font-size: var(--fs-small); }
+  .val-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+  .val-list-item {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line-1);
+    border-radius: var(--r-sm);
+    padding: 1px var(--sp-2);
+    color: var(--ink-2);
+  }
+
+  /* Optional sub-note */
+  .col-type {
+    width: 120px;
+    color: var(--ink-4);
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+    text-align: right;
+    padding-top: 12px;
+  }
+
+  .section-note {
+    font-size: var(--fs-xs);
+    color: var(--ink-4);
+    margin-top: var(--sp-2);
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">config</h1>
+  </div>
+
+  <div class="groups">
+
+    <!-- GENERAL (flat top-level scalars) -->
+    <section class="group">
+      <h2 class="section-label">general</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Base URL</div>
+                <div class="field-help">Home Assistant base URL</div>
+              </td>
+              <td class="col-value">
+                <span class="val-string">http://127.0.0.1:8123</span>
+              </td>
+              <td class="col-type">string</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Token</div>
+                <div class="field-help">Long-lived access token for HA authentication</div>
+              </td>
+              <td class="col-value">
+                <span class="val-secret">
+                  <span class="lock-icon">🔒</span>
+                  ••••••••
+                </span>
+              </td>
+              <td class="col-type">secret</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Dev Mode</div>
+                <div class="field-help">Enable development mode with extra logging</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-no">no</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Verify SSL</div>
+                <div class="field-help">Verify SSL certificates when connecting to HA</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-yes">yes</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Config Dir</div>
+              </td>
+              <td class="col-value">
+                <code class="val-path">/home/user/.config/hassette</code>
+              </td>
+              <td class="col-type">path</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Data Dir</div>
+              </td>
+              <td class="col-value">
+                <code class="val-path">/home/user/.local/share/hassette</code>
+              </td>
+              <td class="col-type">path</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Asyncio Debug Mode</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-no">no</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Bus Excluded Domains</div>
+                <div class="field-help">Domains excluded from bus event dispatching</div>
+              </td>
+              <td class="col-value">
+                <span class="val-list-empty">empty list</span>
+              </td>
+              <td class="col-type">array</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- DATABASE group -->
+    <section class="group">
+      <h2 class="section-label">database</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Retention Days</div>
+                <div class="field-help">Number of days to retain execution records</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">7</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- WEBSOCKET group -->
+    <section class="group">
+      <h2 class="section-label">websocket</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Max Reconnect Attempts</div>
+                <div class="field-help">Maximum WebSocket reconnect attempts before giving up</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">10</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Reconnect Delay Seconds</div>
+                <div class="field-help">Base delay between reconnect attempts</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">5</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- WEB API group (uses ui.group_label = "Web API") -->
+    <section class="group">
+      <h2 class="section-label">Web API</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Run</div>
+                <div class="field-help">Enable the web API server</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-yes">yes</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Run UI</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-yes">yes</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Host</div>
+              </td>
+              <td class="col-value">
+                <span class="val-string">0.0.0.0</span>
+              </td>
+              <td class="col-type">string</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Port</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">8126</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">CORS Origins</div>
+              </td>
+              <td class="col-value">
+                <span class="val-list-empty">empty list</span>
+              </td>
+              <td class="col-type">array</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Event Buffer Size</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">500</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- APPS group -->
+    <section class="group">
+      <h2 class="section-label">apps</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Autodetect</div>
+                <div class="field-help">Automatically detect and load apps from the apps directory</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-yes">yes</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Directory</div>
+                <div class="field-help">Directory to load apps from</div>
+              </td>
+              <td class="col-value">
+                <code class="val-path">/home/user/apps</code>
+              </td>
+              <td class="col-type">path</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- BLOCKING I/O group (uses ui.group_label = "Blocking I/O") -->
+    <section class="group">
+      <h2 class="section-label">Blocking I/O</h2>
+      <div class="card">
+        <table class="config-table">
+          <tbody>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Enabled</div>
+              </td>
+              <td class="col-value">
+                <span class="badge badge-no">no</span>
+              </td>
+              <td class="col-type">boolean</td>
+            </tr>
+            <tr>
+              <td class="col-label">
+                <div class="field-label">Threshold Ms</div>
+              </td>
+              <td class="col-value">
+                <span class="val-number">100</span>
+              </td>
+              <td class="col-type">integer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</div>
+</body>
+</html>

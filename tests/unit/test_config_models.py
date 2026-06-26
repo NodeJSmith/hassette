@@ -9,7 +9,7 @@ import warnings
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources import InitSettingsSource
 
@@ -595,7 +595,7 @@ class TestEnvVarPartialUpdate:
                 "env_file": None,
             }
 
-            token: str = TEST_TOKEN
+            token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
         config = _EnvConfig2()
@@ -615,7 +615,7 @@ class TestEnvVarPartialUpdate:
                 "env_file": None,
             }
 
-            token: str = TEST_TOKEN
+            token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
         config = _EnvConfig()
@@ -635,7 +635,7 @@ class TestCrossModelValidation:
                 "env_file": None,
             }
 
-            token: str = TEST_TOKEN
+            token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:

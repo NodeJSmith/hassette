@@ -1,11 +1,13 @@
 import clsx from "clsx";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 
+import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
 import { Badge } from "../shared/badge";
 import { Card } from "../shared/card";
+import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import styles from "./config-tab.module.css";
@@ -14,113 +16,15 @@ interface Props {
   appKey: string;
 }
 
-type ConfigRecord = Record<string, unknown>;
-type SchemaProperty = {
-  type?: string;
-  default?: unknown;
-  description?: string;
-  title?: string;
-  anyOf?: { type?: string }[];
-};
-type ConfigSchema = {
-  properties?: Record<string, SchemaProperty>;
-  required?: string[];
-};
-
-function formatConfigValue(val: unknown): string {
-  if (val === null || val === undefined) return "—";
-  if (Array.isArray(val)) return `[${val.length} items]`;
-  if (typeof val === "object") return `{${Object.keys(val as Record<string, unknown>).length} keys}`;
-  return String(val);
+/** True when the value is a plain (non-array) object usable as a ConfigRecord. */
+function isConfigRecord(val: unknown): val is ConfigRecord {
+  return val !== null && typeof val === "object" && !Array.isArray(val);
 }
 
 function ConfigValue({ val }: { val: unknown }) {
-  const [expanded, setExpanded] = useState(false);
-  const isComplex = val !== null && typeof val === "object";
-
-  if (!isComplex) return <>{formatConfigValue(val)}</>;
-
-  return (
-    <span>
-      <button
-        type="button"
-        class={styles.configTableExpandBtn}
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-      >
-        <svg class={styles.configTableExpandIcon} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-          <polyline
-            points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
-        </svg>
-        {formatConfigValue(val)}
-      </button>
-      {expanded && <pre class={styles.configTableExpandedValue}>{JSON.stringify(val, null, 2)}</pre>}
-    </span>
-  );
-}
-
-function resolveType(prop: SchemaProperty): string {
-  if (prop.type) return prop.type;
-  if (prop.anyOf) {
-    const types = prop.anyOf.map((t) => t.type).filter(Boolean);
-    return types.join(" | ") || "any";
-  }
-  return "any";
-}
-
-function SchemaConfigTable({ config, schema }: { config: ConfigRecord; schema: ConfigSchema }) {
-  const properties = schema.properties ?? {};
-  const propKeys = Object.keys(properties);
-  const extraKeys = Object.keys(config).filter((k) => !propKeys.includes(k));
-  const allKeys = [...propKeys, ...extraKeys];
-
-  if (allKeys.length === 0) {
-    return (
-      <EmptyState title="no configuration fields" body="this app uses the default AppConfig with no custom fields." />
-    );
-  }
-
-  return (
-    <table class={clsx("ht-table ht-table--compact", styles.configTable)} data-testid="config-values-table">
-      <thead>
-        <tr>
-          <th class={styles.configTableKey} scope="col">
-            Key
-          </th>
-          <th class={styles.configTableColType} scope="col">
-            Type
-          </th>
-          <th class={styles.configTableColValue} scope="col">
-            Value
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {allKeys.map((key) => {
-          const prop = properties[key];
-          const value = config[key];
-          const hasValue = value !== null && value !== undefined;
-          const typeName = prop ? resolveType(prop) : typeof value;
-
-          return (
-            <tr key={key} data-testid={`config-value-${key}`}>
-              <td class={styles.configTableKey}>{key}</td>
-              <td class={styles.configTableColType}>
-                <span class="ht-text-muted ht-text-xs">{typeName}</span>
-              </td>
-              <td class={clsx(styles.configTableValue, !hasValue && styles.configTableValueEmpty)}>
-                <ConfigValue val={value} />
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
+  if (val === null || val === undefined) return <>—</>;
+  if (typeof val === "object") return <ExpandableValue value={val} />;
+  return <>{String(val)}</>;
 }
 
 function SimpleConfigTable({ config }: { config: ConfigRecord }) {
@@ -159,6 +63,19 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   );
 }
 
+function AppConfigContent({ appConfig, schema }: { appConfig: ConfigRecord; schema: SchemaNode | undefined }) {
+  // ConfigSchemaView wraps each section in its own Card, so it renders unwrapped — matching
+  // the global Config page. Only the schema-less fallback table needs a Card around it.
+  if (schema) {
+    return <ConfigSchemaView schema={schema} values={appConfig} emptyMessage="no configuration fields" />;
+  }
+  return (
+    <Card variant="config">
+      <SimpleConfigTable config={appConfig} />
+    </Card>
+  );
+}
+
 export function ConfigTab({ appKey }: Props) {
   const loading = useSignal(true);
   const error = useSignal<string | null>(null);
@@ -174,7 +91,7 @@ export function ConfigTab({ appKey }: Props) {
       try {
         const data = await getAppConfig(appKey, controller.signal);
         if (controller.signal.aborted) return;
-        configData.value = data as AppConfigData;
+        configData.value = data;
       } catch (err) {
         if (controller.signal.aborted) return;
         error.value = err instanceof Error ? err.message : String(err);
@@ -205,12 +122,11 @@ export function ConfigTab({ appKey }: Props) {
 
   const cfg = configData.value;
   const appConfig = cfg.app_config;
-  const schema = (cfg as { config_schema?: ConfigSchema }).config_schema;
+  const schema = cfg.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
 
   return (
     <div class={styles.configTab} data-testid="config-tab-content">
-      {/* Metadata header */}
       <div class={styles.meta} data-testid="config-meta">
         <div class={styles.metaRow}>
           <span class="ht-detail-label">File</span>
@@ -226,41 +142,29 @@ export function ConfigTab({ appKey }: Props) {
         </div>
       </div>
 
-      {/* 2-column layout: config table + raw values */}
       <div class={styles.layout}>
         <div class={styles.fieldsCard}>
           <h3 class="ht-section-label">configuration</h3>
-          <Card variant="config">
-            {isListConfig ? (
-              <div class={styles.instances}>
-                {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                  <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
-                    <h4 class={styles.instanceHeading}>Instance {idx}</h4>
-                    {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
-                      schema ? (
-                        <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
-                      ) : (
-                        <SimpleConfigTable config={instanceCfg as ConfigRecord} />
-                      )
-                    ) : (
-                      <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
-              schema ? (
-                <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
-              ) : (
-                <SimpleConfigTable config={appConfig as ConfigRecord} />
-              )
-            ) : (
-              <EmptyState title="no configuration values" />
-            )}
-          </Card>
+          {isListConfig ? (
+            <div class={styles.instances}>
+              {(appConfig as unknown[]).map((instanceCfg, idx) => (
+                <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
+                  <h4 class={styles.instanceHeading}>Instance {idx}</h4>
+                  {isConfigRecord(instanceCfg) ? (
+                    <AppConfigContent appConfig={instanceCfg} schema={schema} />
+                  ) : (
+                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : isConfigRecord(appConfig) ? (
+            <AppConfigContent appConfig={appConfig} schema={schema} />
+          ) : (
+            <EmptyState title="no configuration values" />
+          )}
         </div>
 
-        {/* Raw config card */}
         <div class={styles.rawCard}>
           <h3 class="ht-section-label">raw config</h3>
           <Card variant="config">

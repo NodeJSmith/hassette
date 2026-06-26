@@ -554,7 +554,8 @@ class WebsocketService(Service):
         """Authenticate with the Home Assistant WebSocket API."""
 
         assert self._ws, "WebSocket must be initialized before authenticating"
-        token = self.hassette.config.token
+        secret = self.hassette.config.token
+        token = secret.get_secret_value() if secret is not None else None
         truncated_token = self.hassette.config.truncated_token
         ws_url = self.hassette.ws_url
 

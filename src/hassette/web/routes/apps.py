@@ -2,11 +2,15 @@
 
 import re
 from logging import getLogger
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
 
+from hassette.app.app_config import AppConfig
+from hassette.config.classes import AppManifest
 from hassette.exceptions import TelemetryUnavailableError
+from hassette.utils.app_utils import class_already_loaded, get_loaded_class
+from hassette.web.config_view import build_config_view, mask_all_values
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
@@ -17,20 +21,12 @@ from hassette.web.models import (
     AppStatusResponse,
 )
 
+if TYPE_CHECKING:
+    from hassette import Hassette
+
 LOGGER = getLogger(__name__)
 
 _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
-_SECRET_KEYS = re.compile(r"(token|password|secret|api_key|apikey|credential)", re.IGNORECASE)
-
-
-def _redact_secrets(config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
-    if isinstance(config, list):
-        return [_redact_dict(c) for c in config]
-    return _redact_dict(config)
-
-
-def _redact_dict(d: dict[str, Any]) -> dict[str, Any]:
-    return {k: "***REDACTED***" if _SECRET_KEYS.search(k) else v for k, v in d.items()}
 
 
 router = APIRouter(tags=["apps"])
@@ -109,27 +105,85 @@ async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
 
 @router.get("/apps/{app_key}/config", response_model=AppConfigResponse)
 async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigResponse:
-    """Return the raw app configuration for the given app key."""
+    """Return the app configuration with schema-driven masking for the given app key.
+
+    Secret fields are masked by type: any field declared ``SecretStr`` is replaced
+    by a masked placeholder; plain ``str`` fields are never masked by name.
+    The ``config_schema`` is fully inlined (no ``$ref`` nodes remain).
+
+    Masking needs the app's config schema. It comes from the running instance when the
+    app is active, otherwise from the app class if it has already been loaded. When no
+    schema can be obtained (a disabled app whose class was never loaded, or a class whose
+    schema generation fails), every string value is masked as a safe floor so no secret
+    leaks — the masked path is the only path.
+    """
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
-    schema = None
-    app_instance = hassette.app_handler.registry.get(app_key)
-    if app_instance is not None:
+
+    app_config_cls = _resolve_app_config_cls(hassette, app_key, manifest)
+    if app_config_cls is not None:
         try:
-            schema = type(app_instance).app_config_cls.model_json_schema()
+            raw_schema = app_config_cls.model_json_schema()
+            if not isinstance(raw_schema, dict):
+                raise TypeError(f"model_json_schema() returned {type(raw_schema).__name__}, expected dict")
+            config_schema, masked_config = _build_app_config_view(raw_schema, manifest.app_config)
+            return AppConfigResponse(
+                app_key=app_key,
+                filename=manifest.filename,
+                class_name=manifest.class_name,
+                enabled=manifest.enabled,
+                app_config=masked_config,
+                config_schema=config_schema,
+            )
         except Exception:
             LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
 
+    # No schema available — uniformly mask every string value so a secret never leaks.
     return AppConfigResponse(
         app_key=app_key,
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
-        app_config=_redact_secrets(manifest.app_config),
-        config_schema=schema,
+        app_config=_mask_floor(manifest.app_config),
+        config_schema=None,
     )
+
+
+def _resolve_app_config_cls(hassette: "Hassette", app_key: str, manifest: AppManifest) -> type[AppConfig] | None:
+    """Resolve the app's ``AppConfig`` class: from the running instance, else the loaded class.
+
+    Returns ``None`` when the app has no running instance and its class is not already
+    loaded (e.g. a disabled app that never started). Does not import the app module — a
+    config request must not trigger loading of arbitrary app code on the unauthenticated API.
+    """
+    instance = hassette.app_handler.registry.get(app_key)
+    if instance is not None:
+        return getattr(type(instance), "app_config_cls", None)
+    if class_already_loaded(manifest.full_path, manifest.class_name):
+        return get_loaded_class(manifest.full_path, manifest.class_name).app_config_cls
+    return None
+
+
+def _build_app_config_view(
+    schema: dict[str, Any], app_config: dict[str, Any] | list[dict[str, Any]]
+) -> tuple[dict[str, Any], dict[str, Any] | list[dict[str, Any]]]:
+    """Build the deref'd schema and masked values for a single- or multi-instance app config."""
+    if isinstance(app_config, list):
+        if not app_config:
+            return build_config_view(schema, {})["config_schema"], []
+        views = [build_config_view(schema, inst) for inst in app_config]
+        return views[0]["config_schema"], [v["config_values"] for v in views]
+    view = build_config_view(schema, app_config)
+    return view["config_schema"], view["config_values"]
+
+
+def _mask_floor(app_config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+    """Apply the schema-less safe-floor mask to a single- or multi-instance app config."""
+    if isinstance(app_config, list):
+        return [mask_all_values(inst) for inst in app_config]
+    return mask_all_values(app_config)
 
 
 @router.get("/apps/{app_key}/source", response_model=AppSourceResponse)

@@ -13,7 +13,7 @@ from hassette.test_utils.config import TEST_TOKEN
 def test_defaults(tmp_path) -> None:
     """make_test_config() produces config with correct default values."""
     config = make_test_config(data_dir=tmp_path)
-    assert config.token == TEST_TOKEN
+    assert config.token.get_secret_value() == TEST_TOKEN
     # base_url encodes ha_host + ha_port
     assert "test.invalid" in config.base_url
     assert "8123" in config.base_url
@@ -29,7 +29,8 @@ def test_hermetic_no_env(monkeypatch, tmp_path) -> None:
     """Env vars are not picked up by make_test_config()."""
     monkeypatch.setenv("HASSETTE__TOKEN", "env-token-should-not-appear")
     config = make_test_config(data_dir=tmp_path)
-    assert config.token == TEST_TOKEN, "make_test_config() must not read env vars — hermetic settings only"
+    msg = "make_test_config() must not read env vars — hermetic settings only"
+    assert config.token.get_secret_value() == TEST_TOKEN, msg
 
 
 def test_data_dir_override_respected(tmp_path) -> None:

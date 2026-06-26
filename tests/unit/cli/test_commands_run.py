@@ -60,6 +60,6 @@ class TestCmdRun:
         cmd_run(token="test-token", base_url="http://ha:8123", dev_mode=True)
         mock_run_server.assert_called_once()
         config = mock_run_server.call_args[0][0]
-        assert config.token == "test-token"
+        assert config.token.get_secret_value() == "test-token"
         assert str(config.base_url) == "http://ha:8123"
         assert config.dev_mode is True

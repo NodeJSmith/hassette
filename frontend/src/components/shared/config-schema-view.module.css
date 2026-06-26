@@ -1,0 +1,191 @@
+/* Shared config schema renderer — component-scoped styles */
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-7);
+}
+
+.group {
+}
+
+.configTable {
+  width: 100%;
+  table-layout: auto;
+}
+
+.configTable tr {
+  border-bottom: 1px solid var(--line-2);
+}
+
+.configTable tr:last-child {
+  border-bottom: none;
+}
+
+.configTable td {
+  padding: 10px var(--sp-4);
+  vertical-align: top;
+}
+
+.colLabel {
+  width: 280px;
+  min-width: 180px;
+}
+
+.fieldLabel {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  color: var(--ink-1);
+}
+
+.fieldHelp {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.colValue {
+  min-width: 200px;
+}
+
+.colType {
+  width: 100px;
+  text-align: right;
+  color: var(--ink-4);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  padding-top: 12px;
+}
+
+/* Value styles */
+
+.valString {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+.valNumber {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+}
+
+.valPath {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+  background: var(--bg-sunken);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  word-break: break-all;
+}
+
+.valNull {
+  font-size: var(--fs-small);
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+/* Secret value */
+.valSecret {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  font-style: italic;
+  user-select: none;
+}
+
+.valSecretUnset {
+  font-size: var(--fs-small);
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.lockIcon {
+  font-size: var(--fs-xs);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* List value */
+.valListEmpty {
+  font-size: var(--fs-small);
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.valList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.valListItem {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-2);
+  color: var(--ink-2);
+}
+
+/* Expand button for complex values */
+.expandBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.expandedPre {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-mono-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+@media screen and (max-width: 768px) {
+  .colLabel {
+    width: auto;
+    min-width: unset;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .configTable td {
+    display: block;
+    padding: var(--sp-1) var(--sp-3);
+  }
+
+  .colType {
+    display: none;
+  }
+
+  .colValue {
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+
+  .configTable tr:last-child .colValue {
+    border-bottom: none;
+  }
+}

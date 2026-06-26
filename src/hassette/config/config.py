@@ -4,7 +4,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
@@ -121,18 +121,23 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Enable developer mode, which may include additional logging and features."""
 
     # Home Assistant connection — cross-cutting
-    base_url: str = Field(default="http://127.0.0.1:8123")
+    base_url: str = Field(default="http://127.0.0.1:8123", json_schema_extra={"ui": {"label": "Base URL"}})
     """Base URL of the Home Assistant instance"""
 
-    verify_ssl: bool = Field(default=True)
+    verify_ssl: bool = Field(default=True, json_schema_extra={"ui": {"label": "Verify SSL"}})
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
     certificates."""
 
-    token: str | None = Field(
+    token: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
     )
-    """Access token for Home Assistant instance"""
+    """Access token for Home Assistant instance.
+
+    Stored as a :class:`~pydantic.SecretStr` so the value is masked in logs
+    and string representations.  Unwrap with ``token.get_secret_value()`` when
+    the plaintext is required (e.g. HTTP auth headers, WebSocket auth payload).
+    """
 
     config_dir: Path = Field(default_factory=default_config_dir)
     """Directory to load/save configuration."""
@@ -229,10 +234,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     @property
     def auth_headers(self) -> dict[str, str]:
-        """Return the headers required for authentication."""
+        """Return the headers required for authentication.
+
+        Calls :meth:`~pydantic.SecretStr.get_secret_value` to unwrap the token
+        so the plaintext reaches the Authorization header, not the masked repr.
+        """
         if self.token is None:
             return {}
-        return {"Authorization": f"Bearer {self.token}"}
+        return {"Authorization": f"Bearer {self.token.get_secret_value()}"}
 
     @property
     def headers(self) -> dict[str, str]:
@@ -241,14 +250,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     @property
     def truncated_token(self) -> str:
-        """Return a truncated version of the token for display purposes."""
+        """Return a truncated version of the token for display purposes.
+
+        Calls :meth:`~pydantic.SecretStr.get_secret_value` to obtain the
+        plaintext before slicing — ``SecretStr`` is not subscriptable.
+        """
         if self.token is None:
             return "<not set>"
-        if len(self.token) < TOKEN_SHORT_THRESHOLD:
+        raw = self.token.get_secret_value()
+        if len(raw) < TOKEN_SHORT_THRESHOLD:
             return "***"
-        if len(self.token) <= TOKEN_MEDIUM_THRESHOLD:
-            return f"{self.token[:TOKEN_SHORT_PREFIX_LENGTH]}***"
-        return f"{self.token[:TOKEN_LONG_PREFIX_LENGTH]}...{self.token[-TOKEN_LONG_PREFIX_LENGTH:]}"
+        if len(raw) <= TOKEN_MEDIUM_THRESHOLD:
+            return f"{raw[:TOKEN_SHORT_PREFIX_LENGTH]}***"
+        return f"{raw[:TOKEN_LONG_PREFIX_LENGTH]}...{raw[-TOKEN_LONG_PREFIX_LENGTH:]}"
 
     @model_validator(mode="after")
     def validate_log_retention_days(self) -> "HassetteConfig":

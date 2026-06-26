@@ -86,7 +86,7 @@ def make_mock_hassette(
 
         async def test_something():
             hassette = make_mock_hassette()
-            assert hassette.config.token == "test-token"
+            assert hassette.config.token.get_secret_value() == "test-token"
 
         async def test_strict(tmp_path):
             hassette = make_mock_hassette(data_dir=tmp_path, strict_lifecycle=True)

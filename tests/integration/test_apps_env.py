@@ -4,6 +4,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
 from hassette import HassetteConfig, context
 from hassette.test_utils import HassetteHarness, build_harness, run_hassette_startup_tasks, wait_for
@@ -131,7 +132,7 @@ def build_config_class(*, toml_file: Path, env_files: list[Path]):
             "env_file": env_files,
         }
 
-        token: str = TOKEN
+        token: SecretStr = SecretStr(TOKEN)
 
     return _TestConfig
 

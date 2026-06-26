@@ -155,7 +155,17 @@ export interface paths {
         };
         /**
          * Get App Config
-         * @description Return the raw app configuration for the given app key.
+         * @description Return the app configuration with schema-driven masking for the given app key.
+         *
+         *     Secret fields are masked by type: any field declared ``SecretStr`` is replaced
+         *     by a masked placeholder; plain ``str`` fields are never masked by name.
+         *     The ``config_schema`` is fully inlined (no ``$ref`` nodes remain).
+         *
+         *     Masking needs the app's config schema. It comes from the running instance when the
+         *     app is active, otherwise from the app class if it has already been loaded. When no
+         *     schema can be obtained (a disabled app whose class was never loaded, or a class whose
+         *     schema generation fails), every string value is masked as a safe floor so no secret
+         *     leaks — the masked path is the only path.
          */
         get: operations["get_app_config_api_apps__app_key__config_get"];
         put?: never;
@@ -298,7 +308,14 @@ export interface paths {
         };
         /**
          * Get Config
-         * @description Return sanitized hassette configuration organized by config group.
+         * @description Return the complete Hassette configuration as a JSON schema plus current values.
+         *
+         *     ``config_schema`` is the fully-inlined JSON schema derived from the
+         *     ``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).
+         *     ``config_values`` is the current configuration serialized to JSON with
+         *     any ``SecretStr`` field replaced by a masked placeholder — the plaintext
+         *     value is never sent over the wire.  Every field and nested group is present;
+         *     nothing is omitted.
          */
         get: operations["get_config_api_config_get"];
         put?: never;
@@ -737,16 +754,6 @@ export interface components {
             only_app?: string | null;
         };
         /**
-         * AppsConfigResponse
-         * @description Sanitized apps configuration fields (config group sub-response).
-         */
-        AppsConfigResponse: {
-            /** Autodetect */
-            autodetect: boolean;
-            /** Directory */
-            directory: string;
-        };
-        /**
          * BootIssueResponse
          * @description A boot-time issue entry in the system status response.
          */
@@ -762,28 +769,23 @@ export interface components {
             detail: string;
         };
         /**
-         * ConfigResponse
-         * @description Sanitized configuration response organized by config group.
+         * ConfigSchemaResponse
+         * @description Complete Hassette configuration as a JSON schema plus current values.
+         *
+         *     ``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)
+         *     derived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current
+         *     configuration serialized to JSON with ``SecretStr`` fields replaced by a masked
+         *     placeholder.  Every field and nested group is present — nothing is omitted.
          */
-        ConfigResponse: {
-            /** Dev Mode */
-            dev_mode: boolean;
-            /** Base Url */
-            base_url: string;
-            /** Asyncio Debug Mode */
-            asyncio_debug_mode: boolean;
-            /** Allow Reload In Prod */
-            allow_reload_in_prod: boolean;
-            /** Data Dir */
-            data_dir: string;
-            /** Config Dir */
-            config_dir: string;
-            web_api: components["schemas"]["WebApiConfigResponse"];
-            logging: components["schemas"]["LoggingConfigResponse"];
-            lifecycle: components["schemas"]["LifecycleConfigResponse"];
-            apps: components["schemas"]["AppsConfigResponse"];
-            scheduler: components["schemas"]["SchedulerConfigResponse"];
-            file_watcher: components["schemas"]["FileWatcherConfigResponse"];
+        ConfigSchemaResponse: {
+            /** Config Schema */
+            config_schema: {
+                [key: string]: unknown;
+            };
+            /** Config Values */
+            config_values: {
+                [key: string]: unknown;
+            };
         };
         /**
          * DashboardAppGridEntry
@@ -953,16 +955,6 @@ export interface components {
          * @enum {string}
          */
         ExecutionStatus: "success" | "error" | "cancelled" | "timed_out";
-        /**
-         * FileWatcherConfigResponse
-         * @description Sanitized file watcher configuration fields.
-         */
-        FileWatcherConfigResponse: {
-            /** Watch Files */
-            watch_files: boolean;
-            /** Debounce Milliseconds */
-            debounce_milliseconds: number;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1076,18 +1068,6 @@ export interface components {
              * @default 0
              */
             dropped_count: number;
-        };
-        /**
-         * LifecycleConfigResponse
-         * @description Sanitized lifecycle configuration fields.
-         */
-        LifecycleConfigResponse: {
-            /** Startup Timeout Seconds */
-            startup_timeout_seconds: number;
-            /** App Startup Timeout Seconds */
-            app_startup_timeout_seconds: number;
-            /** App Shutdown Timeout Seconds */
-            app_shutdown_timeout_seconds: number;
         };
         /**
          * ListenerWithSummary
@@ -1291,16 +1271,6 @@ export interface components {
             effective_level: string;
         };
         /**
-         * LoggingConfigResponse
-         * @description Sanitized logging configuration fields.
-         */
-        LoggingConfigResponse: {
-            /** Log Level */
-            log_level: string;
-            /** Web Api */
-            web_api: string;
-        };
-        /**
          * LogsByExecutionResponse
          * @description Response for GET /api/executions/{execution_id}.
          */
@@ -1331,18 +1301,6 @@ export interface components {
          * @enum {string}
          */
         ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed" | "exhausted_dead" | "exhausted_cooling";
-        /**
-         * SchedulerConfigResponse
-         * @description Sanitized scheduler configuration fields.
-         */
-        SchedulerConfigResponse: {
-            /** Min Delay Seconds */
-            min_delay_seconds: number;
-            /** Max Delay Seconds */
-            max_delay_seconds: number;
-            /** Default Delay Seconds */
-            default_delay_seconds: number;
-        };
         /**
          * ServiceInfoResponse
          * @description Structured info for one internal service.
@@ -1433,30 +1391,6 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
-        };
-        /**
-         * WebApiConfigResponse
-         * @description Sanitized web API configuration fields.
-         */
-        WebApiConfigResponse: {
-            /** Run */
-            run: boolean;
-            /** Run Ui */
-            run_ui: boolean;
-            /** Ui Hot Reload */
-            ui_hot_reload: boolean;
-            /** Host */
-            host: string;
-            /** Port */
-            port: number;
-            /** Cors Origins */
-            cors_origins: string[];
-            /** Event Buffer Size */
-            event_buffer_size: number;
-            /** Log Buffer Size */
-            log_buffer_size: number;
-            /** Job History Size */
-            job_history_size: number;
         };
     };
     responses: never;
@@ -1915,7 +1849,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConfigResponse"];
+                    "application/json": components["schemas"]["ConfigSchemaResponse"];
                 };
             };
         };

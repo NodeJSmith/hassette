@@ -17,6 +17,7 @@ from hassette.cli.output import (
     fmt_next_run,
     fmt_uptime,
     render_detail,
+    render_detail_dict,
 )
 from hassette.types.types import CliFormat
 from tests.unit.cli.conftest import capture_human
@@ -40,6 +41,10 @@ class AnnotatedModel(BaseModel):
 class TestHumanizeModelName:
     def test_strips_response_suffix(self) -> None:
         assert _humanize_model_name("ConfigResponse") == "Config"
+
+    def test_strips_response_suffix_and_spaces(self) -> None:
+        # The docstring example: ConfigSchemaResponse -> Config Schema.
+        assert _humanize_model_name("ConfigSchemaResponse") == "Config Schema"
 
     def test_camel_case_to_spaced(self) -> None:
         assert _humanize_model_name("SystemStatusResponse") == "System Status"
@@ -223,3 +228,21 @@ class TestRenderDetailCliFormat:
         parsed = json.loads(captured.out)
         assert parsed["uptime_seconds"] == 9005.0
         assert parsed["avg_duration"] == 450.0
+
+
+class TestRenderDetailDict:
+    def test_empty_group_section_omitted(self) -> None:
+        """An empty dict group renders no orphaned section header."""
+        data = {"name": "x", "websocket": {}, "database": {"retention_days": 7}}
+        stdout, _stderr = capture_human(render_detail_dict, data, "Config", json_mode=False)
+        assert "name" in stdout
+        assert "retention_days" in stdout
+        # The empty 'websocket' group produces no section header
+        assert "Websocket" not in stdout
+
+    def test_nonempty_groups_render_as_sections(self) -> None:
+        """Non-empty dict groups render as labeled sections with their fields."""
+        data = {"database": {"retention_days": 7}}
+        stdout, _stderr = capture_human(render_detail_dict, data, "Config", json_mode=False)
+        assert "Database" in stdout
+        assert "retention_days" in stdout

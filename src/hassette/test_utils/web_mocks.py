@@ -121,6 +121,44 @@ def create_hassette_stub(
     hassette.config.file_watcher.watch_files = True
     hassette.config.file_watcher.debounce_milliseconds = 3000
 
+    # model_dump return value — mirrors the attribute assignments above so the config
+    # endpoint (which calls hassette.config.model_dump(mode="json")) receives a real dict
+    # rather than a MagicMock.  Per-test attribute overrides on hassette.config.* won't
+    # automatically reflect here; tests that need specific serialised values should update
+    # model_dump.return_value directly or use a real HassetteConfig fixture.
+    hassette.config.model_dump.return_value = {
+        "dev_mode": dev_mode,
+        "base_url": "http://127.0.0.1:8123",
+        "asyncio_debug_mode": False,
+        "allow_reload_in_prod": allow_reload_in_prod,
+        "token": None,
+        "data_dir": "/srv/hassette/data",
+        "config_dir": "/srv/hassette/config",
+        "web_api": {
+            "run": run_web_api,
+            "run_ui": run_web_ui,
+            "ui_hot_reload": False,
+            "host": "0.0.0.0",
+            "port": DEFAULT_WEB_API_PORT,
+            "cors_origins": list(cors_origins),
+            "event_buffer_size": event_buffer_size,
+            "log_buffer_size": 2000,
+            "job_history_size": 1000,
+        },
+        "logging": {"log_level": log_level, "web_api": log_level},
+        "lifecycle": {
+            "startup_timeout_seconds": 30,
+            "app_startup_timeout_seconds": 20,
+            "app_shutdown_timeout_seconds": 10,
+        },
+        "apps": {"autodetect": True, "directory": "/srv/hassette/apps"},
+        "scheduler": {"min_delay_seconds": 1, "max_delay_seconds": 30, "default_delay_seconds": 15},
+        "file_watcher": {"watch_files": True, "debounce_milliseconds": 3000},
+        "database": {"retention_days": 7},
+        "websocket": {},
+        "blocking_io": {},
+    }
+
     hassette.state_proxy = hassette._state_proxy
     hassette._state_proxy.states = states if states is not None else {}
     hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)

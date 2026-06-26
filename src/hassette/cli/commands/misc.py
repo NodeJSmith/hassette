@@ -4,16 +4,16 @@ from typing import Any
 
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_relative_time, render_detail, render_table
+from hassette.cli.output import Column, fmt_relative_time, render_detail_dict, render_table
 from hassette.cli.types import LimitArg
-from hassette.web.models import ConfigResponse, EventEntry
+from hassette.web.models import ConfigSchemaResponse, EventEntry
 
 
 def cmd_config(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show current configuration (GET /api/config)."""
     client = make_client(ctx)
-    result = client.get("/api/config", ConfigResponse)
-    render_detail(result, json_mode=ctx.json_mode)
+    result = client.get("/api/config", ConfigSchemaResponse)
+    render_detail_dict(result.config_values, "Config", json_mode=ctx.json_mode)
 
 
 EVENT_COLUMNS: list[Column] = [

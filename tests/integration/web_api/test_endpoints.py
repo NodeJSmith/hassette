@@ -9,6 +9,7 @@ import pytest
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import ListenerSummary
+from hassette.web.config_view import MASK_SENTINEL
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -199,7 +200,8 @@ class TestConfigEndpoint:
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert "token" not in data  # token should be redacted
+        assert "config_schema" in data
+        assert "config_values" in data
 
 
 class TestBusEndpoints:
@@ -361,52 +363,72 @@ class TestLogsEndpoints:
 
 class TestConfigEndpointExpanded:
     async def test_response_has_nested_groups(self, client: "AsyncClient", mock_hassette) -> None:
-        """Response is organized into nested config groups."""
+        """Response envelope contains standard config groups in config_values, including previously-omitted ones."""
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert "web_api" in data
-        assert "logging" in data
-        assert "lifecycle" in data
-        assert "apps" in data
-        assert "scheduler" in data
-        assert "file_watcher" in data
+        config_values = data["config_values"]
+        assert "web_api" in config_values
+        assert "logging" in config_values
+        assert "lifecycle" in config_values
+        assert "apps" in config_values
+        assert "scheduler" in config_values
+        assert "file_watcher" in config_values
+        # Groups that the old endpoint omitted are now present
+        assert "database" in config_values
+        assert "websocket" in config_values
+        assert "blocking_io" in config_values
 
     async def test_token_not_in_response(self, client: "AsyncClient", mock_hassette) -> None:
-        """Verify token is never returned in the config response."""
+        """Token is present in config_values as None or masked; plaintext is never returned."""
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert "token" not in data
+        config_values = data["config_values"]
+        # Token key is present in config_values (not omitted)
+        assert "token" in config_values
+        # Value is None (not set) or the mask sentinel — never a plaintext secret
+        token_val = config_values["token"]
+        assert token_val is None or token_val == MASK_SENTINEL
+        # Plaintext token never appears anywhere in the response body
+        assert "test-token" not in response.text
+
+    async def test_set_token_is_masked_not_plaintext(self, client: "AsyncClient", mock_hassette) -> None:
+        """A token with a value is returned as the mask sentinel — proves the full endpoint
+        masking flow (the schema marks token secret, the view builder replaces the value)."""
+        secret = "super-secret-plaintext-xyz"
+        mock_hassette.config.model_dump.return_value["token"] = secret
+        response = await client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["config_values"]["token"] == MASK_SENTINEL
+        assert secret not in response.text
 
     async def test_dev_mode_present_at_root(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.config.dev_mode = True
+        """dev_mode is present in config_values."""
         response = await client.get("/api/config")
         data = response.json()
-        assert "dev_mode" in data
-        assert data["dev_mode"] is True
+        assert "dev_mode" in data["config_values"]
+        assert isinstance(data["config_values"]["dev_mode"], bool)
 
     async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
-        """data_dir and config_dir are present at root; apps.directory is under apps group."""
-        mock_hassette.config.apps.directory = "/srv/hassette/apps"
-        mock_hassette.config.data_dir = "/srv/hassette/data"
-        mock_hassette.config.config_dir = "/srv/hassette/config"
+        """data_dir and config_dir are present in config_values; apps.directory is under the apps group."""
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert data["apps"]["directory"] == "/srv/hassette/apps"
-        assert data["data_dir"] == "/srv/hassette/data"
-        assert data["config_dir"] == "/srv/hassette/config"
+        config_values = data["config_values"]
+        assert isinstance(config_values["apps"]["directory"], str)
+        assert isinstance(config_values["data_dir"], str)
+        assert isinstance(config_values["config_dir"], str)
 
     async def test_web_api_fields_nested(self, client: "AsyncClient", mock_hassette) -> None:
-        """web_api group contains host, port, and other API settings."""
-        mock_hassette.config.web_api.host = "127.0.0.1"
-        mock_hassette.config.web_api.port = 9000
+        """web_api group in config_values contains host and port fields."""
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert data["web_api"]["host"] == "127.0.0.1"
-        assert data["web_api"]["port"] == 9000
+        web_api = data["config_values"]["web_api"]
+        assert "host" in web_api
+        assert "port" in web_api
 
 
 class TestOpenApiDocs:

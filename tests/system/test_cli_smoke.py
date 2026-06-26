@@ -20,7 +20,7 @@ from hassette.cli.client import HassetteCLIClient
 from hassette.schemas.telemetry_models import JobSummary
 from hassette.web.models import (
     AppManifestListResponse,
-    ConfigResponse,
+    ConfigSchemaResponse,
     DashboardAppGridResponse,
     EventEntry,
     ListenerWithSummary,
@@ -89,15 +89,17 @@ async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
 
 
 async def test_config_deserializes(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/config deserializes to ConfigResponse."""
+    """GET /api/config deserializes to ConfigSchemaResponse with schema and values."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
-            result = await asyncio.to_thread(client.get, "/api/config", ConfigResponse)
+            result = await asyncio.to_thread(client.get, "/api/config", ConfigSchemaResponse)
 
-    assert isinstance(result, ConfigResponse)
-    assert result.web_api.port > 0
+    assert isinstance(result, ConfigSchemaResponse)
+    assert isinstance(result.config_schema, dict)
+    assert isinstance(result.config_values, dict)
+    assert result.config_values.get("web_api", {}).get("port", 0) > 0
 
 
 async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) -> None:
