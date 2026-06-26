@@ -49,6 +49,10 @@ const ACRONYM_DISPLAY: Record<string, string> = {
   toml: "TOML",
 };
 
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const MS_PER_SECOND = 1000;
+
 /** Convert snake_case to Title Case, expanding known acronyms. */
 function humanizeKey(key: string): string {
   return key
@@ -138,21 +142,24 @@ function isDurationField(node: SchemaNode, key: string): boolean {
 
 /** Humanize a seconds count: "30s", "1m 30s", "1h 5m". */
 function humanizeSeconds(total: number): string {
-  if (total < 60) return `${total}s`;
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = Math.round(total % 60);
+  if (total < SECONDS_PER_MINUTE) return `${total}s`;
+  const hours = Math.floor(total / SECONDS_PER_HOUR);
+  const minutes = Math.floor((total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  const seconds = Math.round(total % SECONDS_PER_MINUTE);
   const parts: string[] = [];
-  if (h) parts.push(`${h}h`);
-  if (m) parts.push(`${m}m`);
-  if (s) parts.push(`${s}s`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (seconds) parts.push(`${seconds}s`);
   return parts.join(" ");
 }
 
-/** Format a numeric duration value, picking the unit from the key suffix. */
-function formatDuration(value: number, key: string): string {
+/**
+ * Format a numeric duration config value, picking the unit from the key suffix.
+ * Named distinctly from utils/format.ts:formatDuration, which takes raw milliseconds.
+ */
+function formatDurationField(value: number, key: string): string {
   if (/_(?:milliseconds|ms)$/.test(key)) {
-    return value < 1000 ? `${value}ms` : humanizeSeconds(value / 1000);
+    return value < MS_PER_SECOND ? `${value}ms` : humanizeSeconds(value / MS_PER_SECOND);
   }
   return humanizeSeconds(value);
 }
@@ -265,7 +272,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   if (typeof value === "number" && isDurationField(node, fieldKey)) {
     return (
       <span class={styles.valNumber} title={String(value)}>
-        {formatDuration(value, fieldKey)}
+        {formatDurationField(value, fieldKey)}
       </span>
     );
   }
