@@ -98,18 +98,15 @@ function unwrapAnyOf(node: SchemaNode): SchemaNode {
   return nonNull ?? node;
 }
 
-/** Resolve the display type string for the type column. */
+/** Resolve the display type string for the type column. Mirrors FieldValue's branch order. */
 function resolveTypeName(node: SchemaNode, key: string): string {
   if (isSecretNode(node)) return "secret";
   if (isGroupNode(node)) return "object";
-  if (enumValues(node)) return "enum";
+  if (uiHints(node).widget === "path" || isPathLike(node, key)) return "path";
+  const choices = enumValues(node);
+  if (choices && choices.length > 0) return "enum";
   const inner = unwrapAnyOf(node);
-  if (inner.format === "path") return "path";
-  if (
-    typeof inner.type === "string" &&
-    (inner.type === "integer" || inner.type === "number") &&
-    isDurationField(node, key)
-  ) {
+  if ((inner.type === "integer" || inner.type === "number") && isDurationField(node, key)) {
     return "duration";
   }
   return inner.type ?? "any";
