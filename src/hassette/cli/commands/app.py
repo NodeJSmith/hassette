@@ -119,8 +119,7 @@ def cmd_app_config(
     result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
     # Render every field except config_schema, the large machine-oriented blob. Dumping the
     # model (rather than naming fields) keeps new AppConfigResponse fields visible automatically.
-    detail = result.model_dump(mode="json")
-    detail.pop("config_schema", None)
+    detail = {field: value for field, value in result.model_dump(mode="json").items() if field != "config_schema"}
     render_detail_dict(detail, "App Config", json_mode=ctx.json_mode)
 
 
