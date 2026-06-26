@@ -71,10 +71,24 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
         assert config_values["web_api"]["run"] is True
         assert config_values["web_api"]["port"] > 0
 
-        # Token-masking invariant on a live response: the plaintext SecretStr must never
-        # appear in GET /api/config. Unit and integration tests mock this serialization
-        # boundary, so a regression (e.g. model_dump() instead of model_dump(mode="json"))
-        # would pass them and still leak the token from a real running instance.
+
+async def test_config_endpoint_masks_token(ha_container: str, tmp_path) -> None:
+    """GET /api/config never leaks the plaintext HA token on a live response.
+
+    The plaintext SecretStr must never appear in the body, and the token field must
+    render as the mask sentinel. Unit and integration tests mock this serialization
+    boundary, so a regression (e.g. model_dump() instead of model_dump(mode="json"))
+    would pass them and still leak the token from a real running instance.
+    """
+    config, base_url = make_web_system_config(ha_container, tmp_path)
+    async with startup_context(config) as _hassette:
+        await wait_for_web_server(base_url)
+
+        async with httpx.AsyncClient() as client:
+            r = await client.get(f"{base_url}/api/config", timeout=10.0)
+
+        assert r.status_code == 200
+        config_values: dict[str, Any] = r.json()["config_values"]
         assert HA_TOKEN not in r.text
         assert config_values["token"] == MASK_SENTINEL
 
