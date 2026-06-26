@@ -499,6 +499,25 @@ class TestCmdAppConfig:
         ]
         assert "config_schema" not in parsed
 
+    def test_json_mode_preserves_empty_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
+        """app config --json keeps an empty list as [], not the default dict, when there are no instances."""
+        cfg = make_app_config_response(
+            app_key="my-app",
+            app_config=[],
+            config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
+        )
+        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        captured: list[str] = []
+        with (
+            patch("hassette.cli.commands.app.make_client", return_value=client),
+            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+        ):
+            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
+
+        parsed = json.loads("".join(captured))
+        assert parsed["app_config"] == []
+        assert "config_schema" not in parsed
+
 
 # cmd_app_source
 
