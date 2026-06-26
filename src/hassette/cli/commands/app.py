@@ -4,7 +4,14 @@ from typing import Any
 
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
+from hassette.cli.output import (
+    Column,
+    fmt_duration_ms,
+    fmt_relative_time,
+    render_detail,
+    render_detail_dict,
+    render_table,
+)
 from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.schemas.telemetry_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
@@ -102,10 +109,19 @@ def cmd_app_config(
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
-    """Show app configuration (GET /api/apps/{key}/config)."""
+    """Show app configuration (GET /api/apps/{key}/config).
+
+    Renders the app's metadata and masked config values. The fully-inlined
+    ``config_schema`` is part of the response but is intentionally not shown — it is a
+    large machine-oriented blob, not something a CLI reader needs.
+    """
     client = make_client(ctx)
     result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
-    render_detail(result, json_mode=ctx.json_mode)
+    # Render every field except config_schema, the large machine-oriented blob. Dumping the
+    # model (rather than naming fields) keeps new AppConfigResponse fields visible automatically.
+    detail = result.model_dump(mode="json")
+    detail.pop("config_schema", None)
+    render_detail_dict(detail, "App Config", json_mode=ctx.json_mode)
 
 
 def cmd_app_source(
