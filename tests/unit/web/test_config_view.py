@@ -4,7 +4,7 @@ import json
 
 from pydantic import BaseModel, SecretStr
 
-from hassette.web.config_view import MASK_SENTINEL, build_config_view, mask_all_values
+from hassette.web.config_view import MASK_SENTINEL, build_config_view, deref_schema, mask_all_values, mask_values
 
 
 class _PlainConfig(BaseModel):
@@ -230,6 +230,38 @@ class TestDeref:
         # Should have inlined Inner's properties, not a $ref
         assert "properties" in inner_prop
         assert "nested_secret" in inner_prop["properties"]
+
+
+class TestDerefSchema:
+    """deref_schema is the standalone deref step; build_config_view delegates to it."""
+
+    def test_inlines_refs_and_drops_defs(self) -> None:
+        """deref_schema resolves $ref nodes inline and removes the $defs store."""
+        schema = _OuterConfig.model_json_schema()
+        assert "$ref" in str(schema)
+        assert "$defs" in schema
+
+        result = deref_schema(schema)
+        assert "$ref" not in json.dumps(result)
+        assert "$defs" not in result
+        assert "nested_secret" in result["properties"]["inner"]["properties"]
+
+    def test_build_config_view_delegates_to_deref_schema(self) -> None:
+        """build_config_view's config_schema is exactly what deref_schema produces."""
+        schema = _OuterConfig.model_json_schema()
+        values = {"name": "x", "inner": {}, "top_secret": None}
+        assert build_config_view(schema, values)["config_schema"] == deref_schema(schema)
+
+    def test_deref_once_then_mask_per_instance(self) -> None:
+        """A schema deref'd once can mask multiple instances — the multi-instance app path."""
+        deref = deref_schema(_PlainConfig.model_json_schema())
+        props = deref["properties"]
+        first = mask_values(props, {"real_secret": "a", "plain_field": "one"})
+        second = mask_values(props, {"real_secret": "b", "plain_field": "two"})
+        assert first["real_secret"] == MASK_SENTINEL
+        assert second["real_secret"] == MASK_SENTINEL
+        assert first["plain_field"] == "one"
+        assert second["plain_field"] == "two"
 
 
 class TestCyclicSchema:

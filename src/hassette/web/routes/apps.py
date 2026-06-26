@@ -10,7 +10,7 @@ from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.utils.app_utils import class_already_loaded, get_loaded_class
-from hassette.web.config_view import build_config_view, mask_all_values
+from hassette.web.config_view import deref_schema, mask_all_values, mask_values
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
@@ -169,14 +169,16 @@ def _resolve_app_config_cls(hassette: "Hassette", app_key: str, manifest: AppMan
 def _build_app_config_view(
     schema: dict[str, Any], app_config: dict[str, Any] | list[dict[str, Any]]
 ) -> tuple[dict[str, Any], dict[str, Any] | list[dict[str, Any]]]:
-    """Build the deref'd schema and masked values for a single- or multi-instance app config."""
+    """Build the deref'd schema and masked values for a single- or multi-instance app config.
+
+    The schema is dereferenced once and reused across every instance; only the per-instance
+    masking differs. An empty instance list returns the deref'd schema with no masking run.
+    """
+    plain_schema = deref_schema(schema)
+    props = plain_schema.get("properties", {})
     if isinstance(app_config, list):
-        if not app_config:
-            return build_config_view(schema, {})["config_schema"], []
-        views = [build_config_view(schema, inst) for inst in app_config]
-        return views[0]["config_schema"], [v["config_values"] for v in views]
-    view = build_config_view(schema, app_config)
-    return view["config_schema"], view["config_values"]
+        return plain_schema, [mask_values(props, inst) for inst in app_config]
+    return plain_schema, mask_values(props, app_config)
 
 
 def _mask_floor(app_config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
