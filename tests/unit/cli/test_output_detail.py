@@ -42,6 +42,10 @@ class TestHumanizeModelName:
     def test_strips_response_suffix(self) -> None:
         assert _humanize_model_name("ConfigResponse") == "Config"
 
+    def test_strips_response_suffix_and_spaces(self) -> None:
+        # The docstring example: ConfigSchemaResponse -> Config Schema.
+        assert _humanize_model_name("ConfigSchemaResponse") == "Config Schema"
+
     def test_camel_case_to_spaced(self) -> None:
         assert _humanize_model_name("SystemStatusResponse") == "System Status"
 
