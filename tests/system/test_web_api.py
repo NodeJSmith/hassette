@@ -10,8 +10,9 @@ import pytest
 from websockets import connect as ws_connect
 
 from hassette.test_utils import wait_for
+from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
+from .conftest import HA_TOKEN, make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
 
 pytestmark = [pytest.mark.system]
 
@@ -69,6 +70,13 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
         assert "logging" in config_values
         assert config_values["web_api"]["run"] is True
         assert config_values["web_api"]["port"] > 0
+
+        # Token-masking invariant on a live response: the plaintext SecretStr must never
+        # appear in GET /api/config. Unit and integration tests mock this serialization
+        # boundary, so a regression (e.g. model_dump() instead of model_dump(mode="json"))
+        # would pass them and still leak the token from a real running instance.
+        assert HA_TOKEN not in r.text
+        assert config_values["token"] == MASK_SENTINEL
 
 
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
