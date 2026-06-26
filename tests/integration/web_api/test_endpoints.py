@@ -9,6 +9,7 @@ import pytest
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import ListenerSummary
+from hassette.web.config_view import MASK_SENTINEL
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -388,7 +389,7 @@ class TestConfigEndpointExpanded:
         assert "token" in config_values
         # Value is None (not set) or the mask sentinel — never a plaintext secret
         token_val = config_values["token"]
-        assert token_val is None or token_val == "••••••••"
+        assert token_val is None or token_val == MASK_SENTINEL
         # Plaintext token never appears anywhere in the response body
         assert "test-token" not in response.text
 
@@ -400,7 +401,7 @@ class TestConfigEndpointExpanded:
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert data["config_values"]["token"] == "••••••••"
+        assert data["config_values"]["token"] == MASK_SENTINEL
         assert secret not in response.text
 
     async def test_dev_mode_present_at_root(self, client: "AsyncClient", mock_hassette) -> None:

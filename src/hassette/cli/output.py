@@ -353,7 +353,7 @@ def _build_table(columns: list[Column], is_terminal: bool) -> Table:
 def _humanize_model_name(name: str) -> str:
     """Convert a model class name to a human-readable title.
 
-    ``'ConfigResponse'`` → ``'Config'``, ``'SystemStatusResponse'`` → ``'System Status'``.
+    ``'ConfigSchemaResponse'`` → ``'Config Schema'``, ``'SystemStatusResponse'`` → ``'System Status'``.
     """
     name = name.removesuffix("Response")
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
