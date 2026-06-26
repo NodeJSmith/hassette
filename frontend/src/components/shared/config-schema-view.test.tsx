@@ -93,6 +93,86 @@ describe("ConfigSchemaView", () => {
     });
   });
 
+  describe("enum formatting (FR#9)", () => {
+    it("renders an enum field's value as a badge", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          log_format: { type: "string", title: "Log Format", enum: ["auto", "console", "json"] },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ log_format: "auto" }} />);
+      const cell = getByTestId("config-value-log_format");
+      expect(cell.textContent).toContain("auto");
+      // Rendered through Badge (neutral variant), not the plain-string span.
+      expect(cell.querySelector("span")?.className).toMatch(/neutral/);
+    });
+
+    it("detects an enum nested inside an anyOf branch (StrEnum | None)", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          behavior: {
+            title: "Behavior",
+            anyOf: [{ type: "string", enum: ["ignore", "warn", "error"] }, { type: "null" }],
+          },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ behavior: "warn" }} />);
+      const cell = getByTestId("config-value-behavior");
+      expect(cell.textContent).toContain("warn");
+      expect(cell.querySelector("span")?.className).toMatch(/neutral/);
+    });
+  });
+
+  describe("duration formatting (FR#9)", () => {
+    it("humanizes a _seconds field above a minute", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          startup_timeout_seconds: { type: "integer", title: "Startup Timeout Seconds" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ startup_timeout_seconds: 90 }} />);
+      expect(getByTestId("config-value-startup_timeout_seconds").textContent).toContain("1m 30s");
+    });
+
+    it("renders a sub-minute _seconds field as seconds", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          reconnect_delay_seconds: { type: "number", title: "Reconnect Delay Seconds" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ reconnect_delay_seconds: 30 }} />);
+      expect(getByTestId("config-value-reconnect_delay_seconds").textContent).toContain("30s");
+    });
+
+    it("renders a _milliseconds field in ms", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          debounce_milliseconds: { type: "integer", title: "Debounce Milliseconds" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ debounce_milliseconds: 500 }} />);
+      expect(getByTestId("config-value-debounce_milliseconds").textContent).toContain("500ms");
+    });
+
+    it("leaves a plain number field unformatted", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          job_history_size: { type: "integer", title: "Job History Size" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ job_history_size: 1000 }} />);
+      const text = getByTestId("config-value-job_history_size").textContent ?? "";
+      expect(text).toContain("1000");
+      expect(text).not.toMatch(/s$|ms$/);
+    });
+  });
+
   describe("ui.label", () => {
     it("uses ui.label as the field display name, overriding the humanized key", () => {
       // The label differs from humanizeKey("foo_bar") ("Foo Bar"), so a broken

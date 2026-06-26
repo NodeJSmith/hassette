@@ -99,11 +99,19 @@ function unwrapAnyOf(node: SchemaNode): SchemaNode {
 }
 
 /** Resolve the display type string for the type column. */
-function resolveTypeName(node: SchemaNode): string {
+function resolveTypeName(node: SchemaNode, key: string): string {
   if (isSecretNode(node)) return "secret";
   if (isGroupNode(node)) return "object";
+  if (enumValues(node)) return "enum";
   const inner = unwrapAnyOf(node);
   if (inner.format === "path") return "path";
+  if (
+    typeof inner.type === "string" &&
+    (inner.type === "integer" || inner.type === "number") &&
+    isDurationField(node, key)
+  ) {
+    return "duration";
+  }
   return inner.type ?? "any";
 }
 
@@ -113,6 +121,43 @@ function isPathLike(node: SchemaNode, key: string): boolean {
   if (inner.format === "path") return true;
   // Heuristic fallback: key ends with _dir, _file, _path
   return /_(?:dir|file|path)$/.test(key);
+}
+
+/** Return the enum members when the node (or its non-null anyOf branch) is an enum. */
+function enumValues(node: SchemaNode): unknown[] | undefined {
+  if (Array.isArray(node.enum)) return node.enum;
+  const inner = unwrapAnyOf(node);
+  return Array.isArray(inner.enum) ? inner.enum : undefined;
+}
+
+/**
+ * True when the field holds a duration. Durations have no schema type marker — they are
+ * plain int/float seconds or milliseconds — so detect by ui.widget override or key suffix
+ * (the same heuristic approach as isPathLike).
+ */
+function isDurationField(node: SchemaNode, key: string): boolean {
+  return uiHints(node).widget === "duration" || /_(?:seconds|milliseconds|ms)$/.test(key);
+}
+
+/** Humanize a seconds count: "30s", "1m 30s", "1h 5m". */
+function humanizeSeconds(total: number): string {
+  if (total < 60) return `${total}s`;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = Math.round(total % 60);
+  const parts: string[] = [];
+  if (h) parts.push(`${h}h`);
+  if (m) parts.push(`${m}m`);
+  if (s) parts.push(`${s}s`);
+  return parts.join(" ");
+}
+
+/** Format a numeric duration value, picking the unit from the key suffix. */
+function formatDuration(value: number, key: string): string {
+  if (/_(?:milliseconds|ms)$/.test(key)) {
+    return value < 1000 ? `${value}ms` : humanizeSeconds(value / 1000);
+  }
+  return humanizeSeconds(value);
 }
 
 /** Get the ui hints from a node. Returns an empty object if none or if the node is undefined. */
@@ -209,6 +254,25 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
     return <code class={styles.valPath}>{String(value)}</code>;
   }
 
+  // Enum members render as a badge (covers Literal / StrEnum fields).
+  const choices = enumValues(node);
+  if (choices && choices.length > 0) {
+    return (
+      <Badge variant="neutral" size="sm">
+        {String(value)}
+      </Badge>
+    );
+  }
+
+  // Duration values are humanized ("30s", "1m 30s"); the raw value stays on hover.
+  if (typeof value === "number" && isDurationField(node, fieldKey)) {
+    return (
+      <span class={styles.valNumber} title={String(value)}>
+        {formatDuration(value, fieldKey)}
+      </span>
+    );
+  }
+
   if (typeof value === "boolean") {
     return <BoolValue value={value} />;
   }
@@ -255,7 +319,7 @@ function ConfigSection({ title, fields }: SectionProps) {
               const hints = uiHints(node);
               const label = hints.label ?? humanizeKey(key);
               const help = node.description;
-              const typeName = resolveTypeName(node);
+              const typeName = resolveTypeName(node, key);
 
               return (
                 <tr key={key} data-testid={`config-field-${key}`}>

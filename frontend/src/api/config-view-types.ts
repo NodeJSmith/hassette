@@ -14,6 +14,7 @@ export interface SchemaNode {
   default?: unknown;
   writeOnly?: boolean;
   format?: string;
+  enum?: unknown[];
   properties?: Record<string, SchemaNode>;
   anyOf?: SchemaNode[];
   items?: SchemaNode;
