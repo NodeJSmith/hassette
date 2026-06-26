@@ -1,7 +1,7 @@
 # Design: Unified Config Presentation in the Web UI
 
 **Date:** 2026-06-25
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-06-25-config-ui-visibility-metadata/research.md (mechanical findings valid; its "Option A — preserve current shape" conclusion is superseded by the show-all decision)
 
