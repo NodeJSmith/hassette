@@ -37,11 +37,6 @@ interface ConfigSchemaViewProps {
   emptyMessage?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const ACRONYMS = new Set(["url", "api", "ha", "ssl", "id", "io", "cors", "ui", "toml"]);
 const ACRONYM_DISPLAY: Record<string, string> = {
   url: "URL",
   api: "API",
@@ -55,12 +50,12 @@ const ACRONYM_DISPLAY: Record<string, string> = {
 };
 
 /** Convert snake_case to Title Case, expanding known acronyms. */
-export function humanizeKey(key: string): string {
+function humanizeKey(key: string): string {
   return key
     .split("_")
     .map((word) => {
-      const lower = word.toLowerCase();
-      if (ACRONYMS.has(lower)) return ACRONYM_DISPLAY[lower] ?? word.toUpperCase();
+      const acronym = ACRONYM_DISPLAY[word.toLowerCase()];
+      if (acronym) return acronym;
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     })
     .join(" ");
@@ -70,7 +65,7 @@ export function humanizeKey(key: string): string {
  * Return true when the schema node represents a secret-typed field.
  * Mirrors backend _is_secret_node in web/config_view.py.
  */
-export function isSecretNode(node: SchemaNode): boolean {
+function isSecretNode(node: SchemaNode): boolean {
   if (node.writeOnly === true || node.format === "password") return true;
   if (node.anyOf) {
     for (const branch of node.anyOf) {
@@ -135,10 +130,6 @@ function sortedByOrder(keys: string[], props: Record<string, SchemaNode>): strin
     return keys.indexOf(a) - keys.indexOf(b);
   });
 }
-
-// ---------------------------------------------------------------------------
-// Value renderer
-// ---------------------------------------------------------------------------
 
 function SecretValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") {
@@ -237,13 +228,8 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
     return <ExpandableValue value={value} />;
   }
 
-  // Plain string.
   return <span class={styles.valString}>{String(value)}</span>;
 }
-
-// ---------------------------------------------------------------------------
-// Section (a group of fields)
-// ---------------------------------------------------------------------------
 
 interface SectionProps {
   title: string;
@@ -290,10 +276,6 @@ function ConfigSection({ title, fields }: SectionProps) {
     </section>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Main exported component
-// ---------------------------------------------------------------------------
 
 /**
  * Render a JSON schema + values pair as grouped, labeled, type-formatted config sections.
@@ -349,8 +331,8 @@ export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaV
     const groupProps = (innerNode.properties ?? {}) as Record<string, SchemaNode>;
     const groupValues = (values[key] ?? {}) as ConfigRecord;
 
-    const groupKeys2 = sortedByOrder(Object.keys(groupProps), groupProps);
-    const fields = groupKeys2.map((fk) => ({
+    const orderedFieldKeys = sortedByOrder(Object.keys(groupProps), groupProps);
+    const fields = orderedFieldKeys.map((fk) => ({
       key: fk,
       node: groupProps[fk],
       value: groupValues[fk] ?? null,

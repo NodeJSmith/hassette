@@ -16,6 +16,11 @@ interface Props {
   appKey: string;
 }
 
+/** True when the value is a plain (non-array) object usable as a ConfigRecord. */
+function isConfigRecord(val: unknown): val is ConfigRecord {
+  return val !== null && typeof val === "object" && !Array.isArray(val);
+}
+
 function ConfigValue({ val }: { val: unknown }) {
   if (val === null || val === undefined) return <>—</>;
   if (typeof val === "object") return <ExpandableValue value={val} />;
@@ -145,16 +150,16 @@ export function ConfigTab({ appKey }: Props) {
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
                 <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
                   <h4 class={styles.instanceHeading}>Instance {idx}</h4>
-                  {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
-                    <AppConfigContent appConfig={instanceCfg as ConfigRecord} schema={schema} />
+                  {isConfigRecord(instanceCfg) ? (
+                    <AppConfigContent appConfig={instanceCfg} schema={schema} />
                   ) : (
                     <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
                   )}
                 </div>
               ))}
             </div>
-          ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
-            <AppConfigContent appConfig={appConfig as ConfigRecord} schema={schema} />
+          ) : isConfigRecord(appConfig) ? (
+            <AppConfigContent appConfig={appConfig} schema={schema} />
           ) : (
             <EmptyState title="no configuration values" />
           )}
