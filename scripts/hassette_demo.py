@@ -348,8 +348,14 @@ def main() -> None:
     }
     vite_log = Path(_tmp_dir) / "vite.log"
     _vite_log_fh = vite_log.open("w")  # closed in teardown()
+    # Bind Vite to all interfaces when DEMO_VITE_HOST is set (e.g. 0.0.0.0 for
+    # SSH-tunnel / remote-browser access). Defaults to localhost-only.
+    vite_cmd = ["npm", "run", "dev", "--prefix", str(repo_root / "frontend"), "--", "--port", str(vite_port)]
+    vite_host = os.environ.get("DEMO_VITE_HOST")
+    if vite_host:
+        vite_cmd += ["--host", vite_host]
     _vite_proc = subprocess.Popen(
-        ["npm", "run", "dev", "--prefix", str(repo_root / "frontend"), "--", "--port", str(vite_port)],
+        vite_cmd,
         env=vite_env,
         cwd=str(repo_root),
         start_new_session=True,
