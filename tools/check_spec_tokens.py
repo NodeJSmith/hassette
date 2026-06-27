@@ -27,7 +27,11 @@ itself produces a false positive, tighten the pattern rather than adding an
 exemption.
 
 Usage:
-    python tools/check_spec_tokens.py
+    python tools/check_spec_tokens.py [FILE ...]
+
+With no arguments, scans every file under src/, tests/, scripts/, tools/, codegen/,
+docs/, and examples/. Given file paths (as pre-commit passes the staged files), scans
+only those — out-of-scope or non-Python paths are ignored.
 """
 
 import ast
@@ -37,7 +41,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from lint_helpers import docstring_spans, iter_py_files
+from lint_helpers import docstring_spans, resolve_paths
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -91,8 +95,13 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
 
 def iter_paths() -> list[Path]:
-    """Return every .py file under the scanned directories, sorted for stable output."""
-    return iter_py_files(REPO_ROOT, SCAN_DIRS)
+    """Return every .py file under the scanned directories, sorted for stable output.
+
+    The full-scan entry point the characterization tests parametrize over; ``main`` calls
+    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    """
+    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
 
 
 def check_filename(path: Path) -> list[str]:
@@ -106,7 +115,7 @@ def main() -> int:
     content_violations: list[tuple[Path, int, str]] = []
     name_violations: list[tuple[Path, str]] = []
 
-    for path in iter_paths():
+    for path in resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS):
         rel = path.relative_to(REPO_ROOT)
         for lineno, token in check_file(path):
             content_violations.append((rel, lineno, token))

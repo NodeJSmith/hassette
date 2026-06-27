@@ -26,7 +26,11 @@ accepted:
 Canonical annotation form: ``# lazy-import: break circular import with <module>``
 
 Usage:
-    python tools/check_lazy_imports.py
+    python tools/check_lazy_imports.py [FILE ...]
+
+With no arguments, scans every file under src/, tests/, scripts/, tools/, codegen/,
+docs/, and examples/. Given file paths (as pre-commit passes the staged files), scans
+only those — out-of-scope or non-Python paths are ignored.
 """
 
 import ast
@@ -34,7 +38,7 @@ import re
 import sys
 from pathlib import Path
 
-from lint_helpers import iter_py_files, run_check
+from lint_helpers import resolve_paths, run_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -111,13 +115,18 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
 
 def iter_paths() -> list[Path]:
-    """Return every .py file under the scanned directories, sorted for stable output."""
-    return iter_py_files(REPO_ROOT, SCAN_DIRS)
+    """Return every .py file under the scanned directories, sorted for stable output.
+
+    The full-scan entry point the characterization tests parametrize over; ``main`` calls
+    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    """
+    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
 
 
 def main() -> int:
     return run_check(
-        iter_paths(),
+        resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS),
         REPO_ROOT,
         check_file,
         summary="lazy import(s) found inside function bodies",

@@ -86,3 +86,34 @@ def iter_py_files(repo_root: Path, scan_dirs: list[str]) -> list[Path]:
         for path in (repo_root / scan_dir).rglob("*.py")
         if EXCLUDED_PARTS.isdisjoint(path.relative_to(repo_root).parts)
     )
+
+
+def resolve_paths(argv: list[str], repo_root: Path, scan_dirs: list[str]) -> list[Path]:
+    """Resolve CLI file arguments to first-party .py paths, or scan ``scan_dirs`` when none given.
+
+    Pre-commit passes the staged files as arguments, so the hook checks only what changed
+    instead of re-scanning the whole tree on every commit. Running with no arguments falls
+    back to a full scan of ``scan_dirs`` — the behaviour CI and a manual full sweep rely on.
+
+    Arguments are kept only when they are existing ``.py`` files under one of ``scan_dirs``
+    and clear of EXCLUDED_PARTS, so a stray non-source path is ignored rather than crashing
+    a checker that assumes its inputs live in scope.
+    """
+    if not argv:
+        return iter_py_files(repo_root, scan_dirs)
+
+    scan_roots = [(repo_root / scan_dir).resolve() for scan_dir in scan_dirs]
+    selected: set[Path] = set()
+    for arg in argv:
+        path = Path(arg)
+        if not path.is_absolute():
+            path = repo_root / path
+        path = path.resolve()
+        if path.suffix != ".py" or not path.is_file():
+            continue
+        if not any(root in path.parents for root in scan_roots):
+            continue
+        if not EXCLUDED_PARTS.isdisjoint(path.relative_to(repo_root).parts):
+            continue
+        selected.add(path)
+    return sorted(selected)

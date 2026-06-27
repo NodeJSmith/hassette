@@ -70,17 +70,44 @@ jobs:
                   APP_TOKEN: ${{ steps.app-token.outputs.token }}
               run: |
                   set -euo pipefail
-                  uv lock
+
+                  # Re-lock, retrying the package-index resolve — the one network-flaky step.
+                  for attempt in 1 2 3; do
+                      uv lock && break
+                      if [ "$attempt" = 3 ]; then
+                          echo "::error::uv lock failed after 3 attempts"
+                          exit 1
+                      fi
+                      echo "::warning::uv lock attempt ${attempt} failed; retrying in $((attempt * 5))s"
+                      sleep $((attempt * 5))
+                  done
+
                   if git diff --quiet uv.lock; then
-                      echo "uv.lock is already up to date"
-                  else
-                      git config user.name "github-actions[bot]"
-                      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                      git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-                      git add uv.lock
-                      git commit -m "chore: sync uv.lock with version bump"
-                      git push origin HEAD
+                      echo "uv.lock already matches the version bump — nothing to push"
+                      exit 0
                   fi
+
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+                  git add uv.lock
+                  git commit -m "chore: sync uv.lock with version bump"
+
+                  # Push with a retry for transient failures. The workflow-level concurrency
+                  # group serializes release-please runs, so the branch tip won't move under
+                  # us mid-run — a rejected push here is almost always transient. The one case
+                  # retries can't fix is a human pushing to the release branch mid-run (a genuine
+                  # non-fast-forward); that exhausts the attempts and fails loudly, which is the
+                  # signal to investigate rather than silently overwrite their commit.
+                  for attempt in 1 2 3; do
+                      git push origin HEAD && break
+                      if [ "$attempt" = 3 ]; then
+                          echo "::error::failed to push uv.lock sync after 3 attempts"
+                          exit 1
+                      fi
+                      echo "::warning::push attempt ${attempt} failed; retrying in $((attempt * 3))s"
+                      sleep $((attempt * 3))
+                  done
 
     build-pypi:
         needs: release-please
