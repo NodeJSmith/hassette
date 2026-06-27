@@ -8,9 +8,9 @@ The web UI shows what configuration Hassette is running with and what the app co
 
 ![Global configuration page](../../_static/web_ui_config.png)
 
-The Configuration page renders all `hassette.toml` values in schema-driven sections — one section per nested config group (`Web API`, `Logging`, `Lifecycle`, `Apps`, `Scheduler`, `File Watcher`, and others), plus a `general` section for top-level scalar fields. Section names and field labels come from the schema's `ui` metadata, not hardcoded strings.
+The Configuration page renders all `hassette.toml` values in schema-driven sections — one section per nested config group (`Web API`, `Logging`, `Lifecycle`, `Apps`, `Scheduler`, `File Watcher`, and others), plus a `General` section for top-level scalar fields. Section names and field labels come from the schema's `ui` metadata, not hardcoded strings.
 
-Value formatting reflects the field type: booleans appear as `yes`/`no` badges, filesystem paths in monospace code style, arrays as chips, and secret fields as `🔒 ••••••••` (masked server-side before transmission). An unset optional secret shows `not set`.
+Each field row shows its human-readable label, the exact `hassette.toml` key beside it, and the value. The field's type is implied by how the value renders rather than a separate label: booleans appear as `true`/`false` badges, filesystem paths in a monospace code box, enums and short arrays as chips, and secret fields as `🔒 ••••••••` (masked server-side before transmission). An unset field shows `not set`. Where a field has a description, an info button (ⓘ) reveals it in a popover.
 
 The page is accessible from the sidebar under **Config**.
 

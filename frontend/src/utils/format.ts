@@ -1,6 +1,6 @@
 export const MS_PER_SECOND = 1000;
-const SECONDS_PER_MINUTE = 60;
-const SECONDS_PER_HOUR = 3600;
+export const SECONDS_PER_MINUTE = 60;
+export const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_DAY = 86400;
 
 /** Format a Unix timestamp as "MM/DD HH:MM:SS AM/PM" to match old UI. */

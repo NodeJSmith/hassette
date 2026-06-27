@@ -5,11 +5,14 @@
  * through a single component. The schema must be fully deref'd (no $ref) — the
  * server resolves all references before sending.
  *
- * Grouping: one section per nested-object field, ordered by ui.order then declaration
- * order. Flat (scalar) fields at the top level collect under a "general" section.
+ * Layout: one section card per nested-object field, ordered by ui.order then declaration
+ * order. Flat (scalar) fields at the top level collect under a "General" section. Each
+ * field is a single row — human label, machine key, optional help popover, and the value —
+ * with the field type implied by how the value renders rather than spelled out.
  *
- * Labels: ui.label when set, otherwise the humanized field name. Help text from
- * schema description. Group titles from ui.group_label, otherwise humanized key.
+ * Labels: ui.label when set, otherwise the humanized field name. Help text from the schema
+ * description, revealed on demand via the info popover. Group titles from ui.group_label,
+ * otherwise the humanized key.
  *
  * Secret detection: mirrors backend _is_secret_node — checks writeOnly/format:password
  * on the node and inside anyOf branches (covers the SecretStr | None pattern).
@@ -19,14 +22,15 @@
  * no show-advanced affordance is built.
  */
 
-import clsx from "clsx";
 import { useState } from "preact/hooks";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
+import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
 import { Badge } from "./badge";
 import { Card } from "./card";
 import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
+import { InfoPopover } from "./info-popover";
 
 interface ConfigSchemaViewProps {
   /** Fully deref'd JSON schema (no $ref). */
@@ -48,10 +52,6 @@ const ACRONYM_DISPLAY: Record<string, string> = {
   ui: "UI",
   toml: "TOML",
 };
-
-const SECONDS_PER_MINUTE = 60;
-const SECONDS_PER_HOUR = 3600;
-const MS_PER_SECOND = 1000;
 
 /** Convert snake_case to Title Case, expanding known acronyms. */
 function humanizeKey(key: string): string {
@@ -100,20 +100,6 @@ function unwrapAnyOf(node: SchemaNode): SchemaNode {
   // Take the first non-null branch as the representative type.
   const nonNull = node.anyOf.find((b) => b.type !== "null");
   return nonNull ?? node;
-}
-
-/** Resolve the display type string for the type column. Mirrors FieldValue's branch order. */
-function resolveTypeName(node: SchemaNode, key: string): string {
-  if (isSecretNode(node)) return "secret";
-  if (isGroupNode(node)) return "object";
-  if (uiHints(node).widget === "path" || isPathLike(node, key)) return "path";
-  const choices = enumValues(node);
-  if (choices && choices.length > 0) return "enum";
-  const inner = unwrapAnyOf(node);
-  if ((inner.type === "integer" || inner.type === "number") && isDurationField(node, key)) {
-    return "duration";
-  }
-  return inner.type ?? "any";
 }
 
 /** True when the field's value looks like a filesystem path. */
@@ -182,14 +168,14 @@ function sortedByOrder(keys: string[], props: Record<string, SchemaNode>): strin
 
 function SecretValue({ value }: { value: unknown }) {
   if (value === null || value === undefined || value === "") {
-    return <span class={styles.valSecretUnset}>not set</span>;
+    return <span class={styles.valEmpty}>not set</span>;
   }
   return (
     <span class={styles.valSecret} aria-label="masked secret">
       <span class={styles.lockIcon} aria-hidden="true">
         🔒
       </span>
-      {String(value)}
+      <span class={styles.valSecretMasked}>{String(value)}</span>
     </span>
   );
 }
@@ -197,14 +183,14 @@ function SecretValue({ value }: { value: unknown }) {
 function BoolValue({ value }: { value: boolean }) {
   return (
     <Badge variant={value ? "success" : "neutral"} size="sm">
-      {value ? "yes" : "no"}
+      {value ? "true" : "false"}
     </Badge>
   );
 }
 
 function ListValue({ value }: { value: unknown[] }) {
   if (value.length === 0) {
-    return <span class={styles.valListEmpty}>empty list</span>;
+    return <span class={styles.valEmpty}>empty list</span>;
   }
   return (
     <span class={styles.valList}>
@@ -241,19 +227,26 @@ export function ExpandableValue({ value }: { value: unknown }) {
   );
 }
 
+/**
+ * Render a field's value, letting the rendering imply the type (no separate type label):
+ * secrets show a lock + mask, paths sit in a code box, enums/booleans become badges,
+ * durations are humanized, and everything else is monospace.
+ */
 function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknown; fieldKey: string }) {
   const hints = uiHints(node);
 
-  // Secret fields — style them distinctly regardless of value.
+  // Secret check comes first, before the null check: SecretValue owns its own
+  // null handling (an unset secret renders "not set" in secret styling), so a
+  // null secret must route here rather than falling through to the plain branch.
   if (isSecretNode(node)) {
     return <SecretValue value={value} />;
   }
 
   if (value === null || value === undefined) {
-    return <span class={styles.valNull}>—</span>;
+    return <span class={styles.valEmpty}>not set</span>;
   }
 
-  // widget override from ui hints.
+  // Path-like values sit in a code box so they read as a filesystem path.
   if (hints.widget === "path" || isPathLike(node, fieldKey)) {
     return <code class={styles.valPath}>{String(value)}</code>;
   }
@@ -299,6 +292,28 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   return <span class={styles.valString}>{String(value)}</span>;
 }
 
+/**
+ * One config field row: human label, machine key (inline, hidden on mobile), an optional
+ * help popover, and the value. The dotted leader ties the label to its value on the right.
+ */
+function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: SchemaNode; value: unknown }) {
+  const hints = uiHints(node);
+  const label = hints.label ?? humanizeKey(fieldKey);
+  const help = node.description;
+
+  return (
+    <div class={styles.row} data-testid={`config-field-${fieldKey}`}>
+      <span class={styles.label}>{label}</span>
+      <code class={styles.key}>{fieldKey}</code>
+      {help && <InfoPopover text={help} label={label} />}
+      <span class={styles.spacer} aria-hidden="true" />
+      <span class={styles.value} data-testid={`config-value-${fieldKey}`}>
+        <FieldValue node={node} value={value} fieldKey={fieldKey} />
+      </span>
+    </div>
+  );
+}
+
 interface SectionProps {
   title: string;
   fields: Array<{ key: string; node: SchemaNode; value: unknown }>;
@@ -307,39 +322,25 @@ interface SectionProps {
 function ConfigSection({ title, fields }: SectionProps) {
   if (fields.length === 0) return null;
 
-  return (
-    <section
-      class={styles.group}
-      data-testid={`config-section-${title
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-]/g, "")}`}
-    >
-      <h2 class="ht-section-label">{title}</h2>
-      <Card variant="config">
-        <table class={clsx("ht-table ht-table--compact", styles.configTable)}>
-          <tbody>
-            {fields.map(({ key, node, value }) => {
-              const hints = uiHints(node);
-              const label = hints.label ?? humanizeKey(key);
-              const help = node.description;
-              const typeName = resolveTypeName(node, key);
+  const slug = title
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 
-              return (
-                <tr key={key} data-testid={`config-field-${key}`}>
-                  <td class={styles.colLabel}>
-                    <div class={styles.fieldLabel}>{label}</div>
-                    {help && <div class={styles.fieldHelp}>{help}</div>}
-                  </td>
-                  <td class={styles.colValue} data-testid={`config-value-${key}`}>
-                    <FieldValue node={node} value={value} fieldKey={key} />
-                  </td>
-                  <td class={styles.colType}>{typeName}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+  return (
+    <section class={styles.section} data-testid={`config-section-${slug}`}>
+      <Card variant="config">
+        <div class={styles.sectionHead}>
+          <h3 class={styles.sectionTitle}>{title}</h3>
+          <span class={styles.sectionCount}>
+            {fields.length} {fields.length === 1 ? "field" : "fields"}
+          </span>
+        </div>
+        <div class={styles.fields}>
+          {fields.map(({ key, node, value }) => (
+            <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
+          ))}
+        </div>
       </Card>
     </section>
   );
@@ -381,7 +382,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaV
   const orderedScalars = sortedByOrder(scalarKeys, properties);
   const orderedGroups = sortedByOrder(groupKeys, properties);
 
-  // Build the scalar "general" section.
+  // Build the scalar "General" section.
   const scalarFields = orderedScalars.map((key) => ({
     key,
     node: properties[key],
@@ -411,7 +412,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaV
 
   return (
     <div class={styles.groups} data-testid="config-schema-view">
-      {scalarFields.length > 0 && <ConfigSection title="general" fields={scalarFields} />}
+      {scalarFields.length > 0 && <ConfigSection title="General" fields={scalarFields} />}
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}

@@ -5,7 +5,6 @@ import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
-import { Badge } from "../shared/badge";
 import { Card } from "../shared/card";
 import { ConfigSchemaView, ExpandableValue } from "../shared/config-schema-view";
 import { EmptyState } from "../shared/empty-state";
@@ -127,26 +126,12 @@ export function ConfigTab({ appKey }: Props) {
 
   return (
     <div class={styles.configTab} data-testid="config-tab-content">
-      <div class={styles.meta} data-testid="config-meta">
-        <div class={styles.metaRow}>
-          <span class="ht-detail-label">File</span>
-          <code class="ht-text-mono ht-text-sm">{cfg.filename}</code>
-        </div>
-        <div class={styles.metaRow}>
-          <span class="ht-detail-label">Class</span>
-          <code class="ht-text-mono ht-text-sm">{cfg.class_name}</code>
-        </div>
-        <div class={styles.metaRow}>
-          <span class="ht-detail-label">Enabled</span>
-          <Badge variant={cfg.enabled ? "success" : "neutral"}>{cfg.enabled ? "yes" : "no"}</Badge>
-        </div>
-      </div>
-
       <div class={styles.layout}>
         <div class={styles.fieldsCard}>
-          <h3 class="ht-section-label">configuration</h3>
           {isListConfig ? (
             <div class={styles.instances}>
+              {/* isListConfig is a stored boolean, so TS can't use it to narrow
+                  appConfig here — hence the cast despite the guard above. */}
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
                 <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
                   <h4 class={styles.instanceHeading}>Instance {idx}</h4>

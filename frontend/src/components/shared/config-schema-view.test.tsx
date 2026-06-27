@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it } from "vitest";
 
 import type { SchemaNode } from "../../api/config-view-types";
@@ -61,6 +61,21 @@ describe("ConfigSchemaView", () => {
         el.getAttribute("data-testid"),
       );
       expect(sections).toEqual(["config-section-beta-group", "config-section-alpha-group"]);
+    });
+  });
+
+  describe("section grouping", () => {
+    it("collects scalar fields under a capitalized 'General' section", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          foo: { type: "string", title: "Foo" },
+        },
+      };
+      const { getByTestId, getByText } = render(<ConfigSchemaView schema={schema} values={{ foo: "x" }} />);
+      expect(getByTestId("config-section-general")).toBeDefined();
+      // The section title is "General" (capitalized), not the hardcoded lowercase "general".
+      expect(getByText("General")).toBeDefined();
     });
   });
 
@@ -197,6 +212,70 @@ describe("ConfigSchemaView", () => {
       };
       const { getByText } = render(<ConfigSchemaView schema={schema} values={{ retention_days: 7 }} />);
       expect(getByText("Retention Days")).toBeDefined();
+    });
+  });
+
+  describe("boolean rendering", () => {
+    it("renders booleans as true/false, not yes/no", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean", title: "Enabled" },
+          disabled: { type: "boolean", title: "Disabled" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ enabled: true, disabled: false }} />);
+      expect(getByTestId("config-value-enabled").textContent).toBe("true");
+      expect(getByTestId("config-value-disabled").textContent).toBe("false");
+    });
+  });
+
+  describe("machine key", () => {
+    it("shows the raw field key inline as a <code> element", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          log_level: { type: "string", title: "Log Level", ui: { label: "Log Level" } },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ log_level: "info" }} />);
+      // The only <code> in a plain-string row is the machine key (the value renders as a span).
+      const code = getByTestId("config-field-log_level").querySelector("code");
+      expect(code?.textContent).toBe("log_level");
+    });
+  });
+
+  describe("help popover", () => {
+    it("reveals the description in a popover only after the info button is clicked", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          some_value: { type: "string", title: "Some Value", description: "Helpful context." },
+        },
+      };
+      const { getByTestId, queryByTestId } = render(<ConfigSchemaView schema={schema} values={{ some_value: "x" }} />);
+      // Help is hidden until requested.
+      expect(queryByTestId("field-help")).toBeNull();
+
+      const toggle = getByTestId("config-field-some_value").querySelector("button[aria-expanded]");
+      expect(toggle).not.toBeNull();
+      expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+
+      fireEvent.click(toggle as Element);
+
+      expect(getByTestId("field-help").textContent).toContain("Helpful context.");
+      expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("renders no info button when a field has no description", () => {
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          some_value: { type: "string", title: "Some Value" },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ some_value: "x" }} />);
+      expect(getByTestId("config-field-some_value").querySelector("button[aria-expanded]")).toBeNull();
     });
   });
 });
