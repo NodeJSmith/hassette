@@ -43,7 +43,11 @@ legitimately read private state. Each allowlist entry is a conscious, auditable
 exception with a reason.
 
 Usage:
-    python tools/check_module_boundaries.py
+    python tools/check_module_boundaries.py [FILE ...]
+
+With no arguments, scans every file under src/hassette. Given file paths (as
+pre-commit passes the staged files), scans only those — paths outside
+src/hassette or non-Python paths are ignored.
 """
 
 import ast
@@ -52,10 +56,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from lint_helpers import iter_py_files, run_check
+from lint_helpers import resolve_paths, run_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "src" / "hassette"
+
+# Directory scanned for boundary violations, derived from SRC so the two can't drift.
+SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 
 
 @dataclass(frozen=True)
@@ -319,13 +326,18 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
 
 def iter_paths() -> list[Path]:
-    """Return every .py file under src/hassette, sorted for stable output."""
-    return iter_py_files(REPO_ROOT, ["src/hassette"])
+    """Return every .py file under src/hassette, sorted for stable output.
+
+    The full-scan entry point the characterization tests parametrize over; ``main`` calls
+    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    """
+    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
 
 
 def main() -> int:
     return run_check(
-        iter_paths(),
+        resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS),
         REPO_ROOT,
         check_file,
         summary="module-boundary violation(s)",
