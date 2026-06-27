@@ -222,14 +222,22 @@ def test_config_tab_renders(page: Page, base_url: str) -> None:
     expect(config_content).to_be_visible(timeout=5000)
 
 
-def test_config_tab_shows_filename(page: Page, base_url: str) -> None:
-    """Config tab shows the app filename."""
+def test_config_tab_shows_config_source(page: Page, base_url: str) -> None:
+    """Config tab shows the config source path (hassette.toml → apps.<key>.config)."""
     page.goto(base_url + "/apps/my_app")
     config_tab_btn = page.locator("[role='tab']", has_text="Config")
     config_tab_btn.click()
     config_content = page.locator("#tabpanel-config")
     expect(config_content).to_be_visible(timeout=5000)
-    expect(config_content).to_contain_text("my_app.py")
+    expect(config_content).to_contain_text("hassette.toml → apps.my_app.config")
+
+
+def test_app_detail_header_shows_filename(page: Page, base_url: str) -> None:
+    """App detail header subtitle shows the app source filename."""
+    page.goto(base_url + "/apps/my_app")
+    subtitle = page.locator("[data-testid='app-subtitle-meta']")
+    expect(subtitle).to_be_visible(timeout=5000)
+    expect(subtitle).to_contain_text("my_app.py")
 
 
 # ── Logs tab ─────────────────────────────────────────────────────────
