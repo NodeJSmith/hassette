@@ -8,6 +8,7 @@ behaviour CI (``prek run --all-files``) and a manual full sweep rely on.
 
 from pathlib import Path
 
+import pytest
 from lint_helpers import resolve_paths
 
 
@@ -53,15 +54,16 @@ def test_excluded_venv_file_is_ignored(tmp_path: Path) -> None:
     assert resolve_paths([str(tmp_path / "src" / ".venv" / "vendored.py")], tmp_path, ["src"]) == []
 
 
-def test_non_py_and_missing_args_are_ignored(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "rel_arg",
+    ["src/readme.md", "src/missing.py", "src"],
+    ids=["wrong-suffix", "missing-file", "directory"],
+)
+def test_non_qualifying_arg_is_ignored(tmp_path: Path, rel_arg: str) -> None:
     _make_repo(tmp_path)
-    (tmp_path / "src" / "readme.md").write_text("# not python\n")
-    args = [
-        str(tmp_path / "src" / "readme.md"),  # wrong suffix
-        str(tmp_path / "src" / "missing.py"),  # does not exist
-        str(tmp_path / "src"),  # a directory, not a file
-    ]
-    assert resolve_paths(args, tmp_path, ["src"]) == []
+    (tmp_path / "src" / "readme.md").write_text("# not python\n")  # wrong suffix, exists
+    # Each case is a distinct reason to skip: wrong suffix, missing file, or a directory.
+    assert resolve_paths([str(tmp_path / rel_arg)], tmp_path, ["src"]) == []
 
 
 def test_result_is_sorted_and_deduplicated(tmp_path: Path) -> None:
