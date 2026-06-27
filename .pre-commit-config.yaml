@@ -169,36 +169,28 @@ repos:
         language: system
         entry: ./tools/check_lazy_imports.py
         files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
-        stages:
-          - pre-commit
-          - pre-push
+        stages: [pre-commit, pre-push]
 
       - id: check-spec-tokens
         name: Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#)
         language: system
         entry: ./tools/check_spec_tokens.py
         files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
-        stages:
-          - pre-commit
-          - pre-push
+        stages: [pre-commit, pre-push]
 
       - id: check-llm-cruft
         name: Ban AI-writing tells (section dividers, filler phrases)
         language: system
         entry: ./tools/check_llm_cruft.py
         files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
-        stages:
-          - pre-commit
-          - pre-push
+        stages: [pre-commit, pre-push]
 
       - id: check-module-boundaries
         name: Enforce import boundaries (test_utils isolation) in src
         language: system
         entry: ./tools/check_module_boundaries.py
         files: ^src/.*\.py$
-        stages:
-          - pre-commit
-          - pre-push
+        stages: [pre-commit, pre-push]
 
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.408

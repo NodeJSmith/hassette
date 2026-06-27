@@ -66,7 +66,7 @@ def test_non_py_and_missing_args_are_ignored(tmp_path: Path) -> None:
 
 def test_result_is_sorted_and_deduplicated(tmp_path: Path) -> None:
     _make_repo(tmp_path)
-    a = tmp_path / "src" / "a.py"
-    b = tmp_path / "tests" / "b.py"
-    # Pass b before a, and a twice — output is sorted and carries no duplicate.
-    assert resolve_paths([str(b), str(a), "src/a.py"], tmp_path, ["src", "tests"]) == [a, b]
+    src_py = tmp_path / "src" / "a.py"
+    tests_py = tmp_path / "tests" / "b.py"
+    # Pass tests_py before src_py, and src_py twice — output is sorted and carries no duplicate.
+    assert resolve_paths([str(tests_py), str(src_py), "src/a.py"], tmp_path, ["src", "tests"]) == [src_py, tests_py]
