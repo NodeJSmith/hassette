@@ -3,24 +3,7 @@
 /* — Config tab container — */
 
 .configTab {
-  padding: var(--sp-4) 0;
-}
-
-/* — Metadata header — */
-
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-4);
-  padding: var(--sp-4) 0 var(--sp-4);
-  border-bottom: 1px solid var(--line-1);
-  margin-bottom: var(--sp-4);
-}
-
-.metaRow {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+  padding: 0 0 var(--sp-4);
 }
 
 /* — Simple config table (no schema) — */
@@ -50,20 +33,23 @@
   gap: var(--sp-6);
 }
 
+/* The instance heading + its section cards provide the structure; no extra
+   wrapper border (that would double up against each section card's border). */
 .instanceBlock {
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  overflow: hidden;
+  min-width: 0;
 }
 
+/* Instance heading — appears once above the instance's section cards. */
 .instanceHeading {
+  margin: 0 0 var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--line-strong);
   font-family: var(--font-body);
   font-size: var(--fs-small);
   font-weight: var(--fw-semibold);
-  padding: var(--sp-2) var(--sp-4);
-  background: var(--bg-sunken);
-  border-bottom: 1px solid var(--line-1);
-  margin: 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
 }
 
 /* — 2-column layout — */
@@ -74,9 +60,14 @@
   gap: var(--sp-4);
 }
 
+/* min-width:0 lets these grid tracks shrink below their content's intrinsic
+   width — without it the raw-config <pre> forces the grid wider than the
+   viewport and the whole card overflows horizontally on narrow screens.
+   No top padding: the content sits directly under the tab bar. */
 .fieldsCard,
 .rawCard {
-  padding: var(--sp-4);
+  min-width: 0;
+  padding: 0 var(--sp-4) var(--sp-4);
 }
 
 .rawCode {

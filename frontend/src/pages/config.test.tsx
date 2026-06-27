@@ -69,11 +69,11 @@ describe("ConfigPage", () => {
     expect(await findByText("Dev Mode")).toBeDefined();
   });
 
-  it("renders a boolean value as a yes/no badge", async () => {
+  it("renders a boolean value as a true/false badge", async () => {
     server.use(http.get("/api/config", () => HttpResponse.json(createSystemConfig({ dev_mode: true }))));
     const { findByTestId } = renderWithAppState(<ConfigPage />);
     const cell = await findByTestId("config-value-dev_mode");
-    expect(cell.textContent).toContain("yes");
+    expect(cell.textContent).toContain("true");
   });
 
   it("renders a path value as code-styled text", async () => {

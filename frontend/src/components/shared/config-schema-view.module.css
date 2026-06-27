@@ -1,70 +1,100 @@
-/* Shared config schema renderer — component-scoped styles */
+/* Shared config schema renderer — component-scoped styles.
+   Field list (not a table): one section card per group, one flex row per field. */
 
 .groups {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-7);
+  gap: var(--sp-5);
 }
 
-.group {
+/* min-width:0 so a section never forces the groups column wider than its track. */
+.section {
+  min-width: 0;
 }
 
-.configTable {
-  width: 100%;
-  table-layout: auto;
-}
-
-.configTable tr {
+/* — Section card header — shows only the section name (instance heading lives above) */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line-2);
 }
 
-.configTable tr:last-child {
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+}
+
+.sectionCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-4);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+}
+
+/* — Field row — label · key · ⓘ · leader · value ———————————————————————— */
+.row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.row:last-child {
   border-bottom: none;
 }
 
-.configTable td {
-  padding: 10px var(--sp-4);
-  vertical-align: top;
-}
-
-.colLabel {
-  width: 280px;
-  min-width: 180px;
-}
-
-.fieldLabel {
+.label {
   font-size: var(--fs-body);
   font-weight: var(--fw-medium);
   color: var(--ink-1);
 }
 
-.fieldHelp {
+/* Machine key — the only monospace text in the row; the literal TOML key.
+   No code-pill background (override the global <code> style); hidden on mobile. */
+.key {
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--ink-3);
-  margin-top: 2px;
-  line-height: 1.4;
+  background: none;
+  padding: 0;
 }
 
-.colValue {
-  min-width: 200px;
+/* Dotted leader tying the label to its right-aligned value. The dotted border
+   sits at the element's bottom edge; translateY nudges it up to the text
+   mid-line. flex-shrink lets it compress under pressure, so min-width — not the
+   flex-basis — is the real floor on the leader's length. */
+.spacer {
+  flex: 1 1 var(--sp-4);
+  min-width: var(--sp-4);
+  border-bottom: 1px dotted var(--line-strong);
+  transform: translateY(-3px);
+  opacity: 0.55;
 }
 
-.colType {
-  width: 100px;
+/* min-width:0 lets this flex child shrink below its content width, so a long
+   value wraps inside its box instead of blowing the row out horizontally. */
+.value {
+  min-width: 0;
   text-align: right;
-  color: var(--ink-4);
-  font-size: var(--fs-xs);
-  white-space: nowrap;
-  padding-top: 12px;
+  overflow-wrap: anywhere;
 }
 
-/* Value styles */
-
+/* — Value registers (type implied by rendering) ——————————————————————— */
 .valString {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
   color: var(--ink-1);
-  word-break: break-all;
 }
 
 .valNumber {
@@ -78,52 +108,48 @@
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);
   background: var(--bg-sunken);
-  padding: 2px var(--sp-2);
+  border: 1px solid var(--line-2);
+  padding: 1px var(--sp-2);
   border-radius: var(--r-sm);
-  word-break: break-all;
 }
 
-.valNull {
+.valEmpty {
   font-size: var(--fs-small);
   color: var(--ink-4);
   font-style: italic;
 }
 
-/* Secret value */
+/* Secret value — sized to sit at parity with other values, only the mask is italic. */
 .valSecret {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
   font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
+  font-size: var(--fs-body);
   color: var(--ink-3);
-  font-style: italic;
   user-select: none;
 }
 
-.valSecretUnset {
-  font-size: var(--fs-small);
-  color: var(--ink-4);
+/* The mask glyphs (••••) render visually small, so the secret value is sized up
+   a touch above the body size for legibility. 15px has no exact token. */
+.valSecretMasked {
   font-style: italic;
+  letter-spacing: 2px;
+  font-size: 15px;
 }
 
 .lockIcon {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-mono-md);
   opacity: 0.7;
   flex-shrink: 0;
 }
 
 /* List value */
-.valListEmpty {
-  font-size: var(--fs-small);
-  color: var(--ink-4);
-  font-style: italic;
-}
-
 .valList {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: var(--sp-1);
+  justify-content: flex-end;
 }
 
 .valListItem {
@@ -161,31 +187,24 @@
   word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
+  text-align: left;
 }
 
-@media screen and (max-width: 768px) {
-  .colLabel {
-    width: auto;
-    min-width: unset;
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .configTable td {
-    display: block;
-    padding: var(--sp-1) var(--sp-3);
-  }
-
-  .colType {
+/* — Mobile: drop the toml key, let the value sit on its own line under the label — */
+@media screen and (max-width: 480px) {
+  .key,
+  .spacer {
     display: none;
   }
 
-  .colValue {
-    padding-bottom: var(--sp-2);
-    border-bottom: 1px solid var(--line-2);
+  /* flex-basis:100% + the row's flex-wrap forces the value onto its own line. */
+  .value {
+    flex-basis: 100%;
+    text-align: left;
+    margin-top: 2px;
   }
 
-  .configTable tr:last-child .colValue {
-    border-bottom: none;
+  .valList {
+    justify-content: flex-start;
   }
 }

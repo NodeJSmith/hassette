@@ -56,13 +56,12 @@ describe("ConfigTab", () => {
     expect(screen.getByRole("status")).toBeDefined();
   });
 
-  it("renders config metadata after loading", async () => {
+  it("does not duplicate the file/class meta bar (shown above the tab bar instead)", async () => {
     render(<ConfigTab appKey="test_app" />);
     await waitFor(() => {
-      expect(screen.getByTestId("config-meta")).toBeDefined();
+      expect(screen.getByTestId("config-tab-content")).toBeDefined();
     });
-    expect(screen.getByTestId("config-meta").textContent).toContain("test_app.py");
-    expect(screen.getByTestId("config-meta").textContent).toContain("TestApp");
+    expect(screen.queryByTestId("config-meta")).toBeNull();
   });
 
   it("renders config through the shared schema renderer when schema is present", async () => {
