@@ -258,13 +258,13 @@ describe("ConfigSchemaView", () => {
       expect(queryByTestId("field-help")).toBeNull();
 
       const toggle = getByTestId("config-field-some_value").querySelector("button[aria-expanded]");
-      expect(toggle).not.toBeNull();
-      expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+      if (!(toggle instanceof Element)) throw new Error("expected an info toggle button");
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
 
-      fireEvent.click(toggle as Element);
+      fireEvent.click(toggle);
 
       expect(getByTestId("field-help").textContent).toContain("Helpful context.");
-      expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
     });
 
     it("renders no info button when a field has no description", () => {

@@ -52,7 +52,8 @@ export function InfoPopover({ text, label = "field" }: Props) {
       }
     }
     function onPointerDown(e: PointerEvent) {
-      const target = e.target as Node;
+      const target = e.target;
+      if (!(target instanceof Node)) return;
       if (popRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
       setOpen(false);
     }
