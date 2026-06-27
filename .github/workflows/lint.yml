@@ -236,6 +236,31 @@ jobs:
                   uvx pip-audit@2.10.0 -r requirements.txt \
                     --ignore-vuln CVE-2025-69872  # diskcache — no fix available yet (#861)
 
+    lockfile-fresh:
+        needs: changes
+        if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                persist-credentials: false
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8
+              with:
+                  python-version: "3.13"
+
+            # uv.lock pins the project's own version, so a pyproject version bump leaves it
+            # stale until re-locked. CI installs with a plain `uv sync`, which silently re-resolves
+            # and hides the drift — this gate makes a stale lock a loud, fixable red check instead.
+            - name: Verify uv.lock is in sync with pyproject.toml
+              run: |
+                  if ! uv lock --check; then
+                      echo "::error::uv.lock is out of sync with pyproject.toml — run 'uv lock' and commit the result"
+                      exit 1
+                  fi
+
     slotscheck:
         needs: changes
         if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
@@ -274,7 +299,7 @@ jobs:
                   fail: true
 
     lint-complete:
-        needs: [python, frontend, codegen-freshness, security, slotscheck, link-check]
+        needs: [python, frontend, codegen-freshness, security, lockfile-fresh, slotscheck, link-check]
         if: always()
         runs-on: ubuntu-latest
         steps:
