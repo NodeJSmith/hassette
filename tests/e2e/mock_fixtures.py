@@ -788,6 +788,7 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
             stub.app_dir.resolve.return_value = real_path.parent
             stub.full_path.exists.return_value = True
         stub.app_config = {"instance_name": f"{m.class_name}.0", "env_prefix": m.app_key + "_"}
+        stub.autostart = getattr(m, "autostart", True)
         _stubs[m.app_key] = stub
 
     hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: _stubs.get(app_key)

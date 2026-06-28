@@ -97,6 +97,49 @@ class TestAppConfigEndpoint:
 
         assert response.status_code == 400
 
+    async def test_framework_fields_returned(self, client, mock_hassette) -> None:
+        """Response includes framework_fields listing base AppConfig + manifest fields."""
+        manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        data = response.json()
+        ff = data["framework_fields"]
+        assert "instance_name" in ff
+        assert "log_level" in ff
+        assert "app_key" in ff
+        assert "enabled" in ff
+        assert "autostart" in ff
+        assert "brightness" not in ff
+
+    async def test_autostart_returned(self, client, mock_hassette) -> None:
+        """Response includes autostart from the manifest."""
+        manifest = make_manifest_mock(app_key="my_app", autostart=False, app_config={"brightness": 100})
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        data = response.json()
+        assert data["autostart"] is False
+
+    async def test_manifest_fields_in_schema(self, client, mock_hassette) -> None:
+        """Config schema includes enabled and autostart property definitions."""
+        manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
+        mock_hassette._app_handler.registry.get_manifest.return_value = manifest
+        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+
+        response = await client.get("/api/apps/my_app/config")
+
+        schema = response.json()["config_schema"]
+        props = schema["properties"]
+        assert "enabled" in props
+        assert props["enabled"]["type"] == "boolean"
+        assert "autostart" in props
+        assert props["autostart"]["type"] == "boolean"
+
 
 def _has_ref(obj: Any) -> bool:
     """Return True if the object or any nested value contains a '$ref' key."""

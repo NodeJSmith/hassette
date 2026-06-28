@@ -12,6 +12,16 @@
   min-width: 0;
 }
 
+/* De-emphasize framework-managed settings so user-defined fields stand out. */
+.secondary {
+  opacity: 0.72;
+}
+
+.secondary .sectionTitle {
+  font-weight: var(--fw-normal);
+  color: var(--ink-3);
+}
+
 /* — Section card header — shows only the section name (instance heading lives above) */
 .sectionHead {
   display: flex;

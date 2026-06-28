@@ -62,15 +62,31 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   );
 }
 
-function AppConfigContent({ appConfig, schema }: { appConfig: ConfigRecord; schema: SchemaNode | undefined }) {
-  // ConfigSchemaView wraps each section in its own Card, so it renders unwrapped — matching
-  // the global Config page. Only the schema-less fallback table needs a Card around it.
+function AppConfigContent({
+  appConfig,
+  schema,
+  manifestValues,
+  frameworkFields,
+}: {
+  appConfig: ConfigRecord;
+  schema: SchemaNode | undefined;
+  manifestValues?: ConfigRecord;
+  frameworkFields?: string[];
+}) {
+  const displayValues = manifestValues ? { ...appConfig, ...manifestValues } : appConfig;
   if (schema) {
-    return <ConfigSchemaView schema={schema} values={appConfig} emptyMessage="no configuration fields" />;
+    return (
+      <ConfigSchemaView
+        schema={schema}
+        values={displayValues}
+        emptyMessage="no configuration fields"
+        frameworkFields={frameworkFields}
+      />
+    );
   }
   return (
     <Card variant="config">
-      <SimpleConfigTable config={appConfig} />
+      <SimpleConfigTable config={displayValues} />
     </Card>
   );
 }
@@ -123,6 +139,8 @@ export function ConfigTab({ appKey }: Props) {
   const appConfig = cfg.app_config;
   const schema = cfg.config_schema ?? undefined;
   const isListConfig = Array.isArray(appConfig);
+  const manifestValues: ConfigRecord = { enabled: cfg.enabled, autostart: cfg.autostart };
+  const frameworkFields = cfg.framework_fields;
 
   return (
     <div class={styles.configTab} data-testid="config-tab-content">
@@ -136,7 +154,12 @@ export function ConfigTab({ appKey }: Props) {
                 <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
                   <h4 class={styles.instanceHeading}>Instance {idx}</h4>
                   {isConfigRecord(instanceCfg) ? (
-                    <AppConfigContent appConfig={instanceCfg} schema={schema} />
+                    <AppConfigContent
+                      appConfig={instanceCfg}
+                      schema={schema}
+                      manifestValues={manifestValues}
+                      frameworkFields={frameworkFields}
+                    />
                   ) : (
                     <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
                   )}
@@ -144,7 +167,12 @@ export function ConfigTab({ appKey }: Props) {
               ))}
             </div>
           ) : isConfigRecord(appConfig) ? (
-            <AppConfigContent appConfig={appConfig} schema={schema} />
+            <AppConfigContent
+              appConfig={appConfig}
+              schema={schema}
+              manifestValues={manifestValues}
+              frameworkFields={frameworkFields}
+            />
           ) : (
             <EmptyState title="no configuration values" />
           )}

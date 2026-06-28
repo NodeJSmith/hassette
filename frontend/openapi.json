@@ -1639,6 +1639,11 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart",
+            "default": true
+          },
           "app_config": {
             "anyOf": [
               {
@@ -1666,6 +1671,13 @@
               }
             ],
             "title": "Config Schema"
+          },
+          "framework_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Framework Fields"
           }
         },
         "type": "object",

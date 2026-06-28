@@ -22,6 +22,7 @@
  * no show-advanced affordance is built.
  */
 
+import clsx from "clsx";
 import { useState } from "preact/hooks";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
@@ -39,6 +40,8 @@ interface ConfigSchemaViewProps {
   values: ConfigRecord;
   /** Message when the config has no fields at all. */
   emptyMessage?: string;
+  /** Field names that belong to the framework (base AppConfig + manifest). */
+  frameworkFields?: string[];
 }
 
 const ACRONYM_DISPLAY: Record<string, string> = {
@@ -317,9 +320,10 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
 interface SectionProps {
   title: string;
   fields: Array<{ key: string; node: SchemaNode; value: unknown }>;
+  secondary?: boolean;
 }
 
-function ConfigSection({ title, fields }: SectionProps) {
+function ConfigSection({ title, fields, secondary }: SectionProps) {
   if (fields.length === 0) return null;
 
   const slug = title
@@ -328,7 +332,7 @@ function ConfigSection({ title, fields }: SectionProps) {
     .replace(/[^a-z0-9-]/g, "");
 
   return (
-    <section class={styles.section} data-testid={`config-section-${slug}`}>
+    <section class={clsx(styles.section, secondary && styles.secondary)} data-testid={`config-section-${slug}`}>
       <Card variant="config">
         <div class={styles.sectionHead}>
           <h3 class={styles.sectionTitle}>{title}</h3>
@@ -352,8 +356,11 @@ function ConfigSection({ title, fields }: SectionProps) {
  * Both the global Config page and the per-app Config tab use this component.
  * The caller is responsible for passing the right values field from the endpoint
  * response (config_values for /api/config, app_config for /api/apps/{key}/config).
+ *
+ * When frameworkFields is provided, scalar fields are partitioned into user-defined
+ * ("App Settings") and framework-managed ("Hassette Settings") sections.
  */
-export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaViewProps) {
+export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields }: ConfigSchemaViewProps) {
   const properties = (schema.properties ?? {}) as Record<string, SchemaNode>;
   const allKeys = Object.keys(properties);
 
@@ -366,24 +373,35 @@ export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaV
     );
   }
 
-  // Split into scalar fields and group fields.
-  const scalarKeys: string[] = [];
+  const frameworkSet = frameworkFields ? new Set(frameworkFields) : null;
+
+  // Split into scalar fields, group fields, and (optionally) framework fields.
+  const userScalarKeys: string[] = [];
+  const frameworkScalarKeys: string[] = [];
   const groupKeys: string[] = [];
 
   for (const key of allKeys) {
     const node = properties[key];
     if (isGroupNode(node)) {
       groupKeys.push(key);
+    } else if (frameworkSet?.has(key)) {
+      frameworkScalarKeys.push(key);
     } else {
-      scalarKeys.push(key);
+      userScalarKeys.push(key);
     }
   }
 
-  const orderedScalars = sortedByOrder(scalarKeys, properties);
+  const orderedUserScalars = sortedByOrder(userScalarKeys, properties);
+  const orderedFrameworkScalars = sortedByOrder(frameworkScalarKeys, properties);
   const orderedGroups = sortedByOrder(groupKeys, properties);
 
-  // Build the scalar "General" section.
-  const scalarFields = orderedScalars.map((key) => ({
+  const userScalarFields = orderedUserScalars.map((key) => ({
+    key,
+    node: properties[key],
+    value: values[key] ?? null,
+  }));
+
+  const frameworkScalarFields = orderedFrameworkScalars.map((key) => ({
     key,
     node: properties[key],
     value: values[key] ?? null,
@@ -410,12 +428,19 @@ export function ConfigSchemaView({ schema, values, emptyMessage }: ConfigSchemaV
     return { key, title, fields };
   });
 
+  // When partitioning, use "App Settings" / "Hassette Settings". Without partitioning,
+  // keep the original "General" label for backward compatibility (global config page).
+  const userSectionTitle = frameworkSet ? "App Settings" : "General";
+
   return (
     <div class={styles.groups} data-testid="config-schema-view">
-      {scalarFields.length > 0 && <ConfigSection title="General" fields={scalarFields} />}
+      {userScalarFields.length > 0 && <ConfigSection title={userSectionTitle} fields={userScalarFields} />}
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}
+      {frameworkScalarFields.length > 0 && (
+        <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} secondary />
+      )}
     </div>
   );
 }

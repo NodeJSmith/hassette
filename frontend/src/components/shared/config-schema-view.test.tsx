@@ -230,6 +230,66 @@ describe("ConfigSchemaView", () => {
     });
   });
 
+  describe("framework field partitioning", () => {
+    const schema: SchemaNode = {
+      type: "object",
+      properties: {
+        brightness: { type: "integer", title: "Brightness" },
+        zone: { type: "string", title: "Zone" },
+        instance_name: { type: "string", title: "Instance Name" },
+        log_level: { type: "string", title: "Log Level" },
+        enabled: { type: "boolean", title: "Enabled" },
+        autostart: { type: "boolean", title: "Autostart" },
+      },
+    };
+    const values = {
+      brightness: 100,
+      zone: "kitchen",
+      instance_name: "MyApp.0",
+      log_level: "INFO",
+      enabled: true,
+      autostart: true,
+    };
+    const frameworkFields = ["instance_name", "log_level", "app_key", "enabled", "autostart"];
+
+    it("renders user fields under 'App Settings' when frameworkFields is provided", () => {
+      const { getByTestId } = render(
+        <ConfigSchemaView schema={schema} values={values} frameworkFields={frameworkFields} />,
+      );
+      const appSection = getByTestId("config-section-app-settings");
+      expect(appSection.querySelector("[data-testid='config-field-brightness']")).not.toBeNull();
+      expect(appSection.querySelector("[data-testid='config-field-zone']")).not.toBeNull();
+      expect(appSection.querySelector("[data-testid='config-field-instance_name']")).toBeNull();
+    });
+
+    it("renders framework fields under 'Hassette Settings'", () => {
+      const { getByTestId } = render(
+        <ConfigSchemaView schema={schema} values={values} frameworkFields={frameworkFields} />,
+      );
+      const fwSection = getByTestId("config-section-hassette-settings");
+      expect(fwSection.querySelector("[data-testid='config-field-instance_name']")).not.toBeNull();
+      expect(fwSection.querySelector("[data-testid='config-field-log_level']")).not.toBeNull();
+      expect(fwSection.querySelector("[data-testid='config-field-enabled']")).not.toBeNull();
+      expect(fwSection.querySelector("[data-testid='config-field-autostart']")).not.toBeNull();
+      expect(fwSection.querySelector("[data-testid='config-field-brightness']")).toBeNull();
+    });
+
+    it("uses 'General' section title when frameworkFields is not provided", () => {
+      const { getByTestId, queryByTestId } = render(<ConfigSchemaView schema={schema} values={values} />);
+      expect(getByTestId("config-section-general")).toBeDefined();
+      expect(queryByTestId("config-section-app-settings")).toBeNull();
+      expect(queryByTestId("config-section-hassette-settings")).toBeNull();
+    });
+
+    it("applies de-emphasis to the framework section", () => {
+      const { getByTestId } = render(
+        <ConfigSchemaView schema={schema} values={values} frameworkFields={frameworkFields} />,
+      );
+      const fwSection = getByTestId("config-section-hassette-settings");
+      expect(fwSection.className).toMatch(/secondary/);
+    });
+  });
+
   describe("machine key", () => {
     it("shows the raw field key inline as a <code> element", () => {
       const schema: SchemaNode = {
