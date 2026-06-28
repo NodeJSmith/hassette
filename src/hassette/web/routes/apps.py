@@ -28,6 +28,26 @@ LOGGER = getLogger(__name__)
 
 _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
 
+# Keep in sync with the manifest fields on AppConfigResponse in models.py.
+_MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
+    "enabled": {
+        "type": "boolean",
+        "title": "Enabled",
+        "description": "Whether the app is enabled.",
+        "default": True,
+    },
+    "autostart": {
+        "type": "boolean",
+        "title": "Autostart",
+        "description": "Whether the app starts automatically when Hassette starts.",
+        "default": True,
+    },
+}
+
+# Base AppConfig fields are already in the schema via class inheritance; manifest fields
+# are injected by _build_app_config_view. Both groups land in the frontend's "Hassette Settings" section.
+_FRAMEWORK_FIELDS: list[str] = sorted(set(AppConfig.model_fields.keys()) | set(_MANIFEST_FIELD_SCHEMAS.keys()))
+
 
 router = APIRouter(tags=["apps"])
 
@@ -134,8 +154,10 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
                 filename=manifest.filename,
                 class_name=manifest.class_name,
                 enabled=manifest.enabled,
+                autostart=manifest.autostart,
                 app_config=masked_config,
                 config_schema=config_schema,
+                framework_fields=_FRAMEWORK_FIELDS,
             )
         except Exception:
             LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
@@ -146,8 +168,10 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
+        autostart=manifest.autostart,
         app_config=_mask_floor(manifest.app_config),
         config_schema=None,
+        framework_fields=_FRAMEWORK_FIELDS,
     )
 
 
@@ -173,12 +197,18 @@ def _build_app_config_view(
 
     The schema is dereferenced once and reused across every instance; only the per-instance
     masking differs. An empty instance list returns the deref'd schema with no masking run.
+
+    Manifest-level fields (enabled, autostart) are injected into the schema so the
+    frontend can render them alongside config fields in the framework section. Their
+    values live on AppConfigResponse (not in app_config); the frontend merges them
+    into the display values before passing to ConfigSchemaView.
     """
     plain_schema = deref_schema(schema)
-    props = plain_schema.get("properties", {})
+    config_props = plain_schema.get("properties", {})
+    enriched_schema = {**plain_schema, "properties": {**_MANIFEST_FIELD_SCHEMAS, **config_props}}
     if isinstance(app_config, list):
-        return plain_schema, [mask_values(props, inst) for inst in app_config]
-    return plain_schema, mask_values(props, app_config)
+        return enriched_schema, [mask_values(config_props, inst) for inst in app_config]
+    return enriched_schema, mask_values(config_props, app_config)
 
 
 def _mask_floor(app_config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:

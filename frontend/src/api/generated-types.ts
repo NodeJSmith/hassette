@@ -609,6 +609,8 @@ export interface components {
             class_name: string;
             /** Enabled */
             enabled: boolean;
+            /** Autostart */
+            autostart: boolean;
             /** App Config */
             app_config: {
                 [key: string]: unknown;
@@ -619,6 +621,8 @@ export interface components {
             config_schema?: {
                 [key: string]: unknown;
             } | null;
+            /** Framework Fields */
+            framework_fields: string[];
         };
         /**
          * AppHealthResponse

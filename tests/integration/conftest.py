@@ -195,6 +195,7 @@ def make_manifest_mock(
     filename: str = "my_app.py",
     class_name: str = "MyApp",
     enabled: bool = True,
+    autostart: bool = True,
     app_config: dict | list[dict] | None = None,
     app_dir: Path | None = None,
     full_path: Path | None = None,
@@ -205,6 +206,7 @@ def make_manifest_mock(
     m.filename = filename
     m.class_name = class_name
     m.enabled = enabled
+    m.autostart = autostart
     m.app_config = app_config if app_config is not None else {"instance_name": f"{class_name}.0"}
     m.app_dir = app_dir or Path("/apps")
     m.full_path = full_path or (m.app_dir / filename)

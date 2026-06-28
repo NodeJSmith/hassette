@@ -422,8 +422,10 @@ class AppConfigResponse(BaseModel):
     filename: str
     class_name: str
     enabled: bool
+    autostart: bool
     app_config: dict[str, Any] | list[dict[str, Any]]
     config_schema: dict[str, Any] | None = None
+    framework_fields: list[str]
 
 
 class AppSourceResponse(BaseModel):

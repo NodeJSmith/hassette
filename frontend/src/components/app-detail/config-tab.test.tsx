@@ -13,6 +13,7 @@ const defaultConfig = {
   filename: "test_app.py",
   class_name: "TestApp",
   enabled: true,
+  autostart: true,
   app_config: {
     token: MASK_SENTINEL,
     host: "192.168.1.1",
@@ -29,6 +30,7 @@ const defaultConfig = {
       port: { type: "integer", title: "Port" },
     },
   },
+  framework_fields: [],
 };
 
 /** App config response without a schema — falls back to SimpleConfigTable. */
@@ -37,6 +39,7 @@ const noSchemaConfig = {
   filename: "test_app.py",
   class_name: "TestApp",
   enabled: true,
+  autostart: true,
   app_config: {
     api_key: "some-value",
   },

@@ -470,8 +470,10 @@ def make_app_config_response(
     filename: str = "my_app.py",
     class_name: str = "MyApp",
     enabled: bool = True,
+    autostart: bool = True,
     app_config: dict | list[dict] | None = None,
     config_schema: dict | None = None,
+    framework_fields: list[str] | None = None,
 ) -> AppConfigResponse:
     """Build an AppConfigResponse with sensible defaults."""
     return AppConfigResponse(
@@ -479,8 +481,10 @@ def make_app_config_response(
         filename=filename,
         class_name=class_name,
         enabled=enabled,
+        autostart=autostart,
         app_config=app_config if app_config is not None else {"setting_name": "default"},
         config_schema=config_schema,
+        framework_fields=framework_fields if framework_fields is not None else [],
     )
 
 

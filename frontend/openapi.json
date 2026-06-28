@@ -1639,6 +1639,10 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart"
+          },
           "app_config": {
             "anyOf": [
               {
@@ -1666,6 +1670,13 @@
               }
             ],
             "title": "Config Schema"
+          },
+          "framework_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Framework Fields"
           }
         },
         "type": "object",
@@ -1674,7 +1685,9 @@
           "filename",
           "class_name",
           "enabled",
-          "app_config"
+          "autostart",
+          "app_config",
+          "framework_fields"
         ],
         "title": "AppConfigResponse",
         "description": "Response model for GET /apps/{app_key}/config."
