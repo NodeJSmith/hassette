@@ -300,12 +300,13 @@ describe("ConfigSchemaView", () => {
       expect(getByTestId("config-section-hassette-settings")).toBeDefined();
     });
 
-    it("applies de-emphasis to the framework section", () => {
+    it("renders framework section with the same styling as user section", () => {
       const { getByTestId } = render(
         <ConfigSchemaView schema={schema} values={values} frameworkFields={frameworkFields} />,
       );
+      const appSection = getByTestId("config-section-app-settings");
       const fwSection = getByTestId("config-section-hassette-settings");
-      expect(fwSection.className).toMatch(/secondary/);
+      expect(fwSection.className).toBe(appSection.className);
     });
   });
 

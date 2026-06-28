@@ -22,7 +22,6 @@
  * no show-advanced affordance is built.
  */
 
-import clsx from "clsx";
 import { useState } from "preact/hooks";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
@@ -320,10 +319,9 @@ function ConfigFieldRow({ fieldKey, node, value }: { fieldKey: string; node: Sch
 interface SectionProps {
   title: string;
   fields: Array<{ key: string; node: SchemaNode; value: unknown }>;
-  secondary?: boolean;
 }
 
-function ConfigSection({ title, fields, secondary }: SectionProps) {
+function ConfigSection({ title, fields }: SectionProps) {
   if (fields.length === 0) return null;
 
   const slug = title
@@ -332,7 +330,7 @@ function ConfigSection({ title, fields, secondary }: SectionProps) {
     .replace(/[^a-z0-9-]/g, "");
 
   return (
-    <section class={clsx(styles.section, secondary && styles.secondary)} data-testid={`config-section-${slug}`}>
+    <section class={styles.section} data-testid={`config-section-${slug}`}>
       <Card variant="config">
         <div class={styles.sectionHead}>
           <h3 class={styles.sectionTitle}>{title}</h3>
@@ -438,9 +436,7 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
       {groupSections.map(({ key, title, fields }) => (
         <ConfigSection key={key} title={title} fields={fields} />
       ))}
-      {frameworkScalarFields.length > 0 && (
-        <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} secondary />
-      )}
+      {frameworkScalarFields.length > 0 && <ConfigSection title="Hassette Settings" fields={frameworkScalarFields} />}
     </div>
   );
 }
