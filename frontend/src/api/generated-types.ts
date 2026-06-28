@@ -609,10 +609,7 @@ export interface components {
             class_name: string;
             /** Enabled */
             enabled: boolean;
-            /**
-             * Autostart
-             * @default true
-             */
+            /** Autostart */
             autostart: boolean;
             /** App Config */
             app_config: {
@@ -625,7 +622,7 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Framework Fields */
-            framework_fields?: string[];
+            framework_fields: string[];
         };
         /**
          * AppHealthResponse

@@ -281,6 +281,25 @@ describe("ConfigSchemaView", () => {
       expect(queryByTestId("config-section-hassette-settings")).toBeNull();
     });
 
+    it("omits 'App Settings' when all fields are framework-managed", () => {
+      const frameworkOnlySchema: SchemaNode = {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean", title: "Enabled" },
+          autostart: { type: "boolean", title: "Autostart" },
+        },
+      };
+      const { getByTestId, queryByTestId } = render(
+        <ConfigSchemaView
+          schema={frameworkOnlySchema}
+          values={{ enabled: true, autostart: true }}
+          frameworkFields={["enabled", "autostart"]}
+        />,
+      );
+      expect(queryByTestId("config-section-app-settings")).toBeNull();
+      expect(getByTestId("config-section-hassette-settings")).toBeDefined();
+    });
+
     it("applies de-emphasis to the framework section", () => {
       const { getByTestId } = render(
         <ConfigSchemaView schema={schema} values={values} frameworkFields={frameworkFields} />,
