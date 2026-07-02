@@ -81,7 +81,7 @@ async def test_current_bucket_visible_in_worker(bucket: TaskBucket) -> None:
 async def test_execution_id_visible_in_worker(bucket: TaskBucket) -> None:
     """CURRENT_EXECUTION_ID is propagated to the worker thread."""
     captured: list[str | None] = []
-    test_id = "exec-1145-test"
+    test_id = "test-execution-id"
 
     with ctx.use(ctx.CURRENT_EXECUTION_ID, test_id):
 

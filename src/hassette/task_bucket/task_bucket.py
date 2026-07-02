@@ -1,13 +1,12 @@
 import asyncio
 import contextlib
-import contextvars
 import functools
 import threading
 import typing
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -182,18 +181,8 @@ class TaskBucket(Resource):
         *fn* inside it so that all contextvars set on the loop thread are visible to
         sync user code.
 
-        **Thread cell:** A shared mutable cell (``list[threading.Thread | None]``)
-        captures the worker thread when ``_call`` starts executing.  The loop thread
-        reads ``cell[0]`` at the timeout site::
-
-            cell: list[threading.Thread | None] = [None]
-            # _call (worker):  cell[0] = threading.current_thread()  <- set on worker
-            # timeout (loop):  cell[0].is_alive()                    <- read on loop
-
-        The cell is a plain list closed over by both sides — mutations to ``cell[0]``
-        are immediately visible across threads.  If the timeout fires before the
-        worker has dequeued ``_call``, ``cell[0]`` remains ``None`` (not-started
-        timeout, not a thread leak).
+        **Thread cell:** see :data:`SYNC_WORKER_CELL` module docstring for the
+        shared-mutable-cell mechanism used by the timeout site.
 
         Args:
             fn: The synchronous function to run.
@@ -203,7 +192,7 @@ class TaskBucket(Resource):
         Returns:
             A coroutine that resolves to the return value of *fn*.
         """
-        parent_ctx = contextvars.copy_context()
+        parent_ctx = copy_context()
         cell: list[threading.Thread | None] = [None]
         SYNC_WORKER_CELL.set(cell)
 
