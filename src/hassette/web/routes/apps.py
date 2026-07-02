@@ -137,10 +137,10 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     if manifest is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
-    config_cls = resolve_app_config_cls(hassette, app_key, manifest)
-    if config_cls is not None:
+    app_config_cls = resolve_app_config_cls(hassette, app_key, manifest)
+    if app_config_cls is not None:
         try:
-            raw_schema = config_cls.model_json_schema()
+            raw_schema = app_config_cls.model_json_schema()
             if not isinstance(raw_schema, dict):
                 raise TypeError(f"model_json_schema() returned {type(raw_schema).__name__}, expected dict")
             config_schema, masked_config = _build_app_config_view(raw_schema, manifest.app_config)
@@ -175,7 +175,7 @@ def _build_app_config_view(
     """Build the deref'd schema and masked values for a single- or multi-instance app config.
 
     The schema is dereferenced once and reused across every instance; only the per-instance
-    masking differs.  Manifest-level fields (enabled, autostart) are injected into the schema
+    masking differs. Manifest-level fields (enabled, autostart) are injected into the schema
     so the frontend can render them alongside config fields in the framework section.
     """
     plain_schema = deref_schema(schema)

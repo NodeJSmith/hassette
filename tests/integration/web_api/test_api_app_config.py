@@ -331,7 +331,7 @@ class TestSchemaDeref:
 class TestGlobalConfigManifestMasking:
     """Secret fields inside manifests' ``app_config`` are masked in the global config endpoint."""
 
-    async def test_secret_str_masked_in_manifest(self, client, mock_hassette) -> None:
+    async def test_secret_str_field_renders_masked_in_manifest(self, client, mock_hassette) -> None:
         """A SecretStr field in a manifest's app_config is replaced by the mask sentinel."""
         mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
             "my_app": {
@@ -346,7 +346,7 @@ class TestGlobalConfigManifestMasking:
         manifests = response.json()["config_values"]["apps"]["manifests"]
         assert manifests["my_app"]["app_config"]["api_key"] == MASK_SENTINEL
 
-    async def test_plain_str_not_masked_in_manifest(self, client, mock_hassette) -> None:
+    async def test_plain_str_field_renders_unmasked_in_manifest(self, client, mock_hassette) -> None:
         """A plain str field is NOT masked — masking is schema-driven, not name-driven."""
         mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
             "my_app": {
@@ -378,7 +378,7 @@ class TestGlobalConfigManifestMasking:
         assert app_config["password"] == MASK_SENTINEL
         assert app_config["retries"] == 3
 
-    async def test_plaintext_never_in_response_body(self, client, mock_hassette) -> None:
+    async def test_plaintext_never_appears_in_response_body(self, client, mock_hassette) -> None:
         """Plaintext of a SecretStr field must not appear anywhere in the response body."""
         mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
             "my_app": {

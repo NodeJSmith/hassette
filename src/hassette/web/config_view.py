@@ -30,11 +30,11 @@ import jsonref
 from hassette.app.app_config import AppConfig
 from hassette.utils.app_utils import class_already_loaded, get_loaded_class
 
-LOGGER = getLogger(__name__)
-
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.config.classes import AppManifest
+
+LOGGER = getLogger(__name__)
 
 MASK_SENTINEL = "••••••••"
 """Placeholder shown in the UI when a secret field is set but not revealed."""
@@ -190,7 +190,7 @@ def resolve_app_config_cls(
     """Resolve an app's ``AppConfig`` class from the running instance or the loaded module.
 
     Returns ``None`` when the app has no running instance and its class is not already
-    loaded (e.g. a disabled app that never started).  Does not import the app module — a
+    loaded (e.g. a disabled app that never started). Does not import the app module — a
     config request must not trigger loading of arbitrary app code on the unauthenticated API.
     """
     instance = hassette.app_handler.registry.get(app_key)
@@ -204,23 +204,23 @@ def resolve_app_config_cls(
 
 
 def mask_app_config(
-    config_cls: type[AppConfig] | None,
+    app_config_cls: type[AppConfig] | None,
     app_config: dict[str, Any] | list[dict[str, Any]],
 ) -> dict[str, Any] | list[dict[str, Any]]:
     """Mask an app's config values using its real schema when available, else mask all strings.
 
-    When ``config_cls`` is provided, uses schema-driven masking (only fields marked
-    ``writeOnly``/``format: password``, i.e. ``SecretStr``-typed, are masked).  When
+    When ``app_config_cls`` is provided, uses schema-driven masking (only fields marked
+    ``writeOnly``/``format: password``, i.e. ``SecretStr``-typed, are masked). When
     ``None`` or schema generation fails, every string value is masked as a safe floor.
     """
-    if config_cls is not None:
+    if app_config_cls is not None:
         try:
-            schema_props = deref_schema(config_cls.model_json_schema()).get("properties", {})
+            schema_props = deref_schema(app_config_cls.model_json_schema()).get("properties", {})
             if isinstance(app_config, list):
                 return [mask_values(schema_props, inst) for inst in app_config]
             return mask_values(schema_props, app_config)
         except Exception:
-            LOGGER.warning("Schema generation failed for %s; falling back to safe-floor masking", config_cls)
+            LOGGER.warning("Schema generation failed for %s; falling back to safe-floor masking", app_config_cls)
     if isinstance(app_config, list):
         return [mask_all_values(inst) for inst in app_config]
     return mask_all_values(app_config)

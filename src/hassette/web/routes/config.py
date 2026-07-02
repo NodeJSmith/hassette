@@ -23,7 +23,7 @@ async def get_config(hassette: HassetteDep) -> ConfigSchemaResponse:
     ``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).
     ``config_values`` is the current configuration serialized to JSON with
     any ``SecretStr`` field replaced by a masked placeholder — the plaintext
-    value is never sent over the wire.  Every field and nested group is present;
+    value is never sent over the wire. Every field and nested group is present;
     nothing is omitted.
     """
     schema = HassetteConfig.model_json_schema()
@@ -38,8 +38,8 @@ def _mask_manifest_configs(hassette: "Hassette", config_values: dict[str, Any]) 
 
     ``HassetteConfig`` types ``app_config`` as ``dict[str, Any]``, so the schema-driven
     masking in ``build_config_view`` has no ``writeOnly``/``format: password`` markers to
-    act on.  This post-processing step resolves each app's real config class via
-    ``resolve_app_config_cls`` and re-masks with the type-accurate schema.  When no schema
+    act on. This post-processing step resolves each app's real config class via
+    ``resolve_app_config_cls`` and re-masks with the type-accurate schema. When no schema
     is available, every string value is masked as a safe floor.
     """
     manifests = config_values.get("apps", {}).get("manifests")
@@ -52,7 +52,7 @@ def _mask_manifest_configs(hassette: "Hassette", config_values: dict[str, Any]) 
         if raw_config is None:
             masked_manifests[app_key] = manifest_dict
             continue
-        config_cls = resolve_app_config_cls(hassette, app_key)
-        masked_manifests[app_key] = {**manifest_dict, "app_config": mask_app_config(config_cls, raw_config)}
+        app_config_cls = resolve_app_config_cls(hassette, app_key)
+        masked_manifests[app_key] = {**manifest_dict, "app_config": mask_app_config(app_config_cls, raw_config)}
 
     return {**config_values, "apps": {**config_values["apps"], "manifests": masked_manifests}}
