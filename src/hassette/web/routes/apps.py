@@ -2,15 +2,13 @@
 
 import re
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from hassette.app.app_config import AppConfig
-from hassette.config.classes import AppManifest
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.utils.app_utils import class_already_loaded, get_loaded_class
-from hassette.web.config_view import deref_schema, mask_all_values, mask_values
+from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
@@ -20,9 +18,6 @@ from hassette.web.models import (
     AppSourceResponse,
     AppStatusResponse,
 )
-
-if TYPE_CHECKING:
-    from hassette import Hassette
 
 LOGGER = getLogger(__name__)
 
@@ -142,10 +137,10 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     if manifest is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
-    app_config_cls = _resolve_app_config_cls(hassette, app_key, manifest)
-    if app_config_cls is not None:
+    config_cls = resolve_app_config_cls(hassette, app_key, manifest)
+    if config_cls is not None:
         try:
-            raw_schema = app_config_cls.model_json_schema()
+            raw_schema = config_cls.model_json_schema()
             if not isinstance(raw_schema, dict):
                 raise TypeError(f"model_json_schema() returned {type(raw_schema).__name__}, expected dict")
             config_schema, masked_config = _build_app_config_view(raw_schema, manifest.app_config)
@@ -162,32 +157,16 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
         except Exception:
             LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
 
-    # No schema available — uniformly mask every string value so a secret never leaks.
     return AppConfigResponse(
         app_key=app_key,
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
         autostart=manifest.autostart,
-        app_config=_mask_floor(manifest.app_config),
+        app_config=mask_app_config(None, manifest.app_config),
         config_schema=None,
         framework_fields=_FRAMEWORK_FIELDS,
     )
-
-
-def _resolve_app_config_cls(hassette: "Hassette", app_key: str, manifest: AppManifest) -> type[AppConfig] | None:
-    """Resolve the app's ``AppConfig`` class: from the running instance, else the loaded class.
-
-    Returns ``None`` when the app has no running instance and its class is not already
-    loaded (e.g. a disabled app that never started). Does not import the app module — a
-    config request must not trigger loading of arbitrary app code on the unauthenticated API.
-    """
-    instance = hassette.app_handler.registry.get(app_key)
-    if instance is not None:
-        return getattr(type(instance), "app_config_cls", None)
-    if class_already_loaded(manifest.full_path, manifest.class_name):
-        return get_loaded_class(manifest.full_path, manifest.class_name).app_config_cls
-    return None
 
 
 def _build_app_config_view(
@@ -196,12 +175,8 @@ def _build_app_config_view(
     """Build the deref'd schema and masked values for a single- or multi-instance app config.
 
     The schema is dereferenced once and reused across every instance; only the per-instance
-    masking differs. An empty instance list returns the deref'd schema with no masking run.
-
-    Manifest-level fields (enabled, autostart) are injected into the schema so the
-    frontend can render them alongside config fields in the framework section. Their
-    values live on AppConfigResponse (not in app_config); the frontend merges them
-    into the display values before passing to ConfigSchemaView.
+    masking differs.  Manifest-level fields (enabled, autostart) are injected into the schema
+    so the frontend can render them alongside config fields in the framework section.
     """
     plain_schema = deref_schema(schema)
     config_props = plain_schema.get("properties", {})
@@ -209,13 +184,6 @@ def _build_app_config_view(
     if isinstance(app_config, list):
         return enriched_schema, [mask_values(config_props, inst) for inst in app_config]
     return enriched_schema, mask_values(config_props, app_config)
-
-
-def _mask_floor(app_config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
-    """Apply the schema-less safe-floor mask to a single- or multi-instance app config."""
-    if isinstance(app_config, list):
-        return [mask_all_values(inst) for inst in app_config]
-    return mask_all_values(app_config)
 
 
 @router.get("/apps/{app_key}/source", response_model=AppSourceResponse)

@@ -22,9 +22,19 @@ Note: the OpenAPI freshness check does not cover ``ui`` annotation content (it r
 ``ui``-shape drift.
 """
 
-from typing import Any
+from logging import getLogger
+from typing import TYPE_CHECKING, Any
 
 import jsonref
+
+from hassette.app.app_config import AppConfig
+from hassette.utils.app_utils import class_already_loaded, get_loaded_class
+
+LOGGER = getLogger(__name__)
+
+if TYPE_CHECKING:
+    from hassette import Hassette
+    from hassette.config.classes import AppManifest
 
 MASK_SENTINEL = "••••••••"
 """Placeholder shown in the UI when a secret field is set but not revealed."""
@@ -172,3 +182,45 @@ def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[st
     plain_schema = deref_schema(schema)
     masked_values = mask_values(plain_schema.get("properties", {}), values)
     return {"config_schema": plain_schema, "config_values": masked_values}
+
+
+def resolve_app_config_cls(
+    hassette: "Hassette", app_key: str, manifest: "AppManifest | None" = None
+) -> type[AppConfig] | None:
+    """Resolve an app's ``AppConfig`` class from the running instance or the loaded module.
+
+    Returns ``None`` when the app has no running instance and its class is not already
+    loaded (e.g. a disabled app that never started).  Does not import the app module — a
+    config request must not trigger loading of arbitrary app code on the unauthenticated API.
+    """
+    instance = hassette.app_handler.registry.get(app_key)
+    if instance is not None:
+        return getattr(type(instance), "app_config_cls", None)
+    if manifest is None:
+        manifest = hassette.config.apps.manifests.get(app_key)
+    if manifest is not None and class_already_loaded(manifest.full_path, manifest.class_name):
+        return get_loaded_class(manifest.full_path, manifest.class_name).app_config_cls
+    return None
+
+
+def mask_app_config(
+    config_cls: type[AppConfig] | None,
+    app_config: dict[str, Any] | list[dict[str, Any]],
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Mask an app's config values using its real schema when available, else mask all strings.
+
+    When ``config_cls`` is provided, uses schema-driven masking (only fields marked
+    ``writeOnly``/``format: password``, i.e. ``SecretStr``-typed, are masked).  When
+    ``None`` or schema generation fails, every string value is masked as a safe floor.
+    """
+    if config_cls is not None:
+        try:
+            schema_props = deref_schema(config_cls.model_json_schema()).get("properties", {})
+            if isinstance(app_config, list):
+                return [mask_values(schema_props, inst) for inst in app_config]
+            return mask_values(schema_props, app_config)
+        except Exception:
+            LOGGER.warning("Schema generation failed for %s; falling back to safe-floor masking", config_cls)
+    if isinstance(app_config, list):
+        return [mask_all_values(inst) for inst in app_config]
+    return mask_all_values(app_config)

@@ -324,6 +324,99 @@ class TestSchemaDeref:
         schema = data["config_schema"]
         assert schema is not None
         conn_prop = schema.get("properties", {}).get("connection", {})
-        # Nested group must be inlined: it should have properties, not a $ref
         assert "properties" in conn_prop, f"connection schema not inlined: {conn_prop}"
         assert "host" in conn_prop["properties"]
+
+
+class TestGlobalConfigManifestMasking:
+    """Secret fields inside manifests' ``app_config`` are masked in the global config endpoint."""
+
+    async def test_secret_str_masked_in_manifest(self, client, mock_hassette) -> None:
+        """A SecretStr field in a manifest's app_config is replaced by the mask sentinel."""
+        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
+            "my_app": {
+                "app_key": "my_app",
+                "app_config": {"api_key": "plaintext-secret"},
+            },
+        }
+        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+
+        response = await client.get("/api/config")
+
+        manifests = response.json()["config_values"]["apps"]["manifests"]
+        assert manifests["my_app"]["app_config"]["api_key"] == MASK_SENTINEL
+
+    async def test_plain_str_not_masked_in_manifest(self, client, mock_hassette) -> None:
+        """A plain str field is NOT masked — masking is schema-driven, not name-driven."""
+        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
+            "my_app": {
+                "app_key": "my_app",
+                "app_config": {"api_key": "my-real-value"},
+            },
+        }
+        mock_hassette._app_handler.registry.get.return_value = _AppWithUnmaskedKey()
+
+        response = await client.get("/api/config")
+
+        manifests = response.json()["config_values"]["apps"]["manifests"]
+        assert manifests["my_app"]["app_config"]["api_key"] == "my-real-value"
+
+    async def test_safe_floor_when_no_schema(self, client, mock_hassette) -> None:
+        """When no app class is available, every string value is masked as a safe floor."""
+        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
+            "disabled_app": {
+                "app_key": "disabled_app",
+                "app_config": {"password": "hunter2", "retries": 3},
+            },
+        }
+        mock_hassette._app_handler.registry.get.return_value = None
+        mock_hassette.config.apps.manifests = {}
+
+        response = await client.get("/api/config")
+
+        app_config = response.json()["config_values"]["apps"]["manifests"]["disabled_app"]["app_config"]
+        assert app_config["password"] == MASK_SENTINEL
+        assert app_config["retries"] == 3
+
+    async def test_plaintext_never_in_response_body(self, client, mock_hassette) -> None:
+        """Plaintext of a SecretStr field must not appear anywhere in the response body."""
+        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
+            "my_app": {
+                "app_key": "my_app",
+                "app_config": {"api_key": "super-secret-value-12345"},
+            },
+        }
+        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+
+        response = await client.get("/api/config")
+
+        assert "super-secret-value-12345" not in response.text
+
+    async def test_multi_instance_manifest_masked(self, client, mock_hassette) -> None:
+        """Each instance in a multi-instance manifest has its secrets masked."""
+        mock_hassette.config.model_dump.return_value["apps"]["manifests"] = {
+            "my_app": {
+                "app_key": "my_app",
+                "app_config": [
+                    {"instance_name": "MyApp.0", "api_key": "secret-0"},
+                    {"instance_name": "MyApp.1", "api_key": "secret-1"},
+                ],
+            },
+        }
+        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+
+        response = await client.get("/api/config")
+
+        app_config = response.json()["config_values"]["apps"]["manifests"]["my_app"]["app_config"]
+        assert isinstance(app_config, list)
+        assert app_config[0]["api_key"] == MASK_SENTINEL
+        assert app_config[1]["api_key"] == MASK_SENTINEL
+        assert app_config[0]["instance_name"] == "MyApp.0"
+
+    async def test_no_manifests_passes_through(self, client) -> None:
+        """When no manifests exist in config values, the response is unchanged."""
+        response = await client.get("/api/config")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "config_values" in data
