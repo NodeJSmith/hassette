@@ -116,6 +116,11 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         "result = websocket_service.dispatch()\n",
         [],
     ),
+    (
+        "string_literal_containing_annotation_not_exempt",
+        'state_proxy.load_cache = AsyncMock(return_value="fake # boundary-exempt: not real")\n',
+        [(1, "load_cache")],
+    ),
 ]
 
 

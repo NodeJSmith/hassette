@@ -52,10 +52,11 @@ Two annotations are recognized as escape hatches for different patterns:
         calling the method — it is to control its outcome.
         Example: mocking ``stop_app`` to raise so ``reload_app``'s error path fires.
 
-Comments are discarded by the AST, so annotations are matched against the raw
-source lines spanning the flagged statement. Two placements are accepted:
+Annotations are matched via ``tokenize``-derived comment tokens on the flagged
+statement's own physical lines, avoiding false positives from annotation text
+inside string literals. Two placements are accepted:
 
-    (a) Anywhere on the flagged statement's own physical line span — the same
+    (a) A comment on any physical line of the flagged statement — the same
         line as the symbol, or any continuation line of a multi-line call.
     (b) The comment-only line immediately preceding the flagged statement (no
         blank line between) — for long ``with patch.object(...)`` statements
@@ -68,6 +69,8 @@ Usage:
 import ast
 import sys
 from pathlib import Path
+
+from lint_helpers import extract_comments
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -239,21 +242,20 @@ class PatchVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def is_exempt(lines: list[str], lineno: int, end_lineno: int) -> bool:
+def is_exempt(lineno: int, end_lineno: int, comments: dict[int, str]) -> bool:
     """Return True if the statement spanning [lineno, end_lineno] is annotated.
 
-    Accepts either annotation anywhere on the statement's own physical lines, or on the
-    comment-only line immediately preceding it (1-based line numbers).
+    Checks real comment tokens (via tokenize) on the statement's own physical lines
+    and on the comment-only line immediately preceding it (1-based line numbers).
     """
-    # lineno/end_lineno are 1-based; lines is 0-indexed, hence the -1 / -2 offsets.
-    for i in range(lineno - 1, end_lineno):
-        if any(a in lines[i] for a in ANNOTATIONS):
+    for line_num in range(lineno, end_lineno + 1):
+        comment = comments.get(line_num, "")
+        if any(a in comment for a in ANNOTATIONS):
             return True
 
-    if lineno >= 2:
-        prev = lines[lineno - 2].strip()
-        if prev.startswith("#") and any(a in prev for a in ANNOTATIONS):
-            return True
+    prev_comment = comments.get(lineno - 1, "")
+    if any(a in prev_comment for a in ANNOTATIONS):
+        return True
 
     return False
 
@@ -265,12 +267,12 @@ def check_file(path: Path) -> list[tuple[int, str]]:
         return []
 
     source = path.read_text()
-    lines = source.splitlines()
+    comments = extract_comments(source)
     visitor = PatchVisitor()
     visitor.visit(ast.parse(source))
 
     violations = [
-        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lines, lineno, end_lineno)
+        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lineno, end_lineno, comments)
     ]
     return sorted(violations)
 
