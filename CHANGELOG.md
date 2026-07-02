@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.0](https://github.com/NodeJSmith/hassette/compare/v0.46.0...v0.47.0) (2026-07-02)
+
+### Breaking Changes
+
+- **Secret masking is now type-driven** — `HassetteConfig.token` is now `SecretStr | None` instead of `str | None`. Code reading the token must unwrap it with `token.get_secret_value()`. App-config secret masking follows the declared type: a field is masked only if it is typed `SecretStr`. The old name-based regex (`token`/`password`/`secret`/`api_key`) is removed. App authors who relied on name-based masking must type those fields `SecretStr` to keep them hidden in the dashboard. (#1131)
+
+### Config UI
+
+- **Unified config view with complete field coverage** — the global Config page and per-app Config tab now share a single backend and renderer. Previously, the global page hand-maintained a mapper that silently dropped whole config groups (`database`, `websocket`, `blocking_io`); all fields are now visible. Secrets are masked by type (`SecretStr`), values format by type (booleans as badges, durations humanized, paths as code), and app authors can add presentation hints via `json_schema_extra` `ui` metadata on their `AppConfig` fields. (#1131)
+- **Scannable field list layout** — the config view is redesigned from a 3-column table into a field list with distinct visual registers: human label, TOML key, and formatted value. Field descriptions move into a click-to-open info popover. Fixes a 360px horizontal overflow on the old table layout. (#1151)
+- **User-defined and framework fields separated** — the per-app Config tab now partitions fields into "App Settings" (user-defined) and "Hassette Settings" (framework-managed like `log_level`, `blocking_io_behavior`). `enabled` and `autostart` now appear in the config tab. (#1154)
+
+### Bug Fixes
+
+- **`hassette app config` shows values instead of schema blob** — the CLI command was dumping the raw inlined JSON schema into the terminal instead of the masked config values (a regression from the config unification). (#1138)
+
 ## [0.46.0](https://github.com/NodeJSmith/hassette/compare/v0.45.0...v0.46.0) (2026-06-25)
 
 ### Breaking Changes
