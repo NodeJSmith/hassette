@@ -176,7 +176,9 @@ branch = true         # measure branch coverage, not just lines
 source = ["hassette"] # your packages/modules
 parallel = true       # enable combining across workers/CI shards
 relative_files = true # stable paths in CI
-# Measure subprocesses (pytest-cov will set env automatically; this is belt+suspenders):
+# Measure xdist workers (subprocesses). The nox coverage sessions install a .pth
+# file + COVERAGE_PROCESS_START so tracing starts at interpreter startup — before
+# conftest imports — instead of relying on pytest-cov's later attach.
 concurrency = ["thread", "multiprocessing"]
 omit = [
     "*/__init__.py",

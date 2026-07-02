@@ -142,16 +142,35 @@ def screenshots(session: "Session"):
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
     session.env["COVERAGE_FILE"] = f".coverage.system.{session.python}"
-    _run_system_tests(
-        session,
-        marker="system and not system_destructive",
-        extra_args=["--cov=hassette", "--cov-branch", "--cov-report=xml:coverage.system.xml"],
+    _install_coverage_pth(session)
+    session.env["COVERAGE_PROCESS_START"] = "pyproject.toml"
+    _run_system_tests(session, marker="system and not system_destructive")
+    _run_system_tests(session, marker="system_destructive")
+    session.run("uv", "run", "--active", "coverage", "combine", external=True)
+    session.run("uv", "run", "--active", "coverage", "xml", "-o", "coverage.system.xml", external=True)
+
+
+def _install_coverage_pth(session: "Session") -> None:
+    """Install a .pth file that starts coverage tracing at interpreter startup.
+
+    This ensures coverage sees module-level statements that execute during conftest
+    import — before pytest-cov would normally attach. Works for both the main process
+    and xdist worker subprocesses (each gets its own Python interpreter startup).
+    """
+    result = session.run(
+        "uv",
+        "run",
+        "--active",
+        "python",
+        "-c",
+        "import site; print(site.getsitepackages()[0])",
+        external=True,
+        silent=True,
     )
-    _run_system_tests(
-        session,
-        marker="system_destructive",
-        extra_args=["--cov=hassette", "--cov-branch", "--cov-append", "--cov-report=xml:coverage.system.xml"],
-    )
+    if not result:
+        session.error("failed to detect site-packages path")
+    pth_path = Path(result.strip()) / "coverage_subprocess.pth"
+    pth_path.write_text("import coverage; coverage.process_startup()\n")
 
 
 def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] | None = None) -> None:
@@ -189,7 +208,14 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
 
 @nox.session(python=["3.11", "3.13", "3.14"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
+    # Uses COVERAGE_PROCESS_START + a .pth file instead of pytest --cov.
+    # pytest-cov starts tracing in pytest_configure — after conftest.py has already
+    # imported hassette at module scope, leaving all module-level statements permanently
+    # invisible to coverage. The .pth file starts tracing at interpreter startup, before
+    # anything else loads, so both the main process and xdist workers see full coverage.
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
+    _install_coverage_pth(session)
+    session.env["COVERAGE_PROCESS_START"] = "pyproject.toml"
     session.run(
         "uv",
         "run",
@@ -203,11 +229,6 @@ def tests_with_coverage(session: "Session"):
         "auto",
         "--dist",
         "loadscope",
-        "--cov=hassette",
-        "--cov-branch",
-        "--cov-report=term-missing:skip-covered",
-        "--cov-report=xml",
-        "--cov-report=html",
         "--tb=line",
         # See `tests` session: thread method dumps stacks then os._exit()s, catching
         # hangs the signal method can't. Safe under coverage — it does not inject
@@ -220,3 +241,7 @@ def tests_with_coverage(session: "Session"):
         "2",
         external=True,
     )
+    session.run("uv", "run", "--active", "coverage", "combine", external=True)
+    session.run("uv", "run", "--active", "coverage", "report", "--show-missing", "--skip-covered", external=True)
+    session.run("uv", "run", "--active", "coverage", "xml", external=True)
+    session.run("uv", "run", "--active", "coverage", "html", external=True)
