@@ -7,21 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.47.0](https://github.com/NodeJSmith/hassette/compare/v0.46.0...v0.47.0) (2026-07-02)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **Secret masking is now type-driven** — `HassetteConfig.token` is now `SecretStr | None` instead of `str | None`. Code reading the token must unwrap it with `token.get_secret_value()`. App-config secret masking follows the declared type: a field is masked only if it is typed `SecretStr`. The old name-based regex (`token`/`password`/`secret`/`api_key`) is removed. App authors who relied on name-based masking must type those fields `SecretStr` to keep them hidden in the dashboard. (#1131)
 
-* `HassetteConfig.token` is now `SecretStr | None` instead of `str | None`. Code reading the token must unwrap it with `token.get_secret_value()` (string interpolation, slicing, and JSON serialization no longer work on the raw field). App-config secret masking is now **type-driven**: a field is masked only if it is typed `SecretStr` — name-based masking (the old `token`/`password`/`secret`/`api_key` regex) is removed. App authors who relied on name-based masking must type those fields `SecretStr` to keep them hidden in the dashboard.
+### Config UI
 
-### Features
-
-* **ui:** redesign config view as a scannable field list ([#1151](https://github.com/NodeJSmith/hassette/issues/1151)) ([d5e31d7](https://github.com/NodeJSmith/hassette/commit/d5e31d791b6ef028c68318bc9d6f5b4b4db748a2)), closes [#1140](https://github.com/NodeJSmith/hassette/issues/1140) [#1141](https://github.com/NodeJSmith/hassette/issues/1141)
-* **ui:** separate user-defined and framework fields in config tab ([#1154](https://github.com/NodeJSmith/hassette/issues/1154)) ([867dba0](https://github.com/NodeJSmith/hassette/commit/867dba0ae6cf695ab6c6355fb608d691d801f0a0)), closes [#1144](https://github.com/NodeJSmith/hassette/issues/1144)
-* unified config UI with type-driven secret masking and ui metadata ([#1131](https://github.com/NodeJSmith/hassette/issues/1131)) ([b3ba8f5](https://github.com/NodeJSmith/hassette/commit/b3ba8f56840196ccc31c598b12c3a62051f80160)), closes [#690](https://github.com/NodeJSmith/hassette/issues/690)
-
+- **Unified config view with complete field coverage** — the global Config page and per-app Config tab now share a single backend and renderer. Previously, the global page hand-maintained a mapper that silently dropped whole config groups (`database`, `websocket`, `blocking_io`); all fields are now visible. Secrets are masked by type (`SecretStr`), values format by type (booleans as badges, durations humanized, paths as code), and app authors can add presentation hints via `json_schema_extra` `ui` metadata on their `AppConfig` fields. (#1131)
+- **Scannable field list layout** — the config view is redesigned from a 3-column table into a field list with distinct visual registers: human label, TOML key, and formatted value. Field descriptions move into a click-to-open info popover. Fixes a 360px horizontal overflow on the old table layout. (#1151)
+- **User-defined and framework fields separated** — the per-app Config tab now partitions fields into "App Settings" (user-defined) and "Hassette Settings" (framework-managed like `log_level`, `blocking_io_behavior`). `enabled` and `autostart` now appear in the config tab. (#1154)
 
 ### Bug Fixes
 
-* **cli:** show app config values instead of the inlined schema blob ([#1138](https://github.com/NodeJSmith/hassette/issues/1138)) ([815bff7](https://github.com/NodeJSmith/hassette/commit/815bff712df2afcaeb3f6a1e5678c57e9e490840))
+- **`hassette app config` shows values instead of schema blob** — the CLI command was dumping the raw inlined JSON schema into the terminal instead of the masked config values (a regression from the config unification). (#1138)
 
 ## [0.46.0](https://github.com/NodeJSmith/hassette/compare/v0.45.0...v0.46.0) (2026-06-25)
 
