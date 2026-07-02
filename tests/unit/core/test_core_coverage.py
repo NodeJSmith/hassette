@@ -8,7 +8,6 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 """
 
 import asyncio
-import warnings
 from contextlib import suppress
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -24,35 +23,34 @@ from hassette.test_utils import preserve_config, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
+# wire_services() creates anyio memory streams that are closed explicitly in the
+# fixture teardown. However, pytest holds internal references to fixture results,
+# so the Hassette object's refcount doesn't reach zero until a later GC cycle.
+# When GC finalizes it, anyio's MemoryObject.__del__ fires a ResourceWarning for
+# streams that were closed but whose owning object wasn't yet collected. This is
+# a CPython GC nondeterminism issue, not a real leak — the streams ARE closed.
+pytestmark = pytest.mark.filterwarnings("ignore::ResourceWarning:anyio")
+
 
 @pytest.fixture
 async def wired_hassette(test_config: HassetteConfig):
     """A fully-wired Hassette instance for accessor/delegation tests.
 
-    wire_services() creates internal anyio streams that only close during a full
-    shutdown cycle. Suppressing ResourceWarning avoids GC-timing errors when
-    pytest-randomly reorders tests.
+    wire_services() creates three anyio memory streams. All are closed
+    explicitly below. See pytestmark for the ResourceWarning scoping.
     """
     test_config.reload()
     instance = Hassette(test_config)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", ResourceWarning)
-        instance.wire_services()
+    instance.wire_services()
     try:
         yield instance
     finally:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ResourceWarning)
-            with suppress(Exception):
-                if not instance._event_stream_service.event_streams_closed:
-                    await instance._event_stream_service.close_streams()
-            for svc in [instance._bus_service, instance._scheduler_service]:
-                with suppress(Exception):
-                    if hasattr(svc, "stream") and not svc.stream._closed:
-                        await svc.stream.aclose()
-                with suppress(Exception):
-                    if hasattr(svc, "_send_stream") and not svc._send_stream._closed:
-                        await svc._send_stream.aclose()
+        with suppress(Exception):
+            if not instance._bus_service.stream._closed:
+                await instance._bus_service.stream.aclose()
+        with suppress(Exception):
+            if not instance._event_stream_service.event_streams_closed:
+                await instance._event_stream_service.close_streams()
 
 
 class TestUrlProperties:
