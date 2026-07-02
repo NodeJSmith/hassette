@@ -457,7 +457,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         assert job2 is not None, "Job should still be scheduled after one fire"
 
         # Next fire should be ~10s after first fire, not 10s after completion
-        delta = (job2.next_run - t0).in_seconds()
+        delta = (job2.next_run - t0).total("seconds")
         # Allow a small tolerance; the grid tick should be ~10s
         assert 9 <= delta <= 11, f"Expected next fire ~10s after first fire, got delta={delta}s"
 

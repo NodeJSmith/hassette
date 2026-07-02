@@ -221,7 +221,7 @@ class SchedulerService(Service):
                 If None, uses the default delay.
         """
         try:
-            timeout = self.calculate_sleep_time(next_run_time).in_seconds()
+            timeout = self.calculate_sleep_time(next_run_time).total("seconds")
             await asyncio.wait_for(self._wakeup_event.wait(), timeout=timeout)
             self.logger.debug("Scheduler woke up due to kick")
         except asyncio.CancelledError:
@@ -240,7 +240,7 @@ class SchedulerService(Service):
         """
         if next_run_time is not None:
             self.logger.debug("Next job scheduled at %s", next_run_time)
-            delay = max((next_run_time - date_utils.now()).in_seconds(), self.min_delay)
+            delay = max((next_run_time - date_utils.now()).total("seconds"), self.min_delay)
         else:
             delay = self.default_delay
 
@@ -332,7 +332,7 @@ class SchedulerService(Service):
             if next_run is not None:
                 curr_next_run = job.next_run
                 job.set_next_run(next_run)
-                delta_to_now = (job.next_run - date_utils.now()).in_seconds()
+                delta_to_now = (job.next_run - date_utils.now()).total("seconds")
                 if delta_to_now <= 0:
                     self.logger.warning(
                         "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s",
@@ -425,7 +425,7 @@ class SchedulerService(Service):
         Args:
             job: The job to run.
         """
-        lag = (date_utils.now() - job.fire_at).in_seconds()
+        lag = (date_utils.now() - job.fire_at).total("seconds")
         if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
             self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
 
