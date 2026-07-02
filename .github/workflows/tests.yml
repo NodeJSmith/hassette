@@ -53,7 +53,7 @@ jobs:
             - name: Set up Node.js
               uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
               with:
-                  node-version: "22"
+                  node-version: "24"
                   cache: "npm"
                   cache-dependency-path: frontend/package-lock.json
 
@@ -226,7 +226,7 @@ jobs:
             - name: Upload coverage to Codecov
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
               continue-on-error: true
-              uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
+              uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
               with:
                   files: coverage.xml,frontend-coverage/lcov.info
                   fail_ci_if_error: true

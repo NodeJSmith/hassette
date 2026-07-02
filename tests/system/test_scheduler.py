@@ -52,7 +52,7 @@ async def test_run_once_at_time(ha_container: str, tmp_path) -> None:
 
         # Schedule ~2 seconds in the future using an absolute ZonedDateTime so
         # there is no ambiguity from HH:MM rounding to the nearest minute.
-        target = date_utils.now().add(seconds=2).round(unit="second")
+        target = date_utils.now().add(seconds=2).round("second")
         await scheduler.run_once(_callback, at=target)
         await wait_for(lambda: len(fired) >= 1, timeout=8.0, desc="run_once callback to fire at target time")
 

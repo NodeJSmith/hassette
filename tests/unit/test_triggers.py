@@ -165,8 +165,8 @@ def test_every_drift_resistant() -> None:
     current_time2 = zdt(2025, 8, 18, 0, 10, 0)
     r2 = trigger.next_run_time(r1, current_time2)
 
-    assert (r1 - prev).in_seconds() % 60 == 0, f"r1={r1.format_iso()} not on 60s grid"
-    assert (r2 - r1).in_seconds() % 60 == 0, f"r2={r2.format_iso()} not on 60s grid"
+    assert (r1 - prev).total("seconds") % 60 == 0, f"r1={r1.format_iso()} not on 60s grid"
+    assert (r2 - r1).total("seconds") % 60 == 0, f"r2={r2.format_iso()} not on 60s grid"
 
 
 def test_every_trigger_id() -> None:

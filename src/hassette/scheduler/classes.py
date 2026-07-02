@@ -37,7 +37,7 @@ class CronTrigger:
         self.start = start
         # Validate expression eagerly at construction time
         base = start or date_utils.now()
-        croniter(cron_expression, base.py_datetime(), ret_type=datetime)
+        croniter(cron_expression, base.to_stdlib(), ret_type=datetime)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, CronTrigger):
@@ -63,13 +63,13 @@ class CronTrigger:
         return self._next_after(previous_run, current_time)
 
     def _next_after(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        cron = croniter(self.cron_expression, anchor.py_datetime(), ret_type=datetime)
+        cron = croniter(self.cron_expression, anchor.to_stdlib(), ret_type=datetime)
         # Normalise current_time to UTC so the ``next_time > current_dt`` comparison below is
         # unambiguous around DST transitions. During fall-back, ``current_time`` may carry
         # fold=0 (pre-transition, CDT) while croniter returns fold=1 wall-clock values (CST).
         # Without UTC normalisation, the CST occurrence appears UTC-earlier than the CDT
         # anchor and the loop skips the ambiguous slot entirely.
-        current_dt_utc = current_time.py_datetime().astimezone(UTC)
+        current_dt_utc = current_time.to_stdlib().astimezone(UTC)
         ambiguous_ticks_skipped = 0
         # Bounded iteration — avoids O(N) spin for sub-second crons after long downtime.
         # 10,000 iterations covers ~2.7 hours of per-second crons, which is generous.
@@ -104,7 +104,7 @@ class CronTrigger:
             self.cron_expression,
             MAX_CRON_ITERATIONS,
         )
-        skip_ahead_dt = current_time.py_datetime()
+        skip_ahead_dt = current_time.to_stdlib()
         cron = croniter(self.cron_expression, skip_ahead_dt, ret_type=datetime)
         next_time = cron.get_next()
         return self._dst_safe_from_dt(next_time)
@@ -132,7 +132,7 @@ class CronTrigger:
         Returns:
             A ``ZonedDateTime`` with DST disambiguation applied.
         """
-        return ZonedDateTime.from_py_datetime(dt.replace(fold=1))
+        return ZonedDateTime(dt.replace(fold=1))
 
 
 @dataclass(order=True)
@@ -387,7 +387,7 @@ class ScheduledJob:
         ``SchedulerService.apply_jitter_to_heap()`` after this to set a jittered
         ``fire_at`` when the job has ``jitter`` configured.
         """
-        rounded = next_run.round(unit="second")
+        rounded = next_run.round("second")
         self.next_run = rounded
         self.fire_at = rounded
         self.sort_index = (rounded.timestamp_nanos(), id(self))

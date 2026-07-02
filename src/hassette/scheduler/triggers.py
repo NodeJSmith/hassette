@@ -54,12 +54,12 @@ class After:
             self._delay = timedelta
         else:
             self._delay = TimeDelta(seconds=seconds, minutes=minutes)
-        if self._delay.in_seconds() <= 0:
+        if self._delay.total("seconds") <= 0:
             raise ValueError("After trigger delay must be positive")
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return current_time plus the delay."""
-        return current_time.add(seconds=self._delay.in_seconds()).round(unit="second")
+        return current_time.add(seconds=self._delay.total("seconds")).round("second")
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> None:
         """One-shot trigger; always returns None."""
@@ -69,13 +69,13 @@ class After:
         return "after"
 
     def trigger_detail(self) -> str | None:
-        return f"{int(self._delay.in_seconds())}s"
+        return f"{int(self._delay.total('seconds'))}s"
 
     def trigger_db_type(self) -> Literal["after"]:
         return "after"
 
     def trigger_id(self) -> str:
-        return f"after:{int(self._delay.in_seconds())}"
+        return f"after:{int(self._delay.total('seconds'))}"
 
 
 class Once:
@@ -195,22 +195,23 @@ class Every:
         start: ZonedDateTime | None = None,
     ) -> None:
         total = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
-        if total.in_seconds() <= 0:
+        total_seconds = total.total("seconds")
+        if total_seconds <= 0:
             raise ValueError("Every trigger interval must be positive")
-        if total.in_seconds() != int(total.in_seconds()):
+        if total_seconds != int(total_seconds):
             raise ValueError("Every trigger interval must be a whole number of seconds")
         self._interval = total
         self._start = start
 
     @property
     def interval_seconds(self) -> float:
-        return self._interval.in_seconds()
+        return self._interval.total("seconds")
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return the first run time, aligned to the interval grid."""
         start = self._start if self._start is not None else current_time
         if start > current_time:
-            return start.round(unit="second")
+            return start.round("second")
         return self.advance_past(start, current_time)
 
     def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
@@ -219,8 +220,8 @@ class Every:
 
     def advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
         """Advance anchor by whole intervals until the result is strictly after current_time."""
-        interval_secs = self._interval.in_seconds()
-        elapsed = (current_time - anchor).in_seconds()
+        interval_secs = self._interval.total("seconds")
+        elapsed = (current_time - anchor).total("seconds")
         if elapsed > 0:
             missed = int(elapsed / interval_secs)
             anchor = anchor.add(seconds=missed * interval_secs)
@@ -229,7 +230,7 @@ class Every:
         # advance one more interval. Boundary-exact slots are treated as "past."
         if result <= current_time:
             result = result.add(seconds=interval_secs)
-        return result.round(unit="second")
+        return result.round("second")
 
     def trigger_label(self) -> str:
         return "every"
