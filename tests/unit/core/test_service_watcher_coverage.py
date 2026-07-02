@@ -181,7 +181,7 @@ class TestOnServiceRunningEarlyReturns:
 
         event = make_service_running_event(dummy)
 
-        # Should return before calling wait_ready — patch it to fail loudly if reached.
+        # branch-isolation: wait_ready set to fail loudly — proves early return before reaching it
         with patch.object(dummy, "wait_ready", side_effect=AssertionError("should not be called")):
             await watcher.on_service_running(event)
 
@@ -228,6 +228,7 @@ class TestCooldownAndRetry:
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = _DummyService(hassette)
+        # branch-isolation: restart forced to raise for cooldown_and_retry error path
         dummy.restart = AsyncMock(side_effect=RuntimeError("restart blew up"))
         hassette.children = [dummy]
 
@@ -253,19 +254,19 @@ class TestCooldownAndRetry:
 
 class TestRestartServiceMultipleMatches:
     async def test_restarts_all_matching_services_and_warns(self) -> None:
-        """When two services share class_name/role, restart_service restarts both."""
+        """When two services share class_name/role, restart_service restarts both and warns."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
+        watcher.logger = Mock()
 
         svc_a = _DummyService(hassette)
         svc_b = _DummyService(hassette)
+        # boundary-exempt: collaborator of restart_service
         svc_a.restart = AsyncMock()
         svc_b.restart = AsyncMock()
         hassette.children = [svc_a, svc_b]
 
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, backoff_base_seconds=0, budget_intensity=10)
-        # Both instances share class_name "_DummyService", so get_service() returns both;
-        # only svc_a's restart_spec is consulted (services[0]).
         svc_a.restart_spec = spec  # pyright: ignore[reportAttributeAccessIssue]
 
         event = make_service_failed_event(svc_a)
@@ -274,6 +275,7 @@ class TestRestartServiceMultipleMatches:
 
         svc_a.restart.assert_awaited_once()
         svc_b.restart.assert_awaited_once()
+        watcher.logger.warning.assert_called_once()
 
 
 class TestRestartServiceNoServiceFound:

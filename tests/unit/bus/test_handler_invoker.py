@@ -304,6 +304,7 @@ class TestHandlerInvokerWarnStalled:
             warn_calls.append(threshold)
             original_warn_stalled(self, threshold)
 
+        # boundary-exempt: collaborator of dispatch (stall watchdog spy)
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
         task_bucket = make_task_bucket()
@@ -329,6 +330,7 @@ class TestHandlerInvokerWarnStalled:
         def spy_warn_stalled(_self: HandlerInvoker, threshold: float) -> None:
             warn_calls.append(threshold)
 
+        # boundary-exempt: collaborator of dispatch (stall watchdog spy)
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
         task_bucket = make_task_bucket()
