@@ -169,7 +169,8 @@ def _install_coverage_pth(session: "Session") -> None:
     )
     if not result:
         session.error("failed to detect site-packages path")
-    pth_path = Path(result.strip()) / "coverage_subprocess.pth"
+    site_dir = result.strip().splitlines()[-1]
+    pth_path = Path(site_dir) / "coverage_subprocess.pth"
     pth_path.write_text("import coverage; coverage.process_startup()\n")
 
 

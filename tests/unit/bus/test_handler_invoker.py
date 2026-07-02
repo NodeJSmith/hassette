@@ -315,7 +315,7 @@ class TestHandlerInvokerWarnStalled:
         )
 
         async def slow_invoke() -> None:
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.2)
 
         await invoker.dispatch(slow_invoke)
 

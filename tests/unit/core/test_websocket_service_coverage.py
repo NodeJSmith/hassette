@@ -127,12 +127,16 @@ class TestMakeConnectionRetries:
         websocket_service.partial_cleanup = AsyncMock()  # collaborator of make_connection
         websocket_service.start_recv_and_subscribe = AsyncMock(return_value="recv-task-sentinel")
 
-        # ws_hassette_stub sets connect_retry_max_attempts=3, matching the attempts needed here.
+        max_attempts = 3
+        websocket_service.hassette.config.websocket.connect_retry_max_attempts = max_attempts
+
         result = await websocket_service.make_connection(MagicMock())
 
-        assert attempts == 3, f"Expected 3 connect_ws attempts, got {attempts}"
+        assert attempts == max_attempts, f"Expected {max_attempts} connect_ws attempts, got {attempts}"
         assert result == "recv-task-sentinel"
-        assert websocket_service.partial_cleanup.await_count == 3, "partial_cleanup runs before every attempt"
+        assert websocket_service.partial_cleanup.await_count == max_attempts, (
+            "partial_cleanup runs before every attempt"
+        )
 
     async def test_make_connection_does_not_retry_invalid_auth(self, websocket_service: WebsocketService) -> None:
         """make_connection propagates InvalidAuthError immediately without retrying (NON_RETRYABLE)."""

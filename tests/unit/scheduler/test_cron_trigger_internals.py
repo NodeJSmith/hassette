@@ -6,9 +6,11 @@ already covered by tests/unit/test_triggers.py via Daily(); this file focuses on
 CronTrigger's own dunder/identity behavior and the iteration-bound fallback.
 """
 
+from unittest.mock import patch
+
 import pytest
 
-from hassette.scheduler.classes import MAX_CRON_ITERATIONS, CronTrigger
+from hassette.scheduler.classes import CronTrigger
 
 from .conftest import TZ, zdt
 
@@ -87,27 +89,25 @@ class TestCronTriggerMaxIterationsFallback:
         """When catching up would take more than MAX_CRON_ITERATIONS ticks, the loop
         gives up and re-anchors from current_time instead of iterating forever.
 
-        A per-second cron ("* * * * * *", 6-field) anchored 3 hours (10800 ticks) before
-        current_time exceeds MAX_CRON_ITERATIONS (10000), forcing the skip-ahead branch.
+        Patches MAX_CRON_ITERATIONS to 5 so the test doesn't spin through 10k iterations.
         """
         anchor = zdt(2025, 8, 18, 0, 0, 0)
-        current_time = anchor.add(hours=3)
-        assert MAX_CRON_ITERATIONS < 3 * 3600, "test setup must exceed MAX_CRON_ITERATIONS"
+        current_time = anchor.add(minutes=10)
 
-        trigger = CronTrigger("* * * * * *", start=anchor)
-        result = trigger.first_run_time(current_time)
+        with patch("hassette.scheduler.classes.MAX_CRON_ITERATIONS", 5):
+            trigger = CronTrigger("* * * * *", start=anchor)
+            result = trigger.first_run_time(current_time)
 
-        # Skip-ahead re-anchors from current_time, so the result must still be later than it
-        # (loop correctness), and — because it's a per-second cron — within a couple seconds.
         assert result > current_time
-        assert (result - current_time).total("seconds") <= 2
+        assert (result - current_time).total("seconds") <= 60
 
     def test_exceeding_max_iterations_result_is_timezone_correct(self) -> None:
         """The skip-ahead result still carries the trigger's original timezone."""
         anchor = zdt(2025, 8, 18, 0, 0, 0)
-        current_time = anchor.add(hours=3)
+        current_time = anchor.add(minutes=10)
 
-        trigger = CronTrigger("* * * * * *", start=anchor)
-        result = trigger.first_run_time(current_time)
+        with patch("hassette.scheduler.classes.MAX_CRON_ITERATIONS", 5):
+            trigger = CronTrigger("* * * * *", start=anchor)
+            result = trigger.first_run_time(current_time)
 
         assert result.tz == TZ

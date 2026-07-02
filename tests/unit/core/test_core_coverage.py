@@ -12,6 +12,7 @@ from contextlib import suppress
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from anyio import ClosedResourceError
 
 import hassette.core.core as core_module
 from hassette import context
@@ -45,10 +46,10 @@ async def wired_hassette(test_config: HassetteConfig):
     try:
         yield instance
     finally:
-        with suppress(Exception):
+        with suppress(ClosedResourceError):
             if not instance._bus_service.stream._closed:
                 await instance._bus_service.stream.aclose()
-        with suppress(Exception):
+        with suppress(ClosedResourceError):
             if not instance._event_stream_service.event_streams_closed:
                 await instance._event_stream_service.close_streams()
 
