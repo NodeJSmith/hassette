@@ -72,7 +72,9 @@ class TestStopAppFailure:
     ) -> None:
         """An exception from registry.unregister_app is caught and logged, not propagated."""
         mock_registry.unregister_app = Mock(side_effect=RuntimeError("registry corrupted"))
-        lifecycle_service.shutdown_instances = AsyncMock()  # boundary-exempt: collaborator of stop_app
+        lifecycle_service.shutdown_instances = (
+            AsyncMock()
+        )  # branch-isolation: skip shutdown to test unregister error path
 
         await lifecycle_service.stop_app("test_app")
 
@@ -82,9 +84,9 @@ class TestStopAppFailure:
 class TestReloadAppFailure:
     async def test_stop_failure_prevents_start_and_does_not_raise(self, lifecycle_service: AppLifecycleService) -> None:
         """If stop_app raises, reload_app catches it and never calls start_app."""
-        # boundary-exempt: collaborator of reload_app
+        # branch-isolation: stop_app forced to raise for reload_app error path
         lifecycle_service.stop_app = AsyncMock(side_effect=RuntimeError("stop blew up"))
-        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of reload_app
+        lifecycle_service.start_app = AsyncMock()  # branch-isolation: verify start_app is never reached
 
         await lifecycle_service.reload_app("test_app")
 
@@ -128,7 +130,9 @@ class TestHandleChangeEventBranches:
                 orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
             )
         )
-        lifecycle_service.apply_changes = AsyncMock()  # boundary-exempt: collaborator of handle_change_event
+        lifecycle_service.apply_changes = (
+            AsyncMock()
+        )  # branch-isolation: verify apply_changes is skipped on empty changeset
 
         await lifecycle_service.handle_change_event()
 
@@ -149,7 +153,7 @@ class TestHandleChangeEventBranches:
                 orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
             )
         )
-        # boundary-exempt: collaborator of handle_change_event
+        # branch-isolation: reconcile_blocked_apps forced to return unblocked apps
         lifecycle_service.reconcile_blocked_apps = Mock(return_value={"unblocked_app"})
         mock_registry.apps = {}
 

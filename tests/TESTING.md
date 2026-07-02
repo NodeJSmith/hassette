@@ -301,17 +301,24 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
 
 `build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.test_utils`.
 
-### The `# boundary-exempt:` annotation convention
+### The `# boundary-exempt:` and `# branch-isolation:` annotations
 
-Some tests legitimately stub a collaborator of the MUT — methods that *feed into* the method under test but are not the thing being tested. These stubs are allowed; they just need to be declared explicitly.
+Two annotation conventions cover the two patterns where a test legitimately stubs an internal method. Both are recognized by the CI guard (`tools/check_internal_patches.py`).
 
-**Canonical form:**
+**`# boundary-exempt: collaborator of <method_name>`** — the stub isolates a collaborator that the MUT calls. The method is on the same class but is a separate concern being stubbed for isolation. The `<method_name>` is the method under test.
 
 ```python
-# boundary-exempt: collaborator of <method_name>
+websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
 ```
 
-The `<method_name>` is the method under test that the stubbed symbol collaborates with. Trailing parens are optional — both `collaborator of serve()` and `collaborator of on_reconnect` are used in the existing suite, and either is fine. The guard keys only on the `# boundary-exempt:` prefix, not on the method-name format, so the parens are purely a readability choice.
+**`# branch-isolation: <description>`** — the stub forces a sibling method to behave a specific way so the test can reach a particular branch in the MUT. The goal is not to avoid calling the method — it is to control its outcome.
+
+```python
+# branch-isolation: stop_app forced to raise for reload_app error path
+lifecycle_service.stop_app = AsyncMock(side_effect=RuntimeError("stop blew up"))
+```
+
+Use `boundary-exempt` when the stubbed method is a dependency of the MUT. Use `branch-isolation` when the stubbed method is the MUT's own sibling being forced to a specific behavior for coverage.
 
 ### Three accepted annotation placements
 
