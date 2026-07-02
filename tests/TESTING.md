@@ -359,6 +359,39 @@ uv run python tools/check_internal_patches.py
 
 ---
 
+## Coverage Measurement
+
+### Why local `pytest --cov` reports lower numbers than CI
+
+`pytest --cov` (via pytest-cov) starts coverage tracing in `pytest_configure` — after `tests/conftest.py` has already imported hassette at module scope. Every module-level statement (imports, dataclass field declarations, `def` lines) executed during that early import is permanently invisible to coverage. This underreports by 15-40 percentage points per module.
+
+CI uses `COVERAGE_PROCESS_START` + a `.pth` file (installed by the nox coverage sessions) that starts tracing at interpreter startup — before anything imports. This gives accurate numbers.
+
+To get accurate local coverage, use the nox session:
+
+```bash
+uv run nox -s tests_with_coverage -p 3.14
+```
+
+Or replicate the approach manually:
+
+```bash
+# Install the .pth file (one-time per venv)
+SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+echo "import coverage; coverage.process_startup()" > "$SITE/coverage_subprocess.pth"
+
+# Run with COVERAGE_PROCESS_START (works with xdist)
+COVERAGE_PROCESS_START=pyproject.toml COVERAGE_FILE=.coverage \
+  uv run pytest tests/unit tests/integration -n 4 -q
+uv run coverage combine && uv run coverage report
+```
+
+### What's excluded from coverage
+
+Codegen and pure-data modules are excluded in both `pyproject.toml` (`[tool.coverage.run] omit`) and `.github/codecov.yml` (`ignore`). See the comments in those files for the full list and rationale.
+
+---
+
 ## E2E Seed Data Resilience Convention
 
 All E2E test assertions that depend on seed data values **must** use computed constants, not hand-written literals.
