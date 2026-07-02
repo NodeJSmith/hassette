@@ -8,6 +8,8 @@ both contexts.
 """
 
 import ast
+import io
+import tokenize
 from collections.abc import Callable
 from pathlib import Path
 
@@ -55,6 +57,18 @@ def run_check(
 
     print(f"OK: {ok}")
     return 0
+
+
+def extract_comments(source: str) -> dict[int, str]:
+    """Return {1-based line number: comment text} for every COMMENT token in source."""
+    comments: dict[int, str] = {}
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT:
+                comments[tok.start[0]] = tok.string
+    except (tokenize.TokenError, IndentationError):
+        pass
+    return comments
 
 
 def docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:

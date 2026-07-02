@@ -12,6 +12,7 @@ import typing
 import pytest
 
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
+from hassette.test_utils.helpers import create_listener
 
 from .conftest import mock_add_listener
 
@@ -34,6 +35,22 @@ async def test_registering_without_name_raises(bus: "Bus") -> None:
     """Bus.on() without name= raises ListenerNameRequiredError."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
         await bus.on(topic="test.topic", handler=handler_a)
+
+
+async def test_add_listener_without_name_raises(bus: "Bus") -> None:
+    """Bus.add_listener() with a pre-built Listener that has no name= raises
+    ListenerNameRequiredError synchronously, before bus_service.add_listener is ever reached.
+
+    This mirrors Bus.on()'s validation but is add_listener's own check — the pre-built
+    Listener path bypasses on()/on_state_change()'s name= parameter entirely.
+    """
+    listener = create_listener(handler=handler_a, topic="test.topic")  # name=None by default
+    with mock_add_listener(bus) as add_mock, pytest.raises(ListenerNameRequiredError) as exc_info:
+        await bus.add_listener(listener)
+
+    add_mock.assert_not_awaited()
+    assert "handler_a" in exc_info.value.handler_method
+    assert exc_info.value.topic == "test.topic"
 
 
 async def test_name_required_error_has_handler_and_topic_attrs(bus: "Bus") -> None:

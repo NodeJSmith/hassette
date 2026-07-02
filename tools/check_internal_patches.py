@@ -39,18 +39,28 @@ than text:
 object (the task bucket), not on the service/proxy/lifecycle under guard. It is
 simply absent from the prohibited set.
 
-The ``# boundary-exempt:`` annotation is the escape hatch for sites that are
-genuinely mocking a collaborator of the MUT (not the MUT itself). Comments are
-discarded by the AST, so the annotation is matched against the raw source lines
-spanning the flagged statement. Two placements are accepted:
+Two annotations are recognized as escape hatches for different patterns:
 
-    (a) Anywhere on the flagged statement's own physical line span — the same
+    ``# boundary-exempt: collaborator of <method_name>``
+        The stub isolates a collaborator that the MUT calls — the method is on
+        the same class but is a separate concern being stubbed for isolation.
+        Example: mocking ``authenticate`` when testing ``connect_ws``.
+
+    ``# branch-isolation: <method> forced to <behavior> for <target> coverage``
+        The stub forces a sibling method to behave a specific way so the test
+        can reach a particular branch in the MUT. The goal is not to avoid
+        calling the method — it is to control its outcome.
+        Example: mocking ``stop_app`` to raise so ``reload_app``'s error path fires.
+
+Annotations are matched via ``tokenize``-derived comment tokens on the flagged
+statement's own physical lines, avoiding false positives from annotation text
+inside string literals. Two placements are accepted:
+
+    (a) A comment on any physical line of the flagged statement — the same
         line as the symbol, or any continuation line of a multi-line call.
     (b) The comment-only line immediately preceding the flagged statement (no
         blank line between) — for long ``with patch.object(...)`` statements
         that cannot carry a trailing comment within the 120-char limit.
-
-Canonical annotation form: ``# boundary-exempt: collaborator of <method_name>``
 
 Usage:
     python tools/check_internal_patches.py
@@ -59,6 +69,8 @@ Usage:
 import ast
 import sys
 from pathlib import Path
+
+from lint_helpers import extract_comments
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -115,7 +127,7 @@ SERVICE_RECEIVERS: frozenset[str] = frozenset(
     ]
 )
 
-ANNOTATION = "# boundary-exempt:"
+ANNOTATIONS = ("# boundary-exempt:", "# branch-isolation:")
 
 
 def func_chain(func: ast.expr) -> list[str]:
@@ -230,21 +242,20 @@ class PatchVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def is_exempt(lines: list[str], lineno: int, end_lineno: int) -> bool:
-    """Return True if the statement spanning [lineno, end_lineno] is boundary-exempt.
+def is_exempt(lineno: int, end_lineno: int, comments: dict[int, str]) -> bool:
+    """Return True if the statement spanning [lineno, end_lineno] is annotated.
 
-    Accepts the annotation anywhere on the statement's own physical lines, or on the
-    comment-only line immediately preceding it (1-based line numbers).
+    Checks real comment tokens (via tokenize) on the statement's own physical lines
+    and on the comment-only line immediately preceding it (1-based line numbers).
     """
-    # lineno/end_lineno are 1-based; lines is 0-indexed, hence the -1 / -2 offsets.
-    for i in range(lineno - 1, end_lineno):
-        if ANNOTATION in lines[i]:
+    for line_num in range(lineno, end_lineno + 1):
+        comment = comments.get(line_num, "")
+        if any(a in comment for a in ANNOTATIONS):
             return True
 
-    if lineno >= 2:
-        prev = lines[lineno - 2].strip()
-        if prev.startswith("#") and ANNOTATION in prev:
-            return True
+    prev_comment = comments.get(lineno - 1, "")
+    if any(a in prev_comment for a in ANNOTATIONS):
+        return True
 
     return False
 
@@ -256,12 +267,12 @@ def check_file(path: Path) -> list[tuple[int, str]]:
         return []
 
     source = path.read_text()
-    lines = source.splitlines()
+    comments = extract_comments(source)
     visitor = PatchVisitor()
     visitor.visit(ast.parse(source))
 
     violations = [
-        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lines, lineno, end_lineno)
+        (lineno, sym) for lineno, end_lineno, sym in visitor.flagged if not is_exempt(lineno, end_lineno, comments)
     ]
     return sorted(violations)
 
@@ -280,7 +291,9 @@ def main() -> int:
         for rel, lineno, sym in all_violations:
             print(f"  {rel}:{lineno} — {sym}")
         print()
-        print("Each site must carry a '# boundary-exempt: collaborator of <method>' annotation.")
+        print("Each site must carry one of:")
+        print("  # boundary-exempt: collaborator of <method>  — stubbing a collaborator the MUT calls")
+        print("  # branch-isolation: <method> forced to <behavior> for <target> coverage")
         print("See tests/TESTING.md — 'Mocking at Boundaries' for annotation placement rules.")
         return 1
 

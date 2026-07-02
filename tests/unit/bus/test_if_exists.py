@@ -117,6 +117,32 @@ async def test_registration_failure_rolls_back_registry_key(bus: "Bus") -> None:
     assert key in bus._registered_listeners
 
 
+async def test_replace_then_add_listener_fails_propagates(bus: "Bus") -> None:
+    """When if_exists='replace' has already cancelled the old listener but the new
+    add_listener call then fails, the exception propagates (no silent degradation) and the
+    key is left open for a later retry — no handler stays stuck routed under this name.
+    """
+    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+
+    with mock_add_listener(bus):
+        sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+
+    async def failing_add(_listener) -> int:
+        raise RuntimeError("db down")
+
+    bus.bus_service.add_listener = failing_add
+    with pytest.raises(RuntimeError, match="db down"):
+        await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
+
+    assert sub1.listener.is_cancelled, "the replaced listener was cancelled before the failed add"
+    assert key not in bus._registered_listeners, "no phantom key should remain after a failed replace"
+
+    # The name is free again — a following registration is not blocked.
+    with mock_add_listener(bus):
+        sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
+    assert sub2.listener.identity.name == "my_listener"
+
+
 async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus") -> None:
     """A failed add must not pop a key a concurrent replace already re-pointed to a new listener."""
     key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
@@ -193,6 +219,25 @@ async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
 
     msg = str(exc_info.value)
     assert "handler" in msg
+
+
+async def test_skip_drift_with_predicate_change_notes_lambda_identity(bus: "Bus") -> None:
+    """skip drift on a changed predicate appends a note about lambda/closure identity comparison.
+
+    Two freshly-built lambdas with identical bodies compare unequal by identity, so a
+    predicate-only drift is a realistic trap this note is meant to warn about.
+    """
+    with mock_add_listener(bus):
+        await bus.on(topic="test.topic", handler=handler_a, name="my_listener", where=lambda _e: True)
+        with pytest.raises(ValueError, match="configuration has changed") as exc_info:
+            await bus.on(
+                topic="test.topic", handler=handler_a, name="my_listener", where=lambda _e: True, if_exists="skip"
+            )
+
+    msg = str(exc_info.value)
+    assert "predicate" in msg
+    assert "lambda/closure predicates compare by identity" in msg
+    assert "if_exists='replace'" in msg
 
 
 # replace cancels old, registers new

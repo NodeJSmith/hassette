@@ -92,3 +92,13 @@ class TestListenerOptionsValidation:
     def test_timeout_and_timeout_disabled_conflict(self) -> None:
         with pytest.raises(ValueError, match="timeout"):
             ListenerOptions(timeout=5.0, timeout_disabled=True)
+
+    def test_invalid_mode_string_raises_value_error(self) -> None:
+        """An unknown mode string raises ValueError listing the valid execution modes."""
+        with pytest.raises(ValueError, match="bogus_mode") as exc_info:
+            ListenerOptions(mode="bogus_mode")
+        error_msg = str(exc_info.value)
+        assert "single" in error_msg
+        assert "restart" in error_msg
+        assert "queued" in error_msg
+        assert "parallel" in error_msg

@@ -36,6 +36,18 @@ class TestServiceAccessorGuards:
             ("state_proxy", "StateProxy"),
             ("api", "Api"),
             ("states", "StateManager"),
+            ("session_id", "SessionManager"),
+            ("sync_executor_service", "SyncExecutorService"),
+            ("sync_executor", "SyncExecutorService"),
+            ("command_executor", "CommandExecutor"),
+            ("logging_service", "LoggingService"),
+            ("runtime_query_service", "RuntimeQueryService"),
+            ("telemetry_query_service", "TelemetryQueryService"),
+            ("app_handler", "AppHandler"),
+            ("websocket_service", "WebsocketService"),
+            ("api_service", "ApiResource"),
+            ("state_registry", "StateRegistry"),
+            ("type_registry", "TypeRegistry"),
         ],
     )
     def test_accessor_before_wiring_names_service(self, test_config, accessor: str, service: str) -> None:
