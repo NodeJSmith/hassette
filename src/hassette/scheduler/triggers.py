@@ -195,9 +195,10 @@ class Every:
         start: ZonedDateTime | None = None,
     ) -> None:
         total = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
-        if total.total("seconds") <= 0:
+        total_seconds = total.total("seconds")
+        if total_seconds <= 0:
             raise ValueError("Every trigger interval must be positive")
-        if total.total("seconds") != int(total.total("seconds")):
+        if total_seconds != int(total_seconds):
             raise ValueError("Every trigger interval must be a whole number of seconds")
         self._interval = total
         self._start = start
