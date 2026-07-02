@@ -7,15 +7,10 @@ CronTrigger's own dunder/identity behavior and the iteration-bound fallback.
 """
 
 import pytest
-from whenever import ZonedDateTime
 
 from hassette.scheduler.classes import MAX_CRON_ITERATIONS, CronTrigger
 
-TZ = "America/Chicago"
-
-
-def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
-    return ZonedDateTime(year, month, day, hour, minute, second, tz=TZ)
+from .conftest import TZ, zdt
 
 
 class TestCronTriggerEquality:

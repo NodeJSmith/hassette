@@ -10,26 +10,14 @@ does not exercise:
 """
 
 from typing import ClassVar
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from hassette.resources.base import Resource
-from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceRole
 
-
-def build_hassette(**overrides):
-    """make_mock_hassette() plus the harness-bypass stub _auto_wait_dependencies() needs.
-
-    _should_skip_dependency_check is a sync method on real Hassette, but make_mock_hassette's
-    plain AsyncMock leaves it as an unconfigured AsyncMock attribute — calling it without
-    awaiting returns a truthy coroutine, which short-circuits _auto_wait_dependencies() before
-    it ever reaches the branches under test here. Pin it to a real sync Mock.
-    """
-    hassette = make_mock_hassette(sealed=False, **overrides)
-    hassette._should_skip_dependency_check = Mock(return_value=False)
-    return hassette
+from .conftest import build_hassette
 
 
 class _DepA(Resource):

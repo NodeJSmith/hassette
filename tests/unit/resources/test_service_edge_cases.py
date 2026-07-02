@@ -15,7 +15,7 @@ Verifies:
 
 import asyncio
 from typing import ClassVar
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -26,17 +26,7 @@ from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 
-
-def build_hassette(**overrides):
-    """make_mock_hassette() plus the harness-bypass stub _auto_wait_dependencies() needs.
-
-    See tests/unit/resources/test_auto_wait_dependencies_extra.py for why this is required:
-    _should_skip_dependency_check must be a real sync Mock, not an unconfigured AsyncMock
-    attribute, or _auto_wait_dependencies() short-circuits before running any real logic.
-    """
-    hassette = make_mock_hassette(sealed=False, **overrides)
-    hassette._should_skip_dependency_check = Mock(return_value=False)
-    return hassette
+from .conftest import build_hassette
 
 
 class SimpleService(Service):

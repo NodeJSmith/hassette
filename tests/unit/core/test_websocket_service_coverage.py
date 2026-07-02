@@ -18,6 +18,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
+from hassette.resources.service import Service
 from hassette.test_utils import build_fake_ws, make_ws_hassette_stub
 from hassette.types import Topic
 
@@ -188,7 +189,7 @@ class TestCleanup:
         websocket_service._session = None
         websocket_service._recv_task = None
 
-        with patch.object(type(websocket_service).__bases__[0], "cleanup", new=AsyncMock()):
+        with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
 
         assert fut.done()
@@ -207,7 +208,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock  # collaborator of cleanup
 
-        with patch.object(type(websocket_service).__bases__[0], "cleanup", new=AsyncMock()):
+        with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
 
         assert send_json_mock.await_count == 2
@@ -227,7 +228,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock  # collaborator of cleanup
 
-        with patch.object(type(websocket_service).__bases__[0], "cleanup", new=AsyncMock()):
+        with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
 
         send_json_mock.assert_not_awaited()
@@ -246,7 +247,7 @@ class TestCleanup:
         fake_session.close = AsyncMock()
         websocket_service._session = fake_session
 
-        with patch.object(type(websocket_service).__bases__[0], "cleanup", new=AsyncMock()):
+        with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
 
         assert websocket_service._recv_task is None

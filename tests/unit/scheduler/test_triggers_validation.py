@@ -5,15 +5,11 @@ and the trigger_label/trigger_detail/trigger_db_type metadata methods used for t
 """
 
 import pytest
-from whenever import TimeDelta, ZonedDateTime
+from whenever import TimeDelta
 
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once, parse_hh_mm
 
-TZ = "America/Chicago"
-
-
-def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
-    return ZonedDateTime(year, month, day, hour, minute, second, tz=TZ)
+from .conftest import zdt
 
 
 class TestParseHHMM:

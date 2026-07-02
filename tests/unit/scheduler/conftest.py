@@ -2,8 +2,16 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+from whenever import ZonedDateTime
+
 from hassette.scheduler import Scheduler
 from hassette.scheduler.classes import ScheduledJob
+
+TZ = "America/Chicago"
+
+
+def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
+    return ZonedDateTime(year, month, day, hour, minute, second, tz=TZ)
 
 
 async def noop() -> None:
