@@ -6,7 +6,15 @@ for composing and normalizing predicates.
 
 from types import SimpleNamespace
 
-from hassette.event_handling.predicates import AllOf, AnyOf, Guard, Not, ensure_tuple, normalize_where
+from hassette.event_handling.predicates import (
+    AllOf,
+    AnyOf,
+    Guard,
+    Not,
+    ensure_tuple,
+    is_predicate_collection,
+    normalize_where,
+)
 
 
 def always_true(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
@@ -191,3 +199,46 @@ def test_normalize_where_returns_none_for_none() -> None:
     """Test that normalize_where returns None when passed None."""
     predicate = normalize_where(None)
     assert predicate is None
+
+
+# AllOf.ensure_iterable / AnyOf.ensure_iterable classmethods
+def test_allof_ensure_iterable_wraps_a_sequence() -> None:
+    """AllOf.ensure_iterable builds an AllOf from a sequence of predicates."""
+    result = AllOf.ensure_iterable([always_true, always_false])
+
+    assert isinstance(result, AllOf)
+    assert result.predicates == (always_true, always_false)
+
+
+def test_anyof_ensure_iterable_wraps_a_sequence() -> None:
+    """AnyOf.ensure_iterable builds an AnyOf from a sequence of predicates."""
+    result = AnyOf.ensure_iterable([always_true, always_false])
+
+    assert isinstance(result, AnyOf)
+    assert result.predicates == (always_true, always_false)
+
+
+# is_predicate_collection edge cases
+def test_is_predicate_collection_false_for_none() -> None:
+    """is_predicate_collection returns False for None (nothing to recurse into)."""
+    assert is_predicate_collection(None) is False
+
+
+def test_is_predicate_collection_false_for_callable() -> None:
+    """is_predicate_collection returns False for a callable — predicates aren't exploded."""
+    assert is_predicate_collection(always_true) is False
+
+
+def test_is_predicate_collection_false_for_string_and_mapping() -> None:
+    """is_predicate_collection excludes strings, bytes, and mappings even though they're iterable."""
+    assert is_predicate_collection("light.kitchen") is False
+    assert is_predicate_collection(b"light.kitchen") is False
+    assert is_predicate_collection({"entity_id": "light.kitchen"}) is False
+
+
+def test_is_predicate_collection_true_for_list_tuple_set() -> None:
+    """is_predicate_collection returns True for list/tuple/set/frozenset containers."""
+    assert is_predicate_collection([always_true]) is True
+    assert is_predicate_collection((always_true,)) is True
+    assert is_predicate_collection({always_true}) is True
+    assert is_predicate_collection(frozenset({always_true})) is True

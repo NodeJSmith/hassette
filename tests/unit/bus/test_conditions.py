@@ -333,3 +333,172 @@ def test_increased_behavior(old: str | int, new: str | int, expected: bool) -> N
 )
 def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> None:
     assert Decreased()(old, new) is expected
+
+
+def test_is_in_condition_behavior() -> None:
+    """IsIn returns True only for values present in the collection."""
+    condition = IsIn(["light.kitchen", "light.living"])
+
+    assert condition("light.kitchen") is True
+    assert condition("light.bedroom") is False
+
+
+def test_is_in_rejects_string_collection() -> None:
+    """IsIn raises ValueError when given a raw string instead of a sequence of values.
+
+    A bare string is iterable character-by-character, which would silently produce
+    nonsensical membership checks — so it is rejected outright.
+    """
+    with pytest.raises(ValueError, match="collection must be a sequence"):
+        IsIn("light.kitchen")  # pyright: ignore[reportArgumentType]
+
+
+def test_not_in_condition_behavior() -> None:
+    """NotIn returns True only for values absent from the collection."""
+    condition = NotIn(["light.kitchen", "light.living"])
+
+    assert condition("light.bedroom") is True
+    assert condition("light.kitchen") is False
+
+
+def test_not_in_rejects_string_collection() -> None:
+    """NotIn raises ValueError when given a raw string instead of a sequence."""
+    with pytest.raises(ValueError, match="collection must be a sequence"):
+        NotIn("light.kitchen")  # pyright: ignore[reportArgumentType]
+
+
+def test_intersects_condition_behavior() -> None:
+    """Intersects returns True when any item in the value overlaps with the collection."""
+    condition = Intersects(["kitchen", "living"])
+
+    assert condition(["kitchen", "office"]) is True
+    assert condition(["office", "garage"]) is False
+
+
+def test_intersects_returns_false_for_non_sequence_value() -> None:
+    """Intersects returns False (not an error) when the value isn't a sequence at all."""
+    condition = Intersects(["kitchen", "living"])
+
+    assert condition(None) is False
+    assert condition(42) is False
+
+
+def test_intersects_rejects_string_collection() -> None:
+    """Intersects raises ValueError when given a raw string instead of a sequence."""
+    with pytest.raises(ValueError, match="collection must be a sequence"):
+        Intersects("kitchen")  # pyright: ignore[reportArgumentType]
+
+
+def test_not_intersects_condition_behavior() -> None:
+    """NotIntersects returns True only when no item in the value overlaps with the collection."""
+    condition = NotIntersects(["kitchen", "living"])
+
+    assert condition(["office", "garage"]) is True
+    assert condition(["kitchen", "office"]) is False
+
+
+def test_not_intersects_returns_true_for_non_sequence_value() -> None:
+    """NotIntersects returns True (vacuously, no overlap possible) for a non-sequence value."""
+    condition = NotIntersects(["kitchen", "living"])
+
+    assert condition(None) is True
+    assert condition(42) is True
+
+
+def test_not_intersects_rejects_string_collection() -> None:
+    """NotIntersects raises ValueError when given a raw string instead of a sequence."""
+    with pytest.raises(ValueError, match="collection must be a sequence"):
+        NotIntersects("kitchen")  # pyright: ignore[reportArgumentType]
+
+
+def test_is_or_contains_matches_scalar_value() -> None:
+    """IsOrContains compares a scalar value directly for equality."""
+    condition = IsOrContains("light.kitchen")
+
+    assert condition("light.kitchen") is True
+    assert condition("light.living") is False
+
+
+def test_is_or_contains_matches_within_sequence() -> None:
+    """IsOrContains checks membership when the value is a non-string sequence."""
+    condition = IsOrContains("light.kitchen")
+
+    assert condition(["light.kitchen", "light.living"]) is True
+    assert condition(["light.living", "light.bedroom"]) is False
+
+
+def test_is_or_contains_treats_string_value_as_scalar() -> None:
+    """IsOrContains does not iterate over a string value character-by-character."""
+    condition = IsOrContains("k")
+
+    # "k" is a Sequence of characters, but strings are excluded from the "contains" branch
+    assert condition("kitchen") is False
+    assert condition("k") is True
+
+
+def test_is_none_condition_behavior() -> None:
+    """IsNone returns True only for None, not for other falsy values."""
+    condition = IsNone()
+
+    assert condition(None) is True
+    assert condition(0) is False
+    assert condition("") is False
+    assert condition(MISSING_VALUE) is False
+
+
+def test_is_not_none_condition_behavior() -> None:
+    """IsNotNone returns False only for None."""
+    condition = IsNotNone()
+
+    assert condition(None) is False
+    assert condition(0) is True
+    assert condition("") is True
+
+
+def test_comparison_invalid_operator_raises_value_error() -> None:
+    """Comparison rejects unknown operator strings at construction time."""
+    with pytest.raises(ValueError, match="Invalid comparison operator"):
+        Comparison("~=", 10)  # pyright: ignore[reportArgumentType]
+
+
+def test_comparison_returns_false_on_incompatible_types() -> None:
+    """Comparison catches TypeError from an incompatible comparison and returns False."""
+    condition = Comparison("gt", 10)
+
+    assert condition(None) is False
+    assert condition(object()) is False
+
+
+def test_glob_repr() -> None:
+    """Glob has a custom repr distinct from the default dataclass repr."""
+    assert repr(Glob("light.*")) == "Glob('light.*')"
+
+
+def test_starts_with_repr() -> None:
+    """StartsWith has a custom repr distinct from the default dataclass repr."""
+    assert repr(StartsWith("light.")) == "StartsWith('light.')"
+
+
+def test_ends_with_repr() -> None:
+    """EndsWith has a custom repr distinct from the default dataclass repr."""
+    assert repr(EndsWith(".kitchen")) == "EndsWith('.kitchen')"
+
+
+def test_contains_repr() -> None:
+    """Contains has a custom repr distinct from the default dataclass repr."""
+    assert repr(Contains("kitchen")) == "Contains('kitchen')"
+
+
+def test_regex_repr() -> None:
+    """Regex has a custom repr distinct from the default dataclass repr."""
+    assert repr(Regex(r"light\..*kitchen")) == r"Regex('light\\..*kitchen')"
+
+
+def test_comparison_ge_and_le_operators() -> None:
+    """Comparison supports >= and <= via both symbol and alias forms."""
+    assert Comparison(">=", 10)(10) is True
+    assert Comparison(">=", 10)(9) is False
+    assert Comparison("<=", 10)(10) is True
+    assert Comparison("<=", 10)(11) is False
+    assert Comparison("ge", 10)(10) is True
+    assert Comparison("le", 10)(10) is True

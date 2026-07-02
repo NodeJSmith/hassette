@@ -27,3 +27,11 @@ ignore:
   - "src/hassette/migrations/**"
   - "frontend/src/test/**"
   - "frontend/src/test-setup.ts"
+  # Pure data definitions — no logic to test
+  - "src/hassette/models/states/**"  # codegen output (base.py/catalog.py have logic but are collateral)
+  - "src/hassette/models/entities/**" # codegen output (base.py has logic but is collateral)
+  - "src/hassette/types/enums.py"    # StrEnum declarations
+  - "src/hassette/types/types.py"    # type aliases, TypedDicts, Protocols
+  - "src/hassette/const/**"          # literal constants
+  - "src/hassette/web/models.py"     # Pydantic response schemas
+  - "src/hassette/schemas/**"        # Pydantic query/telemetry schemas

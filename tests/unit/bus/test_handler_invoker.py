@@ -6,7 +6,10 @@ use ``mode="parallel"`` (the inline pass-through that never asks ``task_bucket``
 factory the integration tests rely on.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
 from hassette.test_utils.helpers import make_task_bucket
@@ -277,3 +280,68 @@ class TestHandlerInvokerInvoke:
         mock_event = MagicMock()
         await invoker.invoke(mock_event)
         assert received["extra"] == "hello"
+
+
+class TestHandlerInvokerWarnStalled:
+    """Tests for the stall watchdog wired through run_with_mode -> run_through_guard.
+
+    ``mode="parallel"`` awaits inline and never arms the watchdog, so these tests use
+    ``mode="single"`` (a real task_bucket spawn is required for the watchdog's
+    ``call_later`` to race against the handler).
+    """
+
+    async def test_warn_stalled_fires_when_handler_exceeds_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A handler that runs past STALL_THRESHOLD_SECONDS triggers warn_stalled(threshold).
+
+        Wraps (not replaces) the real method so its actual body — the LOGGER.warning call —
+        still runs; the wrapper only records the call for the assertion.
+        """
+        monkeypatch.setattr("hassette.bus.listeners.STALL_THRESHOLD_SECONDS", 0.01)
+        warn_calls: list[float] = []
+        original_warn_stalled = HandlerInvoker.warn_stalled
+
+        def spy_warn_stalled(self: HandlerInvoker, threshold: float) -> None:
+            warn_calls.append(threshold)
+            original_warn_stalled(self, threshold)
+
+        monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
+
+        task_bucket = make_task_bucket()
+        invoker = HandlerInvoker.create(
+            task_bucket=task_bucket,
+            handler=simple_handler,
+            kwargs=None,
+            options=ListenerOptions(mode="single"),
+        )
+
+        async def slow_invoke() -> None:
+            await asyncio.sleep(0.05)
+
+        await invoker.dispatch(slow_invoke)
+
+        assert warn_calls == [0.01], "warn_stalled should fire once, with the patched threshold"
+
+    async def test_warn_stalled_not_called_when_handler_finishes_quickly(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A handler that finishes well under the threshold never triggers the watchdog."""
+        monkeypatch.setattr("hassette.bus.listeners.STALL_THRESHOLD_SECONDS", 5.0)
+        warn_calls: list[float] = []
+
+        def spy_warn_stalled(_self: HandlerInvoker, threshold: float) -> None:
+            warn_calls.append(threshold)
+
+        monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
+
+        task_bucket = make_task_bucket()
+        invoker = HandlerInvoker.create(
+            task_bucket=task_bucket,
+            handler=simple_handler,
+            kwargs=None,
+            options=ListenerOptions(mode="single"),
+        )
+
+        async def fast_invoke() -> None:
+            return
+
+        await invoker.dispatch(fast_invoke)
+
+        assert warn_calls == []

@@ -178,7 +178,18 @@ parallel = true       # enable combining across workers/CI shards
 relative_files = true # stable paths in CI
 # Measure subprocesses (pytest-cov will set env automatically; this is belt+suspenders):
 concurrency = ["thread", "multiprocessing"]
-omit = ["*/__init__.py", "*/__main__.py"]
+omit = [
+    "*/__init__.py",
+    "*/__main__.py",
+    # Pure data definitions — no logic to test
+    "*/models/states/*",     # codegen output (base.py/catalog.py have logic but are collateral)
+    "*/models/entities/*",   # codegen output (base.py has logic but is collateral)
+    "*/types/enums.py",      # StrEnum declarations
+    "*/types/types.py",      # type aliases, TypedDicts, Protocols
+    "*/const/*",             # literal constants
+    "*/web/models.py",       # Pydantic response schemas
+    "*/schemas/*",           # Pydantic query/telemetry schemas
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -186,7 +197,7 @@ skip_covered = true
 # fail_under = 85 # local default; CI can override
 exclude_lines = [
     "pragma: no cover",
-    "if TYPE_CHECKING:",
+    "if (typing\\.)?TYPE_CHECKING:",
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
