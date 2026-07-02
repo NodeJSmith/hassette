@@ -201,7 +201,7 @@ class TestJitter:
             await svc.dispatch_and_log(job)
 
         # next_run should be the unjittered future_time
-        assert job.next_run == future_time.round(unit="second")
+        assert job.next_run == future_time.round("second")
 
         # sort_index[0] should be > job.next_run.timestamp_nanos() due to jitter
         expected_min_nanos = job.next_run.timestamp_nanos()
@@ -245,7 +245,7 @@ class TestJitter:
         with patch("hassette.core.scheduler_service.random.uniform", return_value=30.0):
             await svc.dispatch_and_log(job)
 
-        expected_next_run = future_time.round(unit="second")
+        expected_next_run = future_time.round("second")
         assert job.next_run == expected_next_run
         expected_fire_at = expected_next_run.add(seconds=30)
         assert job.fire_at == expected_fire_at
@@ -534,7 +534,7 @@ class TestNonFutureGuard:
         svc._job_queue.add.assert_called_once_with(job)
 
         # next_run should have been advanced past now
-        assert (job.next_run - date_utils.now()).in_seconds() > 0, (
+        assert (job.next_run - date_utils.now()).total("seconds") > 0, (
             f"Expected next_run to be future, got delta={job.next_run - date_utils.now()}"
         )
         # A warning must have been logged

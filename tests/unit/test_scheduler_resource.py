@@ -278,7 +278,7 @@ class TestConvenienceWrappers:
         scheduler = make_scheduler()
         job = await scheduler.run_in(noop, 30)
         assert isinstance(job.trigger, After)
-        assert job.trigger._delay.in_seconds() == 30
+        assert job.trigger._delay.total("seconds") == 30
 
     async def test_run_in_accepts_float_seconds(self) -> None:
         """run_in accepts a float number of seconds."""

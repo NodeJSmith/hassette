@@ -312,7 +312,7 @@ def from_string_to_stdlib_date(value: str) -> date:
 
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")
 def from_string_to_stdlib_datetime(value: str) -> datetime:
-    return from_string_to_zoned_date_time(value).py_datetime()
+    return from_string_to_zoned_date_time(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a boolean-like value, got {from_type}")

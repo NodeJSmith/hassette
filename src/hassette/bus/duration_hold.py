@@ -300,5 +300,5 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
 
     last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
     now_dt = _date_utils.now()
-    raw_elapsed = (now_dt - last_changed).in_seconds()
+    raw_elapsed = (now_dt - last_changed).total("seconds")
     return max(0.0, min(raw_elapsed, duration))
