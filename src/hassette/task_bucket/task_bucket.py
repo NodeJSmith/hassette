@@ -190,7 +190,7 @@ class TaskBucket(Resource):
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
-            A coroutine that resolves to the return value of *fn*.
+            An :class:`asyncio.Future` that resolves to the return value of *fn*.
         """
         parent_ctx = copy_context()
         cell: list[threading.Thread | None] = [None]
