@@ -714,7 +714,7 @@
           "config"
         ],
         "summary": "Get Config",
-        "description": "Return the complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema derived from the\n``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).\n``config_values`` is the current configuration serialized to JSON with\nany ``SecretStr`` field replaced by a masked placeholder \u2014 the plaintext\nvalue is never sent over the wire.  Every field and nested group is present;\nnothing is omitted.",
+        "description": "Return the complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema derived from the\n``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).\n``config_values`` is the current configuration serialized to JSON with\nany ``SecretStr`` field replaced by a masked placeholder \u2014 the plaintext\nvalue is never sent over the wire. Every field and nested group is present;\nnothing is omitted.",
         "operationId": "get_config_api_config_get",
         "responses": {
           "200": {

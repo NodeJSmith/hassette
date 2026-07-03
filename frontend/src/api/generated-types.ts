@@ -314,7 +314,7 @@ export interface paths {
          *     ``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).
          *     ``config_values`` is the current configuration serialized to JSON with
          *     any ``SecretStr`` field replaced by a masked placeholder — the plaintext
-         *     value is never sent over the wire.  Every field and nested group is present;
+         *     value is never sent over the wire. Every field and nested group is present;
          *     nothing is omitted.
          */
         get: operations["get_config_api_config_get"];
