@@ -6,7 +6,7 @@ import typing
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -22,13 +22,10 @@ itself is a ``list[threading.Thread | None]`` whose first element is set by the 
 when ``_call`` starts executing.  ``_execute`` (same asyncio task, same context snapshot) reads
 this ContextVar to reach ``cell[0]`` at the timeout site.
 
-Why a ContextVar carrying the cell *reference* works (unlike writing from the worker):
-``loop.run_in_executor`` copies the loop thread's context one-way into the worker; the worker
-gets a private snapshot.  Only the loop thread writes to this ContextVar (setting the cell
-reference); the worker writes only to ``cell[0]`` (the list contents).  Because the cell is a
-plain mutable list created on the loop thread and captured by both sides, the worker's mutation
-to ``cell[0]`` is immediately visible to the loop thread when it reads ``cell[0]`` via
-``SYNC_WORKER_CELL.get()``.
+The worker accesses the cell via closure, not via this ContextVar.  The ContextVar exists so
+that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the cell
+reference.  The worker mutates ``cell[0]`` (a plain list element), which is immediately visible
+to the loop thread because both sides share the same list object.
 """
 
 if typing.TYPE_CHECKING:
@@ -178,24 +175,14 @@ class TaskBucket(Resource):
         ``asyncio.to_thread`` calls (logging, database), which continue using the
         loop-default executor.
 
-        A shared mutable cell (``list[threading.Thread | None]``) captures the
-        worker thread immediately when ``_call`` starts executing.  The loop
-        thread reads ``cell[0]`` at the timeout site to check whether the thread
-        outlived its timeout::
+        **Context propagation:** ``loop.run_in_executor`` does NOT copy the calling
+        thread's contextvars into the worker (unlike ``asyncio.to_thread``).  This
+        method captures a full snapshot via ``contextvars.copy_context()`` and runs
+        *fn* inside it so that all contextvars set on the loop thread are visible to
+        sync user code.
 
-            cell: list[threading.Thread | None] = [None]
-            # _call (worker):  cell[0] = threading.current_thread()  <- set on worker
-            # timeout (loop):  cell[0].is_alive()                    <- read on loop
-
-        A ContextVar is NOT used here: ``loop.run_in_executor`` copies the loop
-        thread's context one-way into the worker callable, so any write the worker
-        makes to a ContextVar mutates the worker's private copy and the loop thread
-        reads back ``None``.  The cell sidesteps this by being a plain list created
-        on the loop thread and closed over by both the loop thread and the worker.
-
-        If the timeout fires before the worker has dequeued ``_call``, ``cell[0]``
-        remains ``None`` — a "not-started" timeout, not a thread leak.  The timeout
-        site relies on this sentinel to distinguish the two cases.
+        **Thread cell:** see :data:`SYNC_WORKER_CELL` module docstring for the
+        shared-mutable-cell mechanism used by the timeout site.
 
         Args:
             fn: The synchronous function to run.
@@ -203,26 +190,15 @@ class TaskBucket(Resource):
             **kwargs: Keyword arguments to pass to the function.
 
         Returns:
-            A coroutine that resolves to the return value of *fn*.
+            An :class:`asyncio.Future` that resolves to the return value of *fn*.
         """
-        current_bucket = ctx.CURRENT_BUCKET.get()
-        # Shared mutable cell: set by the worker, read on the loop thread at the timeout site.
-        # The cell is created and owned here (loop thread); the worker mutates cell[0].
+        parent_ctx = copy_context()
         cell: list[threading.Thread | None] = [None]
-        # Expose the cell to _execute via a ContextVar set on the loop thread.
-        # _execute runs in the same asyncio task (same context), so it reads back
-        # the same cell reference.  See SYNC_WORKER_CELL docstring for why this
-        # works when setting from the loop thread but not from the worker.
         SYNC_WORKER_CELL.set(cell)
 
         def _call() -> R:
-            # Record which worker thread picked up this callable — read at the timeout site.
             cell[0] = threading.current_thread()
-            if current_bucket is not None:
-                with ctx.use_task_bucket(current_bucket):
-                    return fn(*args, **kwargs)
-            else:
-                return fn(*args, **kwargs)
+            return parent_ctx.run(fn, *args, **kwargs)
 
         # Submit to the dedicated executor so sync user code is isolated from
         # framework-internal asyncio.to_thread calls (logging, database).
