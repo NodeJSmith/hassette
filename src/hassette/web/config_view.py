@@ -199,7 +199,7 @@ def resolve_app_config_cls(
     if manifest is None:
         manifest = hassette.config.apps.manifests.get(app_key)
     if manifest is not None and class_already_loaded(manifest.full_path, manifest.class_name):
-        return get_loaded_class(manifest.full_path, manifest.class_name).app_config_cls
+        return getattr(get_loaded_class(manifest.full_path, manifest.class_name), "app_config_cls", None)
     return None
 
 
@@ -220,7 +220,9 @@ def mask_app_config(
                 return [mask_values(schema_props, inst) for inst in app_config]
             return mask_values(schema_props, app_config)
         except Exception:
-            LOGGER.warning("Schema generation failed for %s; falling back to safe-floor masking", app_config_cls)
+            LOGGER.warning(
+                "Schema generation failed for %s; falling back to safe-floor masking", app_config_cls, exc_info=True
+            )
     if isinstance(app_config, list):
         return [mask_all_values(inst) for inst in app_config]
     return mask_all_values(app_config)
