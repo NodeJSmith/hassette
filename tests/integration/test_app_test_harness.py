@@ -21,6 +21,7 @@ from hassette.events import CallServiceEvent, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
 from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
+from hassette.test_utils.harness import wait_for
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
 
@@ -470,8 +471,7 @@ async def test_simulate_component_loaded():
 
     async with AppTestHarness(ComponentApp, config={}) as harness:
         await harness.simulate_component_loaded("my_component")
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="component_loaded handler called")
 
 
 async def test_simulate_service_registered():
@@ -487,8 +487,7 @@ async def test_simulate_service_registered():
 
     async with AppTestHarness(ServiceRegApp, config={}) as harness:
         await harness.simulate_service_registered("light", "turn_on")
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="service_registered handler called")
 
 
 async def test_simulate_hassette_service_status():
@@ -522,8 +521,7 @@ async def test_simulate_hassette_service_failed():
 
     async with AppTestHarness(ServiceFailedApp, config={}) as harness:
         await harness.simulate_hassette_service_failed("MyService", exception=RuntimeError("boom"))
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="service_failed handler called")
 
 
 async def test_simulate_hassette_service_crashed():
@@ -539,8 +537,7 @@ async def test_simulate_hassette_service_crashed():
 
     async with AppTestHarness(ServiceCrashedApp, config={}) as harness:
         await harness.simulate_hassette_service_crashed("MyService")
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="service_crashed handler called")
 
 
 async def test_simulate_hassette_service_started():
@@ -593,8 +590,7 @@ async def test_simulate_websocket_connected():
 
     async with AppTestHarness(WsConnectedApp, config={}) as harness:
         await harness.simulate_websocket_connected()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="ws_connected handler called")
 
 
 async def test_simulate_websocket_disconnected():
@@ -610,8 +606,7 @@ async def test_simulate_websocket_disconnected():
 
     async with AppTestHarness(WsDisconnectedApp, config={}) as harness:
         await harness.simulate_websocket_disconnected()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="ws_disconnected handler called")
 
 
 async def test_simulate_app_state_changed():
@@ -665,8 +660,7 @@ async def test_simulate_app_stopping():
 
     async with AppTestHarness(AppStoppingApp, config={}) as harness:
         await harness.simulate_app_stopping()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="app_stopping handler called")
 
 
 async def test_simulate_homeassistant_restart():
@@ -682,8 +676,7 @@ async def test_simulate_homeassistant_restart():
 
     async with AppTestHarness(HaRestartApp, config={}) as harness:
         await harness.simulate_homeassistant_restart()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="ha_restart handler called")
 
 
 async def test_simulate_homeassistant_start():
@@ -699,8 +692,7 @@ async def test_simulate_homeassistant_start():
 
     async with AppTestHarness(HaStartApp, config={}) as harness:
         await harness.simulate_homeassistant_start()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="ha_start handler called")
 
 
 async def test_simulate_homeassistant_stop():
@@ -716,8 +708,7 @@ async def test_simulate_homeassistant_stop():
 
     async with AppTestHarness(HaStopApp, config={}) as harness:
         await harness.simulate_homeassistant_stop()
-
-    assert len(calls) == 1
+        await wait_for(lambda: len(calls) == 1, desc="ha_stop handler called")
 
 
 async def test_simulate_hassette_service_status_typed_di():
