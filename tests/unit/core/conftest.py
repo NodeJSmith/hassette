@@ -10,7 +10,7 @@ import pytest
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.router import Router
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.core.bus_service import BusService
+from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_filter import EventFilter
 from hassette.core.service_watcher import ServiceWatcher
@@ -342,6 +342,8 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
         router=svc.router,
         task_bucket=task_bucket,
         logger=svc.logger,
+        make_synthetic_event=make_synthetic_state_event,
+        compute_elapsed=compute_elapsed,
     )
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()

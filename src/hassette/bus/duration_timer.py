@@ -10,9 +10,6 @@ import asyncio
 import typing
 from logging import getLogger
 
-from hassette.events import HassPayload
-from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
-
 if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from typing import Any
@@ -56,6 +53,7 @@ class DurationTimer:
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: "Callable[[], None] | None" = None,
+        normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
     ) -> None:
         """Initialize the DurationTimer.
 
@@ -72,6 +70,9 @@ class DurationTimer:
                 mock that returns a ``MagicMock()`` acting as a ``Subscription``.
             on_cancel: Optional callback invoked when an active timer is cancelled
                 (not fired).  Used by BusService to decrement the active timer counter.
+            normalize_cancel_event: Strips HA-specific transition state (e.g. old_state)
+                from an event before cancel predicate evaluation. When None, the event
+                is passed through unchanged.
         """
         self.task_bucket = task_bucket
         self.duration = duration
@@ -80,6 +81,7 @@ class DurationTimer:
         self.owner_id = owner_id
         self._create_cancel_sub = create_cancel_sub
         self._on_cancel = on_cancel
+        self._normalize_cancel_event = normalize_cancel_event
 
         self._task: asyncio.Task[None] | None = None
         self._cancel_sub: Subscription | None = None
@@ -199,22 +201,7 @@ class DurationTimer:
         if self._cancelled:
             return
 
-        eval_event = event
-        if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
-            eval_event = RawStateChangeEvent(
-                topic=event.topic,
-                payload=HassPayload(
-                    event_type=event.payload.event_type,
-                    data=RawStateChangePayload(
-                        entity_id=event.payload.data.entity_id,
-                        old_state=None,
-                        new_state=event.payload.data.new_state,
-                    ),
-                    origin=event.payload.origin,
-                    time_fired=event.payload.time_fired,
-                    context=event.payload.context,
-                ),
-            )
+        eval_event = self._normalize_cancel_event(event) if self._normalize_cancel_event is not None else event
 
         if self.predicates is not None and not self.predicates(eval_event):
             LOGGER.debug(

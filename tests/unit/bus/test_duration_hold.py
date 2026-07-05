@@ -17,9 +17,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as _date_utils
-from hassette.bus.duration_hold import DurationHoldManager, compute_elapsed
+from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
+from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
 from hassette.test_utils.helpers import create_listener, make_state_dict
 
 
@@ -77,6 +78,8 @@ def make_manager(
         router=Router(),
         task_bucket=task_bucket,
         logger=logging.getLogger("test"),
+        make_synthetic_event=make_synthetic_state_event,
+        compute_elapsed=compute_elapsed,
     )
 
 
@@ -105,6 +108,8 @@ class TestImmediateFireTask:
             router=Router(),
             task_bucket=make_task_bucket_with_spawn(),
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -128,6 +133,8 @@ class TestImmediateFireTask:
             router=Router(),
             task_bucket=make_task_bucket_with_spawn(),
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -150,6 +157,8 @@ class TestImmediateFireTask:
             router=Router(),
             task_bucket=make_task_bucket_with_spawn(),
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         # Listener without entity_id (no duration_config)
         listener = create_listener(
@@ -175,6 +184,8 @@ class TestImmediateFireTask:
             router=Router(),
             task_bucket=make_task_bucket_with_spawn(),
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -203,6 +214,8 @@ class TestImmediateFireTask:
             router=Router(),
             task_bucket=make_task_bucket_with_spawn(),
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -444,6 +457,8 @@ class TestCreateCancelListener:
             router=router,
             task_bucket=task_bucket,
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
 
         # Build a listener with a duration timer attached
@@ -482,6 +497,8 @@ class TestCreateCancelListener:
             router=router,
             task_bucket=task_bucket,
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
 
         listener = create_listener(
@@ -518,6 +535,8 @@ class TestCreateCancelListener:
             router=Router(),
             task_bucket=task_bucket,
             logger=logging.getLogger("test"),
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",

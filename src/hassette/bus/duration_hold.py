@@ -2,15 +2,11 @@
 
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
-import hassette.utils.date_utils as _date_utils
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
-from hassette.events import HassPayload
-from hassette.events.base import Event, HassContext
-from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
+from hassette.events.base import Event
 from hassette.types import Topic
 
 if TYPE_CHECKING:
@@ -38,6 +34,8 @@ class DurationHoldManager:
         router: Router,
         task_bucket: "TaskBucket",
         logger: "logging.Logger",
+        make_synthetic_event: "Callable[[str, HassStateDict], Event[Any]]",
+        compute_elapsed: "Callable[[HassStateDict, DurationConfig], float]",
     ) -> None:
         """Initialize the DurationHoldManager.
 
@@ -52,6 +50,12 @@ class DurationHoldManager:
             router: Router for synchronous cancel-listener route insertion.
             task_bucket: TaskBucket for spawning background tasks.
             logger: Logger for structured logging.
+            make_synthetic_event: Builds a synthetic state-change event with old_state=None
+                from an entity_id and its current state dict. Injected from core so the bus
+                kernel does not import HA event types.
+            compute_elapsed: Computes how long an entity has been in its current state,
+                reading HA-specific fields from the state dict. Injected from core so the
+                bus kernel does not import HA event types.
         """
         self.executor = executor
         self.config_resolver = config_resolver
@@ -60,6 +64,8 @@ class DurationHoldManager:
         self.router = router
         self.task_bucket = task_bucket
         self.logger = logger
+        self.make_synthetic_event = make_synthetic_event
+        self.compute_elapsed = compute_elapsed
         self._duration_timers_active: int = 0
 
     @property
@@ -71,23 +77,6 @@ class DurationHoldManager:
         """Decrement the active timer counter on cancellation."""
         if self._duration_timers_active > 0:
             self._duration_timers_active -= 1
-
-    def make_synthetic_state_event(self, entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
-        """Build a synthetic RawStateChangeEvent with old_state=None."""
-        return RawStateChangeEvent(
-            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-            payload=HassPayload(
-                event_type="state_changed",
-                data=RawStateChangePayload(
-                    entity_id=entity_id,
-                    old_state=None,
-                    new_state=current_state,
-                ),
-                origin="LOCAL",
-                time_fired=_date_utils.now(),
-                context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
-            ),
-        )
 
     def hold_matches(self, listener: Listener, event: Any) -> bool:
         """Check hold predicates (state-value only) against an event.
@@ -124,7 +113,7 @@ class DurationHoldManager:
             return
 
         try:
-            synthetic_event = self.make_synthetic_state_event(entity_id, current_state)
+            synthetic_event = self.make_synthetic_event(entity_id, current_state)
             if not listener.matches(synthetic_event):
                 return
 
@@ -138,7 +127,7 @@ class DurationHoldManager:
             )
 
             if duration_config is not None and duration_config.duration is not None:
-                elapsed = compute_elapsed(current_state, duration_config)
+                elapsed = self.compute_elapsed(current_state, duration_config)
                 if elapsed >= duration_config.duration:
                     try:
                         await listener.invoker.dispatch(invoke_fn)
@@ -214,7 +203,7 @@ class DurationHoldManager:
                         entity_id,
                     )
                     return
-                recheck_event = self.make_synthetic_state_event(entity_id, current_state)
+                recheck_event = self.make_synthetic_event(entity_id, current_state)
                 if not self.hold_matches(listener, recheck_event):
                     self.logger.debug(
                         "duration_fire: entity %s predicate no longer matches, dropping fire",
@@ -278,27 +267,3 @@ class DurationHoldManager:
             self.router.remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
 
         return Subscription(cancel_listener, unsubscribe)
-
-
-def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
-    """Compute how long an entity has been in its current state.
-
-    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
-    Returns a value clamped to [0.0, duration_config.duration].
-    Caller must ensure duration_config.duration is not None.
-    """
-    duration = duration_config.duration
-    if duration is None:
-        return 0.0
-
-    if duration_config.is_attribute_listener:
-        return 0.0
-
-    last_changed_raw = current_state.get("last_changed")
-    if not isinstance(last_changed_raw, str):
-        return 0.0
-
-    last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
-    now_dt = _date_utils.now()
-    raw_elapsed = (now_dt - last_changed).total("seconds")
-    return max(0.0, min(raw_elapsed, duration))

@@ -20,6 +20,7 @@ Import boundaries enforced today (``RULES``):
 - ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
 - ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
+- ``bus → events.hass`` — bus is a generic pub/sub kernel; HA event types are injected from core (#1136).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -133,6 +134,12 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "models",
         forbids=lambda module: module == "hassette.conversion" or module.startswith("hassette.conversion."),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
+    ),
+    Rule(
+        name="bus-no-ha-events",
+        applies=lambda layer: layer == "bus",
+        forbids=lambda module: module == "hassette.events.hass" or module.startswith("hassette.events.hass."),
+        reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
     ),
 ]
 

@@ -25,6 +25,7 @@ def make_timer(
     predicates=None,
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
+    normalize_cancel_event=None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)
     and mock cancellation subscription.
@@ -51,6 +52,7 @@ def make_timer(
         entity_id=entity_id,
         owner_id=owner_id,
         create_cancel_sub=create_cancel_sub,
+        normalize_cancel_event=normalize_cancel_event,
     )
     return timer, task_bucket_mock, cancel_sub_mock
 
