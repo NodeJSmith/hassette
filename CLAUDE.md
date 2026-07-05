@@ -18,8 +18,11 @@ uv run nox -s dev
 # Run tests via nox (CI — tests across Python 3.11, 3.12, 3.13)
 uv run nox -s tests
 
-# Run tests with coverage
+# Run tests with coverage (see ## Coverage section below for why NOT pytest --cov)
 uv run nox -s tests_with_coverage
+
+# Run tests with coverage (frontend)
+cd frontend && npm run test:coverage
 
 # Run a single test file
 uv run pytest tests/integration/test_api.py
@@ -140,6 +143,12 @@ assert result > 0                                  # confirms registration succe
 **Sentinel filtering** — verify that records with unregistered IDs (listener_id=0, job_id=0, session_id=0) are silently dropped and not written to the database.
 
 **Error isolation** — confirm that exceptions raised inside `execute()` do not propagate out of the method; the caller (TaskBucket) must not crash.
+
+## Coverage
+
+Do **not** use `pytest --cov` for backend coverage — it under-reports by 15-40 percentage points. See `tests/TESTING.md` (Coverage Measurement) for the full explanation. Use the nox coverage sessions instead (see Common Commands above).
+
+Both backend and frontend enforce an 80% floor — backend via `fail_under` in `pyproject.toml`, frontend via `thresholds` in `vitest.config.ts`. Codecov's `target: auto` additionally catches per-PR regressions.
 
 ## Test Infrastructure
 
