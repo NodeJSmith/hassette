@@ -210,7 +210,7 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
 # Thread-leaked distinguishable from clean timeout (thread finishes before check)
 
 
-async def test_pure_async_timeout_no_cell_no_thread_leaked(
+async def test_pure_async_timeout_no_handle_no_thread_leaked(
     executor: CommandExecutor,
 ) -> None:
     """A pure async handler that times out (no run_in_thread) sets thread_leaked=False.
@@ -244,7 +244,7 @@ async def test_pure_async_timeout_no_cell_no_thread_leaked(
     record = executor._write_queue.get_nowait()
     assert isinstance(record, ExecutionRecord)
     assert record.status == "timed_out"
-    # No worker thread — cell is None, so thread_leaked must be False
+    # No worker thread — handle is None, so thread_leaked must be False
     assert record.thread_leaked is False
 
 

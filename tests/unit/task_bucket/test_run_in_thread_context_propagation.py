@@ -106,7 +106,7 @@ async def test_worker_contextvar_writes_do_not_leak_back(bucket: TaskBucket) -> 
     assert ctx.CURRENT_EXECUTION_ID.get(None) == original_id
 
 
-async def test_sync_worker_cell_still_works(bucket: TaskBucket) -> None:
+async def test_sync_worker_handle_still_works(bucket: TaskBucket) -> None:
     """The SYNC_WORKER_HANDLE thread-capture mechanism is unaffected by context propagation."""
 
     def sync_fn() -> str:
