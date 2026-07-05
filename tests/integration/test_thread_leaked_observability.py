@@ -43,7 +43,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-# Not-started sync timeout → thread_leaked=False (cell[0] still None)
+# Not-started sync timeout → thread_leaked=False (handle.thread still None)
 
 
 async def test_not_started_sync_timeout_no_false_positive(
@@ -52,9 +52,9 @@ async def test_not_started_sync_timeout_no_false_positive(
     """run_in_thread is called but worker hasn't dequeued before timeout → thread_leaked=False.
 
     Saturates the pool (max_workers=2) with two long-running blockers so that the
-    third submission sits in the queue.  When the asyncio timeout fires, cell[0] is
+    third submission sits in the queue.  When the asyncio timeout fires, handle.thread is
     still None (the worker never called _call), so the liveness guard must not flag
-    thread_leaked.  Exercises the ``cell[0] is not None`` branch in _execute.
+    thread_leaked.  Exercises the ``handle.thread is not None`` branch in _execute.
     """
     # Gate for the two pool-filling blockers.  We release it after the test assertion
     # so they exit cleanly before the test tears down.
@@ -72,7 +72,7 @@ async def test_not_started_sync_timeout_no_false_positive(
         pool_gate.wait(timeout=10.0)
 
     # Submit two jobs to saturate both workers (max_workers=2 in make_mock_hassette).
-    # Use the underlying sync_executor directly so these don't touch SYNC_WORKER_CELL.
+    # Use the underlying sync_executor directly so these don't touch SYNC_WORKER_HANDLE.
     loop = asyncio.get_running_loop()
     filler_f1 = loop.run_in_executor(hassette_mock.sync_executor, pool_filler)
     filler_f2 = loop.run_in_executor(hassette_mock.sync_executor, pool_filler)
@@ -114,7 +114,9 @@ async def test_not_started_sync_timeout_no_false_positive(
     record = executor._write_queue.get_nowait()
     assert isinstance(record, ExecutionRecord)
     assert record.status == "timed_out"
-    assert record.thread_leaked is False, "thread_leaked must be False when worker never dequeued (cell[0] is None)"
+    assert record.thread_leaked is False, (
+        "thread_leaked must be False when worker never dequeued (handle.thread is None)"
+    )
 
 
 # Blocked sync handler past timeout → thread_leaked=True
@@ -208,13 +210,13 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
 # Thread-leaked distinguishable from clean timeout (thread finishes before check)
 
 
-async def test_pure_async_timeout_no_cell_no_thread_leaked(
+async def test_pure_async_timeout_no_handle_no_thread_leaked(
     executor: CommandExecutor,
 ) -> None:
     """A pure async handler that times out (no run_in_thread) sets thread_leaked=False.
 
-    SYNC_WORKER_CELL is never set because no run_in_thread call occurs, so the
-    liveness guard sees cell=None and does not flag the execution.  This is the
+    SYNC_WORKER_HANDLE is never set because no run_in_thread call occurs, so the
+    liveness guard sees handle=None and does not flag the execution.  This is the
     primary "not-started" / "no worker" gate.
     """
 
@@ -242,7 +244,7 @@ async def test_pure_async_timeout_no_cell_no_thread_leaked(
     record = executor._write_queue.get_nowait()
     assert isinstance(record, ExecutionRecord)
     assert record.status == "timed_out"
-    # No worker thread — cell is None, so thread_leaked must be False
+    # No worker thread — handle is None, so thread_leaked must be False
     assert record.thread_leaked is False
 
 

@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
 from contextvars import ContextVar, copy_context
+from dataclasses import dataclass
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -14,18 +15,29 @@ from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
-SYNC_WORKER_CELL: ContextVar[list[threading.Thread | None] | None] = ContextVar("sync_worker_cell", default=None)
-"""Carries the shared mutable cell for the current sync submission from the loop thread to _execute.
 
-Set on the loop thread in ``run_in_thread`` immediately after creating the cell.  The cell
-itself is a ``list[threading.Thread | None]`` whose first element is set by the worker thread
-when ``_call`` starts executing.  ``_execute`` (same asyncio task, same context snapshot) reads
-this ContextVar to reach ``cell[0]`` at the timeout site.
+@dataclass
+class SyncWorkerHandle:
+    """Shared handle between the loop thread and a sync worker for thread-identity tracking.
 
-The worker accesses the cell via closure, not via this ContextVar.  The ContextVar exists so
-that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the cell
-reference.  The worker mutates ``cell[0]`` (a plain list element), which is immediately visible
-to the loop thread because both sides share the same list object.
+    Created by ``run_in_thread`` on the loop thread and stored in ``SYNC_WORKER_HANDLE``.
+    The worker thread sets ``handle.thread`` via closure; ``_execute`` reads it at the
+    timeout site to check liveness.
+    """
+
+    thread: threading.Thread | None = None
+
+
+SYNC_WORKER_HANDLE: ContextVar[SyncWorkerHandle | None] = ContextVar("sync_worker_handle", default=None)
+"""Carries the worker handle for the current sync submission from the loop thread to _execute.
+
+Set on the loop thread in ``run_in_thread`` immediately after creating the handle.
+``_execute`` (same asyncio task, same context snapshot) reads this ContextVar to check
+``handle.thread.is_alive()`` at the timeout site.
+
+The worker accesses the handle via closure, not via this ContextVar.  The ContextVar exists so
+that ``_execute`` (running on the loop thread, in the same asyncio task) can read back the
+handle reference.
 """
 
 if typing.TYPE_CHECKING:
@@ -181,8 +193,8 @@ class TaskBucket(Resource):
         *fn* inside it so that all contextvars set on the loop thread are visible to
         sync user code.
 
-        **Thread cell:** see :data:`SYNC_WORKER_CELL` module docstring for the
-        shared-mutable-cell mechanism used by the timeout site.
+        **Thread handle:** see :class:`SyncWorkerHandle` and :data:`SYNC_WORKER_HANDLE`
+        for the shared-handle mechanism used by the timeout site.
 
         Args:
             fn: The synchronous function to run.
@@ -193,11 +205,11 @@ class TaskBucket(Resource):
             An :class:`asyncio.Future` that resolves to the return value of *fn*.
         """
         parent_ctx = copy_context()
-        cell: list[threading.Thread | None] = [None]
-        SYNC_WORKER_CELL.set(cell)
+        handle = SyncWorkerHandle()
+        SYNC_WORKER_HANDLE.set(handle)
 
         def _call() -> R:
-            cell[0] = threading.current_thread()
+            handle.thread = threading.current_thread()
             return parent_ctx.run(fn, *args, **kwargs)
 
         # Submit to the dedicated executor so sync user code is isolated from
