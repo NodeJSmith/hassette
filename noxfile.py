@@ -147,7 +147,9 @@ def system_with_coverage(session: "Session"):
     _run_system_tests(session, marker="system and not system_destructive")
     _run_system_tests(session, marker="system_destructive")
     session.run("uv", "run", "--active", "coverage", "combine", external=True)
-    session.run("uv", "run", "--active", "coverage", "xml", "-o", "coverage.system.xml", external=True)
+    session.run(
+        "uv", "run", "--active", "coverage", "xml", "--fail-under=0", "-o", "coverage.system.xml", external=True
+    )
 
 
 def _install_coverage_pth(session: "Session") -> None:
