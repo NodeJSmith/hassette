@@ -97,7 +97,7 @@ jobs:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
 
         env:
             TZ: America/Chicago
@@ -137,7 +137,7 @@ jobs:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
 
         env:
             TZ: America/Chicago
