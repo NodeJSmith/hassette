@@ -268,7 +268,11 @@ class LogPersistenceHandler(logging.Handler):
                 with dropped_lock:
                     self._dropped += batch_len
 
-        loop.call_soon_threadsafe(_do_enqueue)
+        try:
+            loop.call_soon_threadsafe(_do_enqueue)
+        except RuntimeError:
+            with dropped_lock:
+                self._dropped += batch_len
 
     def record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
         return {
