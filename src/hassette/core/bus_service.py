@@ -45,6 +45,7 @@ _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
+_HASS_EVENT_STATE_CHANGED = "state_changed"
 
 
 class BusService(Service):
@@ -443,7 +444,7 @@ class BusService(Service):
         if not isinstance(payload, HassPayload):
             return [topic]
 
-        if payload.event_type != "state_changed":
+        if payload.event_type != _HASS_EVENT_STATE_CHANGED:
             return [topic]
 
         entity_id = payload.entity_id
@@ -605,7 +606,7 @@ def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -
     return RawStateChangeEvent(
         topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
         payload=HassPayload(
-            event_type="state_changed",
+            event_type=_HASS_EVENT_STATE_CHANGED,
             data=RawStateChangePayload(
                 entity_id=entity_id,
                 old_state=None,

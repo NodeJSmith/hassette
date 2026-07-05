@@ -16,11 +16,11 @@ Import boundaries enforced today (``RULES``):
 - ``utils → events`` — utils sits below events; ``is_event_type`` has moved to events/.
 - ``web → core`` — web-facing data types live in hassette.schemas, not core.
 - ``bus → core`` — bus is a service layer and must not import core at runtime (#1089).
+- ``bus → events.hass`` — bus is a generic pub/sub kernel; HA event types are injected from core (#1136).
 - ``resources → task_bucket`` — task_bucket injects its constructor via register_task_bucket_factory (#1079).
 - ``scheduler → core`` — scheduler consumes SchedulerService via SchedulerServiceProtocol in types (#1079).
 - ``state_manager → core`` — state_manager consumes StateProxy via StateReader in types (#1079).
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
-- ``bus → events.hass`` — bus is a generic pub/sub kernel; HA event types are injected from core (#1136).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -112,6 +112,12 @@ RULES: list[Rule] = [
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
     Rule(
+        name="bus-no-ha-events",
+        applies=lambda layer: layer == "bus",
+        forbids=lambda module: module == "hassette.events.hass" or module.startswith("hassette.events.hass."),
+        reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
+    ),
+    Rule(
         name="resources-no-task_bucket",
         applies=lambda layer: layer == "resources",
         forbids=lambda module: module == "hassette.task_bucket" or module.startswith("hassette.task_bucket."),
@@ -134,12 +140,6 @@ RULES: list[Rule] = [
         applies=lambda layer: layer == "models",
         forbids=lambda module: module == "hassette.conversion" or module.startswith("hassette.conversion."),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
-    ),
-    Rule(
-        name="bus-no-ha-events",
-        applies=lambda layer: layer == "bus",
-        forbids=lambda module: module == "hassette.events.hass" or module.startswith("hassette.events.hass."),
-        reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
     ),
 ]
 
