@@ -5,6 +5,10 @@ on:
         - cron: "30 12 * * *" # daily at 12:30 UTC (offset from PyPI check at noon)
     workflow_dispatch: {}
 
+concurrency:
+    group: ha-version-drift
+    cancel-in-progress: false
+
 # Complements ha-version-staleness in lint.yml (per-PR warning annotation).
 # This workflow files a tracking issue so drift is visible even without PRs.
 jobs:
