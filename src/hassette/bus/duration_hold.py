@@ -91,8 +91,9 @@ class DurationHoldManager:
     async def immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
 
-        Implements ``immediate=True``: fires once with a synthetic ``RawStateChangeEvent``
-        (``old_state=None``) if the entity is in the cache.
+        Implements ``immediate=True``: fires once with a synthetic event built
+        by the injected ``make_synthetic_event`` factory if the entity is in
+        the cache.
 
         Error contract: any exception → log at WARNING; immediate fire becomes a no-op.
         ``state_reader`` handles state-read errors; the outer try/except catches

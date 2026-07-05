@@ -189,9 +189,11 @@ class DurationTimer:
         against the new event.  If the predicates no longer match, the entity has
         left the target state and the timer is cancelled.
 
-        For ``RawStateChangeEvent`` with a non-None ``old_state``, strips
-        ``old_state`` to None before evaluation so that transition predicates
-        (if any leak through) and "did it change?" predicates do not falsely cancel.
+        When a ``normalize_cancel_event`` callable was injected at construction,
+        it transforms the event before predicate evaluation — e.g. stripping
+        ``old_state`` so that transition predicates do not falsely cancel.
+        Without the callable the event is evaluated as-is.
+
         The semantics: "is the entity STILL in the target state?" — not "did it
         change TO the target state?".
 
