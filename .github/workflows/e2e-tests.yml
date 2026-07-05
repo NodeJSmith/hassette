@@ -41,7 +41,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                python-version: ["3.11", "3.13", "3.14"]
+                python-version: ["3.11", "3.12", "3.13", "3.14"]
 
         env:
             TZ: America/Chicago
@@ -66,7 +66,7 @@ jobs:
               if: failure()
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
-                  name: e2e-test-results
+                  name: e2e-test-results-${{ matrix.python-version }}
                   path: test-results/
                   retention-days: 7
 
