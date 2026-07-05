@@ -221,7 +221,7 @@ jobs:
                   PINNED=$(cat codegen/ha-version.txt)
                   LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name 2>/dev/null || echo "")
                   if [ -z "$LATEST" ]; then
-                      echo "Could not fetch latest HA release, skipping"
+                      echo "::warning::Could not fetch latest HA release, skipping"
                       exit 0
                   fi
                   if [ "$PINNED" != "$LATEST" ]; then
