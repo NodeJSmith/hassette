@@ -12,7 +12,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from .conftest import make_log_record
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx2 import AsyncClient
 
 
 def make_uuidv7_str(timestamp_s: float) -> str:

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
@@ -84,7 +84,7 @@ def app(mock_hassette, runtime_query_service):  # noqa: ARG001
 
 @pytest.fixture
 async def client(app):
-    """Create an httpx AsyncClient for testing."""
+    """Create an httpx2 AsyncClient for testing."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

@@ -1,6 +1,6 @@
 """HTTP client wrapper for hassette CLI commands.
 
-Wraps ``httpx.Client`` (synchronous) with:
+Wraps ``httpx2.Client`` (synchronous) with:
 - Base URL construction from HassetteConfig (bind-all address substitution)
 - Explicit timeouts on every request
 - Pydantic model deserialization
@@ -13,7 +13,7 @@ import json
 import sys
 from typing import Any, NoReturn, TypeVar, overload
 
-import httpx
+import httpx2 as httpx
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext

@@ -11,7 +11,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.runtime_query_service import RuntimeQueryService

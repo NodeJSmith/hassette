@@ -1,10 +1,17 @@
 """Utilities for capturing the source location and code of a registration call."""
 
 import ast
+import builtins
 import functools
 import inspect
 from pathlib import Path
 from typing import Any
+
+# Capture the original open before block_io_guard monkeypatches builtins.open.
+# Source capture reads Python files for AST analysis during handler/job registration;
+# these reads are small, LRU-cached, and happen only at initialization — not the kind
+# of event-loop-stalling I/O the guard exists to catch.
+_builtin_open = builtins.open
 
 # Per-file source/AST cache entries kept before LRU eviction.
 SOURCE_CACHE_MAX_SIZE = 256
@@ -38,7 +45,7 @@ def get_source_and_ast(filename: str, mtime: int | None) -> tuple[str, ast.Modul
     Returns None if the file cannot be read or parsed.
     """
     try:
-        with open(filename, encoding="utf-8") as fh:
+        with _builtin_open(filename, encoding="utf-8") as fh:
             source = fh.read()
         tree = ast.parse(source, filename=filename)
         return source, tree

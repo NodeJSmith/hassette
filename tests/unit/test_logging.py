@@ -242,7 +242,7 @@ class TestNoisyLibrarySuppression:
     def test_httpx_logger_at_warning(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
 
 
 class TestLogCaptureHandlerStillCaptures:
@@ -374,7 +374,7 @@ class TestEnableBasicLogging:
         assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
         assert logging.getLogger("urllib3").getEffectiveLevel() == logging.WARNING
         assert logging.getLogger("aiohttp.access").getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
 
     def test_json_format_selected(self) -> None:
         """enable_basic_logging() supports log_format='json'."""
@@ -847,6 +847,22 @@ class TestLogPersistenceHandlerBatching:
             assert len(handler._batch) == 0
         finally:
             loop.close()
+
+    def test_flush_on_closed_loop_counts_dropped(self) -> None:
+        """_flush() with a closed event loop counts records as dropped instead of raising."""
+        loop = asyncio.new_event_loop()
+        db_service = _make_dropping_db_service()
+        handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+
+        for i in range(3):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        loop.close()
+        handler.close()
+
+        assert handler.dropped_count == 3
+        assert len(handler._batch) == 0
 
 
 class TestLogPersistenceDropCountWithDB:

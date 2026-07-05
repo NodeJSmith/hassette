@@ -268,7 +268,11 @@ class LogPersistenceHandler(logging.Handler):
                 with dropped_lock:
                     self._dropped += batch_len
 
-        loop.call_soon_threadsafe(_do_enqueue)
+        try:
+            loop.call_soon_threadsafe(_do_enqueue)
+        except RuntimeError:
+            with dropped_lock:
+                self._dropped += batch_len
 
     def record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
         return {
@@ -410,7 +414,7 @@ def enable_basic_logging(
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.ERROR)
 
     sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)

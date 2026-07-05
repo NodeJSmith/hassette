@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-import httpx
+import httpx2 as httpx
 import pytest
 from pydantic import BaseModel
 
@@ -27,7 +27,7 @@ def make_transport(
     *,
     raise_exc: type[Exception] | None = None,
 ) -> httpx.MockTransport:
-    """Build an httpx.MockTransport that returns a fixed response."""
+    """Build an httpx2.MockTransport that returns a fixed response."""
     if raise_exc is not None:
 
         def handler(request: httpx.Request) -> httpx.Response:

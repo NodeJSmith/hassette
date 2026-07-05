@@ -75,7 +75,7 @@ app = create_fastapi_app(stub)
 - `db_hassette` — database-backed hassette mock with `premigrated_db_path`, also via `make_mock_hassette()`
 - `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/conftest.py`)
 - `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
-- `client` — httpx `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
+- `client` — httpx2 `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
 
 ### Component extractors (local fixtures)
 
@@ -191,7 +191,7 @@ Configures the mock registry to return a proper `AppFullSnapshot`.
 - **`cleanup_harness`** — single autouse fixture that resets all active module-scoped harness components before each test by calling `harness.reset()` on each matching fixture
 - **`runtime_query_service`** — shared across integration web test files; each file defines its own `mock_hassette`
 - **`app`** — FastAPI application instance
-- **`client`** — httpx `AsyncClient`
+- **`client`** — httpx2 `AsyncClient`
 
 ## RecordingApi Assertion Methods
 
