@@ -5,7 +5,7 @@ Covers:
 - HASSETTE_CONFIG is visible in the worker thread.
 - CURRENT_BUCKET is visible in the worker thread.
 - CURRENT_EXECUTION_ID is visible in the worker thread.
-- SYNC_WORKER_CELL still works after the context-propagation change.
+- SYNC_WORKER_HANDLE still works after the context-propagation change.
 """
 
 import threading
@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette import context as ctx
-from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL, TaskBucket
+from hassette.task_bucket.task_bucket import SYNC_WORKER_HANDLE, TaskBucket
 from hassette.test_utils import make_mock_hassette
 
 
@@ -107,16 +107,16 @@ async def test_worker_contextvar_writes_do_not_leak_back(bucket: TaskBucket) -> 
 
 
 async def test_sync_worker_cell_still_works(bucket: TaskBucket) -> None:
-    """The SYNC_WORKER_CELL thread-capture mechanism is unaffected by context propagation."""
+    """The SYNC_WORKER_HANDLE thread-capture mechanism is unaffected by context propagation."""
 
     def sync_fn() -> str:
         return "ok"
 
     future = bucket.run_in_thread(sync_fn)
-    cell = SYNC_WORKER_CELL.get()
-    assert cell is not None
+    handle = SYNC_WORKER_HANDLE.get()
+    assert handle is not None
 
     result = await future
     assert result == "ok"
-    assert cell[0] is not None
-    assert isinstance(cell[0], threading.Thread)
+    assert handle.thread is not None
+    assert isinstance(handle.thread, threading.Thread)
