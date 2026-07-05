@@ -1,0 +1,98 @@
+name: HA Version Drift Check
+
+on:
+    schedule:
+        - cron: "30 12 * * *" # daily at 12:30 UTC (offset from PyPI check at noon)
+    workflow_dispatch: {}
+
+# Complements ha-version-staleness in lint.yml (per-PR warning annotation).
+# This workflow files a tracking issue so drift is visible even without PRs.
+jobs:
+    check-drift:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                persist-credentials: false
+                sparse-checkout: codegen/ha-version.txt
+
+            - name: Compare pinned HA version to latest release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  PINNED=$(cat codegen/ha-version.txt)
+                  LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name 2>/dev/null || echo "")
+                  if [ -z "$LATEST" ]; then
+                      echo "::warning::Could not fetch latest HA release"
+                      exit 0
+                  fi
+
+                  echo "Pinned: $PINNED"
+                  echo "Latest: $LATEST"
+
+                  if [ "$PINNED" = "$LATEST" ]; then
+                      echo "Versions match — no drift"
+
+                      # Close any stale drift issue
+                      EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "ha-version-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
+                      if [ -n "$EXISTING" ]; then
+                          gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                              --comment "Pinned version now matches latest HA release ($LATEST). Closing automatically."
+                          echo "Closed stale drift issue #${EXISTING}"
+                      fi
+                      exit 0
+                  fi
+
+                  echo "::warning::Pinned HA version ($PINNED) is behind latest ($LATEST)"
+
+                  # Check for existing open issue (label-based dedup)
+                  EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "ha-version-drift" --state open --json number -q '.[0].number' 2>/dev/null || echo "")
+                  if [ -n "$EXISTING" ]; then
+                      gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                          --body "Still behind: pinned \`$PINNED\`, latest \`$LATEST\` (checked $(date -u +%Y-%m-%d))"
+                      echo "Updated existing issue #${EXISTING}"
+                      exit 1
+                  fi
+
+                  # Ensure the label exists
+                  gh label create "ha-version-drift" \
+                      --repo "$GITHUB_REPOSITORY" \
+                      --description "Codegen HA version pin is behind latest release" \
+                      --color "d93f0b" \
+                      2>/dev/null || true
+
+                  gh issue create --repo "$GITHUB_REPOSITORY" \
+                      --title "Codegen HA version drift: pinned $PINNED, latest is $LATEST" \
+                      --label "type:CICD" \
+                      --label "topic:codegen" \
+                      --label "ha-version-drift" \
+                      --body "## HA Version Drift Detected
+
+                  The codegen pin in \`codegen/ha-version.txt\` (\`$PINNED\`) is behind the latest Home Assistant release (\`$LATEST\`).
+
+                  New HA releases can introduce breaking changes to entity models, extended enums, or new domains that affect hassette's generated state/entity types.
+
+                  ### Steps to bump
+
+                  1. Update the pin: \`echo '$LATEST' > codegen/ha-version.txt\`
+                  2. Update your local HA core checkout: \`cd ~/source/core && git fetch --tags && git checkout $LATEST\`
+                  3. Run codegen: \`cd codegen && uv run hassette-codegen generate --ha-core-path ~/source/core\`
+                  4. Review the diff for breaking changes (removed properties, changed types, new domains)
+                  5. Run tests: \`uv run nox -s dev\`
+                  6. Commit the pin + generated files together
+
+                  ### Details
+
+                  - Pinned version: [$PINNED](https://github.com/home-assistant/core/releases/tag/$PINNED)
+                  - Latest release: [$LATEST](https://github.com/home-assistant/core/releases/tag/$LATEST)
+                  - Detected by: [ha-version-drift workflow](https://github.com/$GITHUB_REPOSITORY/actions/workflows/ha-version-drift.yml)
+
+                  This issue will be updated daily until the pin is bumped, and closed automatically when versions match."
+
+                  exit 1

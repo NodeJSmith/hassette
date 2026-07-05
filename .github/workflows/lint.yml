@@ -204,13 +204,30 @@ jobs:
             - name: Check entity codegen freshness
               run: cd codegen && uv run hassette-codegen generate --ha-core-path ../ha-core --check
 
+    # Intentionally ungated — runs on every PR so HA version drift is always
+    # visible, not just when codegen files change. See also ha-version-drift.yml
+    # (daily cron that files a tracking issue when behind).
+    ha-version-staleness:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                persist-credentials: false
+                sparse-checkout: codegen/ha-version.txt
+
             - name: Check HA version staleness
-              continue-on-error: true
               run: |
                   PINNED=$(cat codegen/ha-version.txt)
                   LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name 2>/dev/null || echo "")
-                  if [ -n "$LATEST" ] && [ "$PINNED" != "$LATEST" ]; then
-                      echo "::warning::Pinned HA version ($PINNED) is behind latest ($LATEST)"
+                  if [ -z "$LATEST" ]; then
+                      echo "Could not fetch latest HA release, skipping"
+                      exit 0
+                  fi
+                  if [ "$PINNED" != "$LATEST" ]; then
+                      echo "::warning::Pinned HA version ($PINNED) is behind latest ($LATEST). Run codegen bump when ready."
+                  else
+                      echo "Pinned HA version ($PINNED) matches latest release"
                   fi
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -299,7 +316,7 @@ jobs:
                   fail: true
 
     lint-complete:
-        needs: [python, frontend, codegen-freshness, security, lockfile-fresh, slotscheck, link-check]
+        needs: [python, frontend, codegen-freshness, ha-version-staleness, security, lockfile-fresh, slotscheck, link-check]
         if: always()
         runs-on: ubuntu-latest
         steps:
