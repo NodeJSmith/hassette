@@ -2,7 +2,7 @@
 
 Pin the boundary rules in ``RULES`` (test_utils-isolation, api-no-core,
 utils-no-events, web-no-core, bus-no-core, resources-no-task_bucket,
-scheduler-no-core, state_manager-no-core): the governed layer must not import
+scheduler-no-core, state_manager-no-core, bus-no-ha-events): the governed layer must not import
 the forbidden package at runtime, while type-only imports under ``TYPE_CHECKING``
 and a layer importing itself are exempt.
 
@@ -343,6 +343,46 @@ def test_scheduler_type_checking_core_import_exempt() -> None:
         """
     )
     assert check_source(src, "scheduler") == []
+
+
+def test_bus_import_of_ha_events_flagged() -> None:
+    src = "from hassette.events.hass.hass import RawStateChangeEvent\n"
+    assert check_source(src, "bus") == [
+        (
+            1,
+            "bus-no-ha-events: imports hassette.events.hass.hass — "
+            "bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
+        )
+    ]
+
+
+def test_bus_import_of_ha_events_submodule_flagged() -> None:
+    src = "from hassette.events.hass.raw import HassStateDict\n"
+    assert check_source(src, "bus") == [
+        (
+            1,
+            "bus-no-ha-events: imports hassette.events.hass.raw — "
+            "bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
+        )
+    ]
+
+
+def test_bus_type_checking_ha_events_import_exempt() -> None:
+    src = textwrap.dedent(
+        """\
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from hassette.events.hass.raw import HassStateDict
+        """
+    )
+    assert check_source(src, "bus") == []
+
+
+def test_bus_import_of_base_events_not_flagged() -> None:
+    """Bus may import generic event types from hassette.events and hassette.events.base."""
+    src = "from hassette.events.base import Event\n"
+    assert check_source(src, "bus") == []
 
 
 @pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))

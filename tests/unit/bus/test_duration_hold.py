@@ -17,9 +17,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as _date_utils
-from hassette.bus.duration_hold import DurationHoldManager, compute_elapsed
+from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
+from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
 from hassette.test_utils.helpers import create_listener, make_state_dict
 
 
@@ -63,20 +64,28 @@ def make_manager(
     state: dict[str, Any] | None = None,
     remove_listener: Callable[[Listener], None] | None = None,
     task_bucket: Any = None,
+    executor: Any = None,
+    router: Router | None = None,
 ) -> DurationHoldManager:
     """Build a DurationHoldManager with default mocks."""
     if remove_listener is None:
         remove_listener = make_remove_listener()
     if task_bucket is None:
         task_bucket = make_task_bucket_with_spawn()
+    if executor is None:
+        executor = make_executor()
+    if router is None:
+        router = Router()
     return DurationHoldManager(
-        executor=make_executor(),
+        executor=executor,
         config_resolver=make_config_resolver(),
         state_reader=make_state_reader(state),
         remove_listener=remove_listener,
-        router=Router(),
+        router=router,
         task_bucket=task_bucket,
         logger=logging.getLogger("test"),
+        make_synthetic_event=make_synthetic_state_event,
+        compute_elapsed=compute_elapsed,
     )
 
 
@@ -97,15 +106,7 @@ class TestImmediateFireTask:
     async def test_returns_early_when_state_reader_returns_none(self) -> None:
         """immediate_fire_task returns early (no dispatch) when state_reader returns None."""
         executor = make_executor()
-        manager = DurationHoldManager(
-            executor=executor,
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(None),
-            remove_listener=make_remove_listener(),
-            router=Router(),
-            task_bucket=make_task_bucket_with_spawn(),
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(executor=executor)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -120,15 +121,7 @@ class TestImmediateFireTask:
         """immediate_fire_task calls state_reader and dispatches when state exists and predicate matches."""
         executor = make_executor()
         state = make_state_dict("light.kitchen", "on")
-        manager = DurationHoldManager(
-            executor=executor,
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(state),
-            remove_listener=make_remove_listener(),
-            router=Router(),
-            task_bucket=make_task_bucket_with_spawn(),
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(state=state, executor=executor)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -142,15 +135,7 @@ class TestImmediateFireTask:
     async def test_logs_error_and_returns_when_no_entity_id(self) -> None:
         """immediate_fire_task logs error and returns early when listener has no entity_id."""
         executor = make_executor()
-        manager = DurationHoldManager(
-            executor=executor,
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(make_state_dict("light.kitchen", "on")),
-            remove_listener=make_remove_listener(),
-            router=Router(),
-            task_bucket=make_task_bucket_with_spawn(),
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(state=make_state_dict("light.kitchen", "on"), executor=executor)
         # Listener without entity_id (no duration_config)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -167,15 +152,7 @@ class TestImmediateFireTask:
         executor = make_executor()
         state = make_state_dict("light.kitchen", "on")
         remove_listener = make_remove_listener()
-        manager = DurationHoldManager(
-            executor=executor,
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(state),
-            remove_listener=remove_listener,
-            router=Router(),
-            task_bucket=make_task_bucket_with_spawn(),
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(state=state, executor=executor, remove_listener=remove_listener)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -195,15 +172,7 @@ class TestImmediateFireTask:
         # Predicate that never matches
         never_match = MagicMock(return_value=False)
 
-        manager = DurationHoldManager(
-            executor=executor,
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(state),
-            remove_listener=make_remove_listener(),
-            router=Router(),
-            task_bucket=make_task_bucket_with_spawn(),
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(state=state, executor=executor)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -436,15 +405,7 @@ class TestCreateCancelListener:
         """create_cancel_listener inserts a route and returns a Subscription."""
         router = Router()
         task_bucket = make_task_bucket_with_spawn()
-        manager = DurationHoldManager(
-            executor=make_executor(),
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(),
-            remove_listener=make_remove_listener(),
-            router=router,
-            task_bucket=task_bucket,
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(router=router, task_bucket=task_bucket)
 
         # Build a listener with a duration timer attached
         listener = create_listener(
@@ -474,15 +435,7 @@ class TestCreateCancelListener:
         """Calling sub.cancel() removes the cancel listener from the router."""
         router = Router()
         task_bucket = make_task_bucket_with_spawn()
-        manager = DurationHoldManager(
-            executor=make_executor(),
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(),
-            remove_listener=make_remove_listener(),
-            router=router,
-            task_bucket=task_bucket,
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(router=router, task_bucket=task_bucket)
 
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -510,15 +463,7 @@ class TestCreateCancelListener:
         Cancel-listeners bypass DB registration entirely; no registration_task field.
         """
         task_bucket = make_task_bucket_with_spawn()
-        manager = DurationHoldManager(
-            executor=make_executor(),
-            config_resolver=make_config_resolver(),
-            state_reader=make_state_reader(),
-            remove_listener=make_remove_listener(),
-            router=Router(),
-            task_bucket=task_bucket,
-            logger=logging.getLogger("test"),
-        )
+        manager = make_manager(task_bucket=task_bucket)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",

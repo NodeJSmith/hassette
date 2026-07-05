@@ -3,10 +3,12 @@ import time
 import typing
 from collections import defaultdict
 from typing import Any, ClassVar
+from uuid import uuid4
 
+import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
@@ -14,11 +16,13 @@ from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import Event, HassPayload
+from hassette.events.base import HassContext
+from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import BackpressurePolicy, RestartType
+from hassette.types.enums import BackpressurePolicy, RestartType, Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -41,6 +45,7 @@ _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
 _HASS_TOPIC_PREFIX = "hass."
 _HASSETTE_TOPIC_PREFIX = "hassette."
+_HASS_EVENT_STATE_CHANGED = "state_changed"
 
 
 class BusService(Service):
@@ -106,6 +111,8 @@ class BusService(Service):
             router=self.router,
             task_bucket=self.task_bucket,
             logger=self.logger,
+            make_synthetic_event=make_synthetic_state_event,
+            compute_elapsed=compute_elapsed,
         )
 
         self._removal_callbacks = {}
@@ -187,6 +194,7 @@ class BusService(Service):
                 owner_id=listener.identity.owner_id,
                 create_cancel_sub=make_cancel_sub,
                 on_cancel=on_timer_cancel,
+                normalize_cancel_event=strip_old_state,
             )
 
         # Await DB registration inline — db_id is set before route insertion.
@@ -436,7 +444,7 @@ class BusService(Service):
         if not isinstance(payload, HassPayload):
             return [topic]
 
-        if payload.event_type != "state_changed":
+        if payload.event_type != _HASS_EVENT_STATE_CHANGED:
             return [topic]
 
         entity_id = payload.entity_id
@@ -588,3 +596,76 @@ class BusService(Service):
                     await self.dispatch(str(event.topic), event)
                 except Exception as e:
                     self.logger.exception("Error processing event: %s", e)
+
+
+def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
+    """Build a synthetic RawStateChangeEvent with old_state=None.
+
+    Injected into the bus kernel so it stays free of HA event type imports.
+    """
+    return RawStateChangeEvent(
+        topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+        payload=HassPayload(
+            event_type=_HASS_EVENT_STATE_CHANGED,
+            data=RawStateChangePayload(
+                entity_id=entity_id,
+                old_state=None,
+                new_state=current_state,
+            ),
+            origin="LOCAL",
+            time_fired=_date_utils.now(),
+            context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+        ),
+    )
+
+
+def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
+    """Compute how long an entity has been in its current state.
+
+    Reads the HA-specific ``last_changed`` field from the state dict. Injected
+    into the bus kernel so it stays free of HA event type imports.
+
+    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
+    Returns a value clamped to [0.0, duration_config.duration].
+    """
+    duration = duration_config.duration
+    if duration is None:
+        return 0.0
+
+    if duration_config.is_attribute_listener:
+        return 0.0
+
+    last_changed_raw = current_state.get("last_changed")
+    if not isinstance(last_changed_raw, str):
+        return 0.0
+
+    last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
+    now_dt = _date_utils.now()
+    raw_elapsed = (now_dt - last_changed).total("seconds")
+    return max(0.0, min(raw_elapsed, duration))
+
+
+def strip_old_state(event: Event[Any]) -> Event[Any]:
+    """Strip old_state from a RawStateChangeEvent for cancel-predicate evaluation.
+
+    For ``RawStateChangeEvent`` with a non-None ``old_state``, returns a copy with
+    ``old_state=None`` so that transition predicates (``StateFrom``, ``StateDidChange``)
+    do not falsely cancel a duration timer. For all other events, returns the event
+    unchanged.
+    """
+    if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
+        return RawStateChangeEvent(
+            topic=event.topic,
+            payload=HassPayload(
+                event_type=event.payload.event_type,
+                data=RawStateChangePayload(
+                    entity_id=event.payload.data.entity_id,
+                    old_state=None,
+                    new_state=event.payload.data.new_state,
+                ),
+                origin=event.payload.origin,
+                time_fired=event.payload.time_fired,
+                context=event.payload.context,
+            ),
+        )
+    return event

@@ -389,6 +389,7 @@ class DurationConfig:
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: Callable[[], None] | None = None,
+        normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
     ) -> None:
         """Construct a DurationTimer and store it.
 
@@ -406,6 +407,7 @@ class DurationConfig:
             owner_id=owner_id,
             create_cancel_sub=create_cancel_sub,
             on_cancel=on_cancel,
+            normalize_cancel_event=normalize_cancel_event,
         )
 
 
