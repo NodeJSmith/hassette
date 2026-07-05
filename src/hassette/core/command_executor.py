@@ -338,9 +338,6 @@ class CommandExecutor(Service):
                     result.duration_ms,
                     handle.thread.name,
                 )
-            # Clear the handle so a future invocation that reuses this asyncio context cannot
-            # read a stale worker reference and report a false thread_leaked.
-            SYNC_WORKER_HANDLE.set(None)
             if cmd.effective_timeout is not None:
                 self.log_timeout_rate_limited(cmd, result)
             else:
@@ -349,6 +346,9 @@ class CommandExecutor(Service):
                     "exception originated from user code)",
                     result.duration_ms,
                 )
+        # Clear the handle unconditionally so a future invocation that reuses this asyncio
+        # context cannot read a stale worker reference and report a false thread_leaked.
+        SYNC_WORKER_HANDLE.set(None)
         if result.is_error:
             log_error(result)
         self.enqueue_record(self.build_record(cmd, result, execution_start_ts, execution_id))
