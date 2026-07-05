@@ -14,7 +14,7 @@ from hassette.schemas.telemetry_models import (
 )
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx2 import AsyncClient
 
 
 class TestTelemetryAppHealth:

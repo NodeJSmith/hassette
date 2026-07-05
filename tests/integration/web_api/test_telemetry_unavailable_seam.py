@@ -12,7 +12,7 @@ Three behaviors:
 
 from unittest.mock import AsyncMock, MagicMock
 
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.app import create_fastapi_app

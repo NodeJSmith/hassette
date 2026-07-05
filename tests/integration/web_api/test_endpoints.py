@@ -12,7 +12,7 @@ from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.web.config_view import MASK_SENTINEL
 
 if TYPE_CHECKING:
-    from httpx import AsyncClient
+    from httpx2 import AsyncClient
 
 from .conftest import make_log_record
 

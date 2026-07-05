@@ -6,7 +6,7 @@ from io import StringIO
 from typing import Any
 from unittest.mock import patch
 
-import httpx
+import httpx2 as httpx
 import pytest
 from rich.console import Console
 
@@ -53,7 +53,7 @@ def capture_stderr():
 
 
 class MockTransportBuilder:
-    """Builds an httpx.MockTransport from a route table.
+    """Builds an httpx2.MockTransport from a route table.
 
     Usage:
         builder = MockTransportBuilder()

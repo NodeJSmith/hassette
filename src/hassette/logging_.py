@@ -414,7 +414,7 @@ def enable_basic_logging(
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.ERROR)
 
     sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)

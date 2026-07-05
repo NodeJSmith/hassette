@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 import pytest
 from pydantic_settings import SettingsConfigDict
 from websockets.sync.client import connect
