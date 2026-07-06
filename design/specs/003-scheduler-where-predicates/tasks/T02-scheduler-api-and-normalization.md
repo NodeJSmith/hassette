@@ -26,7 +26,7 @@ Add `where=` parameter support to the Scheduler's public API:
 
   **Normalization:**
   - If `where` is `None`, set `predicate = None` and `wants_job = False`.
-  - If `where` is a `Sequence` (but not a string/bytes/callable), collapse into a closure: `preds = tuple(where); predicate = lambda: all(p() for p in preds)` and `wants_job = False`.
+  - If `where` is a `Sequence` (but not a string/bytes/callable), validate each member first: check `asyncio.iscoroutinefunction(p)` for each `p` in the sequence → raise `TypeError` if any is async (FR#16 applies to sequence members too). Then collapse into a closure: `preds = tuple(where); predicate = lambda: all(p() for p in preds)` and `wants_job = False`.
   - Otherwise (single callable), store directly: `predicate = where`.
 
   **Arity detection (for single callables only — closures are always zero-arg):**
@@ -46,6 +46,7 @@ Add `where=` parameter support to the Scheduler's public API:
 **3. Tests:**
 - Test arity detection: zero-arg callable → `_predicate_wants_job=False`, one-arg → `True`, >1 required positional → `TypeError`, required keyword-only → `TypeError`, async callable → `TypeError`.
 - Test sequence normalization: `where=[pred1, pred2]` produces a single zero-arg callable that ANDs the results.
+- Test async predicate inside a sequence: `where=[lambda: True, async_pred]` raises `TypeError` at registration time (FR#16 applies to sequence members).
 - Test parameter forwarding: verify each convenience method passes `where=` through to `schedule()` (mock `schedule()` and check kwargs).
 
 See `## Architecture > Predicate arity detection` and `## Architecture > API surface` in the design doc.

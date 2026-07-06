@@ -56,8 +56,11 @@ Examine `001.sql` lines 82-118 for the full table + index schema to replicate, a
   ```sql
   AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped' THEN e.duration_ms END) AS job_avg_duration_ms
   ```
-- Also in `get_job_summary()` (same file), the `AVG(e.duration_ms)`, `MIN(e.duration_ms)`, and `MAX(e.duration_ms)` aggregations (lines ~188-191) need `AND e.status != 'skipped'` exclusion — otherwise zero-duration skip records distort the per-job averages/min/max. Use `CASE WHEN` wrappers: `AVG(CASE WHEN e.status != 'skipped' THEN e.duration_ms END)`, etc.
-- Check for any other `AVG`/`MIN`/`MAX` duration aggregations across both query files and apply the same `status != 'skipped'` exclusion.
+- Check for any other `AVG`/`MIN`/`MAX` duration aggregations in this file and apply the same `status != 'skipped'` exclusion.
+
+**3b. `src/hassette/core/telemetry/registration_queries.py` — per-job duration aggregations:**
+- In `get_job_summary()` (line 117), the `AVG(e.duration_ms)`, `MIN(e.duration_ms)`, and `MAX(e.duration_ms)` aggregations (lines ~188-191) also need `status != 'skipped'` exclusion — otherwise zero-duration skip records distort the per-job averages/min/max. Use `CASE WHEN` wrappers: `AVG(CASE WHEN e.status != 'skipped' THEN e.duration_ms END)`, etc.
+- Note: this is a different file from the `get_app_health_aggregates()` fix above — `get_job_summary()` lives in `registration_queries.py`, not `summary_queries.py`.
 
 **4. `src/hassette/schemas/telemetry_models.py`:**
 - Add `skipped: int = 0` to `JobSummary` (after `timed_out`, around line 168). Follow the same pattern as `timed_out: int = 0`.

@@ -84,7 +84,7 @@ The bus already has `where=` on every subscription method, with normalization, s
 - **FR#8** Predicate exceptions are caught and logged; the job runs anyway (fail-open semantics)
 - **FR#9** The predicate is a callable that accepts zero arguments (common case) or one argument (the `ScheduledJob` instance, for access to `job.args`, `job.kwargs`, and other metadata)
 - **FR#10** Predicate arity is inspected once at registration time; dispatch uses the stored invocation mode without re-inspecting
-- **FR#11** The `scheduled_jobs` database table stores `predicate_description` (Python repr) and `human_description` (from `summarize_top_level()`)
+- **FR#11** The `scheduled_jobs` database table stores `predicate_description` (Python repr) and `human_description` (from `callable_stable_name()` with `hasattr` fallback to `summarize()`)
 - **FR#12** The `executions` table `status` CHECK constraint allows `'skipped'` as a valid value
 - **FR#13** The `JobSummary` telemetry model includes a `skipped` count field
 - **FR#14** `skipped` executions count toward `total_executions` (preserving the invariant: `successful + failed + cancelled + timed_out + skipped == total_executions`)
@@ -203,7 +203,7 @@ Add `where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None` t
 
 ### Registration telemetry
 
-Add `predicate_description: str | None` and `human_description: str | None` to `ScheduledJobRegistration`. Populated in `SchedulerService.add_job()` using `repr(job.predicate)` and `summarize_top_level(job.predicate)`, mirroring `BusService.build_registration()`.
+Add `predicate_description: str | None` and `human_description: str | None` to `ScheduledJobRegistration`. Populated in `SchedulerService.add_job()` using `repr(job.predicate)` for `predicate_description` and the scheduler's own summarization (see Predicate summarization section above) for `human_description`.
 
 ### Database migration (009.sql)
 
@@ -422,7 +422,7 @@ No tests to remove.
 ## Impact
 
 ### Changed Files
-<!-- Gap check 2026-07-06: 5 gaps included — repository.py:register_job SQL (T03 Focus), factories.py:make_job_registration (T01 Focus), test_telemetry_models.py + core/test_telemetry_models.py (T04 tests), status.test.ts (T05 tests), web_helpers.py:make_scheduled_job (T03 Focus) -->
+<!-- Gap check 2026-07-06: 5 gaps included — repository.py:register_job SQL (T03 Focus), factories.py:make_job_registration (T01 Focus), test_telemetry_models.py + core/test_telemetry_models.py (T04 tests), status.test.ts (T05 tests), web_helpers.py:make_real_job (T03 Focus) -->
 
 - **create** `src/hassette/migrations_sql/009.sql` — add `skipped` to `executions.status` CHECK, add `predicate_description`/`human_description` to `scheduled_jobs`
 - **modify** `src/hassette/scheduler/classes.py` — add `predicate` and `_predicate_wants_job` fields, extend `matches()`/`diff_fields()`

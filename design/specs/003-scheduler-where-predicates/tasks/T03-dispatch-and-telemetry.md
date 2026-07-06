@@ -2,7 +2,7 @@
 task_id: "T03"
 title: "Add predicate evaluation in dispatch, skipped record path, and registration telemetry"
 status: "planned"
-depends_on: ["T01", "T02"]
+depends_on: ["T01", "T02", "T04"]
 implements: ["FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "FR#11", "AC#1", "AC#2", "AC#3", "AC#4"]
 ---
 
@@ -42,7 +42,7 @@ Import `callable_stable_name` from `hassette.utils.func_utils` (it's already ali
 **4. `src/hassette/core/telemetry/repository.py` — `register_job()` SQL (lines 332-406):**
 Add `predicate_description` and `human_description` to the INSERT INTO `scheduled_jobs` statement and the ON CONFLICT DO UPDATE clause. Follow the pattern used by `register_listener()` (lines 296-311) which already handles these columns for the `listeners` table. The job insert parameters are built inline in `register_job()` — add the new fields to the parameter dict.
 
-**5. `src/hassette/test_utils/web_helpers.py` — `make_scheduled_job()` (line 270):**
+**5. `src/hassette/test_utils/web_helpers.py` — `make_real_job()` (line 270):**
 Add optional `predicate` parameter (default `None`) so integration tests can construct jobs with predicates easily.
 
 **6. Integration tests in `tests/integration/test_scheduler.py`:**
@@ -58,7 +58,7 @@ See `## Architecture > Predicate evaluation`, `## Architecture > Predicate summa
 - The predicate check MUST come after step 1 (next occurrence computed and enqueued) and BEFORE step 2 (run through guard). If placed before step 1, a skipped recurring job would not compute its next occurrence and would stop firing.
 - The `_record_skipped()` path bypasses `_execute()` entirely. It needs to obtain `session_id` from the executor's current session context — check how `build_record()` (command_executor.py:426) gets it.
 - Gap found in exploration: `src/hassette/core/telemetry/repository.py::register_job()` INSERT/UPDATE SQL does not include `predicate_description`/`human_description` columns. Without this fix, the registration data would be silently dropped. The sibling `register_listener()` path (lines 296-311) already has the pattern to copy.
-- Gap found: `src/hassette/test_utils/web_helpers.py::make_scheduled_job()` needs an optional `predicate` param for integration test convenience.
+- Gap found: `src/hassette/test_utils/web_helpers.py::make_real_job()` needs an optional `predicate` param for integration test convenience.
 - The `ExecutionRecord` for skips should have `execution_id` generated the same way as normal executions (UUID4), not `None`.
 - `callable_stable_name` returns `"<callable>"` for lambdas/closures — this is expected and documented in the design.
 
