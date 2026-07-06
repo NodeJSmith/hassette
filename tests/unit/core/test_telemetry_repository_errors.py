@@ -84,12 +84,16 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
     assert row[1] == "job"
 
 
-async def test_persist_execution_batch_with_fk_fallback_nulls_listener_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() nulls listener_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() drops handler record with bad listener_id.
+
+    The null-FK retry also fails because the CHECK constraint requires exactly one
+    of listener_id or job_id to be non-null.
+    """
     now = time.time()
     bad_listener_id = 99999
     record = ExecutionRecord(
@@ -103,20 +107,23 @@ async def test_persist_execution_batch_with_fk_fallback_nulls_listener_fk_on_vio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 0
+    assert dropped == 1
 
-    cursor = await telemetry_db.execute("SELECT listener_id FROM executions")
+    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] is None, "listener_id should be nulled after FK violation"
+    assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
-async def test_persist_execution_batch_with_fk_fallback_nulls_job_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
     telemetry_session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() nulls job_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() drops job record with bad job_id.
+
+    The null-FK retry also fails because the CHECK constraint requires exactly one
+    of listener_id or job_id to be non-null.
+    """
     now = time.time()
     bad_job_id = 99999
     record = ExecutionRecord(
@@ -130,12 +137,11 @@ async def test_persist_execution_batch_with_fk_fallback_nulls_job_fk_on_violatio
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 0
+    assert dropped == 1
 
-    cursor = await telemetry_db.execute("SELECT job_id FROM executions")
+    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] is None, "job_id should be nulled after FK violation"
+    assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
 async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(

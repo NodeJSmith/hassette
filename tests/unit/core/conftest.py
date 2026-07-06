@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import shutil
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -16,6 +17,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_filter import EventFilter
+from hassette.core.migration_runner import run_migrations
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
@@ -357,126 +359,23 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
     return svc
 
 
-# DDL mirrors 001.sql — keep in sync with src/hassette/migrations_sql/001.sql
-TELEMETRY_REPO_DDL = """
-CREATE TABLE sessions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    started_at            REAL    NOT NULL,
-    stopped_at            REAL,
-    last_heartbeat_at     REAL    NOT NULL,
-    status                TEXT    NOT NULL,
-    error_type            TEXT,
-    error_message         TEXT,
-    error_traceback       TEXT
-);
-
-CREATE TABLE listeners (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT    NOT NULL,
-    instance_index        INTEGER NOT NULL,
-    name                  TEXT    NOT NULL,
-    handler_method        TEXT    NOT NULL,
-    topic                 TEXT    NOT NULL,
-    debounce              REAL,
-    throttle              REAL,
-    once                  INTEGER NOT NULL DEFAULT 0,
-    priority              INTEGER NOT NULL DEFAULT 0,
-    mode                  TEXT    NOT NULL DEFAULT 'single',
-    backpressure          TEXT    NOT NULL DEFAULT 'block' CHECK (backpressure IN ('block', 'drop_newest')),
-    predicate_description TEXT,
-    human_description     TEXT,
-    source_location       TEXT    NOT NULL,
-    registration_source   TEXT,
-    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL,
-    cancelled_at          REAL,
-    immediate             INTEGER NOT NULL DEFAULT 0,
-    duration              REAL,
-    entity_id             TEXT
-);
-
-CREATE UNIQUE INDEX idx_listeners_natural
-    ON listeners(app_key, instance_index, name, topic);
-
-CREATE INDEX idx_listeners_app ON listeners(app_key, instance_index);
-
-CREATE TABLE scheduled_jobs (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT    NOT NULL,
-    instance_index        INTEGER NOT NULL,
-    job_name              TEXT    NOT NULL,
-    handler_method        TEXT    NOT NULL,
-    trigger_type          TEXT
-        CHECK (trigger_type IN ('interval', 'cron', 'once', 'after', 'custom')),
-    trigger_label         TEXT    NOT NULL DEFAULT '',
-    trigger_detail        TEXT,
-    repeat                INTEGER NOT NULL DEFAULT 0,
-    args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
-    source_location       TEXT    NOT NULL,
-    registration_source   TEXT,
-    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL,
-    "group"               TEXT,
-    cancelled_at          REAL,
-    name_auto             INTEGER NOT NULL DEFAULT 0,
-    mode                  TEXT    NOT NULL DEFAULT 'single'
-        CHECK (mode IN ('single', 'restart', 'queued', 'parallel'))
-);
-
-CREATE UNIQUE INDEX idx_scheduled_jobs_natural
-    ON scheduled_jobs(app_key, instance_index, job_name);
-
-CREATE INDEX idx_scheduled_jobs_app ON scheduled_jobs(app_key, instance_index);
-
-CREATE TABLE executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind                  TEXT    NOT NULL CHECK (kind IN ('handler', 'job')),
-    listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
-    session_id            INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_ts    REAL    NOT NULL,
-    duration_ms           REAL    NOT NULL,
-    status                TEXT    NOT NULL,
-    error_type            TEXT,
-    error_message         TEXT,
-    error_traceback       TEXT,
-    is_di_failure         INTEGER NOT NULL DEFAULT 0,
-    source_tier           TEXT    NOT NULL DEFAULT 'app',
-    execution_id          TEXT UNIQUE,
-    trigger_context_id    TEXT,
-    trigger_origin        TEXT,
-    trigger_mode          TEXT,
-    retry_count           INTEGER NOT NULL DEFAULT 0,
-    attempt_number        INTEGER NOT NULL DEFAULT 1,
-    args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
-    thread_leaked         INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX idx_exec_listener_time
-    ON executions(listener_id, execution_start_ts DESC)
-    WHERE listener_id IS NOT NULL;
-CREATE INDEX idx_exec_job_time
-    ON executions(job_id, execution_start_ts DESC)
-    WHERE job_id IS NOT NULL;
-
-CREATE VIEW active_listeners AS
-    SELECT * FROM listeners WHERE retired_at IS NULL;
-
-CREATE VIEW active_scheduled_jobs AS
-    SELECT * FROM scheduled_jobs WHERE retired_at IS NULL;
-"""
+@pytest.fixture(scope="session")
+def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the real migration runner once per session and return the template DB path."""
+    tmpl_dir = tmp_path_factory.mktemp("telemetry_repo_db")
+    db_path = tmpl_dir / "hassette.db"
+    run_migrations(db_path)
+    return db_path
 
 
 @pytest.fixture
-async def telemetry_db() -> AsyncIterator[aiosqlite.Connection]:
-    """In-memory SQLite connection with the full telemetry schema applied."""
-    async with aiosqlite.connect(":memory:") as conn:
+async def telemetry_db(_migrated_db_template: Path, tmp_path: Path) -> AsyncIterator[aiosqlite.Connection]:
+    """Migrated SQLite connection with FK enforcement on."""
+    dst = tmp_path / "hassette.db"
+    shutil.copy2(_migrated_db_template, dst)
+    async with aiosqlite.connect(dst) as conn:
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA foreign_keys = ON")
-        await conn.executescript(TELEMETRY_REPO_DDL)
-        await conn.commit()
         yield conn
 
 
