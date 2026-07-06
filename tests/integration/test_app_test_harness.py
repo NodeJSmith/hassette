@@ -21,10 +21,15 @@ from hassette.events import CallServiceEvent, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
 from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
+from hassette.test_utils.harness import wait_for
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
 
 # Class names don't start with "Test" to avoid pytest collection warnings.
+
+
+async def wait_for_calls(calls: list[Any], *, count: int = 1, desc: str = "handler called") -> None:
+    await wait_for(lambda: len(calls) == count, desc=desc)
 
 
 class SensorConfig(AppConfig):
@@ -295,11 +300,10 @@ async def test_simulate_state_change_typed_di_state_new():
 
     async with AppTestHarness(BinarySensorApp, config={}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
-
-    assert len(received) == 1
-    assert isinstance(received[0], states.BinarySensorState)
-    assert received[0].value is True  # "on" converts to True
-    assert received[0].entity_id == "binary_sensor.test"
+        await wait_for(lambda: len(received) == 1, desc="state_new handler called")
+        assert isinstance(received[0], states.BinarySensorState)
+        assert received[0].value is True  # "on" converts to True
+        assert received[0].entity_id == "binary_sensor.test"
 
 
 async def test_simulate_state_change_typed_di_state_old():
@@ -315,11 +319,10 @@ async def test_simulate_state_change_typed_di_state_old():
 
     async with AppTestHarness(BinarySensorOldApp, config={}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
-
-    assert len(received) == 1
-    assert isinstance(received[0], states.BinarySensorState)
-    assert received[0].value is False  # "off" converts to False
-    assert received[0].entity_id == "binary_sensor.test"
+        await wait_for(lambda: len(received) == 1, desc="state_old handler called")
+        assert isinstance(received[0], states.BinarySensorState)
+        assert received[0].value is False  # "off" converts to False
+        assert received[0].entity_id == "binary_sensor.test"
 
 
 async def test_simulate_state_change_none_old_value():
@@ -335,9 +338,8 @@ async def test_simulate_state_change_none_old_value():
 
     async with AppTestHarness(NewEntityApp, config={}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value=None, new_value="on")
-
-    assert len(received_old) == 1
-    assert received_old[0] is None
+        await wait_for(lambda: len(received_old) == 1, desc="maybe_state_old handler called")
+        assert received_old[0] is None
 
 
 async def test_simulate_state_change_none_new_value():
@@ -353,9 +355,8 @@ async def test_simulate_state_change_none_new_value():
 
     async with AppTestHarness(RemovedEntityApp, config={}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="on", new_value=None)
-
-    assert len(received) == 1
-    assert received[0].payload.data.new_state is None
+        await wait_for(lambda: len(received) == 1, desc="removed_entity handler called")
+        assert received[0].payload.data.new_state is None
 
 
 async def test_simulate_call_service_typed_di_domain():
@@ -371,9 +372,8 @@ async def test_simulate_call_service_typed_di_domain():
 
     async with AppTestHarness(CallServiceApp, config={}) as harness:
         await harness.simulate_call_service("light", "turn_on")
-
-    assert len(received_domains) == 1
-    assert received_domains[0] == "light"
+        await wait_for(lambda: len(received_domains) == 1, desc="call_service domain handler called")
+        assert received_domains[0] == "light"
 
 
 async def test_simulate_call_service_is_real_call_service_event():
@@ -389,13 +389,12 @@ async def test_simulate_call_service_is_real_call_service_event():
 
     async with AppTestHarness(EventCapturingApp, config={}) as harness:
         await harness.simulate_call_service("light", "turn_on", brightness=255)
-
-    assert len(received_events) == 1
-    event = received_events[0]
-    assert isinstance(event, CallServiceEvent)
-    assert event.payload.data.domain == "light"
-    assert event.payload.data.service == "turn_on"
-    assert event.payload.data.service_data == {"brightness": 255}
+        await wait_for(lambda: len(received_events) == 1, desc="call_service event handler called")
+        event = received_events[0]
+        assert isinstance(event, CallServiceEvent)
+        assert event.payload.data.domain == "light"
+        assert event.payload.data.service == "turn_on"
+        assert event.payload.data.service_data == {"brightness": 255}
 
 
 async def test_simulate_attribute_change_typed_di():
@@ -419,10 +418,9 @@ async def test_simulate_attribute_change_typed_di():
             old_value="°C",
             new_value="°F",
         )
-
-    assert len(received) == 1
-    assert isinstance(received[0], states.SensorState)
-    assert received[0].entity_id == "sensor.test"
+        await wait_for(lambda: len(received) == 1, desc="attr_change handler called")
+        assert isinstance(received[0], states.SensorState)
+        assert received[0].entity_id == "sensor.test"
 
 
 async def test_simulate_attribute_change_without_set_state():
@@ -449,12 +447,11 @@ async def test_simulate_attribute_change_without_set_state():
 
     async with AppTestHarness(UnseededAttrApp, config={}) as harness:
         await harness.simulate_attribute_change("sensor.unseeded", "temperature", old_value=20, new_value=25)
-
-    assert len(received_new) == 1
-    # State falls back to "unknown" when entity is not seeded.
-    # The type registry converts "unknown" to None for SensorState.
-    assert received_new[0].value is None
-    assert received_old[0].value is None
+        await wait_for(lambda: len(received_new) == 1, desc="unseeded attr handler called")
+        # State falls back to "unknown" when entity is not seeded.
+        # The type registry converts "unknown" to None for SensorState.
+        assert received_new[0].value is None
+        assert received_old[0].value is None
 
 
 async def test_simulate_component_loaded():
@@ -470,8 +467,7 @@ async def test_simulate_component_loaded():
 
     async with AppTestHarness(ComponentApp, config={}) as harness:
         await harness.simulate_component_loaded("my_component")
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="component_loaded handler called")
 
 
 async def test_simulate_service_registered():
@@ -487,8 +483,7 @@ async def test_simulate_service_registered():
 
     async with AppTestHarness(ServiceRegApp, config={}) as harness:
         await harness.simulate_service_registered("light", "turn_on")
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="service_registered handler called")
 
 
 async def test_simulate_hassette_service_status():
@@ -522,8 +517,7 @@ async def test_simulate_hassette_service_failed():
 
     async with AppTestHarness(ServiceFailedApp, config={}) as harness:
         await harness.simulate_hassette_service_failed("MyService", exception=RuntimeError("boom"))
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="service_failed handler called")
 
 
 async def test_simulate_hassette_service_crashed():
@@ -539,8 +533,7 @@ async def test_simulate_hassette_service_crashed():
 
     async with AppTestHarness(ServiceCrashedApp, config={}) as harness:
         await harness.simulate_hassette_service_crashed("MyService")
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="service_crashed handler called")
 
 
 async def test_simulate_hassette_service_started():
@@ -593,8 +586,7 @@ async def test_simulate_websocket_connected():
 
     async with AppTestHarness(WsConnectedApp, config={}) as harness:
         await harness.simulate_websocket_connected()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="ws_connected handler called")
 
 
 async def test_simulate_websocket_disconnected():
@@ -610,8 +602,7 @@ async def test_simulate_websocket_disconnected():
 
     async with AppTestHarness(WsDisconnectedApp, config={}) as harness:
         await harness.simulate_websocket_disconnected()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="ws_disconnected handler called")
 
 
 async def test_simulate_app_state_changed():
@@ -665,8 +656,7 @@ async def test_simulate_app_stopping():
 
     async with AppTestHarness(AppStoppingApp, config={}) as harness:
         await harness.simulate_app_stopping()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="app_stopping handler called")
 
 
 async def test_simulate_homeassistant_restart():
@@ -682,8 +672,7 @@ async def test_simulate_homeassistant_restart():
 
     async with AppTestHarness(HaRestartApp, config={}) as harness:
         await harness.simulate_homeassistant_restart()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="ha_restart handler called")
 
 
 async def test_simulate_homeassistant_start():
@@ -699,8 +688,7 @@ async def test_simulate_homeassistant_start():
 
     async with AppTestHarness(HaStartApp, config={}) as harness:
         await harness.simulate_homeassistant_start()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="ha_start handler called")
 
 
 async def test_simulate_homeassistant_stop():
@@ -716,8 +704,7 @@ async def test_simulate_homeassistant_stop():
 
     async with AppTestHarness(HaStopApp, config={}) as harness:
         await harness.simulate_homeassistant_stop()
-
-    assert len(calls) == 1
+        await wait_for_calls(calls, desc="ha_stop handler called")
 
 
 async def test_simulate_hassette_service_status_typed_di():
@@ -754,6 +741,9 @@ async def test_simulate_app_state_changed_typed_di():
     async with AppTestHarness(AppStateDiApp, config={}) as harness:
         await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
         expected_key = harness.app.app_key
-
-    assert len(received) == 1
-    assert received[0].payload.data.app_key == expected_key
+        await wait_for(
+            lambda: any(e.payload.data.status == ResourceStatus.STOPPING for e in received),
+            desc="app_state_changed handler called",
+        )
+        stopping = [e for e in received if e.payload.data.status == ResourceStatus.STOPPING]
+        assert stopping[0].payload.data.app_key == expected_key
