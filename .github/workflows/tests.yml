@@ -97,7 +97,7 @@ jobs:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
 
         env:
             TZ: America/Chicago
@@ -105,7 +105,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                python-version: ["3.11", "3.13", "3.14"]
+                python-version: ["3.11", "3.12", "3.13", "3.14"]
 
         steps:
             - name: Checkout code
@@ -137,7 +137,7 @@ jobs:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 20
 
         env:
             TZ: America/Chicago
@@ -145,7 +145,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                python-version: ["3.13", "3.14"]
+                python-version: ["3.11", "3.12", "3.13", "3.14"]
 
         steps:
             - name: Checkout code
