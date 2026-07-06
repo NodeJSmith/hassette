@@ -2,7 +2,7 @@
 
 Operational scripts for building, running, and demoing hassette.
 
-- **`export_schemas.py`** — generate OpenAPI and WebSocket JSON schemas for frontend type generation
+- **`export_schemas.py`** — generate OpenAPI, WebSocket, and hassette.toml config JSON schemas for frontend type generation and IDE autocomplete
 - **`generate-ws-types.cjs`** — generate TypeScript types from WebSocket schema
 - **`generate_constraints.py`** — generate pip constraints file for Docker builds
 - **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` from the `docs/screenshots.yml` manifest (`--only <name>` to scope). See CLAUDE.md → "Demo Stack & Doc Screenshots".

@@ -148,11 +148,11 @@ repos:
         pass_filenames: false
 
       - id: check-schemas-fresh
-        name: Check frontend schemas are up to date
+        name: Check schemas are up to date
         language: system
         entry: tools/check_schemas_fresh.py
         pass_filenames: false
-        files: ^src/hassette/web/
+        files: ^src/hassette/(web/|config/)
         stages:
           - pre-push
 

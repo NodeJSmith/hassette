@@ -1,0 +1,1260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hassette Configuration",
+  "description": "Configuration schema for hassette.toml \u2014 the Hassette automation framework config file.",
+  "type": "object",
+  "properties": {
+    "hassette": {
+      "additionalProperties": true,
+      "description": "Configuration for Hassette.",
+      "properties": {
+        "database": {
+          "$ref": "#/$defs/DatabaseConfig",
+          "description": "Database storage, retention, and operational settings."
+        },
+        "websocket": {
+          "$ref": "#/$defs/WebSocketConfig"
+        },
+        "logging": {
+          "$ref": "#/$defs/LoggingConfig",
+          "description": "Logging level, format, queue, and per-service log-level settings."
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/LifecycleConfig",
+          "description": "Startup, shutdown, and per-operation timeout settings."
+        },
+        "web_api": {
+          "$ref": "#/$defs/WebApiConfig",
+          "description": "Web API and UI server settings."
+        },
+        "apps": {
+          "$ref": "#/$defs/AppsConfig",
+          "description": "App directory, auto-detection, and manifest settings."
+        },
+        "scheduler": {
+          "$ref": "#/$defs/SchedulerConfig"
+        },
+        "file_watcher": {
+          "$ref": "#/$defs/FileWatcherConfig"
+        },
+        "blocking_io": {
+          "$ref": "#/$defs/BlockingIODetectionConfig",
+          "description": "Blocking-I/O detection settings for the shared event loop."
+        },
+        "config_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "hassette.toml",
+          "description": "Path to the configuration file.",
+          "title": "Config File"
+        },
+        "env_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": ".env",
+          "description": "Path to the environment file.",
+          "title": "Env File"
+        },
+        "dev_mode": {
+          "description": "Enable developer mode, which may include additional logging and features.",
+          "title": "Dev Mode",
+          "type": "boolean"
+        },
+        "base_url": {
+          "default": "http://127.0.0.1:8123",
+          "description": "Base URL of the Home Assistant instance",
+          "title": "Base Url",
+          "type": "string",
+          "ui": {
+            "label": "Base URL"
+          }
+        },
+        "verify_ssl": {
+          "default": true,
+          "description": "Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed\ncertificates.",
+          "title": "Verify Ssl",
+          "type": "boolean",
+          "ui": {
+            "label": "Verify SSL"
+          }
+        },
+        "token": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Access token for Home Assistant instance.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs\nand string representations.  Unwrap with ``token.get_secret_value()`` when\nthe plaintext is required (e.g. HTTP auth headers, WebSocket auth payload).",
+          "title": "Token"
+        },
+        "config_dir": {
+          "description": "Directory to load/save configuration.",
+          "format": "path",
+          "title": "Config Dir",
+          "type": "string"
+        },
+        "data_dir": {
+          "description": "Directory to store Hassette data.",
+          "format": "path",
+          "title": "Data Dir",
+          "type": "string"
+        },
+        "import_dot_env_files": {
+          "default": true,
+          "description": "Whether to import .env files specified in env_files. With this disabled, the .env file provided will only\nbe used for loading settings. With this enabled, the .env files will also be loaded into os.environ.",
+          "title": "Import Dot Env Files",
+          "type": "boolean"
+        },
+        "run_app_precheck": {
+          "default": true,
+          "description": "Whether to run the app precheck before starting Hassette. This is recommended, but if any apps fail to load\nthen Hassette will not start.",
+          "title": "Run App Precheck",
+          "type": "boolean"
+        },
+        "allow_startup_if_app_precheck_fails": {
+          "default": false,
+          "description": "Whether to allow Hassette to start even if the app precheck fails. This is generally not recommended.",
+          "title": "Allow Startup If App Precheck Fails",
+          "type": "boolean"
+        },
+        "hassette_event_buffer_size": {
+          "default": 1000,
+          "description": "Buffer capacity of the internal anyio memory channel used to route events to the bus.",
+          "title": "Hassette Event Buffer Size",
+          "type": "integer"
+        },
+        "default_cache_size": {
+          "default": 104857600,
+          "description": "Default size limit for caches in bytes. Defaults to 100 MiB.",
+          "title": "Default Cache Size",
+          "type": "integer"
+        },
+        "strict_lifecycle": {
+          "default": false,
+          "description": "Enable strict validation for lifecycle transitions, connection state, and registries.\n\nControls three subsystems uniformly:\n- Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError\n- WebSocket connection: invalid ConnectionState transitions raise InvalidLifecycleTransitionError\n- Registry validation: startup issues raise RegistryValidationError\n\nWhen False (default), all three subsystems log WARNING instead of raising.\nThe test harness sets this to True by default.",
+          "title": "Strict Lifecycle",
+          "type": "boolean"
+        },
+        "asyncio_debug_mode": {
+          "default": false,
+          "description": "Whether to enable asyncio debug mode.",
+          "title": "Asyncio Debug Mode",
+          "type": "boolean"
+        },
+        "state_proxy_poll_interval_seconds": {
+          "default": 30,
+          "description": "Interval in seconds to poll the state proxy for updates.",
+          "title": "State Proxy Poll Interval Seconds",
+          "type": "integer"
+        },
+        "disable_state_proxy_polling": {
+          "default": false,
+          "description": "Whether to disable polling for the state proxy. Defaults to False.",
+          "title": "Disable State Proxy Polling",
+          "type": "boolean"
+        },
+        "bus_excluded_domains": {
+          "description": "Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*').",
+          "items": {
+            "type": "string"
+          },
+          "title": "Bus Excluded Domains",
+          "type": "array"
+        },
+        "bus_excluded_entities": {
+          "description": "Entity IDs whose events should be skipped by the bus; supports glob patterns.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Bus Excluded Entities",
+          "type": "array"
+        },
+        "allow_reload_in_prod": {
+          "default": false,
+          "description": "Whether to enable the file watcher for automatic app reloads in production mode.\n\nWhen True, file changes trigger automatic app reloads (same as dev_mode).\nManual app management (start/stop/reload via API) is always available\nregardless of this setting. Defaults to False.",
+          "title": "Allow Reload In Prod",
+          "type": "boolean"
+        },
+        "allow_only_app_in_prod": {
+          "default": false,
+          "description": "Whether to allow the `only_app` decorator in production mode. Defaults to False.",
+          "title": "Allow Only App In Prod",
+          "type": "boolean"
+        },
+        "forgotten_await_behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ForgottenAwaitBehavior"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Global default for forgotten-await detection behavior.\n\nWhen ``None`` (default), the effective behavior is ``\"warn\"``.  Per-app\n``AppConfig.forgotten_await_behavior`` overrides this when set.  Set to ``\"ignore\"``\nto suppress warnings globally, or ``\"error\"`` to escalate via ``filterwarnings(\"error\")``."
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "AppManifest": {
+      "additionalProperties": true,
+      "description": "Manifest for a Hassette app.",
+      "properties": {
+        "app_key": {
+          "description": "Reflects the key for this app in hassette.toml",
+          "title": "App Key",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Whether the app is enabled or not, will default to True if not set. Does not consider @only_app decorator.",
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "autostart": {
+          "default": true,
+          "description": "Whether the app starts automatically when Hassette starts. Orthogonal to\n`enabled`: an enabled app with autostart=false is registered and startable on\ndemand, but is not started at startup or by a live config reload.",
+          "title": "Autostart",
+          "type": "boolean"
+        },
+        "filename": {
+          "description": "Filename of the app, will be looked for in app_path",
+          "examples": [
+            "my_app.py"
+          ],
+          "title": "Filename",
+          "type": "string"
+        },
+        "class_name": {
+          "description": "Class name of the app",
+          "examples": [
+            "MyApp"
+          ],
+          "title": "Class Name",
+          "type": "string"
+        },
+        "display_name": {
+          "description": "Display name of the app, will use class_name if not set",
+          "examples": [
+            "My App"
+          ],
+          "title": "Display Name",
+          "type": "string"
+        },
+        "app_dir": {
+          "description": "Path to the app directory, relative to current working directory or absolute",
+          "examples": [
+            "./apps"
+          ],
+          "format": "path",
+          "title": "App Dir",
+          "type": "string"
+        },
+        "config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Instance configuration for the app",
+          "title": "Config"
+        },
+        "auto_loaded": {
+          "default": false,
+          "description": "Whether the app was auto-detected or manually configured",
+          "title": "Auto Loaded",
+          "type": "boolean"
+        },
+        "full_path": {
+          "description": "Fully resolved path to the app file",
+          "format": "path",
+          "title": "Full Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_key",
+        "filename",
+        "class_name",
+        "display_name",
+        "app_dir",
+        "full_path"
+      ],
+      "title": "AppManifest",
+      "type": "object"
+    },
+    "AppsConfig": {
+      "description": "App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.\n\nIn TOML, app definitions live alongside these settings under ``[hassette.apps]``:\n\n.. code-block:: toml\n\n    [hassette.apps]\n    directory = \"apps\"\n\n    [hassette.apps.my_app]\n    filename = \"my_app.py\"\n    class_name = \"MyApp\"\n\nThe ``model_validator`` separates known config fields from app-definition\ndicts so both coexist in the same TOML section.",
+      "properties": {
+        "autodetect": {
+          "default": true,
+          "description": "Whether to automatically detect apps in the app directory.",
+          "title": "Autodetect",
+          "type": "boolean"
+        },
+        "extend_exclude_dirs": {
+          "description": "Additional directories to exclude when auto-detecting apps in the app directory.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Extend Exclude Dirs",
+          "type": "array"
+        },
+        "exclude_dirs": {
+          "description": "Directories to exclude when auto-detecting apps. Prefer extend_exclude_dirs to avoid\nremoving the defaults.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Dirs",
+          "type": "array"
+        },
+        "manifests": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AppManifest"
+          },
+          "description": "Validated app manifests, keyed by app name.",
+          "title": "Manifests",
+          "type": "object"
+        },
+        "apps": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RawAppDict"
+          },
+          "description": "Raw configuration for Hassette apps, keyed by app name.",
+          "title": "Apps",
+          "type": "object"
+        },
+        "directory": {
+          "description": "Directory to load user apps from.",
+          "format": "path",
+          "title": "Directory",
+          "type": "string"
+        }
+      },
+      "title": "AppsConfig",
+      "type": "object"
+    },
+    "BlockingIOBehavior": {
+      "description": "Controls what happens when blocking I/O is detected on the shared event loop.",
+      "enum": [
+        "ignore",
+        "warn",
+        "error"
+      ],
+      "title": "BlockingIOBehavior",
+      "type": "string"
+    },
+    "BlockingIODetectionConfig": {
+      "description": "Blocking-I/O detection settings for the shared event loop.\n\nControls the two-tier detection system: Tier 1 (always-on responsiveness watchdog) and\nTier 2 (call-site interception of known blocking primitives, dev-default / prod-opt-in).",
+      "properties": {
+        "behavior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BlockingIOBehavior"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Global default behavior for blocking-IO detection.\n\nWhen ``None`` (default), the effective behavior is ``\"warn\"``. Per-app\n``AppConfig.blocking_io_behavior`` overrides this when set. Set to ``\"ignore\"`` to\nsuppress detection globally, or ``\"error\"`` to escalate via ``filterwarnings(\"error\")``."
+        },
+        "watchdog_enabled": {
+          "default": true,
+          "description": "Whether to run the Tier 1 loop-responsiveness watchdog. Defaults to True.",
+          "title": "Watchdog Enabled",
+          "type": "boolean"
+        },
+        "lag_threshold_seconds": {
+          "default": 0.1,
+          "description": "Tier 1: minimum loop lag in seconds before a blocking-detected event is emitted.\nDefaults to 100ms \u2014 brief stalls under this threshold are not reported.",
+          "exclusiveMinimum": 0,
+          "title": "Lag Threshold Seconds",
+          "type": "number"
+        },
+        "watchdog_interval_seconds": {
+          "default": 0.25,
+          "description": "Tier 1: interval in seconds between watchdog heartbeat checks.\nDefaults to 250ms \u2014 trades detection latency for overhead.",
+          "exclusiveMinimum": 0,
+          "title": "Watchdog Interval Seconds",
+          "type": "number"
+        },
+        "capture_stack_on_block": {
+          "default": true,
+          "description": "Whether to capture a stack snapshot of the loop thread when a severe stall is detected.\nDefaults to True. Set to False to reduce overhead on low-memory systems.",
+          "title": "Capture Stack On Block",
+          "type": "boolean"
+        },
+        "deep_detection_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).\n\nWhen ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production.\nSet explicitly to ``True`` or ``False`` to override the dev_mode default.",
+          "title": "Deep Detection Enabled"
+        },
+        "allow_deep_detection_in_prod": {
+          "default": false,
+          "description": "Whether to enable Tier 2 deep detection in production mode.\n\nWhen True, Tier 2 call-site interception is active even when ``dev_mode`` is False,\nregardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.\nDefaults to False.",
+          "title": "Allow Deep Detection In Prod",
+          "type": "boolean"
+        }
+      },
+      "title": "BlockingIODetectionConfig",
+      "type": "object",
+      "ui": {
+        "group_label": "Blocking I/O"
+      }
+    },
+    "DatabaseConfig": {
+      "description": "Database storage, retention, write-queue, and operational-interval settings.",
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Path to the SQLite database file. Defaults to data_dir / \"hassette.db\" when None.",
+          "title": "Path"
+        },
+        "retention_days": {
+          "default": 7,
+          "description": "Number of days to retain execution records in the ``executions`` table.",
+          "minimum": 1,
+          "title": "Retention Days",
+          "type": "integer"
+        },
+        "max_size_mb": {
+          "default": 500,
+          "description": "Maximum database file size in MB. When exceeded, oldest execution records are deleted.\n0 disables the size failsafe.",
+          "minimum": 0,
+          "title": "Max Size Mb",
+          "type": "number"
+        },
+        "migration_timeout_seconds": {
+          "default": 120,
+          "description": "Maximum seconds to wait for SQL schema migrations to complete at startup.",
+          "minimum": 10,
+          "title": "Migration Timeout Seconds",
+          "type": "integer"
+        },
+        "write_queue_max": {
+          "default": 2000,
+          "description": "Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth\nunder sustained I/O pressure. Fire-and-forget tasks are dropped on overflow; submit()\ncallers block until space is available.",
+          "minimum": 1,
+          "title": "Write Queue Max",
+          "type": "integer"
+        },
+        "telemetry_write_queue_max": {
+          "default": 1000,
+          "description": "Maximum pending records in the CommandExecutor write queue before records are dropped.",
+          "minimum": 1,
+          "title": "Telemetry Write Queue Max",
+          "type": "integer"
+        },
+        "heartbeat_interval_seconds": {
+          "default": 300,
+          "description": "Interval in seconds between database heartbeat checks.",
+          "minimum": 10,
+          "title": "Heartbeat Interval Seconds",
+          "type": "integer"
+        },
+        "retention_interval_seconds": {
+          "default": 3600,
+          "description": "Interval in seconds between retention enforcement runs.",
+          "minimum": 60,
+          "title": "Retention Interval Seconds",
+          "type": "integer"
+        },
+        "size_failsafe_interval_seconds": {
+          "default": 3600,
+          "description": "Interval in seconds between size failsafe enforcement runs.",
+          "minimum": 60,
+          "title": "Size Failsafe Interval Seconds",
+          "type": "integer"
+        },
+        "size_failsafe_max_iterations": {
+          "default": 10,
+          "description": "Maximum number of delete-batch iterations per size failsafe run.",
+          "minimum": 1,
+          "title": "Size Failsafe Max Iterations",
+          "type": "integer"
+        },
+        "size_failsafe_delete_batch": {
+          "default": 1000,
+          "description": "Number of rows deleted per batch during size failsafe enforcement.",
+          "minimum": 1,
+          "title": "Size Failsafe Delete Batch",
+          "type": "integer"
+        },
+        "size_failsafe_vacuum_pages": {
+          "default": 100,
+          "description": "Number of pages to vacuum per size failsafe run.",
+          "minimum": 1,
+          "title": "Size Failsafe Vacuum Pages",
+          "type": "integer"
+        },
+        "max_consecutive_heartbeat_failures": {
+          "default": 3,
+          "description": "Maximum consecutive heartbeat failures before the database service is considered unhealthy.",
+          "minimum": 1,
+          "title": "Max Consecutive Heartbeat Failures",
+          "type": "integer"
+        },
+        "read_timeout_seconds": {
+          "default": 10.0,
+          "description": "Maximum seconds to wait for a telemetry read query before raising TimeoutError.",
+          "minimum": 0.1,
+          "title": "Read Timeout Seconds",
+          "type": "number"
+        },
+        "max_flush_interval_seconds": {
+          "default": 5.0,
+          "description": "Maximum seconds a record may sit in the CommandExecutor write queue before a\ntime-based flush is forced, even if the batch size threshold has not been reached.",
+          "minimum": 0.1,
+          "title": "Max Flush Interval Seconds",
+          "type": "number"
+        }
+      },
+      "title": "DatabaseConfig",
+      "type": "object"
+    },
+    "FileWatcherConfig": {
+      "description": "File watcher debounce, step, and enable/disable settings.",
+      "properties": {
+        "debounce_milliseconds": {
+          "default": 3000,
+          "description": "Debounce time for file watcher events in milliseconds.",
+          "title": "Debounce Milliseconds",
+          "type": "integer"
+        },
+        "step_milliseconds": {
+          "default": 500,
+          "description": "Time to wait for additional file changes before emitting event in milliseconds.",
+          "title": "Step Milliseconds",
+          "type": "integer"
+        },
+        "watch_files": {
+          "default": true,
+          "description": "Whether to watch files for changes and reload apps automatically.",
+          "title": "Watch Files",
+          "type": "boolean"
+        }
+      },
+      "title": "FileWatcherConfig",
+      "type": "object"
+    },
+    "ForgottenAwaitBehavior": {
+      "description": "Controls what happens when a protected method is called without ``await``.",
+      "enum": [
+        "ignore",
+        "warn",
+        "error"
+      ],
+      "title": "ForgottenAwaitBehavior",
+      "type": "string"
+    },
+    "LifecycleConfig": {
+      "description": "Startup, shutdown, and per-operation timeout settings for the resource lifecycle.",
+      "properties": {
+        "startup_timeout_seconds": {
+          "default": 30,
+          "description": "Length of time to wait for each wave of Hassette resources to start before giving up.\nMust be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap.",
+          "title": "Startup Timeout Seconds",
+          "type": "integer"
+        },
+        "app_startup_timeout_seconds": {
+          "default": 20,
+          "description": "Length of time to wait for an app to start before giving up.",
+          "title": "App Startup Timeout Seconds",
+          "type": "integer"
+        },
+        "app_shutdown_timeout_seconds": {
+          "default": 10,
+          "description": "Length of time to wait for an app to shut down before giving up.",
+          "title": "App Shutdown Timeout Seconds",
+          "type": "integer"
+        },
+        "resource_shutdown_timeout_seconds": {
+          "description": "Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds.",
+          "title": "Resource Shutdown Timeout Seconds",
+          "type": "integer"
+        },
+        "total_shutdown_timeout_seconds": {
+          "default": 30,
+          "description": "Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation).",
+          "title": "Total Shutdown Timeout Seconds",
+          "type": "integer"
+        },
+        "sync_executor_max_workers": {
+          "description": "Pool ceiling for the dedicated sync-handler thread pool executor.\nSized to match the prior implicit default-pool ceiling (min(32, cpu+4)). This is a\nreasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old\nshared pool also served logging and DB work, so a same-size dedicated pool gives sync\nhandlers more effective headroom in practice.",
+          "minimum": 1,
+          "title": "Sync Executor Max Workers",
+          "type": "integer"
+        },
+        "sync_executor_shutdown_timeout_seconds": {
+          "default": 10.0,
+          "description": "Join-or-interrupt budget for sync-handler worker threads at shutdown (ported from HA).\nMust be less than total_shutdown_timeout_seconds so the outer shutdown budget is not\nexceeded by the executor interrupt phase.",
+          "exclusiveMinimum": 0,
+          "title": "Sync Executor Shutdown Timeout Seconds",
+          "type": "number"
+        },
+        "registration_await_timeout": {
+          "default": 30,
+          "description": "Timeout in seconds to wait for all pending listener/job DB registrations to flush\nbefore post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls.",
+          "title": "Registration Await Timeout",
+          "type": "integer"
+        },
+        "event_handler_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 600.0,
+          "description": "Default timeout in seconds for event handler execution. ``None`` disables the default timeout.\nIndividual listeners can override via ``timeout=`` or ``timeout_disabled=True``.",
+          "title": "Event Handler Timeout Seconds"
+        },
+        "max_concurrent_dispatches": {
+          "default": 50,
+          "description": "Ceiling on concurrent event-handler invocations dispatched by the bus.\n\nThe bus fans an event out to one task per matching listener. Without a bound, a state\nstorm hitting many listeners spawns unbounded tasks and can exhaust memory and the event\nloop. When this many handlers are already in flight, the bus waits for a slot before\nspawning more \u2014 that wait propagates back through the inbound event channel to the\nHome Assistant WebSocket reader (true backpressure).\n\nA running handler holds its slot until it returns or hits ``event_handler_timeout_seconds``,\nso a slow handler can stall dispatch up to that timeout. Read once at startup; changing it\nrequires a restart.",
+          "minimum": 1,
+          "title": "Max Concurrent Dispatches",
+          "type": "integer"
+        },
+        "error_handler_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 5.0,
+          "description": "Default timeout in seconds for error handler execution. ``None`` disables the default timeout.",
+          "title": "Error Handler Timeout Seconds"
+        },
+        "run_sync_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 6,
+          "description": "Default timeout for synchronous function calls.",
+          "title": "Run Sync Timeout Seconds"
+        },
+        "task_cancellation_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 5,
+          "description": "Length of time to wait for tasks to cancel before forcing.",
+          "title": "Task Cancellation Timeout Seconds"
+        }
+      },
+      "title": "LifecycleConfig",
+      "type": "object"
+    },
+    "LoggingConfig": {
+      "description": "Logging level, format, queue, persistence, and per-service log-level settings.",
+      "properties": {
+        "log_level": {
+          "default": "INFO",
+          "description": "Logging level for Hassette.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Log Level",
+          "type": "string"
+        },
+        "log_format": {
+          "default": "auto",
+          "description": "Console output format. ``\"auto\"`` detects TTY vs pipe automatically. ``\"console\"`` forces\ncolored human-readable output. ``\"json\"`` forces one-JSON-object-per-line output.",
+          "enum": [
+            "auto",
+            "console",
+            "json"
+          ],
+          "title": "Log Format",
+          "type": "string"
+        },
+        "log_queue_max": {
+          "default": 2000,
+          "description": "Maximum size of the inter-thread log queue. Records are dropped when the queue is full.",
+          "minimum": 1,
+          "title": "Log Queue Max",
+          "type": "integer"
+        },
+        "log_persistence_level": {
+          "default": "INFO",
+          "description": "Minimum log level for database persistence. Records below this level are not stored.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Log Persistence Level",
+          "type": "string"
+        },
+        "log_retention_days": {
+          "default": 3,
+          "description": "Number of days to retain persisted log records. Must be <= database.retention_days.",
+          "minimum": 1,
+          "title": "Log Retention Days",
+          "type": "integer"
+        },
+        "database_service": {
+          "description": "Logging level for the database service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Database Service",
+          "type": "string"
+        },
+        "bus_service": {
+          "description": "Logging level for the event bus service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Bus Service",
+          "type": "string"
+        },
+        "scheduler_service": {
+          "description": "Logging level for the scheduler service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Scheduler Service",
+          "type": "string"
+        },
+        "app_handler": {
+          "description": "Logging level for the app handler service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "App Handler",
+          "type": "string"
+        },
+        "web_api": {
+          "description": "Logging level for the web API service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Web Api",
+          "type": "string"
+        },
+        "websocket": {
+          "description": "Logging level for the WebSocket service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Websocket",
+          "type": "string"
+        },
+        "service_watcher": {
+          "description": "Logging level for the service watcher. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Service Watcher",
+          "type": "string"
+        },
+        "file_watcher": {
+          "description": "Logging level for the file watcher service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "File Watcher",
+          "type": "string"
+        },
+        "task_bucket": {
+          "description": "Logging level for task buckets. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Task Bucket",
+          "type": "string"
+        },
+        "command_executor": {
+          "description": "Logging level for the command executor service. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Command Executor",
+          "type": "string"
+        },
+        "apps": {
+          "description": "Default logging level for apps, can be overridden in app initialization. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Apps",
+          "type": "string"
+        },
+        "state_proxy": {
+          "description": "Logging level for the state proxy resource. Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "State Proxy",
+          "type": "string"
+        },
+        "api": {
+          "description": "Logging level for the API resource (REST/WebSocket client). Defaults to log_level.",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
+          "title": "Api",
+          "type": "string"
+        },
+        "all_events": {
+          "default": false,
+          "description": "Whether to include all events in bus debug logging. Should be used sparingly.",
+          "title": "All Events",
+          "type": "boolean"
+        },
+        "all_hass_events": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether to include all Home Assistant events in bus debug logging.\nDefaults to False or the value of all_events.",
+          "title": "All Hass Events"
+        },
+        "all_hassette_events": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Whether to include all Hassette events in bus debug logging.\nDefaults to False or the value of all_events.",
+          "title": "All Hassette Events"
+        }
+      },
+      "title": "LoggingConfig",
+      "type": "object"
+    },
+    "RawAppDict": {
+      "description": "Structure for raw app configuration before processing.\n\nNot all fields are required at this stage, as we will enrich and validate them later.",
+      "properties": {
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "class_name": {
+          "title": "Class Name",
+          "type": "string"
+        },
+        "app_dir": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "App Dir"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "autostart": {
+          "title": "Autostart",
+          "type": "boolean"
+        },
+        "config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Config"
+        },
+        "auto_loaded": {
+          "title": "Auto Loaded",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "filename",
+        "class_name"
+      ],
+      "title": "RawAppDict",
+      "type": "object"
+    },
+    "SchedulerConfig": {
+      "description": "Scheduler delay, threshold, and job-timeout settings.",
+      "properties": {
+        "min_delay_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1,
+          "description": "Minimum delay between scheduled jobs.",
+          "title": "Min Delay Seconds"
+        },
+        "max_delay_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 30,
+          "description": "Maximum delay between scheduled jobs.",
+          "title": "Max Delay Seconds"
+        },
+        "default_delay_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 15,
+          "description": "Default delay between scheduled jobs.",
+          "title": "Default Delay Seconds"
+        },
+        "behind_schedule_threshold_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 5,
+          "description": "Threshold in seconds before a 'behind schedule' warning is logged for a job.",
+          "title": "Behind Schedule Threshold Seconds"
+        },
+        "job_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 600.0,
+          "description": "Default timeout in seconds for scheduled job execution. ``None`` disables the default timeout.\nIndividual jobs can override via ``timeout=`` or ``timeout_disabled=True``.",
+          "title": "Job Timeout Seconds"
+        }
+      },
+      "title": "SchedulerConfig",
+      "type": "object"
+    },
+    "WebApiConfig": {
+      "description": "Web API and UI server host, port, buffer, and feature-flag settings.",
+      "properties": {
+        "run": {
+          "default": true,
+          "description": "Whether to run the web API service (includes healthcheck and UI backend).",
+          "title": "Run",
+          "type": "boolean"
+        },
+        "run_ui": {
+          "default": true,
+          "description": "Whether to serve the web UI dashboard. Only used when run is True.",
+          "title": "Run Ui",
+          "type": "boolean",
+          "ui": {
+            "label": "Run UI"
+          }
+        },
+        "ui_hot_reload": {
+          "default": false,
+          "description": "Watch web UI static files and templates for changes and push live reloads to the browser.",
+          "title": "Ui Hot Reload",
+          "type": "boolean",
+          "ui": {
+            "label": "UI Hot Reload"
+          }
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "description": "Host to bind the web API server to.",
+          "title": "Host",
+          "type": "string"
+        },
+        "port": {
+          "default": 8126,
+          "description": "Port to run the web API server on.",
+          "title": "Port",
+          "type": "integer"
+        },
+        "cors_origins": {
+          "default": [
+            "http://localhost:3000",
+            "http://localhost:5173"
+          ],
+          "description": "Allowed CORS origins for the web API, typically the UI dev server.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Cors Origins",
+          "type": "array",
+          "ui": {
+            "label": "CORS Origins"
+          }
+        },
+        "event_buffer_size": {
+          "default": 500,
+          "description": "Maximum number of recent events to keep in the RuntimeQueryService ring buffer.",
+          "title": "Event Buffer Size",
+          "type": "integer"
+        },
+        "log_buffer_size": {
+          "default": 2000,
+          "description": "Maximum number of log entries to keep in the LogCaptureHandler ring buffer.",
+          "title": "Log Buffer Size",
+          "type": "integer"
+        },
+        "job_history_size": {
+          "default": 1000,
+          "description": "Maximum number of job execution records to keep.",
+          "title": "Job History Size",
+          "type": "integer"
+        }
+      },
+      "title": "WebApiConfig",
+      "type": "object",
+      "ui": {
+        "group_label": "Web API"
+      }
+    },
+    "WebSocketConfig": {
+      "description": "WebSocket connection, retry, and recovery timing settings.",
+      "properties": {
+        "authentication_timeout_seconds": {
+          "default": 10,
+          "description": "Length of time to wait for WebSocket authentication to complete.",
+          "title": "Authentication Timeout Seconds",
+          "type": "integer"
+        },
+        "response_timeout_seconds": {
+          "default": 15,
+          "description": "Length of time to wait for a response from the WebSocket.",
+          "title": "Response Timeout Seconds",
+          "type": "integer"
+        },
+        "connection_timeout_seconds": {
+          "default": 5,
+          "description": "Length of time to wait for WebSocket connection to complete. Passed to aiohttp.",
+          "title": "Connection Timeout Seconds",
+          "type": "integer"
+        },
+        "total_timeout_seconds": {
+          "default": 30,
+          "description": "Total length of time to wait for WebSocket operations to complete. Passed to aiohttp.",
+          "title": "Total Timeout Seconds",
+          "type": "integer"
+        },
+        "heartbeat_interval_seconds": {
+          "default": 30,
+          "description": "Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp.",
+          "title": "Heartbeat Interval Seconds",
+          "type": "integer"
+        },
+        "connect_retry_max_attempts": {
+          "default": 5,
+          "description": "Maximum number of attempts to establish the initial WebSocket connection before giving up.",
+          "title": "Connect Retry Max Attempts",
+          "type": "integer"
+        },
+        "connect_retry_initial_wait_seconds": {
+          "default": 1.0,
+          "description": "Initial backoff wait in seconds between WebSocket connection retry attempts.",
+          "title": "Connect Retry Initial Wait Seconds",
+          "type": "number"
+        },
+        "connect_retry_max_wait_seconds": {
+          "default": 32.0,
+          "description": "Maximum backoff wait in seconds between WebSocket connection retry attempts.",
+          "title": "Connect Retry Max Wait Seconds",
+          "type": "number"
+        },
+        "early_drop_stable_window_seconds": {
+          "default": 30.0,
+          "description": "Seconds a connection must stay alive before it is considered stable (resets early-drop counter).",
+          "title": "Early Drop Stable Window Seconds",
+          "type": "number"
+        },
+        "early_drop_max_retries": {
+          "default": 5,
+          "description": "Maximum number of early-drop reconnect attempts before treating the failure as fatal.",
+          "title": "Early Drop Max Retries",
+          "type": "integer"
+        },
+        "early_drop_backoff_initial_seconds": {
+          "default": 2.0,
+          "description": "Initial backoff wait in seconds between early-drop reconnect attempts.",
+          "title": "Early Drop Backoff Initial Seconds",
+          "type": "number"
+        },
+        "early_drop_backoff_max_seconds": {
+          "default": 60.0,
+          "description": "Maximum backoff wait in seconds between early-drop reconnect attempts.",
+          "title": "Early Drop Backoff Max Seconds",
+          "type": "number"
+        },
+        "max_recovery_seconds": {
+          "default": 300.0,
+          "description": "Maximum total wall-clock seconds to spend on all WebSocket recovery attempts before giving up.",
+          "title": "Max Recovery Seconds",
+          "type": "number"
+        }
+      },
+      "title": "WebSocketConfig",
+      "type": "object"
+    }
+  }
+}
