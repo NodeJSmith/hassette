@@ -34,12 +34,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from lint_helpers import docstring_spans, resolve_paths, run_check
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Directories scanned, relative to the repo root.
-SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
+from lint_helpers import DEFAULT_SCAN_DIRS, REPO_ROOT, docstring_spans, iter_python_files, run_check
 
 # A comment whose content (after the leading '#') is a bare rule of decoration. The
 # 4+ floor avoids flagging a stray '# ---' a writer might use as a light separator.
@@ -106,19 +101,19 @@ def iter_paths() -> list[Path]:
     """Return every .py file under the scanned directories, sorted for stable output.
 
     The full-scan entry point the characterization tests parametrize over; ``main`` calls
-    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
-    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    ``iter_python_files`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``iter_python_files``, so the full-scan path can't drift from the per-file path.
     """
-    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
+    return iter_python_files([])
 
 
 def main() -> int:
     return run_check(
-        resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS),
+        iter_python_files(sys.argv[1:]),
         REPO_ROOT,
         check_file,
         summary="AI-writing tell(s) found:",
-        ok=f"no AI-writing tells found under {', '.join(SCAN_DIRS)}/.",
+        ok=f"no AI-writing tells found under {', '.join(DEFAULT_SCAN_DIRS)}/.",
     )
 
 

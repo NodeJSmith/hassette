@@ -2,6 +2,7 @@
 
 from hassette.schemas.telemetry_models import JobSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
 def test_job_summary_new_fields_defaults() -> None:
@@ -12,7 +13,7 @@ def test_job_summary_new_fields_defaults() -> None:
         instance_index=0,
         job_name="test_job",
         handler_method="MyApp.my_job",
-        trigger_type=None,
+        trigger_type="custom",
         trigger_label="",
         trigger_detail=None,
         args_json="[]",
@@ -34,39 +35,15 @@ def test_job_summary_new_fields_defaults() -> None:
     assert summary.cancelled == 0
 
 
-def test_job_summary_mode_default() -> None:
-    """mode defaults to 'single'; suppressed_count and dropped_count default to 0."""
-    summary = JobSummary(
-        job_id=10,
-        app_key="my_app",
-        instance_index=0,
-        job_name="test_job",
-        handler_method="MyApp.my_job",
-        trigger_type=None,
-        trigger_label="",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
-        total_executions=0,
-        successful=0,
-        failed=0,
-        last_executed_at=None,
-        total_duration_ms=0.0,
-        avg_duration_ms=0.0,
-    )
-
-    assert summary.mode == "single"
-    assert summary.suppressed_count == 0
-    assert summary.dropped_count == 0
-
-
 def test_job_summary_mode_field_in_model_fields() -> None:
-    """mode, suppressed_count, dropped_count are declared model fields."""
+    """mode, suppressed_count, dropped_count are declared model fields with correct defaults."""
     assert "mode" in JobSummary.model_fields
     assert "suppressed_count" in JobSummary.model_fields
     assert "dropped_count" in JobSummary.model_fields
+
+    assert JobSummary.model_fields["mode"].default == DEFAULT_OVERLAP_MODE
+    assert JobSummary.model_fields["suppressed_count"].default == 0
+    assert JobSummary.model_fields["dropped_count"].default == 0
 
 
 def test_job_summary_repeat_field_removed() -> None:

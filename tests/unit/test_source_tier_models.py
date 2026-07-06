@@ -8,10 +8,11 @@ from whenever import ZonedDateTime
 from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.exceptions import DependencyError, DependencyInjectionError
 from hassette.scheduler.classes import ScheduledJob
 from hassette.schemas.telemetry_models import HandlerErrorRecord, JobErrorRecord
+from hassette.test_utils.config import TEST_EPOCH_A
+from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.test_utils.helpers import create_listener
 from hassette.utils.execution import ExecutionResult, track_execution
 
@@ -72,7 +73,7 @@ class TestExecutionRecordHandlerNullable:
             kind="handler",
             listener_id=None,
             session_id=1,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
             status="success",
             source_tier="framework",
@@ -87,7 +88,7 @@ class TestExecutionRecordHandlerNullable:
             kind="handler",
             listener_id=99,
             session_id=1,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
             status="success",
             source_tier="app",
@@ -105,7 +106,7 @@ class TestHandlerErrorRecordNullableFields:
             app_key=None,
             handler_method=None,
             topic=None,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
             error_type="ValueError",
             error_message="something went wrong",
@@ -123,7 +124,7 @@ class TestHandlerErrorRecordNullableFields:
             app_key=None,
             job_name=None,
             handler_method=None,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
             error_type="RuntimeError",
             error_message="job failed",
@@ -221,7 +222,7 @@ class TestExecutionRecordJobNullable:
             kind="job",
             job_id=None,
             session_id=1,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=10.0,
             status="success",
             source_tier="framework",
@@ -236,7 +237,7 @@ class TestExecutionRecordJobNullable:
             kind="job",
             job_id=77,
             session_id=1,
-            execution_start_ts=1234567890.0,
+            execution_start_ts=TEST_EPOCH_A,
             duration_ms=10.0,
             status="success",
             source_tier="app",
@@ -249,40 +250,13 @@ class TestExecutionRecordJobNullable:
 class TestRegistrationSourceTier:
     def test_listener_registration_has_source_tier(self) -> None:
         """ListenerRegistration gains source_tier field."""
-        reg = ListenerRegistration(
-            app_key="my_app",
-            instance_index=0,
-            handler_method="my_app.on_event",
-            topic="test.topic",
-            debounce=None,
-            throttle=None,
-            once=False,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
-            source_location="app.py:10",
-            registration_source=None,
-            source_tier="app",
-        )
+        reg = make_listener_registration(app_key="my_app", source_tier="app")
 
         assert reg.source_tier == "app"
 
     def test_scheduled_job_registration_has_source_tier(self) -> None:
         """ScheduledJobRegistration gains source_tier field."""
-        reg = ScheduledJobRegistration(
-            app_key="my_app",
-            instance_index=0,
-            job_name="my_job",
-            handler_method="my_app.my_job",
-            trigger_type=None,
-            trigger_label="once",
-            trigger_detail=None,
-            args_json="[]",
-            kwargs_json="{}",
-            source_location="app.py:20",
-            registration_source=None,
-            source_tier="app",
-        )
+        reg = make_job_registration(app_key="my_app", source_tier="app")
 
         assert reg.source_tier == "app"
 

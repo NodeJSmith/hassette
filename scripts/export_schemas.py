@@ -22,38 +22,8 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
 
-from pydantic import TypeAdapter
-
-# Bootstrap a minimal FastAPI app without connecting to Home Assistant
-
-
-def _create_stub_hassette() -> MagicMock:
-    """Build a MagicMock that satisfies ``create_fastapi_app``."""
-    stub = MagicMock()
-    stub.config.web_api.cors_origins = ()
-    stub.config.web_api.run_ui = False  # no SPA serving needed for schema export
-    return stub
-
-
-def _build_config_schema() -> dict:
-    """Build the hassette.toml JSON Schema wrapping HassetteConfig under a ``hassette`` key."""
-    from hassette.config.config import HassetteConfig  # lazy-import: defers heavy config import to call time
-
-    raw = HassetteConfig.model_json_schema()
-    defs = raw.pop("$defs", {})
-    raw.pop("title", None)
-    return {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Hassette Configuration",
-        "description": "Configuration schema for hassette.toml — the Hassette automation framework config file.",
-        "type": "object",
-        "properties": {
-            "hassette": raw,
-        },
-        "$defs": defs,
-    }
+from schema_helpers import build_config_schema, build_openapi_schema, build_ws_schema, create_stub_hassette
 
 
 def main() -> None:
@@ -65,31 +35,25 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    from hassette.web.app import create_fastapi_app  # lazy-import: defers heavy hassette.web app import to call time
-    from hassette.web.models import WsServerMessage  # lazy-import: defers heavy hassette.web app import to call time
-
     repo_root = Path(__file__).resolve().parent.parent
     frontend_dir = repo_root / "frontend"
     frontend_dir.mkdir(exist_ok=True)
 
     # Config schema (hassette.toml)
-    config_schema = _build_config_schema()
+    config_schema = build_config_schema()
     config_schema_path = repo_root / "hassette.schema.json"
     config_schema_path.write_text(json.dumps(config_schema, indent=2) + "\n")
     print(f"Wrote {config_schema_path}")
 
     # OpenAPI schema
-    stub = _create_stub_hassette()
-    app = create_fastapi_app(stub)
-    openapi = app.openapi()
+    stub = create_stub_hassette()
+    openapi = build_openapi_schema(stub)
     openapi_path = frontend_dir / "openapi.json"
     openapi_path.write_text(json.dumps(openapi, indent=2) + "\n")
     print(f"Wrote {openapi_path}")
 
     # WebSocket message schema
-    adapter = TypeAdapter(WsServerMessage)
-    ws_schema = adapter.json_schema()
-
+    ws_schema = build_ws_schema()
     ws_schema_path = frontend_dir / "ws-schema.json"
     ws_schema_path.write_text(json.dumps(ws_schema, indent=2) + "\n")
     print(f"Wrote {ws_schema_path}")

@@ -17,9 +17,9 @@ from hassette.commands import InvokeHandler
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
+from hassette.test_utils.config import TEST_TOKEN
+from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
@@ -93,18 +93,9 @@ async def test_framework_job_registers_with_db(framework_hassette: MagicMock) ->
     db_service = hassette.database_service
 
     # Register a framework job via CommandExecutor
-    reg = ScheduledJobRegistration(
+    reg = make_job_registration(
         app_key="__hassette__",
-        instance_index=0,
-        job_name="test_job",
         handler_method="__hassette__.test_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
         source_tier="framework",
     )
     job_id = await executor.register_job(reg)
@@ -170,18 +161,9 @@ async def test_command_executor_job_registration_with_source_tier(framework_hass
     db_service = hassette.database_service
 
     # Register a framework job
-    reg = ScheduledJobRegistration(
+    reg = make_job_registration(
         app_key="__hassette__",
-        instance_index=0,
-        job_name="test_job",
         handler_method="__hassette__.test_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
         source_tier="framework",
     )
     job_id = await executor.register_job(reg)
@@ -206,21 +188,7 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     db_service = hassette.database_service
 
     # Register a listener to get valid listener_id
-    reg = ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
-        handler_method="test_app.on_event",
-        topic="hass.event.state_changed",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
-        source_tier="app",
-    )
+    reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
 
     # Queue an invocation record
@@ -269,39 +237,17 @@ async def test_reconciliation_excludes_framework_app_key(framework_hassette: Mag
     db_service = hassette.database_service
 
     # Register a framework listener
-    fw_reg = ListenerRegistration(
+    fw_reg = make_listener_registration(
         app_key="__hassette__",
-        instance_index=0,
         handler_method="__hassette__.on_event",
         topic="test.topic",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
+        name="__hassette__.on_event",
         source_tier="framework",
     )
     fw_listener_id = await executor.register_listener(fw_reg)
 
     # Register an app listener
-    app_reg = ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
-        handler_method="test_app.on_event",
-        topic="test.topic",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
-        source_tier="app",
-    )
+    app_reg = make_listener_registration(topic="test.topic")
     await executor.register_listener(app_reg)
 
     # Reconcile only the app (not the framework)

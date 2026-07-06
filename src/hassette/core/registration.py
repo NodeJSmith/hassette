@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
 from hassette.types.types import SourceTier
 
 
@@ -61,12 +61,12 @@ class ListenerRegistration:
     entity_id: str | None = None
     """The entity this listener monitors, if applicable."""
 
-    mode: str = DEFAULT_OVERLAP_MODE
-    """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
+    """Resolved overlap mode (single/restart/queued/parallel). Persisted to
     the ``listeners.mode`` column. The tier-aware default is already applied in the options."""
 
-    backpressure: str = DEFAULT_BACKPRESSURE_POLICY
-    """Configured backpressure policy (block/drop_newest) as its string value. Persisted to the
+    backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
+    """Configured backpressure policy (block/drop_newest). Persisted to the
     ``listeners.backpressure`` column."""
 
 
@@ -86,10 +86,8 @@ class ScheduledJobRegistration:
     handler_method: str
     """Fully qualified name of the job callable."""
 
-    trigger_type: str | None
-    """Trigger kind: one of ``"interval"``, ``"cron"``, ``"once"``, ``"after"``, ``"custom"``,
-    or ``None`` for legacy no-trigger jobs registered without a ``TriggerProtocol`` trigger.
-    """
+    trigger_type: str
+    """Trigger kind: one of ``"interval"``, ``"cron"``, ``"once"``, ``"after"``, ``"custom"``."""
 
     trigger_label: str
     """Human-readable display label (from trigger.trigger_label()). Distinct from
@@ -119,6 +117,6 @@ class ScheduledJobRegistration:
     name_auto: bool = False
     """Whether the job name was auto-generated from the callable and trigger ID."""
 
-    mode: str = DEFAULT_OVERLAP_MODE
-    """Resolved overlap mode (single/restart/queued/parallel) as its string value. Persisted to
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
+    """Resolved overlap mode (single/restart/queued/parallel). Persisted to
     the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""

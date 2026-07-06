@@ -71,11 +71,8 @@ class ExecutionMode(StrEnum):
     """Run invocations concurrently with no overlap guard (today's behavior)."""
 
 
-DEFAULT_OVERLAP_MODE: str = ExecutionMode.SINGLE.value
-"""Default overlap mode persisted on registration/summary models when none is resolved yet.
-
-Typed ``str`` (not ``ExecutionMode``) because these model fields hold the string form written to
-the ``TEXT`` DB columns, not the enum."""
+DEFAULT_OVERLAP_MODE: ExecutionMode = ExecutionMode.SINGLE
+"""Default overlap mode for registration/summary models when none is resolved yet."""
 
 
 class BackpressurePolicy(StrEnum):
@@ -108,11 +105,8 @@ class BackpressurePolicy(StrEnum):
     """
 
 
-DEFAULT_BACKPRESSURE_POLICY: str = BackpressurePolicy.BLOCK.value
-"""Default backpressure policy persisted on registration/summary models when none is specified.
-
-Typed ``str`` (not ``BackpressurePolicy``) because these model fields hold the string form written
-to the ``TEXT`` DB columns, not the enum."""
+DEFAULT_BACKPRESSURE_POLICY: BackpressurePolicy = BackpressurePolicy.BLOCK
+"""Default backpressure policy for registration/summary models when none is specified."""
 
 
 class Outcome(StrEnum):

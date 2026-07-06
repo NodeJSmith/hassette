@@ -20,10 +20,12 @@ from unittest.mock import MagicMock
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppConfigResponse,
@@ -65,10 +67,10 @@ def make_full_snapshot(
 
 
 def make_manifest(
-    app_key: str = "my_app",
-    class_name: str = "MyApp",
-    display_name: str = "My App",
-    filename: str = "my_app.py",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
     status: str = "running",
@@ -96,10 +98,10 @@ def make_manifest(
 
 
 def make_manifest_response(
-    app_key: str = "my_app",
-    class_name: str = "MyApp",
-    display_name: str = "My App",
-    filename: str = "my_app.py",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
     status: ManifestStatus = "running",
@@ -199,7 +201,7 @@ def make_job(
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
-    trigger_type: str = "interval",
+    trigger_type: str | None = "interval",
     trigger_detail: str | None = None,
     db_id: int | None = None,
     app_key: str = "",
@@ -317,9 +319,9 @@ def make_telemetry_status_response(
 
 
 def make_dashboard_app_grid_entry(
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     status: str = "running",
-    display_name: str = "My App",
+    display_name: str = "Test App",
     instance_count: int = 1,
     handler_count: int = 2,
     job_count: int = 1,
@@ -385,7 +387,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "run_ui": True,
                 "ui_hot_reload": False,
                 "host": "0.0.0.0",
-                "port": 8126,
+                "port": DEFAULT_WEB_API_PORT,
                 "cors_origins": [],
                 "log_buffer_size": 500,
                 "job_history_size": 100,
@@ -429,7 +431,7 @@ def make_activity_feed_entry(
     row_id: str = "h-1",
     status: ExecutionStatus = ExecutionStatus.SUCCESS,
     timestamp: float = SYNTHETIC_TIMESTAMP,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     handler_name: str = "on_state_change",
     duration_ms: float | None = 12.5,
     error_type: str | None = None,
@@ -449,9 +451,9 @@ def make_activity_feed_entry(
 
 
 def make_app_config_response(
-    app_key: str = "my_app",
-    filename: str = "my_app.py",
-    class_name: str = "MyApp",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    filename: str = "test_app.py",
+    class_name: str = "TestApp",
     enabled: bool = True,
     autostart: bool = True,
     app_config: dict | list[dict] | None = None,
@@ -472,9 +474,9 @@ def make_app_config_response(
 
 
 def make_app_source_response(
-    app_key: str = "my_app",
-    filename: str = "my_app.py",
-    content: str = "class MyApp:\n    pass\n",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    filename: str = "test_app.py",
+    content: str = "class TestApp:\n    pass\n",
     line_count: int = 2,
 ) -> AppSourceResponse:
     """Build an AppSourceResponse with sensible defaults."""
@@ -488,7 +490,7 @@ def make_app_source_response(
 
 def make_listener_with_summary(
     listener_id: int = 1,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
     topic: str = "light.kitchen",
     listener_kind: str = "state change",
@@ -550,7 +552,7 @@ def make_execution(
 
 def make_job_summary(
     job_id: int = 1,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
     job_name: str = "check_lights",
     handler_method: str = "check_lights",
@@ -581,7 +583,7 @@ def make_job_summary(
         trigger_detail=trigger_detail,
         args_json="[]",
         kwargs_json="{}",
-        source_location="my_app.py:10",
+        source_location="test_app.py:10",
         registration_source=None,
         total_executions=total_executions,
         successful=successful,
@@ -600,12 +602,12 @@ def make_log_entry_response(
     seq: int = 1,
     timestamp: float = SYNTHETIC_TIMESTAMP,
     level: str = "INFO",
-    logger_name: str = "hassette.app.my_app",
+    logger_name: str = "hassette.app.test_app",
     func_name: str | None = "on_state_change",
     lineno: int | None = 42,
     message: str = "Handler invoked",
     exc_info: str | None = None,
-    app_key: str | None = "my_app",
+    app_key: str | None = DEFAULT_TEST_APP_KEY,
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = 0,

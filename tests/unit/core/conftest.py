@@ -2,9 +2,13 @@
 
 import asyncio
 import logging
+import shutil
+import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import aiosqlite
 import pytest
 
 from hassette.bus.duration_hold import DurationHoldManager
@@ -13,7 +17,9 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_filter import EventFilter
+from hassette.core.migration_runner import run_migrations
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -351,3 +357,44 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
     svc._dispatch_semaphore = asyncio.Semaphore(max_concurrent_dispatches)
     svc._last_saturation_warn_ts = 0.0
     return svc
+
+
+@pytest.fixture(scope="session")
+def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the real migration runner once per session and return the template DB path."""
+    tmpl_dir = tmp_path_factory.mktemp("telemetry_repo_db")
+    db_path = tmpl_dir / "hassette.db"
+    run_migrations(db_path)
+    return db_path
+
+
+@pytest.fixture
+async def telemetry_db(_migrated_db_template: Path, tmp_path: Path) -> AsyncIterator[aiosqlite.Connection]:
+    """Migrated SQLite connection with FK enforcement on."""
+    dst = tmp_path / "hassette.db"
+    shutil.copy2(_migrated_db_template, dst)
+    async with aiosqlite.connect(dst) as conn:
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA foreign_keys = ON")
+        yield conn
+
+
+@pytest.fixture
+async def telemetry_repo(telemetry_db: aiosqlite.Connection) -> TelemetryRepository:
+    """TelemetryRepository backed by an in-memory SQLite connection."""
+    mock_db_service = MagicMock()
+    mock_db_service.db = telemetry_db
+    return TelemetryRepository(mock_db_service)
+
+
+@pytest.fixture
+async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
+    """Insert a session row and return its ID (needed for FK constraints)."""
+    now = time.time()
+    cursor = await telemetry_db.execute(
+        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+        (now, now),
+    )
+    await telemetry_db.commit()
+    assert cursor.lastrowid is not None
+    return cursor.lastrowid

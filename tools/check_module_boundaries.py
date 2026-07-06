@@ -57,9 +57,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from lint_helpers import resolve_paths, run_check
+from lint_helpers import REPO_ROOT, iter_python_files, run_check
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC = REPO_ROOT / "src" / "hassette"
 
 # Directory scanned for boundary violations, derived from SRC so the two can't drift.
@@ -80,65 +79,74 @@ class Rule:
     reason: str
 
 
+def forbids_package(pkg: str) -> Callable[[str], bool]:
+    """Return a ``Rule.forbids`` predicate matching ``hassette.<pkg>`` or any submodule of it.
+
+    Factored out because every rule below forbids exactly one ``hassette.*`` package —
+    either the bare package name or anything nested under it (``hassette.core.foo``).
+    """
+    return lambda module: module == f"hassette.{pkg}" or module.startswith(f"hassette.{pkg}.")
+
+
 RULES: list[Rule] = [
     Rule(
         name="test_utils-isolation",
         applies=lambda layer: layer != "test_utils",
-        forbids=lambda module: module == "hassette.test_utils" or module.startswith("hassette.test_utils."),
+        forbids=forbids_package("test_utils"),
         reason="production code must not import test helpers from hassette.test_utils",
     ),
     Rule(
         name="api-no-core",
         applies=lambda layer: layer == "api",
-        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        forbids=forbids_package("core"),
         reason="api must not import core at runtime; core sits above the service layer (#1079)",
     ),
     Rule(
         name="utils-no-events",
         applies=lambda layer: layer == "utils",
-        forbids=lambda module: module == "hassette.events" or module.startswith("hassette.events."),
+        forbids=forbids_package("events"),
         reason="utils sits below events; the only upward dependency (is_event_type) has moved to events/",
     ),
     Rule(
         name="web-no-core",
         applies=lambda layer: layer == "web",
-        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        forbids=forbids_package("core"),
         reason="web must not runtime-import core; web-facing data types live in hassette.schemas",
     ),
     Rule(
         name="bus-no-core",
         applies=lambda layer: layer == "bus",
-        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        forbids=forbids_package("core"),
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
     Rule(
         name="bus-no-ha-events",
         applies=lambda layer: layer == "bus",
-        forbids=lambda module: module == "hassette.events.hass" or module.startswith("hassette.events.hass."),
+        forbids=forbids_package("events.hass"),
         reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
     ),
     Rule(
         name="resources-no-task_bucket",
         applies=lambda layer: layer == "resources",
-        forbids=lambda module: module == "hassette.task_bucket" or module.startswith("hassette.task_bucket."),
+        forbids=forbids_package("task_bucket"),
         reason="resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
     ),
     Rule(
         name="scheduler-no-core",
         applies=lambda layer: layer == "scheduler",
-        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        forbids=forbids_package("core"),
         reason="scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
     ),
     Rule(
         name="state_manager-no-core",
         applies=lambda layer: layer == "state_manager",
-        forbids=lambda module: module == "hassette.core" or module.startswith("hassette.core."),
+        forbids=forbids_package("core"),
         reason="state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
     ),
     Rule(
         name="models-no-conversion",
         applies=lambda layer: layer == "models",
-        forbids=lambda module: module == "hassette.conversion" or module.startswith("hassette.conversion."),
+        forbids=forbids_package("conversion"),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
 ]
@@ -336,15 +344,15 @@ def iter_paths() -> list[Path]:
     """Return every .py file under src/hassette, sorted for stable output.
 
     The full-scan entry point the characterization tests parametrize over; ``main`` calls
-    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
-    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    ``iter_python_files`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``iter_python_files``, so the full-scan path can't drift from the per-file path.
     """
-    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
+    return iter_python_files([], SCAN_DIRS)
 
 
 def main() -> int:
     return run_check(
-        resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS),
+        iter_python_files(sys.argv[1:], SCAN_DIRS),
         REPO_ROOT,
         check_file,
         summary="module-boundary violation(s)",

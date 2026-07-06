@@ -131,8 +131,7 @@ class TestCmdJob:
 
         output = buf.getvalue()
         assert "99" in output
-        # app_key truncates to 7 chars with ellipsis when 11 columns share terminal width
-        assert "my_a" in output
+        assert "test" in output
         assert "Mode" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
