@@ -30,6 +30,12 @@ When the same setting appears in multiple sources, the higher-precedence source 
 !!! tip "Docker"
     In Docker, the configuration volume mounts to `/config`. Hassette checks `/config/hassette.toml` first.
 
+## IDE Support {#ide-support}
+
+`hassette.toml` has a [JSON Schema](https://json-schema.org/) listed on [SchemaStore](https://www.schemastore.org/). Editors with TOML language support — VS Code ([Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)), JetBrains IDEs, and Neovim with [Taplo](https://taplo.tamasfe.dev/) — discover the schema by filename and provide autocomplete, inline validation, and hover documentation for every field.
+
+No editor configuration is needed. The schema is generated from [`HassetteConfig`][hassette.config.HassetteConfig] and stays current with each release.
+
 ## Authentication
 
 The `token` field accepts four aliases: `token`, `hassette__token`, `ha_token`, and `home_assistant_token`. This means the same token can be supplied under any of those names in any source.
