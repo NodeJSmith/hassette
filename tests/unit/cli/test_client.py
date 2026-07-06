@@ -51,8 +51,8 @@ def _make_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
     return HassetteConfig(token=None, web_api=WebApiConfig(host=host, port=port))
 
 
-def _make_manifest_list(instances: list[AppInstanceResponse]):
-    manifest = make_manifest_response(instance_count=len(instances), instances=instances)
+def _make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
+    manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
     return make_manifest_list_response(manifests=[manifest])
 
 

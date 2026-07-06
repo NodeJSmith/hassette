@@ -15,7 +15,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, ExecutionStatus, SourceTier
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
@@ -66,8 +66,8 @@ class ListenerSummary(BaseModel):
     immediate: int = 0
     duration: float | None = None
     entity_id: str | None = None
-    mode: str = DEFAULT_OVERLAP_MODE
-    backpressure: str = DEFAULT_BACKPRESSURE_POLICY
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
+    backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
     """Sourced from the ``listeners.backpressure`` column; ``'block'`` (default) or ``'drop_newest'``."""
     total_invocations: int
     successful: int
@@ -195,9 +195,9 @@ class JobSummary(BaseModel):
     """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     max_duration_ms: float | None = None
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
-    mode: str = DEFAULT_OVERLAP_MODE
-    """Resolved overlap mode for this job (``'single'``, ``'restart'``, ``'queued'``, ``'parallel'``).
-    Persisted at registration; sourced from the DB column ``scheduled_jobs.mode``."""
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
+    """Resolved overlap mode for this job. Persisted at registration; sourced from the DB column
+    ``scheduled_jobs.mode``."""
     suppressed_count: int = 0
     """Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
     live from the in-process guard and reset to 0 on restart."""

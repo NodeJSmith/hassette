@@ -41,12 +41,7 @@ import sys
 import tokenize
 from pathlib import Path
 
-from lint_helpers import docstring_spans, resolve_paths
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Directories scanned, relative to the repo root.
-SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
+from lint_helpers import DEFAULT_SCAN_DIRS, REPO_ROOT, docstring_spans, iter_python_files
 
 # Leaked spec-artifact codes:
 #   Criterion prefixes (AC, FR, NFR, WP) followed by an optional '#', one or more
@@ -98,10 +93,10 @@ def iter_paths() -> list[Path]:
     """Return every .py file under the scanned directories, sorted for stable output.
 
     The full-scan entry point the characterization tests parametrize over; ``main`` calls
-    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
-    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    ``iter_python_files`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``iter_python_files``, so the full-scan path can't drift from the per-file path.
     """
-    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
+    return iter_python_files([])
 
 
 def check_filename(path: Path) -> list[str]:
@@ -115,7 +110,7 @@ def main() -> int:
     content_violations: list[tuple[Path, int, str]] = []
     name_violations: list[tuple[Path, str]] = []
 
-    for path in resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS):
+    for path in iter_python_files(sys.argv[1:]):
         rel = path.relative_to(REPO_ROOT)
         for lineno, token in check_file(path):
             content_violations.append((rel, lineno, token))
@@ -134,7 +129,7 @@ def main() -> int:
         print("packages) that leaked from design docs. Describe the thing, not its plan ID.")
         return 1
 
-    print(f"OK: no leaked spec-artifact tokens found under {', '.join(SCAN_DIRS)}/.")
+    print(f"OK: no leaked spec-artifact tokens found under {', '.join(DEFAULT_SCAN_DIRS)}/.")
     return 0
 
 

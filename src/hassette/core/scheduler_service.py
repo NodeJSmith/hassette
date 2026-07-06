@@ -264,11 +264,13 @@ class SchedulerService(Service):
         registration_source: str | None = job.registration_source or None
         trigger = job.trigger
         if trigger is not None:
-            trigger_type: str | None = trigger.trigger_db_type()
+            trigger_type: str = trigger.trigger_db_type()
             trigger_label: str = trigger.trigger_label()
             trigger_detail: str | None = trigger.trigger_detail()
         else:
-            trigger_type = None
+            # Unreachable: Scheduler.schedule() rejects non-protocol triggers before this path.
+            # "custom" satisfies the DB CHECK constraint if this ever runs defensively.
+            trigger_type = "custom"
             trigger_label = ""
             trigger_detail = None
         reg = ScheduledJobRegistration(
@@ -286,7 +288,7 @@ class SchedulerService(Service):
             source_tier=job.source_tier,
             group=job.group,
             name_auto=job.name_auto,
-            mode=job.mode.value,
+            mode=job.mode,
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)

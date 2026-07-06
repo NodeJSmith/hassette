@@ -4,6 +4,8 @@ import re
 from copy import deepcopy
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
+from hassette_codegen.extractors.features import ExtractedEnum
+from hassette_codegen.extractors.properties import ExtractedProperty
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.property_types import resolve_property_types
 
@@ -31,14 +33,14 @@ def generate_state_model(domain: ExtractedDomain) -> str:
     renames = {**prefix_renames, **collision_renames}
 
     strenum_names = {e.name for e in strenums}
-    _apply_type_renames(domain.properties, renames)
-    _props, type_imports = resolve_property_types(domain.properties, strenum_names)
+    properties = _apply_type_renames(domain.properties, renames)
+    properties, type_imports = resolve_property_types(properties, strenum_names)
     extra_imports.extend(sorted(type_imports))
 
     has_intflag = len(domain.features) > 0
     has_strenum = len(strenums) > 0
 
-    datetime_fields = [p.name for p in domain.properties if _is_pure_datetime_field(p.python_type)]
+    datetime_fields = [p.name for p in properties if _is_pure_datetime_field(p.python_type)]
     if datetime_fields:
         extra_imports.append("from hassette.utils.date_utils import convert_datetime_str_to_system_tz")
 
@@ -48,7 +50,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
         base_class=base_class,
         features=domain.features,
         strenums=strenums,
-        properties=domain.properties,
+        properties=properties,
         extra_imports=sorted(set(extra_imports)),
         has_intflag=has_intflag,
         has_strenum=has_strenum,
@@ -56,9 +58,11 @@ def generate_state_model(domain: ExtractedDomain) -> str:
     )
 
 
-def _normalize_enum_prefixes(strenums: list, domain_title: str) -> tuple[list, dict[str, str]]:
+def _normalize_enum_prefixes(
+    strenums: list[ExtractedEnum], domain_title: str
+) -> tuple[list[ExtractedEnum], dict[str, str]]:
     """Normalize domain-prefixed enum names to use the canonical domain title and include 'Entity'."""
-    result = []
+    result: list[ExtractedEnum] = []
     renames: dict[str, str] = {}
     for enum in strenums:
         match = _ATTRIBUTE_SUFFIX_RE.search(enum.name)
@@ -86,9 +90,11 @@ def _normalize_enum_prefixes(strenums: list, domain_title: str) -> tuple[list, d
     return result, renames
 
 
-def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, dict[str, str]]:
+def _rename_collisions(
+    strenums: list[ExtractedEnum], pydantic_class_name: str
+) -> tuple[list[ExtractedEnum], dict[str, str]]:
     """Rename StrEnums that collide with the Pydantic state class name."""
-    result = []
+    result: list[ExtractedEnum] = []
     renames: dict[str, str] = {}
     for enum in strenums:
         if enum.name == pydantic_class_name:
@@ -101,12 +107,16 @@ def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, 
     return result, renames
 
 
-def _apply_type_renames(properties: list, renames: dict[str, str]) -> None:
-    """Apply StrEnum renames to property type annotations."""
+def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, str]) -> list[ExtractedProperty]:
+    """Apply StrEnum renames to property type annotations, returning new objects."""
+    result: list[ExtractedProperty] = []
     for prop in properties:
+        python_type = prop.python_type
         for old_name, new_name in renames.items():
-            if old_name in prop.python_type:
-                prop.python_type = prop.python_type.replace(old_name, new_name)
+            if old_name in python_type:
+                python_type = python_type.replace(old_name, new_name)
+        result.append(ExtractedProperty(name=prop.name, python_type=python_type, has_default=prop.has_default))
+    return result
 
 
 def _is_pure_datetime_field(python_type: str) -> bool:

@@ -241,8 +241,8 @@ class BusService(Service):
             immediate=listener.duration_config.immediate if listener.duration_config else False,
             duration=listener.duration_config.duration if listener.duration_config else None,
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
-            mode=listener.options.mode.value,
-            backpressure=listener.options.backpressure.value,
+            mode=listener.options.mode,
+            backpressure=listener.options.backpressure,
         )
 
     def live_execution_counts(self) -> "dict[int, LiveCounts]":

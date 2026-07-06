@@ -4,27 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob
 from hassette.exceptions import DependencyError, HassetteError
+from hassette.test_utils.factories import make_invoke_handler_cmd
 from hassette.utils.execution import ExecutionResult
 
 from .conftest import make_executor
-
-
-def make_cmd_invoke_handler(source_tier: str) -> MagicMock:
-    """Build a minimal InvokeHandler-like mock."""
-    cmd = MagicMock(spec=InvokeHandler)
-    cmd.source_tier = source_tier
-    cmd.listener_id = 1
-    cmd.topic = "test/topic"
-    cmd.listener = MagicMock()
-    cmd.listener.invoker.invoke = AsyncMock(return_value=None)
-    cmd.effective_timeout = None
-    # Provide event with payload attributes so build_record can extract trigger fields
-    cmd.event = MagicMock()
-    cmd.event.payload.event_id = "test-event-id"
-    cmd.event.payload.origin = "LOCAL"
-    return cmd
 
 
 def make_cmd_execute_job(source_tier: str) -> MagicMock:
@@ -43,7 +28,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_app_tier_suppresses_known_error_traceback(self) -> None:
         """App-tier execution: DependencyError produces error_traceback=None."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="app")
+        cmd = make_invoke_handler_cmd(source_tier="app")
 
         async def fn() -> None:
             raise DependencyError("missing dep")
@@ -61,7 +46,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_app_tier_suppresses_hassette_error_traceback(self) -> None:
         """App-tier execution: HassetteError produces error_traceback=None."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="app")
+        cmd = make_invoke_handler_cmd(source_tier="app")
 
         async def fn() -> None:
             raise HassetteError("framework error")
@@ -77,7 +62,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_framework_tier_preserves_known_error_traceback(self) -> None:
         """Framework-tier execution: DependencyError preserves traceback."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="framework")
+        cmd = make_invoke_handler_cmd(source_tier="framework")
 
         async def fn() -> None:
             raise DependencyError("framework dep error")
@@ -96,7 +81,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_framework_tier_preserves_hassette_error_traceback(self) -> None:
         """Framework-tier execution: HassetteError preserves traceback."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="framework")
+        cmd = make_invoke_handler_cmd(source_tier="framework")
 
         async def fn() -> None:
             raise HassetteError("internal framework error")
@@ -112,7 +97,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_unexpected_source_tier_raises(self) -> None:
         """Unexpected source_tier value raises AssertionError."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="unknown_tier")
+        cmd = make_invoke_handler_cmd(source_tier="unknown_tier")
 
         async def fn() -> None:
             pass
@@ -126,7 +111,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_app_tier_unknown_exception_preserves_traceback(self) -> None:
         """App-tier unknown exceptions (not DependencyError/HassetteError) still get tracebacks."""
         executor = make_executor()
-        cmd = make_cmd_invoke_handler(source_tier="app")
+        cmd = make_invoke_handler_cmd(source_tier="app")
 
         async def fn() -> None:
             raise RuntimeError("unexpected app error")

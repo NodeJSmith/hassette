@@ -12,6 +12,7 @@ import pytest
 
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.web_helpers import make_job_summary, make_real_job
+from hassette.types.enums import ExecutionMode
 
 
 class TestAppJobsEnrichmentWithLiveMatch:
@@ -112,7 +113,7 @@ class TestAppJobsModeAndLiveCounts:
         """mode from DB row appears in the API response."""
         db_summary = make_job_summary(job_id=10, job_name="queued_job", handler_method="MyApp.on_run")
         # Simulate DB row having mode='queued' via model_copy
-        db_summary = db_summary.model_copy(update={"mode": "queued"})
+        db_summary = db_summary.model_copy(update={"mode": ExecutionMode.QUEUED})
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
@@ -181,7 +182,7 @@ class TestAppJobsModeAndLiveCounts:
     async def test_global_jobs_route_returns_mode_and_counts(self, client, mock_hassette) -> None:
         """GET /api/scheduler/jobs also surfaces mode and live counts."""
         db_summary = make_job_summary(job_id=50, job_name="global_job", handler_method="MyApp.on_run")
-        db_summary = db_summary.model_copy(update={"mode": "restart"})
+        db_summary = db_summary.model_copy(update={"mode": ExecutionMode.RESTART})
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)

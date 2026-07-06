@@ -7,9 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob
 from hassette.core.command_executor import CommandExecutor
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.test_utils.factories import make_invoke_handler_cmd
 
 from .conftest import make_executor
 
@@ -25,25 +26,6 @@ def make_listener(
     listener.invoker.invoke = AsyncMock(return_value=None)
     listener.__repr__ = lambda _self: "Listener<test>"
     return listener
-
-
-def make_invoke_handler_cmd(
-    *,
-    listener: MagicMock | None = None,
-    app_level_error_handler: Callable | None = None,
-) -> MagicMock:
-    """Build a minimal InvokeHandler-like mock."""
-    if listener is None:
-        listener = make_listener()
-    cmd = MagicMock(spec=InvokeHandler)
-    cmd.source_tier = "app"
-    cmd.listener_id = 1
-    cmd.topic = "test/topic"
-    cmd.listener = listener
-    cmd.event = MagicMock()
-    cmd.effective_timeout = None
-    cmd.app_level_error_handler = app_level_error_handler
-    return cmd
 
 
 def make_execute_job_cmd(

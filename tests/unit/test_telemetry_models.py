@@ -8,6 +8,7 @@ from hassette.schemas.telemetry_models import (
     ListenerSummary,
     SessionSummary,
 )
+from hassette.test_utils.config import TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
@@ -21,7 +22,7 @@ class TestAppHealthSummary:
             "total_executions": 50,
             "total_job_errors": 2,
             "avg_duration_ms": 12.5,
-            "last_activity_ts": 1700000000.0,
+            "last_activity_ts": TEST_EPOCH_B,
         }
         model = AppHealthSummary.model_validate(data)
         assert model.handler_count == 3
@@ -31,7 +32,7 @@ class TestAppHealthSummary:
         assert model.total_executions == 50
         assert model.total_job_errors == 2
         assert model.avg_duration_ms == 12.5
-        assert model.last_activity_ts == 1700000000.0
+        assert model.last_activity_ts == TEST_EPOCH_B
 
     def test_app_health_summary_nullable_last_activity(self) -> None:
         data = {
@@ -74,7 +75,7 @@ class TestListenerSummary:
             "avg_duration_ms": 15.0,
             "min_duration_ms": 5.0,
             "max_duration_ms": 50.0,
-            "last_invoked_at": 1700000000.0,
+            "last_invoked_at": TEST_EPOCH_B,
             "last_error_type": "ValueError",
             "last_error_message": "bad value",
         }
@@ -98,7 +99,7 @@ class TestListenerSummary:
             "priority": 0,
             "predicate_description": None,
             "human_description": None,
-            "source_location": "app.py:10",
+            "source_location": TEST_SOURCE_LOCATION,
             "registration_source": None,
             "total_invocations": 0,
             "successful": 0,
@@ -123,7 +124,7 @@ class TestExecution:
         data = {
             "kind": "handler",
             "listener_id": 7,
-            "execution_start_ts": 1700000000.0,
+            "execution_start_ts": TEST_EPOCH_B,
             "duration_ms": 12.5,
             "status": "success",
             "error_type": None,
@@ -132,7 +133,7 @@ class TestExecution:
         model = Execution.model_validate(data)
         assert model.kind == "handler"
         assert model.listener_id == 7
-        assert model.execution_start_ts == 1700000000.0
+        assert model.execution_start_ts == TEST_EPOCH_B
         assert model.duration_ms == 12.5
         assert model.status == "success"
         assert model.error_type is None
@@ -141,7 +142,7 @@ class TestExecution:
         data = {
             "kind": "job",
             "job_id": 3,
-            "execution_start_ts": 1700000000.0,
+            "execution_start_ts": TEST_EPOCH_B,
             "duration_ms": 20.0,
             "status": "error",
             "error_type": "RuntimeError",
@@ -200,7 +201,7 @@ class TestJobSummary:
             "total_executions": 3,
             "successful": 2,
             "failed": 1,
-            "last_executed_at": 1700000000.0,
+            "last_executed_at": TEST_EPOCH_B,
             "total_duration_ms": 75.0,
             "avg_duration_ms": 25.0,
         }
@@ -217,10 +218,10 @@ class TestJobSummary:
             "instance_index": 0,
             "job_name": "my_job",
             "handler_method": "run_job",
-            "trigger_type": None,
+            "trigger_type": "custom",
             "args_json": "[]",
             "kwargs_json": "{}",
-            "source_location": "app.py:10",
+            "source_location": TEST_SOURCE_LOCATION,
             "registration_source": None,
             "total_executions": 0,
             "successful": 0,
@@ -245,12 +246,12 @@ class TestJobSummary:
             "trigger_type": "interval",
             "args_json": "[]",
             "kwargs_json": "{}",
-            "source_location": "app.py:20",
+            "source_location": TEST_SOURCE_LOCATION,
             "registration_source": None,
             "total_executions": 10,
             "successful": 8,
             "failed": 2,
-            "last_executed_at": 1700000000.0,
+            "last_executed_at": TEST_EPOCH_B,
             "total_duration_ms": 100.0,
             "avg_duration_ms": 10.0,
             "mode": "queued",
@@ -289,7 +290,7 @@ class TestGlobalSummary:
 class TestSessionSummary:
     def test_session_summary_from_dict(self) -> None:
         data = {
-            "started_at": 1700000000.0,
+            "started_at": TEST_EPOCH_B,
             "last_heartbeat_at": 1700000100.0,
             "total_invocations": 50,
             "invocation_errors": 3,
@@ -297,5 +298,5 @@ class TestSessionSummary:
             "execution_errors": 1,
         }
         model = SessionSummary.model_validate(data)
-        assert model.started_at == 1700000000.0
+        assert model.started_at == TEST_EPOCH_B
         assert model.total_invocations == 50

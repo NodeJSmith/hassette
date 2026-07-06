@@ -5,7 +5,13 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.schemas.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, ResourceStatus
+from hassette.types.enums import (
+    DEFAULT_BACKPRESSURE_POLICY,
+    DEFAULT_OVERLAP_MODE,
+    BackpressurePolicy,
+    ExecutionMode,
+    ResourceStatus,
+)
 from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, SourceTier
 
 ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
@@ -324,11 +330,11 @@ class ListenerWithSummary(BaseModel):
     immediate: int = 0
     duration: float | None = None
     entity_id: str | None = None
-    mode: str = DEFAULT_OVERLAP_MODE
+    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     suppressed_count: int = 0
     dropped_count: int = 0
     backpressure_dropped_count: int = 0
-    backpressure: str = DEFAULT_BACKPRESSURE_POLICY
+    backpressure: BackpressurePolicy = DEFAULT_BACKPRESSURE_POLICY
 
 
 class ActivityBucket(BaseModel):

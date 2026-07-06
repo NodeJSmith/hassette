@@ -11,9 +11,8 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.utils.execution import ExecutionResult
 
 from .conftest import make_mock_job, make_mock_listener
@@ -31,39 +30,6 @@ async def executor(
         yield exc
     finally:
         await exc.on_shutdown()
-
-
-def make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
-    return ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
-        handler_method="test_app.on_event",
-        topic=topic,
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test_command_executor.py:1",
-        registration_source=None,
-    )
-
-
-def make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistration:
-    return ScheduledJobRegistration(
-        app_key="test_app",
-        instance_index=0,
-        job_name=job_name,
-        handler_method="test_app.my_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test_command_executor.py:1",
-        registration_source=None,
-    )
 
 
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
@@ -645,19 +611,10 @@ async def test_reconciliation_ordering(
 
     # Register two listeners
     reg_a = make_listener_registration(topic="topic.a")
-    reg_b = ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
+    reg_b = make_listener_registration(
         handler_method="test_app.on_event_b",
         topic="topic.b",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location=TEST_SOURCE_LOCATION,
-        registration_source=None,
+        name="test_app.on_event_b",
     )
     id_a = await executor.register_listener(reg_a)
     id_b = await executor.register_listener(reg_b)

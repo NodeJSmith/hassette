@@ -16,6 +16,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
+from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.types.enums import ExecutionMode
 
 
@@ -92,19 +93,10 @@ async def test_listener_registration_persists_correct_app_key(
 ) -> None:
     """register_listener() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
-    reg = ListenerRegistration(
+    reg = make_listener_registration(
         app_key="my_app",
         instance_index=2,
         handler_method="MyApp.on_event",
-        topic="hass.event.state_changed",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test_registration.py:1",
-        registration_source=None,
     )
     listener_id = await executor.register_listener(reg)
     assert listener_id > 0
@@ -127,19 +119,9 @@ async def test_listener_registration_persists_mode(
 ) -> None:
     """register_listener() persists the resolved execution mode."""
     db_service, _ = initialized_db
-    reg = ListenerRegistration(
+    reg = make_listener_registration(
         app_key="my_app",
-        instance_index=0,
         handler_method="MyApp.on_event",
-        topic="hass.event.state_changed",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test_registration.py:1",
-        registration_source=None,
         name=f"listener_{mode}",
         mode=mode,
     )
@@ -159,19 +141,9 @@ async def test_listener_mode_updates_on_reregistration(
     db_service, _ = initialized_db
 
     def make_reg(mode: str) -> ListenerRegistration:
-        return ListenerRegistration(
+        return make_listener_registration(
             app_key="my_app",
-            instance_index=0,
             handler_method="MyApp.on_event",
-            topic="hass.event.state_changed",
-            debounce=None,
-            throttle=None,
-            once=False,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
-            source_location="test_registration.py:1",
-            registration_source=None,
             name="reg_mode_listener",
             mode=mode,
         )
@@ -193,18 +165,10 @@ async def test_job_registration_persists_correct_app_key(
 ) -> None:
     """register_job() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
-    reg = ScheduledJobRegistration(
+    reg = make_job_registration(
         app_key="my_app",
         instance_index=3,
-        job_name="test_job",
         handler_method="MyApp.my_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test_registration.py:1",
-        registration_source=None,
     )
     job_id = await executor.register_job(reg)
     assert job_id > 0
@@ -350,19 +314,11 @@ async def test_job_registration_persists_mode(
     The column is never read back to reconstruct the guard.
     """
     db_service, _ = initialized_db
-    reg = ScheduledJobRegistration(
+    reg = make_job_registration(
         app_key="my_app",
-        instance_index=0,
         job_name=f"mode_job_{mode_str}",
         handler_method="MyApp.my_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test_registration.py:1",
-        registration_source=None,
-        mode=mode_str,
+        mode=ExecutionMode(mode_str),
     )
     job_id = await executor.register_job(reg)
     assert job_id > 0
@@ -384,19 +340,11 @@ async def test_job_mode_updates_on_reregistration(
     db_service, _ = initialized_db
 
     def make_reg(mode: str) -> ScheduledJobRegistration:
-        return ScheduledJobRegistration(
+        return make_job_registration(
             app_key="my_app",
-            instance_index=0,
             job_name="rereg_mode_job",
             handler_method="MyApp.my_job",
-            trigger_type=None,
-            trigger_label="once",
-            trigger_detail=None,
-            args_json="[]",
-            kwargs_json="{}",
-            source_location="test_registration.py:1",
-            registration_source=None,
-            mode=mode,
+            mode=ExecutionMode(mode),
         )
 
     first_id = await executor.register_job(make_reg("single"))
@@ -416,18 +364,13 @@ async def test_group_persisted_at_registration(
 ) -> None:
     """A job registered with group='morning' has the value written to the DB."""
     db_service, _ = initialized_db
-    reg = ScheduledJobRegistration(
+    reg = make_job_registration(
         app_key="my_app",
-        instance_index=0,
         job_name="morning_job",
         handler_method="MyApp.morning_job",
         trigger_type="cron",
         trigger_label="daily at 07:00",
         trigger_detail="0 7 * * *",
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test_registration.py:1",
-        registration_source=None,
         group="morning",
     )
     job_id = await executor.register_job(reg)

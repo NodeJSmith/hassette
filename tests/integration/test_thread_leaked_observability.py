@@ -20,8 +20,8 @@ from hassette.commands import InvokeHandler
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.registration import ListenerRegistration
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.test_utils.factories import make_listener_registration
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 from .conftest import make_mock_listener
@@ -263,20 +263,7 @@ async def test_thread_leaked_persists_to_db(
     db_service, _session_id = initialized_db
 
     # Register the listener so the FK constraint is satisfied.
-    reg = ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
-        handler_method="test_app.on_event",
-        topic="test",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test_thread_leaked.py:1",
-        registration_source=None,
-    )
+    reg = make_listener_registration(topic="test")
     listener_id = await executor.register_listener(reg)
 
     # Build the record directly so we avoid calling build_record with a MagicMock event
@@ -316,20 +303,7 @@ async def test_thread_leaked_false_persists_as_zero(
     """thread_leaked=False (default) persists as 0 in the DB."""
     db_service, _session_id = initialized_db
 
-    reg = ListenerRegistration(
-        app_key="test_app",
-        instance_index=0,
-        handler_method="test_app.on_event",
-        topic="test",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test_thread_leaked.py:1",
-        registration_source=None,
-    )
+    reg = make_listener_registration(topic="test", name="test_app.on_event_false")
     listener_id = await executor.register_listener(reg)
 
     record = ExecutionRecord(
