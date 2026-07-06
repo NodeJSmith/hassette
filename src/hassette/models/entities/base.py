@@ -86,23 +86,23 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         """Turn off the entity."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.turn_off(self.entity_id, self.domain)
+        return self.api.turn_off(self.entity_id)
 
     def turn_on(self, **data: Any) -> Coroutine[Any, Any, None]:
         """Turn on the entity.
 
         Args:
-            **data: Service data fields forwarded to the domain's ``turn_on`` service.
+            **data: Service data fields forwarded to the ``homeassistant.turn_on`` service.
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.turn_on(self.entity_id, self.domain, **data)
+        return self.api.turn_on(self.entity_id, **data)
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggle the entity."""
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
-        return self.api.toggle_service(self.entity_id, self.domain)
+        return self.api.toggle_service(self.entity_id)
 
 
 class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
@@ -115,16 +115,16 @@ class BaseEntitySyncFacade(Generic[StateT, StateValueT]):
 
     def turn_off(self) -> None:
         """Turn off the entity."""
-        self.entity.api.sync.turn_off(self.entity.entity_id, self.entity.domain)
+        self.entity.api.sync.turn_off(self.entity.entity_id)
 
     def turn_on(self, **data: Any) -> None:
         """Turn on the entity.
 
         Args:
-            **data: Service data fields forwarded to the domain's ``turn_on`` service.
+            **data: Service data fields forwarded to the ``homeassistant.turn_on`` service.
         """
-        self.entity.api.sync.turn_on(self.entity.entity_id, self.entity.domain, **data)
+        self.entity.api.sync.turn_on(self.entity.entity_id, **data)
 
     def toggle(self) -> None:
         """Toggle the entity."""
-        self.entity.api.sync.toggle_service(self.entity.entity_id, self.entity.domain)
+        self.entity.api.sync.toggle_service(self.entity.entity_id)

@@ -9,6 +9,8 @@ Covers:
     — LightEntity.sync.turn_on(brightness=128) and .turn_off() route through
       call_service (generated override); isinstance(..., BaseEntitySyncFacade)
       holds (inheritance chain intact).
+    — LockEntity (serviceless domain) inherits base turn_on/turn_off/toggle which
+      dispatch via homeassistant.* generic services, not lock.turn_on (nonexistent).
 """
 
 from typing import TYPE_CHECKING
@@ -19,7 +21,8 @@ from hassette.models.entities.base import BaseEntitySyncFacade
 from hassette.models.entities.climate import ClimateEntity, ClimateEntitySyncFacade
 from hassette.models.entities.cover import CoverEntity, CoverEntitySyncFacade
 from hassette.models.entities.light import LightEntitySyncFacade
-from hassette.models.states import ClimateState, CoverState
+from hassette.models.entities.lock import LockEntity, LockEntitySyncFacade
+from hassette.models.states import ClimateState, CoverState, LockState
 from tests.unit.conftest import make_api, make_light_entity
 
 if TYPE_CHECKING:
@@ -53,6 +56,19 @@ def make_climate_entity(api: "Api") -> tuple[ClimateEntity, "Token[Hassette]"]:
         {"entity_id": "climate.living_room", "state": "heat", "attributes": {}, "context": {}}
     )
     entity = ClimateEntity(state=state)
+    return entity, token
+
+
+def make_lock_entity(api: "Api") -> tuple[LockEntity, "Token[Hassette]"]:
+    """Create a LockEntity wired to the given api via HASSETTE_INSTANCE context."""
+    hassette_mock = MagicMock()
+    hassette_mock.api = api
+    token = context.HASSETTE_INSTANCE.set(hassette_mock)
+
+    state = LockState.model_validate(
+        {"entity_id": "lock.front_door", "state": "locked", "attributes": {}, "context": {}}
+    )
+    entity = LockEntity(state=state)
     return entity, token
 
 
@@ -222,5 +238,113 @@ def test_sync_property_caches_facade_instance() -> None:
         first = entity.sync
         second = entity.sync
         assert first is second
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+# Serviceless domain: LockEntity inherits base turn_on/turn_off/toggle
+#
+# Lock has no lock.turn_on / lock.turn_off / lock.toggle services in HA.
+# The base methods must dispatch via homeassistant.* generic services,
+# not the entity's own domain.
+
+
+def test_lock_sync_is_lock_entity_sync_facade() -> None:
+    """LockEntity.sync is a LockEntitySyncFacade instance, not the base."""
+    api = make_api()
+    entity, token = make_lock_entity(api)
+    try:
+        assert isinstance(entity.sync, LockEntitySyncFacade)
+        assert type(entity.sync) is LockEntitySyncFacade
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+def test_lock_sync_turn_on_uses_homeassistant_domain() -> None:
+    """LockEntity.sync.turn_on() dispatches via homeassistant.turn_on, not lock.turn_on."""
+    api = make_api()
+    entity, token = make_lock_entity(api)
+    try:
+        mock_sync = MagicMock()
+        api.sync = mock_sync
+
+        entity.sync.turn_on()
+
+        mock_sync.turn_on.assert_called_once_with("lock.front_door")
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+def test_lock_sync_turn_off_uses_homeassistant_domain() -> None:
+    """LockEntity.sync.turn_off() dispatches via homeassistant.turn_off, not lock.turn_off."""
+    api = make_api()
+    entity, token = make_lock_entity(api)
+    try:
+        mock_sync = MagicMock()
+        api.sync = mock_sync
+
+        entity.sync.turn_off()
+
+        mock_sync.turn_off.assert_called_once_with("lock.front_door")
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+def test_lock_sync_toggle_uses_homeassistant_domain() -> None:
+    """LockEntity.sync.toggle() dispatches via homeassistant.toggle, not lock.toggle."""
+    api = make_api()
+    entity, token = make_lock_entity(api)
+    try:
+        mock_sync = MagicMock()
+        api.sync = mock_sync
+
+        entity.sync.toggle()
+
+        mock_sync.toggle_service.assert_called_once_with("lock.front_door")
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+# Async dispatch: LockEntity inherits BaseEntity.turn_on/turn_off/toggle
+
+
+def test_lock_async_turn_on_uses_homeassistant_domain() -> None:
+    """LockEntity.turn_on() calls api.turn_on with only the entity_id (no domain override)."""
+    api = make_api()
+    mock_turn_on = MagicMock()
+    api.turn_on = mock_turn_on
+    entity, token = make_lock_entity(api)
+    try:
+        entity.turn_on()
+
+        mock_turn_on.assert_called_once_with("lock.front_door")
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+def test_lock_async_turn_off_uses_homeassistant_domain() -> None:
+    """LockEntity.turn_off() calls api.turn_off with only the entity_id (no domain override)."""
+    api = make_api()
+    mock_turn_off = MagicMock()
+    api.turn_off = mock_turn_off
+    entity, token = make_lock_entity(api)
+    try:
+        entity.turn_off()
+
+        mock_turn_off.assert_called_once_with("lock.front_door")
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
+
+
+def test_lock_async_toggle_uses_homeassistant_domain() -> None:
+    """LockEntity.toggle() calls api.toggle_service with only the entity_id (no domain override)."""
+    api = make_api()
+    mock_toggle = MagicMock()
+    api.toggle_service = mock_toggle
+    entity, token = make_lock_entity(api)
+    try:
+        entity.toggle()
+
+        mock_toggle.assert_called_once_with("lock.front_door")
     finally:
         context.HASSETTE_INSTANCE.reset(token)
