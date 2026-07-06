@@ -11,7 +11,6 @@ import hassette.utils.date_utils as date_utils
 from hassette.exceptions import NoDomainAnnotationError
 from hassette.models.states.catalog import register_state_converter
 from hassette.types import StateValueT
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 LOGGER = getLogger(__name__)
 
@@ -164,10 +163,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if value is None:
             return None
         if isinstance(value, int | float):
-            return convert_utc_timestamp_to_system_tz(value)
+            return date_utils.convert_utc_timestamp_to_system_tz(value)
         if isinstance(value, str):
             # need to use OffsetDateTime since the value is +00:00, not Z or a timezone
-            return convert_datetime_str_to_system_tz(value)
+            return date_utils.convert_datetime_str_to_system_tz(value)
 
         return value
 
