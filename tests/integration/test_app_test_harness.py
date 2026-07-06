@@ -28,7 +28,7 @@ from hassette.types.enums import ResourceStatus
 # Class names don't start with "Test" to avoid pytest collection warnings.
 
 
-async def wait_for_calls(calls: list, *, count: int = 1, desc: str = "handler called") -> None:
+async def wait_for_calls(calls: list[Any], *, count: int = 1, desc: str = "handler called") -> None:
     await wait_for(lambda: len(calls) == count, desc=desc)
 
 
