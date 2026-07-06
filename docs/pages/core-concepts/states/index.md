@@ -93,6 +93,8 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`last_changed`**, **`last_updated`**, **`last_reported`** are `ZonedDateTime | None` timestamps from HA. `ZonedDateTime` is from the [`whenever`](https://whenever.readthedocs.io/) library, which Hassette uses for all date/time operations — it behaves like a timezone-aware `datetime` and converts via `.to_stdlib()` when a library requires it. `last_changed` updates only when the state string changes. `last_updated` updates when state or attributes change. `last_reported` updates on every write.
 
+**`time_since_last_change`**, **`time_since_last_update`**, **`time_since_last_report`** return `TimeDelta | None` — the elapsed time since each corresponding timestamp, or `None` when the timestamp itself is absent. Useful for checks like "has this entity been in its current state for more than 10 minutes?" without manual arithmetic.
+
 **`entity_id`** and **`domain`** hold the full entity ID (`"light.kitchen"`) and its domain (`"light"`).
 
 **`context`** holds the HA event context that produced this state: `context.id`, `context.parent_id`, and `context.user_id`. It traces which automation or user triggered the change.

@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
-STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
+STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "context"})
 
 
 def noop() -> None:
@@ -148,6 +148,7 @@ def make_state_dict(
     attributes: dict[str, Any] | None = None,
     last_changed: str | None = None,
     last_updated: str | None = None,
+    last_reported: str | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Factory for creating state dictionary in Home Assistant format.
@@ -158,13 +159,14 @@ def make_state_dict(
         attributes: Entity attributes dict
         last_changed: ISO timestamp string
         last_updated: ISO timestamp string
+        last_reported: ISO timestamp string
         context: Event context dict
 
     Returns:
         Dictionary matching Home Assistant state format
     """
     now = _date_utils.now().format_iso()
-    return {
+    result = {
         "entity_id": entity_id,
         "state": state,
         "attributes": attributes or {},
@@ -172,6 +174,9 @@ def make_state_dict(
         "last_updated": last_updated or now,
         "context": context or {"id": str(uuid4()), "parent_id": None, "user_id": None},
     }
+    if last_reported is not None:
+        result["last_reported"] = last_reported
+    return result
 
 
 def split_state_kwargs(kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

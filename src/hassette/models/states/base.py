@@ -5,12 +5,12 @@ from logging import getLogger
 from typing import Any, ClassVar, Generic, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, PlainDateTime, Time, ZonedDateTime
+from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.exceptions import NoDomainAnnotationError
 from hassette.models.states.catalog import register_state_converter
 from hassette.types import StateValueT
-from hassette.utils.date_utils import convert_datetime_str_to_system_tz, convert_utc_timestamp_to_system_tz
 
 LOGGER = getLogger(__name__)
 
@@ -123,6 +123,27 @@ class BaseState(BaseModel, Generic[StateValueT]):
         return len(self.attributes.entity_id) > 1  # pyright: ignore[reportAttributeAccessIssue]
 
     @property
+    def time_since_last_change(self) -> TimeDelta | None:
+        """Elapsed time since the state value last changed, or ``None`` if the timestamp is absent."""
+        if self.last_changed is None:
+            return None
+        return date_utils.now() - self.last_changed
+
+    @property
+    def time_since_last_update(self) -> TimeDelta | None:
+        """Elapsed time since the state or attributes last changed, or ``None`` if the timestamp is absent."""
+        if self.last_updated is None:
+            return None
+        return date_utils.now() - self.last_updated
+
+    @property
+    def time_since_last_report(self) -> TimeDelta | None:
+        """Elapsed time since the state was last reported, or ``None`` if the timestamp is absent."""
+        if self.last_reported is None:
+            return None
+        return date_utils.now() - self.last_reported
+
+    @property
     def extras(self) -> dict[str, Any]:
         """Extra fields not covered by the typed state model."""
         return self.model_extra or {}
@@ -142,10 +163,10 @@ class BaseState(BaseModel, Generic[StateValueT]):
         if value is None:
             return None
         if isinstance(value, int | float):
-            return convert_utc_timestamp_to_system_tz(value)
+            return date_utils.convert_utc_timestamp_to_system_tz(value)
         if isinstance(value, str):
             # need to use OffsetDateTime since the value is +00:00, not Z or a timezone
-            return convert_datetime_str_to_system_tz(value)
+            return date_utils.convert_datetime_str_to_system_tz(value)
 
         return value
 
