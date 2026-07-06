@@ -16,14 +16,14 @@ interface Props {
 }
 
 /** True when the value is a plain (non-array) object usable as a ConfigRecord. */
-function isConfigRecord(val: unknown): val is ConfigRecord {
-  return val !== null && typeof val === "object" && !Array.isArray(val);
+function isConfigRecord(value: unknown): value is ConfigRecord {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function ConfigValue({ val }: { val: unknown }) {
-  if (val === null || val === undefined) return <>—</>;
-  if (typeof val === "object") return <ExpandableValue value={val} />;
-  return <>{String(val)}</>;
+function ConfigValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined) return <>—</>;
+  if (typeof value === "object") return <ExpandableValue value={value} />;
+  return <>{String(value)}</>;
 }
 
 function SimpleConfigTable({ config }: { config: ConfigRecord }) {
@@ -52,7 +52,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
             </td>
             <td class={styles.value} data-testid={`config-value-${key}`}>
               <code class="ht-text-mono ht-text-sm">
-                <ConfigValue val={val} />
+                <ConfigValue value={val} />
               </code>
             </td>
           </tr>

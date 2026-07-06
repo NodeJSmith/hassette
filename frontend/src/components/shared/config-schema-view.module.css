@@ -91,13 +91,7 @@
 }
 
 /* — Value registers (type implied by rendering) ——————————————————————— */
-.valString {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-1);
-}
-
-.valNumber {
+.valScalar {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
   color: var(--ink-1);

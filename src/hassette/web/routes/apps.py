@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from hassette.app.app_config import AppConfig
+from hassette.config.classes import AppManifest
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
@@ -164,28 +165,28 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
             if not isinstance(raw_schema, dict):
                 raise TypeError(f"model_json_schema() returned {type(raw_schema).__name__}, expected dict")
             config_schema, masked_config = _build_app_config_view(raw_schema, manifest.app_config)
-            return AppConfigResponse(
-                app_key=app_key,
-                filename=manifest.filename,
-                class_name=manifest.class_name,
-                enabled=manifest.enabled,
-                autostart=manifest.autostart,
-                app_config=masked_config,
-                config_schema=config_schema,
-                framework_fields=_FRAMEWORK_FIELDS,
-            )
+            return _build_config_response(app_key, manifest, masked_config, config_schema)
         except Exception:
             LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
 
+    return _build_config_response(app_key, manifest, mask_app_config(None, manifest.app_config), None)
+
+
+def _build_config_response(
+    app_key: str,
+    manifest: AppManifest,
+    app_config: dict[str, Any] | list[dict[str, Any]],
+    config_schema: dict[str, Any] | None,
+) -> AppConfigResponse:
     return AppConfigResponse(
         app_key=app_key,
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
         autostart=manifest.autostart,
-        app_config=mask_app_config(None, manifest.app_config),
-        config_schema=None,
         framework_fields=_FRAMEWORK_FIELDS,
+        app_config=app_config,
+        config_schema=config_schema,
     )
 
 

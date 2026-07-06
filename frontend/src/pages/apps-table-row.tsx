@@ -5,11 +5,13 @@ import { ActionButtons } from "../components/shared/action-buttons";
 import { AppLink } from "../components/shared/app-link";
 import { Badge } from "../components/shared/badge";
 import { Chip } from "../components/shared/chip";
+import { IconChevron } from "../components/shared/icons";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import { type AppRow } from "../utils/app-data";
 import { formatTimestamp } from "../utils/format";
+import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
 import styles from "./apps.module.css";
 
@@ -52,14 +54,7 @@ export function AppTableRow({
                   aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}
                   data-testid="app-row-expand"
                 >
-                  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                    <polyline
-                      points={isExpanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                    />
-                  </svg>
+                  <IconChevron open={isExpanded} />
                 </button>
               )}
             </span>
@@ -93,12 +88,7 @@ export function AppTableRow({
                   e.stopPropagation();
                   setErrorExpanded(!errorExpanded);
                 },
-                onKeyDown: (e: KeyboardEvent) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setErrorExpanded(!errorExpanded);
-                  }
-                },
+                onKeyDown: onActivateKeyDown(() => setErrorExpanded(!errorExpanded)),
               }
             : {})}
         >

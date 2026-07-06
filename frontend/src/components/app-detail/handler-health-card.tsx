@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRate, pluralize } from "../../utils/format";
+import { onActivateKeyDown } from "../../utils/keyboard";
 import { Chip } from "../shared/chip";
 import { StatusShape } from "../shared/status-shape";
 import { Tooltip } from "../shared/tooltip";
@@ -40,12 +41,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
   const lastActiveDisplay = useRelativeTime(lastActiveAt);
   const failed = item.data.failed;
 
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      navigate(href);
-    }
-  }
+  const navigateToHandler = () => navigate(href);
 
   return (
     <div
@@ -55,8 +51,8 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
       aria-label={`${item.name} handler details`}
       tabIndex={tabIndex}
       data-roving-item
-      onClick={() => navigate(href)}
-      onKeyDown={handleKeyDown}
+      onClick={navigateToHandler}
+      onKeyDown={onActivateKeyDown(navigateToHandler)}
     >
       <div class={styles.header}>
         <span aria-hidden="true">

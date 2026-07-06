@@ -214,6 +214,13 @@ export const IconHistory = () => (
   </svg>
 );
 
+/** Small inline chevron for expand/collapse toggles. */
+export const IconChevron = ({ open, size = 10 }: { open: boolean; size?: number }) => (
+  <svg viewBox="0 0 12 12" width={size} height={size} aria-hidden="true">
+    <polyline points={open ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+  </svg>
+);
+
 export const IconScrollText = () => (
   <svg class={styles.iconSvg} viewBox="0 0 24 24" aria-hidden="true">
     <path d="M15 12h-5" />
