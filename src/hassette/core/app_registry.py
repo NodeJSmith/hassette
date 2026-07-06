@@ -171,7 +171,7 @@ class AppRegistry:
         manifest = self._manifests.get(app_key)
         if manifest is None:
             return None
-        return self._build_manifest_info(app_key, manifest)
+        return self.build_manifest_info(app_key, manifest)
 
     def get_full_snapshot(self) -> AppFullSnapshot:
         """Generate manifest-based snapshot including all configured apps."""
@@ -179,7 +179,7 @@ class AppRegistry:
         counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
 
         for app_key, manifest in self._manifests.items():
-            info = self._build_manifest_info(app_key, manifest)
+            info = self.build_manifest_info(app_key, manifest)
             counts[info.status] += 1
             manifests.append(info)
 
@@ -190,7 +190,7 @@ class AppRegistry:
             **counts,
         )
 
-    def _build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
+    def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
         if not manifest.enabled:
             status = "disabled"
         elif app_key in self._blocked_apps:
