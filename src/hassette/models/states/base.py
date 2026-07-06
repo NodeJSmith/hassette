@@ -5,8 +5,9 @@ from logging import getLogger
 from typing import Any, ClassVar, Generic, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, PlainDateTime, Time, ZonedDateTime
+from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.exceptions import NoDomainAnnotationError
 from hassette.models.states.catalog import register_state_converter
 from hassette.types import StateValueT
@@ -121,6 +122,27 @@ class BaseState(BaseModel, Generic[StateValueT]):
             return False
 
         return len(self.attributes.entity_id) > 1  # pyright: ignore[reportAttributeAccessIssue]
+
+    @property
+    def time_since_last_change(self) -> TimeDelta | None:
+        """Elapsed time since the state value last changed, or ``None`` if the timestamp is absent."""
+        if self.last_changed is None:
+            return None
+        return date_utils.now() - self.last_changed
+
+    @property
+    def time_since_last_update(self) -> TimeDelta | None:
+        """Elapsed time since the state or attributes last changed, or ``None`` if the timestamp is absent."""
+        if self.last_updated is None:
+            return None
+        return date_utils.now() - self.last_updated
+
+    @property
+    def time_since_last_report(self) -> TimeDelta | None:
+        """Elapsed time since the state was last reported, or ``None`` if the timestamp is absent."""
+        if self.last_reported is None:
+            return None
+        return date_utils.now() - self.last_reported
 
     @property
     def extras(self) -> dict[str, Any]:
