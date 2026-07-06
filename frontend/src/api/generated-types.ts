@@ -196,23 +196,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/events/recent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Recent Events */
-        get: operations["get_recent_events_api_events_recent_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/logs/recent": {
         parameters: {
             query?: never;
@@ -865,19 +848,6 @@ export interface components {
         DashboardAppGridResponse: {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
-        };
-        /** EventEntry */
-        EventEntry: {
-            /** Type */
-            type: string;
-            /** Entity Id */
-            entity_id?: string | null;
-            /** Timestamp */
-            timestamp: number;
-            /** Data */
-            data?: {
-                [key: string]: unknown;
-            };
         };
         /**
          * Execution
@@ -1656,37 +1626,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppSourceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_recent_events_api_events_recent_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventEntry"][];
                 };
             };
             /** @description Validation Error */

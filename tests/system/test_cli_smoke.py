@@ -22,7 +22,6 @@ from hassette.web.models import (
     AppManifestListResponse,
     ConfigSchemaResponse,
     DashboardAppGridResponse,
-    EventEntry,
     ListenerWithSummary,
     LogEntryResponse,
     SystemStatusResponse,
@@ -123,21 +122,6 @@ async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None
 
     assert isinstance(result, DashboardAppGridResponse)
     assert isinstance(result.apps, list)
-
-
-async def test_events_deserializes_and_respects_limit(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/events/recent?limit=5 deserializes to list[EventEntry] with ≤5 entries."""
-    config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
-        with _cli_client(config) as client:
-            raw: list[Any] = await asyncio.to_thread(client.get, "/api/events/recent", list, {"limit": 5})
-
-    events = [EventEntry.model_validate(e) for e in raw]
-    assert isinstance(events, list)
-    assert len(events) <= 5
-    for evt in events:
-        assert isinstance(evt, EventEntry)
 
 
 # App commands

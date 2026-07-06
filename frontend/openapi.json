@@ -334,55 +334,6 @@
         }
       }
     },
-    "/api/events/recent": {
-      "get": {
-        "tags": [
-          "events"
-        ],
-        "summary": "Get Recent Events",
-        "operationId": "get_recent_events_api_events_recent_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 500,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EventEntry"
-                  },
-                  "title": "Response Get Recent Events Api Events Recent Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/logs/recent": {
       "get": {
         "tags": [
@@ -2274,40 +2225,6 @@
         ],
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
-      },
-      "EventEntry": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type"
-          },
-          "entity_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Entity Id"
-          },
-          "timestamp": {
-            "type": "number",
-            "title": "Timestamp"
-          },
-          "data": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "type",
-          "timestamp"
-        ],
-        "title": "EventEntry"
       },
       "Execution": {
         "properties": {

@@ -332,7 +332,6 @@ class TestWebApiConfig:
         assert cfg.host == "0.0.0.0"
         assert cfg.port == DEFAULT_WEB_API_PORT
         assert cfg.cors_origins == ("http://localhost:3000", "http://localhost:5173")
-        assert cfg.event_buffer_size == 500
         assert cfg.log_buffer_size == 2000
         assert cfg.job_history_size == 1000
 

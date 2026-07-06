@@ -68,7 +68,6 @@ LEGACY_KEY_MIGRATION: dict[str, str] = {
     "web_api_host": "web_api.host",
     "web_api_port": "web_api.port",
     "web_api_cors_origins": "web_api.cors_origins",
-    "web_api_event_buffer_size": "web_api.event_buffer_size",
     "web_api_log_buffer_size": "web_api.log_buffer_size",
     "web_api_job_history_size": "web_api.job_history_size",
     # app

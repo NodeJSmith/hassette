@@ -6,7 +6,6 @@ components for integration tests (bus routing, scheduler, state propagation).
 """
 
 import asyncio
-from collections import deque
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -60,7 +59,6 @@ def create_hassette_stub(
     run_web_api: bool = True,
     run_web_ui: bool = True,
     cors_origins: tuple[str, ...] = ("http://localhost:3000",),
-    event_buffer_size: int = 100,
     log_level: str = "INFO",
     dev_mode: bool = True,
     allow_reload_in_prod: bool = False,
@@ -100,7 +98,6 @@ def create_hassette_stub(
     hassette.config.web_api.host = "0.0.0.0"
     hassette.config.web_api.port = DEFAULT_WEB_API_PORT
     hassette.config.web_api.cors_origins = cors_origins
-    hassette.config.web_api.event_buffer_size = event_buffer_size
     hassette.config.web_api.log_buffer_size = 2000
     hassette.config.web_api.job_history_size = 1000
     # logging group
@@ -141,7 +138,6 @@ def create_hassette_stub(
             "host": "0.0.0.0",
             "port": DEFAULT_WEB_API_PORT,
             "cors_origins": list(cors_origins),
-            "event_buffer_size": event_buffer_size,
             "log_buffer_size": 2000,
             "job_history_size": 1000,
         },
@@ -211,7 +207,6 @@ def create_hassette_stub(
 def create_mock_runtime_query_service(
     mock_hassette: MagicMock,
     *,
-    buffer_size: int = 100,
     start_time: float = TEST_START_EPOCH,
     use_real_lock: bool = True,
 ) -> RuntimeQueryService:
@@ -219,7 +214,6 @@ def create_mock_runtime_query_service(
 
     Args:
         mock_hassette: The mock Hassette instance to wire into.
-        buffer_size: Max size of the event buffer deque.
         start_time: Epoch timestamp for uptime calculations.
         use_real_lock: If True, use ``asyncio.Lock()`` (requires a running
             event loop on Python 3.12+).  Set to False for session-scoped
@@ -227,7 +221,6 @@ def create_mock_runtime_query_service(
     """
     svc = RuntimeQueryService.__new__(RuntimeQueryService)
     svc.hassette = mock_hassette
-    svc._event_buffer = deque(maxlen=buffer_size)
     svc._ws_clients = set()
     svc._lock = asyncio.Lock() if use_real_lock else MagicMock()
     svc._start_time = start_time

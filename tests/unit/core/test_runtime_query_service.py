@@ -1,7 +1,6 @@
 """Unit tests for RuntimeQueryService."""
 
 import asyncio
-from collections import deque
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -16,7 +15,6 @@ from hassette.schemas.domain_models import SystemStatus
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceRole, ResourceStatus
 
-EVENT_BUFFER_SIZE = 100
 WS_QUEUE_MAX = 256
 
 
@@ -25,7 +23,7 @@ def mock_hassette():
     """Create a mock Hassette instance with required attributes."""
     hassette = make_mock_hassette(
         sealed=False,
-        web_api={"run": True, "event_buffer_size": EVENT_BUFFER_SIZE},
+        web_api={"run": True},
         lifecycle={"startup_timeout_seconds": 5},
     )
 
@@ -85,7 +83,6 @@ def runtime(mock_hassette):
     """Create a RuntimeQueryService instance with mocked Hassette."""
     svc = RuntimeQueryService.__new__(RuntimeQueryService)
     svc.hassette = mock_hassette
-    svc._event_buffer = deque(maxlen=EVENT_BUFFER_SIZE)
     svc._ws_clients = set()
     svc._lock = asyncio.Lock()
     svc._ws_drops = 0
@@ -110,26 +107,6 @@ class TestAppStatus:
         assert snapshot.failed_count == 0
         assert len(snapshot.running) == 1
         assert snapshot.running[0].app_key == "my_app"
-
-
-class TestEventBuffer:
-    def test_get_recent_events_empty(self, runtime: RuntimeQueryService) -> None:
-        events = runtime.get_recent_events()
-        assert events == []
-
-    def test_get_recent_events_with_data(self, runtime: RuntimeQueryService) -> None:
-        for i in range(10):
-            runtime._event_buffer.append({"type": "test", "index": i})
-
-        events = runtime.get_recent_events(limit=5)
-        assert len(events) == 5
-        assert events[0]["index"] == 5
-        assert events[-1]["index"] == 9
-
-    def test_get_recent_events_limit_larger_than_buffer(self, runtime: RuntimeQueryService) -> None:
-        runtime._event_buffer.append({"type": "test"})
-        events = runtime.get_recent_events(limit=50)
-        assert len(events) == 1
 
 
 class TestCompletionPayloadEnrichment:
@@ -243,22 +220,6 @@ class TestCompletionBatching:
         assert len(msg["data"]) == 2
         assert msg["data"][0]["kind"] == "job"
         assert msg["data"][1]["kind"] == "job"
-
-    async def test_flush_completions_written_to_event_buffer(self, runtime: RuntimeQueryService) -> None:
-        """Batched completion messages are appended to _event_buffer for replay."""
-        runtime.broadcast = AsyncMock()
-
-        ev = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=5, status="success", duration_ms=1.0, app_key="buf_app", instance_index=0
-        )
-        await runtime.on_execution_completed(ev)
-        await runtime.flush_completions()
-
-        assert len(runtime._event_buffer) == 1
-        buffered = runtime._event_buffer[0]
-        assert buffered["type"] == "execution_completed"
-        assert buffered["data"][0]["listener_id"] == 5
-        assert buffered["data"][0]["kind"] == "handler"
 
     async def test_flush_resets_pending_list(self, runtime: RuntimeQueryService) -> None:
         """After flush, _pending_completions is empty."""

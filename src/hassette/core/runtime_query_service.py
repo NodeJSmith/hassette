@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import json
 import time
-from collections import deque
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel
@@ -42,7 +41,7 @@ _WS_DROP_LOG_INTERVAL = 10.0
 class RuntimeQueryService(Resource):
     """Aggregates and caches live system state for the web UI.
 
-    Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
+    Reads from in-memory sources: AppHandler, log buffer, WS clients.
     All reads are instant — no database I/O. LoggingService is in depends_on to
     guarantee the capture handler is ready before WS broadcast wiring runs.
     """
@@ -50,7 +49,6 @@ class RuntimeQueryService(Resource):
     depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, LoggingService]
 
     bus: Bus
-    _event_buffer: deque[dict[str, Any]]
     _ws_clients: set[asyncio.Queue[dict[str, Any] | None]]
     _lock: asyncio.Lock
     _start_time: float
@@ -65,7 +63,6 @@ class RuntimeQueryService(Resource):
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
-        self._event_buffer = deque(maxlen=hassette.config.web_api.event_buffer_size)
         self._ws_clients: set[asyncio.Queue[dict[str, Any] | None]] = set()
         self._lock = asyncio.Lock()
         self._ws_drops: int = 0
@@ -146,14 +143,12 @@ class RuntimeQueryService(Resource):
                     queue.put_nowait(None)  # sentinel to close
             self._ws_clients.clear()
 
-        self._event_buffer.clear()
         self._ws_drops = 0
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
-    async def buffer_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
         entry: dict[str, Any] = {"type": event_type, "data": payload.model_dump(), "timestamp": time.time()}
-        self._event_buffer.append(entry)
         await self.broadcast(entry)
 
     async def on_state_change(self, event: RawStateChangeEvent) -> None:
@@ -162,7 +157,7 @@ class RuntimeQueryService(Resource):
             new_state=dict(event.payload.data.new_state) if event.payload.data.new_state else None,
             old_state=dict(event.payload.data.old_state) if event.payload.data.old_state else None,
         )
-        await self.buffer_and_broadcast("state_changed", payload)
+        await self.build_and_broadcast("state_changed", payload)
 
     async def on_app_state_changed(self, event: Event) -> None:
         data = event.payload.data
@@ -177,7 +172,7 @@ class RuntimeQueryService(Resource):
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
         )
-        await self.buffer_and_broadcast("app_status_changed", payload)
+        await self.build_and_broadcast("app_status_changed", payload)
 
     async def on_service_status(self, event: Event[Any]) -> None:
         data = event.payload.data
@@ -193,13 +188,13 @@ class RuntimeQueryService(Resource):
             ready=data.ready,
             ready_phase=data.ready_phase,
         )
-        await self.buffer_and_broadcast("service_status", payload)
+        await self.build_and_broadcast("service_status", payload)
 
     async def on_ws_connected(self) -> None:
-        await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=True))
+        await self.build_and_broadcast("connectivity", ConnectivityData(connected=True))
 
     async def on_ws_disconnected(self) -> None:
-        await self.buffer_and_broadcast("connectivity", ConnectivityData(connected=False))
+        await self.build_and_broadcast("connectivity", ConnectivityData(connected=False))
 
     async def on_execution_completed(self, event: Event[Any]) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick."""
@@ -249,7 +244,6 @@ class RuntimeQueryService(Resource):
 
         if completions:
             entry = {"type": "execution_completed", "data": completions, "timestamp": now}
-            self._event_buffer.append(entry)
             await self.broadcast(entry)
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
@@ -258,10 +252,6 @@ class RuntimeQueryService(Resource):
     def get_all_manifests_snapshot(self) -> AppFullSnapshot:
         """Return full manifest-based snapshot including stopped/disabled apps."""
         return self.hassette.app_handler.registry.get_full_snapshot()
-
-    def get_recent_events(self, limit: int = 50) -> list[dict]:
-        events = list(self._event_buffer)
-        return events[-limit:]
 
     def get_system_status(self) -> SystemStatus:
         ws = self.hassette.websocket_service

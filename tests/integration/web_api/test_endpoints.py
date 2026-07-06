@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.web.config_view import MASK_SENTINEL
@@ -148,43 +147,6 @@ class TestAppEndpoints:
         assert (await client.post("/api/apps/my_app/start")).status_code == 202
         assert (await client.post("/api/apps/my_app/stop")).status_code == 202
         assert (await client.post("/api/apps/my_app/reload")).status_code == 202
-
-
-class TestEventsEndpoint:
-    async def test_get_recent_events_empty(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/events/recent")
-        assert response.status_code == 200
-        assert response.json() == []
-
-    async def test_get_recent_events_with_data(
-        self, client: "AsyncClient", runtime_query_service: RuntimeQueryService
-    ) -> None:
-        runtime_query_service._event_buffer.append({"type": "test", "timestamp": 1234567890.0})
-        response = await client.get("/api/events/recent")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-
-    async def test_get_recent_events_returns_event_entry_schema(
-        self, client: "AsyncClient", runtime_query_service: RuntimeQueryService
-    ) -> None:
-        """Response items conform to EventEntry schema: type, timestamp, data fields present."""
-        runtime_query_service._event_buffer.append(
-            {"type": "connectivity", "data": {"connected": True}, "timestamp": 9999999.0}
-        )
-        response = await client.get("/api/events/recent")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        entry = data[0]
-        # EventEntry required fields must be present
-        assert entry["type"] == "connectivity"
-        assert entry["timestamp"] == 9999999.0
-        # data field must be present (dict, not absent)
-        assert "data" in entry
-        assert entry["data"] == {"connected": True}
-        # entity_id is optional, defaults to None
-        assert entry.get("entity_id") is None
 
 
 class TestSchedulerEndpoints:
@@ -437,22 +399,6 @@ class TestOpenApiDocs:
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "Hassette Web API"
-
-    async def test_events_recent_has_response_schema(self, client: "AsyncClient") -> None:
-        """GET /api/events/recent has EventEntry declared as response_model in OpenAPI."""
-        response = await client.get("/api/openapi.json")
-        spec = response.json()
-        paths = spec.get("paths", {})
-        assert "/api/events/recent" in paths, f"events route missing; got: {list(paths)}"
-        get_op = paths["/api/events/recent"].get("get", {})
-        responses = get_op.get("responses", {})
-        assert "200" in responses, "events/recent must have a 200 response schema"
-        schema = responses["200"].get("content", {}).get("application/json", {}).get("schema", {})
-        assert schema is not None, "events/recent 200 response must have a JSON schema"
-        # When response_model=list[EventEntry] is set, FastAPI generates a $ref to EventEntry
-        # The schema will be an array whose items reference EventEntry
-        schema_str = str(schema)
-        assert "EventEntry" in schema_str, f"events/recent schema must reference EventEntry model; got: {schema_str}"
 
     async def test_instance_index_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
         """instance_index parameter on telemetry app health route has a description."""
