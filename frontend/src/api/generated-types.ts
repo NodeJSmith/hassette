@@ -546,6 +546,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scheduler/jobs/{job_id}/trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Job
+         * @description Manually trigger a scheduled job to run immediately.
+         *
+         *     Looks up the job on the live scheduler heap by ``job_id`` (the job's ``db_id``). Returns
+         *     202 and dispatches the job through the same ``run_job_with_guard()`` path as a scheduled
+         *     fire, recording the execution with ``trigger_mode="manual"``. Returns 409 when the job
+         *     is not currently triggerable (already fired, mid-execution from its scheduled fire, or its
+         *     owning app is not running) or when a ``SINGLE``-mode job is currently executing.
+         *
+         *     A still-pending one-shot job (``After``/``Once`` trigger) is dequeued from the heap
+         *     before dispatch to prevent a second scheduled fire at its original time.
+         */
+        post: operations["trigger_job_api_scheduler_jobs__job_id__trigger_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1073,6 +1102,21 @@ export interface components {
              * @default 0
              */
             dropped_count: number;
+        };
+        /**
+         * JobTriggerResponse
+         * @description Response for POST /api/scheduler/jobs/{job_id}/trigger.
+         *
+         *     Separate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) —
+         *     the trigger response identifies the job, not an app action.
+         */
+        JobTriggerResponse: {
+            /** Status */
+            status: string;
+            /** Job Id */
+            job_id: number;
+            /** Job Name */
+            job_name: string;
         };
         /**
          * ListenerWithSummary
@@ -2188,6 +2232,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_job_api_scheduler_jobs__job_id__trigger_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobTriggerResponse"];
                 };
             };
             /** @description Validation Error */

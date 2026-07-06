@@ -504,6 +504,32 @@ class SchedulerService(Service):
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()
 
+    async def trigger_now(self, db_id: int) -> "ScheduledJob":
+        """Look up a job on the live scheduler heap by its database id.
+
+        Used by the manual-trigger route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
+        to find the job to dispatch. Only looks up and returns the job — the caller is
+        responsible for any guard pre-check and for dispatching the job.
+
+        Args:
+            db_id: The job's ``scheduled_jobs.id`` database row id.
+
+        Returns:
+            The matching ScheduledJob from the live heap.
+
+        Raises:
+            ValueError: If no job with the given db_id is found on the live heap. This covers
+                a one-shot job that already fired, a job mid-execution from its scheduled fire
+                (popped from the heap by ``dispatch_and_log`` and not yet re-enqueued), and a
+                job whose owning app is not running.
+        """
+        live_jobs = await self.get_all_jobs()
+        live_by_db_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
+        job = live_by_db_id.get(db_id)
+        if job is None:
+            raise ValueError("Job is not currently triggerable")
+        return job
+
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:
         """Remove all jobs for a given owner.
 

@@ -1503,6 +1503,49 @@
           }
         }
       }
+    },
+    "/api/scheduler/jobs/{job_id}/trigger": {
+      "post": {
+        "tags": [
+          "scheduler"
+        ],
+        "summary": "Trigger Job",
+        "description": "Manually trigger a scheduled job to run immediately.\n\nLooks up the job on the live scheduler heap by ``job_id`` (the job's ``db_id``). Returns\n202 and dispatches the job through the same ``run_job_with_guard()`` path as a scheduled\nfire, recording the execution with ``trigger_mode=\"manual\"``. Returns 409 when the job\nis not currently triggerable (already fired, mid-execution from its scheduled fire, or its\nowning app is not running) or when a ``SINGLE``-mode job is currently executing.\n\nA still-pending one-shot job (``After``/``Once`` trigger) is dequeued from the heap\nbefore dispatch to prevent a second scheduled fire at its original time.",
+        "operationId": "trigger_job_api_scheduler_jobs__job_id__trigger_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobTriggerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2757,6 +2800,30 @@
         ],
         "title": "JobSummary",
         "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out == total_executions``."
+      },
+      "JobTriggerResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          },
+          "job_name": {
+            "type": "string",
+            "title": "Job Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "job_id",
+          "job_name"
+        ],
+        "title": "JobTriggerResponse",
+        "description": "Response for POST /api/scheduler/jobs/{job_id}/trigger.\n\nSeparate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) \u2014\nthe trigger response identifies the job, not an app action."
       },
       "ListenerWithSummary": {
         "properties": {

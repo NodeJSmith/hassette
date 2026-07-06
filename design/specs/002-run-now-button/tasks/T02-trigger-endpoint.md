@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add POST trigger endpoint and response model"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#7", "AC#1", "AC#2", "AC#3", "AC#4", "AC#6"]
 ---
