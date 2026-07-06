@@ -6,7 +6,7 @@ from pydantic import Field
 from .base import AttributesBase, NumericBaseState
 
 
-class GeolocationEntityStateAttribute(StrEnum):
+class GeoLocationEntityStateAttribute(StrEnum):
     SOURCE = "source"
     LATITUDE = "latitude"
     LONGITUDE = "longitude"

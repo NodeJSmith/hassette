@@ -61,7 +61,7 @@ from .event import (
     EventState,
 )
 from .fan import FanAttributes, FanEntityCapabilityAttribute, FanEntityFeature, FanEntityStateAttribute, FanState
-from .geo_location import GeoLocationAttributes, GeolocationEntityStateAttribute, GeoLocationState
+from .geo_location import GeoLocationAttributes, GeoLocationEntityStateAttribute, GeoLocationState
 from .humidifier import (
     HumidifierAction,
     HumidifierAttributes,
@@ -143,10 +143,10 @@ from .vacuum import (
 from .valve import ValveAttributes, ValveState
 from .water_heater import (
     WaterHeaterAttributes,
-    WaterHeaterCapabilityAttribute,
+    WaterHeaterEntityCapabilityAttribute,
     WaterHeaterEntityFeature,
+    WaterHeaterEntityStateAttribute,
     WaterHeaterState,
-    WaterHeaterStateAttribute,
 )
 from .weather import WeatherAttributes, WeatherEntityFeature, WeatherEntityStateAttribute, WeatherState
 from .zone import ZoneAttributes, ZoneState
@@ -215,8 +215,8 @@ __all__ = [
     "FanEntityStateAttribute",
     "FanState",
     "GeoLocationAttributes",
+    "GeoLocationEntityStateAttribute",
     "GeoLocationState",
-    "GeolocationEntityStateAttribute",
     "HVACAction",
     "HVACMode",
     "HumidifierAction",
@@ -334,10 +334,10 @@ __all__ = [
     "ValveAttributes",
     "ValveState",
     "WaterHeaterAttributes",
-    "WaterHeaterCapabilityAttribute",
+    "WaterHeaterEntityCapabilityAttribute",
     "WaterHeaterEntityFeature",
+    "WaterHeaterEntityStateAttribute",
     "WaterHeaterState",
-    "WaterHeaterStateAttribute",
     "WeatherAttributes",
     "WeatherEntityFeature",
     "WeatherEntityStateAttribute",
