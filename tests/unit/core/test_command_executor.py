@@ -131,49 +131,34 @@ class TestCommandExecutorSourceTierBranching:
         assert "RuntimeError" in result.error_traceback
 
 
+def make_success_result() -> MagicMock:
+    """Build a minimal successful ExecutionResult-like mock for build_record() tests."""
+    result = MagicMock()
+    result.duration_ms = 1.0
+    result.status = "success"
+    result.error_type = None
+    result.error_message = None
+    result.error_traceback = None
+    result.is_di_failure = False
+    result.thread_leaked = False
+    return result
+
+
 class TestBuildRecordTriggerMode:
     """Verify build_record() reads ExecuteJob.trigger_mode onto ExecutionRecord."""
 
-    def test_build_record_reads_trigger_mode(self) -> None:
-        """build_record sets trigger_mode='manual' from cmd.trigger_mode for ExecuteJob."""
+    @pytest.mark.parametrize(("trigger_mode", "expected"), [("manual", "manual"), (None, None)])
+    def test_build_record_propagates_trigger_mode(self, trigger_mode: str | None, expected: str | None) -> None:
+        """build_record reads cmd.trigger_mode onto ExecutionRecord.trigger_mode, including the
+        None default for regular scheduled fires."""
         executor = make_executor()
-        cmd = make_cmd_execute_job(source_tier="app", trigger_mode="manual")
+        cmd = make_cmd_execute_job(source_tier="app", trigger_mode=trigger_mode)
         cmd.job = MagicMock()
         cmd.job.app_key = "test_app"
         cmd.job.instance_index = 0
 
-        result = MagicMock()
-        result.duration_ms = 1.0
-        result.status = "success"
-        result.error_type = None
-        result.error_message = None
-        result.error_traceback = None
-        result.is_di_failure = False
-        result.thread_leaked = False
-
-        record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")
+        record = CommandExecutor.build_record(executor, cmd, make_success_result(), time.time(), "exec-id")
 
         assert isinstance(record, ExecutionRecord)
         assert record.kind == "job"
-        assert record.trigger_mode == "manual"
-
-    def test_build_record_defaults_trigger_mode_to_none(self) -> None:
-        """build_record leaves trigger_mode=None when cmd.trigger_mode is None (scheduled fire)."""
-        executor = make_executor()
-        cmd = make_cmd_execute_job(source_tier="app", trigger_mode=None)
-        cmd.job = MagicMock()
-        cmd.job.app_key = "test_app"
-        cmd.job.instance_index = 0
-
-        result = MagicMock()
-        result.duration_ms = 1.0
-        result.status = "success"
-        result.error_type = None
-        result.error_message = None
-        result.error_traceback = None
-        result.is_di_failure = False
-        result.thread_leaked = False
-
-        record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id-2")
-
-        assert record.trigger_mode is None
+        assert record.trigger_mode == expected

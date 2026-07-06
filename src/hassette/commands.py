@@ -98,7 +98,7 @@ class ExecuteJob:
     """
 
     trigger_mode: str | None = None
-    """How this execution was triggered (e.g., 'manual' for a run-now request).
+    """How this execution was triggered (e.g., "manual" for a run-now request).
 
     None for regular scheduled fires. Threaded through from
     ``SchedulerService.run_job_with_guard()`` so manual triggers can be

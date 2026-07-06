@@ -80,43 +80,26 @@ class TestRunJobTriggerMode:
         assert cmd.trigger_mode is None
 
 
-class TestRunJobWithGuardTriggerModeParallel:
-    async def test_parallel_mode_threads_trigger_mode_directly(self) -> None:
-        """PARALLEL mode: run_job_with_guard calls run_job(job, trigger_mode=trigger_mode) directly."""
+class TestRunJobWithGuardTriggerMode:
+    """PARALLEL calls run_job(trigger_mode=...) directly; SINGLE captures trigger_mode in the
+    invoke lambda passed to run_through_guard. Different internal paths, same observable result."""
+
+    @pytest.mark.parametrize("mode", [ExecutionMode.PARALLEL, ExecutionMode.SINGLE])
+    async def test_threads_trigger_mode(self, mode: ExecutionMode) -> None:
+        """run_job_with_guard(trigger_mode='manual') threads through to run_job for both modes."""
         svc = make_scheduler_service()
-        job = make_job(mode=ExecutionMode.PARALLEL)
+        job = make_job(mode=mode)
         svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.run_job_with_guard(job, trigger_mode="manual")
 
         svc.run_job.assert_called_once_with(job, trigger_mode="manual")
 
-    async def test_parallel_mode_defaults_trigger_mode_to_none(self) -> None:
-        """PARALLEL mode: run_job_with_guard() without trigger_mode passes None through."""
+    @pytest.mark.parametrize("mode", [ExecutionMode.PARALLEL, ExecutionMode.SINGLE])
+    async def test_defaults_trigger_mode_to_none(self, mode: ExecutionMode) -> None:
+        """run_job_with_guard() without trigger_mode passes None through for both modes."""
         svc = make_scheduler_service()
-        job = make_job(mode=ExecutionMode.PARALLEL)
-        svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.run_job_with_guard(job)
-
-        svc.run_job.assert_called_once_with(job, trigger_mode=None)
-
-
-class TestRunJobWithGuardTriggerModeNonParallel:
-    async def test_single_mode_threads_trigger_mode_via_invoke_lambda(self) -> None:
-        """SINGLE mode: trigger_mode is captured in the invoke lambda passed to run_through_guard."""
-        svc = make_scheduler_service()
-        job = make_job(mode=ExecutionMode.SINGLE)
-        svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        await svc.run_job_with_guard(job, trigger_mode="manual")
-
-        svc.run_job.assert_called_once_with(job, trigger_mode="manual")
-
-    async def test_single_mode_defaults_trigger_mode_to_none(self) -> None:
-        """SINGLE mode: run_job_with_guard() without trigger_mode passes None through."""
-        svc = make_scheduler_service()
-        job = make_job(mode=ExecutionMode.SINGLE)
+        job = make_job(mode=mode)
         svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.run_job_with_guard(job)

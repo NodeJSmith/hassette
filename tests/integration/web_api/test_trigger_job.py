@@ -3,6 +3,8 @@
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Every
@@ -11,6 +13,9 @@ from hassette.types.enums import ExecutionMode
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
+RECURRING_TRIGGER = Every(seconds=60)
+"""Shared recurring-job trigger fixture — most tests here don't care about the interval value."""
+
 
 def make_scheduled_job(
     *,
@@ -18,8 +23,14 @@ def make_scheduled_job(
     mode: ExecutionMode = ExecutionMode.SINGLE,
     trigger: Any | None = None,
     name: str = "test_job",
+    guard_running: bool = False,
 ) -> ScheduledJob:
-    """Build a real ScheduledJob for wiring onto the mock scheduler service's live heap."""
+    """Build a real ScheduledJob for wiring onto the mock scheduler service's live heap.
+
+    guard_running: when True, replaces job.guard with a MagicMock whose is_running()
+    returns True — used to test the SINGLE-mode pre-check and the RESTART/QUEUED/PARALLEL
+    bypass of that pre-check.
+    """
     job = ScheduledJob(
         owner_id="test_owner",
         next_run=date_utils.now(),
@@ -29,13 +40,16 @@ def make_scheduled_job(
         name=name,
     )
     job.db_id = db_id
+    if guard_running:
+        job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
+        job.guard.is_running.return_value = True
     return job
 
 
 class TestTriggerJobEndpoint:
     async def test_returns_202_for_active_recurring_job(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST returns 202 and dispatches through run_job_with_guard for an active job."""
-        job = make_scheduled_job(trigger=Every(seconds=60))
+        job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
@@ -58,63 +72,31 @@ class TestTriggerJobEndpoint:
         assert response.status_code == 409
         assert "not currently triggerable" in response.json()["detail"]
 
-    async def test_returns_409_for_single_mode_guard_held(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize(
+        ("mode", "expected_status"),
+        [
+            (ExecutionMode.SINGLE, 409),
+            (ExecutionMode.RESTART, 202),
+            (ExecutionMode.QUEUED, 202),
+            (ExecutionMode.PARALLEL, 202),
+        ],
+    )
+    async def test_guard_held_status_by_mode(
+        self, client: "AsyncClient", mock_hassette: MagicMock, mode: ExecutionMode, expected_status: int
     ) -> None:
-        """POST returns 409 for a SINGLE-mode job whose guard reports is_running() True."""
-        job = make_scheduled_job(mode=ExecutionMode.SINGLE, trigger=Every(seconds=60))
-        job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
-        job.guard.is_running.return_value = True
+        """SINGLE blocks on a held guard (409); RESTART/QUEUED/PARALLEL dispatch through it (202)."""
+        job = make_scheduled_job(mode=mode, trigger=RECURRING_TRIGGER, guard_running=True)
         mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
-        assert response.status_code == 409
-        assert "currently executing" in response.json()["detail"]
-        mock_hassette.scheduler_service.run_job_with_guard.assert_not_called()
-        mock_hassette.scheduler_service.dequeue_job.assert_not_called()
-
-    async def test_returns_202_for_restart_mode_guard_held(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """POST returns 202 for a RESTART-mode job even when the guard reports is_running() True."""
-        job = make_scheduled_job(mode=ExecutionMode.RESTART, trigger=Every(seconds=60))
-        job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
-        job.guard.is_running.return_value = True
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
-
-        response = await client.post("/api/scheduler/jobs/1/trigger")
-
-        assert response.status_code == 202
-        mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
-
-    async def test_returns_202_for_queued_mode_guard_held(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """POST returns 202 for a QUEUED-mode job even when the guard reports is_running() True."""
-        job = make_scheduled_job(mode=ExecutionMode.QUEUED, trigger=Every(seconds=60))
-        job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
-        job.guard.is_running.return_value = True
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
-
-        response = await client.post("/api/scheduler/jobs/1/trigger")
-
-        assert response.status_code == 202
-        mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
-
-    async def test_returns_202_for_parallel_mode_regardless_of_guard_state(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """POST returns 202 for a PARALLEL-mode job — no pre-check applies at all."""
-        job = make_scheduled_job(mode=ExecutionMode.PARALLEL, trigger=Every(seconds=60))
-        job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
-        job.guard.is_running.return_value = True
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
-
-        response = await client.post("/api/scheduler/jobs/1/trigger")
-
-        assert response.status_code == 202
-        mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
+        assert response.status_code == expected_status
+        if expected_status == 409:
+            assert "currently executing" in response.json()["detail"]
+            mock_hassette.scheduler_service.run_job_with_guard.assert_not_called()
+            mock_hassette.scheduler_service.dequeue_job.assert_not_called()
+        else:
+            mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
 
     async def test_pending_one_shot_job_is_dequeued_before_dispatch(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -143,7 +125,7 @@ class TestTriggerJobEndpoint:
 
     async def test_recurring_job_is_not_dequeued(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST for a recurring job (Every trigger) does not dequeue it from the heap."""
-        job = make_scheduled_job(trigger=Every(seconds=60))
+        job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
@@ -153,7 +135,7 @@ class TestTriggerJobEndpoint:
 
     async def test_dispatches_with_manual_trigger_mode(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST spawns run_job_with_guard with trigger_mode='manual' via the task bucket."""
-        job = make_scheduled_job(trigger=Every(seconds=60))
+        job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
 
         await client.post("/api/scheduler/jobs/1/trigger")
