@@ -50,5 +50,10 @@
     "vite": "^8.1.2",
     "vite-css-modules": "^1.16.0",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
