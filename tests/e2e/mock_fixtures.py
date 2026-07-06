@@ -793,6 +793,11 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
 
     hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: _stubs.get(app_key)
 
+    _manifest_info_by_key = {m.app_key: m for m in manifests}
+    hassette._app_handler.registry.get_manifest_snapshot.side_effect = lambda app_key: _manifest_info_by_key.get(
+        app_key
+    )
+
 
 def wire_owner_resolution(hassette) -> None:
     """Wire app instance owner resolution onto the mock app handler."""

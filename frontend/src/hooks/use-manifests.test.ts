@@ -1,7 +1,7 @@
 /**
  * Tests for useManifests hook.
  *
- * Uses vi.fn() mocks for getManifests (matching the established pattern for
+ * Uses vi.fn() mocks for getAppManifests (matching the established pattern for
  * renderHook tests in this codebase) and renderHookWithProviders to ensure
  * the hook runs inside QueryClientProvider + AppStateContext.
  */
@@ -35,7 +35,7 @@ describe("useManifests", () => {
       createManifest({ app_key: "app_a", display_name: "App A" }),
       createManifest({ app_key: "app_b", display_name: "App B" }),
     ];
-    vi.spyOn(endpoints, "getManifests").mockResolvedValue(makeManifestResponse({ total: 2, running: 2, manifests }));
+    vi.spyOn(endpoints, "getAppManifests").mockResolvedValue(makeManifestResponse({ total: 2, running: 2, manifests }));
 
     const { result } = renderHookWithProviders(() => useManifests());
 
@@ -56,7 +56,7 @@ describe("useManifests", () => {
 
   it("data is undefined when query is pending (no data yet)", () => {
     // Create a promise that never resolves to keep the query in pending state
-    vi.spyOn(endpoints, "getManifests").mockReturnValue(new Promise(() => {}));
+    vi.spyOn(endpoints, "getAppManifests").mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHookWithProviders(() => useManifests());
 
@@ -67,7 +67,7 @@ describe("useManifests", () => {
 
   it("multiple components calling useManifests share one network request (deduplication)", async () => {
     let callCount = 0;
-    vi.spyOn(endpoints, "getManifests").mockImplementation(() => {
+    vi.spyOn(endpoints, "getAppManifests").mockImplementation(() => {
       callCount++;
       return Promise.resolve(
         makeManifestResponse({

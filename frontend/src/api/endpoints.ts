@@ -41,7 +41,9 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
 
 // ---- App management ----
 
-export const getManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
+export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
+
+export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`/apps/${encodeURIComponent(appKey)}/manifest`);
 
 export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/start`);
 export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);

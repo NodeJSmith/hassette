@@ -2,6 +2,7 @@ export const queryKeys = {
   config: () => ["config"] as const,
   systemStatus: () => ["system-status"] as const,
   manifests: () => ["manifests"] as const,
+  manifest: (appKey: string) => ["manifest", appKey] as const,
   allListenersPalette: () => ["all-listeners-palette"] as const,
   recentLogs: (appKey?: string, executionId?: string | null) =>
     ["recent-logs", appKey ?? null, executionId ?? null] as const,
