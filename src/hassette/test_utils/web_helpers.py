@@ -25,6 +25,7 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppConfigResponse,
@@ -66,10 +67,10 @@ def make_full_snapshot(
 
 
 def make_manifest(
-    app_key: str = "my_app",
-    class_name: str = "MyApp",
-    display_name: str = "My App",
-    filename: str = "my_app.py",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
     status: str = "running",
@@ -97,10 +98,10 @@ def make_manifest(
 
 
 def make_manifest_response(
-    app_key: str = "my_app",
-    class_name: str = "MyApp",
-    display_name: str = "My App",
-    filename: str = "my_app.py",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    class_name: str = "TestApp",
+    display_name: str = "Test App",
+    filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
     status: ManifestStatus = "running",
@@ -318,7 +319,7 @@ def make_telemetry_status_response(
 
 
 def make_dashboard_app_grid_entry(
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     status: str = "running",
     display_name: str = "My App",
     instance_count: int = 1,
@@ -430,7 +431,7 @@ def make_activity_feed_entry(
     row_id: str = "h-1",
     status: ExecutionStatus = ExecutionStatus.SUCCESS,
     timestamp: float = SYNTHETIC_TIMESTAMP,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     handler_name: str = "on_state_change",
     duration_ms: float | None = 12.5,
     error_type: str | None = None,
@@ -450,7 +451,7 @@ def make_activity_feed_entry(
 
 
 def make_app_config_response(
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     filename: str = "my_app.py",
     class_name: str = "MyApp",
     enabled: bool = True,
@@ -473,7 +474,7 @@ def make_app_config_response(
 
 
 def make_app_source_response(
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     filename: str = "my_app.py",
     content: str = "class MyApp:\n    pass\n",
     line_count: int = 2,
@@ -489,7 +490,7 @@ def make_app_source_response(
 
 def make_listener_with_summary(
     listener_id: int = 1,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
     topic: str = "light.kitchen",
     listener_kind: str = "state change",
@@ -551,7 +552,7 @@ def make_execution(
 
 def make_job_summary(
     job_id: int = 1,
-    app_key: str = "my_app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
     job_name: str = "check_lights",
     handler_method: str = "check_lights",
@@ -606,7 +607,7 @@ def make_log_entry_response(
     lineno: int | None = 42,
     message: str = "Handler invoked",
     exc_info: str | None = None,
-    app_key: str | None = "my_app",
+    app_key: str | None = DEFAULT_TEST_APP_KEY,
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = 0,

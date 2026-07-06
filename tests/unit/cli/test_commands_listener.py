@@ -131,7 +131,7 @@ class TestCmdListener:
 
         output = buf.getvalue()
         assert "42" in output
-        assert "my_app" in output
+        assert "test_" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --json outputs the listener list as a JSON array."""

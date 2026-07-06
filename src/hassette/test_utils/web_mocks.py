@@ -33,6 +33,8 @@ STUB_MIN_DELAY = 1
 STUB_MAX_DELAY = 30
 STUB_DEFAULT_DELAY = 15
 STUB_DEBOUNCE_MS = 3000
+STUB_CORS_ORIGINS = ("http://localhost:3000",)
+STUB_RETENTION_DAYS = 7
 
 
 def wire_telemetry_stubs(hassette: MagicMock) -> None:
@@ -73,7 +75,7 @@ def create_hassette_stub(
     # Config
     run_web_api: bool = True,
     run_web_ui: bool = True,
-    cors_origins: tuple[str, ...] = ("http://localhost:3000",),
+    cors_origins: tuple[str, ...] = STUB_CORS_ORIGINS,
     log_level: str = "INFO",
     dev_mode: bool = True,
     allow_reload_in_prod: bool = False,
@@ -169,7 +171,7 @@ def create_hassette_stub(
             "default_delay_seconds": STUB_DEFAULT_DELAY,
         },
         "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
-        "database": {"retention_days": 7},
+        "database": {"retention_days": STUB_RETENTION_DAYS},
         "websocket": {},
         "blocking_io": {},
     }

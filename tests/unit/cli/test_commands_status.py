@@ -239,7 +239,7 @@ class TestCmdDashboard:
         assert "App" in output
         assert "Health" in output
         # app_key value appears (possibly truncated by Rich if terminal is narrow)
-        assert "my_app" in output or "my_a" in output
+        assert "test_app" in output or "test_a" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """dashboard --json outputs the apps list as JSON array."""
@@ -257,7 +257,7 @@ class TestCmdDashboard:
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
-        assert parsed[0]["app_key"] == "my_app"
+        assert parsed[0]["app_key"] == "test_app"
 
     def test_dashboard_columns_defined(self) -> None:
         """DASHBOARD_COLUMNS includes the core per-app fields."""

@@ -17,6 +17,10 @@ TEST_BASE_URL = "http://test.invalid:8123"
 TEST_WS_URL = "ws://test.invalid:8123/api/websocket"
 TEST_SOURCE_LOCATION = "test.py:1"
 
+DEFAULT_TEST_APP_KEY = "test_app"
+TEST_EPOCH_A = 1_234_567_890.0
+TEST_EPOCH_B = 1_700_000_000.0
+
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
