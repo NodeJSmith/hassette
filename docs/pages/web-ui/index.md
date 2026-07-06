@@ -45,7 +45,6 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
-    | `[hassette.web_api] event_buffer_size` | int | `500` | How many recent events the UI keeps in memory |
     | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
     | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
