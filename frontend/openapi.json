@@ -2042,6 +2042,15 @@
         ],
         "title": "AppStatusResponse"
       },
+      "BackpressurePolicy": {
+        "type": "string",
+        "enum": [
+          "block",
+          "drop_newest"
+        ],
+        "title": "BackpressurePolicy",
+        "description": "What a listener does when the *global* dispatch semaphore is saturated.\n\nThe semaphore is shared by all listeners across all apps \u2014 saturation means\nthe whole bus is at capacity, not that this listener alone is busy. This is\ndistinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),\nwhich operate inside the handler invoker after a dispatch slot is acquired."
+      },
       "BootIssueResponse": {
         "properties": {
           "severity": {
@@ -2435,6 +2444,17 @@
         "title": "Execution",
         "description": "Unified execution record returned by queries against the ``executions`` table.\n\nReplaces the split ``HandlerInvocation`` / ``JobExecution`` models.\n``kind`` discriminates between handler invocations and job executions.\nHandler-only fields (``trigger_context_id``, ``trigger_origin``) default to\n``None`` for job executions."
       },
+      "ExecutionMode": {
+        "type": "string",
+        "enum": [
+          "single",
+          "restart",
+          "queued",
+          "parallel"
+        ],
+        "title": "ExecutionMode",
+        "description": "Overlap behavior for a listener when a trigger fires while a prior invocation still runs."
+      },
       "ExecutionStatus": {
         "type": "string",
         "enum": [
@@ -2702,8 +2722,7 @@
             "title": "Max Duration Ms"
           },
           "mode": {
-            "type": "string",
-            "title": "Mode",
+            "$ref": "#/components/schemas/ExecutionMode",
             "default": "single"
           },
           "suppressed_count": {
@@ -2990,8 +3009,7 @@
             "title": "Entity Id"
           },
           "mode": {
-            "type": "string",
-            "title": "Mode",
+            "$ref": "#/components/schemas/ExecutionMode",
             "default": "single"
           },
           "suppressed_count": {
@@ -3010,8 +3028,7 @@
             "default": 0
           },
           "backpressure": {
-            "type": "string",
-            "title": "Backpressure",
+            "$ref": "#/components/schemas/BackpressurePolicy",
             "default": "block"
           }
         },

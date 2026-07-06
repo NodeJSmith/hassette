@@ -6,34 +6,34 @@ in memory and assert they match the files on disk. If a test fails, run
 """
 
 import json
+import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
-from pydantic import TypeAdapter
-
-from hassette.config.config import HassetteConfig
-from hassette.web.app import create_fastapi_app
-from hassette.web.models import WsServerMessage
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+SCRIPTS_DIR = REPO_ROOT / "scripts"
 FRONTEND_DIR = REPO_ROOT / "frontend"
 
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
-def create_stub_hassette() -> MagicMock:
-    """Minimal mock matching what ``create_fastapi_app`` needs."""
-    stub = MagicMock()
-    stub.config.web_api.cors_origins = ()
-    stub.config.web_api.run_ui = False
-    return stub
+from pydantic import TypeAdapter  # noqa: E402
+from schema_helpers import (  # noqa: E402
+    build_config_schema,
+    build_openapi_schema,
+    build_ws_schema,
+    create_stub_hassette,
+)
+
+from hassette.web.models import WsServerMessage  # noqa: E402
 
 
 class TestSchemaFreshness:
     """Verify that committed schema files match what the backend generates."""
 
     def test_ws_schema_matches_models(self) -> None:
-        adapter = TypeAdapter(WsServerMessage)
-        generated = adapter.json_schema()
+        generated = build_ws_schema()
 
         schema_path = FRONTEND_DIR / "ws-schema.json"
         assert schema_path.exists(), f"{schema_path} not found — run: python scripts/export_schemas.py"
@@ -42,17 +42,7 @@ class TestSchemaFreshness:
         assert generated == on_disk, "frontend/ws-schema.json is stale — run: python scripts/export_schemas.py"
 
     def test_config_schema_matches_model(self) -> None:
-        raw = HassetteConfig.model_json_schema()
-        defs = raw.pop("$defs", {})
-        raw.pop("title", None)
-        generated = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Hassette Configuration",
-            "description": "Configuration schema for hassette.toml — the Hassette automation framework config file.",
-            "type": "object",
-            "properties": {"hassette": raw},
-            "$defs": defs,
-        }
+        generated = build_config_schema()
 
         schema_path = REPO_ROOT / "hassette.schema.json"
         assert schema_path.exists(), f"{schema_path} not found — run: python scripts/export_schemas.py"
@@ -62,8 +52,7 @@ class TestSchemaFreshness:
 
     def test_openapi_schema_matches_app(self) -> None:
         stub = create_stub_hassette()
-        app = create_fastapi_app(stub)
-        generated = app.openapi()
+        generated = build_openapi_schema(stub)
 
         openapi_path = FRONTEND_DIR / "openapi.json"
         assert openapi_path.exists(), f"{openapi_path} not found — run: python scripts/export_schemas.py"

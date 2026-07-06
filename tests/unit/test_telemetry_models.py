@@ -217,7 +217,7 @@ class TestJobSummary:
             "instance_index": 0,
             "job_name": "my_job",
             "handler_method": "run_job",
-            "trigger_type": None,
+            "trigger_type": "custom",
             "args_json": "[]",
             "kwargs_json": "{}",
             "source_location": "app.py:10",

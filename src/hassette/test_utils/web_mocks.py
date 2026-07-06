@@ -19,6 +19,21 @@ from hassette.web.app import create_fastapi_app
 
 TEST_START_EPOCH = 1704067200.0
 
+STUB_BASE_URL = "http://127.0.0.1:8123"
+STUB_DATA_DIR = "/srv/hassette/data"
+STUB_CONFIG_DIR = "/srv/hassette/config"
+STUB_HOST = "0.0.0.0"
+STUB_LOG_BUFFER_SIZE = 2000
+STUB_JOB_HISTORY_SIZE = 1000
+STUB_STARTUP_TIMEOUT = 30
+STUB_APP_STARTUP_TIMEOUT = 20
+STUB_APP_SHUTDOWN_TIMEOUT = 10
+STUB_APPS_DIR = "/srv/hassette/apps"
+STUB_MIN_DELAY = 1
+STUB_MAX_DELAY = 30
+STUB_DEFAULT_DELAY = 15
+STUB_DEBOUNCE_MS = 3000
+
 
 def wire_telemetry_stubs(hassette: MagicMock) -> None:
     """Wire empty-return async stubs for all TelemetryQueryService methods."""
@@ -86,37 +101,37 @@ def create_hassette_stub(
 
     # Root-level fields
     hassette.config.dev_mode = dev_mode
-    hassette.config.base_url = "http://127.0.0.1:8123"
+    hassette.config.base_url = STUB_BASE_URL
     hassette.config.asyncio_debug_mode = False
     hassette.config.allow_reload_in_prod = allow_reload_in_prod
-    hassette.config.data_dir = "/srv/hassette/data"
-    hassette.config.config_dir = "/srv/hassette/config"
+    hassette.config.data_dir = STUB_DATA_DIR
+    hassette.config.config_dir = STUB_CONFIG_DIR
     # web_api group
     hassette.config.web_api.run = run_web_api
     hassette.config.web_api.run_ui = run_web_ui
     hassette.config.web_api.ui_hot_reload = False
-    hassette.config.web_api.host = "0.0.0.0"
+    hassette.config.web_api.host = STUB_HOST
     hassette.config.web_api.port = DEFAULT_WEB_API_PORT
     hassette.config.web_api.cors_origins = cors_origins
-    hassette.config.web_api.log_buffer_size = 2000
-    hassette.config.web_api.job_history_size = 1000
+    hassette.config.web_api.log_buffer_size = STUB_LOG_BUFFER_SIZE
+    hassette.config.web_api.job_history_size = STUB_JOB_HISTORY_SIZE
     # logging group
     hassette.config.logging.log_level = log_level
     hassette.config.logging.web_api = log_level
     # lifecycle group
-    hassette.config.lifecycle.startup_timeout_seconds = 30
-    hassette.config.lifecycle.app_startup_timeout_seconds = 20
-    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
+    hassette.config.lifecycle.startup_timeout_seconds = STUB_STARTUP_TIMEOUT
+    hassette.config.lifecycle.app_startup_timeout_seconds = STUB_APP_STARTUP_TIMEOUT
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = STUB_APP_SHUTDOWN_TIMEOUT
     # app group
     hassette.config.apps.autodetect = True
-    hassette.config.apps.directory = "/srv/hassette/apps"
+    hassette.config.apps.directory = STUB_APPS_DIR
     # scheduler group
-    hassette.config.scheduler.min_delay_seconds = 1
-    hassette.config.scheduler.max_delay_seconds = 30
-    hassette.config.scheduler.default_delay_seconds = 15
+    hassette.config.scheduler.min_delay_seconds = STUB_MIN_DELAY
+    hassette.config.scheduler.max_delay_seconds = STUB_MAX_DELAY
+    hassette.config.scheduler.default_delay_seconds = STUB_DEFAULT_DELAY
     # file_watcher group
     hassette.config.file_watcher.watch_files = True
-    hassette.config.file_watcher.debounce_milliseconds = 3000
+    hassette.config.file_watcher.debounce_milliseconds = STUB_DEBOUNCE_MS
 
     # model_dump return value — mirrors the attribute assignments above so the config
     # endpoint (which calls hassette.config.model_dump(mode="json")) receives a real dict
@@ -125,31 +140,35 @@ def create_hassette_stub(
     # model_dump.return_value directly or use a real HassetteConfig fixture.
     hassette.config.model_dump.return_value = {
         "dev_mode": dev_mode,
-        "base_url": "http://127.0.0.1:8123",
+        "base_url": STUB_BASE_URL,
         "asyncio_debug_mode": False,
         "allow_reload_in_prod": allow_reload_in_prod,
         "token": None,
-        "data_dir": "/srv/hassette/data",
-        "config_dir": "/srv/hassette/config",
+        "data_dir": STUB_DATA_DIR,
+        "config_dir": STUB_CONFIG_DIR,
         "web_api": {
             "run": run_web_api,
             "run_ui": run_web_ui,
             "ui_hot_reload": False,
-            "host": "0.0.0.0",
+            "host": STUB_HOST,
             "port": DEFAULT_WEB_API_PORT,
             "cors_origins": list(cors_origins),
-            "log_buffer_size": 2000,
-            "job_history_size": 1000,
+            "log_buffer_size": STUB_LOG_BUFFER_SIZE,
+            "job_history_size": STUB_JOB_HISTORY_SIZE,
         },
         "logging": {"log_level": log_level, "web_api": log_level},
         "lifecycle": {
-            "startup_timeout_seconds": 30,
-            "app_startup_timeout_seconds": 20,
-            "app_shutdown_timeout_seconds": 10,
+            "startup_timeout_seconds": STUB_STARTUP_TIMEOUT,
+            "app_startup_timeout_seconds": STUB_APP_STARTUP_TIMEOUT,
+            "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
         },
-        "apps": {"autodetect": True, "directory": "/srv/hassette/apps"},
-        "scheduler": {"min_delay_seconds": 1, "max_delay_seconds": 30, "default_delay_seconds": 15},
-        "file_watcher": {"watch_files": True, "debounce_milliseconds": 3000},
+        "apps": {"autodetect": True, "directory": STUB_APPS_DIR},
+        "scheduler": {
+            "min_delay_seconds": STUB_MIN_DELAY,
+            "max_delay_seconds": STUB_MAX_DELAY,
+            "default_delay_seconds": STUB_DEFAULT_DELAY,
+        },
+        "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
         "database": {"retention_days": 7},
         "websocket": {},
         "blocking_io": {},

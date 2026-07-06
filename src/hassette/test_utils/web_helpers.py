@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
@@ -199,7 +200,7 @@ def make_job(
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
-    trigger_type: str = "interval",
+    trigger_type: str | None = "interval",
     trigger_detail: str | None = None,
     db_id: int | None = None,
     app_key: str = "",
@@ -385,7 +386,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "run_ui": True,
                 "ui_hot_reload": False,
                 "host": "0.0.0.0",
-                "port": 8126,
+                "port": DEFAULT_WEB_API_PORT,
                 "cors_origins": [],
                 "log_buffer_size": 500,
                 "job_history_size": 100,

@@ -11,6 +11,8 @@ module resolves them:
 
 import re
 
+from hassette_codegen.extractors.properties import ExtractedProperty
+
 # HA types that should be mapped to hassette-compatible types.
 # Ordered longest-first so "dt.datetime" matches before "datetime".
 HA_TYPE_MAP: list[tuple[str, str]] = [
@@ -36,13 +38,12 @@ NEEDED_IMPORTS: dict[str, str] = {
 
 
 def resolve_property_types(
-    properties: list,
+    properties: list[ExtractedProperty],
     domain_strenum_names: set[str],
-) -> tuple[list, set[str]]:
-    """Resolve HA-internal types in property annotations.
+) -> set[str]:
+    """Resolve HA-internal types in property annotations (mutates in place).
 
-    Returns:
-        (updated properties, set of extra import lines needed)
+    Returns the set of extra import lines needed by the resolved types.
     """
     extra_imports: set[str] = set()
 
@@ -51,7 +52,7 @@ def resolve_property_types(
         prop.python_type = resolved
         extra_imports.update(imports)
 
-    return properties, extra_imports
+    return extra_imports
 
 
 def _resolve_type(type_str: str, domain_strenum_names: set[str]) -> tuple[str, set[str]]:

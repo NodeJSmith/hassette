@@ -4,6 +4,8 @@ import re
 from copy import deepcopy
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
+from hassette_codegen.extractors.features import ExtractedEnum
+from hassette_codegen.extractors.properties import ExtractedProperty
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.property_types import resolve_property_types
 
@@ -32,7 +34,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
 
     strenum_names = {e.name for e in strenums}
     _apply_type_renames(domain.properties, renames)
-    _props, type_imports = resolve_property_types(domain.properties, strenum_names)
+    type_imports = resolve_property_types(domain.properties, strenum_names)
     extra_imports.extend(sorted(type_imports))
 
     has_intflag = len(domain.features) > 0
@@ -56,9 +58,11 @@ def generate_state_model(domain: ExtractedDomain) -> str:
     )
 
 
-def _normalize_enum_prefixes(strenums: list, domain_title: str) -> tuple[list, dict[str, str]]:
+def _normalize_enum_prefixes(
+    strenums: list[ExtractedEnum], domain_title: str
+) -> tuple[list[ExtractedEnum], dict[str, str]]:
     """Normalize domain-prefixed enum names to use the canonical domain title and include 'Entity'."""
-    result = []
+    result: list[ExtractedEnum] = []
     renames: dict[str, str] = {}
     for enum in strenums:
         match = _ATTRIBUTE_SUFFIX_RE.search(enum.name)
@@ -86,9 +90,11 @@ def _normalize_enum_prefixes(strenums: list, domain_title: str) -> tuple[list, d
     return result, renames
 
 
-def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, dict[str, str]]:
+def _rename_collisions(
+    strenums: list[ExtractedEnum], pydantic_class_name: str
+) -> tuple[list[ExtractedEnum], dict[str, str]]:
     """Rename StrEnums that collide with the Pydantic state class name."""
-    result = []
+    result: list[ExtractedEnum] = []
     renames: dict[str, str] = {}
     for enum in strenums:
         if enum.name == pydantic_class_name:
@@ -101,7 +107,7 @@ def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, 
     return result, renames
 
 
-def _apply_type_renames(properties: list, renames: dict[str, str]) -> None:
+def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, str]) -> None:
     """Apply StrEnum renames to property type annotations."""
     for prop in properties:
         for old_name, new_name in renames.items():

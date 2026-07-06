@@ -24,27 +24,27 @@
   gap: var(--sp-2);
 }
 
-.errorType {
+.statusLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  color: var(--err);
   white-space: nowrap;
+}
+
+.errorType {
+  composes: statusLabel;
+  color: var(--err);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .timeoutType {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
+  composes: statusLabel;
   color: var(--warn);
-  white-space: nowrap;
 }
 
 .cancelledType {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
+  composes: statusLabel;
   color: var(--cancel);
-  white-space: nowrap;
 }
 
 .detailCell {

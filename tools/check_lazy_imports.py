@@ -38,12 +38,7 @@ import re
 import sys
 from pathlib import Path
 
-from lint_helpers import resolve_paths, run_check
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Directories scanned for lazy imports, relative to the repo root.
-SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
+from lint_helpers import DEFAULT_SCAN_DIRS, REPO_ROOT, iter_python_files, run_check
 
 ANNOTATION = "# lazy-import:"
 
@@ -118,19 +113,19 @@ def iter_paths() -> list[Path]:
     """Return every .py file under the scanned directories, sorted for stable output.
 
     The full-scan entry point the characterization tests parametrize over; ``main`` calls
-    ``resolve_paths`` directly so a pre-commit run can scan just the staged files. Both go
-    through ``resolve_paths``, so the full-scan path can't drift from the per-file path.
+    ``iter_python_files`` directly so a pre-commit run can scan just the staged files. Both go
+    through ``iter_python_files``, so the full-scan path can't drift from the per-file path.
     """
-    return resolve_paths([], REPO_ROOT, SCAN_DIRS)
+    return iter_python_files([])
 
 
 def main() -> int:
     return run_check(
-        resolve_paths(sys.argv[1:], REPO_ROOT, SCAN_DIRS),
+        iter_python_files(sys.argv[1:]),
         REPO_ROOT,
         check_file,
         summary="lazy import(s) found inside function bodies",
-        ok=f"no un-annotated lazy imports found under {', '.join(SCAN_DIRS)}/.",
+        ok=f"no un-annotated lazy imports found under {', '.join(DEFAULT_SCAN_DIRS)}/.",
         footer=(
             "Move each import to the top of its file. If it genuinely breaks a circular\n"
             "import, annotate the line: '# lazy-import: <reason>' (the reason is required)."

@@ -192,7 +192,7 @@ def make_job_registration(
         instance_index=0,
         job_name=job_name,
         handler_method="test_app.my_job",
-        trigger_type=None,
+        trigger_type="custom",
         trigger_label="once",
         trigger_detail=None,
         args_json="[]",

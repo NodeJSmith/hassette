@@ -13,6 +13,15 @@ import tokenize
 from collections.abc import Callable
 from pathlib import Path
 
+#: Repo root, shared so every checker resolves paths against the same anchor rather than
+#: each recomputing ``Path(__file__).resolve().parent.parent`` on its own.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+#: Directories scanned by the general-purpose checkers (lazy imports, spec tokens, LLM cruft),
+#: relative to the repo root. ``check_module_boundaries`` scans ``src/hassette`` only and keeps
+#: its own scan dirs since that scope is narrower than this default.
+DEFAULT_SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
+
 #: Directory components that are never first-party source: virtualenvs (notably the nested
 #: ``codegen/.venv``), caches, and build output. Without this filter, rglob over the ``codegen``
 #: scan dir pulls in third-party site-packages and reports them as house-style violations — which
@@ -131,3 +140,14 @@ def resolve_paths(argv: list[str], repo_root: Path, scan_dirs: list[str]) -> lis
             continue
         selected.add(path)
     return sorted(selected)
+
+
+def iter_python_files(argv: list[str], scan_dirs: list[str] | None = None) -> list[Path]:
+    """Resolve a checker's CLI file arguments against ``REPO_ROOT``, or scan ``scan_dirs``.
+
+    Thin wrapper over ``resolve_paths`` for the common case: every checker anchors at this
+    file's parent directory (``REPO_ROOT``) and scans ``DEFAULT_SCAN_DIRS`` unless it needs
+    a narrower scope (``check_module_boundaries`` passes its own ``src/hassette``-only list).
+    ``argv`` is normally ``sys.argv[1:]`` for a ``main()`` call, or ``[]`` for a full scan.
+    """
+    return resolve_paths(argv, REPO_ROOT, scan_dirs or DEFAULT_SCAN_DIRS)

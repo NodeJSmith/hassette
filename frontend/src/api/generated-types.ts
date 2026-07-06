@@ -758,6 +758,17 @@ export interface components {
             only_app?: string | null;
         };
         /**
+         * BackpressurePolicy
+         * @description What a listener does when the *global* dispatch semaphore is saturated.
+         *
+         *     The semaphore is shared by all listeners across all apps — saturation means
+         *     the whole bus is at capacity, not that this listener alone is busy. This is
+         *     distinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),
+         *     which operate inside the handler invoker after a dispatch slot is acquired.
+         * @enum {string}
+         */
+        BackpressurePolicy: "block" | "drop_newest";
+        /**
          * BootIssueResponse
          * @description A boot-time issue entry in the system status response.
          */
@@ -937,6 +948,12 @@ export interface components {
             thread_leaked: boolean;
         };
         /**
+         * ExecutionMode
+         * @description Overlap behavior for a listener when a trigger fires while a prior invocation still runs.
+         * @enum {string}
+         */
+        ExecutionMode: "single" | "restart" | "queued" | "parallel";
+        /**
          * ExecutionStatus
          * @description Status values for handler invocations and job executions.
          *
@@ -1044,11 +1061,8 @@ export interface components {
             min_duration_ms?: number | null;
             /** Max Duration Ms */
             max_duration_ms?: number | null;
-            /**
-             * Mode
-             * @default single
-             */
-            mode: string;
+            /** @default single */
+            mode: components["schemas"]["ExecutionMode"];
             /**
              * Suppressed Count
              * @default 0
@@ -1171,11 +1185,8 @@ export interface components {
             duration?: number | null;
             /** Entity Id */
             entity_id?: string | null;
-            /**
-             * Mode
-             * @default single
-             */
-            mode: string;
+            /** @default single */
+            mode: components["schemas"]["ExecutionMode"];
             /**
              * Suppressed Count
              * @default 0
@@ -1191,11 +1202,8 @@ export interface components {
              * @default 0
              */
             backpressure_dropped_count: number;
-            /**
-             * Backpressure
-             * @default block
-             */
-            backpressure: string;
+            /** @default block */
+            backpressure: components["schemas"]["BackpressurePolicy"];
         };
         /**
          * LivenessResponse
