@@ -67,7 +67,6 @@ def tests(session: "Session"):
         "auto",
         "--dist",
         "loadscope",
-        "-v",
         "--tb=line",
         # Fail a hung test instead of letting CI hang until the job is cancelled.
         # thread method dumps every thread's stack then os._exit()s — it catches

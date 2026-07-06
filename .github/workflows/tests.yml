@@ -123,10 +123,19 @@ jobs:
 
             - run: uv sync
 
+            # Coverage collected on 3.14 only — no version-gated code paths in
+            # the source, so one version gives the same coverage data as four.
+            # 3.14 also gets sysmon (PEP 669) automatically, the fastest backend.
             - name: Run tests with coverage
+              if: matrix.python-version == '3.14'
               run: uv run nox -t coverage -p ${{ matrix.python-version }}
 
+            - name: Run tests without coverage
+              if: matrix.python-version != '3.14'
+              run: uv run nox -s tests -p ${{ matrix.python-version }}
+
             - name: Upload coverage data
+              if: matrix.python-version == '3.14'
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: .coverage.${{ matrix.python-version }}
@@ -160,10 +169,17 @@ jobs:
 
             - run: uv sync
 
+            # Same coverage-on-3.14-only rationale as the test job.
             - name: Run system tests with coverage
+              if: matrix.python-version == '3.14'
               run: uv run nox -s system_with_coverage -p ${{ matrix.python-version }}
 
+            - name: Run system tests without coverage
+              if: matrix.python-version != '3.14'
+              run: uv run nox -s system -p ${{ matrix.python-version }}
+
             - name: Upload coverage data
+              if: matrix.python-version == '3.14'
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
               with:
                   name: .coverage.system.${{ matrix.python-version }}
