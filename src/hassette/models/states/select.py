@@ -1,8 +1,13 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
+
+
+class SelectEntityCapabilityAttribute(StrEnum):
+    OPTIONS = "options"
 
 
 class SelectAttributes(AttributesBase):

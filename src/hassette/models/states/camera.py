@@ -6,6 +6,13 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class CameraEntityStateAttribute(StrEnum):
+    ACCESS_TOKEN = "access_token"
+    MODEL_NAME = "model_name"
+    BRAND = "brand"
+    MOTION_DETECTION = "motion_detection"
+
+
 class CameraStateValue(StrEnum):
     RECORDING = "recording"
     STREAMING = "streaming"

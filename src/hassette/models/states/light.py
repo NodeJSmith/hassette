@@ -6,6 +6,25 @@ from pydantic import Field
 from .base import AttributesBase, BoolBaseState
 
 
+class LightEntityCapabilityAttribute(StrEnum):
+    MIN_COLOR_TEMP_KELVIN = "min_color_temp_kelvin"
+    MAX_COLOR_TEMP_KELVIN = "max_color_temp_kelvin"
+    EFFECT_LIST = "effect_list"
+    SUPPORTED_COLOR_MODES = "supported_color_modes"
+
+
+class LightEntityStateAttribute(StrEnum):
+    EFFECT = "effect"
+    COLOR_MODE = "color_mode"
+    BRIGHTNESS = "brightness"
+    COLOR_TEMP_KELVIN = "color_temp_kelvin"
+    HS_COLOR = "hs_color"
+    RGB_COLOR = "rgb_color"
+    XY_COLOR = "xy_color"
+    RGBW_COLOR = "rgbw_color"
+    RGBWW_COLOR = "rgbww_color"
+
+
 class ColorMode(StrEnum):
     UNKNOWN = "unknown"
     ONOFF = "onoff"

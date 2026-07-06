@@ -6,6 +6,13 @@ from pydantic import Field
 from .base import AttributesBase, NumericBaseState
 
 
+class NumberEntityCapabilityAttribute(StrEnum):
+    MIN = "min"
+    MAX = "max"
+    STEP = "step"
+    MODE = "mode"
+
+
 class NumberMode(StrEnum):
     AUTO = "auto"
     BOX = "box"

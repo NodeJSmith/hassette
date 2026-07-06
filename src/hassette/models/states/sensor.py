@@ -10,6 +10,15 @@ from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 from .base import AttributesBase, StringBaseState
 
 
+class SensorEntityCapabilityAttribute(StrEnum):
+    STATE_CLASS = "state_class"
+    OPTIONS = "options"
+
+
+class SensorEntityStateAttribute(StrEnum):
+    LAST_RESET = "last_reset"
+
+
 class SensorDeviceClass(StrEnum):
     DATE = "date"
     ENUM = "enum"

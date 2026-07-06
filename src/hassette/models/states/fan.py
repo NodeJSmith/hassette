@@ -1,9 +1,21 @@
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
+
+
+class FanEntityCapabilityAttribute(StrEnum):
+    PRESET_MODES = "preset_modes"
+
+
+class FanEntityStateAttribute(StrEnum):
+    DIRECTION = "direction"
+    OSCILLATING = "oscillating"
+    PERCENTAGE = "percentage"
+    PERCENTAGE_STEP = "percentage_step"
+    PRESET_MODE = "preset_mode"
 
 
 class FanEntityFeature(IntFlag):

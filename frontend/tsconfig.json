@@ -11,6 +11,7 @@
     "noFallthroughCasesInSwitch": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "rootDir": "./src",
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"]

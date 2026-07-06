@@ -1,9 +1,14 @@
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
+
+
+class RemoteEntityStateAttribute(StrEnum):
+    ACTIVITY_LIST = "activity_list"
+    CURRENT_ACTIVITY = "current_activity"
 
 
 class RemoteEntityFeature(IntFlag):

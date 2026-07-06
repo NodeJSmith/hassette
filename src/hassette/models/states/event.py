@@ -6,6 +6,14 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class EventEntityCapabilityAttribute(StrEnum):
+    EVENT_TYPES = "event_types"
+
+
+class EventEntityStateAttribute(StrEnum):
+    EVENT_TYPE = "event_type"
+
+
 class DoorbellEventType(StrEnum):
     RING = "ring"
 

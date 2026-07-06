@@ -1,8 +1,15 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, NumericBaseState
+
+
+class GeolocationEntityStateAttribute(StrEnum):
+    SOURCE = "source"
+    LATITUDE = "latitude"
+    LONGITUDE = "longitude"
 
 
 class GeoLocationAttributes(AttributesBase):
