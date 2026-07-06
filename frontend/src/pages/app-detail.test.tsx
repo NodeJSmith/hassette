@@ -133,18 +133,7 @@ function createWrapper(state: AppState) {
 
 function setupApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
   server.use(
-    http.get("/api/apps/manifests", () =>
-      HttpResponse.json({
-        total: 1,
-        running: 1,
-        failed: 0,
-        stopped: 0,
-        disabled: 0,
-        blocked: 0,
-        manifests: [manifest],
-        only_app: null,
-      }),
-    ),
+    http.get("/api/apps/:app_key/manifest", () => HttpResponse.json(manifest)),
     http.get("/api/telemetry/app/:app_key/listeners", () => HttpResponse.json(listeners)),
     http.get("/api/telemetry/app/:app_key/jobs", () => HttpResponse.json(jobs)),
   );

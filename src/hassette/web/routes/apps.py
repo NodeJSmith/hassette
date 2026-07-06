@@ -10,11 +10,12 @@ from hassette.app.app_config import AppConfig
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
-from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
+from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
 from hassette.web.models import (
     ActionResponse,
     AppConfigResponse,
     AppManifestListResponse,
+    AppManifestResponse,
     AppSourceResponse,
     AppStatusResponse,
 )
@@ -78,6 +79,25 @@ async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> App
         for m in manifest_list.manifests
     ]
     return manifest_list.model_copy(update={"manifests": enriched_manifests})
+
+
+@router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
+async def get_app_manifest(app_key: str, hassette: HassetteDep, telemetry: TelemetryDep) -> AppManifestResponse:
+    _validate_app_key(app_key)
+    manifest_info = hassette.app_handler.registry.get_manifest_snapshot(app_key)
+    if manifest_info is None:
+        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+
+    response = app_manifest_response_from(manifest_info)
+
+    invocations = 0
+    try:
+        invocations_by_key = await telemetry.get_recent_invocations_1h_all_apps()
+        invocations = invocations_by_key.get(app_key, 0)
+    except TelemetryUnavailableError:
+        LOGGER.warning("Failed to fetch recent_invocations_1h for app %s manifest", app_key, exc_info=True)
+
+    return response.model_copy(update={"recent_invocations_1h": invocations})
 
 
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)
