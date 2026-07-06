@@ -14,7 +14,7 @@ import { OverviewTab } from "../components/app-detail/overview-tab";
 import { Spinner } from "../components/shared/spinner";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { useManifests } from "../hooks/use-manifests";
+import { useManifest } from "../hooks/use-manifest";
 import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
@@ -65,7 +65,7 @@ export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
   const { appStatus, executionCompleted } = useAppState();
-  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
+  const { data: manifest, isPending: manifestLoading, error: manifestError } = useManifest(appKey);
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
@@ -109,7 +109,6 @@ export function AppDetailPage({ params }: Props) {
   const displayListeners = listenersData ?? [];
   const displayJobs = jobsData ?? [];
 
-  const manifest = manifests.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
@@ -122,8 +121,8 @@ export function AppDetailPage({ params }: Props) {
   const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   const liveStatus = showParentOverview ? (manifest?.status ?? "unknown") : instanceStatus;
 
-  const hasData = !manifestsLoading && listenersData !== undefined && jobsData !== undefined;
-  const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestsLoading);
+  const hasData = !manifestLoading && listenersData !== undefined && jobsData !== undefined;
+  const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestLoading);
 
   useEffect(() => {
     if (initialLoading) return;
@@ -140,10 +139,10 @@ export function AppDetailPage({ params }: Props) {
 
   if (initialLoading) return <Spinner />;
 
-  if (listenersError || jobsError) {
+  if (manifestError || listenersError || jobsError) {
     return (
       <div class="ht-alert ht-alert--danger" role="alert">
-        {(listenersError ?? jobsError)!.message}
+        {(manifestError ?? listenersError ?? jobsError)!.message}
       </div>
     );
   }

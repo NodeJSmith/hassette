@@ -15,7 +15,7 @@ coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is
 
 from typing import cast
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.telemetry_models import ListenerSummary
@@ -63,34 +63,28 @@ def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
     )
 
 
-def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListResponse:
-    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``.
+def app_manifest_response_from(m: AppManifestInfo) -> AppManifestResponse:
+    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``."""
+    instances = [instance_response_from(inst) for inst in m.instances]
+    return AppManifestResponse(
+        app_key=m.app_key,
+        class_name=m.class_name,
+        display_name=m.display_name,
+        filename=m.filename,
+        enabled=m.enabled,
+        auto_loaded=m.auto_loaded,
+        autostart=m.autostart,
+        status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
+        block_reason=m.block_reason,
+        instance_count=m.instance_count,
+        instances=instances,
+        error_message=m.error_message,
+        error_traceback=m.error_traceback,
+    )
 
-    Builds nested ``AppInstanceResponse`` objects from each manifest's
-    ``instances`` list. ``AppInstanceInfo.status`` is a ``ResourceStatus``
-    enum and requires ``.value``; ``AppManifestInfo.status`` is already a
-    plain ``str``.
-    """
-    manifests = []
-    for m in full.manifests:
-        instances = [instance_response_from(inst) for inst in m.instances]
-        manifests.append(
-            AppManifestResponse(
-                app_key=m.app_key,
-                class_name=m.class_name,
-                display_name=m.display_name,
-                filename=m.filename,
-                enabled=m.enabled,
-                auto_loaded=m.auto_loaded,
-                autostart=m.autostart,
-                status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
-                block_reason=m.block_reason,
-                instance_count=m.instance_count,
-                instances=instances,
-                error_message=m.error_message,
-                error_traceback=m.error_traceback,
-            )
-        )
+
+def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListResponse:
+    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``."""
     return AppManifestListResponse(
         total=full.total,
         running=full.running,
@@ -98,7 +92,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
         stopped=full.stopped,
         disabled=full.disabled,
         blocked=full.blocked,
-        manifests=manifests,
+        manifests=[app_manifest_response_from(m) for m in full.manifests],
         only_app=full.only_app,
     )
 

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/preact-query";
 
-import { type AppManifest, getManifests } from "../api/endpoints";
+import { type AppManifest, getAppManifests } from "../api/endpoints";
 import { queryKeys } from "../lib/query-keys";
 
 /**
@@ -16,7 +16,7 @@ import { queryKeys } from "../lib/query-keys";
 export function useManifests() {
   return useQuery({
     queryKey: queryKeys.manifests(),
-    queryFn: getManifests,
+    queryFn: getAppManifests,
     select: (data): AppManifest[] => data.manifests,
   });
 }
