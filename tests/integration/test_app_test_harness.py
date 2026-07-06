@@ -28,6 +28,10 @@ from hassette.types.enums import ResourceStatus
 # Class names don't start with "Test" to avoid pytest collection warnings.
 
 
+async def wait_for_calls(calls: list, *, count: int = 1, desc: str = "handler called") -> None:
+    await wait_for(lambda: len(calls) == count, desc=desc)
+
+
 class SensorConfig(AppConfig):
     """Minimal AppConfig subclass for testing."""
 
@@ -463,7 +467,7 @@ async def test_simulate_component_loaded():
 
     async with AppTestHarness(ComponentApp, config={}) as harness:
         await harness.simulate_component_loaded("my_component")
-        await wait_for(lambda: len(calls) == 1, desc="component_loaded handler called")
+        await wait_for_calls(calls, desc="component_loaded handler called")
 
 
 async def test_simulate_service_registered():
@@ -479,7 +483,7 @@ async def test_simulate_service_registered():
 
     async with AppTestHarness(ServiceRegApp, config={}) as harness:
         await harness.simulate_service_registered("light", "turn_on")
-        await wait_for(lambda: len(calls) == 1, desc="service_registered handler called")
+        await wait_for_calls(calls, desc="service_registered handler called")
 
 
 async def test_simulate_hassette_service_status():
@@ -513,7 +517,7 @@ async def test_simulate_hassette_service_failed():
 
     async with AppTestHarness(ServiceFailedApp, config={}) as harness:
         await harness.simulate_hassette_service_failed("MyService", exception=RuntimeError("boom"))
-        await wait_for(lambda: len(calls) == 1, desc="service_failed handler called")
+        await wait_for_calls(calls, desc="service_failed handler called")
 
 
 async def test_simulate_hassette_service_crashed():
@@ -529,7 +533,7 @@ async def test_simulate_hassette_service_crashed():
 
     async with AppTestHarness(ServiceCrashedApp, config={}) as harness:
         await harness.simulate_hassette_service_crashed("MyService")
-        await wait_for(lambda: len(calls) == 1, desc="service_crashed handler called")
+        await wait_for_calls(calls, desc="service_crashed handler called")
 
 
 async def test_simulate_hassette_service_started():
@@ -582,7 +586,7 @@ async def test_simulate_websocket_connected():
 
     async with AppTestHarness(WsConnectedApp, config={}) as harness:
         await harness.simulate_websocket_connected()
-        await wait_for(lambda: len(calls) == 1, desc="ws_connected handler called")
+        await wait_for_calls(calls, desc="ws_connected handler called")
 
 
 async def test_simulate_websocket_disconnected():
@@ -598,7 +602,7 @@ async def test_simulate_websocket_disconnected():
 
     async with AppTestHarness(WsDisconnectedApp, config={}) as harness:
         await harness.simulate_websocket_disconnected()
-        await wait_for(lambda: len(calls) == 1, desc="ws_disconnected handler called")
+        await wait_for_calls(calls, desc="ws_disconnected handler called")
 
 
 async def test_simulate_app_state_changed():
@@ -652,7 +656,7 @@ async def test_simulate_app_stopping():
 
     async with AppTestHarness(AppStoppingApp, config={}) as harness:
         await harness.simulate_app_stopping()
-        await wait_for(lambda: len(calls) == 1, desc="app_stopping handler called")
+        await wait_for_calls(calls, desc="app_stopping handler called")
 
 
 async def test_simulate_homeassistant_restart():
@@ -668,7 +672,7 @@ async def test_simulate_homeassistant_restart():
 
     async with AppTestHarness(HaRestartApp, config={}) as harness:
         await harness.simulate_homeassistant_restart()
-        await wait_for(lambda: len(calls) == 1, desc="ha_restart handler called")
+        await wait_for_calls(calls, desc="ha_restart handler called")
 
 
 async def test_simulate_homeassistant_start():
@@ -684,7 +688,7 @@ async def test_simulate_homeassistant_start():
 
     async with AppTestHarness(HaStartApp, config={}) as harness:
         await harness.simulate_homeassistant_start()
-        await wait_for(lambda: len(calls) == 1, desc="ha_start handler called")
+        await wait_for_calls(calls, desc="ha_start handler called")
 
 
 async def test_simulate_homeassistant_stop():
@@ -700,7 +704,7 @@ async def test_simulate_homeassistant_stop():
 
     async with AppTestHarness(HaStopApp, config={}) as harness:
         await harness.simulate_homeassistant_stop()
-        await wait_for(lambda: len(calls) == 1, desc="ha_stop handler called")
+        await wait_for_calls(calls, desc="ha_stop handler called")
 
 
 async def test_simulate_hassette_service_status_typed_di():
