@@ -267,34 +267,6 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 **API endpoint:** `GET /api/executions/{execution_id}`
 
-## `hassette event`
-
-Recent Home Assistant events received by the WebSocket connection.
-
-```console
-$ hassette event --limit 5
-┏━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┓
-┃ Event Type     ┃ Entity ┃ When    ┃
-┡━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━┩
-│ service_status │        │ 35s ago │
-│ service_status │        │ 35s ago │
-│ service_status │        │ 35s ago │
-│ service_status │        │ 35s ago │
-│ service_status │        │ 35s ago │
-└────────────────┴────────┴─────────┘
-```
-
-The Entity column is populated for `state_changed` events. Other event types leave it blank.
-
-### Flags
-
-| Flag          | Description                         |
-| ------------- | ----------------------------------- |
-| `--limit <n>` | Maximum number of events to return. |
-| `--json`      | Outputs as JSON.                    |
-
-**API endpoint:** `GET /api/events/recent`
-
 ## `hassette dashboard`
 
 Per-app health status, invocation counts, error counts, average duration, and last activity. Mirrors the dashboard grid in the web UI.
@@ -352,7 +324,7 @@ These flags appear across multiple commands.
 | `--app <key>`          | string                       | `listener`, `job`, `log`                                     | Filters results to a specific app key.                                                                                                      |
 | `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`              | Filters to a specific app instance. Requires `--app` or a positional `<key>` argument.                                                      |
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `app health`, `app activity`       | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
-| `--limit <n>`          | integer                      | `log`, `event`, `execution`, `app activity`, per-ID commands | Maximum number of records to return.                                                                                                        |
+| `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
 | `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |
 

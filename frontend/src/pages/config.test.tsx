@@ -94,7 +94,6 @@ describe("ConfigPage", () => {
               host: "0.0.0.0",
               port: 9000,
               cors_origins: [],
-              event_buffer_size: 500,
               log_buffer_size: 2000,
               job_history_size: 1000,
             },

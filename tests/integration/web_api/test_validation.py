@@ -332,22 +332,6 @@ class TestAppKeyValidation:
 class TestLimitParameterValidation:
     """Verify out-of-range limit parameters return 422 across all relevant endpoints."""
 
-    async def test_events_limit_zero_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/events/recent?limit=0")
-        assert response.status_code == 422
-
-    async def test_events_limit_negative_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/events/recent?limit=-1")
-        assert response.status_code == 422
-
-    async def test_events_limit_over_max_returns_422(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/events/recent?limit=501")
-        assert response.status_code == 422
-
-    async def test_events_limit_at_max_accepted(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/events/recent?limit=500")
-        assert response.status_code == 200
-
     async def test_logs_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/logs/recent?limit=0")
         assert response.status_code == 422

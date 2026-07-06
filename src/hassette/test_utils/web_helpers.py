@@ -35,7 +35,6 @@ from hassette.web.models import (
     ConfigSchemaResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
-    EventEntry,
     ListenerWithSummary,
     LogEntryResponse,
     LogsByExecutionResponse,
@@ -361,21 +360,6 @@ def make_dashboard_app_grid_response(
     return DashboardAppGridResponse(apps=entries or [make_dashboard_app_grid_entry()])
 
 
-def make_event_entry(
-    type: str = "state_changed",
-    entity_id: str | None = "light.kitchen",
-    timestamp: float = SYNTHETIC_TIMESTAMP,
-    data: dict | None = None,
-) -> EventEntry:
-    """Build an EventEntry with sensible defaults."""
-    return EventEntry(
-        type=type,
-        entity_id=entity_id,
-        timestamp=timestamp,
-        data=data or {},
-    )
-
-
 def make_config_schema_response() -> ConfigSchemaResponse:
     """Build a ConfigSchemaResponse with sensible defaults for testing.
 
@@ -403,7 +387,6 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "host": "0.0.0.0",
                 "port": 8126,
                 "cors_origins": [],
-                "event_buffer_size": 100,
                 "log_buffer_size": 500,
                 "job_history_size": 100,
             },

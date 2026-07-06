@@ -153,13 +153,6 @@ class AppManifestListResponse(BaseModel):
     only_app: str | None = None
 
 
-class EventEntry(BaseModel):
-    type: str
-    entity_id: str | None = None
-    timestamp: float
-    data: dict[str, Any] = Field(default_factory=dict)
-
-
 class WsMessage(BaseModel):
     type: str
     data: dict[str, Any]

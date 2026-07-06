@@ -10,7 +10,7 @@ from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config,
 from hassette.cli.commands.job import cmd_job
 from hassette.cli.commands.listener import cmd_listener
 from hassette.cli.commands.log import cmd_execution, cmd_log
-from hassette.cli.commands.misc import cmd_config, cmd_event
+from hassette.cli.commands.misc import cmd_config
 from hassette.cli.commands.run import cmd_run
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.cli.context import CLIContext
@@ -84,9 +84,6 @@ app.command(log_app)
 execution_app = App(name="execution", help="Show logs for a specific execution.")
 app.command(execution_app)
 
-event_app = App(name="event", help="Show recent HA events.")
-app.command(event_app)
-
 config_app = App(name="config", help="Show current configuration.")
 app.command(config_app)
 
@@ -101,7 +98,6 @@ status_app.default(cmd_status)
 telemetry_app.default(cmd_telemetry)
 dashboard_app.default(cmd_dashboard)
 config_app.default(cmd_config)
-event_app.default(cmd_event)
 
 apps_app.default(cmd_app)
 apps_app.command(cmd_app_health, name="health")
