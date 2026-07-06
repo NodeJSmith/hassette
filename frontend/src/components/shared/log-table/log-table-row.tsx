@@ -5,6 +5,7 @@ import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
 import { formatTimestamp } from "../../../utils/format";
+import { onActivateKeyDown } from "../../../utils/keyboard";
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
@@ -32,12 +33,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       class={clsx(styles.row, isSelected && styles.selected)}
       data-level={entry.level}
       onClick={onClick}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
+      onKeyDown={onActivateKeyDown(onClick)}
       tabIndex={tabIndex}
       role="button"
       data-roving-item

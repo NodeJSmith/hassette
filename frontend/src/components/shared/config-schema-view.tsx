@@ -30,6 +30,7 @@ import { Badge } from "./badge";
 import { Card } from "./card";
 import styles from "./config-schema-view.module.css";
 import { EmptyState } from "./empty-state";
+import { IconChevron } from "./icons";
 import { InfoPopover } from "./info-popover";
 
 interface ConfigSchemaViewProps {
@@ -214,14 +215,7 @@ export function ExpandableValue({ value }: { value: unknown }) {
   return (
     <span>
       <button type="button" class={styles.expandBtn} onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-        <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-          <polyline
-            points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          />
-        </svg>
+        <IconChevron open={expanded} />
         {label}
       </button>
       {expanded && <pre class={styles.expandedPre}>{JSON.stringify(value, null, 2)}</pre>}
@@ -266,7 +260,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   // Duration values are humanized ("30s", "1m 30s"); the raw value stays on hover.
   if (typeof value === "number" && isDurationField(node, fieldKey)) {
     return (
-      <span class={styles.valNumber} title={String(value)}>
+      <span class={styles.valScalar} title={String(value)}>
         {formatDurationField(value, fieldKey)}
       </span>
     );
@@ -277,7 +271,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
   }
 
   if (typeof value === "number") {
-    return <span class={styles.valNumber}>{value}</span>;
+    return <span class={styles.valScalar}>{value}</span>;
   }
 
   if (Array.isArray(value)) {
@@ -291,7 +285,7 @@ function FieldValue({ node, value, fieldKey }: { node: SchemaNode; value: unknow
     return <ExpandableValue value={value} />;
   }
 
-  return <span class={styles.valString}>{String(value)}</span>;
+  return <span class={styles.valScalar}>{String(value)}</span>;
 }
 
 /**
@@ -393,17 +387,11 @@ export function ConfigSchemaView({ schema, values, emptyMessage, frameworkFields
   const orderedFrameworkScalars = sortedByOrder(frameworkScalarKeys, properties);
   const orderedGroups = sortedByOrder(groupKeys, properties);
 
-  const userScalarFields = orderedUserScalars.map((key) => ({
-    key,
-    node: properties[key],
-    value: values[key] ?? null,
-  }));
+  const toFieldRows = (keys: string[]) =>
+    keys.map((key) => ({ key, node: properties[key], value: values[key] ?? null }));
 
-  const frameworkScalarFields = orderedFrameworkScalars.map((key) => ({
-    key,
-    node: properties[key],
-    value: values[key] ?? null,
-  }));
+  const userScalarFields = toFieldRows(orderedUserScalars);
+  const frameworkScalarFields = toFieldRows(orderedFrameworkScalars);
 
   // Build one section per group.
   const groupSections = orderedGroups.map((key) => {

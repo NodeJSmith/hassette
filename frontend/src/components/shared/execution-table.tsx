@@ -4,11 +4,13 @@ import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { useSignal } from "../../hooks/use-signal";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
+import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind } from "../../utils/status";
 import { Badge } from "./badge";
 import { DetailPanel } from "./detail-panel";
 import { EmptyState } from "./empty-state";
 import styles from "./execution-table.module.css";
+import { IconChevron } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
 import { StatusShape } from "./status-shape";
 
@@ -28,13 +30,13 @@ export interface ExecutionRecord {
   thread_leaked: boolean;
 }
 
-interface Props {
+interface ExecutionTableProps {
   records: ExecutionRecord[];
   kind: "handler" | "job";
   tableId: string;
 }
 
-export function ExecutionTable({ records, kind, tableId }: Props) {
+export function ExecutionTable({ records, kind, tableId }: ExecutionTableProps) {
   const showAll = useSignal(false);
   const openRow = useSignal<number | null>(null);
   const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
@@ -82,10 +84,11 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
           {visible.map((record, i) => {
             const isOpen = openRow.value === i;
             const rowKey = record.execution_id ?? `${kind}-${i}`;
-            const isError = record.status === "error";
-            const isTimeout = record.status === "timed_out";
-            const isCancelled = record.status === "cancelled";
-            const threadLeaked = record.thread_leaked;
+            const statusKind = executionStatusKind(record.status);
+            const isThreadLeaked = record.thread_leaked;
+            const toggleRow = () => {
+              openRow.value = isOpen ? null : i;
+            };
 
             return [
               <tr
@@ -98,22 +101,19 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 data-roving-item
                 onClick={() => {
                   setActiveIndex(i);
-                  openRow.value = isOpen ? null : i;
+                  toggleRow();
                 }}
-                onKeyDown={(e: KeyboardEvent) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openRow.value = isOpen ? null : i;
-                  }
-                }}
+                onKeyDown={onActivateKeyDown(toggleRow)}
               >
                 <td class={styles.statusCell}>
                   <div class={styles.statusCellInner}>
-                    <StatusShape kind={executionStatusKind(record.status)} size={STATUS_DOT_SIZE} />
-                    {isError && record.error_type && <span class={styles.errorType}>{record.error_type}</span>}
-                    {isTimeout && <span class={styles.timeoutType}>timed out</span>}
-                    {isCancelled && <span class={styles.cancelledType}>cancelled</span>}
-                    {threadLeaked && (
+                    <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
+                    {statusKind === "err" && record.error_type && (
+                      <span class={styles.errorType}>{record.error_type}</span>
+                    )}
+                    {statusKind === "warn" && <span class={styles.timeoutType}>timed out</span>}
+                    {statusKind === "cancel" && <span class={styles.cancelledType}>cancelled</span>}
+                    {isThreadLeaked && (
                       <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
                         thread leaked
                       </Badge>
@@ -124,14 +124,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 <td>{formatDuration(record.duration_ms)}</td>
                 <td class="ht-col-trace ht-text-mono ht-text-xs">{truncateId(record.execution_id)}</td>
                 <td class="ht-text-muted">
-                  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                    <polyline
-                      points={isOpen ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                    />
-                  </svg>
+                  <IconChevron open={isOpen} />
                 </td>
               </tr>,
               isOpen && (
