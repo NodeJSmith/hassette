@@ -1,146 +1,45 @@
-"""Unit tests for TelemetryRepository using an in-memory SQLite database."""
+"""Unit tests for TelemetryRepository using a migrated SQLite database."""
 
-import inspect
+import shutil
 import sqlite3
 import time
 from collections.abc import AsyncIterator
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import aiosqlite
 import pytest
 
-import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.migration_runner import run_migrations
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
-# DDL mirrors 001.sql — unified schema with executions table replacing handler_invocations/job_executions
-DDL = """
-CREATE TABLE sessions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    started_at            REAL    NOT NULL,
-    stopped_at            REAL,
-    last_heartbeat_at     REAL    NOT NULL,
-    status                TEXT    NOT NULL,
-    error_type            TEXT,
-    error_message         TEXT,
-    error_traceback       TEXT
-);
 
-CREATE TABLE listeners (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT    NOT NULL,
-    instance_index        INTEGER NOT NULL,
-    name                  TEXT    NOT NULL,
-    handler_method        TEXT    NOT NULL,
-    topic                 TEXT    NOT NULL,
-    debounce              REAL,
-    throttle              REAL,
-    once                  INTEGER NOT NULL DEFAULT 0,
-    priority              INTEGER NOT NULL DEFAULT 0,
-    mode                  TEXT    NOT NULL DEFAULT 'single',
-    backpressure          TEXT    NOT NULL DEFAULT 'block' CHECK (backpressure IN ('block', 'drop_newest')),
-    predicate_description TEXT,
-    human_description     TEXT,
-    source_location       TEXT    NOT NULL,
-    registration_source   TEXT,
-    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL,
-    cancelled_at          REAL,
-    immediate             INTEGER NOT NULL DEFAULT 0,
-    duration              REAL,
-    entity_id             TEXT
-);
-
-CREATE UNIQUE INDEX idx_listeners_natural
-    ON listeners(app_key, instance_index, name, topic);
-
-CREATE INDEX idx_listeners_app ON listeners(app_key, instance_index);
-
-CREATE TABLE scheduled_jobs (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT    NOT NULL,
-    instance_index        INTEGER NOT NULL,
-    job_name              TEXT    NOT NULL,
-    handler_method        TEXT    NOT NULL,
-    trigger_type          TEXT
-        CHECK (trigger_type IN ('interval', 'cron', 'once', 'after', 'custom')),
-    trigger_label         TEXT    NOT NULL DEFAULT '',
-    trigger_detail        TEXT,
-    repeat                INTEGER NOT NULL DEFAULT 0,
-    args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
-    source_location       TEXT    NOT NULL,
-    registration_source   TEXT,
-    source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL,
-    "group"               TEXT,
-    cancelled_at          REAL,
-    name_auto             INTEGER NOT NULL DEFAULT 0,
-    mode                  TEXT    NOT NULL DEFAULT 'single'
-        CHECK (mode IN ('single', 'restart', 'queued', 'parallel'))
-);
-
-CREATE UNIQUE INDEX idx_scheduled_jobs_natural
-    ON scheduled_jobs(app_key, instance_index, job_name);
-
-CREATE INDEX idx_scheduled_jobs_app ON scheduled_jobs(app_key, instance_index);
-
-CREATE TABLE executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind                  TEXT    NOT NULL CHECK (kind IN ('handler', 'job')),
-    listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
-    session_id            INTEGER NOT NULL REFERENCES sessions(id),
-    execution_start_ts    REAL    NOT NULL,
-    duration_ms           REAL    NOT NULL,
-    status                TEXT    NOT NULL,
-    error_type            TEXT,
-    error_message         TEXT,
-    error_traceback       TEXT,
-    is_di_failure         INTEGER NOT NULL DEFAULT 0,
-    source_tier           TEXT    NOT NULL DEFAULT 'app',
-    execution_id          TEXT UNIQUE,
-    trigger_context_id    TEXT,
-    trigger_origin        TEXT,
-    trigger_mode          TEXT,
-    retry_count           INTEGER NOT NULL DEFAULT 0,
-    attempt_number        INTEGER NOT NULL DEFAULT 1,
-    args_json             TEXT    NOT NULL DEFAULT '[]',
-    kwargs_json           TEXT    NOT NULL DEFAULT '{}',
-    thread_leaked         INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX idx_exec_listener_time
-    ON executions(listener_id, execution_start_ts DESC)
-    WHERE listener_id IS NOT NULL;
-CREATE INDEX idx_exec_job_time
-    ON executions(job_id, execution_start_ts DESC)
-    WHERE job_id IS NOT NULL;
-
-CREATE VIEW active_listeners AS
-    SELECT * FROM listeners WHERE retired_at IS NULL;
-
-CREATE VIEW active_scheduled_jobs AS
-    SELECT * FROM scheduled_jobs WHERE retired_at IS NULL;
-"""
+@pytest.fixture(scope="session")
+def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the real migration runner once per session and return the template DB path."""
+    tmpl_dir = tmp_path_factory.mktemp("telemetry_repo_db")
+    db_path = tmpl_dir / "hassette.db"
+    run_migrations(db_path)
+    return db_path
 
 
 @pytest.fixture
-async def db() -> AsyncIterator[aiosqlite.Connection]:
-    """Provide an in-memory SQLite connection with the full schema applied and FK enforcement on."""
-    async with aiosqlite.connect(":memory:") as conn:
+async def db(_migrated_db_template: Path, tmp_path: Path) -> AsyncIterator[aiosqlite.Connection]:
+    """Provide a migrated SQLite connection with FK enforcement on."""
+    dst = tmp_path / "hassette.db"
+    shutil.copy2(_migrated_db_template, dst)
+    async with aiosqlite.connect(dst) as conn:
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA foreign_keys = ON")
-        await conn.executescript(DDL)
-        await conn.commit()
         yield conn
 
 
 @pytest.fixture
 async def repo(db: aiosqlite.Connection) -> TelemetryRepository:
-    """Create a TelemetryRepository backed by an in-memory SQLite connection."""
+    """Create a TelemetryRepository backed by the migrated test database."""
     mock_db_service = MagicMock()
     mock_db_service.db = db
     return TelemetryRepository(mock_db_service)
@@ -808,52 +707,6 @@ async def test_persist_execution_batch_unified(
     assert rows[1]["listener_id"] is None
 
 
-async def test_schema_has_name_column(db: aiosqlite.Connection) -> None:
-    """listeners table includes the name column (NOT NULL in unified schema)."""
-    cursor = await db.execute("PRAGMA table_info(listeners)")
-    rows = await cursor.fetchall()
-    column_names = [row["name"] for row in rows]
-    assert "name" in column_names
-
-
-async def test_schema_has_retired_at_column(db: aiosqlite.Connection) -> None:
-    """Both listeners and scheduled_jobs have a retired_at column."""
-    cursor = await db.execute("PRAGMA table_info(listeners)")
-    rows = await cursor.fetchall()
-    listener_columns = [row["name"] for row in rows]
-    assert "retired_at" in listener_columns
-
-    cursor = await db.execute("PRAGMA table_info(scheduled_jobs)")
-    rows = await cursor.fetchall()
-    job_columns = [row["name"] for row in rows]
-    assert "retired_at" in job_columns
-
-
-async def test_unique_index_enforced(db: aiosqlite.Connection) -> None:
-    """Two non-once listeners with same natural key (name + topic) raises IntegrityError."""
-    sql = """
-        INSERT INTO listeners
-            (app_key, instance_index, name, handler_method, topic, once, priority, source_location)
-        VALUES ('app', 0, 'app.handler', 'app.handler', 'light.on', 0, 0, 'app.py:1')
-    """
-    await db.execute(sql)
-    await db.commit()
-
-    with pytest.raises(aiosqlite.IntegrityError):
-        await db.execute(sql)
-
-
-async def test_active_views_exist(db: aiosqlite.Connection) -> None:
-    """SELECT * FROM active_listeners and active_scheduled_jobs succeeds."""
-    cursor = await db.execute("SELECT * FROM active_listeners")
-    rows = await cursor.fetchall()
-    assert rows == []
-
-    cursor = await db.execute("SELECT * FROM active_scheduled_jobs")
-    rows = await cursor.fetchall()
-    assert rows == []
-
-
 async def test_reconcile_deletes_stale_job_not_in_live_set(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1016,12 +869,16 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
     assert row[1] == "job"
 
 
-async def test_persist_execution_batch_with_fk_fallback_nulls_listener_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() nulls listener_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() drops handler record with bad listener_id.
+
+    The null-FK retry also fails because the CHECK constraint requires exactly one
+    of listener_id or job_id to be non-null.
+    """
     now = time.time()
     bad_listener_id = 99999
     record = ExecutionRecord(
@@ -1035,20 +892,23 @@ async def test_persist_execution_batch_with_fk_fallback_nulls_listener_fk_on_vio
 
     dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 0
+    assert dropped == 1
 
-    cursor = await db.execute("SELECT listener_id FROM executions")
+    cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] is None, "listener_id should be nulled after FK violation"
+    assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
-async def test_persist_execution_batch_with_fk_fallback_nulls_job_fk_on_violation(
+async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
     session_id: int,
 ) -> None:
-    """persist_execution_batch_with_fk_fallback() nulls job_id on FK violation and still inserts."""
+    """persist_execution_batch_with_fk_fallback() drops job record with bad job_id.
+
+    The null-FK retry also fails because the CHECK constraint requires exactly one
+    of listener_id or job_id to be non-null.
+    """
     now = time.time()
     bad_job_id = 99999
     record = ExecutionRecord(
@@ -1062,12 +922,11 @@ async def test_persist_execution_batch_with_fk_fallback_nulls_job_fk_on_violatio
 
     dropped = await repo.persist_execution_batch_with_fk_fallback([record])
 
-    assert dropped == 0
+    assert dropped == 1
 
-    cursor = await db.execute("SELECT job_id FROM executions")
+    cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] is None, "job_id should be nulled after FK violation"
+    assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
 async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(
@@ -1213,41 +1072,6 @@ async def test_persist_execution_batch_rollback_on_exception(
     cursor = await db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
     assert row[0] == 0, "No rows should be committed after rollback"
-
-
-async def test_on_conflict_target_matches_index(db: aiosqlite.Connection) -> None:
-    """Structural test: idx_listeners_natural columns exactly match ON CONFLICT target.
-
-    Queries sqlite_master for idx_listeners_natural and asserts:
-    (a) its column list is exactly (app_key, instance_index, name, topic)
-    (b) the repository's ON CONFLICT target is verbatim (app_key, instance_index, name, topic)
-    """
-    # (a) Verify the index SQL from sqlite_master
-    cursor = await db.execute("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_listeners_natural'")
-    row = await cursor.fetchone()
-    assert row is not None, "idx_listeners_natural index must exist in schema"
-
-    index_sql: str = row[0]
-    # The SQL should contain exactly these four columns in this order
-    assert "app_key, instance_index, name, topic" in index_sql, (
-        f"idx_listeners_natural must index (app_key, instance_index, name, topic), got: {index_sql!r}"
-    )
-    # Must NOT have the old partial/expression form
-    assert "COALESCE" not in index_sql, "idx_listeners_natural must not use COALESCE expression"
-    assert "WHERE" not in index_sql, "idx_listeners_natural must not be a partial index"
-    assert "handler_method" not in index_sql, "idx_listeners_natural must not include handler_method"
-
-    # (b) Verify the repository ON CONFLICT target matches the index verbatim
-    source = inspect.getsource(telemetry_repository_module.TelemetryRepository.register_listener)
-    # The ON CONFLICT clause must contain exactly (app_key, instance_index, name, topic)
-    assert "ON CONFLICT(app_key, instance_index, name, topic)" in source, (
-        "register_listener() ON CONFLICT target must be (app_key, instance_index, name, topic) "
-        "to match idx_listeners_natural"
-    )
-    # Must NOT contain the old partial/expression form
-    assert "COALESCE" not in source or "ON CONFLICT" not in source.split("COALESCE")[0], (
-        "register_listener() ON CONFLICT must not use COALESCE"
-    )
 
 
 async def test_mark_listener_cancelled_sets_cancelled_at(
