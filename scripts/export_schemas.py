@@ -4,7 +4,7 @@
 Creates a minimal Hassette stub (no Home Assistant connection required) to
 extract the FastAPI OpenAPI schema and the WsServerMessage Pydantic JSON
 Schema.  Also exports the HassetteConfig JSON Schema for IDE autocompletion
-and SchemaStore publication.
+(SchemaStore publication is a separate follow-up step).
 
 Outputs:
 
