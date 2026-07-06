@@ -1,5 +1,6 @@
 import { useMemo } from "preact/hooks";
 
+import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { EmptyState } from "../shared/empty-state";
 import { HandlerHealthCard } from "./handler-health-card";
 // Grid layout classes live in overview-tab's stylesheet — this component is only rendered within OverviewTab
@@ -17,6 +18,8 @@ export function HandlerHealthGrid({
   instanceQs: string;
 }) {
   const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
+  // setActiveIndex omitted — clicking a card navigates away, unmounting the grid.
+  const { containerRef, onContainerKeyDown, getTabIndex } = useRovingTabIndex<HTMLDivElement>(sorted.length, "both");
 
   if (items.length === 0) {
     return (
@@ -35,9 +38,15 @@ export function HandlerHealthGrid({
     <section class={styles.section} data-testid="overview-health-grid">
       <h3 class="ht-section-label">handler health</h3>
       <div class={styles.healthGridScroll}>
-        <div class={styles.healthGrid}>
-          {sorted.map((item) => (
-            <HandlerHealthCard key={`${item.kind}-${item.id}`} item={item} appKey={appKey} instanceQs={instanceQs} />
+        <div class={styles.healthGrid} ref={containerRef} onKeyDown={onContainerKeyDown}>
+          {sorted.map((item, i) => (
+            <HandlerHealthCard
+              key={`${item.kind}-${item.id}`}
+              item={item}
+              appKey={appKey}
+              instanceQs={instanceQs}
+              tabIndex={getTabIndex(i)}
+            />
           ))}
         </div>
       </div>

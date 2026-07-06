@@ -24,7 +24,7 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
 }
 
 function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = "test_app", instanceQs = "" } = {}) {
-  return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} />);
+  return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={0} />);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -294,6 +294,20 @@ describe("HandlerHealthCard — accessibility", () => {
     const { getByRole } = renderCard(item);
     const card = getByRole("button", { name: "on_motion handler details" });
     expect(card).toBeDefined();
+  });
+
+  it("renders the provided tabIndex", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByTestId } = renderWithAppState(
+      <HandlerHealthCard item={item} appKey="test_app" instanceQs="" tabIndex={-1} />,
+    );
+    expect(getByTestId("overview-health-card-listener-1").getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("has data-roving-item attribute", () => {
+    const item = makeListenerItem({ listener_id: 1 });
+    const { getByTestId } = renderCard(item);
+    expect(getByTestId("overview-health-card-listener-1").hasAttribute("data-roving-item")).toBe(true);
   });
 });
 

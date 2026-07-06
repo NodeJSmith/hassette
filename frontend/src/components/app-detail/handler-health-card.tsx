@@ -23,9 +23,10 @@ interface HandlerHealthCardProps {
   item: UnifiedItem;
   appKey: string;
   instanceQs: string;
+  tabIndex: 0 | -1;
 }
 
-export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCardProps) {
+export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: HandlerHealthCardProps) {
   const [, navigate] = useLocation();
   const href = handlerPath(appKey, item, instanceQs);
   const failing = isFailing(item);
@@ -52,7 +53,8 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
       data-testid={`overview-health-card-${item.kind}-${item.id}`}
       role="button"
       aria-label={`${item.name} handler details`}
-      tabIndex={0}
+      tabIndex={tabIndex}
+      data-roving-item
       onClick={() => navigate(href)}
       onKeyDown={handleKeyDown}
     >

@@ -16,9 +16,10 @@ interface LogTableRowProps {
   visibleColumns: ColumnId[];
   isSelected: boolean;
   onClick: () => void;
+  tabIndex: 0 | -1;
 }
 
-export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick }: LogTableRowProps) {
+export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick, tabIndex }: LogTableRowProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const relativeTime = useRelativeTime(entry.timestamp);
 
@@ -37,8 +38,9 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           onClick();
         }
       }}
-      tabIndex={0}
+      tabIndex={tabIndex}
       role="button"
+      data-roving-item
       aria-current={isSelected ? "true" : undefined}
     >
       {isColumnVisible("level") && (

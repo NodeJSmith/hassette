@@ -1,3 +1,4 @@
+import { useRovingTabIndex } from "../../../hooks/use-roving-tab-index";
 import { COLUMN_MAP } from "./constants";
 import { LogTableHeader } from "./log-table-header";
 import { LogTableRow } from "./log-table-row";
@@ -14,6 +15,10 @@ export function LogTableView({
   onRowClick,
   isMobile,
 }: LogTableViewProps) {
+  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
+    entries.length,
+  );
+
   return (
     <table class="ht-table ht-table--fixed" data-testid="log-table">
       <colgroup>
@@ -24,8 +29,8 @@ export function LogTableView({
         })}
       </colgroup>
       <LogTableHeader visibleColumns={visibleColumns} sort={sort} onSort={onSort} columnFilters={columnFilters} />
-      <tbody>
-        {entries.map((entry) => {
+      <tbody ref={containerRef} onKeyDown={onContainerKeyDown}>
+        {entries.map((entry, i) => {
           const key = rowKey(entry);
           return (
             <LogTableRow
@@ -34,7 +39,11 @@ export function LogTableView({
               rowKey={key}
               visibleColumns={visibleColumns}
               isSelected={selectedKey === key}
-              onClick={() => onRowClick(entry)}
+              onClick={() => {
+                setActiveIndex(i);
+                onRowClick(entry);
+              }}
+              tabIndex={getTabIndex(i)}
             />
           );
         })}
