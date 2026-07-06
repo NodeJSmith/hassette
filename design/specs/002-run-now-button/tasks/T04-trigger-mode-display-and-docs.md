@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Display trigger_mode in execution UI and update docs"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#9", "FR#10", "AC#9", "AC#10"]
 ---

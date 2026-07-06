@@ -207,6 +207,33 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("thread leaked");
   });
 
+  // ── Manual trigger badge ──
+
+  it("shows manual badge when trigger_mode is manual", () => {
+    const { container } = render(
+      <ExecutionTable records={[createExecution("job", { trigger_mode: "manual" })]} kind="job" tableId="t" />,
+    );
+    expect(container.textContent).toContain("manual");
+  });
+
+  it("does not show manual badge when trigger_mode is null", () => {
+    const { container } = render(
+      <ExecutionTable records={[createExecution("job", { trigger_mode: null })]} kind="job" tableId="t" />,
+    );
+    const row = container.querySelector("[data-testid='execution-row']")!;
+    expect(row.textContent).not.toContain("manual");
+  });
+
+  it("expanded detail shows trigger_mode value when present", () => {
+    const { container } = render(
+      <ExecutionTable records={[createExecution("job", { trigger_mode: "manual" })]} kind="job" tableId="t" />,
+    );
+    fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
+    const detail = container.querySelector("[data-testid='execution-detail']")!;
+    expect(detail.textContent).toContain("trigger mode");
+    expect(detail.textContent).toContain("manual");
+  });
+
   // ── Cancelled rows ──
 
   it("shows a cancelled label on a cancelled row", () => {

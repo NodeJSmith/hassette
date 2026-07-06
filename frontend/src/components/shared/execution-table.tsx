@@ -27,6 +27,7 @@ export interface ExecutionRecord {
   execution_id?: string | null;
   trigger_context_id?: string | null;
   trigger_origin?: string | null;
+  trigger_mode?: string | null;
   thread_leaked: boolean;
 }
 
@@ -118,6 +119,11 @@ export function ExecutionTable({ records, kind, tableId }: ExecutionTableProps) 
                         thread leaked
                       </Badge>
                     )}
+                    {record.trigger_mode === "manual" && (
+                      <Badge variant="info" size="sm" aria-label="manually triggered">
+                        manual
+                      </Badge>
+                    )}
                   </div>
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(record.execution_start_ts)}</td>
@@ -137,6 +143,7 @@ export function ExecutionTable({ records, kind, tableId }: ExecutionTableProps) 
                       errorType={record.error_type}
                       errorMessage={record.error_message}
                       errorTraceback={record.error_traceback}
+                      triggerMode={record.trigger_mode}
                       context={
                         record.trigger_context_id
                           ? {

@@ -56,6 +56,10 @@ Select your handler. The detail panel shows:
 
 A gray ring on a handler in the left panel means it has never been invoked. A red square means at least one invocation has failed or timed out.
 
+Select a scheduled job instead of a handler and the detail panel adds a **Run Now** button. Clicking it triggers the job immediately, outside its normal schedule. The button shows a spinner while the request is in flight and stays disabled until it completes, so double clicks can't fire two executions. A 409 response — the job is already running in single mode, or has already fired as a one-shot — shows an inline error below the button.
+
+The execution history updates with the new run over the WebSocket connection, no refresh needed. A manually triggered row carries a **manual** badge next to its status, so you can tell it apart from a scheduled fire at a glance.
+
 ## Tracing a Single Execution
 
 Click an execution ID in the invocations table. Hassette opens the [Logs page](logs.md) filtered to that execution with `?execution_id=<id>` in the URL. Every log line the handler emitted during that run appears together, in order.
