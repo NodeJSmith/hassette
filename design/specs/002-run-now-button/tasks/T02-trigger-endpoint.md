@@ -19,6 +19,7 @@ Add the backend infrastructure for manually triggering a scheduled job: a `trigg
 - read: `src/hassette/execution_mode.py`
 - read: `src/hassette/scheduler/triggers.py`
 - read: `src/hassette/scheduler/classes.py`
+- modify: `tests/unit/core/test_scheduler_service_trigger.py`
 - create: `tests/integration/web_api/test_trigger_job.py`
 - read: `tests/integration/web_api/conftest.py`
 - regenerate: `openapi.json`
@@ -27,10 +28,10 @@ Add the backend infrastructure for manually triggering a scheduled job: a `trigg
 ## Prompt
 ### SchedulerService.trigger_now()
 
-Add a new method `trigger_now(db_id: int) -> ScheduledJob` to `SchedulerService` in `src/hassette/core/scheduler_service.py`:
+Add a new async method `async def trigger_now(db_id: int) -> ScheduledJob` to `SchedulerService` in `src/hassette/core/scheduler_service.py`:
 
 1. Call `get_all_jobs()` to snapshot the heap (line 498).
-2. Build a `{db_id: ScheduledJob}` lookup dict (same pattern as `enrich_jobs_with_heap` in `src/hassette/web/utils.py:17`).
+2. Build a `{db_id: ScheduledJob}` lookup dict (same pattern as the `live_by_db_id` dict comprehension in `src/hassette/web/utils.py:29`).
 3. Find the job with matching `db_id`. If not found, raise `ValueError("Job is not currently triggerable")`.
 4. Return the `ScheduledJob`.
 
@@ -56,10 +57,10 @@ Add `POST /api/scheduler/jobs/{job_id}/trigger` to `src/hassette/web/routes/sche
 1. Call `scheduler_service.trigger_now(job_id)` — catch `ValueError` → `HTTPException(status_code=409)`.
 2. For `SINGLE`-mode jobs only (`job.mode == ExecutionMode.SINGLE`), check `job.guard.is_running()`. If held → `HTTPException(status_code=409, detail="Job is currently executing")`. `RESTART`/`QUEUED`/`PARALLEL` modes skip this pre-check.
 3. If the job is a one-shot (`job.trigger is None` or `job.trigger.next_run_time(job.next_run, date_utils.now()) is None`), call `scheduler_service.dequeue_job(job)` to remove it from the heap. This MUST happen BEFORE dispatch — `dequeue_job()` calls `guard.release()` which cancels `current_task`; dequeuing first means the guard has nothing to cancel.
-4. Spawn `scheduler_service.run_job_with_guard(job, trigger_mode="manual")` via `task_bucket`. Catch `RuntimeError` → `HTTPException(status_code=500)`.
+4. Spawn `scheduler_service.run_job_with_guard(job, trigger_mode="manual")` via `task_bucket`. Note: `task_bucket.spawn()` calls `asyncio.create_task()` without executing the coroutine body, so no exceptions from `run_job_with_guard` can propagate to the route handler — there is no RuntimeError catch here (unlike the app-action pattern which awaits the call directly).
 5. Return `JobTriggerResponse(status="accepted", job_id=job_id, job_name=job.name)` with `status_code=202`.
 
-Use `SchedulerDep` (already in `src/hassette/web/dependencies.py:45`) for dependency injection. Import `ExecutionMode` from `src/hassette/types/enums.py`. For `date_utils.now()`, use `from hassette import date_utils`.
+Use `SchedulerDep` (already in `src/hassette/web/dependencies.py:45`) for dependency injection. Import `ExecutionMode` from `src/hassette/types/enums.py`. For `date_utils.now()`, use `import hassette.utils.date_utils as date_utils` (matching the existing import in `scheduler_service.py:12`).
 
 Follow the app-action endpoint pattern in `src/hassette/web/routes/apps.py` (lines 104-139) for error handling structure. See the design doc `## Convention Examples → App action endpoint pattern`.
 
@@ -74,6 +75,8 @@ This regenerates `openapi.json`, `ws-schema.json`, `generated-types.ts`, and `ws
 
 ### Integration tests
 
+Add unit tests for `trigger_now()` to `tests/unit/core/test_scheduler_service_trigger.py` (created by T01): test that a job found on the heap is returned, and that a missing `db_id` raises `ValueError`.
+
 Create `tests/integration/web_api/test_trigger_job.py`. Use the existing `mock_hassette` fixture from `tests/integration/web_api/conftest.py` (which provides a `create_hassette_stub`-based mock). Test scenarios:
 
 - POST returns 202 for an active recurring job on the heap
@@ -85,7 +88,6 @@ Create `tests/integration/web_api/test_trigger_job.py`. Use the existing `mock_h
 - POST with still-pending one-shot job returns 202 and calls `dequeue_job`
 - Verify `trigger_mode="manual"` is passed to `run_job_with_guard`
 - WebSocket `execution_completed` fires for manual trigger (covered by existing WS infrastructure — note this, no new test needed)
-- POST with RuntimeError during dispatch returns 500
 
 Follow the test patterns in `tests/integration/web_api/test_endpoints.py` for HTTP client usage and assertion style.
 

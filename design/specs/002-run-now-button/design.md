@@ -99,7 +99,7 @@ The web UI displays scheduled jobs with full execution history, stats, and next-
 - **AC#5** (FR#6) The `executions` table row for a manually triggered job has `trigger_mode='manual'`
 - **AC#6** (FR#7) After a manual trigger completes, the execution appears in the frontend execution table without a page refresh (via WebSocket)
 - **AC#7** (FR#8, FR#11) The "Run Now" button shows a loading spinner during the request and is disabled until the request completes
-- **AC#8** (FR#8) When the endpoint returns an error (409, 500), the error message is displayed inline below the button
+- **AC#8** (FR#8) When the endpoint returns a 409 error, the error message is displayed inline below the button
 - **AC#9** (FR#9) Execution rows for manual triggers display a "manual" badge distinguishable from scheduled executions
 - **AC#10** (FR#10) The expanded execution detail panel shows the `trigger_mode` value when present
 
@@ -121,7 +121,7 @@ The web UI displays scheduled jobs with full execution history, stats, and next-
 
 ### Backend
 
-**New method on `SchedulerService`:** `trigger_now(db_id: int) -> ScheduledJob`
+**New method on `SchedulerService`:** `async def trigger_now(db_id: int) -> ScheduledJob`
 
 1. Call `get_all_jobs()` to snapshot the heap
 2. Build a `{db_id: ScheduledJob}` lookup dict (same pattern as `enrich_jobs_with_heap` in `web/utils.py:29`)
@@ -137,7 +137,7 @@ The method returns the job rather than dispatching it so the route handler can p
 1. Calls `scheduler_service.trigger_now(job_id)` — catches `ValueError` → 409
 2. For `SINGLE`-mode jobs only, checks `job.guard.is_running()` — if held → 409. `RESTART` and `QUEUED` mode jobs skip the pre-check (their guards handle overlap correctly)
 3. If the job is a one-shot (`job.trigger is None` or `job.trigger.next_run_time(job.next_run, now) is None`), dequeues it from the heap via `scheduler_service.dequeue_job(job)` to prevent a second scheduled fire. Dequeue must happen *before* dispatch — `dequeue_job()` calls `guard.release()` which cancels `current_task`; if dispatch ran first, the release would cancel the freshly-spawned execution task before it starts
-4. Spawns `scheduler_service.run_job_with_guard(job)` via `task_bucket` (with `trigger_mode="manual"` threaded through). Catches `RuntimeError` → 500 (following the app-actions convention)
+4. Spawns `scheduler_service.run_job_with_guard(job)` via `task_bucket` (with `trigger_mode="manual"` threaded through). Note: unlike the app-action pattern (which awaits the call), `task_bucket.spawn()` uses `asyncio.create_task()` without executing the coroutine body — no exceptions from `run_job_with_guard` can propagate to the route handler
 5. Returns 202 with `JobTriggerResponse`
 
 **New response model:** `JobTriggerResponse` in `web/models.py`:
@@ -297,12 +297,11 @@ Accept all triggers with 202 and let the guard handle suppression silently. Simp
 - POST with parallel-mode job — returns 202 regardless of guard state (FR#5)
 - Verify `trigger_mode="manual"` in execution record after trigger (FR#6)
 - WebSocket `execution_completed` fires for manual trigger — covered by existing WS infrastructure tests; no new test needed (FR#7)
-- POST with RuntimeError during dispatch — returns 500 with error detail
 
 **Frontend tests:**
 - `JobDetail` renders "Run Now" button (FR#8)
 - Button enters loading state on click and disables (FR#11)
-- Error message renders on 409 and 500 responses (FR#8)
+- Error message renders on 409 response (FR#8)
 - Execution table renders "manual" badge when `trigger_mode` is present (FR#9)
 - Detail panel renders trigger_mode when present (FR#10)
 

@@ -85,7 +85,7 @@ If the demo stack doesn't produce a visible "manual" badge in the screenshot (be
 ## Focus
 - `Badge` component (line 7 of `badge.tsx`) supports variants: `success`, `danger`, `warning`, `info`, `neutral`. Use `info` for "manual".
 - The "thread leaked" badge (lines 117-119 of `execution-table.tsx`) is the only existing badge in rows — follow its exact pattern for consistency.
-- `DetailPanel` props interface (line 6 of `detail-panel.tsx`) currently has: `context` (optional object with `triggerContextId`/`triggerOrigin`), `executionId`, `createdAt`. Adding `triggerMode` as a new optional prop is the cleanest approach.
+- `DetailPanel` props interface (line 6 of `detail-panel.tsx`) includes `context` (optional object with `triggerContextId`/`triggerOrigin`), `executionId`, `status`, `durationMs`, `errorType`, `errorMessage`, `errorTraceback`, and `testId`. Adding `triggerMode` as a new optional prop is the cleanest approach.
 - The `context` block in `DetailPanel` (lines 34-39) uses `<dt>`/`<dd>` inside a definition list. Match this structure for `triggerMode`.
 - `debug-handler.md` documents the exact UI surface this task changes. Keep the voice consistent with the existing page — see `.claude/rules/voice-guide.md` for voice rules.
 - The screenshot manifest is at `docs/screenshots.yml`. The capture tool (`scripts/capture_screenshots.py`) starts its own demo stack with Docker — it needs Docker and Playwright installed.

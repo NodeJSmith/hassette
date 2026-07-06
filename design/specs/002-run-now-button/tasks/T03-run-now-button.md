@@ -38,7 +38,7 @@ Follow the `ActionButtons` loading/error pattern from `frontend/src/components/s
 
 1. `useSignal(false)` for loading state
 2. `useSignal<string | null>(null)` for error state
-3. An `exec` wrapper that sets loading, calls `triggerJob(job.db_id)`, catches errors, clears loading in `finally`
+3. An `exec` wrapper that sets loading, calls `triggerJob(job.job_id)`, catches errors, clears loading in `finally`
 4. Button is disabled while `loading.value` is true
 5. Error displayed inline below the button when `error.value` is non-null
 
@@ -56,21 +56,21 @@ Add or extend tests in `frontend/src/components/app-detail/handlers-tab.test.tsx
 
 - "Run Now" button renders in the job detail panel
 - Button enters loading state on click and is disabled
-- Error message renders inline on 409 and 500 responses
+- Error message renders inline on 409 response
 - Button re-enables after request completes
 
 Use MSW request interception to simulate success and error responses.
 
 ## Focus
-- `JobDetail` receives a `job` prop with `db_id` field — use `job.db_id` as the argument to `triggerJob()`.
+- `JobDetail` receives a `job` prop with `db_id` field — use `job.job_id` as the argument to `triggerJob()`.
 - The `extras` prop currently renders a `<div>` with `nextRunText` (lines 100-106 of `job-detail.tsx`). Compose the Run Now button alongside this — don't replace it. A fragment `<>{nextRunContent}{runNowButton}</>` or a wrapper div works.
-- `apiPost` (line 41 of `client.ts`) throws on non-2xx responses — the error message from the 409/500 response body's `detail` field is available via `err.message`. The `apiFetch` function (line 17) reads the JSON error and throws an `Error` with the detail text.
+- `apiPost` (line 41 of `client.ts`) throws on non-2xx responses — the error message from the 409/500 response body's `detail` field is available via `err.message`. The `apiFetch` function (line 16) reads the JSON error and throws an `Error` with the detail text.
 - The MSW handlers in `frontend/src/test/handlers.ts` use `http.post()` from `msw`. Existing POST handlers (lines 47-71) use `HttpResponse.json()` with a status code.
 - There is no standalone `job-detail.test.tsx` — `JobDetail` is tested via `handlers-tab.test.tsx` which renders it within the `HandlersTab` component. Follow the existing test patterns there (e.g., `job-detail-20`, `job-detail-8` test IDs).
-- The `Button` component has variants: `primary`, `secondary`, `ghost`, `danger`. Size options: `sm`, `md`, `lg`. A small secondary or ghost button is appropriate for "Run Now".
+- The `Button` component has variants: `default`, `primary`, `success`, `warning`, `info`, `danger`. Size options: `default`, `sm`, `xs`. A `default` or `primary` variant at `sm` size is appropriate for "Run Now".
 
 ## Verify
 - [ ] FR#8: "Run Now" button appears in the job detail panel on the handlers tab
 - [ ] FR#11: Button is disabled while a trigger request is in flight
 - [ ] AC#7: Button shows loading spinner during request and is disabled until complete
-- [ ] AC#8: Error message displays inline below button on 409 and 500 responses
+- [ ] AC#8: Error message displays inline below button on 409 response
