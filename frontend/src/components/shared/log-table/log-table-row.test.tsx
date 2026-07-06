@@ -35,6 +35,7 @@ function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
     visibleColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
     isSelected: false,
     onClick: vi.fn(),
+    tabIndex: 0 as const,
   };
   return render(
     <table>
@@ -51,12 +52,24 @@ function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
 
 describe("LogTableRow", () => {
   describe("row element", () => {
-    it("renders a <tr> with role='button' and tabIndex=0", () => {
-      const { container } = renderRow();
+    it("renders a <tr> with role='button' and the provided tabIndex", () => {
+      const { container } = renderRow({ tabIndex: 0 });
       const tr = container.querySelector("tr");
       expect(tr).not.toBeNull();
       expect(tr!.getAttribute("role")).toBe("button");
       expect(tr!.getAttribute("tabindex")).toBe("0");
+    });
+
+    it("renders tabIndex=-1 when passed", () => {
+      const { container } = renderRow({ tabIndex: -1 });
+      const tr = container.querySelector("tr");
+      expect(tr!.getAttribute("tabindex")).toBe("-1");
+    });
+
+    it("has data-roving-item attribute", () => {
+      const { container } = renderRow();
+      const tr = container.querySelector("tr");
+      expect(tr!.hasAttribute("data-roving-item")).toBe(true);
     });
 
     it("does not have aria-current when not selected", () => {

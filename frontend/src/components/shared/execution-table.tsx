@@ -1,5 +1,6 @@
 import clsx from "clsx";
 
+import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { useSignal } from "../../hooks/use-signal";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
@@ -36,6 +37,10 @@ interface Props {
 export function ExecutionTable({ records, kind, tableId }: Props) {
   const showAll = useSignal(false);
   const openRow = useSignal<number | null>(null);
+  const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
+  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
+    visible.length,
+  );
 
   if (records.length === 0) {
     return kind === "handler" ? (
@@ -49,7 +54,6 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
     );
   }
 
-  const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
   const hasMore = records.length > INITIAL_ROWS;
 
   return (
@@ -74,7 +78,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={containerRef} onKeyDown={onContainerKeyDown}>
           {visible.map((record, i) => {
             const isOpen = openRow.value === i;
             const rowKey = record.execution_id ?? `${kind}-${i}`;
@@ -88,10 +92,14 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 key={rowKey}
                 class={clsx(styles.row, isOpen && styles.rowOpen)}
                 data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
-                tabIndex={0}
+                tabIndex={getTabIndex(i)}
                 role="row"
                 aria-expanded={isOpen}
-                onClick={() => (openRow.value = isOpen ? null : i)}
+                data-roving-item
+                onClick={() => {
+                  setActiveIndex(i);
+                  openRow.value = isOpen ? null : i;
+                }}
                 onKeyDown={(e: KeyboardEvent) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
