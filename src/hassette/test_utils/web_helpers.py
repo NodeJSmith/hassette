@@ -321,7 +321,7 @@ def make_telemetry_status_response(
 def make_dashboard_app_grid_entry(
     app_key: str = DEFAULT_TEST_APP_KEY,
     status: str = "running",
-    display_name: str = "My App",
+    display_name: str = "Test App",
     instance_count: int = 1,
     handler_count: int = 2,
     job_count: int = 1,
@@ -452,8 +452,8 @@ def make_activity_feed_entry(
 
 def make_app_config_response(
     app_key: str = DEFAULT_TEST_APP_KEY,
-    filename: str = "my_app.py",
-    class_name: str = "MyApp",
+    filename: str = "test_app.py",
+    class_name: str = "TestApp",
     enabled: bool = True,
     autostart: bool = True,
     app_config: dict | list[dict] | None = None,
@@ -475,8 +475,8 @@ def make_app_config_response(
 
 def make_app_source_response(
     app_key: str = DEFAULT_TEST_APP_KEY,
-    filename: str = "my_app.py",
-    content: str = "class MyApp:\n    pass\n",
+    filename: str = "test_app.py",
+    content: str = "class TestApp:\n    pass\n",
     line_count: int = 2,
 ) -> AppSourceResponse:
     """Build an AppSourceResponse with sensible defaults."""
@@ -583,7 +583,7 @@ def make_job_summary(
         trigger_detail=trigger_detail,
         args_json="[]",
         kwargs_json="{}",
-        source_location="my_app.py:10",
+        source_location="test_app.py:10",
         registration_source=None,
         total_executions=total_executions,
         successful=successful,
@@ -602,7 +602,7 @@ def make_log_entry_response(
     seq: int = 1,
     timestamp: float = SYNTHETIC_TIMESTAMP,
     level: str = "INFO",
-    logger_name: str = "hassette.app.my_app",
+    logger_name: str = "hassette.app.test_app",
     func_name: str | None = "on_state_change",
     lineno: int | None = 42,
     message: str = "Handler invoked",

@@ -40,19 +40,20 @@ NEEDED_IMPORTS: dict[str, str] = {
 def resolve_property_types(
     properties: list[ExtractedProperty],
     domain_strenum_names: set[str],
-) -> set[str]:
-    """Resolve HA-internal types in property annotations (mutates in place).
+) -> tuple[list[ExtractedProperty], set[str]]:
+    """Resolve HA-internal types in property annotations.
 
-    Returns the set of extra import lines needed by the resolved types.
+    Returns (new_properties, extra_imports) without mutating the originals.
     """
     extra_imports: set[str] = set()
+    resolved_props: list[ExtractedProperty] = []
 
     for prop in properties:
         resolved, imports = _resolve_type(prop.python_type, domain_strenum_names)
-        prop.python_type = resolved
+        resolved_props.append(ExtractedProperty(name=prop.name, python_type=resolved, has_default=prop.has_default))
         extra_imports.update(imports)
 
-    return extra_imports
+    return resolved_props, extra_imports
 
 
 def _resolve_type(type_str: str, domain_strenum_names: set[str]) -> tuple[str, set[str]]:

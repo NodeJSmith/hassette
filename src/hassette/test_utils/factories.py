@@ -90,7 +90,7 @@ def make_job_registration(
 
 def make_invoke_handler_cmd(
     *,
-    source_tier: str = "app",
+    source_tier: SourceTier = "app",
     listener_id: int = 1,
     topic: str = "test/topic",
     listener: Any | None = None,

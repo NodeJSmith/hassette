@@ -7,6 +7,7 @@ import pytest
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
 
 
@@ -24,7 +25,7 @@ async def test_register_listener_inserts_and_returns_id(
     cursor = await telemetry_db.execute("SELECT id, app_key, topic FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["app_key"] == "test_app"
+    assert row["app_key"] == DEFAULT_TEST_APP_KEY
     assert row["topic"] == "hass.event.state_changed"
 
 
@@ -42,7 +43,7 @@ async def test_register_job_inserts_and_returns_id(
     cursor = await telemetry_db.execute("SELECT id, app_key, job_name FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row["app_key"] == "test_app"
+    assert row["app_key"] == DEFAULT_TEST_APP_KEY
     assert row["job_name"] == "test_job"
 
 
@@ -134,7 +135,7 @@ async def test_reconcile_deletes_stale_without_history(
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
@@ -167,7 +168,7 @@ async def test_reconcile_retires_stale_with_history(
     )
     await telemetry_db.commit()
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
@@ -190,7 +191,7 @@ async def test_reconcile_preserves_live_listeners(
     id_a = await telemetry_repo.register_listener(reg_a)
     id_b = await telemetry_repo.register_listener(reg_b)
 
-    await telemetry_repo.reconcile_registrations("test_app", [id_a], [])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [id_a], [])
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (id_a,))
     row = await cursor.fetchone()
@@ -219,7 +220,7 @@ async def test_reconcile_deletes_once_true_previous_session(
     new_session_id = cursor.lastrowid
     assert new_session_id is not None
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [], session_id=new_session_id)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id)
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()
@@ -243,7 +244,7 @@ async def test_reconcile_preserves_once_true_with_current_executions(
     )
     await telemetry_db.commit()
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [], session_id=telemetry_session_id)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=telemetry_session_id)
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()
@@ -254,7 +255,7 @@ async def test_reconcile_empty_ids_no_crash(
     telemetry_repo: TelemetryRepository,
 ) -> None:
     """reconcile_registrations() with empty live IDs does not crash (no NOT IN () SQL error)."""
-    await telemetry_repo.reconcile_registrations("test_app", [], [])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
 
 async def test_reconcile_resets_retired_at_on_reupsert(
@@ -274,7 +275,7 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     )
     await telemetry_db.commit()
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
@@ -558,7 +559,7 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
     job_id_a = await telemetry_repo.register_job(make_job_registration(job_name="job_a"))
     job_id_b = await telemetry_repo.register_job(make_job_registration(job_name="job_b"))
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [job_id_a])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [job_id_a])
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id_a,))
     row = await cursor.fetchone()
@@ -585,7 +586,7 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     )
     await telemetry_db.commit()
 
-    await telemetry_repo.reconcile_registrations("test_app", [], [job_id_a])
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [job_id_a])
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_b,))
     row = await cursor.fetchone()
@@ -618,7 +619,7 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     new_session_id = cursor.lastrowid
     assert new_session_id is not None
 
-    await telemetry_repo.reconcile_registrations("test_app", [live_id], [], session_id=new_session_id)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [], session_id=new_session_id)
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()

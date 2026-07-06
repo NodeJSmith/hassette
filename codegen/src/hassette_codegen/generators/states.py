@@ -33,14 +33,14 @@ def generate_state_model(domain: ExtractedDomain) -> str:
     renames = {**prefix_renames, **collision_renames}
 
     strenum_names = {e.name for e in strenums}
-    _apply_type_renames(domain.properties, renames)
-    type_imports = resolve_property_types(domain.properties, strenum_names)
+    properties = _apply_type_renames(domain.properties, renames)
+    properties, type_imports = resolve_property_types(properties, strenum_names)
     extra_imports.extend(sorted(type_imports))
 
     has_intflag = len(domain.features) > 0
     has_strenum = len(strenums) > 0
 
-    datetime_fields = [p.name for p in domain.properties if _is_pure_datetime_field(p.python_type)]
+    datetime_fields = [p.name for p in properties if _is_pure_datetime_field(p.python_type)]
     if datetime_fields:
         extra_imports.append("from hassette.utils.date_utils import convert_datetime_str_to_system_tz")
 
@@ -50,7 +50,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
         base_class=base_class,
         features=domain.features,
         strenums=strenums,
-        properties=domain.properties,
+        properties=properties,
         extra_imports=sorted(set(extra_imports)),
         has_intflag=has_intflag,
         has_strenum=has_strenum,
@@ -107,12 +107,16 @@ def _rename_collisions(
     return result, renames
 
 
-def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, str]) -> None:
-    """Apply StrEnum renames to property type annotations."""
+def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, str]) -> list[ExtractedProperty]:
+    """Apply StrEnum renames to property type annotations, returning new objects."""
+    result: list[ExtractedProperty] = []
     for prop in properties:
+        python_type = prop.python_type
         for old_name, new_name in renames.items():
-            if old_name in prop.python_type:
-                prop.python_type = prop.python_type.replace(old_name, new_name)
+            if old_name in python_type:
+                python_type = python_type.replace(old_name, new_name)
+        result.append(ExtractedProperty(name=prop.name, python_type=python_type, has_default=prop.has_default))
+    return result
 
 
 def _is_pure_datetime_field(python_type: str) -> bool:

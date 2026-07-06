@@ -6,27 +6,13 @@ in memory and assert they match the files on disk. If a test fails, run
 """
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
+from schema_helpers import build_config_schema, build_openapi_schema, build_ws_schema, create_stub_hassette
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPTS_DIR = REPO_ROOT / "scripts"
 FRONTEND_DIR = REPO_ROOT / "frontend"
-
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-from pydantic import TypeAdapter  # noqa: E402
-from schema_helpers import (  # noqa: E402
-    build_config_schema,
-    build_openapi_schema,
-    build_ws_schema,
-    create_stub_hassette,
-)
-
-from hassette.web.models import WsServerMessage  # noqa: E402
 
 
 class TestSchemaFreshness:
@@ -74,16 +60,14 @@ class TestSchemaFreshness:
     )
     def test_all_ws_message_types_have_timestamp(self, msg_type: str) -> None:
         """Every WS message type must include 'timestamp' in its required fields."""
-        adapter = TypeAdapter(WsServerMessage)
-        schema = adapter.json_schema()
+        schema = build_ws_schema()
 
         msg_schema = schema["$defs"][msg_type]
         assert "timestamp" in msg_schema.get("required", []), f"{msg_type} is missing 'timestamp' in required fields"
 
     def test_execution_completed_has_kind_field(self) -> None:
         """ExecutionCompletedData must include 'kind' in its required fields."""
-        adapter = TypeAdapter(WsServerMessage)
-        schema = adapter.json_schema()
+        schema = build_ws_schema()
 
         data_schema = schema["$defs"]["ExecutionCompletedData"]
         assert "kind" in data_schema.get("required", []), "ExecutionCompletedData is missing required 'kind' field"

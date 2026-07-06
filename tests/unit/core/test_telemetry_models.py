@@ -2,6 +2,7 @@
 
 from hassette.schemas.telemetry_models import JobSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
 def test_job_summary_new_fields_defaults() -> None:
@@ -35,10 +36,14 @@ def test_job_summary_new_fields_defaults() -> None:
 
 
 def test_job_summary_mode_field_in_model_fields() -> None:
-    """mode, suppressed_count, dropped_count are declared model fields."""
+    """mode, suppressed_count, dropped_count are declared model fields with correct defaults."""
     assert "mode" in JobSummary.model_fields
     assert "suppressed_count" in JobSummary.model_fields
     assert "dropped_count" in JobSummary.model_fields
+
+    assert JobSummary.model_fields["mode"].default == DEFAULT_OVERLAP_MODE
+    assert JobSummary.model_fields["suppressed_count"].default == 0
+    assert JobSummary.model_fields["dropped_count"].default == 0
 
 
 def test_job_summary_repeat_field_removed() -> None:

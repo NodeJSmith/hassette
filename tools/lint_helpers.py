@@ -150,4 +150,4 @@ def iter_python_files(argv: list[str], scan_dirs: list[str] | None = None) -> li
     a narrower scope (``check_module_boundaries`` passes its own ``src/hassette``-only list).
     ``argv`` is normally ``sys.argv[1:]`` for a ``main()`` call, or ``[]`` for a full scan.
     """
-    return resolve_paths(argv, REPO_ROOT, scan_dirs or DEFAULT_SCAN_DIRS)
+    return resolve_paths(argv, REPO_ROOT, scan_dirs if scan_dirs is not None else DEFAULT_SCAN_DIRS)
