@@ -143,8 +143,8 @@ class TestDebounceLogic:
         await limiter.call(make_handler("third"))
 
         await wait_for(lambda: calls == ["third"], desc="debounce fired")
-        # After completion, done_callback clears the reference to release captured payloads
-        assert limiter._debounce_task is None, "Debounce task reference should be cleared after completion"
+        # done_callback is scheduled via call_soon, so it may not have run yet
+        await wait_for(lambda: limiter._debounce_task is None, desc="debounce task reference cleared")
 
     async def test_debounce_handler_cancelled_error_propagates(self, bucket_fixture: TaskBucket):
         """CancelledError during handler execution must propagate (not be suppressed).

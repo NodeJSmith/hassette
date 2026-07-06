@@ -7,7 +7,7 @@ Covers:
   "hassette-sync" prefix).
 - A slow sync handler under a short asyncio.timeout still surfaces
   TimeoutError to the caller — the timeout signal is unchanged.
-- Thread cell capture: cell[0] is set to the worker thread before _call returns.
+- SyncWorkerHandle capture: handle.thread is set to the worker thread before _call returns.
 """
 
 import asyncio
@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.task_bucket.task_bucket import SYNC_WORKER_CELL, TaskBucket
+from hassette.task_bucket.task_bucket import SYNC_WORKER_HANDLE, TaskBucket
 from hassette.test_utils import make_mock_hassette
 
 # Shared fixture
@@ -64,11 +64,11 @@ async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None
     assert worker_name[0].startswith("hassette-sync"), f"expected 'hassette-sync' prefix, got '{worker_name[0]}'"
 
 
-async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> None:
-    """SYNC_WORKER_CELL holds the worker Thread after run_in_thread completes.
+async def test_run_in_thread_handle_captures_worker_thread(bucket: TaskBucket) -> None:
+    """SYNC_WORKER_HANDLE holds the worker Thread after run_in_thread completes.
 
-    The timeout site reads cell[0].is_alive() — this test confirms the cell
-    is populated via SYNC_WORKER_CELL and points at a Thread object (not still None).
+    The timeout site reads handle.thread.is_alive() — this test confirms the handle
+    is populated via SYNC_WORKER_HANDLE and points at a Thread object (not still None).
     """
 
     def slow_fn() -> str:
@@ -76,16 +76,15 @@ async def test_run_in_thread_cell_captures_worker_thread(bucket: TaskBucket) -> 
         return "done"
 
     future = bucket.run_in_thread(slow_fn)
-    # Capture the cell reference immediately after run_in_thread sets SYNC_WORKER_CELL.
-    cell = SYNC_WORKER_CELL.get()
-    assert cell is not None, "SYNC_WORKER_CELL should be set after run_in_thread"
+    handle = SYNC_WORKER_HANDLE.get()
+    assert handle is not None, "SYNC_WORKER_HANDLE should be set after run_in_thread"
 
-    # Before the future resolves, cell[0] may or may not be set yet (race) — but after
-    # awaiting, it must be a Thread.
+    # Before the future resolves, handle.thread may or may not be set yet (race) — but
+    # after awaiting, it must be a Thread.
     result = await future
     assert result == "done"
-    assert cell[0] is not None, "cell[0] should be a Thread after completion"
-    assert isinstance(cell[0], threading.Thread)
+    assert handle.thread is not None, "handle.thread should be a Thread after completion"
+    assert isinstance(handle.thread, threading.Thread)
 
 
 # Framework asyncio.to_thread still uses the default pool

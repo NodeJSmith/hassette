@@ -122,6 +122,48 @@
         }
       }
     },
+    "/api/apps/{app_key}/manifest": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Manifest",
+        "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppManifestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/apps/{app_key}/start": {
       "post": {
         "tags": [

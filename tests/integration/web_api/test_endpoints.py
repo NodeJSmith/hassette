@@ -8,6 +8,7 @@ import pytest
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import ListenerSummary
+from hassette.test_utils.web_helpers import make_manifest
 from hassette.web.config_view import MASK_SENTINEL
 
 if TYPE_CHECKING:
@@ -147,6 +148,44 @@ class TestAppEndpoints:
         assert (await client.post("/api/apps/my_app/start")).status_code == 202
         assert (await client.post("/api/apps/my_app/stop")).status_code == 202
         assert (await client.post("/api/apps/my_app/reload")).status_code == 202
+
+
+class TestAppManifestEndpoint:
+    async def test_get_manifest_returns_single_manifest(self, client: "AsyncClient", mock_hassette) -> None:
+        manifest = make_manifest(app_key="my_app", display_name="My App", status="running")
+        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = manifest
+        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps.return_value = {"my_app": 5}
+
+        response = await client.get("/api/apps/my_app/manifest")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["app_key"] == "my_app"
+        assert data["display_name"] == "My App"
+        assert data["status"] == "running"
+        assert data["recent_invocations_1h"] == 5
+
+    async def test_get_manifest_returns_404_for_unknown_app(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = None
+
+        response = await client.get("/api/apps/unknown_app/manifest")
+        assert response.status_code == 404
+
+    async def test_get_manifest_returns_400_for_invalid_key(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/apps/!!invalid/manifest")
+        assert response.status_code == 400
+
+    async def test_get_manifest_degrades_gracefully_on_telemetry_failure(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        manifest = make_manifest(app_key="my_app")
+        mock_hassette.app_handler.registry.get_manifest_snapshot.return_value = manifest
+        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = AsyncMock(
+            side_effect=TelemetryUnavailableError("db down")
+        )
+
+        response = await client.get("/api/apps/my_app/manifest")
+        assert response.status_code == 200
+        assert response.json()["recent_invocations_1h"] == 0
 
 
 class TestSchedulerEndpoints:

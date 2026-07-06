@@ -166,67 +166,74 @@ class AppRegistry:
             only_app=self._only_app,
         )
 
+    def get_manifest_snapshot(self, app_key: str) -> AppManifestInfo | None:
+        """Generate a snapshot for a single app manifest, or None if not found."""
+        manifest = self._manifests.get(app_key)
+        if manifest is None:
+            return None
+        return self.build_manifest_info(app_key, manifest)
+
     def get_full_snapshot(self) -> AppFullSnapshot:
         """Generate manifest-based snapshot including all configured apps."""
         manifests: list[AppManifestInfo] = []
         counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
 
         for app_key, manifest in self._manifests.items():
-            if not manifest.enabled:
-                status = "disabled"
-            elif app_key in self._blocked_apps:
-                status = "blocked"
-            elif self._apps.get(app_key):
-                status = "running"
-            elif self._failed_apps.get(app_key):
-                status = "failed"
-            else:
-                status = "stopped"
-
-            counts[status] += 1
-
-            instances: list[AppInstanceInfo] = []
-            error_message: str | None = None
-
-            if app_key in self._apps:
-                for index, app in self._apps[app_key].items():
-                    instances.append(self.info_from_running(app_key, index, app))
-
-            error_traceback: str | None = None
-
-            if app_key in self._failed_apps:
-                for index, error in self._failed_apps[app_key]:
-                    info = self.info_from_failure(app_key, index, error, manifest.class_name)
-                    instances.append(info)
-                    if error_message is None:
-                        error_message = info.error_message
-                        error_traceback = info.error_traceback
-
-            block_reason = self._blocked_apps.get(app_key)
-
-            manifests.append(
-                AppManifestInfo(
-                    app_key=app_key,
-                    class_name=manifest.class_name,
-                    display_name=manifest.display_name,
-                    filename=manifest.filename,
-                    enabled=manifest.enabled,
-                    auto_loaded=manifest.auto_loaded,
-                    status=status,
-                    autostart=manifest.autostart,
-                    block_reason=block_reason.value if block_reason else None,
-                    instance_count=len(instances),
-                    instances=instances,
-                    error_message=error_message,
-                    error_traceback=error_traceback,
-                )
-            )
+            info = self.build_manifest_info(app_key, manifest)
+            counts[info.status] += 1
+            manifests.append(info)
 
         return AppFullSnapshot(
             manifests=manifests,
             only_app=self._only_app,
             total=len(manifests),
             **counts,
+        )
+
+    def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
+        if not manifest.enabled:
+            status = "disabled"
+        elif app_key in self._blocked_apps:
+            status = "blocked"
+        elif self._apps.get(app_key):
+            status = "running"
+        elif self._failed_apps.get(app_key):
+            status = "failed"
+        else:
+            status = "stopped"
+
+        instances: list[AppInstanceInfo] = []
+        error_message: str | None = None
+        error_traceback: str | None = None
+
+        if app_key in self._apps:
+            for index, app in self._apps[app_key].items():
+                instances.append(self.info_from_running(app_key, index, app))
+
+        if app_key in self._failed_apps:
+            for index, error in self._failed_apps[app_key]:
+                info = self.info_from_failure(app_key, index, error, manifest.class_name)
+                instances.append(info)
+                if error_message is None:
+                    error_message = info.error_message
+                    error_traceback = info.error_traceback
+
+        block_reason = self._blocked_apps.get(app_key)
+
+        return AppManifestInfo(
+            app_key=app_key,
+            class_name=manifest.class_name,
+            display_name=manifest.display_name,
+            filename=manifest.filename,
+            enabled=manifest.enabled,
+            auto_loaded=manifest.auto_loaded,
+            status=status,
+            autostart=manifest.autostart,
+            block_reason=block_reason.value if block_reason else None,
+            instance_count=len(instances),
+            instances=instances,
+            error_message=error_message,
+            error_traceback=error_traceback,
         )
 
     @property
