@@ -6,6 +6,13 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class TextEntityCapabilityAttribute(StrEnum):
+    MODE = "mode"
+    MIN = "min"
+    MAX = "max"
+    PATTERN = "pattern"
+
+
 class TextMode(StrEnum):
     PASSWORD = "password"
     TEXT = "text"

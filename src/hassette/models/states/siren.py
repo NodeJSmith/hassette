@@ -1,9 +1,13 @@
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
+
+
+class SirenEntityCapabilityAttribute(StrEnum):
+    AVAILABLE_TONES = "available_tones"
 
 
 class SirenEntityFeature(IntFlag):

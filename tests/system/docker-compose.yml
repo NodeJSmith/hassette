@@ -1,6 +1,6 @@
 services:
   homeassistant:
-    image: homeassistant/home-assistant:2026.6
+    image: homeassistant/home-assistant:2026.7
     container_name: hassette-system-ha
     volumes:
       - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config

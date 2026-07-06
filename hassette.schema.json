@@ -1146,12 +1146,6 @@
             "label": "CORS Origins"
           }
         },
-        "event_buffer_size": {
-          "default": 500,
-          "description": "Maximum number of recent events to keep in the RuntimeQueryService ring buffer.",
-          "title": "Event Buffer Size",
-          "type": "integer"
-        },
         "log_buffer_size": {
           "default": 2000,
           "description": "Maximum number of log entries to keep in the LogCaptureHandler ring buffer.",

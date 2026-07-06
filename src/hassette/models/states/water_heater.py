@@ -1,9 +1,25 @@
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
+
+
+class WaterHeaterCapabilityAttribute(StrEnum):
+    MIN_TEMP = "min_temp"
+    MAX_TEMP = "max_temp"
+    TARGET_TEMP_STEP = "target_temp_step"
+    OPERATION_LIST = "operation_list"
+
+
+class WaterHeaterStateAttribute(StrEnum):
+    CURRENT_TEMPERATURE = "current_temperature"
+    TEMPERATURE = "temperature"
+    TARGET_TEMP_HIGH = "target_temp_high"
+    TARGET_TEMP_LOW = "target_temp_low"
+    OPERATION_MODE = "operation_mode"
+    AWAY_MODE = "away_mode"
 
 
 class WaterHeaterEntityFeature(IntFlag):

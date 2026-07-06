@@ -6,6 +6,11 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class LockEntityStateAttribute(StrEnum):
+    CHANGED_BY = "changed_by"
+    CODE_FORMAT = "code_format"
+
+
 class LockStateValue(StrEnum):
     JAMMED = "jammed"
     OPENING = "opening"

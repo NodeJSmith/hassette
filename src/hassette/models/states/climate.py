@@ -27,6 +27,34 @@ class HVACAction(StrEnum):
     PREHEATING = "preheating"
 
 
+class ClimateEntityCapabilityAttribute(StrEnum):
+    HVAC_MODES = "hvac_modes"
+    MIN_TEMP = "min_temp"
+    MAX_TEMP = "max_temp"
+    TARGET_TEMP_STEP = "target_temp_step"
+    MIN_HUMIDITY = "min_humidity"
+    MAX_HUMIDITY = "max_humidity"
+    TARGET_HUMIDITY_STEP = "target_humidity_step"
+    FAN_MODES = "fan_modes"
+    PRESET_MODES = "preset_modes"
+    SWING_MODES = "swing_modes"
+    SWING_HORIZONTAL_MODES = "swing_horizontal_modes"
+
+
+class ClimateEntityStateAttribute(StrEnum):
+    CURRENT_TEMPERATURE = "current_temperature"
+    TEMPERATURE = "temperature"
+    TARGET_TEMP_HIGH = "target_temp_high"
+    TARGET_TEMP_LOW = "target_temp_low"
+    CURRENT_HUMIDITY = "current_humidity"
+    HUMIDITY = "humidity"
+    FAN_MODE = "fan_mode"
+    HVAC_ACTION = "hvac_action"
+    PRESET_MODE = "preset_mode"
+    SWING_MODE = "swing_mode"
+    SWING_HORIZONTAL_MODE = "swing_horizontal_mode"
+
+
 class ClimateEntityFeature(IntFlag):
     TARGET_TEMPERATURE = 1
     TARGET_TEMPERATURE_RANGE = 2

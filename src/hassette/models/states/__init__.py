@@ -2,6 +2,7 @@ from .air_quality import AirQualityAttributes, AirQualityState
 from .alarm_control_panel import (
     AlarmControlPanelAttributes,
     AlarmControlPanelEntityFeature,
+    AlarmControlPanelEntityStateAttribute,
     AlarmControlPanelState,
     AlarmControlPanelStateValue,
     CodeFormat,
@@ -21,25 +22,56 @@ from .base import (
 from .binary_sensor import BinarySensorAttributes, BinarySensorDeviceClass, BinarySensorState
 from .button import ButtonAttributes, ButtonDeviceClass, ButtonState
 from .calendar import CalendarAttributes, CalendarState
-from .camera import CameraAttributes, CameraEntityFeature, CameraState, CameraStateValue, StreamType
+from .camera import (
+    CameraAttributes,
+    CameraEntityFeature,
+    CameraEntityStateAttribute,
+    CameraState,
+    CameraStateValue,
+    StreamType,
+)
 from .catalog import StateKey
-from .climate import ClimateAttributes, ClimateEntityFeature, ClimateState, HVACAction, HVACMode
+from .climate import (
+    ClimateAttributes,
+    ClimateEntityCapabilityAttribute,
+    ClimateEntityFeature,
+    ClimateEntityStateAttribute,
+    ClimateState,
+    HVACAction,
+    HVACMode,
+)
 from .counter import CounterAttributes, CounterState
-from .cover import CoverAttributes, CoverDeviceClass, CoverEntityFeature, CoverState, CoverStateValue
+from .cover import (
+    CoverAttributes,
+    CoverDeviceClass,
+    CoverEntityFeature,
+    CoverEntityStateAttribute,
+    CoverState,
+    CoverStateValue,
+)
 from .date import DateAttributes, DateState
 from .datetime import DateTimeAttributes, DateTimeState
 from .device_tracker import DeviceTrackerAttributes, DeviceTrackerState
-from .event import DoorbellEventType, EventAttributes, EventDeviceClass, EventState
-from .fan import FanAttributes, FanEntityFeature, FanState
-from .geo_location import GeoLocationAttributes, GeoLocationState
+from .event import (
+    DoorbellEventType,
+    EventAttributes,
+    EventDeviceClass,
+    EventEntityCapabilityAttribute,
+    EventEntityStateAttribute,
+    EventState,
+)
+from .fan import FanAttributes, FanEntityCapabilityAttribute, FanEntityFeature, FanEntityStateAttribute, FanState
+from .geo_location import GeoLocationAttributes, GeolocationEntityStateAttribute, GeoLocationState
 from .humidifier import (
     HumidifierAction,
     HumidifierAttributes,
     HumidifierDeviceClass,
+    HumidifierEntityCapabilityAttribute,
     HumidifierEntityFeature,
+    HumidifierEntityStateAttribute,
     HumidifierState,
 )
-from .image import ImageAttributes, ImageState
+from .image import ImageAttributes, ImageEntityStateAttribute, ImageState
 from .image_processing import ImageProcessingAttributes, ImageProcessingState
 from .input import (
     InputAttributesBase,
@@ -55,39 +87,68 @@ from .input import (
     InputTextState,
 )
 from .lawn_mower import LawnMowerActivity, LawnMowerAttributes, LawnMowerEntityFeature, LawnMowerState
-from .light import ColorMode, LightAttributes, LightEntityFeature, LightState
-from .lock import LockAttributes, LockEntityFeature, LockState, LockStateValue
+from .light import (
+    ColorMode,
+    LightAttributes,
+    LightEntityCapabilityAttribute,
+    LightEntityFeature,
+    LightEntityStateAttribute,
+    LightState,
+)
+from .lock import LockAttributes, LockEntityFeature, LockEntityStateAttribute, LockState, LockStateValue
 from .media_player import (
     MediaClass,
     MediaPlayerAttributes,
     MediaPlayerDeviceClass,
     MediaPlayerEnqueue,
+    MediaPlayerEntityCapabilityAttribute,
     MediaPlayerEntityFeature,
+    MediaPlayerEntityStateAttribute,
     MediaPlayerState,
     MediaPlayerStateValue,
     MediaType,
     RepeatMode,
 )
-from .number import NumberAttributes, NumberDeviceClass, NumberMode, NumberState
+from .number import NumberAttributes, NumberDeviceClass, NumberEntityCapabilityAttribute, NumberMode, NumberState
 from .person import PersonAttributes, PersonState
-from .remote import RemoteAttributes, RemoteEntityFeature, RemoteState
+from .remote import RemoteAttributes, RemoteEntityFeature, RemoteEntityStateAttribute, RemoteState
 from .scene import SceneState
 from .script import ScriptAttributes, ScriptState
-from .select import SelectAttributes, SelectState
-from .sensor import SensorAttributes, SensorDeviceClass, SensorState, SensorStateClass
+from .select import SelectAttributes, SelectEntityCapabilityAttribute, SelectState
+from .sensor import (
+    SensorAttributes,
+    SensorDeviceClass,
+    SensorEntityCapabilityAttribute,
+    SensorEntityStateAttribute,
+    SensorState,
+    SensorStateClass,
+)
 from .simple import AiTaskState, ConversationState, NotifyState, SttState, TtsState
-from .siren import SirenAttributes, SirenEntityFeature, SirenState
+from .siren import SirenAttributes, SirenEntityCapabilityAttribute, SirenEntityFeature, SirenState
 from .sun import SunAttributes, SunState
 from .switch import SwitchAttributes, SwitchDeviceClass, SwitchState
-from .text import TextAttributes, TextMode, TextState
+from .text import TextAttributes, TextEntityCapabilityAttribute, TextMode, TextState
 from .time import TimeAttributes, TimeState
 from .timer import TimerAttributes, TimerState
 from .todo import TodoAttributes, TodoItemStatus, TodoListEntityFeature, TodoServices, TodoState
-from .update import UpdateAttributes, UpdateDeviceClass, UpdateEntityFeature, UpdateState
-from .vacuum import VacuumActivity, VacuumAttributes, VacuumEntityFeature, VacuumState
+from .update import UpdateAttributes, UpdateDeviceClass, UpdateEntityFeature, UpdateEntityStateAttribute, UpdateState
+from .vacuum import (
+    VacuumActivity,
+    VacuumAttributes,
+    VacuumEntityCapabilityAttribute,
+    VacuumEntityFeature,
+    VacuumEntityStateAttribute,
+    VacuumState,
+)
 from .valve import ValveAttributes, ValveState
-from .water_heater import WaterHeaterAttributes, WaterHeaterEntityFeature, WaterHeaterState
-from .weather import WeatherAttributes, WeatherEntityFeature, WeatherState
+from .water_heater import (
+    WaterHeaterAttributes,
+    WaterHeaterCapabilityAttribute,
+    WaterHeaterEntityFeature,
+    WaterHeaterState,
+    WaterHeaterStateAttribute,
+)
+from .weather import WeatherAttributes, WeatherEntityFeature, WeatherEntityStateAttribute, WeatherState
 from .zone import ZoneAttributes, ZoneState
 
 __all__ = [
@@ -96,6 +157,7 @@ __all__ = [
     "AirQualityState",
     "AlarmControlPanelAttributes",
     "AlarmControlPanelEntityFeature",
+    "AlarmControlPanelEntityStateAttribute",
     "AlarmControlPanelState",
     "AlarmControlPanelStateValue",
     "AssistSatelliteState",
@@ -114,10 +176,13 @@ __all__ = [
     "CalendarState",
     "CameraAttributes",
     "CameraEntityFeature",
+    "CameraEntityStateAttribute",
     "CameraState",
     "CameraStateValue",
     "ClimateAttributes",
+    "ClimateEntityCapabilityAttribute",
     "ClimateEntityFeature",
+    "ClimateEntityStateAttribute",
     "ClimateState",
     "CodeFormat",
     "ColorMode",
@@ -128,6 +193,7 @@ __all__ = [
     "CoverAttributes",
     "CoverDeviceClass",
     "CoverEntityFeature",
+    "CoverEntityStateAttribute",
     "CoverState",
     "CoverStateValue",
     "DateAttributes",
@@ -140,20 +206,28 @@ __all__ = [
     "DoorbellEventType",
     "EventAttributes",
     "EventDeviceClass",
+    "EventEntityCapabilityAttribute",
+    "EventEntityStateAttribute",
     "EventState",
     "FanAttributes",
+    "FanEntityCapabilityAttribute",
     "FanEntityFeature",
+    "FanEntityStateAttribute",
     "FanState",
     "GeoLocationAttributes",
     "GeoLocationState",
+    "GeolocationEntityStateAttribute",
     "HVACAction",
     "HVACMode",
     "HumidifierAction",
     "HumidifierAttributes",
     "HumidifierDeviceClass",
+    "HumidifierEntityCapabilityAttribute",
     "HumidifierEntityFeature",
+    "HumidifierEntityStateAttribute",
     "HumidifierState",
     "ImageAttributes",
+    "ImageEntityStateAttribute",
     "ImageProcessingAttributes",
     "ImageProcessingState",
     "ImageState",
@@ -173,23 +247,29 @@ __all__ = [
     "LawnMowerEntityFeature",
     "LawnMowerState",
     "LightAttributes",
+    "LightEntityCapabilityAttribute",
     "LightEntityFeature",
+    "LightEntityStateAttribute",
     "LightState",
     "LockAttributes",
     "LockEntityFeature",
+    "LockEntityStateAttribute",
     "LockState",
     "LockStateValue",
     "MediaClass",
     "MediaPlayerAttributes",
     "MediaPlayerDeviceClass",
     "MediaPlayerEnqueue",
+    "MediaPlayerEntityCapabilityAttribute",
     "MediaPlayerEntityFeature",
+    "MediaPlayerEntityStateAttribute",
     "MediaPlayerState",
     "MediaPlayerStateValue",
     "MediaType",
     "NotifyState",
     "NumberAttributes",
     "NumberDeviceClass",
+    "NumberEntityCapabilityAttribute",
     "NumberMode",
     "NumberState",
     "NumericBaseState",
@@ -197,18 +277,23 @@ __all__ = [
     "PersonState",
     "RemoteAttributes",
     "RemoteEntityFeature",
+    "RemoteEntityStateAttribute",
     "RemoteState",
     "RepeatMode",
     "SceneState",
     "ScriptAttributes",
     "ScriptState",
     "SelectAttributes",
+    "SelectEntityCapabilityAttribute",
     "SelectState",
     "SensorAttributes",
     "SensorDeviceClass",
+    "SensorEntityCapabilityAttribute",
+    "SensorEntityStateAttribute",
     "SensorState",
     "SensorStateClass",
     "SirenAttributes",
+    "SirenEntityCapabilityAttribute",
     "SirenEntityFeature",
     "SirenState",
     "StateKey",
@@ -221,6 +306,7 @@ __all__ = [
     "SwitchDeviceClass",
     "SwitchState",
     "TextAttributes",
+    "TextEntityCapabilityAttribute",
     "TextMode",
     "TextState",
     "TimeAttributes",
@@ -237,18 +323,24 @@ __all__ = [
     "UpdateAttributes",
     "UpdateDeviceClass",
     "UpdateEntityFeature",
+    "UpdateEntityStateAttribute",
     "UpdateState",
     "VacuumActivity",
     "VacuumAttributes",
+    "VacuumEntityCapabilityAttribute",
     "VacuumEntityFeature",
+    "VacuumEntityStateAttribute",
     "VacuumState",
     "ValveAttributes",
     "ValveState",
     "WaterHeaterAttributes",
+    "WaterHeaterCapabilityAttribute",
     "WaterHeaterEntityFeature",
     "WaterHeaterState",
+    "WaterHeaterStateAttribute",
     "WeatherAttributes",
     "WeatherEntityFeature",
+    "WeatherEntityStateAttribute",
     "WeatherState",
     "ZoneAttributes",
     "ZoneState",

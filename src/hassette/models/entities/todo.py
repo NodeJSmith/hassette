@@ -85,7 +85,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
             due_date: The date the to-do item is expected to be completed.
             due_datetime: The date and time the to-do item is expected to be completed.
             rename: The new name for the to-do item.
-            status: A status or confirmation of the to-do item.
+            status: A status for the to-do item.
         """
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at api.call_service (the true primary). See design/071.
@@ -197,7 +197,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
             due_date: The date the to-do item is expected to be completed.
             due_datetime: The date and time the to-do item is expected to be completed.
             rename: The new name for the to-do item.
-            status: A status or confirmation of the to-do item.
+            status: A status for the to-do item.
         """
         self.entity.api.sync.call_service(
             domain=self.entity.domain,

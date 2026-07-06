@@ -6,6 +6,12 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class AlarmControlPanelEntityStateAttribute(StrEnum):
+    CODE_FORMAT = "code_format"
+    CHANGED_BY = "changed_by"
+    CODE_ARM_REQUIRED = "code_arm_required"
+
+
 class AlarmControlPanelStateValue(StrEnum):
     DISARMED = "disarmed"
     ARMED_HOME = "armed_home"

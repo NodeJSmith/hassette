@@ -6,6 +6,12 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
+class CoverEntityStateAttribute(StrEnum):
+    IS_CLOSED = "is_closed"
+    CURRENT_POSITION = "current_position"
+    CURRENT_TILT_POSITION = "current_tilt_position"
+
+
 class CoverStateValue(StrEnum):
     CLOSED = "closed"
     CLOSING = "closing"
