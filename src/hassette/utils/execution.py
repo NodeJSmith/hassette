@@ -38,9 +38,9 @@ class ExecutionResult:
     thread_leaked: bool = False
     """True when the execution timed out and the sync worker thread was still alive after the timeout.
 
-    Set by ``CommandExecutor._execute`` at the timeout site after reading the shared mutable cell
-    (``list[threading.Thread | None]``) exposed by ``TaskBucket.run_in_thread``.  False for async
-    handlers, not-started timeouts (``cell[0]`` is ``None``), and all non-timed-out executions.
+    Set by ``CommandExecutor._execute`` at the timeout site after reading the
+    ``SyncWorkerHandle`` exposed by ``TaskBucket.run_in_thread``.  False for async handlers,
+    not-started timeouts (``handle.thread`` is ``None``), and all non-timed-out executions.
 
     Subject to a small race window: if the worker finishes between the timeout cancellation and the
     liveness check, this flag reads False even though the thread outlived the asyncio deadline.
