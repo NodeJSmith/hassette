@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Export OpenAPI and WebSocket JSON Schemas for frontend type generation.
+"""Export JSON Schemas for frontend type generation and config validation.
 
 Creates a minimal Hassette stub (no Home Assistant connection required) to
 extract the FastAPI OpenAPI schema and the WsServerMessage Pydantic JSON
-Schema.  Outputs:
+Schema.  Also exports the HassetteConfig JSON Schema for IDE autocompletion
+and SchemaStore publication.
+
+Outputs:
 
 - ``frontend/openapi.json``  — for ``openapi-typescript``
 - ``frontend/ws-schema.json`` — for ``generate-ws-types.cjs``
+- ``hassette.schema.json``   — for IDE/SchemaStore TOML validation
 
 Usage::
 
@@ -33,8 +37,27 @@ def _create_stub_hassette() -> MagicMock:
     return stub
 
 
+def _build_config_schema() -> dict:
+    """Build the hassette.toml JSON Schema wrapping HassetteConfig under a ``hassette`` key."""
+    from hassette.config.config import HassetteConfig  # lazy-import: defers heavy config import to call time
+
+    raw = HassetteConfig.model_json_schema()
+    defs = raw.pop("$defs", {})
+    raw.pop("title", None)
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "Hassette Configuration",
+        "description": "Configuration schema for hassette.toml — the Hassette automation framework config file.",
+        "type": "object",
+        "properties": {
+            "hassette": raw,
+        },
+        "$defs": defs,
+    }
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export OpenAPI and WebSocket JSON Schemas.")
+    parser = argparse.ArgumentParser(description="Export OpenAPI, WebSocket, and config JSON Schemas.")
     parser.add_argument(
         "--types",
         action="store_true",
@@ -48,6 +71,12 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     frontend_dir = repo_root / "frontend"
     frontend_dir.mkdir(exist_ok=True)
+
+    # Config schema (hassette.toml)
+    config_schema = _build_config_schema()
+    config_schema_path = repo_root / "hassette.schema.json"
+    config_schema_path.write_text(json.dumps(config_schema, indent=2) + "\n")
+    print(f"Wrote {config_schema_path}")
 
     # OpenAPI schema
     stub = _create_stub_hassette()

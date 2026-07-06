@@ -1,8 +1,8 @@
-"""Tests that frontend schema files match current backend models.
+"""Tests that schema files match current backend models.
 
-These tests regenerate ws-schema.json and openapi.json in memory and assert
-they match the files on disk. If a test fails, run ``python scripts/export_schemas.py``
-to update the schema files.
+These tests regenerate ws-schema.json, openapi.json, and hassette.schema.json
+in memory and assert they match the files on disk. If a test fails, run
+``python scripts/export_schemas.py`` to update the schema files.
 """
 
 import json
@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import TypeAdapter
 
+from hassette.config.config import HassetteConfig
 from hassette.web.app import create_fastapi_app
 from hassette.web.models import WsServerMessage
 
@@ -39,6 +40,25 @@ class TestSchemaFreshness:
 
         on_disk = json.loads(schema_path.read_text())
         assert generated == on_disk, "frontend/ws-schema.json is stale — run: python scripts/export_schemas.py"
+
+    def test_config_schema_matches_model(self) -> None:
+        raw = HassetteConfig.model_json_schema()
+        defs = raw.pop("$defs", {})
+        raw.pop("title", None)
+        generated = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Hassette Configuration",
+            "description": "Configuration schema for hassette.toml — the Hassette automation framework config file.",
+            "type": "object",
+            "properties": {"hassette": raw},
+            "$defs": defs,
+        }
+
+        schema_path = REPO_ROOT / "hassette.schema.json"
+        assert schema_path.exists(), f"{schema_path} not found — run: python scripts/export_schemas.py"
+
+        on_disk = json.loads(schema_path.read_text())
+        assert generated == on_disk, "hassette.schema.json is stale — run: python scripts/export_schemas.py"
 
     def test_openapi_schema_matches_app(self) -> None:
         stub = create_stub_hassette()
