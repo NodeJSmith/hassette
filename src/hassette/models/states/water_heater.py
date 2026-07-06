@@ -6,14 +6,14 @@ from pydantic import Field
 from .base import AttributesBase, StringBaseState
 
 
-class WaterHeaterCapabilityAttribute(StrEnum):
+class WaterHeaterEntityCapabilityAttribute(StrEnum):
     MIN_TEMP = "min_temp"
     MAX_TEMP = "max_temp"
     TARGET_TEMP_STEP = "target_temp_step"
     OPERATION_LIST = "operation_list"
 
 
-class WaterHeaterStateAttribute(StrEnum):
+class WaterHeaterEntityStateAttribute(StrEnum):
     CURRENT_TEMPERATURE = "current_temperature"
     TEMPERATURE = "temperature"
     TARGET_TEMP_HIGH = "target_temp_high"

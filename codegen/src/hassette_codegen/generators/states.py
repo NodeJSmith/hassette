@@ -1,10 +1,13 @@
 """Generate state model .py files from extracted domain data."""
 
+import re
 from copy import deepcopy
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.property_types import resolve_property_types
+
+_ATTRIBUTE_SUFFIX_RE = re.compile(r"(?:Entity)?(?P<attr_type>State|Capability)Attribute$")
 
 
 def generate_state_model(domain: ExtractedDomain) -> str:
@@ -22,8 +25,10 @@ def generate_state_model(domain: ExtractedDomain) -> str:
 
     domain_title = domain_to_title(domain.name)
 
+    strenums, prefix_renames = _normalize_enum_prefixes(domain.strenums, domain_title)
     pydantic_class_name = f"{domain_title}State"
-    strenums, renames = _rename_collisions(domain.strenums, pydantic_class_name)
+    strenums, collision_renames = _rename_collisions(strenums, pydantic_class_name)
+    renames = {**prefix_renames, **collision_renames}
 
     strenum_names = {e.name for e in strenums}
     _apply_type_renames(domain.properties, renames)
@@ -49,6 +54,36 @@ def generate_state_model(domain: ExtractedDomain) -> str:
         has_strenum=has_strenum,
         datetime_fields=datetime_fields,
     )
+
+
+def _normalize_enum_prefixes(strenums: list, domain_title: str) -> tuple[list, dict[str, str]]:
+    """Normalize domain-prefixed enum names to use the canonical domain title and include 'Entity'."""
+    result = []
+    renames: dict[str, str] = {}
+    for enum in strenums:
+        match = _ATTRIBUTE_SUFFIX_RE.search(enum.name)
+        if not match:
+            result.append(enum)
+            continue
+
+        attr_type = match.group("attr_type")
+        prefix = enum.name[: match.start()]
+
+        if prefix.lower() != domain_title.lower():
+            result.append(enum)
+            continue
+
+        canonical = f"{domain_title}Entity{attr_type}Attribute"
+        if canonical == enum.name:
+            result.append(enum)
+            continue
+
+        renamed = deepcopy(enum)
+        renamed.name = canonical
+        result.append(renamed)
+        renames[enum.name] = canonical
+
+    return result, renames
 
 
 def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, dict[str, str]]:

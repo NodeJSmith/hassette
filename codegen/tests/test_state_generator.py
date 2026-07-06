@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.extractors.properties import ExtractedProperty
-from hassette_codegen.generators.states import generate_state_model
+from hassette_codegen.generators.states import _normalize_enum_prefixes, generate_state_model
 from hassette_codegen.overrides import DomainOverride
 
 
@@ -146,3 +146,76 @@ class TestStateModelGenerator:
         output = generate_state_model(domain)
         assert "field_validator" not in output
         assert "convert_datetime_str_to_system_tz" not in output
+
+
+class TestNormalizeEnumPrefixes:
+    def test_fixes_geo_location_casing(self) -> None:
+        enums = [ExtractedEnum(name="GeolocationEntityStateAttribute", members=[("A", "a")], kind="StrEnum")]
+        result, renames = _normalize_enum_prefixes(enums, "GeoLocation")
+        assert result[0].name == "GeoLocationEntityStateAttribute"
+        assert renames == {"GeolocationEntityStateAttribute": "GeoLocationEntityStateAttribute"}
+
+    def test_inserts_missing_entity_segment(self) -> None:
+        enums = [
+            ExtractedEnum(name="WaterHeaterCapabilityAttribute", members=[("A", "a")], kind="StrEnum"),
+            ExtractedEnum(name="WaterHeaterStateAttribute", members=[("B", "b")], kind="StrEnum"),
+        ]
+        result, renames = _normalize_enum_prefixes(enums, "WaterHeater")
+        assert result[0].name == "WaterHeaterEntityCapabilityAttribute"
+        assert result[1].name == "WaterHeaterEntityStateAttribute"
+        assert len(renames) == 2
+
+    def test_leaves_correctly_named_enums_unchanged(self) -> None:
+        enums = [ExtractedEnum(name="ClimateEntityStateAttribute", members=[("A", "a")], kind="StrEnum")]
+        result, renames = _normalize_enum_prefixes(enums, "Climate")
+        assert result[0].name == "ClimateEntityStateAttribute"
+        assert renames == {}
+
+    def test_leaves_standalone_enums_unchanged(self) -> None:
+        enums = [
+            ExtractedEnum(name="ColorMode", members=[("A", "a")], kind="StrEnum"),
+            ExtractedEnum(name="HVACMode", members=[("B", "b")], kind="StrEnum"),
+        ]
+        result, renames = _normalize_enum_prefixes(enums, "Light")
+        assert result[0].name == "ColorMode"
+        assert result[1].name == "HVACMode"
+        assert renames == {}
+
+    def test_leaves_non_matching_prefix_unchanged(self) -> None:
+        enums = [ExtractedEnum(name="TrackerEntityStateAttribute", members=[("A", "a")], kind="StrEnum")]
+        result, renames = _normalize_enum_prefixes(enums, "DeviceTracker")
+        assert result[0].name == "TrackerEntityStateAttribute"
+        assert renames == {}
+
+    def test_geo_location_integration(self) -> None:
+        domain = ExtractedDomain(
+            name="geo_location",
+            base_class="StringBaseState",
+            strenums=[
+                ExtractedEnum(
+                    name="GeolocationEntityStateAttribute",
+                    members=[("SOURCE", "source")],
+                    kind="StrEnum",
+                )
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert "class GeoLocationEntityStateAttribute(StrEnum):" in output
+        assert "GeolocationEntityStateAttribute" not in output
+
+    def test_water_heater_integration(self) -> None:
+        domain = ExtractedDomain(
+            name="water_heater",
+            base_class="StringBaseState",
+            strenums=[
+                ExtractedEnum(name="WaterHeaterCapabilityAttribute", members=[("A", "a")], kind="StrEnum"),
+                ExtractedEnum(name="WaterHeaterStateAttribute", members=[("B", "b")], kind="StrEnum"),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert "class WaterHeaterEntityCapabilityAttribute(StrEnum):" in output
+        assert "class WaterHeaterEntityStateAttribute(StrEnum):" in output
+        assert "WaterHeaterCapabilityAttribute" not in output
+        assert "WaterHeaterStateAttribute" not in output
