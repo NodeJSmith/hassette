@@ -174,6 +174,9 @@ export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
 export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), { signal });
 
+export const triggerJob = (jobId: number) =>
+  apiPost<{ status: string; job_id: number; job_name: string }>(`/scheduler/jobs/${jobId}/trigger`);
+
 // ---- System status ----
 
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];

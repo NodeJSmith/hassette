@@ -1,15 +1,19 @@
 import type { JobData } from "../../api/endpoints";
-import { getJobExecutions } from "../../api/endpoints";
+import { getJobExecutions, triggerJob } from "../../api/endpoints";
 import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
+import { useSignal } from "../../hooks/use-signal";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatDurationOrDash, formatOptionalDuration, formatTriggerDetail } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
+import { Button } from "../shared/button";
 import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
+import { IconPlay } from "../shared/icons";
+import { Spinner } from "../shared/spinner";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
 import layoutStyles from "./handler-detail-layout.module.css";
@@ -28,6 +32,51 @@ function ScheduleChips({ job }: { job: JobData }) {
           {chip.label}
         </Chip>
       ))}
+    </div>
+  );
+}
+
+function RunNowButton({ jobId }: { jobId: number }) {
+  const loading = useSignal(false);
+  const error = useSignal<string | null>(null);
+
+  const exec = async () => {
+    if (loading.value) return;
+    error.value = null;
+    loading.value = true;
+    try {
+      await triggerJob(jobId);
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : String(err);
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  return (
+    <div class={layoutStyles.runNow}>
+      <Button
+        variant="primary"
+        size="sm"
+        data-testid="run-now-btn"
+        disabled={loading.value}
+        onClick={() => void exec()}
+      >
+        {loading.value ? (
+          <>
+            <Spinner /> Running…
+          </>
+        ) : (
+          <>
+            <IconPlay /> Run Now
+          </>
+        )}
+      </Button>
+      {error.value && (
+        <p class="ht-text-danger ht-text-sm" role="alert" data-testid="run-now-error">
+          {error.value}
+        </p>
+      )}
     </div>
   );
 }
@@ -98,11 +147,14 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       registrationSource={job.registration_source}
       chips={<ScheduleChips job={job} />}
       extras={
-        nextRunText ? (
-          <div class={layoutStyles.nextRun} data-testid="job-next-run">
-            <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
-          </div>
-        ) : undefined
+        <>
+          {nextRunText && (
+            <div class={layoutStyles.nextRun} data-testid="job-next-run">
+              <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
+            </div>
+          )}
+          <RunNowButton jobId={job.job_id} />
+        </>
       }
       sourceLocation={job.source_location}
       onViewCode={onSwitchToCode}

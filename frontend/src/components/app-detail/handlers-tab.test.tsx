@@ -1,9 +1,11 @@
 import { signal } from "@preact/signals";
 import { fireEvent, waitFor } from "@testing-library/preact";
+import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
+import { server } from "../../test/server";
 import { HandlersTab } from "./handlers-tab";
 
 // Mock child components that make API calls
@@ -553,5 +555,58 @@ describe("HandlersTab", () => {
     await waitFor(() => getByTestId("listener-detail-45"));
     fireEvent.click(getByTestId("view-in-code-btn"));
     expect(onSwitch).toHaveBeenCalledWith(99);
+  });
+
+  describe("job detail: Run Now button", () => {
+    it("renders in the job detail panel", async () => {
+      const job = createJob({ job_id: 60 });
+      const { getByTestId } = renderHandlersTab([], [job], "job/60");
+      await waitFor(() => getByTestId("job-detail-60"));
+      expect(getByTestId("run-now-btn")).toBeDefined();
+      expect(getByTestId("run-now-btn").textContent).toContain("Run Now");
+    });
+
+    it("enters loading state and disables on click", async () => {
+      const job = createJob({ job_id: 61 });
+      server.use(
+        http.post(
+          "/api/scheduler/jobs/:id/trigger",
+          () => new Promise(() => {}), // never resolves — keeps the button in loading state
+        ),
+      );
+      const { getByTestId } = renderHandlersTab([], [job], "job/61");
+      await waitFor(() => getByTestId("job-detail-61"));
+      const button = getByTestId("run-now-btn") as HTMLButtonElement;
+      fireEvent.click(button);
+      await waitFor(() => {
+        expect(button.disabled).toBe(true);
+      });
+    });
+
+    it("shows inline error on 409 response", async () => {
+      const job = createJob({ job_id: 62 });
+      server.use(
+        http.post("/api/scheduler/jobs/:id/trigger", () => {
+          return HttpResponse.json({ detail: "job is currently executing" }, { status: 409 });
+        }),
+      );
+      const { getByTestId } = renderHandlersTab([], [job], "job/62");
+      await waitFor(() => getByTestId("job-detail-62"));
+      fireEvent.click(getByTestId("run-now-btn"));
+      await waitFor(() => {
+        expect(getByTestId("run-now-error").textContent).toContain("job is currently executing");
+      });
+    });
+
+    it("re-enables after the request completes", async () => {
+      const job = createJob({ job_id: 63 });
+      const { getByTestId } = renderHandlersTab([], [job], "job/63");
+      await waitFor(() => getByTestId("job-detail-63"));
+      const button = getByTestId("run-now-btn") as HTMLButtonElement;
+      fireEvent.click(button);
+      await waitFor(() => {
+        expect(button.disabled).toBe(false);
+      });
+    });
   });
 });

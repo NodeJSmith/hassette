@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add Run Now button to job detail panel"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#8", "FR#11", "AC#7", "AC#8"]
 ---
