@@ -10,7 +10,7 @@ from .base import AttributesBase, StringBaseState
 
 
 class ImageEntityStateAttribute(StrEnum):
-    ACCESS_TOKEN = "access_token"  # noqa: S105
+    ACCESS_TOKEN = "access_token"
 
 
 class ImageAttributes(AttributesBase):
