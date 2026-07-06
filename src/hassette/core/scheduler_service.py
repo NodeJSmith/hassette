@@ -375,7 +375,7 @@ class SchedulerService(Service):
             except Exception:
                 self.logger.exception("Error removing exhausted job %s", job)
 
-    async def run_job_with_guard(self, job: "ScheduledJob") -> None:
+    async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
         - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
@@ -385,16 +385,18 @@ class SchedulerService(Service):
 
         Args:
             job: The job to invoke.
+            trigger_mode: How this execution was triggered (e.g., "manual" for a
+                run-now request). None for regular scheduled fires.
         """
         if job.mode is ExecutionMode.PARALLEL:
-            await self.run_job(job)
+            await self.run_job(job, trigger_mode=trigger_mode)
             return
 
         await run_through_guard(
             guard=job.guard,
             spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
             pending_done=job.pending_done,
-            invoke=lambda: self.run_job(job),
+            invoke=lambda: self.run_job(job, trigger_mode=trigger_mode),
             warn=lambda secs: self.warn_stalled_job(job, secs),
             spawn_name="scheduler:mode_invocation",
             threshold=STALL_THRESHOLD_SECONDS,
@@ -417,7 +419,7 @@ class SchedulerService(Service):
             threshold,
         )
 
-    async def run_job(self, job: "ScheduledJob") -> None:
+    async def run_job(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
 
         All jobs go through ``ExecuteJob`` regardless of whether ``db_id`` is set.
@@ -426,6 +428,8 @@ class SchedulerService(Service):
 
         Args:
             job: The job to run.
+            trigger_mode: How this execution was triggered (e.g., "manual" for a
+                run-now request). None for regular scheduled fires.
         """
         lag = (date_utils.now() - job.fire_at).total("seconds")
         if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
@@ -458,6 +462,7 @@ class SchedulerService(Service):
             source_tier=job.source_tier,
             effective_timeout=effective_timeout,
             app_level_error_handler=app_level_error_handler,
+            trigger_mode=trigger_mode,
         )
         await self._executor.execute(cmd)
 

@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add trigger_mode field to execution pipeline"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#5"]
 ---

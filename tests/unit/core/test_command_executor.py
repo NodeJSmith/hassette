@@ -1,10 +1,13 @@
-"""Tests for CommandExecutor._execute() source_tier branching."""
+"""Tests for CommandExecutor._execute() source_tier branching and build_record()."""
 
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.commands import ExecuteJob
+from hassette.core.command_executor import CommandExecutor
+from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.test_utils.factories import make_invoke_handler_cmd
 from hassette.utils.execution import ExecutionResult
@@ -12,13 +15,14 @@ from hassette.utils.execution import ExecutionResult
 from .conftest import make_executor
 
 
-def make_cmd_execute_job(source_tier: str) -> MagicMock:
+def make_cmd_execute_job(source_tier: str, trigger_mode: str | None = None) -> MagicMock:
     """Build a minimal ExecuteJob-like mock."""
     cmd = MagicMock(spec=ExecuteJob)
     cmd.source_tier = source_tier
     cmd.job_db_id = 1
     cmd.callable = AsyncMock(return_value=None)
     cmd.effective_timeout = None
+    cmd.trigger_mode = trigger_mode
     return cmd
 
 
@@ -125,3 +129,51 @@ class TestCommandExecutorSourceTierBranching:
         assert result.error_type == "RuntimeError"
         assert result.error_traceback is not None
         assert "RuntimeError" in result.error_traceback
+
+
+class TestBuildRecordTriggerMode:
+    """Verify build_record() reads ExecuteJob.trigger_mode onto ExecutionRecord."""
+
+    def test_build_record_reads_trigger_mode(self) -> None:
+        """build_record sets trigger_mode='manual' from cmd.trigger_mode for ExecuteJob."""
+        executor = make_executor()
+        cmd = make_cmd_execute_job(source_tier="app", trigger_mode="manual")
+        cmd.job = MagicMock()
+        cmd.job.app_key = "test_app"
+        cmd.job.instance_index = 0
+
+        result = MagicMock()
+        result.duration_ms = 1.0
+        result.status = "success"
+        result.error_type = None
+        result.error_message = None
+        result.error_traceback = None
+        result.is_di_failure = False
+        result.thread_leaked = False
+
+        record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")
+
+        assert isinstance(record, ExecutionRecord)
+        assert record.kind == "job"
+        assert record.trigger_mode == "manual"
+
+    def test_build_record_defaults_trigger_mode_to_none(self) -> None:
+        """build_record leaves trigger_mode=None when cmd.trigger_mode is None (scheduled fire)."""
+        executor = make_executor()
+        cmd = make_cmd_execute_job(source_tier="app", trigger_mode=None)
+        cmd.job = MagicMock()
+        cmd.job.app_key = "test_app"
+        cmd.job.instance_index = 0
+
+        result = MagicMock()
+        result.duration_ms = 1.0
+        result.status = "success"
+        result.error_type = None
+        result.error_message = None
+        result.error_traceback = None
+        result.is_di_failure = False
+        result.thread_leaked = False
+
+        record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id-2")
+
+        assert record.trigger_mode is None

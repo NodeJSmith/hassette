@@ -96,3 +96,11 @@ class ExecuteJob:
     Populated by SchedulerService.run_job() as a fallback when the job has no
     per-registration error handler. None when the Scheduler has no app-level handler set.
     """
+
+    trigger_mode: str | None = None
+    """How this execution was triggered (e.g., 'manual' for a run-now request).
+
+    None for regular scheduled fires. Threaded through from
+    ``SchedulerService.run_job_with_guard()`` so manual triggers can be
+    recorded distinctly from scheduled fires in the ``ExecutionRecord``.
+    """

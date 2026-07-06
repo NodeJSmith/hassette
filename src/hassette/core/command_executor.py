@@ -486,6 +486,7 @@ class CommandExecutor(Service):
                     error_message=result.error_message,
                     error_traceback=result.error_traceback,
                     execution_id=execution_id,
+                    trigger_mode=cmd.trigger_mode,
                 )
 
     def bind_execution_context(
