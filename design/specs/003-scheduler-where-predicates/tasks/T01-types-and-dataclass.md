@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add SchedulerPredicate type, ScheduledJob fields, and ExecutionStatus.SKIPPED"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#3", "FR#9", "FR#10", "FR#15", "FR#16", "AC#5", "AC#6", "AC#9"]
 ---

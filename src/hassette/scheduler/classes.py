@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
 
     from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
-    from hassette.types.types import SchedulerErrorHandlerType
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 LOGGER = getLogger(__name__)
@@ -230,6 +230,19 @@ class ScheduledJob:
     direct ``ScheduledJob(...)`` constructions in tests remain valid; the real resolution happens
     in ``Scheduler.schedule()``."""
 
+    predicate: "SchedulerPredicate | None" = field(default=None, compare=False)
+    """Normalized predicate callable, or ``None`` when no ``where=`` was given.
+
+    Set once at registration time by ``Scheduler.schedule()`` — a single callable is stored
+    directly, and a sequence of predicates is collapsed into a closure. ``compare=False``
+    prevents ``Callable | None`` from corrupting the ``@dataclass(order=True)`` heap ordering.
+    """
+
+    _predicate_wants_job: bool = field(default=False, init=False, repr=False, compare=False)
+    """Whether ``predicate`` accepts a ``ScheduledJob`` argument (one-arg) vs no arguments
+    (zero-arg). Set by ``Scheduler.schedule()`` after inspecting the predicate's signature
+    once at registration time; dispatch uses this flag without re-inspecting."""
+
     guard: ExecutionModeGuard = field(init=False, compare=False)
     """Per-job overlap state machine. Created in ``__post_init__`` from ``mode``. Lives for the
     full lifetime of the job, spanning all re-fires. ``compare=False`` prevents the guard from
@@ -307,7 +320,8 @@ class ScheduledJob:
         """Check whether two jobs represent the same logical configuration.
 
         Compares callable, trigger (by trigger_id()), group, jitter, timeout,
-        timeout_disabled, args, kwargs, and error_handler (by identity).
+        timeout_disabled, args, kwargs, error_handler (by identity), mode, and
+        predicate (by equality — lambdas/closures compare by identity).
         Does not compare runtime state (db_id, next_run, sort_index, _scheduler,
         _dequeued, owner, or any other mutable runtime field).
 
@@ -329,13 +343,15 @@ class ScheduledJob:
             and self.kwargs == other.kwargs
             and self.error_handler is other.error_handler
             and self.mode is other.mode
+            and self.predicate == other.predicate
         )
 
     def diff_fields(self, other: "ScheduledJob") -> list[str]:
         """Return a list of configuration field names that differ between two jobs.
 
         Compares the same fields as ``matches()`` — callable, trigger, group,
-        jitter, timeout, timeout_disabled, args, kwargs, error_handler, and mode.
+        jitter, timeout, timeout_disabled, args, kwargs, error_handler, mode,
+        and predicate.
         """
         changed: list[str] = []
         if self.job != other.job:
@@ -360,6 +376,8 @@ class ScheduledJob:
             changed.append("error_handler")
         if self.mode is not other.mode:
             changed.append("mode")
+        if self.predicate != other.predicate:
+            changed.append("predicate")
         return changed
 
     def set_app_error_handler_resolver(self, resolver: "Callable[[], SchedulerErrorHandlerType | None]") -> None:

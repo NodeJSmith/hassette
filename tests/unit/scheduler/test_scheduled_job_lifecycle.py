@@ -298,3 +298,80 @@ class TestDiffFields:
         changed = job1.diff_fields(job2)
         assert "group" in changed
         assert "args" in changed
+
+
+class TestPredicateField:
+    def test_predicate_defaults_to_none(self) -> None:
+        """ScheduledJob constructed without a predicate defaults to None."""
+        job = make_job()
+        assert job.predicate is None
+
+    def test_predicate_stores_callable(self) -> None:
+        """Constructing a ScheduledJob with predicate=<callable> stores it directly."""
+
+        def always_true() -> bool:
+            return True
+
+        job = make_job(predicate=always_true)
+        assert job.predicate is always_true
+
+    def test_predicate_wants_job_defaults_to_false(self) -> None:
+        """_predicate_wants_job defaults to False — set programmatically by Scheduler.schedule(),
+        not by direct construction."""
+        job = make_job(predicate=lambda: True)
+        assert job._predicate_wants_job is False
+
+
+class TestMatchesPredicate:
+    def test_matches_true_with_same_predicate(self) -> None:
+        """matches() is True when both jobs share the identical predicate object."""
+
+        def pred() -> bool:
+            return True
+
+        job1 = make_job(job=noop, predicate=pred)
+        job2 = make_job(job=noop, predicate=pred)
+        assert job1.matches(job2)
+
+    def test_matches_false_with_different_predicate(self) -> None:
+        """matches() is False when jobs have different predicate objects (identity for lambdas)."""
+        job1 = make_job(job=noop, predicate=lambda: True)
+        job2 = make_job(job=noop, predicate=lambda: True)
+        assert not job1.matches(job2)
+
+    def test_matches_false_with_none_vs_predicate(self) -> None:
+        """matches() is False when one job has a predicate and the other has None."""
+        job1 = make_job(job=noop, predicate=lambda: True)
+        job2 = make_job(job=noop, predicate=None)
+        assert not job1.matches(job2)
+        assert not job2.matches(job1)
+
+    def test_matches_true_when_both_predicates_none(self) -> None:
+        """matches() is True when neither job has a predicate."""
+        job1 = make_job(job=noop, predicate=None)
+        job2 = make_job(job=noop, predicate=None)
+        assert job1.matches(job2)
+
+
+class TestDiffFieldsPredicate:
+    def test_diff_fields_detects_predicate_change(self) -> None:
+        """diff_fields() includes 'predicate' when predicates differ (identity for lambdas)."""
+        job1 = make_job(job=noop, predicate=lambda: True)
+        job2 = make_job(job=noop, predicate=lambda: True)
+        assert "predicate" in job1.diff_fields(job2)
+
+    def test_diff_fields_predicate_unchanged_when_same_object(self) -> None:
+        """diff_fields() does not report 'predicate' when both jobs share the same predicate object."""
+
+        def pred() -> bool:
+            return True
+
+        job1 = make_job(job=noop, predicate=pred)
+        job2 = make_job(job=noop, predicate=pred)
+        assert "predicate" not in job1.diff_fields(job2)
+
+    def test_diff_fields_predicate_unchanged_when_both_none(self) -> None:
+        """diff_fields() does not report 'predicate' when neither job has one."""
+        job1 = make_job(job=noop, predicate=None)
+        job2 = make_job(job=noop, predicate=None)
+        assert "predicate" not in job1.diff_fields(job2)

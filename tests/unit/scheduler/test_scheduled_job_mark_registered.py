@@ -31,3 +31,13 @@ def test_mark_registered_keeps_first_db_id_on_double_call() -> None:
     job.mark_registered(99)
 
     assert job.db_id == 42
+
+
+def test_mark_registered_unaffected_by_predicate() -> None:
+    """A job constructed with a predicate registers normally — predicate doesn't interfere."""
+    job = ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="job", predicate=lambda: True)
+    assert job.db_id is None
+
+    job.mark_registered(7)
+
+    assert job.db_id == 7

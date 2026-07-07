@@ -991,7 +991,7 @@ export interface components {
          *     serialises back to plain strings in JSON responses.
          * @enum {string}
          */
-        ExecutionStatus: "success" | "error" | "cancelled" | "timed_out";
+        ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */

@@ -120,3 +120,10 @@ class ScheduledJobRegistration:
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     """Resolved overlap mode (single/restart/queued/parallel). Persisted to
     the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""
+
+    predicate_description: str | None = None
+    """Python repr of the job's predicate, or None if no ``where=`` was given."""
+
+    human_description: str | None = None
+    """Stable, human-readable summary of the predicate (from ``callable_stable_name()``,
+    with a ``hasattr`` fallback to the predicate's own ``summarize()``), or None."""

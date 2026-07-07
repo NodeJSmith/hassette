@@ -65,6 +65,7 @@ class ExecutionStatus(StrEnum):
     ERROR = "error"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
+    SKIPPED = "skipped"
 
 
 QuerySourceTier = Literal["app", "framework", "all"]
@@ -142,6 +143,15 @@ class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
     def __call__(self, value: EventT, /) -> bool: ...
+
+
+SchedulerPredicate = Callable[[], bool] | Callable[["ScheduledJob"], bool]
+"""Type representing a scheduler predicate: zero-arg (common case) or one-arg (receives
+the ``ScheduledJob`` instance for access to ``args``/``kwargs``/other metadata).
+
+Distinct from :class:`Predicate`, which requires exactly one event argument for bus
+subscriptions. Scheduler predicates are synchronous only — async callables raise
+``TypeError`` at registration time."""
 
 
 class Condition(Protocol[V_contra]):
