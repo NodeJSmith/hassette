@@ -6,7 +6,7 @@ Tests cover:
 - run_job_with_guard() threads trigger_mode through for PARALLEL mode (direct call)
 - run_job_with_guard() threads trigger_mode through for non-parallel modes (invoke lambda)
 - run_job_with_guard() defaults trigger_mode to None (existing call sites unaffected)
-- trigger_now() finds a job on the live heap by db_id, or raises ValueError when absent
+- trigger_job() finds a job on the live heap by db_id, or raises ValueError when absent
 """
 
 import asyncio
@@ -109,22 +109,22 @@ class TestRunJobWithGuardTriggerMode:
 
 class TestTriggerNow:
     async def test_returns_job_found_on_heap(self) -> None:
-        """trigger_now() returns the ScheduledJob whose db_id matches on the live heap."""
+        """trigger_job() returns the ScheduledJob whose db_id matches on the live heap."""
         svc = make_scheduler_service()
         job = make_job()
         job.db_id = 42
         svc.get_all_jobs = AsyncMock(return_value=[job])  # pyright: ignore[reportAttributeAccessIssue]
 
-        result = await svc.trigger_now(42)
+        result = await svc.trigger_job(42)
 
         assert result is job
 
     async def test_raises_value_error_for_missing_db_id(self) -> None:
-        """trigger_now() raises ValueError when no job on the heap matches db_id."""
+        """trigger_job() raises ValueError when no job on the heap matches db_id."""
         svc = make_scheduler_service()
         other_job = make_job()
         other_job.db_id = 1
         svc.get_all_jobs = AsyncMock(return_value=[other_job])  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(ValueError, match="not currently triggerable"):
-            await svc.trigger_now(999)
+            await svc.trigger_job(999)

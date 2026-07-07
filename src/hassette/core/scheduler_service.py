@@ -504,7 +504,7 @@ class SchedulerService(Service):
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()
 
-    async def trigger_now(self, db_id: int) -> "ScheduledJob":
+    async def trigger_job(self, db_id: int) -> "ScheduledJob":
         """Look up a job on the live scheduler heap by its database id.
 
         Used by the manual-trigger route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)

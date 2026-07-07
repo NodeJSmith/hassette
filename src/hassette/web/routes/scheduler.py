@@ -53,7 +53,7 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTrigge
     before dispatch to prevent a second scheduled fire at its original time.
     """
     try:
-        job = await scheduler_service.trigger_now(job_id)
+        job = await scheduler_service.trigger_job(job_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

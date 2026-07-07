@@ -50,7 +50,7 @@ class TestTriggerJobEndpoint:
     async def test_returns_202_for_active_recurring_job(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST returns 202 and dispatches through run_job_with_guard for an active job."""
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
@@ -62,8 +62,8 @@ class TestTriggerJobEndpoint:
         mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
 
     async def test_returns_409_for_unknown_job_id(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """POST returns 409 when trigger_now() raises ValueError (job not on the heap)."""
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(
+        """POST returns 409 when trigger_job() raises ValueError (job not on the heap)."""
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(
             side_effect=ValueError("Job is not currently triggerable")
         )
 
@@ -86,7 +86,7 @@ class TestTriggerJobEndpoint:
     ) -> None:
         """SINGLE blocks on a held guard (409); RESTART/QUEUED/PARALLEL dispatch through it (202)."""
         job = make_scheduled_job(mode=mode, trigger=RECURRING_TRIGGER, guard_running=True)
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
@@ -103,7 +103,7 @@ class TestTriggerJobEndpoint:
     ) -> None:
         """POST for a still-pending one-shot job (After trigger) dequeues before dispatch."""
         job = make_scheduled_job(trigger=After(seconds=30))
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
@@ -116,7 +116,7 @@ class TestTriggerJobEndpoint:
     ) -> None:
         """POST for a job with trigger=None (bare one-shot scheduling) is dequeued before dispatch."""
         job = make_scheduled_job(trigger=None)
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
@@ -126,7 +126,7 @@ class TestTriggerJobEndpoint:
     async def test_recurring_job_is_not_dequeued(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST for a recurring job (Every trigger) does not dequeue it from the heap."""
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         response = await client.post("/api/scheduler/jobs/1/trigger")
 
@@ -136,7 +136,7 @@ class TestTriggerJobEndpoint:
     async def test_dispatches_with_manual_trigger_mode(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """POST spawns run_job_with_guard with trigger_mode='manual' via the task bucket."""
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
-        mock_hassette.scheduler_service.trigger_now = AsyncMock(return_value=job)
+        mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
         await client.post("/api/scheduler/jobs/1/trigger")
 
