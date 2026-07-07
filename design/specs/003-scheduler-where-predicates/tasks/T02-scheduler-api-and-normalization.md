@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add where= parameter to Scheduler API with normalization and arity detection"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#3", "FR#9", "FR#10", "FR#16", "AC#5", "AC#6", "AC#10"]
 ---

@@ -64,8 +64,9 @@ Examples:
 """
 
 import asyncio
+import inspect
 import typing
-from collections.abc import Coroutine, Mapping
+from collections.abc import Coroutine, Mapping, Sequence
 from typing import Any, Literal
 
 from whenever import ZonedDateTime
@@ -85,7 +86,7 @@ from .triggers import After, Cron, Daily, Every, Once
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.types import JobCallable
-    from hassette.types.types import SchedulerErrorHandlerType
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 class Scheduler(Resource):
@@ -372,6 +373,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a trigger object.
 
@@ -412,9 +414,24 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) evaluated at dispatch
+                time, before the handler runs. A predicate accepts zero arguments
+                (the common case) or one argument (the ``ScheduledJob`` instance, for
+                access to ``job.args``/``job.kwargs``/other metadata). A sequence is
+                collapsed into a single closure that ANDs all members together — each
+                member must itself be zero-arg. Predicates must be synchronous;
+                async callables raise ``TypeError`` here. When the predicate returns
+                ``False``, the handler does not run and a ``'skipped'`` execution is
+                recorded instead.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.
+
+        Raises:
+            TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
+                ``where`` is (or contains) an async callable, or a callable with more
+                than one required positional parameter, or required keyword-only
+                parameters.
         """
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
@@ -424,6 +441,8 @@ class Scheduler(Resource):
                 f"trigger must implement TriggerProtocol; got {type(trigger).__name__}. "
                 "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
             )
+
+        predicate, predicate_wants_job = _normalize_where(where)
 
         parent = self.parent
         assert parent is not None
@@ -470,7 +489,9 @@ class Scheduler(Resource):
             instance_name=instance_name,
             source_tier=source_tier,
             mode=resolved_mode,
+            predicate=predicate,
         )
+        job._predicate_wants_job = predicate_wants_job
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
         # source_location/registration_source are NOT passed here; add_job backfills them.
@@ -491,6 +512,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run after a fixed delay (one-shot).
 
@@ -514,6 +536,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -534,6 +558,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_once(
@@ -552,6 +577,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
@@ -580,6 +606,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -600,6 +628,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_every(
@@ -619,6 +648,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run at a fixed interval.
 
@@ -644,6 +674,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -664,6 +696,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_minutely(
@@ -681,6 +714,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N minutes.
 
@@ -704,6 +738,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -726,6 +762,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_hourly(
@@ -743,6 +780,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N hours.
 
@@ -766,6 +804,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -788,6 +828,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_daily(
@@ -805,6 +846,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once per day at a fixed wall-clock time.
 
@@ -831,6 +873,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -851,6 +895,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_cron(
@@ -868,6 +913,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a cron expression.
 
@@ -895,6 +941,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -918,4 +966,94 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
+
+
+def _normalize_where(
+    where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None",
+) -> tuple["SchedulerPredicate | None", bool]:
+    """Normalize a ``where=`` clause into a stored predicate and its dispatch-arity flag.
+
+    Returns a ``(predicate, wants_job)`` tuple:
+
+    - ``where=None`` -> ``(None, False)``.
+    - A single callable is stored directly, and its signature is inspected once
+      (via ``_predicate_wants_job``) to decide whether dispatch calls it with zero
+      or one (``ScheduledJob``) argument.
+    - A sequence of predicates collapses into a single zero-arg closure that ANDs
+      the results (``wants_job=False`` — closures never receive arguments). Each
+      member must be synchronous; arity is not inspected per-member since they are
+      always invoked with zero arguments.
+
+    Distinct from the bus's ``normalize_where()``/``AllOf`` combinator, which are
+    typed for the one-arg ``Predicate[EventT]`` protocol and cannot accept zero-arg
+    scheduler predicates.
+    """
+    if where is None:
+        return None, False
+
+    if callable(where):
+        return where, _predicate_wants_job(where)
+
+    preds = tuple(where)
+    for pred in preds:
+        if inspect.iscoroutinefunction(pred):
+            raise TypeError(f"Scheduler predicates must be synchronous; got async callable {pred!r} in where=")
+
+    def _all_predicates() -> bool:
+        # Each member must be zero-arg (design invariant: sequence members that need
+        # ScheduledJob wrap it in a closure) — Pyright can't verify this statically
+        # because SchedulerPredicate's union also permits the one-arg variant.
+        return all(p() for p in preds)  # pyright: ignore[reportCallIssue]
+
+    return _all_predicates, False
+
+
+def _predicate_wants_job(predicate: "SchedulerPredicate") -> bool:
+    """Inspect a predicate's signature once to determine its dispatch arity.
+
+    Args:
+        predicate: The single callable to inspect (not a sequence).
+
+    Returns:
+        ``True`` when the predicate accepts exactly one positional parameter
+        (the ``ScheduledJob`` instance); ``False`` when it accepts zero.
+
+    Raises:
+        TypeError: If the predicate is async, has more than one required
+            positional parameter, or has any required keyword-only parameters —
+            none of these can be satisfied by the ``predicate()`` / ``predicate(job)``
+            calling convention used at dispatch time.
+    """
+    if inspect.iscoroutinefunction(predicate):
+        raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
+
+    try:
+        sig = inspect.signature(predicate)
+    except (TypeError, ValueError):
+        # No introspectable signature (e.g. certain builtins) — fail safe to zero-arg;
+        # a predicate that actually needs an argument will raise at call time instead.
+        return False
+
+    positional: list[inspect.Parameter] = []
+    required_keyword_only: list[inspect.Parameter] = []
+    for param in sig.parameters.values():
+        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            positional.append(param)
+        elif param.kind is inspect.Parameter.KEYWORD_ONLY and param.default is inspect.Parameter.empty:
+            required_keyword_only.append(param)
+
+    required_positional = [p for p in positional if p.default is inspect.Parameter.empty]
+    if len(required_positional) > 1:
+        raise TypeError(
+            f"Scheduler predicate {predicate!r} has {len(required_positional)} required positional "
+            "parameters; predicates must accept zero or one parameter (the ScheduledJob)"
+        )
+    if required_keyword_only:
+        raise TypeError(
+            f"Scheduler predicate {predicate!r} has required keyword-only parameters; predicates are "
+            "called as predicate() or predicate(job) and cannot supply keyword arguments"
+        )
+
+    return len(positional) == 1
