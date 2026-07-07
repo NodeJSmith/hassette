@@ -60,6 +60,8 @@ Select a scheduled job instead of a handler and the detail panel adds a **Run No
 
 The execution history updates with the new run over the WebSocket connection, no refresh needed. A manually triggered row carries a **manual** badge next to its status, so you can tell it apart from a scheduled fire at a glance.
 
+![Manual trigger badge in execution history](../../_static/web_ui_manual_trigger_badge.png)
+
 ## Tracing a Single Execution
 
 Click an execution ID in the invocations table. Hassette opens the [Logs page](logs.md) filtered to that execution with `?execution_id=<id>` in the URL. Every log line the handler emitted during that run appears together, in order.

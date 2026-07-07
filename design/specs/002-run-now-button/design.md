@@ -1,7 +1,7 @@
 # Design: Run Now Button for Scheduled Jobs
 
 **Date:** 2026-07-06
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-06-run-now-button/research.md
 
