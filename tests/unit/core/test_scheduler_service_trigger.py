@@ -38,7 +38,7 @@ def make_scheduler_service() -> SchedulerService:
     svc.task_bucket.make_async_adapter = MagicMock(return_value=AsyncMock())
 
     def _spawn(coro, **_kwargs):
-        return asyncio.get_event_loop().create_task(coro)
+        return asyncio.get_running_loop().create_task(coro)
 
     svc.task_bucket.spawn = _spawn
 
@@ -107,7 +107,7 @@ class TestRunJobWithGuardTriggerMode:
         svc.run_job.assert_called_once_with(job, trigger_mode=None)
 
 
-class TestTriggerNow:
+class TestTriggerJob:
     async def test_returns_job_found_on_heap(self) -> None:
         """trigger_job() returns the ScheduledJob whose db_id matches on the live heap."""
         svc = make_scheduler_service()
