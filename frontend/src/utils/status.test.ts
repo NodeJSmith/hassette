@@ -37,6 +37,7 @@ describe("executionStatusKind", () => {
     expect(executionStatusKind("timed_out")).toBe("warn");
     expect(executionStatusKind("cancelled")).toBe("cancel");
     expect(executionStatusKind("error")).toBe("err");
+    expect(executionStatusKind("skipped")).toBe("mute");
   });
 
   it("does not treat cancelled as an error", () => {

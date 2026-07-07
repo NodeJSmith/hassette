@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add skipped status to frontend UI and where= documentation"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#13", "AC#7"]
 ---

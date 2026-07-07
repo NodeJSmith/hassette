@@ -90,6 +90,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string): DetailStat
     { label: "Timed Out", value: job.timed_out, tone: job.timed_out > 0 ? "warn" : undefined },
   ];
   if (job.cancelled > 0) cells.push({ label: "Cancelled", value: job.cancelled, tone: "cancel" });
+  if (job.skipped > 0) cells.push({ label: "Skipped", value: job.skipped, tone: "mute" });
   cells.push({ label: "Mode", value: job.mode });
   if (job.thread_leaked > 0) cells.push({ label: "Thread Leaked", value: job.thread_leaked, tone: "warn" });
   if (job.suppressed_count > 0) cells.push({ label: "Suppressed", value: job.suppressed_count, tone: "mute" });
@@ -126,6 +127,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
   const jobKind = jobHealthKind(job);
+  const predicateDescription = job.human_description || job.predicate_description || null;
 
   let nextRunText: string | null = null;
   if (job.next_run) nextRunText = `next ${nextRunLabel}`;
@@ -148,6 +150,11 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       chips={<ScheduleChips job={job} />}
       extras={
         <>
+          {predicateDescription && (
+            <p class={layoutStyles.subtitle} data-testid="job-predicate-description">
+              {predicateDescription}
+            </p>
+          )}
           {nextRunText && (
             <div class={layoutStyles.nextRun} data-testid="job-next-run">
               <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>

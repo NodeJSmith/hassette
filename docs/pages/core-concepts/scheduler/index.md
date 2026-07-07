@@ -48,6 +48,18 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 
 `name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `ValueError`. See [Scheduling Methods](methods.md) for details.
 
+## Conditional Execution
+
+`where=` gates a job on a condition, checked right before the handler runs. When the predicate returns `False`, the handler does not run — no guard clause needed inside the job body.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
+```
+
+A predicate takes zero arguments (the common case) or one argument — the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome; only a one-shot job (`run_in`, `run_once`) is consumed when skipped.
+
+A skipped run still shows up in telemetry, with a `skipped` status and no error — the [monitoring UI](../../web-ui/index.md) distinguishes "didn't run because the condition wasn't met" from "ran and failed." See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and fail-open exception handling.
+
 ## Verify It's Working
 
 Run `hassette job` to see all scheduled jobs for your running instance, where `<key>` is the app identifier from [`hassette.toml`](../configuration/index.md) (e.g., `delay_app`). Run `hassette log --app <key> --since 5m` to see job execution output.

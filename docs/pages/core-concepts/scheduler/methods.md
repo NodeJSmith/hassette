@@ -161,6 +161,30 @@ These parameters are accepted by every scheduling method. Individual method tabl
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple \| None` | `None` | Positional arguments passed to the handler at call time. |
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at call time. |
+| `where` | `SchedulerPredicate \| Sequence[SchedulerPredicate] \| None` | `None` | Predicate (or sequence of predicates) gating execution. See [Conditional execution with `where=`](#conditional-execution-with-where). |
+
+## Conditional execution with where
+
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate takes zero arguments (the common case, checking HA state or other external condition) or one argument, the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] instance, for access to `job.args` and `job.kwargs`. Predicates must be synchronous — an async callable raises `TypeError` at registration time, along with predicates that require more than one positional argument.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
+```
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
+```
+
+A sequence of predicates collapses into a single closure that ANDs every member together — each member must itself be zero-arg. Wrap a job-arg predicate in its own closure before including it in a sequence.
+
+A predicate that raises an exception is fail-open: the exception is logged as an error (with traceback) and the job runs anyway. Missed automations are worse than extra ones for home control, so a broken predicate never silently blocks a job forever.
+
+Skip semantics differ by job type:
+
+- **Recurring jobs** (`run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) keep their schedule when skipped — the next occurrence is computed and enqueued the same as a normal run.
+- **One-shot jobs** (`run_in`, `run_once`) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry.
+
+A skipped run produces an execution record with `status="skipped"` instead of invoking the handler, visible in the [monitoring UI](../../web-ui/index.md) alongside `predicate_description` and `human_description` on the job.
 
 ## Passing arguments to handlers
 
