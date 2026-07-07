@@ -35,7 +35,7 @@ class ListenerRegistration:
     """Listener ordering priority."""
 
     predicate_description: str | None
-    """Human-readable description of the predicate, or None."""
+    """Python repr of the listener's predicate, or None if no ``where=`` was given."""
 
     human_description: str | None
     """Stable, human-readable summary from predicate.summarize(), or None."""

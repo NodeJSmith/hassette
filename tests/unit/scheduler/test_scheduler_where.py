@@ -21,53 +21,70 @@ PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
 
 class TestPredicateArityDetection:
-    """Unit tests for `_predicate_wants_job()` — inspects a single callable's signature."""
+    """Unit tests for `_predicate_wants_job()` — annotation-based ScheduledJob detection."""
 
     def test_zero_arg_predicate_wants_job_false(self) -> None:
-        """A predicate with no parameters sets wants_job=False."""
-
         def pred() -> bool:
             return True
 
         assert _predicate_wants_job(pred) is False
 
-    def test_one_required_arg_predicate_wants_job_true(self) -> None:
-        """A predicate with one required positional parameter sets wants_job=True."""
-
+    def test_annotated_scheduled_job_wants_job_true(self) -> None:
         def pred(_job: ScheduledJob) -> bool:
             return True
 
         assert _predicate_wants_job(pred) is True
 
-    def test_one_optional_arg_predicate_wants_job_true(self) -> None:
-        """A predicate with one optional positional parameter also sets wants_job=True."""
+    def test_optional_scheduled_job_annotation_wants_job_true(self) -> None:
+        """A union containing ScheduledJob (e.g. ScheduledJob | None) is detected."""
 
         def pred(_job: ScheduledJob | None = None) -> bool:
             return True
 
         assert _predicate_wants_job(pred) is True
 
-    def test_more_than_one_required_positional_raises_type_error(self) -> None:
-        """More than one required positional parameter raises TypeError at registration."""
+    def test_scheduled_job_with_extra_optional_wants_job_true(self) -> None:
+        """ScheduledJob annotation on the first param is detected regardless of extras."""
 
-        def pred(_a: int, _b: int) -> bool:
+        def pred(_job: ScheduledJob, _threshold: float = 0.5) -> bool:
             return True
 
-        with pytest.raises(TypeError, match="required positional"):
-            _predicate_wants_job(pred)
+        assert _predicate_wants_job(pred) is True
 
-    def test_required_keyword_only_parameter_raises_type_error(self) -> None:
-        """A required keyword-only parameter raises TypeError — dispatch can't supply it."""
+    def test_unannotated_one_arg_wants_job_false(self) -> None:
+        """An unannotated positional parameter does NOT trigger job injection."""
 
-        def pred(*, flag: bool) -> bool:
-            return flag
+        def pred(_x) -> bool:
+            return True
+
+        assert _predicate_wants_job(pred) is False
+
+    def test_wrong_annotation_wants_job_false(self) -> None:
+        """A positional parameter annotated with a non-ScheduledJob type is ignored."""
+
+        def pred(_x: int) -> bool:
+            return True
+
+        assert _predicate_wants_job(pred) is False
+
+    def test_multiple_positional_no_scheduled_job_wants_job_false(self) -> None:
+        """Multiple positional params without ScheduledJob annotations are zero-arg."""
+
+        def pred(_a: int, _b: str) -> bool:
+            return True
+
+        assert _predicate_wants_job(pred) is False
+
+    def test_keyword_only_scheduled_job_raises_type_error(self) -> None:
+        """ScheduledJob on a keyword-only parameter raises TypeError — dispatch is positional."""
+
+        def pred(*, _job: ScheduledJob) -> bool:
+            return True
 
         with pytest.raises(TypeError, match="keyword-only"):
             _predicate_wants_job(pred)
 
     def test_async_predicate_raises_type_error(self) -> None:
-        """An async predicate raises TypeError at registration time."""
-
         async def pred() -> bool:
             return True
 
@@ -75,27 +92,26 @@ class TestPredicateArityDetection:
             _predicate_wants_job(pred)
 
     def test_no_introspectable_signature_defaults_to_zero_arg(self) -> None:
-        """A predicate whose signature can't be inspected fails safe to zero-arg."""
-
         def pred() -> bool:
             return True
 
-        with patch("hassette.scheduler.scheduler.inspect.signature", side_effect=ValueError("no signature")):
+        with patch("hassette.scheduler.scheduler.get_typed_signature", side_effect=ValueError("no signature")):
             assert _predicate_wants_job(pred) is False
+
+    def test_lambda_wants_job_false(self) -> None:
+        """Lambdas have no annotations and are always zero-arg."""
+        assert _predicate_wants_job(lambda: True) is False
 
 
 class TestNormalizeWhere:
     """Unit tests for `_normalize_where()` — the single entry point used by `schedule()`."""
 
     def test_none_returns_none_predicate_and_false(self) -> None:
-        """where=None normalizes to (None, False)."""
         predicate, wants_job = _normalize_where(None)
         assert predicate is None
         assert wants_job is False
 
     def test_single_zero_arg_callable_stored_directly(self) -> None:
-        """A single zero-arg callable is stored directly, not wrapped."""
-
         def pred() -> bool:
             return True
 
@@ -103,9 +119,7 @@ class TestNormalizeWhere:
         assert predicate is pred
         assert wants_job is False
 
-    def test_single_one_arg_callable_sets_wants_job_true(self) -> None:
-        """A single one-arg callable is stored directly and wants_job is True."""
-
+    def test_single_annotated_callable_sets_wants_job_true(self) -> None:
         def pred(_job: ScheduledJob) -> bool:
             return True
 
@@ -114,7 +128,6 @@ class TestNormalizeWhere:
         assert wants_job is True
 
     def test_sequence_collapses_into_zero_arg_closure_anding_results(self) -> None:
-        """A sequence of predicates collapses into a single zero-arg closure that ANDs them."""
         calls: list[str] = []
 
         def pred_true() -> bool:
@@ -135,23 +148,27 @@ class TestNormalizeWhere:
         assert calls == ["true", "false"]
 
     def test_sequence_all_true_predicates_returns_true(self) -> None:
-        """A sequence where every predicate returns True collapses to a True result."""
         predicate, _ = _normalize_where([lambda: True, lambda: True])
         assert predicate is not None
         assert predicate() is True
 
     def test_sequence_with_async_member_raises_type_error_at_registration(self) -> None:
-        """An async predicate inside a sequence raises TypeError at registration time."""
-
         async def async_pred() -> bool:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
             _normalize_where([lambda: True, async_pred])
 
+    def test_sequence_with_scheduled_job_annotation_raises_type_error(self) -> None:
+        """A sequence member with a ScheduledJob annotation raises TypeError."""
+
+        def job_pred(_job: ScheduledJob) -> bool:
+            return True
+
+        with pytest.raises(TypeError, match="sequence"):
+            _normalize_where([lambda: True, job_pred])
+
     def test_sequence_closure_captures_tuple_not_mutable_list(self) -> None:
-        """The closure captures preds as a tuple — later mutation of the original list
-        passed by the caller does not affect the already-collapsed predicate."""
         preds: list = [lambda: True]
 
         predicate, _ = _normalize_where(preds)
@@ -176,7 +193,7 @@ class TestScheduleAcceptsWhere:
             assert job.predicate is pred
             assert job._predicate_wants_job is False
 
-    async def test_schedule_stores_one_arg_predicate_with_wants_job_true(self) -> None:
+    async def test_schedule_stores_annotated_predicate_with_wants_job_true(self) -> None:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
 
@@ -244,8 +261,6 @@ class TestConvenienceMethodsForwardWhereKwarg:
     """Verify each convenience method passes where= through to schedule() as a kwarg."""
 
     async def _assert_forwards_where(self, call) -> None:
-        """Patch scheduler.schedule with a fresh coroutine-returning stub and assert the
-        where= kwarg was forwarded from the convenience method call."""
         scheduler = make_scheduler()
 
         async def fake_schedule(*_args, **_kwargs) -> MagicMock:

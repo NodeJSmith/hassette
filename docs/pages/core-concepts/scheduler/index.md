@@ -7,7 +7,7 @@ The scheduler runs functions after a delay, at a specific time, or on a repeatin
 
 ## How It Works
 
-All scheduling methods delegate to `schedule(func, trigger)`, which pairs a callable with a trigger object (a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule). Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
+All scheduling methods delegate to `schedule(func, trigger)`. `schedule` pairs a callable with a trigger object — a value like `After(seconds=5)` or `Daily(at="07:00")` that describes the schedule. Sync callables (plain `def`) are wrapped in a thread pool automatically, so blocking I/O is safe without extra setup.
 
 Each call returns a [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] handle. The handle cancels the job, inspects its next fire time, or checks whether it has already run. [Job Management](management.md) covers the full handle API.
 
@@ -44,21 +44,25 @@ The `delay` parameter accepts seconds as a `float`. The job fires once and does 
 The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at midnight local time. `run_daily` is DST-safe — it fires at the local wall-clock time regardless of clock changes.
 
 ??? note "Synchronous usage (AppSync only)"
-    [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop, so `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
+    [`AppSync`][hassette.app.app.AppSync] is an alternative base class for automations that must call blocking libraries. Its lifecycle hooks run in a worker thread outside the async event loop. `self.scheduler.sync` exposes a [`SchedulerSyncFacade`][hassette.scheduler.sync.SchedulerSyncFacade] that mirrors all scheduling methods as blocking calls. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
 
 `name=` identifies each job in logs and the [monitoring UI](../../web-ui/index.md). It must be unique within the app instance — duplicates raise `ValueError`. See [Scheduling Methods](methods.md) for details.
 
 ## Conditional Execution
 
-`where=` gates a job on a condition, checked right before the handler runs. When the predicate returns `False`, the handler does not run — no guard clause needed inside the job body.
+`where=` accepts a predicate — a callable returning `bool` — checked right before the handler runs. When the predicate returns `False`, the handler doesn't run. The job body needs no guard clause of its own.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
 ```
 
-A predicate takes zero arguments (the common case) or one argument — the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome; only a one-shot job (`run_in`, `run_once`) is consumed when skipped.
+A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation takes zero arguments (the common case). A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome. Only a one-shot job (`run_in`, `run_once`) is consumed when skipped.
 
-A skipped run still shows up in telemetry, with a `skipped` status and no error — the [monitoring UI](../../web-ui/index.md) distinguishes "didn't run because the condition wasn't met" from "ran and failed." See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and fail-open exception handling.
+A skipped run still shows up in telemetry, with a `skipped` status and no error. The [monitoring UI](../../web-ui/index.md) distinguishes "didn't run because the condition wasn't met" from "ran and failed."
+
+![Job detail showing a where= predicate, the Skipped stat, and a skipped execution row](../../_static/web_ui_predicate_skipped.png)
+
+See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and fail-open exception handling.
 
 ## Verify It's Working
 

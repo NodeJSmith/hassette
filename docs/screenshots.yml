@@ -218,6 +218,26 @@
   javascript: "document.querySelector('tbody tr')?.click()"
 
 # ===========================================================================
+# Scheduler where= predicate (skipped executions)
+# The predicate_demo app runs a short-interval job gated on motion detection.
+# The demo_stimulator toggles motion on/off, so the job accumulates a mix of
+# success and skipped executions. The longer wait gives the predicate enough
+# firing cycles to accumulate skipped entries in the execution table.
+# ===========================================================================
+
+# Job detail pane showing predicate description, skipped stat, and execution
+# history with skipped entries. JS clicks the job row, then wait_for gates on
+# the predicate description element appearing in the detail pane.
+- url: "http://localhost:{port}/apps/predicate_demo/handlers"
+  output: docs/_static/web_ui_predicate_skipped.png
+  selector: "[data-testid^='job-detail-']"
+  width: 1400
+  height: 1300
+  wait: 6000
+  wait_for: "document.querySelector('[data-testid=\"job-predicate-description\"]')"
+  javascript: "const click=()=>{const r=document.querySelector('[data-testid^=\"unified-row-job-\"]');if(r){r.click();return true}return false};if(!click()){const i=setInterval(()=>{if(click())clearInterval(i)},200)}"
+
+# ===========================================================================
 # Cancelled execution status (restart/replace overlap modes)
 # The bus_overlap and scheduler_overlap example apps self-drive restart-mode
 # handlers/jobs, so their restart entry accumulates cancelled executions.

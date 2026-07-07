@@ -11,7 +11,7 @@ None.
 2. **Sequences collapse into a closure** at registration time (`lambda: all(p() for p in preds)`). No combinator class — the bus's `AllOf` is typed for `Predicate[EventT]` and cannot be reused. This leaves the door open for future composable predicate classes with `__and__`/`__or__`.
 3. **Fail-open on predicate exceptions** — a broken predicate logs a warning and the job runs. Missed actions are worse than extra actions for home automation.
 4. **One-shot jobs are consumed even when skipped** — the developer chose to gate it; the skip is deliberate.
-5. **Predicate arity is inspected once at registration**, stored as a `_predicate_wants_job: bool` flag on `ScheduledJob`. Dispatch uses the flag without re-inspecting.
+5. **Predicate arity is annotation-based**, detected via the shared `get_typed_signature()` / `find_parameter_by_type()` utilities. A positional parameter annotated as `ScheduledJob` triggers one-arg dispatch; unannotated predicates dispatch as zero-arg. Result stored as `_predicate_wants_job: bool` on `ScheduledJob`.
 6. **Skipped executions are recorded in telemetry** with `status='skipped'` and `duration_ms=0.0`, bypassing `_execute()`/`track_execution()` entirely. Visible in the web UI.
 7. **The predicate check inserts in `dispatch_and_log()`** between step 1 (compute next occurrence) and step 2 (run through guard). This ensures recurring jobs continue their schedule even when skipped.
 8. **Scheduler summarization calls `callable_stable_name()` directly** with `hasattr` fallback to `summarize()`, rather than reusing the bus's `summarize_top_level()` (which is typed for `Predicate[EventT]`).
@@ -28,7 +28,7 @@ None.
 ## Design Doc References
 - `## Problem` — the user-facing pain (invisible guards, boilerplate, buried intent)
 - `## Architecture > Predicate storage` — `SchedulerPredicate` type alias, `ScheduledJob.predicate` field, closure normalization
-- `## Architecture > Predicate arity detection` — `inspect.signature` at registration, `_predicate_wants_job` flag, validation rules
+- `## Architecture > Predicate arity detection` — annotation-based via shared `type_utils` utilities, `_predicate_wants_job` flag
 - `## Architecture > Predicate evaluation` — `dispatch_and_log()` interception, `_record_skipped()`, fail-open exception handling
 - `## Architecture > Predicate summarization` — `callable_stable_name()` directly, `hasattr` fallback to `summarize()`
 - `## Architecture > Registration telemetry` — `predicate_description`/`human_description` on `ScheduledJobRegistration`

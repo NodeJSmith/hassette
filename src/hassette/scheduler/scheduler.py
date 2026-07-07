@@ -78,6 +78,7 @@ from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
 from hassette.utils.source_capture import capture_registration_source
+from hassette.utils.type_utils import find_parameter_by_type, get_typed_signature
 
 from .classes import ScheduledJob
 from .sync import SchedulerSyncFacade
@@ -415,11 +416,12 @@ class Scheduler(Resource):
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
             where: Optional predicate (or sequence of predicates) evaluated at dispatch
-                time, before the handler runs. A predicate accepts zero arguments
-                (the common case) or one argument (the ``ScheduledJob`` instance, for
-                access to ``job.args``/``job.kwargs``/other metadata). A sequence is
-                collapsed into a single closure that ANDs all members together — each
-                member must itself be zero-arg. Predicates must be synchronous;
+                time, before the handler runs. A predicate with no ``ScheduledJob``
+                annotation is called with zero arguments (the common case). A predicate
+                with a positional parameter annotated as ``ScheduledJob`` receives the
+                job instance at dispatch time. A sequence is collapsed into a single
+                closure that ANDs all members together — sequence members must not
+                carry a ``ScheduledJob`` annotation. Predicates must be synchronous;
                 async callables raise ``TypeError`` here. When the predicate returns
                 ``False``, the handler does not run and a ``'skipped'`` execution is
                 recorded instead.
@@ -429,9 +431,8 @@ class Scheduler(Resource):
 
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
-                ``where`` is (or contains) an async callable, or a callable with more
-                than one required positional parameter, or required keyword-only
-                parameters.
+                ``where`` is (or contains) an async callable, or a callable with a
+                ``ScheduledJob`` annotation on a keyword-only parameter.
         """
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
@@ -978,13 +979,14 @@ def _normalize_where(
     Returns a ``(predicate, wants_job)`` tuple:
 
     - ``where=None`` -> ``(None, False)``.
-    - A single callable is stored directly, and its signature is inspected once
+    - A single callable is stored directly, and its annotations are inspected once
       (via ``_predicate_wants_job``) to decide whether dispatch calls it with zero
-      or one (``ScheduledJob``) argument.
+      or one (``ScheduledJob``) argument. A parameter annotated as ``ScheduledJob``
+      triggers one-arg dispatch; unannotated predicates dispatch as zero-arg.
     - A sequence of predicates collapses into a single zero-arg closure that ANDs
-      the results (``wants_job=False`` — closures never receive arguments). Each
-      member must be synchronous; arity is not inspected per-member since they are
-      always invoked with zero arguments.
+      the results (``wants_job=False``). Each member must be synchronous and must
+      not carry a ``ScheduledJob`` annotation (sequence members are always called
+      with zero arguments).
 
     Distinct from the bus's ``normalize_where()``/``AllOf`` combinator, which are
     typed for the one-arg ``Predicate[EventT]`` protocol and cannot accept zero-arg
@@ -1000,6 +1002,11 @@ def _normalize_where(
     for pred in preds:
         if inspect.iscoroutinefunction(pred):
             raise TypeError(f"Scheduler predicates must be synchronous; got async callable {pred!r} in where=")
+        if _predicate_wants_job(pred):
+            raise TypeError(
+                f"Scheduler predicate {pred!r} in a sequence has a ScheduledJob annotation; "
+                "sequence members are called with zero arguments. Use a closure to wrap it."
+            )
 
     def _all_predicates() -> bool:
         # Each member must be zero-arg (design invariant: sequence members that need
@@ -1011,49 +1018,43 @@ def _normalize_where(
 
 
 def _predicate_wants_job(predicate: "SchedulerPredicate") -> bool:
-    """Inspect a predicate's signature once to determine its dispatch arity.
+    """Inspect a predicate's type annotations to determine its dispatch arity.
+
+    Uses the shared ``find_parameter_by_type`` / ``get_typed_signature`` utilities
+    from ``hassette.utils.type_utils`` — the same annotation resolution pipeline the
+    bus DI system uses for handler parameters.
+
+    A predicate that wants the ``ScheduledJob`` instance must annotate a positional
+    parameter with ``ScheduledJob`` (or a union containing it, e.g.
+    ``ScheduledJob | None``). Unannotated parameters are ignored — lambdas and
+    plain ``def pred():`` both dispatch as zero-arg.
 
     Args:
         predicate: The single callable to inspect (not a sequence).
 
     Returns:
-        ``True`` when the predicate accepts exactly one positional parameter
-        (the ``ScheduledJob`` instance); ``False`` when it accepts zero.
+        ``True`` when a positional parameter carries a ``ScheduledJob`` annotation;
+        ``False`` otherwise.
 
     Raises:
-        TypeError: If the predicate is async, has more than one required
-            positional parameter, or has any required keyword-only parameters —
-            none of these can be satisfied by the ``predicate()`` / ``predicate(job)``
-            calling convention used at dispatch time.
+        TypeError: If the predicate is async, or if a ``ScheduledJob`` annotation
+            appears on a keyword-only parameter (dispatch passes the job positionally).
     """
     if inspect.iscoroutinefunction(predicate):
         raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
 
     try:
-        sig = inspect.signature(predicate)
+        sig = get_typed_signature(predicate)
     except (TypeError, ValueError):
-        # No introspectable signature (e.g. certain builtins) — fail safe to zero-arg;
-        # a predicate that actually needs an argument will raise at call time instead.
         return False
 
-    positional: list[inspect.Parameter] = []
-    required_keyword_only: list[inspect.Parameter] = []
-    for param in sig.parameters.values():
-        if param.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
-            positional.append(param)
-        elif param.kind is inspect.Parameter.KEYWORD_ONLY and param.default is inspect.Parameter.empty:
-            required_keyword_only.append(param)
+    match = find_parameter_by_type(sig, ScheduledJob)
+    if match is None:
+        return False
 
-    required_positional = [p for p in positional if p.default is inspect.Parameter.empty]
-    if len(required_positional) > 1:
+    if match.kind is inspect.Parameter.KEYWORD_ONLY:
         raise TypeError(
-            f"Scheduler predicate {predicate!r} has {len(required_positional)} required positional "
-            "parameters; predicates must accept zero or one parameter (the ScheduledJob)"
+            f"Scheduler predicate {predicate!r} annotates keyword-only parameter "
+            f"'{match.name}' as ScheduledJob; the job is passed positionally"
         )
-    if required_keyword_only:
-        raise TypeError(
-            f"Scheduler predicate {predicate!r} has required keyword-only parameters; predicates are "
-            "called as predicate() or predicate(job) and cannot supply keyword arguments"
-        )
-
-    return len(positional) == 1
+    return True

@@ -313,7 +313,7 @@ class SchedulerService(Service):
         """Dispatch a job and log its execution.
 
         Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
-        run-through-guard → remove-if-marked.
+        predicate check → run-through-guard → remove-if-marked.
 
         The current due fire ALWAYS runs once popped. Computing the next occurrence
         happens first so the next tick is on the heap before the run completes, enabling
@@ -374,9 +374,9 @@ class SchedulerService(Service):
         else:
             remove_after_fire = True
 
-        # Step 1.5: Evaluate the job's predicate (if any) before running the handler.
+        # Step 2: Evaluate the job's predicate (if any) before running the handler.
         # This must come after step 1 (next occurrence computed/enqueued) so a skipped
-        # recurring job still continues its schedule, and before step 2 (guard/execution)
+        # recurring job still continues its schedule, and before step 3 (guard/execution)
         # so a skip never invokes the handler.
         if job.predicate is not None:
             try:
@@ -393,28 +393,22 @@ class SchedulerService(Service):
                 self.logger.debug("Predicate returned False for job %s — skipping", job)
                 self._record_skipped(job)
                 if remove_after_fire:
-                    try:
-                        await self._remove_job(job)
-                    except Exception:
-                        self.logger.exception("Error removing skipped job %s", job)
+                    await self._try_remove_job(job, "skipped")
                 return
 
-        # Step 2: Run the current due fire through the mode guard.
+        # Step 3: Run the current due fire through the mode guard.
         try:
             await self.run_job_with_guard(job)
         except asyncio.CancelledError:
-            # Step 3 is skipped on cancellation: a job marked for removal stays in
+            # Step 4 is skipped on cancellation: a job marked for removal stays in
             # _jobs_by_name until Scheduler.on_shutdown clears it unconditionally. This
             # only happens during shutdown-driven task cancellation.
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
-        # Step 3: Remove if marked (trigger exhausted or raised, or one-shot).
+        # Step 4: Remove if marked (trigger exhausted or raised, or one-shot).
         if remove_after_fire:
-            try:
-                await self._remove_job(job)
-            except Exception:
-                self.logger.exception("Error removing exhausted job %s", job)
+            await self._try_remove_job(job, "exhausted")
 
     def _record_skipped(self, job: "ScheduledJob") -> None:
         """Build and enqueue a 'skipped' ExecutionRecord for a job whose predicate returned False.
@@ -445,6 +439,18 @@ class SchedulerService(Service):
             execution_id=str(uuid_utils.uuid7()),
         )
         self._executor.enqueue_record(record)
+
+    async def _try_remove_job(self, job: "ScheduledJob", reason: str) -> None:
+        """Remove a job, logging any exception without propagating it.
+
+        Args:
+            job: The job to remove.
+            reason: Why the job is being removed (e.g. "skipped", "exhausted") — used in the log message.
+        """
+        try:
+            await self._remove_job(job)
+        except Exception:
+            self.logger.exception("Error removing %s job %s", reason, job)
 
     async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.

@@ -239,8 +239,8 @@ class ScheduledJob:
     """
 
     _predicate_wants_job: bool = field(default=False, init=False, repr=False, compare=False)
-    """Whether ``predicate`` accepts a ``ScheduledJob`` argument (one-arg) vs no arguments
-    (zero-arg). Set by ``Scheduler.schedule()`` after inspecting the predicate's signature
+    """Whether ``predicate`` has a positional parameter annotated as ``ScheduledJob``.
+    Set by ``Scheduler.schedule()`` after inspecting the predicate's type annotations
     once at registration time; dispatch uses this flag without re-inspecting."""
 
     guard: ExecutionModeGuard = field(init=False, compare=False)

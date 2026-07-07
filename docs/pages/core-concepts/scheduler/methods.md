@@ -165,26 +165,28 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 ## Conditional execution with where
 
-`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate takes zero arguments (the common case, checking HA state or other external condition) or one argument, the [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] instance, for access to `job.args` and `job.kwargs`. Predicates must be synchronous — an async callable raises `TypeError` at registration time, along with predicates that require more than one positional argument.
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
 ```
 
+A predicate that needs the job must use a named function with a `ScheduledJob` type annotation — lambdas cannot carry annotations and are always called with zero arguments.
+
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
 ```
 
-A sequence of predicates collapses into a single closure that ANDs every member together — each member must itself be zero-arg. Wrap a job-arg predicate in its own closure before including it in a sequence.
+A sequence of predicates collapses into a single closure that ANDs every member together. Each member must itself be zero-arg (no `ScheduledJob` annotation). Wrap a job-arg predicate in its own closure before including it in a sequence.
 
-A predicate that raises an exception is fail-open: the exception is logged as an error (with traceback) and the job runs anyway. Missed automations are worse than extra ones for home control, so a broken predicate never silently blocks a job forever.
+A predicate that raises an exception is fail-open. The scheduler logs the exception as an error, with traceback, and runs the job anyway. Missed automations are worse than extra ones for home control. A broken predicate never silently blocks a job forever.
 
 Skip semantics differ by job type:
 
-- **Recurring jobs** (`run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) keep their schedule when skipped — the next occurrence is computed and enqueued the same as a normal run.
+- **Recurring jobs** (`run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) keep their schedule when skipped. The scheduler computes and enqueues the next occurrence the same as a normal run.
 - **One-shot jobs** (`run_in`, `run_once`) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry.
 
-A skipped run produces an execution record with `status="skipped"` instead of invoking the handler, visible in the [monitoring UI](../../web-ui/index.md) alongside `predicate_description` and `human_description` on the job.
+A skipped run produces an execution record with `status="skipped"` instead of invoking the handler. The [monitoring UI](../../web-ui/index.md) shows this record alongside `predicate_description` and `human_description` on the job.
 
 ## Passing arguments to handlers
 

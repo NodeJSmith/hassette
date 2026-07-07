@@ -149,9 +149,11 @@ SchedulerPredicate = Callable[[], bool] | Callable[["ScheduledJob"], bool]
 """Type representing a scheduler predicate: zero-arg (common case) or one-arg (receives
 the ``ScheduledJob`` instance for access to ``args``/``kwargs``/other metadata).
 
-Distinct from :class:`Predicate`, which requires exactly one event argument for bus
-subscriptions. Scheduler predicates are synchronous only — async callables raise
-``TypeError`` at registration time."""
+Detection is annotation-based: a positional parameter annotated as ``ScheduledJob``
+triggers one-arg dispatch; unannotated predicates (including lambdas) dispatch as
+zero-arg. Distinct from :class:`Predicate`, which requires exactly one event argument
+for bus subscriptions. Scheduler predicates are synchronous only — async callables
+raise ``TypeError`` at registration time."""
 
 
 class Condition(Protocol[V_contra]):
