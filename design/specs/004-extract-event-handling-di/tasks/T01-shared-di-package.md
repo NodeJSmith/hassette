@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create shared di/ package with types, matchers, plan, and invoker"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "FR#15", "AC#3", "AC#6", "AC#7"]
 ---
