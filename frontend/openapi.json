@@ -2607,6 +2607,28 @@
             "title": "Source Tier",
             "default": "app"
           },
+          "predicate_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate Description"
+          },
+          "human_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Description"
+          },
           "total_executions": {
             "type": "integer",
             "title": "Total Executions"
@@ -2627,6 +2649,11 @@
           "timed_out": {
             "type": "integer",
             "title": "Timed Out",
+            "default": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped",
             "default": 0
           },
           "thread_leaked": {
@@ -2803,7 +2830,7 @@
           "avg_duration_ms"
         ],
         "title": "JobSummary",
-        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out == total_executions``."
+        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."
       },
       "JobTriggerResponse": {
         "properties": {

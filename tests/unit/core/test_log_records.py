@@ -118,7 +118,7 @@ class TestMigration001LogRecords:
         assert "idx_lr_app_time" in indexes
 
     def test_migration_version_is_at_head(self, tmp_path: Path) -> None:
-        """After full migration, PRAGMA user_version is at head (8)."""
+        """After full migration, PRAGMA user_version is at head (9)."""
         db_path = str(tmp_path / "test.db")
         run_migrations_to_head(db_path)
 
@@ -128,7 +128,7 @@ class TestMigration001LogRecords:
         finally:
             conn.close()
 
-        assert version == 8
+        assert version == 9
 
 
 class TestRestartPersistence:

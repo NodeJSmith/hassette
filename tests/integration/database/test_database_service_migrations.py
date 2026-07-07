@@ -63,6 +63,8 @@ EXPECTED_TABLES = {
         "cancelled_at",
         "name_auto",
         "mode",
+        "predicate_description",
+        "human_description",
     },
     "executions": {
         "id",
@@ -173,7 +175,7 @@ def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
 
 
 def test_user_version_set_after_migration(tmp_path: Path) -> None:
-    """PRAGMA user_version is set to 8 after all migrations run."""
+    """PRAGMA user_version is set to 9 after all migrations run."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -183,7 +185,7 @@ def test_user_version_set_after_migration(tmp_path: Path) -> None:
     finally:
         conn.close()
 
-    assert version == 8
+    assert version == 9
 
 
 def test_auto_vacuum_set_on_fresh_db(tmp_path: Path) -> None:

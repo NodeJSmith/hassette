@@ -144,8 +144,9 @@ class Execution(BaseModel):
 class JobSummary(BaseModel):
     """Per-job summary returned by ``get_job_summary()``.
 
-    ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.
-    Invariant: ``successful + failed + cancelled + timed_out == total_executions``.
+    ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
+    are tracked separately.
+    Invariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``.
     """
 
     job_id: int
@@ -161,11 +162,18 @@ class JobSummary(BaseModel):
     source_location: str
     registration_source: str | None
     source_tier: SourceTier = "app"
+    predicate_description: str | None = None
+    """Python ``repr()`` of the job's scheduler predicate, or ``None`` when unset."""
+    human_description: str | None = None
+    """Human-readable summary of the job's scheduler predicate, or ``None`` when unset."""
     total_executions: int
     successful: int
     failed: int
     cancelled: int = 0
     timed_out: int = 0
+    skipped: int = 0
+    """Number of executions where the scheduler predicate returned ``False`` and the handler
+    did not run. Counted toward ``total_executions`` per the class invariant."""
     thread_leaked: int = 0
     """Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
     Aggregated from the ``executions`` table; a non-zero value flags a job leaking worker threads.

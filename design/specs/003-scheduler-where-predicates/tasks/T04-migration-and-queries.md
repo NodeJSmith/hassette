@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add database migration 009.sql, update telemetry queries, and add skipped to models"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#12", "FR#13", "FR#14", "AC#7", "AC#8"]
 ---

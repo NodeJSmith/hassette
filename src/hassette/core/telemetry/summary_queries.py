@@ -80,7 +80,8 @@ class SummaryQueriesMixin:
                     SUM(CASE WHEN e.kind = 'job' THEN 1 ELSE 0 END) AS total_executions,
                     SUM(CASE WHEN e.kind = 'job' AND e.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
                     SUM(CASE WHEN e.kind = 'job' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
-                    AVG(CASE WHEN e.kind = 'job' THEN e.duration_ms END) AS job_avg_duration_ms,
+                    AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped' THEN e.duration_ms END)
+                        AS job_avg_duration_ms,
                     MAX(e.execution_start_ts) AS last_activity
                 FROM executions e
                 LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'

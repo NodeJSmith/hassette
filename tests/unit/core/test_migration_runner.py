@@ -198,7 +198,7 @@ def test_run_migrations_applies_001(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    assert _user_version(db_path) == 8
+    assert _user_version(db_path) == 9
     assert "executions" in _tables(db_path)
     assert "listeners" in _tables(db_path)
     assert "scheduled_jobs" in _tables(db_path)
@@ -213,7 +213,7 @@ def test_run_migrations_idempotent(tmp_path: Path) -> None:
     run_migrations(db_path)
     run_migrations(db_path)  # second call is a no-op
 
-    assert _user_version(db_path) == 8
+    assert _user_version(db_path) == 9
 
 
 def test_run_migrations_partial_target(tmp_path: Path) -> None:

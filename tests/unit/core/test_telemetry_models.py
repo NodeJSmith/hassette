@@ -86,6 +86,50 @@ def test_job_summary_cancelled_field_present() -> None:
     assert JobSummary.model_fields["cancelled"].default == 0
 
 
+def test_job_summary_skipped_field_present() -> None:
+    """skipped field surfaces predicate-skip execution counts; defaults to 0."""
+    assert "skipped" in JobSummary.model_fields
+    assert JobSummary.model_fields["skipped"].default == 0
+
+
+def test_job_summary_predicate_description_fields_present() -> None:
+    """predicate_description and human_description are declared model fields, defaulting to None."""
+    assert "predicate_description" in JobSummary.model_fields
+    assert "human_description" in JobSummary.model_fields
+    assert JobSummary.model_fields["predicate_description"].default is None
+    assert JobSummary.model_fields["human_description"].default is None
+
+
+def test_job_summary_invariant_with_skipped() -> None:
+    """successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
+    summary = JobSummary(
+        job_id=10,
+        app_key="my_app",
+        instance_index=0,
+        job_name="conditional_job",
+        handler_method="MyApp.conditional",
+        trigger_type="cron",
+        trigger_label="daily",
+        trigger_detail=None,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location=TEST_SOURCE_LOCATION,
+        registration_source=None,
+        total_executions=6,
+        successful=3,
+        failed=1,
+        cancelled=1,
+        timed_out=0,
+        skipped=1,
+        last_executed_at=1700000000.0,
+        total_duration_ms=300.0,
+        avg_duration_ms=100.0,
+    )
+
+    assert summary.successful + summary.failed + summary.cancelled + summary.timed_out + summary.skipped == 6
+    assert summary.total_executions == 6
+
+
 def test_job_summary_next_run_and_fire_at_are_floats() -> None:
     """next_run and fire_at fields accept float epoch values."""
     ts1 = 1700000000.0
