@@ -1534,6 +1534,9 @@
               }
             }
           },
+          "409": {
+            "description": "Job is not currently triggerable or is already executing"
+          },
           "422": {
             "description": "Validation Error",
             "content": {

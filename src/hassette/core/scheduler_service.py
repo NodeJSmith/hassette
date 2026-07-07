@@ -527,7 +527,7 @@ class SchedulerService(Service):
         live_by_db_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
         job = live_by_db_id.get(db_id)
         if job is None:
-            raise ValueError("Job is not currently triggerable")
+            raise ValueError(f"Job {db_id} is not currently triggerable")
         return job
 
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:

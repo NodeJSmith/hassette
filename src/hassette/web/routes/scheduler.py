@@ -39,7 +39,12 @@ async def all_jobs(
     return jobs
 
 
-@router.post("/jobs/{job_id}/trigger", status_code=202, response_model=JobTriggerResponse)
+@router.post(
+    "/jobs/{job_id}/trigger",
+    status_code=202,
+    response_model=JobTriggerResponse,
+    responses={409: {"description": "Job is not currently triggerable or is already executing"}},
+)
 async def trigger_job(job_id: int, scheduler_service: SchedulerDep) -> JobTriggerResponse:
     """Manually trigger a scheduled job to run immediately.
 

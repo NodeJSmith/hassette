@@ -89,7 +89,9 @@ class TestRunJobWithGuardTriggerMode:
         """run_job_with_guard(trigger_mode='manual') threads through to run_job for both modes."""
         svc = make_scheduler_service()
         job = make_job(mode=mode)
-        svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job = (
+            AsyncMock()
+        )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.run_job_with_guard(job, trigger_mode="manual")
 
@@ -100,7 +102,9 @@ class TestRunJobWithGuardTriggerMode:
         """run_job_with_guard() without trigger_mode passes None through for both modes."""
         svc = make_scheduler_service()
         job = make_job(mode=mode)
-        svc.run_job = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job = (
+            AsyncMock()
+        )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.run_job_with_guard(job)
 
@@ -113,7 +117,9 @@ class TestTriggerJob:
         svc = make_scheduler_service()
         job = make_job()
         job.db_id = 42
-        svc.get_all_jobs = AsyncMock(return_value=[job])  # pyright: ignore[reportAttributeAccessIssue]
+        svc.get_all_jobs = AsyncMock(
+            return_value=[job]
+        )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
 
         result = await svc.trigger_job(42)
 
@@ -124,7 +130,9 @@ class TestTriggerJob:
         svc = make_scheduler_service()
         other_job = make_job()
         other_job.db_id = 1
-        svc.get_all_jobs = AsyncMock(return_value=[other_job])  # pyright: ignore[reportAttributeAccessIssue]
+        svc.get_all_jobs = AsyncMock(
+            return_value=[other_job]
+        )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(ValueError, match="not currently triggerable"):
             await svc.trigger_job(999)

@@ -2265,6 +2265,13 @@ export interface operations {
                     "application/json": components["schemas"]["JobTriggerResponse"];
                 };
             };
+            /** @description Job is not currently triggerable or is already executing */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
