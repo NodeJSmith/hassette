@@ -19,6 +19,7 @@ Update the frontend to display the `'skipped'` execution status and predicate de
 - create: `docs/pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py`
 - modify: `src/hassette/scheduler/scheduler.py` (docstrings only)
 - read: `frontend/src/components/shared/status-shape.tsx` (reference for StatusKind values)
+- read: `src/hassette/web/routes/scheduler.py` (verify routes use JobSummary directly — no separate model to update)
 - read: `frontend/src/components/app-detail/job-detail.tsx` (reference for buildJobStatsCells pattern)
 - read: `docs/pages/core-concepts/scheduler/snippets/scheduler_run_daily.py` (reference for snippet conventions)
 - read: `design/specs/003-scheduler-where-predicates/design.md`
@@ -95,6 +96,7 @@ Update docstrings on `Scheduler.schedule()` and all convenience methods in `sche
 - Lines in snippet files must be under 80 characters (docs content area is narrow).
 - The scheduler index page should use `--8<--` includes for code examples, not inline code blocks.
 - Follow `voice-guide.md` — concept pages use declarative statements and system-as-subject voice. No "you" in the index page's Conditional Execution section.
+- This task modifies a rendered `.tsx` file (`job-detail.tsx`). The repo's CI enforces screenshot evidence for frontend changes (`tools/frontend/check_pr_screenshots.py`). If `job-detail.tsx` is one of the documented screenshots in `docs/screenshots.yml`, regenerate the affected `docs/_static/web_ui_*.png` via `uv run python scripts/capture_screenshots.py --only <name>`.
 
 ## Verify
 - [ ] FR#13: The `Skipped` count cell appears in the job detail stats grid
