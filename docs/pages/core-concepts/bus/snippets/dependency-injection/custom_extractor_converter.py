@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from hassette import App
-from hassette.event_handling.dependencies import AnnotationDetails
+from hassette.di import AnnotationDetails
 from hassette.events import RawStateChangeEvent
 
 

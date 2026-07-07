@@ -16,7 +16,7 @@ Accessors also compose with predicates. `P.ValueIs(source=A.get_service_data_key
 
 ## Writing an Extractor
 
-A custom extractor is a plain callable that receives the raw event and returns a value. [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails] wraps that callable and registers it with the DI system.
+A custom extractor is a plain callable that receives the raw event and returns a value. [`AnnotationDetails`][hassette.di.AnnotationDetails] wraps that callable and registers it with the DI system.
 
 `AnnotationDetails` is a frozen dataclass with two fields:
 

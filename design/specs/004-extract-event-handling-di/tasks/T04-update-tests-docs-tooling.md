@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Update tests, docs, and tooling for moved/deleted symbols"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["AC#1"]
 ---

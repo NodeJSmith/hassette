@@ -92,7 +92,7 @@ Not all `D.*` annotations work with every subscription method. [Subscription Met
 
 ## See Also
 
-- [Custom Extractors](custom-extractors.md). Writing extractors, accessors, [`AnnotationDetails`][hassette.event_handling.dependencies.AnnotationDetails], and automatic type conversion.
+- [Custom Extractors](custom-extractors.md). Writing extractors, accessors, [`AnnotationDetails`][hassette.di.AnnotationDetails], and automatic type conversion.
 - [Writing Handlers](handlers.md). Handler signature patterns.
 - [Subscription Methods](methods.md). Which `D.*` annotations each method supports.
 - [State Conversion](../states/conversion.md). Domain-to-model mapping and automatic type conversion.

@@ -10,14 +10,13 @@ from typing import Annotated
 import pytest
 
 from hassette import STATE_REGISTRY, A, D
-from hassette.bus.extraction import extract_from_annotated
 from hassette.bus.injection import ParameterInjector
 from hassette.conversion import ANNOTATION_CONVERTER
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.test_utils import make_full_state_change_event, make_light_state_dict
-from hassette.utils.type_utils import get_typed_signature
+from hassette.utils.type_utils import get_type_and_details, get_typed_signature
 
 
 def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[states.BaseState]:
@@ -52,7 +51,7 @@ class TestDependencyInjectionHandlesTypeConversion:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             domain = state_change_event.payload.data.domain
 
-            _, annotation_details = extract_from_annotated(D.StateNew[model])
+            _, annotation_details = get_type_and_details(D.StateNew[model])
             result = annotation_details.extractor(state_change_event)
             state = ANNOTATION_CONVERTER.convert(result, model)
 
@@ -67,7 +66,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         for state_change_event in state_change_events_with_new_state:
             domain = state_change_event.payload.data.domain
 
-            _, annotation_details = extract_from_annotated(D.StateNew[states.BaseState])
+            _, annotation_details = get_type_and_details(D.StateNew[states.BaseState])
             result = annotation_details.extractor(state_change_event)
             state = ANNOTATION_CONVERTER.convert(result, states.BaseState)
 

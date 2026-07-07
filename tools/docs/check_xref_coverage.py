@@ -16,7 +16,7 @@ XREF_MAP = {
     "TaskBucket": "hassette.task_bucket.task_bucket.TaskBucket",
     "TypeRegistry": "hassette.conversion.type_registry.TypeRegistry",
     "StateRegistry": "hassette.conversion.state_registry.StateRegistry",
-    "AnnotationDetails": "hassette.event_handling.dependencies.AnnotationDetails",
+    "AnnotationDetails": "hassette.di.AnnotationDetails",
     "LightState": "hassette.models.states.light.LightState",
     "SensorState": "hassette.models.states.sensor.SensorState",
     "BinarySensorState": "hassette.models.states.binary_sensor.BinarySensorState",
