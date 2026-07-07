@@ -271,6 +271,24 @@ class ClimateApp(App[ClimateConfig]):
   entity count) and per-app entity lists belong in the monitoring UI eventually; scope when
   v0.1 lands.
 
+## Future capability: retained availability (designed, not scheduled)
+
+Entities already persist outside hassette's lifecycle (`Store` definitions + `RestoreEntity`);
+only the `available` flag tracks the connection, and it is set by our own subscription
+cleanup. A per-entity `availability: "tracked" | "retained"` field on `entity/register`
+(default `tracked`) would let storage-like entities — counters, dates, rarely-changing
+computed values — stay available with their last state while hassette is down, matching HA
+helper semantics. Additive protocol change (no version bump); the cleanup callable skips
+retained entities.
+
+Constraints when this is picked up:
+
+- **Read-only platforms only** at first. A retained command entity is "available but
+  commands go nowhere"; reject-with-error is the only defensible semantic, and even that is
+  arguably worse UX than unavailable. Revisit only with a concrete use case.
+- Pair with a `last_updated_by_hassette`-style attribute convention so dashboards can show
+  staleness on retained live-derived values.
+
 ## Verify at implementation time
 
 Facts below are stable HA patterns but must be checked against the current HA release when
