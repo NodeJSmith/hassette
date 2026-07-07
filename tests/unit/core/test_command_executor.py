@@ -1,10 +1,13 @@
-"""Tests for CommandExecutor._execute() source_tier branching."""
+"""Tests for CommandExecutor._execute() source_tier branching and build_record()."""
 
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.commands import ExecuteJob
+from hassette.core.command_executor import CommandExecutor
+from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.test_utils.factories import make_invoke_handler_cmd
 from hassette.utils.execution import ExecutionResult
@@ -12,13 +15,14 @@ from hassette.utils.execution import ExecutionResult
 from .conftest import make_executor
 
 
-def make_cmd_execute_job(source_tier: str) -> MagicMock:
+def make_cmd_execute_job(source_tier: str, trigger_mode: str | None = None) -> MagicMock:
     """Build a minimal ExecuteJob-like mock."""
     cmd = MagicMock(spec=ExecuteJob)
     cmd.source_tier = source_tier
     cmd.job_db_id = 1
     cmd.callable = AsyncMock(return_value=None)
     cmd.effective_timeout = None
+    cmd.trigger_mode = trigger_mode
     return cmd
 
 
@@ -125,3 +129,36 @@ class TestCommandExecutorSourceTierBranching:
         assert result.error_type == "RuntimeError"
         assert result.error_traceback is not None
         assert "RuntimeError" in result.error_traceback
+
+
+def make_success_result() -> MagicMock:
+    """Build a minimal successful ExecutionResult-like mock for build_record() tests."""
+    result = MagicMock()
+    result.duration_ms = 1.0
+    result.status = "success"
+    result.error_type = None
+    result.error_message = None
+    result.error_traceback = None
+    result.is_di_failure = False
+    result.thread_leaked = False
+    return result
+
+
+class TestBuildRecordTriggerMode:
+    """Verify build_record() reads ExecuteJob.trigger_mode onto ExecutionRecord."""
+
+    @pytest.mark.parametrize(("trigger_mode", "expected"), [("manual", "manual"), (None, None)])
+    def test_build_record_propagates_trigger_mode(self, trigger_mode: str | None, expected: str | None) -> None:
+        """build_record reads cmd.trigger_mode onto ExecutionRecord.trigger_mode, including the
+        None default for regular scheduled fires."""
+        executor = make_executor()
+        cmd = make_cmd_execute_job(source_tier="app", trigger_mode=trigger_mode)
+        cmd.job = MagicMock()
+        cmd.job.app_key = "test_app"
+        cmd.job.instance_index = 0
+
+        record = CommandExecutor.build_record(executor, cmd, make_success_result(), time.time(), "exec-id")
+
+        assert isinstance(record, ExecutionRecord)
+        assert record.kind == "job"
+        assert record.trigger_mode == expected

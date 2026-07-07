@@ -106,6 +106,30 @@
   wait_for: "document.querySelector('[data-testid=\"handler-failed-count\"]')"
   javascript: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
 
+# manual_job_app: triggers a job via the API, then captures the "manual" badge
+# in the execution table. The async JS clicks the job row, fires a POST trigger,
+# polls until the manual-badge element appears, then scrolls it into view.
+- url: "http://localhost:{port}/apps/manual_job_app/handlers"
+  output: docs/_static/web_ui_manual_trigger_badge.png
+  width: 1400
+  height: 1200
+  wait: 2000
+  wait_for: "document.querySelector('[data-testid^=\"unified-row-job-\"]')"
+  javascript: >-
+    (async()=>{
+    const row=document.querySelector('[data-testid^=\"unified-row-job-\"]');
+    if(row)row.click();
+    await new Promise(r=>setTimeout(r,500));
+    const jobs=await(await fetch('/api/scheduler/jobs')).json();
+    const job=jobs.find(j=>j.app_key==='manual_job_app');
+    if(job){await fetch('/api/scheduler/jobs/'+job.job_id+'/trigger',{method:'POST'})}
+    for(let i=0;i<40;i++){
+    const badge=document.querySelector('[aria-label=\"manually triggered\"]');
+    if(badge){badge.scrollIntoView({block:'center'});break}
+    await new Promise(r=>setTimeout(r,500));
+    }
+    })()
+
 - url: "http://localhost:{port}/apps/motion_lights/code"
   output: docs/_static/web_ui_app_detail_code.png
   width: 1400

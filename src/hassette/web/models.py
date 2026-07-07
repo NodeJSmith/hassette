@@ -401,6 +401,18 @@ class ActionResponse(BaseModel):
     action: str
 
 
+class JobTriggerResponse(BaseModel):
+    """Response for POST /api/scheduler/jobs/{job_id}/trigger.
+
+    Separate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) —
+    the trigger response identifies the job, not an app action.
+    """
+
+    status: str
+    job_id: int
+    job_name: str
+
+
 class ConfigSchemaResponse(BaseModel):
     """Complete Hassette configuration as a JSON schema plus current values.
 

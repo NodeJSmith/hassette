@@ -123,7 +123,7 @@ class Execution(BaseModel):
     trigger_origin: str | None = None
     """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None for job executions."""
     trigger_mode: str | None = None
-    """Trigger mode string (e.g., 'immediate', 'debounced'). None when not set."""
+    """How this execution was triggered (e.g., "manual" for a run-now request). None when not set."""
     retry_count: int = 0
     """Number of retry attempts before this execution. 0 for first attempts."""
     attempt_number: int = 1

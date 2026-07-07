@@ -375,7 +375,7 @@ class SchedulerService(Service):
             except Exception:
                 self.logger.exception("Error removing exhausted job %s", job)
 
-    async def run_job_with_guard(self, job: "ScheduledJob") -> None:
+    async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
         - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
@@ -385,16 +385,18 @@ class SchedulerService(Service):
 
         Args:
             job: The job to invoke.
+            trigger_mode: How this execution was triggered (e.g., "manual" for a
+                run-now request). None for regular scheduled fires.
         """
         if job.mode is ExecutionMode.PARALLEL:
-            await self.run_job(job)
+            await self.run_job(job, trigger_mode=trigger_mode)
             return
 
         await run_through_guard(
             guard=job.guard,
             spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
             pending_done=job.pending_done,
-            invoke=lambda: self.run_job(job),
+            invoke=lambda: self.run_job(job, trigger_mode=trigger_mode),
             warn=lambda secs: self.warn_stalled_job(job, secs),
             spawn_name="scheduler:mode_invocation",
             threshold=STALL_THRESHOLD_SECONDS,
@@ -417,7 +419,7 @@ class SchedulerService(Service):
             threshold,
         )
 
-    async def run_job(self, job: "ScheduledJob") -> None:
+    async def run_job(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Run a scheduled job by delegating to the CommandExecutor.
 
         All jobs go through ``ExecuteJob`` regardless of whether ``db_id`` is set.
@@ -426,6 +428,8 @@ class SchedulerService(Service):
 
         Args:
             job: The job to run.
+            trigger_mode: How this execution was triggered (e.g., "manual" for a
+                run-now request). None for regular scheduled fires.
         """
         lag = (date_utils.now() - job.fire_at).total("seconds")
         if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
@@ -458,6 +462,7 @@ class SchedulerService(Service):
             source_tier=job.source_tier,
             effective_timeout=effective_timeout,
             app_level_error_handler=app_level_error_handler,
+            trigger_mode=trigger_mode,
         )
         await self._executor.execute(cmd)
 
@@ -498,6 +503,32 @@ class SchedulerService(Service):
     async def get_all_jobs(self) -> list["ScheduledJob"]:
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()
+
+    async def trigger_job(self, db_id: int) -> "ScheduledJob":
+        """Look up a job on the live scheduler heap by its database id.
+
+        Used by the manual-trigger route handler (``POST /api/scheduler/jobs/{job_id}/trigger``)
+        to find the job to dispatch. Only looks up and returns the job — the caller is
+        responsible for any guard pre-check and for dispatching the job.
+
+        Args:
+            db_id: The job's ``scheduled_jobs.id`` database row id.
+
+        Returns:
+            The matching ScheduledJob from the live heap.
+
+        Raises:
+            ValueError: If no job with the given db_id is found on the live heap. This covers
+                a one-shot job that already fired, a job mid-execution from its scheduled fire
+                (popped from the heap by ``dispatch_and_log`` and not yet re-enqueued), and a
+                job whose owning app is not running.
+        """
+        live_jobs = await self.get_all_jobs()
+        live_by_db_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
+        job = live_by_db_id.get(db_id)
+        if job is None:
+            raise ValueError(f"Job {db_id} is not currently triggerable")
+        return job
 
     def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:
         """Remove all jobs for a given owner.

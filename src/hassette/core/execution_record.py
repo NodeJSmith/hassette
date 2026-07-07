@@ -98,11 +98,13 @@ class ExecutionRecord:
     """
 
     # Reserved unified-table columns (001.sql)
-    # These columns exist in the schema and round-trip through persistence/queries, but the
-    # write path (CommandExecutor) does not populate them yet — they always hold the defaults
-    # below. Baked in now so future retry/trigger-mode tracking needs no migration.
+    # These columns exist in the schema and round-trip through persistence/queries.
+    # trigger_mode is populated for manual triggers (CommandExecutor.build_record());
+    # retry_count is not populated yet and always holds the default below. Baked in
+    # now so future retry tracking needs no migration.
     trigger_mode: str | None = None
-    """Trigger mode string (e.g., 'immediate', 'debounced'). None when not set."""
+    """How this execution was triggered (e.g., "manual" for a run-now request). None for
+    regular scheduled fires or non-manual handler invocations."""
 
     retry_count: int = 0
     """Number of retry attempts before this execution. 0 for first attempts."""

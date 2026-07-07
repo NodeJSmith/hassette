@@ -66,6 +66,11 @@ filename = "bus_overlap.py"
 class_name = "BusOverlapDemo"
 config = { instance_name = "bus_overlap" }
 
+[hassette.apps.manual_job_app]
+filename = "manual_job_app.py"
+class_name = "ManualJobApp"
+config = { instance_name = "manual_job_app" }
+
 [hassette.apps.backpressure_demo]
 filename = "backpressure_demo.py"
 class_name = "BackpressureDemo"

@@ -54,6 +54,14 @@
   margin-bottom: var(--sp-3);
 }
 
+.runNow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+}
+
 .panelHeading {
   font-family: var(--font-body);
   font-size: var(--fs-h3);

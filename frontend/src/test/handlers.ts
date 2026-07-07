@@ -26,6 +26,7 @@ type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
 // ---- Default handlers ----
 
@@ -111,6 +112,18 @@ export const handlers = [
   // GET /api/scheduler/jobs
   http.get("/api/scheduler/jobs", () => {
     return HttpResponse.json<JobSummary[]>([]);
+  }),
+
+  // POST /api/scheduler/jobs/:id/trigger
+  http.post("/api/scheduler/jobs/:id/trigger", ({ params }) => {
+    return HttpResponse.json<JobTriggerResponse>(
+      {
+        status: "accepted",
+        job_id: Number(params["id"]),
+        job_name: "test-job",
+      },
+      { status: 202 },
+    );
   }),
 
   // GET /api/telemetry/dashboard/app-grid

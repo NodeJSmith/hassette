@@ -10,6 +10,7 @@ interface Props {
   errorType?: string | null;
   errorMessage?: string | null;
   errorTraceback?: string | null;
+  triggerMode?: string | null;
   context?: {
     triggerContextId: string;
     triggerOrigin?: string | null;
@@ -24,6 +25,7 @@ export function DetailPanel({
   errorType,
   errorMessage,
   errorTraceback,
+  triggerMode,
   context,
   testId,
 }: Props) {
@@ -31,6 +33,13 @@ export function DetailPanel({
 
   return (
     <div class={styles.panel} data-testid={testId}>
+      {triggerMode && (
+        <div class={styles.metaItem}>
+          <span class={styles.label}>trigger mode</span>
+          <span class="ht-text-mono ht-text-xs">{triggerMode}</span>
+        </div>
+      )}
+
       {context && (
         <div class={styles.metaItem}>
           <span class={styles.label}>context</span>
