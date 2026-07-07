@@ -12,7 +12,7 @@ Refactor the bus `ParameterInjector` to use `build_injection_plan` and `Callable
 ## Target Files
 - modify: `src/hassette/bus/injection.py`
 - delete: `src/hassette/bus/extraction.py`
-- modify: `src/hassette/bus/__init__.py`
+- read: `src/hassette/bus/__init__.py`
 - read: `src/hassette/bus/listeners.py`
 - read: `src/hassette/di/__init__.py`
 - read: `src/hassette/di/invoker.py`
@@ -57,6 +57,7 @@ Grep for `from hassette.bus.extraction` in `src/` — the only source consumer i
 - `bus/__init__.py` does NOT re-export `extraction` or `injection` — they're internal. Check but expect no change needed.
 - `listeners.py:9` imports `ParameterInjector` from `hassette.bus.injection` — this import path is unchanged.
 - `listeners.py:235` constructs `ParameterInjector(handler_name, signature)` — this call site is unchanged (constructor signature stays the same).
+- Current `injection.py:80-89` logs `LOGGER.error(...)` before raising `DependencyResolutionError`. The design pseudocode omits this log call — preserve it in the refactored version to avoid an observability regression.
 
 ## Verify
 - [ ] FR#10: `ParameterInjector` uses `build_injection_plan` + `CallableInvoker` at construction, iterates params individually at dispatch

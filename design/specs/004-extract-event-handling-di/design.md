@@ -76,7 +76,7 @@ The bus DI pipeline inspects handler signatures, builds extraction plans, and di
 
 ## Acceptance Criteria
 
-- **AC#1** All existing tests in `tests/integration/test_extraction.py`, `tests/integration/test_injection.py`, and `tests/integration/test_annotation_conversion.py` pass after updating import paths to the new `hassette.di` locations. The behavioral assertions in these tests are unchanged — only import paths and function call targets change (e.g., `extract_from_annotated` → `AnnotatedMatcher(...).match(...)`, `extract_from_signature` → `build_injection_plan`) (FR#10, FR#11, FR#13, FR#14).
+- **AC#1** All existing tests in `tests/integration/test_extraction.py`, `tests/integration/test_injection.py`, `tests/integration/test_annotation_conversion.py`, and `tests/integration/test_type_detection.py` pass after updating import paths to the new `hassette.di` locations. The behavioral assertions in these tests are unchanged — only import paths and function call targets change (e.g., `extract_from_annotated` → `AnnotatedMatcher(...).match(...)`, `extract_from_signature` → `build_injection_plan`) (FR#10, FR#11, FR#13, FR#14).
 - **AC#2** All existing handler and bus integration tests pass without modification (FR#10).
 - **AC#3** `from hassette.di import AnnotationDetails, CallableInvoker, build_injection_plan, TypeMatcher, AnnotatedMatcher` resolves correctly (FR#1).
 - **AC#4** `bus/extraction.py` contains no extraction functions — only imports or is deleted entirely (FR#7, FR#11, FR#12, FR#13, FR#14).
@@ -339,7 +339,7 @@ CI runs `mkdocs build --strict` which fails on unresolved cross-references — t
 - **modify** `src/hassette/event_handling/dependencies.py` — remove `AnnotationDetails`, `identity` definitions; add imports from `hassette.di`; all `D.*` aliases unchanged in behavior
 - **modify** `src/hassette/bus/injection.py` — `ParameterInjector` refactored to use `build_injection_plan` + `CallableInvoker` internally; `inject_parameters` signature unchanged; `Event` import promoted from `TYPE_CHECKING` to runtime (needed as a live value in `TypeMatcher(Event)` and `{Event: event}`)
 - **delete** or **empty** `src/hassette/bus/extraction.py` — all functions moved to `di/` or replaced by matchers
-- **modify** `src/hassette/bus/listeners.py` — update import of `ParameterInjector` (path unchanged, but extraction imports removed if any)
+- **read** `src/hassette/bus/listeners.py` — verify no extraction imports exist (ParameterInjector import path unchanged)
 - **modify** `tests/integration/test_extraction.py` — update imports, adapt to `AnnotatedMatcher`/`build_injection_plan` API
 - **modify** `tests/integration/test_injection.py` — update imports if needed
 - **modify** `tests/integration/test_annotation_conversion.py` — update `extract_from_annotated` import
@@ -351,8 +351,6 @@ CI runs `mkdocs build --strict` which fails on unresolved cross-references — t
 - **modify** `tools/docs/gen_ref_pages.py` — remove `hassette.bus.extraction` from `PUBLIC_MODULES`, add `hassette.di`
 - **modify** `docs/pages/core-concepts/bus/dependency-injection.md` — update `AnnotationDetails` cross-reference link to `hassette.di`
 - **modify** `docs/pages/core-concepts/bus/custom-extractors.md` — update `AnnotationDetails` cross-reference link to `hassette.di`
-
-<!-- Gap check 2026-07-07: 1 gap included — docs/pages/core-concepts/bus/handlers.md:58 cross-ref link → T04 -->
 
 ### Behavioral Invariants
 

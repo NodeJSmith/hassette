@@ -54,3 +54,13 @@ class AnnotationDetails(Generic[T]):
     extractor: Callable[[T], Any]
     converter: Callable[[Any, Any], Any] | None = None
 ```
+
+### Extraction test pattern (signature inspection)
+**Source:** `tests/integration/test_extraction.py` — `TestSignatureExtraction` class
+
+Tests define inline handler functions with DI annotations, call `get_typed_signature` + `extract_from_signature`, then assert on the returned dict's keys and `AnnotationDetails` values. The pattern: define a handler → extract → assert param names and types.
+
+### Injection test pattern (end-to-end DI)
+**Source:** `tests/integration/test_injection.py` — `TestRequiredAnnotations`, `TestMaybeAnnotations` classes
+
+Tests call `extract_from_annotated(D.SomeAlias)` to get an `AnnotationDetails`, then call `details.extractor(event)` with a real event fixture and assert the extracted value matches the event's data. The pattern: extract annotation details → call extractor with event → assert value.

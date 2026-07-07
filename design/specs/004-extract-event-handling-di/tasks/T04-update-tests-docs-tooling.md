@@ -17,7 +17,6 @@ Update all test files, documentation pages, and tooling scripts that reference s
 - modify: `docs/pages/core-concepts/bus/dependency-injection.md`
 - modify: `docs/pages/core-concepts/bus/custom-extractors.md`
 - modify: `docs/pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_converter.py`
-- modify: `docs/pages/core-concepts/bus/handlers.md`
 - modify: `tools/docs/gen_ref_pages.py`
 - modify: `tools/docs/check_xref_coverage.py`
 - read: `src/hassette/di/__init__.py`
@@ -56,9 +55,6 @@ Update all files that reference moved or deleted symbols. Reference the design d
 - Same cross-reference link update.
 - Update the tutorial code snippet at `docs/pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_converter.py` to import `AnnotationDetails` from `hassette.di`.
 
-**`docs/pages/core-concepts/bus/handlers.md`:**
-- Update the cross-reference link `[hassette.event_handling.dependencies]` at line 58 to `[hassette.di]`.
-
 ### Tooling
 
 **`tools/docs/gen_ref_pages.py`:**
@@ -75,7 +71,7 @@ Update all files that reference moved or deleted symbols. Reference the design d
 - `gen_ref_pages.py` has `PUBLIC_MODULES` as a list around line 40-60. Search for `hassette.bus.extraction` in that list.
 - `check_xref_coverage.py` has `XREF_MAP` dict around line 19.
 - The snippet file at `docs/pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_converter.py` is Pyright-checked in CI — the import must resolve.
-- `handlers.md:58` has a cross-reference `[hassette.event_handling.dependencies]` — this is a bare module reference, not a class reference. Check whether `hassette.di` is the right replacement or if it should be more specific.
+- `handlers.md:58` has a cross-reference `[hassette.event_handling.dependencies]` for `D.TypedStateChangeEvent[T]` — this link is correct as-is because `TypedStateChangeEvent` stays in `dependencies.py`. Do NOT change this link.
 
 ## Verify
-- [ ] AC#1: All existing tests in `test_extraction.py`, `test_injection.py`, `test_annotation_conversion.py`, and `test_type_detection.py` pass after import updates; behavioral assertions unchanged
+- [ ] AC#1: All existing tests in `test_extraction.py`, `test_injection.py`, `test_annotation_conversion.py`, and `test_type_detection.py` pass after import updates; behavioral assertions unchanged (matches updated AC#1 which now includes `test_type_detection.py`)
