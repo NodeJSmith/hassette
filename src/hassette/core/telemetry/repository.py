@@ -357,7 +357,8 @@ class TelemetryRepository:
                 repeat,
                 args_json, kwargs_json,
                 source_location, registration_source, source_tier,
-                "group", name_auto, mode
+                "group", name_auto, mode,
+                predicate_description, human_description
             ) VALUES (
                 :app_key, :instance_index, :job_name, :handler_method,
                 :trigger_type,
@@ -365,7 +366,8 @@ class TelemetryRepository:
                 :repeat,
                 :args_json, :kwargs_json,
                 :source_location, :registration_source, :source_tier,
-                :group, :name_auto, :mode
+                :group, :name_auto, :mode,
+                :predicate_description, :human_description
             )
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
@@ -382,6 +384,8 @@ class TelemetryRepository:
                 "group" = excluded."group",
                 name_auto = excluded.name_auto,
                 mode = excluded.mode,
+                predicate_description = excluded.predicate_description,
+                human_description = excluded.human_description,
                 retired_at = NULL,
                 cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
@@ -403,6 +407,8 @@ class TelemetryRepository:
                 "group": registration.group,
                 "name_auto": int(registration.name_auto),
                 "mode": registration.mode,
+                "predicate_description": registration.predicate_description,
+                "human_description": registration.human_description,
             },
         )
         row = await cursor.fetchone()

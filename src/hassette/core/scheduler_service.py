@@ -1,17 +1,20 @@
 import asyncio
 import heapq
 import random
+import time
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import ClassVar, Generic, TypeVar
 
+import uuid_utils
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
@@ -20,6 +23,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import ExecutionMode, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.func_utils import callable_stable_name
 from hassette.utils.serialization import safe_json_serialize
 
 if typing.TYPE_CHECKING:
@@ -273,6 +277,16 @@ class SchedulerService(Service):
             trigger_type = "custom"
             trigger_label = ""
             trigger_detail = None
+
+        predicate_description: str | None = None
+        human_description: str | None = None
+        if job.predicate is not None:
+            predicate_description = repr(job.predicate)
+            if hasattr(job.predicate, "summarize"):
+                human_description = job.predicate.summarize()  # pyright: ignore[reportFunctionMemberAccess]
+            else:
+                human_description = callable_stable_name(job.predicate)
+
         reg = ScheduledJobRegistration(
             app_key=job.app_key,
             instance_index=job.instance_index,
@@ -289,6 +303,8 @@ class SchedulerService(Service):
             group=job.group,
             name_auto=job.name_auto,
             mode=job.mode,
+            predicate_description=predicate_description,
+            human_description=human_description,
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
@@ -358,6 +374,31 @@ class SchedulerService(Service):
         else:
             remove_after_fire = True
 
+        # Step 1.5: Evaluate the job's predicate (if any) before running the handler.
+        # This must come after step 1 (next occurrence computed/enqueued) so a skipped
+        # recurring job still continues its schedule, and before step 2 (guard/execution)
+        # so a skip never invokes the handler.
+        if job.predicate is not None:
+            try:
+                should_run = (
+                    job.predicate(job)  # pyright: ignore[reportCallIssue]
+                    if job._predicate_wants_job
+                    else job.predicate()  # pyright: ignore[reportCallIssue]
+                )
+            except Exception:
+                self.logger.exception("Predicate raised for job %s — running job anyway (fail-open)", job)
+                should_run = True
+
+            if not should_run:
+                self.logger.debug("Predicate returned False for job %s — skipping", job)
+                self._record_skipped(job)
+                if remove_after_fire:
+                    try:
+                        await self._remove_job(job)
+                    except Exception:
+                        self.logger.exception("Error removing skipped job %s", job)
+                return
+
         # Step 2: Run the current due fire through the mode guard.
         try:
             await self.run_job_with_guard(job)
@@ -374,6 +415,36 @@ class SchedulerService(Service):
                 await self._remove_job(job)
             except Exception:
                 self.logger.exception("Error removing exhausted job %s", job)
+
+    def _record_skipped(self, job: "ScheduledJob") -> None:
+        """Build and enqueue a 'skipped' ExecutionRecord for a job whose predicate returned False.
+
+        Bypasses ``CommandExecutor._execute()``/``track_execution()`` entirely — a skip has no
+        meaningful invocation to time. ``duration_ms=0.0`` marks it distinctly in duration
+        aggregations (which exclude ``status='skipped'`` — see ``summary_queries.py``).
+
+        Args:
+            job: The job whose predicate returned False.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        record = ExecutionRecord(
+            kind="job",
+            listener_id=None,
+            job_id=job.db_id,
+            session_id=session_id,
+            execution_start_ts=time.time(),
+            duration_ms=0.0,
+            status="skipped",
+            app_key=job.app_key,
+            instance_index=job.instance_index,
+            source_tier=job.source_tier,
+            execution_id=str(uuid_utils.uuid7()),
+        )
+        self._executor.enqueue_record(record)
 
     async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.

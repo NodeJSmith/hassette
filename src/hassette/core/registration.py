@@ -125,5 +125,5 @@ class ScheduledJobRegistration:
     """Python repr of the job's predicate, or None if no ``where=`` was given."""
 
     human_description: str | None = None
-    """Stable, human-readable summary of the predicate (from ``callable_stable_name()``,
-    with a ``hasattr`` fallback to the predicate's own ``summarize()``), or None."""
+    """Stable, human-readable summary of the predicate — ``predicate.summarize()`` when
+    available, otherwise ``callable_stable_name()`` as a fallback. None if no predicate."""

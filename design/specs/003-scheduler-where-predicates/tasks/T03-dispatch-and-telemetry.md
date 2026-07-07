@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add predicate evaluation in dispatch, skipped record path, and registration telemetry"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T04"]
 implements: ["FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "FR#11", "AC#1", "AC#2", "AC#3", "AC#4"]
 ---
