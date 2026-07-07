@@ -2,8 +2,7 @@
 
 import pytest
 
-from hassette.di import CallableInvoker, InjectionParam
-from hassette.di.types import identity
+from hassette.di import CallableInvoker, InjectionParam, identity
 
 
 class SourceA:
