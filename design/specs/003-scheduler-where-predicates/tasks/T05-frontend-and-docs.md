@@ -37,7 +37,7 @@ if (status === "skipped") return "mute";
 **2. `frontend/src/utils/status.test.ts`:**
 Add a test case verifying `executionStatusKind("skipped")` returns `"mute"`.
 
-**3. `frontend/src/components/app-detail/job-detail.tsx` — `buildJobStatsCells()` (line 35):**
+**3. `frontend/src/components/app-detail/job-detail.tsx` — `buildJobStatsCells()` (line 84):**
 - Add a `Skipped` cell to the stats grid. Follow the pattern of existing cells (e.g., `Cancelled`). Use `job.skipped` as the value and `"mute"` as the tone.
 - If `job.predicate_description` or `job.human_description` is non-null, display the predicate description in the job metadata section. Use `human_description` when available (more readable), fall back to `predicate_description`. Check how the listener detail page displays predicate descriptions for the visual pattern to follow.
 
@@ -90,6 +90,7 @@ Update docstrings on `Scheduler.schedule()` and all convenience methods in `sche
 
 ## Focus
 - The `status.test.ts` file has existing test cases for all four current statuses — follow the exact same assertion pattern for `'skipped'`.
+- `job-detail.tsx` now contains a `RunNowButton` component (lines 39-82, added by #1216) with loading/error state. The `buildJobStatsCells()` function starts at line 84, after `RunNowButton`. Be aware of the new imports (`triggerJob`, `useSignal`, `Button`, `IconPlay`, `Spinner`, `layoutStyles`) already present in the file.
 - Gap found: `frontend/src/utils/status.test.ts` needs a `'skipped' → 'mute'` test case.
 - For `job-detail.tsx`, check how `listener-detail.tsx` displays `predicate_description`/`human_description` — the job detail page should mirror that visual pattern.
 - Snippet files must be valid Python that Pyright can type-check. Use real entity IDs (`binary_sensor.home_occupied`, `sensor.temperature`), not placeholder names.

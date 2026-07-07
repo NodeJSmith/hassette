@@ -61,6 +61,7 @@ See `## Architecture > Predicate evaluation`, `## Architecture > Predicate summa
 - Gap found: `src/hassette/test_utils/web_helpers.py::make_real_job()` needs an optional `predicate` param for integration test convenience.
 - The `ExecutionRecord` for skips should have `execution_id` generated the same way as normal executions (UUID4), not `None`.
 - `callable_stable_name` returns `"<callable>"` for lambdas/closures — this is expected and documented in the design.
+- **Manual trigger bypass (intentional):** The `POST /api/scheduler/jobs/{job_id}/trigger` endpoint (added by #1216) calls `run_job_with_guard()` directly, not `dispatch_and_log()`. The predicate check lives inside `dispatch_and_log()`, so manual triggers bypass it. This is intentional — "Run Now" is an explicit operator action that always fires regardless of `where=`. Do NOT add predicate checks to `run_job_with_guard()` or `trigger_job()`.
 
 ## Verify
 - [ ] FR#4: A job with `where=lambda: False` does not execute its handler

@@ -16,6 +16,7 @@ None.
 7. **The predicate check inserts in `dispatch_and_log()`** between step 1 (compute next occurrence) and step 2 (run through guard). This ensures recurring jobs continue their schedule even when skipped.
 8. **Scheduler summarization calls `callable_stable_name()` directly** with `hasattr` fallback to `summarize()`, rather than reusing the bus's `summarize_top_level()` (which is typed for `Predicate[EventT]`).
 9. **The `executions.status` CHECK constraint modification requires SQLite table recreation** — CREATE new, INSERT...SELECT, DROP old, RENAME.
+10. **Manual trigger ("Run Now") intentionally bypasses predicates.** The `trigger_job()` path calls `run_job_with_guard()` directly, not `dispatch_and_log()`. Since the predicate check lives in `dispatch_and_log()`, manual triggers always fire regardless of `where=`. This is deliberate — "Run Now" is an explicit operator action.
 
 ## Constraints & Anti-Patterns
 - Do NOT reuse the bus's `AllOf`, `normalize_where()`, `summarize_top_level()`, or `_summarize_predicate()` for scheduler predicates — they are all typed for `Predicate[EventT]` (one-arg) and will fail pyright with zero-arg callables.

@@ -100,6 +100,7 @@ The bus already has `where=` on every subscription method, with normalization, s
 - **One-arg predicate sees post-advance state:** Because the predicate runs after step 1 (compute next occurrence), `job.next_run` and `job.fire_at` reflect the *next* occurrence, not the time currently firing. `job.args` and `job.kwargs` are unaffected. This is acceptable — predicates that need timing info should use `date_utils.now()` rather than inspecting the job's schedule fields.
 - **`where=` with `if_exists="skip"`:** if an existing job matches on all fields including predicate, the new registration is skipped. If the predicate differs, `matches()` returns `False` and `_add_job()` raises `ValueError` naming the changed fields (same as any other config mismatch — the new job does not silently register alongside the old one).
 - **Predicate takes >1 positional parameter:** `TypeError` raised at registration time.
+- **Manual trigger ("Run Now") bypasses predicates:** The `POST /api/scheduler/jobs/{job_id}/trigger` endpoint calls `run_job_with_guard()` directly, not `dispatch_and_log()`. Since the predicate check lives inside `dispatch_and_log()`, manually-triggered executions skip the predicate entirely. This is intentional — "Run Now" is an explicit operator action that should always fire, regardless of conditional gating. The resulting execution records have `trigger_mode="manual"` and no `'skipped'` status.
 
 ## Acceptance Criteria
 
