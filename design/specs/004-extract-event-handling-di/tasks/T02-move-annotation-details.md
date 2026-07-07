@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Move AnnotationDetails and identity to di/, update dependencies.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "FR#9", "AC#5"]
 ---

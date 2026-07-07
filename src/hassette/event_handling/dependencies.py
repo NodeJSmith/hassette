@@ -62,10 +62,10 @@ Examples:
 
 import typing
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Annotated, Any, Generic, TypeAlias, TypeVar
+from typing import Annotated, Any, TypeAlias, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
+from hassette.di import AnnotationDetails, identity
 from hassette.events import Event, HassContext
 from hassette.events.hass.hass import TypedStateChangeEvent as ActualTypedStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
@@ -78,22 +78,10 @@ if typing.TYPE_CHECKING:
         RawStateChangeEvent,  # noqa: F401  # used as forward ref in AnnotationDetails["RawStateChangeEvent"]
     )
 
-T = TypeVar("T", bound=Event[Any])
 R = TypeVar("R")
 
 
-@dataclass(slots=True, frozen=True)
-class AnnotationDetails(Generic[T]):
-    """Details about an annotation used for dependency injection."""
-
-    extractor: Callable[[T], Any]
-    """Function to extract the dependency from the event."""
-
-    converter: Callable[[Any, Any], Any] | None = None
-    """Optional converter function to convert the extracted value to the desired type."""
-
-
-def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
+def ensure_present(accessor: Callable[[Any], R]) -> Callable[[Any], R]:
     """Wrap an accessor to raise if it returns None or MISSING_VALUE.
 
     Args:
@@ -103,7 +91,7 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
         Wrapped accessor that validates the return value
     """
 
-    def wrapper(event: T) -> R:
+    def wrapper(event: Any) -> R:
         result = accessor(event)
 
         # Check if the result is None or MISSING_VALUE
@@ -113,14 +101,6 @@ def ensure_present(accessor: Callable[[T], R]) -> Callable[[T], R]:
         return result
 
     return wrapper
-
-
-def identity(x: Any) -> Any:
-    """Identity function - returns the input as-is.
-
-    Used when a parameter needs the full event object without transformation.
-    """
-    return x
 
 
 # This annotation converts a RawStateChangeEvent into a TypedStateChangeEvent
