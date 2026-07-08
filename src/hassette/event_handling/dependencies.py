@@ -62,7 +62,7 @@ Examples:
 
 import typing
 from collections.abc import Callable
-from typing import Annotated, Any, TypeAlias, TypeVar
+from typing import Annotated, TypeAlias, TypeVar
 
 from hassette.const.misc import MISSING_VALUE, FalseySentinel
 from hassette.di import AnnotationDetails, identity
@@ -78,10 +78,11 @@ if typing.TYPE_CHECKING:
         RawStateChangeEvent,  # noqa: F401  # used as forward ref in AnnotationDetails["RawStateChangeEvent"]
     )
 
+S = TypeVar("S")
 R = TypeVar("R")
 
 
-def ensure_present(accessor: Callable[[Any], R]) -> Callable[[Any], R]:
+def ensure_present(accessor: Callable[[S], R]) -> Callable[[S], R]:
     """Wrap an accessor to raise if it returns None or MISSING_VALUE.
 
     Args:
@@ -91,7 +92,7 @@ def ensure_present(accessor: Callable[[Any], R]) -> Callable[[Any], R]:
         Wrapped accessor that validates the return value
     """
 
-    def wrapper(event: Any) -> R:
+    def wrapper(event: S) -> R:
         result = accessor(event)
 
         # Check if the result is None or MISSING_VALUE
