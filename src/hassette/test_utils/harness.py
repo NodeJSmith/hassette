@@ -40,6 +40,7 @@ from hassette.test_utils.config import TEST_TOKEN
 from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
+from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
@@ -75,7 +76,7 @@ async def wait_for(
     interval: float = 0.02,
     desc: str = "condition",
 ) -> None:
-    is_async = inspect.iscoroutinefunction(predicate)
+    is_async = is_async_callable(predicate)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:

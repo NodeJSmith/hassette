@@ -558,7 +558,11 @@ class Listener:
         """Check if the event matches the listener's predicate."""
         if self.predicate is None:
             return True
-        matched = self.predicate(ev)
+        try:
+            matched = self.predicate(ev)
+        except Exception:
+            self.logger.exception("Predicate raised for %s; skipping this listener", self)
+            return False
 
         verdict = "matched" if matched else "did not match"
         self.logger.debug("Listener %s %s predicate for event: %s", self, verdict, ev)
