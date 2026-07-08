@@ -396,7 +396,7 @@ class TelemetryStatusResponse(BaseModel):
 class ActionResponse(BaseModel):
     """Response for app mutation endpoints (start/stop/reload)."""
 
-    status: str
+    status: Literal["accepted"] = "accepted"
     app_key: str
     action: str
 
@@ -408,7 +408,7 @@ class JobTriggerResponse(BaseModel):
     the trigger response identifies the job, not an app action.
     """
 
-    status: str
+    status: Literal["accepted"] = "accepted"
     job_id: int
     job_name: str
 
