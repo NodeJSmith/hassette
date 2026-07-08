@@ -1,17 +1,22 @@
 import asyncio
 import time
+import traceback
 import typing
 from collections import defaultdict
 from typing import Any, ClassVar
 from uuid import uuid4
 
+import uuid_utils
+
 import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager
+from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
@@ -376,14 +381,23 @@ class BusService(Service):
 
         routes = self.expand_topics(base_topic, event)  # ordered: most specific -> least
         chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
+        failed: set[int] = set()  # listener_ids whose predicates raised (dedup across routes)
 
         # Route first, then dedupe by "first match wins" because routes are ordered by specificity
         for route in routes:
             listeners = self.router.get_topic_listeners(route)
             for listener in listeners:
-                if listener.listener_id in chosen:
+                if listener.listener_id in chosen or listener.listener_id in failed:
                     continue
-                if listener.matches(event):
+                predicate_start = time.time()
+                try:
+                    matched = listener.matches(event)
+                except Exception as exc:
+                    failed.add(listener.listener_id)
+                    self.logger.exception("Predicate raised for %s; skipping this listener", listener)
+                    self._record_predicate_failure(listener, route, event, exc, predicate_start)
+                    continue
+                if matched:
                     chosen[listener.listener_id] = (route, listener)
 
         if not chosen:
@@ -494,6 +508,64 @@ class BusService(Service):
     def duration_timers_active(self) -> int:
         """Number of currently active duration timers."""
         return self._duration_hold.duration_timers_active
+
+    def _record_predicate_failure(
+        self, listener: "Listener", topic: str, event: "Event[Any]", exc: Exception, start_ts: float
+    ) -> None:
+        """Record a raising predicate as a failed execution and route to error handlers.
+
+        Mirrors SchedulerService._record_predicate_failure: the handler never ran, so this
+        bypasses CommandExecutor._execute() — but the outcome is an 'error' record so a broken
+        predicate is visible in telemetry. The per-listener on_error handler (or the app-level
+        fallback) is invoked with a BusErrorContext.
+
+        Args:
+            listener: The listener whose predicate raised.
+            topic: The topic (route) the listener matched on.
+            event: The event being dispatched when the predicate raised.
+            exc: The exception the predicate raised.
+            start_ts: Unix timestamp when predicate evaluation began.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        traceback_str = "".join(traceback.format_exception(exc))
+        execution_id = str(uuid_utils.uuid7())
+        record = ExecutionRecord(
+            kind="handler",
+            listener_id=listener.db_id,
+            session_id=session_id,
+            execution_start_ts=start_ts,
+            duration_ms=(time.time() - start_ts) * 1000,
+            status="error",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            error_traceback=traceback_str,
+            app_key=listener.identity.app_key,
+            instance_index=listener.identity.instance_index,
+            source_tier=listener.identity.source_tier,
+            execution_id=execution_id,
+        )
+        self._executor.enqueue_record(record)
+
+        resolver = listener.invoker.app_error_handler_resolver
+        app_level_error_handler = resolver() if resolver is not None else None
+        error_handler = listener.invoker.error_handler or app_level_error_handler
+        if error_handler is not None:
+            ctx = BusErrorContext(
+                exception=exc,
+                traceback=traceback_str,
+                execution_id=execution_id,
+                topic=topic,
+                listener_name=repr(listener),
+                event=event,
+            )
+            self.task_bucket.spawn(
+                self._executor.invoke_error_handler(error_handler, ctx),
+                name="bus:predicate_error_handler",
+            )
 
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.

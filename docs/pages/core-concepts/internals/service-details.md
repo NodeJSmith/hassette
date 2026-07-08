@@ -52,7 +52,7 @@ Events with other `event_type` values expand to only the base topic.
 
 `BusService` iterates the three topics in order and collects matching listeners from the `Router`. The router stores two separate indexes: one for exact topics, one for glob topics. A listener is collected at most once, deduplicated by `listener_id`.
 
-Each collected listener runs `Listener.matches(event)`. Predicates registered via `P.*` and conditions registered via `C.*` are evaluated here. Listeners that fail the predicate are silently skipped.
+Each collected listener runs `Listener.matches(event)`. Predicates registered via `P.*` and conditions registered via `C.*` are evaluated here. Listeners whose predicate returns `False` are silently skipped. A predicate that *raises* an exception is logged, recorded as an `ExecutionRecord` with `status="error"`, and routed to the listener's `on_error` handler (or the app-level fallback). The raising listener is skipped, but sibling listeners in the same fanout are unaffected.
 
 Each passing listener spawns a [`TaskBucket`][hassette.task_bucket.task_bucket.TaskBucket] task that calls `CommandExecutor.execute()`. All matching listeners for a given event run in parallel.
 

@@ -79,26 +79,31 @@ class TestCompareValueAsyncCallableInstance:
 
 
 class TestListenerMatchesRaisingPredicate:
-    """Listener.matches() catches raising predicates and returns False."""
+    """Listener.matches() propagates raising predicates to the caller.
 
-    def test_raising_predicate_returns_false(self) -> None:
+    BusService.dispatch() is responsible for isolation, telemetry recording,
+    and error-handler routing (#1255).
+    """
+
+    def test_raising_predicate_propagates(self) -> None:
         def bad_pred(_ev: object) -> bool:
             raise ValueError("boom")
 
         listener = create_listener(where=bad_pred)
         ev = SimpleNamespace(payload=SimpleNamespace())
 
-        assert listener.matches(ev) is False
+        with pytest.raises(ValueError, match="boom"):
+            listener.matches(ev)
 
-    def test_raising_predicate_does_not_propagate(self) -> None:
+    def test_raising_predicate_preserves_exception_type(self) -> None:
         def bad_pred(_ev: object) -> bool:
             raise RuntimeError("unexpected")
 
         listener = create_listener(where=bad_pred)
         ev = SimpleNamespace(payload=SimpleNamespace())
 
-        # Should not raise — exception is caught and logged
-        listener.matches(ev)
+        with pytest.raises(RuntimeError, match="unexpected"):
+            listener.matches(ev)
 
     def test_normal_predicate_still_works(self) -> None:
         def good_pred(_ev: object) -> bool:

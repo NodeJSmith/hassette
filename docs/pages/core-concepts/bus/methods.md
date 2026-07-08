@@ -239,7 +239,7 @@ All four accept `handler`, `where`, `kwargs`, `name`, and `**opts`. [Service sup
 
 ### App-level handler
 
-`bus.on_error(handler)` registers a fallback called when any listener on the bus raises. This call is synchronous — no `await` needed. The handler receives a [`BusErrorContext`][hassette.bus.error_context.BusErrorContext].
+`bus.on_error(handler)` registers a fallback called when any listener on the bus raises — either in the handler itself or in a `where=` predicate. This call is synchronous — no `await` needed. The handler receives a [`BusErrorContext`][hassette.bus.error_context.BusErrorContext].
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_app.py"
