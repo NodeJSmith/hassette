@@ -1,7 +1,7 @@
 # Design: Extract Shared DI Layer
 
 **Date:** 2026-07-07
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/004-extract-event-handling-di/research.md
 
