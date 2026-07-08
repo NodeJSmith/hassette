@@ -140,10 +140,12 @@ class SchedulerSyncFacade(Resource):
                 the shared DI layer (``hassette.di``): a parameter annotated as
                 ``ScheduledJob`` receives the job instance at dispatch time; unannotated
                 predicates are called with zero arguments. A sequence is collapsed into
-                a single closure that ANDs all members — sequence members must not carry
-                a ``ScheduledJob`` annotation. Predicates must be synchronous; async
+                a single combinator that ANDs all members — each member keeps the
+                single-predicate contract. Predicates must be synchronous; async
                 callables raise ``TypeError``. When the predicate returns ``False``,
                 the handler does not run and a ``'skipped'`` execution is recorded.
+                When the predicate raises, the handler does not run, an ``'error'``
+                execution is recorded, and the job's ``on_error`` handler is invoked.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.

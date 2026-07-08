@@ -2,7 +2,6 @@ import asyncio
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-import pytest
 from whenever import ZonedDateTime
 
 from hassette.app.app import App
@@ -585,8 +584,15 @@ async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: Ha
     assert not any(j is job for j in remaining), "One-shot job should be removed from scheduler after a skip"
 
 
-async def test_predicate_exception_propagates(hassette_with_scheduler: HassetteHarness) -> None:
-    """A predicate that raises propagates the exception — the job does not run."""
+async def test_predicate_exception_records_failure_and_does_not_run(
+    hassette_with_scheduler: HassetteHarness,
+) -> None:
+    """A predicate that raises is recorded as an 'error' execution — the job does not run.
+
+    The exception must not propagate out of ``dispatch_and_log``: it is logged, recorded
+    with error details, routed to the job's ``on_error`` handler, and (for a one-shot)
+    the job is still removed from the scheduler instead of leaking in ``_jobs_by_name``.
+    """
     job_ran = asyncio.Event()
 
     async def target() -> None:
@@ -595,17 +601,41 @@ async def test_predicate_exception_propagates(hassette_with_scheduler: HassetteH
     def bad_predicate() -> bool:
         raise ZeroDivisionError("boom")
 
+    def on_error(_ctx: object) -> None:
+        pass
+
     scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+    executor.invoke_error_handler.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=10, name="predicate_raises_job", where=bad_predicate
+        target, delay=10, name="predicate_raises_job", where=bad_predicate, on_error=on_error
     )
 
-    with pytest.raises(ZeroDivisionError, match="boom"):
-        await scheduler_service.dispatch_and_log(job)
+    await scheduler_service.dispatch_and_log(job)
 
     assert not job_ran.is_set(), "Job should not run when predicate raises"
+
+    executor.enqueue_record.assert_called_once()
+    record = executor.enqueue_record.call_args[0][0]
+    assert record.status == "error", f"Expected status='error', got {record.status!r}"
+    assert record.error_type == "ZeroDivisionError"
+    assert record.error_message == "boom"
+    assert record.error_traceback is not None
+    assert "ZeroDivisionError" in record.error_traceback
+    assert record.execution_id is not None
+
+    executor.invoke_error_handler.assert_called_once()
+    handler_arg, ctx = executor.invoke_error_handler.call_args[0]
+    assert handler_arg is on_error
+    assert isinstance(ctx.exception, ZeroDivisionError)
+    assert ctx.job_name == "predicate_raises_job"
+    assert ctx.execution_id == record.execution_id
+
+    remaining = hassette_with_scheduler.scheduler.list_jobs()
+    assert not any(j is job for j in remaining), "One-shot job should be removed after a predicate failure"
 
 
 async def test_predicate_receives_scheduled_job(hassette_with_scheduler: HassetteHarness) -> None:

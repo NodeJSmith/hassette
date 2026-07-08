@@ -177,9 +177,9 @@ A predicate that needs the job must use a named function with a `ScheduledJob` t
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
 ```
 
-A sequence of predicates collapses into a single closure that ANDs every member together. Each member must itself be zero-arg (no `ScheduledJob` annotation). Wrap a job-arg predicate in its own closure before including it in a sequence.
+A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a `ScheduledJob`-annotated member receives the job, and unannotated members are called with zero arguments.
 
-A predicate that raises an exception is fail-open. The scheduler logs the exception as an error, with traceback, and runs the job anyway. Missed automations are worse than extra ones for home control. A broken predicate never silently blocks a job forever.
+A predicate that raises an exception fails that fire — the handler does not run. The scheduler logs the exception with traceback, records an execution with `status="error"`, and invokes the job's `on_error` handler (or the app-level fallback), the same routing a raising handler gets. A recurring job keeps its schedule and tries again at the next occurrence; a one-shot job is consumed.
 
 Skip semantics differ by job type:
 

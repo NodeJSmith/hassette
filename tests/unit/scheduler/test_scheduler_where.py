@@ -21,6 +21,14 @@ from .conftest import make_scheduler, noop
 PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
 
+def is_home() -> bool:
+    return True
+
+
+def is_dark() -> bool:
+    return True
+
+
 class TestBuildPredicateInvoker:
     """Unit tests for `_build_predicate_invoker()` — DI-based ScheduledJob detection."""
 
@@ -149,7 +157,7 @@ class TestNormalizeWhere:
         assert invoker is not None
         assert len(invoker.params) == 1
 
-    def test_sequence_collapses_into_zero_arg_closure_anding_results(self) -> None:
+    def test_sequence_collapses_into_combinator_anding_results(self) -> None:
         calls: list[str] = []
 
         def pred_true() -> bool:
@@ -163,17 +171,20 @@ class TestNormalizeWhere:
         predicate, invoker = _normalize_where([pred_true, pred_false])
 
         assert invoker is not None
-        assert len(invoker.params) == 0
+        assert len(invoker.params) == 1, "Combinator invoker should inject the job"
         assert callable(predicate)
         assert predicate is not pred_true
         assert predicate is not pred_false
-        assert predicate() is False
+        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        assert predicate(**kwargs) is False
         assert calls == ["true", "false"]
 
     def test_sequence_all_true_predicates_returns_true(self) -> None:
-        predicate, _ = _normalize_where([lambda: True, lambda: True])
+        predicate, invoker = _normalize_where([lambda: True, lambda: True])
         assert predicate is not None
-        assert predicate() is True
+        assert invoker is not None
+        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        assert predicate(**kwargs) is True
 
     def test_sequence_with_async_member_raises_type_error_at_registration(self) -> None:
         async def async_pred() -> bool:
@@ -182,12 +193,28 @@ class TestNormalizeWhere:
         with pytest.raises(TypeError, match="synchronous"):
             _normalize_where([lambda: True, async_pred])
 
-    def test_sequence_with_scheduled_job_annotation_raises_type_error(self) -> None:
-        def job_pred(_job: ScheduledJob) -> bool:
-            return True
+    def test_sequence_member_with_scheduled_job_annotation_receives_job(self) -> None:
+        seen: list[str] = []
 
-        with pytest.raises(TypeError, match="sequence"):
-            _normalize_where([lambda: True, job_pred])
+        def job_pred(job: ScheduledJob) -> bool:
+            seen.append(job.name)
+            return job.name == "expected"
+
+        predicate, invoker = _normalize_where([lambda: True, job_pred])
+        assert predicate is not None
+        assert invoker is not None
+
+        mock_job = MagicMock(spec=ScheduledJob)
+        mock_job.name = "expected"
+        kwargs = invoker.invoke({ScheduledJob: mock_job})
+        assert predicate(**kwargs) is True
+        assert seen == ["expected"]
+
+    def test_sequence_summarize_joins_member_names(self) -> None:
+        # Module-level predicates: callable_stable_name renders <callable> for test-local closures.
+        predicate, _ = _normalize_where([is_home, is_dark])
+        assert predicate is not None
+        assert predicate.summarize() == "is_home and is_dark"  # pyright: ignore[reportFunctionMemberAccess]
 
     def test_sequence_predicates_with_same_members_compare_equal(self) -> None:
         def p1() -> bool:
@@ -211,14 +238,16 @@ class TestNormalizeWhere:
         pred_b, _ = _normalize_where([p1, p2])
         assert pred_a != pred_b
 
-    def test_sequence_closure_captures_tuple_not_mutable_list(self) -> None:
+    def test_sequence_combinator_captures_tuple_not_mutable_list(self) -> None:
         preds: list = [lambda: True]
 
-        predicate, _ = _normalize_where(preds)
+        predicate, invoker = _normalize_where(preds)
         preds.append(lambda: False)
 
         assert predicate is not None
-        assert predicate() is True
+        assert invoker is not None
+        kwargs = invoker.invoke({ScheduledJob: MagicMock(spec=ScheduledJob)})
+        assert predicate(**kwargs) is True
 
 
 class TestScheduleAcceptsWhere:

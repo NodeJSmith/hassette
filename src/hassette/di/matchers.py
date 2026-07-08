@@ -32,28 +32,23 @@ class TypeMatcher:
         if annotation is inspect.Parameter.empty:
             return None
 
-        base_type = get_origin(annotation) or annotation
-
-        if inspect.isclass(base_type) and issubclass(base_type, self.match_type):
-            return InjectionParam(
-                name=param.name,
-                source_type=self.match_type,
-                target_type=annotation,
-                extractor=identity,
-            )
-
         origin = get_origin(annotation)
-        if origin is types.UnionType or origin is typing.Union:
-            args = get_args(annotation)
-            if any(inspect.isclass(arg) and issubclass(arg, self.match_type) for arg in args):
-                return InjectionParam(
-                    name=param.name,
-                    source_type=self.match_type,
-                    target_type=annotation,
-                    extractor=identity,
-                )
+        base_type = origin or annotation
 
-        return None
+        matched = inspect.isclass(base_type) and issubclass(base_type, self.match_type)
+        if not matched and (origin is types.UnionType or origin is typing.Union):
+            args = get_args(annotation)
+            matched = any(inspect.isclass(arg) and issubclass(arg, self.match_type) for arg in args)
+
+        if not matched:
+            return None
+
+        return InjectionParam(
+            name=param.name,
+            source_type=self.match_type,
+            target_type=annotation,
+            extractor=identity,
+        )
 
 
 @dataclass(frozen=True, slots=True)

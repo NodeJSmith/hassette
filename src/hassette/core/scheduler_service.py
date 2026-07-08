@@ -2,6 +2,7 @@ import asyncio
 import heapq
 import random
 import time
+import traceback
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -22,6 +23,7 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.types.enums import ExecutionMode, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_stable_name
@@ -379,8 +381,16 @@ class SchedulerService(Service):
         # recurring job still continues its schedule, and before step 3 (guard/execution)
         # so a skip never invokes the handler.
         if job.predicate is not None:
-            kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
-            should_run = job.predicate(**kwargs)
+            predicate_start = time.time()
+            try:
+                kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+                should_run = job.predicate(**kwargs)
+            except Exception as exc:
+                self.logger.exception("Predicate raised for job %s — recording failure; the job does not run", job)
+                self._record_predicate_failure(job, exc, predicate_start)
+                if remove_after_fire:
+                    await self._try_remove_job(job, "predicate-error")
+                return
 
             if not should_run:
                 self.logger.debug("Predicate returned False for job %s — skipping", job)
@@ -432,6 +442,65 @@ class SchedulerService(Service):
             execution_id=str(uuid_utils.uuid7()),
         )
         self._executor.enqueue_record(record)
+
+    def _record_predicate_failure(self, job: "ScheduledJob", exc: Exception, start_ts: float) -> None:
+        """Record a raising predicate as a failed execution and route it to error handlers.
+
+        The handler never ran, so this bypasses ``CommandExecutor._execute()`` the same way
+        ``_record_skipped`` does — but the outcome is an ``'error'`` record (with the real
+        predicate-evaluation duration) so a broken predicate is visible in telemetry instead
+        of vanishing into the task bucket's unhandled-exception log. The per-job ``on_error``
+        handler (or the app-level fallback) is invoked with the same ``SchedulerErrorContext``
+        a raising handler would produce.
+
+        Args:
+            job: The job whose predicate raised.
+            exc: The exception the predicate raised.
+            start_ts: Unix timestamp when predicate evaluation began.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        traceback_str = "".join(traceback.format_exception(exc))
+        execution_id = str(uuid_utils.uuid7())
+        record = ExecutionRecord(
+            kind="job",
+            listener_id=None,
+            job_id=job.db_id,
+            session_id=session_id,
+            execution_start_ts=start_ts,
+            duration_ms=(time.time() - start_ts) * 1000,
+            status="error",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            error_traceback=traceback_str,
+            app_key=job.app_key,
+            instance_index=job.instance_index,
+            source_tier=job.source_tier,
+            execution_id=execution_id,
+        )
+        self._executor.enqueue_record(record)
+
+        app_level_error_handler = (
+            job.app_error_handler_resolver() if job.app_error_handler_resolver is not None else None
+        )
+        error_handler = job.error_handler or app_level_error_handler
+        if error_handler is not None:
+            ctx = SchedulerErrorContext(
+                exception=exc,
+                traceback=traceback_str,
+                execution_id=execution_id,
+                job_name=job.name,
+                job_group=job.group,
+                args=job.args,
+                kwargs=dict(job.kwargs),
+            )
+            self.task_bucket.spawn(
+                self._executor.invoke_error_handler(error_handler, ctx),
+                name="scheduler:predicate_error_handler",
+            )
 
     async def _try_remove_job(self, job: "ScheduledJob", reason: str) -> None:
         """Remove a job, logging any exception without propagating it.

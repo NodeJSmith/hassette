@@ -79,6 +79,7 @@ from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
+from hassette.utils.func_utils import callable_stable_name
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
@@ -422,10 +423,12 @@ class Scheduler(Resource):
                 the shared DI layer (``hassette.di``): a parameter annotated as
                 ``ScheduledJob`` receives the job instance at dispatch time; unannotated
                 predicates are called with zero arguments. A sequence is collapsed into
-                a single closure that ANDs all members — sequence members must not carry
-                a ``ScheduledJob`` annotation. Predicates must be synchronous; async
+                a single combinator that ANDs all members — each member keeps the
+                single-predicate contract. Predicates must be synchronous; async
                 callables raise ``TypeError``. When the predicate returns ``False``,
                 the handler does not run and a ``'skipped'`` execution is recorded.
+                When the predicate raises, the handler does not run, an ``'error'``
+                execution is recorded, and the job's ``on_error`` handler is invoked.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.
@@ -493,8 +496,8 @@ class Scheduler(Resource):
             source_tier=source_tier,
             mode=resolved_mode,
             predicate=predicate,
+            predicate_invoker=predicate_invoker,
         )
-        job.predicate_invoker = predicate_invoker
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
         # source_location/registration_source are NOT passed here; add_job backfills them.
@@ -979,6 +982,9 @@ _SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
 def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker:
     """Build a ``CallableInvoker`` for a single predicate using the shared DI layer.
 
+    A callable whose signature cannot be inspected (some builtins, C callables) falls
+    back to an empty invoker and is dispatched with zero arguments.
+
     Raises:
         TypeError: If the predicate is async.
         DependencyInjectionError: If the signature is invalid for DI (e.g. ``*args``
@@ -998,10 +1004,24 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
 
 @dataclass(frozen=True)
 class _AllPredicates:
-    preds: tuple["SchedulerPredicate", ...]
+    """Combinator that ANDs a sequence of predicates, the scheduler's analog of the bus's ``AllOf``.
 
-    def __call__(self) -> bool:
-        return all(p() for p in self.preds)  # pyright: ignore[reportCallIssue]
+    Each member carries its own pre-built DI invoker, so sequence members have the same
+    contract as a single ``where=`` predicate: a ``ScheduledJob``-annotated parameter
+    receives the job, and unannotated members are called with zero arguments. Frozen so
+    two instances built from the same predicate functions compare equal — ``if_exists=``
+    collision detection relies on this (see ``ScheduledJob.matches``).
+    """
+
+    predicates: tuple[tuple["SchedulerPredicate", CallableInvoker], ...]
+
+    def __call__(self, job: ScheduledJob) -> bool:
+        available: dict[type, Any] = {ScheduledJob: job}
+        return all(pred(**invoker.invoke(available)) for pred, invoker in self.predicates)
+
+    def summarize(self) -> str:
+        """Human-readable description for telemetry, mirroring ``AllOf.summarize`` on the bus."""
+        return " and ".join(callable_stable_name(pred) for pred, _ in self.predicates)
 
 
 def _normalize_where(
@@ -1016,10 +1036,10 @@ def _normalize_where(
       shared DI layer to build a ``CallableInvoker`` that resolves kwargs at dispatch
       time. A parameter annotated as ``ScheduledJob`` receives the job; unannotated
       predicates are called with zero arguments.
-    - A sequence of predicates collapses into a single zero-arg closure that ANDs
-      the results (empty invoker). Each member must be synchronous and must not carry
-      a ``ScheduledJob`` annotation (sequence members are always called with zero
-      arguments).
+    - A sequence of predicates collapses into an ``_AllPredicates`` combinator that ANDs
+      the results. Each member must be synchronous and keeps the single-predicate
+      contract (a ``ScheduledJob``-annotated member receives the job). The returned
+      invoker injects the job into the combinator itself.
     """
     if where is None:
         return None, None
@@ -1027,13 +1047,6 @@ def _normalize_where(
     if callable(where):
         return where, _build_predicate_invoker(where)
 
-    preds = tuple(where)
-    for pred in preds:
-        invoker = _build_predicate_invoker(pred)
-        if invoker.params:
-            raise TypeError(
-                f"Scheduler predicate {pred!r} in a sequence has a ScheduledJob annotation; "
-                "sequence members are called with zero arguments. Use a closure to wrap it."
-            )
-
-    return _AllPredicates(preds), CallableInvoker(())
+    pairs = tuple((pred, _build_predicate_invoker(pred)) for pred in where)
+    combined = _AllPredicates(pairs)
+    return combined, _build_predicate_invoker(combined)

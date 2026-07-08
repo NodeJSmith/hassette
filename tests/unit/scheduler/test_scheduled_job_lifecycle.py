@@ -316,8 +316,8 @@ class TestPredicateField:
         assert job.predicate is always_true
 
     def test_predicate_invoker_defaults_to_none(self) -> None:
-        """predicate_invoker defaults to None — set programmatically by Scheduler.schedule(),
-        not by direct construction."""
+        """predicate_invoker defaults to None — Scheduler.schedule() passes the built invoker
+        alongside predicate; direct construction without one leaves it unset."""
         job = make_job(predicate=lambda: True)
         assert job.predicate_invoker is None
 

@@ -74,16 +74,16 @@ The bus already has `where=` on every subscription method, with normalization, s
 
 ## Functional Requirements
 
-- **FR#1** `Scheduler.schedule()` accepts a `where` parameter of type `SchedulerPredicate | Sequence[SchedulerPredicate] | None` (defaulting to `None`), where `SchedulerPredicate` is a new type alias for `Callable[[], bool] | Callable[["ScheduledJob"], bool]` — distinct from the bus `Predicate[EventT]` protocol which requires exactly one event argument
+- **FR#1** `Scheduler.schedule()` accepts a `where` parameter of type `SchedulerPredicate | Sequence[SchedulerPredicate] | None` (defaulting to `None`), where `SchedulerPredicate` is a new type alias (`Callable[..., bool]`) — distinct from the bus `Predicate[EventT]` protocol which requires exactly one event argument
 - **FR#2** All convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) accept and forward the `where` parameter to `schedule()`
-- **FR#3** The predicate is normalized at registration time (single callable stored directly; sequences collapsed into a closure) and stored on the `ScheduledJob` dataclass
+- **FR#3** The predicate is normalized at registration time (single callable stored directly; sequences collapsed into an `_AllPredicates` combinator) and stored on the `ScheduledJob` dataclass alongside a pre-built DI invoker
 - **FR#4** At dispatch time, the predicate is evaluated before the handler runs; if it returns `False`, the handler is not invoked
 - **FR#5** A skipped execution produces an `ExecutionRecord` with `status='skipped'` and `duration_ms=0.0`
 - **FR#6** For recurring jobs, a skipped execution does not affect the schedule — the next occurrence is computed and enqueued regardless of predicate outcome
 - **FR#7** For one-shot jobs, a skipped execution consumes the job (removes it from the scheduler)
-- **FR#8** Predicate exceptions are caught and logged; the job runs anyway (fail-open semantics)
-- **FR#9** Predicate arity is annotation-based: a positional parameter annotated as `ScheduledJob` triggers one-arg dispatch; unannotated predicates (including lambdas) dispatch as zero-arg
-- **FR#10** Predicate annotations are inspected once at registration time via the shared `get_typed_signature()` / `find_parameter_by_type()` utilities; dispatch uses the stored flag without re-inspecting
+- **FR#8** Predicate exceptions are caught and logged with traceback; the handler does not run. An `ExecutionRecord` with `status='error'` is enqueued and the job's `on_error` handler (or app-level fallback) is invoked — the same routing a raising handler gets. (Revised during PR review: originally specified as fail-open.)
+- **FR#9** Predicate arity is annotation-based: a parameter annotated as `ScheduledJob` receives the job via DI; unannotated predicates (including lambdas) dispatch as zero-arg
+- **FR#10** Predicate signatures are inspected once at registration time via the shared DI layer (`hassette.di`: `build_injection_plan` → `CallableInvoker`); dispatch resolves kwargs through the stored invoker without re-inspecting
 - **FR#11** The `scheduled_jobs` database table stores `predicate_description` (Python repr) and `human_description` (from `callable_stable_name()` with `hasattr` fallback to `summarize()`)
 - **FR#12** The `executions` table `status` CHECK constraint allows `'skipped'` as a valid value
 - **FR#13** The `JobSummary` telemetry model includes a `skipped` count field
@@ -93,13 +93,13 @@ The bus already has `where=` on every subscription method, with normalization, s
 
 ## Edge Cases
 
-- **Predicate raises an exception:** caught and logged as an error (with traceback via `logger.exception`); job runs anyway (fail-open). The execution is recorded with whatever status the handler produces, not `'skipped'`.
+- **Predicate raises an exception:** caught and logged as an error (with traceback via `logger.exception`); the handler does not run. The fire is recorded with `status='error'` (including error type, message, and traceback), the `on_error` handler is invoked, and one-shot jobs are still removed.
 - **Predicate on a one-shot that returns False:** job is consumed. The developer chose to gate it — the skip is deliberate.
 - **Lambda identity in `matches()`/`diff_fields()`:** two lambdas with identical source compare by identity (`is`), so `if_exists="skip"` treats them as different jobs. This matches `Listener`'s existing behavior and is documented in the bus.
 - **Zero-arg lambda summarization:** `summarize_top_level()` falls back to `callable_stable_name()`, returning the function name or `"<callable>"` for lambdas. Named functions and predicate dataclasses with `summarize()` produce better descriptions.
 - **One-arg predicate sees post-advance state:** Because the predicate runs after step 1 (compute next occurrence), `job.next_run` and `job.fire_at` reflect the *next* occurrence, not the time currently firing. `job.args` and `job.kwargs` are unaffected. This is acceptable — predicates that need timing info should use `date_utils.now()` rather than inspecting the job's schedule fields.
 - **`where=` with `if_exists="skip"`:** if an existing job matches on all fields including predicate, the new registration is skipped. If the predicate differs, `matches()` returns `False` and `_add_job()` raises `ValueError` naming the changed fields (same as any other config mismatch — the new job does not silently register alongside the old one).
-- **Predicate takes >1 positional parameter:** `TypeError` raised at registration time.
+- **Predicate takes >1 positional parameter:** accepted. Parameters without a `ScheduledJob` annotation are not injected (per FR#9's annotation-based rule), so a predicate whose extra parameters all have defaults dispatches fine; one whose extra parameters lack defaults fails at call time like any Python callable.
 - **Manual trigger ("Run Now") bypasses predicates:** The `POST /api/scheduler/jobs/{job_id}/trigger` endpoint calls `run_job_with_guard()` directly, not `dispatch_and_log()`. Since the predicate check lives inside `dispatch_and_log()`, manually-triggered executions skip the predicate entirely. This is intentional — "Run Now" is an explicit operator action that should always fire, regardless of conditional gating. The resulting execution records have `trigger_mode="manual"` and no `'skipped'` status.
 
 ## Acceptance Criteria
@@ -107,7 +107,7 @@ The bus already has `where=` on every subscription method, with normalization, s
 - **AC#1** A job registered with `where=lambda: False` never executes its handler but produces `'skipped'` execution records on every trigger fire (FR#4, FR#5)
 - **AC#2** A recurring job with a `where=` predicate that returns `False` is rescheduled for its next occurrence (FR#6)
 - **AC#3** A one-shot job (`run_in`) with a `where=` predicate that returns `False` is consumed after skip (FR#7)
-- **AC#4** A predicate that raises an exception logs an error (with traceback) and the job runs (FR#8)
+- **AC#4** A predicate that raises an exception logs an error (with traceback), records a `status='error'` execution, invokes `on_error`, and does not run the handler (FR#8)
 - **AC#5** A predicate with a `ScheduledJob`-annotated positional parameter receives the job instance; a predicate without such annotation is called with zero arguments (FR#9, FR#10)
 - **AC#6** An async predicate raises `TypeError` at registration time (FR#16)
 - **AC#7** The job detail page in the web UI displays the `skipped` count and predicate description (FR#11, FR#13)
@@ -123,7 +123,7 @@ The bus already has `where=` on every subscription method, with normalization, s
 
 ## Dependencies and Assumptions
 
-- The bus's `AllOf`, `normalize_where()`, `summarize_top_level()`, and `_summarize_predicate()` are all typed for `Predicate[EventT]` (one-arg) and cannot accept zero-arg scheduler predicates. The scheduler uses its own normalization (closure collapse for sequences) and summarization (`callable_stable_name()` directly, with `hasattr` fallback to `summarize()`).
+- The bus's `AllOf`, `normalize_where()`, `summarize_top_level()`, and `_summarize_predicate()` are all typed for `Predicate[EventT]` (one-arg) and cannot accept zero-arg scheduler predicates. The scheduler uses its own normalization (`_AllPredicates` combinator for sequences) and summarization (`callable_stable_name()` directly, with `hasattr` fallback to `summarize()`).
 - `inspect.signature` from stdlib is sufficient for predicate arity inspection (no new dependencies).
 - The `ExecutionStatus` StrEnum in `types/types.py` is the authoritative source for valid status values; the SQL CHECK constraint is defense-in-depth.
 
@@ -134,7 +134,7 @@ The bus already has `where=` on every subscription method, with normalization, s
 Define a new `SchedulerPredicate` type alias in `src/hassette/types/types.py`:
 
 ```python
-SchedulerPredicate = Callable[[], bool] | Callable[["ScheduledJob"], bool]
+SchedulerPredicate = Callable[..., bool]
 ```
 
 This is distinct from the bus `Predicate[EventT]` protocol (which requires exactly one event argument). The scheduler predicate supports zero-arg (common case) or one-arg (receives `ScheduledJob`).
@@ -145,31 +145,26 @@ Add a `predicate` field to `ScheduledJob`:
 predicate: "SchedulerPredicate | None" = field(default=None, compare=False)
 ```
 
-The predicate is normalized at registration time inside `Scheduler.schedule()`. For a single callable, store it directly. For a sequence, collapse into a closure:
+The predicate is normalized at registration time inside `Scheduler.schedule()` via `_normalize_where()`. For a single callable, store it directly alongside its DI invoker. For a sequence, collapse into a frozen `_AllPredicates` dataclass that holds `(predicate, invoker)` pairs and ANDs the results.
 
-```python
-if isinstance(where, Sequence):
-    preds = tuple(where)
-    where = lambda: all(p() for p in preds)
-```
+`_AllPredicates` is a combinator class (the design originally specified a bare closure; a lambda was replaced during PR review because closures compare by identity, which broke `if_exists=` collision detection — two independently-built sequences of the same predicate functions must compare equal). The bus's `AllOf` is typed for one-arg `Predicate[EventT]` and cannot be reused for scheduler predicates. This does not constrain the future design — when composable predicate classes (e.g., `IsHome("jessica") & StateIs("light.office", "on")`) are built later, they'll implement `__and__`/`__or__` returning their own combinator, and the scheduler's `where=` parameter accepts them without changes (any callable works).
 
-No new combinator class. The bus's `AllOf` is typed for one-arg `Predicate[EventT]` and cannot be reused for zero-arg scheduler predicates. The closure approach is simpler and does not constrain the future design — when composable predicate classes (e.g., `IsHome("jessica") & StateIs("light.office", "on")`) are built later, they'll implement `__and__`/`__or__` returning their own zero-arg combinator, and the scheduler's `where=` parameter accepts them without changes (any callable works).
-
-All sub-predicates in a sequence must be zero-arg. If a user needs a `ScheduledJob`-receiving predicate in a sequence, they wrap it in a closure.
+Sequence members keep the single-predicate contract: each member carries its own DI invoker, so a `ScheduledJob`-annotated member receives the job and unannotated members are called with zero arguments.
 
 ### Predicate summarization
 
-The bus's `summarize_top_level()` and `_summarize_predicate()` are typed for `Predicate[EventT]` and reject zero-arg callables at the type level. The scheduler calls `callable_stable_name()` directly for `human_description` generation, and delegates to a predicate's `summarize()` method when present (via `hasattr` check). For `predicate_description`, `repr(predicate)` is used (same as the bus). Closure-collapsed sequences summarize as `"<callable>"` — users who want informative telemetry descriptions use named functions or (in the future) predicate dataclasses with `summarize()`.
+The bus's `summarize_top_level()` and `_summarize_predicate()` are typed for `Predicate[EventT]` and reject zero-arg callables at the type level. The scheduler calls `callable_stable_name()` directly for `human_description` generation, and delegates to a predicate's `summarize()` method when present (via `hasattr` check). For `predicate_description`, `repr(predicate)` is used (same as the bus). `_AllPredicates.summarize()` joins member names with `" and "`, mirroring the bus's `AllOf.summarize()`; lambdas still render as `"<callable>"` — users who want informative telemetry descriptions use named functions or (in the future) predicate dataclasses with `summarize()`.
 
 ### Predicate arity detection
 
-At registration time in `Scheduler.schedule()`, inspect the predicate's type annotations (via the shared `get_typed_signature()` / `find_parameter_by_type()` utilities from `hassette.utils.type_utils` — the same annotation resolution pipeline the bus DI system uses) to determine whether any positional parameter is annotated as `ScheduledJob`. Store the result as a `_predicate_wants_job: bool` field on `ScheduledJob` (`init=False`, `compare=False`, set in `Scheduler.schedule()` after normalization). At dispatch time, the flag selects the invocation path without re-inspecting.
+At registration time in `Scheduler.schedule()`, `_build_predicate_invoker()` inspects the predicate's signature via the shared DI layer (`hassette.di`): `get_typed_signature()` → `build_injection_plan(sig, (TypeMatcher(ScheduledJob),))` → `CallableInvoker`. The invoker is stored on `ScheduledJob.predicate_invoker` (passed to the constructor alongside `predicate`). At dispatch time, `predicate_invoker.invoke({ScheduledJob: job})` resolves kwargs without re-inspecting, and the predicate is called with `predicate(**kwargs)`. (The design originally specified a `_predicate_wants_job: bool` flag with positional dispatch; the DI-layer rewrite replaced it after `hassette.di` shipped.)
 
 Detection rules:
-- If the predicate is async (detected via `asyncio.iscoroutinefunction()`) → `TypeError`
-- If a positional parameter is annotated as `ScheduledJob` (or a union containing it, e.g. `ScheduledJob | None`) → set `_predicate_wants_job = True`
-- If a keyword-only parameter is annotated as `ScheduledJob` → `TypeError` (dispatch passes the job positionally)
-- Otherwise (no `ScheduledJob` annotation found, including lambdas and unannotated functions) → set `_predicate_wants_job = False`
+- If the predicate is async (detected via `inspect.iscoroutinefunction()`) → `TypeError`
+- If a parameter is annotated as `ScheduledJob` (or a union containing it, e.g. `ScheduledJob | None`) → the injection plan injects the job for that parameter. Dispatch passes kwargs, so keyword-only parameters resolve the same as positional ones.
+- If the signature has `*args` or positional-only parameters → `DependencyInjectionError` (shared DI validation)
+- If the signature cannot be inspected at all (some builtins/C callables) → empty invoker, zero-arg dispatch
+- Otherwise (no `ScheduledJob` annotation found, including lambdas and unannotated functions) → empty injection plan, zero-arg dispatch
 
 ### Predicate evaluation
 
@@ -178,24 +173,26 @@ In `SchedulerService.dispatch_and_log()`, insert a predicate check between step 
 ```python
 # After step 1 (next occurrence computed, enqueued if recurring)
 if job.predicate is not None:
+    predicate_start = time.time()
     try:
-        should_run = job.predicate(job) if job._predicate_wants_job else job.predicate()
-    except Exception:
-        self.logger.exception("Predicate raised for job %s — running job anyway (fail-open)", job)
-        should_run = True
+        kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+        should_run = job.predicate(**kwargs)
+    except Exception as exc:
+        self.logger.exception("Predicate raised for job %s — recording failure; the job does not run", job)
+        self._record_predicate_failure(job, exc, predicate_start)
+        if remove_after_fire:
+            await self._try_remove_job(job, "predicate-error")
+        return
 
     if not should_run:
         self.logger.debug("Predicate returned False for job %s — skipping", job)
         self._record_skipped(job)
         if remove_after_fire:
-            try:
-                await self._remove_job(job)
-            except Exception:
-                self.logger.exception("Error removing skipped job %s", job)
+            await self._try_remove_job(job, "skipped")
         return
 ```
 
-The `_record_skipped()` method builds an `ExecutionRecord` with `status='skipped'`, `duration_ms=0.0`, and enqueues it via `self._executor.enqueue_record()`. This bypasses `_execute()` / `track_execution()` entirely.
+The `_record_skipped()` method builds an `ExecutionRecord` with `status='skipped'`, `duration_ms=0.0`, and enqueues it via `self._executor.enqueue_record()`. `_record_predicate_failure()` builds a `status='error'` record (with error type, message, traceback, and the real predicate-evaluation duration) and routes the exception to the job's `on_error` handler via `CommandExecutor.invoke_error_handler()`. Both bypass `_execute()` / `track_execution()` entirely.
 
 ### API surface
 
@@ -304,7 +301,7 @@ return cls(
 )
 ```
 
-The scheduler cannot reuse `normalize_where()` or `AllOf` directly (both are typed for the bus `Predicate[EventT]` protocol), but follows the same single-entry-point pattern: normalize once at registration, store the result, never re-normalize at dispatch. Sequences collapse into a closure rather than using a combinator class.
+The scheduler cannot reuse `normalize_where()` or `AllOf` directly (both are typed for the bus `Predicate[EventT]` protocol), but follows the same single-entry-point pattern: normalize once at registration, store the result, never re-normalize at dispatch. Sequences collapse into the `_AllPredicates` combinator, the scheduler's analog of the bus's `AllOf`.
 
 ### Predicate evaluation in `Listener.matches()`
 
@@ -396,12 +393,12 @@ Skip silently (no execution record). Simpler — no CHECK constraint migration, 
 
 ### New Test Coverage
 
-- **Unit: predicate arity detection** — zero-arg, annotated ScheduledJob, unannotated one-arg, wrong annotation, union annotation, keyword-only ScheduledJob (TypeError), async (TypeError), lambda (FR#9, FR#10, FR#16)
+- **Unit: predicate arity detection** — zero-arg, annotated ScheduledJob, unannotated one-arg, wrong annotation, union annotation, `*args` (DependencyInjectionError), async (TypeError), lambda (FR#9, FR#10, FR#16)
 - **Unit: `ScheduledJob.matches()` with predicate** — same predicate matches, different predicate doesn't, None vs predicate doesn't (FR#15)
 - **Unit: `ScheduledJob.diff_fields()` with predicate** — predicate listed in diffs when changed (FR#15)
 - **Integration: recurring job skip** — register with `where=lambda: False`, trigger, verify `'skipped'` record and rescheduling (FR#4, FR#5, FR#6)
 - **Integration: one-shot job skip** — register `run_in` with `where=lambda: False`, trigger, verify `'skipped'` record and job removal (FR#7)
-- **Integration: predicate exception (fail-open)** — register with `where=lambda: 1/0`, trigger, verify warning logged and job runs (FR#8)
+- **Integration: predicate exception** — register with a raising predicate, dispatch, verify the job does not run, a `status='error'` record is enqueued, `on_error` is invoked, and the one-shot is removed (FR#8)
 - **Integration: predicate receives ScheduledJob** — register with `where=` using a named function with `job: ScheduledJob` annotation, verify correct invocation (FR#9)
 - **Integration: `where=` parameter forwarding** — verify `run_in`, `run_every`, `run_daily`, `run_cron` all forward `where=` to `schedule()` (FR#2)
 - **Unit: telemetry — `'skipped'` in aggregation queries** — verify `skipped` count in `JobSummary` (FR#13, FR#14)

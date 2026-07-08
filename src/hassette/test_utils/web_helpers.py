@@ -268,7 +268,7 @@ def make_real_job(
         app_key: Optional app key.
         instance_index: Optional app instance index.
         predicate: Optional ``where=`` predicate. Does not set ``predicate_invoker`` —
-            callers that need DI resolution should set it directly on the returned job.
+            callers that need DI resolution should pass one when constructing their own job.
     """
     return ScheduledJob(
         owner_id=owner_id,

@@ -235,16 +235,17 @@ class ScheduledJob:
     """Normalized predicate callable, or ``None`` when no ``where=`` was given.
 
     Set once at registration time by ``Scheduler.schedule()`` — a single callable is stored
-    directly, and a sequence of predicates is collapsed into a closure. ``compare=False``
+    directly, and a sequence of predicates is collapsed into a combinator. ``compare=False``
     prevents ``Callable | None`` from corrupting the ``@dataclass(order=True)`` heap ordering.
     """
 
-    predicate_invoker: "CallableInvoker | None" = field(default=None, init=False, repr=False, compare=False)
+    predicate_invoker: "CallableInvoker | None" = field(default=None, repr=False, compare=False)
     """Pre-built DI invoker for the predicate, or ``None`` when no ``where=`` was given.
 
     Built once at registration time by ``Scheduler.schedule()`` using the shared DI layer
-    (``hassette.di``). At dispatch time, ``predicate_invoker.invoke({ScheduledJob: job})``
-    produces kwargs and the predicate is called with ``predicate(**kwargs)``."""
+    (``hassette.di``) and passed alongside ``predicate``. At dispatch time,
+    ``predicate_invoker.invoke({ScheduledJob: job})`` produces kwargs and the predicate is
+    called with ``predicate(**kwargs)``."""
 
     guard: ExecutionModeGuard = field(init=False, compare=False)
     """Per-job overlap state machine. Created in ``__post_init__`` from ``mode``. Lives for the

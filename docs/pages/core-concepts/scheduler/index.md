@@ -62,7 +62,7 @@ A skipped run still shows up in telemetry, with a `skipped` status and no error.
 
 ![Job detail showing a where= predicate, the Skipped stat, and a skipped execution row](../../../_static/web_ui_predicate_skipped.png)
 
-See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and fail-open exception handling.
+See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and exception handling.
 
 ## Verify It's Working
 
