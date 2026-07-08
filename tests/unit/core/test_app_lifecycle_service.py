@@ -256,6 +256,118 @@ class TestInitializeInstances:
         assert len(failed_calls) == 1
 
 
+class TestCleanupFailedInstance:
+    async def test_exception_cleans_up_listeners_before_record_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """Bus listeners registered before the failure are removed via Bus.remove_all_listeners."""
+        mock_app_instance.initialize.side_effect = ValueError("boom")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        mock_app_instance.bus.remove_all_listeners.assert_called_once()
+
+    async def test_exception_cleans_up_jobs_before_record_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Scheduler jobs registered before the failure are removed."""
+        mock_app_instance.initialize.side_effect = ValueError("boom")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
+            mock_app_instance.scheduler.owner_id,
+        )
+
+    async def test_timeout_cleans_up_listeners_and_jobs(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """TimeoutError path also cleans up listeners and jobs."""
+        mock_app_instance.initialize.side_effect = TimeoutError("Timed out")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        mock_app_instance.bus.remove_all_listeners.assert_called_once()
+        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
+            mock_app_instance.scheduler.owner_id,
+        )
+
+    async def test_cleanup_runs_before_record_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+    ) -> None:
+        """Cleanup runs before record_failure pops the instance from the registry."""
+        call_order: list[str] = []
+
+        mock_app_instance.bus.remove_all_listeners = Mock(side_effect=lambda: call_order.append("cleanup_listeners"))
+        original_side_effect = mock_hassette.scheduler_service.remove_jobs_by_owner.side_effect
+
+        async def track_jobs(owner):
+            call_order.append("cleanup_jobs")
+            return await original_side_effect(owner)
+
+        mock_hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=track_jobs)
+        mock_registry.record_failure.side_effect = lambda *_args: call_order.append("record_failure")
+        mock_app_instance.initialize.side_effect = ValueError("boom")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        assert call_order == ["cleanup_listeners", "cleanup_jobs", "record_failure"]
+
+    async def test_cleanup_failure_does_not_prevent_record_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+        mock_registry: MagicMock,
+    ) -> None:
+        """If cleanup raises, init failure is still recorded."""
+        mock_app_instance.bus.remove_all_listeners.side_effect = RuntimeError("cleanup exploded")
+        mock_app_instance.initialize.side_effect = ValueError("boom")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        mock_registry.record_failure.assert_called_once()
+
+    async def test_bus_cleanup_failure_does_not_skip_scheduler_cleanup(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_manifest: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Bus listener cleanup failure does not prevent scheduler job cleanup."""
+        mock_app_instance.bus.remove_all_listeners.side_effect = RuntimeError("bus exploded")
+        mock_app_instance.initialize.side_effect = ValueError("boom")
+        instances = {0: mock_app_instance}
+
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+
+        mock_hassette.scheduler_service.remove_jobs_by_owner.assert_called_once_with(
+            mock_app_instance.scheduler.owner_id,
+        )
+
+
 class TestShutdownInstance:
     async def test_calls_shutdown(self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock) -> None:
         """Calls inst.shutdown()."""

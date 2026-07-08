@@ -138,6 +138,7 @@ class AppLifecycleService(Resource):
                     get_short_traceback(5),
                 )
                 inst.status = STOPPED
+                await self.cleanup_failed_instance(inst)
                 self.registry.record_failure(app_key, idx, e)
                 await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
             except Exception as e:
@@ -148,6 +149,7 @@ class AppLifecycleService(Resource):
                     get_short_traceback(5),
                 )
                 inst.status = STOPPED
+                await self.cleanup_failed_instance(inst)
                 self.registry.record_failure(app_key, idx, e)
                 await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
             finally:
@@ -156,6 +158,38 @@ class AppLifecycleService(Resource):
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
         await self.reconcile_app_registrations(app_key, instances)
+
+    async def cleanup_failed_instance(self, inst: "App[AppConfig]") -> None:
+        """Remove bus listeners and scheduler jobs registered by an instance that failed to initialize.
+
+        Bounded by a short timeout so a broken cleanup path cannot turn an init failure into a hang.
+        Must run before record_failure, which pops the instance from the registry — after that point,
+        the normal shutdown path can never reach these registrations.
+        """
+        cleanup_timeout = 5
+        try:
+            with anyio.fail_after(cleanup_timeout):
+                try:
+                    inst.bus.remove_all_listeners()
+                except Exception:
+                    self.logger.warning(
+                        "Listener cleanup failed for instance '%s'",
+                        inst.app_config.instance_name,
+                        exc_info=True,
+                    )
+                try:
+                    await self.hassette.scheduler_service.remove_jobs_by_owner(inst.scheduler.owner_id)
+                except Exception:
+                    self.logger.warning(
+                        "Job cleanup failed for instance '%s'",
+                        inst.app_config.instance_name,
+                        exc_info=True,
+                    )
+        except TimeoutError:
+            self.logger.warning(
+                "Cleanup timed out for failed instance '%s' — some listeners or jobs may leak until restart",
+                inst.app_config.instance_name,
+            )
 
     async def shutdown_instance(self, inst: "App[AppConfig]", instance_index: int | None = None) -> None:
         """Shutdown a single app instance.

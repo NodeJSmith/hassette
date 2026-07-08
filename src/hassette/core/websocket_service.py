@@ -399,17 +399,53 @@ class WebsocketService(Service):
             await self.raw_recv()
 
     async def subscribe_events(self, event_type: str | None = None) -> int:
-        """Subscribe to HA events; returns the subscription ID (the message id you sent)."""
+        """Subscribe to HA events; returns the subscription ID HA confirmed.
+
+        Handles its own retry loop (rather than delegating to send_and_wait) because
+        subscribe_events has side effects: each send creates a real subscription on HA.
+        Before each retry, the previous attempt's subscription is proactively unsubscribed
+        in case HA processed it despite the timeout. If all retries exhaust, the final
+        attempt's subscription is not cleaned up here — reconnect handles that case.
+        """
         payload: dict[str, Any] = {"type": "subscribe_events"}
         if event_type is not None:
-            payload["event_type"] = event_type  # omit to get all events
+            payload["event_type"] = event_type
 
-        payload["id"] = sub_id = self.get_next_message_id()
-        # Use send_and_wait so we see success/error deterministically
-        await self.send_and_wait(**payload)
-        # HA replies with {'id': <same>, 'type': 'result', 'success': True}
-        # We return our own id as the subscription handle for unsubscribe
-        return sub_id
+        last_abandoned_id: int | None = None
+
+        @retry(
+            retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+            wait=wait_exponential_jitter(),
+            before_sleep=before_sleep_log(self.logger, logging.WARNING),
+            reraise=True,
+        )
+        async def subscribe_with_retry() -> int:
+            nonlocal last_abandoned_id
+            if last_abandoned_id is not None:
+                with suppress(Exception):
+                    await self.send_json(
+                        type="unsubscribe_events",
+                        subscription=last_abandoned_id,
+                        id=self.get_next_message_id(),
+                    )
+
+            msg_id = self.get_next_message_id()
+            fut = self.hassette.loop.create_future()
+            self._response_futures[msg_id] = fut
+            try:
+                await self.send_json(**{**payload, "id": msg_id})
+                await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
+                return msg_id
+            except TimeoutError:
+                last_abandoned_id = msg_id
+                raise FailedMessageError(
+                    f"subscribe_events response timed out after {self.resp_timeout_seconds}s"
+                ) from None
+            finally:
+                self._response_futures.pop(msg_id, None)
+
+        return await subscribe_with_retry()
 
     async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""

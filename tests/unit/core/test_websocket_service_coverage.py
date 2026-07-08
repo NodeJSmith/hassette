@@ -64,11 +64,14 @@ class TestSubscribeEvents:
         """subscribe_events sends a bare subscribe_events payload when no event_type is given."""
         captured: dict = {}
 
-        async def fake_send_and_wait(**data):
+        async def fake_send_json(**data):
             captured.update(data)
-            return {"success": True}
+            msg_id = data["id"]
+            fut = websocket_service._response_futures.get(msg_id)
+            if fut and not fut.done():
+                fut.set_result(None)
 
-        websocket_service.send_and_wait = fake_send_and_wait  # boundary-exempt: collaborator of subscribe_events
+        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events()
 
@@ -80,11 +83,14 @@ class TestSubscribeEvents:
         """subscribe_events includes the event_type filter in the payload when given."""
         captured: dict = {}
 
-        async def fake_send_and_wait(**data):
+        async def fake_send_json(**data):
             captured.update(data)
-            return {"success": True}
+            msg_id = data["id"]
+            fut = websocket_service._response_futures.get(msg_id)
+            if fut and not fut.done():
+                fut.set_result(None)
 
-        websocket_service.send_and_wait = fake_send_and_wait  # boundary-exempt: collaborator of subscribe_events
+        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events(event_type="state_changed")
 
