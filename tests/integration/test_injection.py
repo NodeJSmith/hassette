@@ -10,12 +10,12 @@ from typing import Annotated
 import pytest
 
 from hassette import MISSING_VALUE, A, D
-from hassette.bus.extraction import extract_from_annotated
 from hassette.bus.injection import ParameterInjector
+from hassette.di import AnnotatedMatcher, AnnotationDetails
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
-from hassette.utils.type_utils import get_typed_signature
+from hassette.utils.type_utils import get_type_and_details, get_typed_signature
 
 
 class TestMaybeAnnotations:
@@ -27,7 +27,7 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
         assert event is not None, "No event with new_state=None found"
 
-        _, annotation_details = extract_from_annotated(D.MaybeStateNew[states.BaseState])
+        _, annotation_details = get_type_and_details(D.MaybeStateNew[states.BaseState])
         result = annotation_details.extractor(event)
 
         assert result is None
@@ -37,7 +37,7 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is not None), None)
         assert event is not None, "No event with new_state found"
 
-        _, annotation_details = extract_from_annotated(D.MaybeStateNew[states.BaseState])
+        _, annotation_details = get_type_and_details(D.MaybeStateNew[states.BaseState])
         result = annotation_details.extractor(event)
 
         assert result is not None
@@ -49,7 +49,7 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No event with old_state=None found"
 
-        _, annotation_details = extract_from_annotated(D.MaybeStateOld[states.BaseState])
+        _, annotation_details = get_type_and_details(D.MaybeStateOld[states.BaseState])
         result = annotation_details.extractor(event)
 
         assert result is None
@@ -59,7 +59,7 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None, "No event with old_state found"
 
-        _, annotation_details = extract_from_annotated(D.MaybeStateOld[states.BaseState])
+        _, annotation_details = get_type_and_details(D.MaybeStateOld[states.BaseState])
         result = annotation_details.extractor(event)
 
         assert result is not None
@@ -69,7 +69,7 @@ class TestMaybeAnnotations:
         """Test MaybeEntityId returns entity_id when present."""
         event = state_change_events[0]
 
-        _, annotation_details = extract_from_annotated(D.MaybeEntityId)
+        _, annotation_details = get_type_and_details(D.MaybeEntityId)
         result = annotation_details.extractor(event)
 
         assert result is not MISSING_VALUE
@@ -81,7 +81,7 @@ class TestMaybeAnnotations:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found"
 
-        _, annotation_details = extract_from_annotated(D.MaybeDomain)
+        _, annotation_details = get_type_and_details(D.MaybeDomain)
         result = annotation_details.extractor(call_service_event)
 
         assert result is not MISSING_VALUE
@@ -97,7 +97,7 @@ class TestRequiredAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
         assert event is not None, "No event with new_state=None found"
 
-        _, annotation_details = extract_from_annotated(D.StateNew[states.BaseState])
+        _, annotation_details = get_type_and_details(D.StateNew[states.BaseState])
 
         with pytest.raises(DependencyResolutionError):
             annotation_details.extractor(event)
@@ -108,7 +108,7 @@ class TestRequiredAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No event with old_state=None found"
 
-        _, annotation_details = extract_from_annotated(D.StateOld[states.BaseState])
+        _, annotation_details = get_type_and_details(D.StateOld[states.BaseState])
 
         with pytest.raises(DependencyResolutionError):
             annotation_details.extractor(event)
@@ -117,7 +117,7 @@ class TestRequiredAnnotations:
         """Test EntityId succeeds when entity_id is present."""
         event = state_change_events[0]
 
-        _, annotation_details = extract_from_annotated(D.EntityId)
+        _, annotation_details = get_type_and_details(D.EntityId)
         result = annotation_details.extractor(event)
 
         assert result is not MISSING_VALUE
@@ -128,7 +128,7 @@ class TestRequiredAnnotations:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found"
 
-        _, annotation_details = extract_from_annotated(D.Domain)
+        _, annotation_details = get_type_and_details(D.Domain)
         result = annotation_details.extractor(call_service_event)
 
         assert result is not MISSING_VALUE
@@ -144,15 +144,17 @@ class TestCustomDI:
         def custom_extractor(event: RawStateChangeEvent) -> str:
             return f"custom-{event.payload.data.entity_id}"
 
-        annotation = Annotated[str, custom_extractor]
+        def handler(value: Annotated[str, custom_extractor]):
+            pass
 
         event = state_change_events[0]
 
-        base_type, annotation_details = extract_from_annotated(annotation)
-        result = annotation_details.extractor(event)
+        signature = get_typed_signature(handler)
+        result = AnnotatedMatcher(source_type=Event).match(signature.parameters["value"])
 
-        assert base_type is str
-        assert result == f"custom-{event.payload.data.entity_id}"
+        assert result is not None
+        assert result.target_type is str
+        assert result.extractor(event) == f"custom-{event.payload.data.entity_id}"
 
     def test_attr_new_example_works(self, state_change_events: list[RawStateChangeEvent]):
         """Test that custom extractor for attribute new value works."""
@@ -209,3 +211,42 @@ class TestCustomDI:
         expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
 
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
+
+
+class TestSourceTypeLookup:
+    """Test DI source-type resolution in ParameterInjector.inject_parameters."""
+
+    def test_event_subclass_source_type_resolves(self, state_change_events: list[RawStateChangeEvent]):
+        """An AnnotationDetails with source_type=RawStateChangeEvent resolves via type(event)."""
+
+        def extractor(event: RawStateChangeEvent) -> str:
+            return event.payload.data.entity_id
+
+        def handler(entity: Annotated[str, AnnotationDetails(extractor=extractor, source_type=RawStateChangeEvent)]):
+            pass
+
+        event = state_change_events[0]
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+        kwargs = injector.inject_parameters(event)
+
+        assert kwargs["entity"] == event.payload.data.entity_id
+
+    def test_unsupported_source_type_raises_clear_error(self, state_change_events: list[RawStateChangeEvent]):
+        """A source_type not in available raises DependencyResolutionError with a descriptive message."""
+
+        class UnknownSource:
+            pass
+
+        def extractor(_src: UnknownSource) -> str:
+            return "unreachable"
+
+        def handler(value: Annotated[str, AnnotationDetails(extractor=extractor, source_type=UnknownSource)]):
+            pass
+
+        event = state_change_events[0]
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+
+        with pytest.raises(DependencyResolutionError, match="no source available for type 'UnknownSource'"):
+            injector.inject_parameters(event)

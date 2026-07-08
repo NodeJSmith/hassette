@@ -5,21 +5,28 @@
 
 """Tests for signature extraction, validation, and pre-defined type alias extractors."""
 
+import inspect
 from collections import defaultdict
+from typing import Any
 
 import pytest
 
 from hassette import MISSING_VALUE, D
-from hassette.bus.extraction import (
-    extract_from_annotated,
-    extract_from_signature,
-    has_dependency_injection,
-    validate_di_signature,
-)
+from hassette.di import AnnotatedMatcher, InjectionParam, TypeMatcher, build_injection_plan, validate_di_signature
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
+
+
+def _match_annotated(annotation: Any, source_type: type = Event) -> InjectionParam | None:
+    """Build a synthetic parameter for `annotation` and match it via AnnotatedMatcher.
+
+    Mirrors the old `extract_from_annotated(annotation)` call shape for tests that only care
+    about the resolved extractor, not the full handler-signature matching flow.
+    """
+    param = inspect.Parameter("value", inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation)
+    return AnnotatedMatcher(source_type=source_type).match(param)
 
 
 class TestTypeAliasExtractors:
@@ -42,13 +49,14 @@ class TestTypeAliasExtractors:
                 events = [e for e in events if e.payload.data.service_data]
 
             for event in events:
-                # Extract the callable from the Annotated type
-                _, annotation_details = extract_from_annotated(D.EntityId)
-                result = annotation_details.extractor(event)
+                # Match the Annotated type via AnnotatedMatcher
+                result = _match_annotated(D.EntityId)
+                assert result is not None
+                extracted = result.extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get entity_id from a few different places
                 # and the test shouldn't need to be aware of that
-                assert result is not MISSING_VALUE, f"EntityId extractor returned MISSING_VALUE for event: {event}"
+                assert extracted is not MISSING_VALUE, f"EntityId extractor returned MISSING_VALUE for event: {event}"
 
     def test_entity_id_with_call_service_event_with_empty_data_returns_missing_value(self, other_events: list[Event]):
         """Test MaybeEntityId extractor returns MISSING_VALUE for CallServiceEvent with empty service_data."""
@@ -57,12 +65,13 @@ class TestTypeAliasExtractors:
         )
         assert call_service_event is not None, "No CallServiceEvent with empty service_data found in test data"
 
-        _, annotation_details = extract_from_annotated(D.MaybeEntityId)
-        result = annotation_details.extractor(call_service_event)
+        result = _match_annotated(D.MaybeEntityId)
+        assert result is not None
+        extracted = result.extractor(call_service_event)
 
-        assert result is MISSING_VALUE, (
+        assert extracted is MISSING_VALUE, (
             "MaybeEntityId extractor should return MISSING_VALUE for CallServiceEvent with empty service_data, "
-            f"got: {result}"
+            f"got: {extracted}"
         )
 
     def test_domain_extractor(self, all_events: list[Event]):
@@ -77,13 +86,14 @@ class TestTypeAliasExtractors:
 
         for events in event_types.values():
             for event in events:
-                # Extract the callable from the Annotated type
-                _, annotation_details = extract_from_annotated(D.Domain)
-                result = annotation_details.extractor(event)
+                # Match the Annotated type via AnnotatedMatcher
+                result = _match_annotated(D.Domain)
+                assert result is not None
+                extracted = result.extractor(event)
 
                 # check only for "not MISSING_VALUE", as we get domain from a few different places
                 # and the test shouldn't need to be aware of that
-                assert result is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
+                assert extracted is not MISSING_VALUE, f"Domain extractor returned MISSING_VALUE for event: {event}"
 
 
 class TestSignatureExtraction:
@@ -96,13 +106,11 @@ class TestSignatureExtraction:
             pass
 
         signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
+        plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
 
-        assert len(param_details_dict) == 1
-        assert "event" in param_details_dict
-
-        event_type, _annotation_details = param_details_dict["event"]
-        assert event_type is RawStateChangeEvent
+        assert len(plan) == 1
+        assert plan[0].name == "event"
+        assert plan[0].target_type is RawStateChangeEvent
 
     def test_extract_from_signature_mixed_params(self):
         """Test extracting with mix of DI and regular params."""
@@ -116,14 +124,15 @@ class TestSignatureExtraction:
             pass
 
         signature = get_typed_signature(handler)
-        param_details_dict = extract_from_signature(signature)
+        plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
 
         # Only annotated/DI params should be extracted
-        assert len(param_details_dict) == 3
-        assert "event" in param_details_dict
-        assert "new_state" in param_details_dict
-        assert "entity_id" in param_details_dict
-        assert "regular_param" not in param_details_dict
+        names = {param.name for param in plan}
+        assert len(plan) == 3
+        assert "event" in names
+        assert "new_state" in names
+        assert "entity_id" in names
+        assert "regular_param" not in names
 
     def test_extract_from_signature_with_kwargs(self):
         """Test that **kwargs is allowed."""
@@ -133,47 +142,20 @@ class TestSignatureExtraction:
 
         signature = get_typed_signature(handler)
         # Should not raise
-        param_details_dict = extract_from_signature(signature)
-        assert "new_state" in param_details_dict
-
-    def test_has_dependency_injection_true(self):
-        """Test has_dependency_injection returns True for DI signatures."""
-
-        def handler(new_state: D.StateNew[states.LightState]):
-            pass
-
-        signature = get_typed_signature(handler)
-        assert has_dependency_injection(signature) is True
-
-    def test_has_dependency_injection_false(self):
-        """Test has_dependency_injection returns False for plain signatures."""
-
-        def handler(some_param: str):
-            pass
-
-        signature = get_typed_signature(handler)
-        assert has_dependency_injection(signature) is False
-
-    def test_has_dependency_injection_with_event_type(self):
-        """Test has_dependency_injection returns True for Event-typed params."""
-
-        def handler(event: RawStateChangeEvent):
-            pass
-
-        signature = get_typed_signature(handler)
-        assert has_dependency_injection(signature) is True
+        plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
+        assert "new_state" in {param.name for param in plan}
 
     def test_extract_with_string_annotation(self):
-        """Test that string annotations return None."""
+        """Test that string annotations are resolved and matched normally."""
 
         def test_handler(event: "RawStateChangeEvent"):
             pass
 
         signature = get_typed_signature(test_handler)
 
-        param_details_dict = extract_from_signature(signature)
+        plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
 
-        assert "event" in param_details_dict
+        assert "event" in {param.name for param in plan}
 
 
 class TestSignatureValidation:
