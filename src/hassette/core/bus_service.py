@@ -380,10 +380,36 @@ class BusService(Service):
             self.logger.debug("Event: %r", event)
 
         routes = self.expand_topics(base_topic, event)  # ordered: most specific -> least
+        chosen = self._match_listeners(routes, event)
+        if not chosen:
+            return
+
+        listeners_by_route = self._group_by_route(chosen)
+
+        # loop over routes so we always log in order of specificity
+        for route in routes:
+            listeners = listeners_by_route.get(route)
+            if not listeners:
+                continue
+
+            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
+            for listener in listeners:
+                await self._spawn_dispatch_task(route, event, listener)
+
+    def _match_listeners(self, routes: list[str], event: "Event[Any]") -> dict[int, tuple[str, Listener]]:
+        """Resolve the listeners that match ``event`` across ``routes``.
+
+        Routes first, then dedupes by "first match wins" because routes are ordered by
+        specificity (most specific -> least). A predicate that raises is recorded as a
+        failed execution via ``_record_predicate_failure`` and excluded from further routes
+        for this dispatch, but the listener itself is not removed from the router.
+
+        Returns:
+            A dict mapping ``listener_id`` to the ``(matched_route, listener)`` it matched on.
+        """
         chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
         failed: set[int] = set()  # listener_ids whose predicates raised (dedup across routes)
 
-        # Route first, then dedupe by "first match wins" because routes are ordered by specificity
         for route in routes:
             listeners = self.router.get_topic_listeners(route)
             for listener in listeners:
@@ -403,58 +429,57 @@ class BusService(Service):
                 if matched:
                     chosen[listener.listener_id] = (route, listener)
 
-        if not chosen:
-            return
+        return chosen
 
-        # group by route for logging
-        listeners_by_route = defaultdict(list)
+    def _group_by_route(self, chosen: dict[int, tuple[str, Listener]]) -> dict[str, list[Listener]]:
+        """Group matched listeners by the route they matched on, for ordered per-route logging."""
+        listeners_by_route: dict[str, list[Listener]] = defaultdict(list)
         for route, listener in chosen.values():
             listeners_by_route[route].append(listener)
+        return listeners_by_route
 
-        # loop over routes so we always log in order of specificity
-        for route in routes:
-            listeners = listeners_by_route.get(route)
-            if not listeners:
-                continue
+    async def _spawn_dispatch_task(self, route: str, event: "Event[Any]", listener: "Listener") -> None:
+        """Acquire a dispatch slot for ``listener`` and spawn its handler task.
 
-            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
-            for listener in listeners:
-                # Acquire a slot before spawning so the fan-out can't outrun handler capacity.
-                # A blocked acquire stalls the dispatch loop -> serve loop -> inbound channel,
-                # propagating backpressure to the WS reader. locked() exactly predicts a blocking
-                # acquire here: no await separates the two, so no other task changes the count between.
-                if self._dispatch_semaphore.locked():
-                    # Keep this call before the `await acquire()` below: the BLOCK-path test
-                    # `test_block_listener_blocks_then_runs_under_saturation` hooks
-                    # `warn_dispatch_saturated` as a deterministic signal that dispatch has reached
-                    # the block. Moving it after the acquire would make that test pass vacuously.
-                    self.warn_dispatch_saturated()
-                    if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
-                        # Single writer: this loop, on the event loop, NO await between locked() and
-                        # the increment — the same no-await window that makes the saturation check
-                        # race-free. Do not insert an await (e.g. metrics emit) between them.
-                        listener.invoker.backpressure_dropped += 1
-                        self.logger.debug(
-                            "backpressure drop_newest: skipping event for %s",
-                            listener.identity.name or listener.identity.handler_short_name,
-                        )
-                        continue  # no acquire, no spawn, no pending/idle bookkeeping
-                await self._dispatch_semaphore.acquire()
+        Honors the listener's backpressure policy when the dispatch semaphore is saturated,
+        and unwinds slot/pending bookkeeping by hand if the spawn itself fails.
+        """
+        # Acquire a slot before spawning so the fan-out can't outrun handler capacity.
+        # A blocked acquire stalls the dispatch loop -> serve loop -> inbound channel,
+        # propagating backpressure to the WS reader. locked() exactly predicts a blocking
+        # acquire here: no await separates the two, so no other task changes the count between.
+        if self._dispatch_semaphore.locked():
+            # Keep this call before the `await acquire()` below: the BLOCK-path test
+            # `test_block_listener_blocks_then_runs_under_saturation` hooks
+            # `warn_dispatch_saturated` as a deterministic signal that dispatch has reached
+            # the block. Moving it after the acquire would make that test pass vacuously.
+            self.warn_dispatch_saturated()
+            if listener.options.backpressure is BackpressurePolicy.DROP_NEWEST:
+                # Single writer: this loop, on the event loop, NO await between locked() and
+                # the increment — the same no-await window that makes the saturation check
+                # race-free. Do not insert an await (e.g. metrics emit) between them.
+                listener.invoker.backpressure_dropped += 1
+                self.logger.debug(
+                    "backpressure drop_newest: skipping event for %s",
+                    listener.identity.name or listener.identity.handler_short_name,
+                )
+                return  # no acquire, no spawn, no pending/idle bookkeeping
+        await self._dispatch_semaphore.acquire()
 
-                self._dispatch_pending += 1
-                self._dispatch_idle_event.clear()
-                try:
-                    task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
-                except BaseException:
-                    # Spawn failed: no task runs, so no done-callback fires. Release the slot and
-                    # unwind the pending bookkeeping by hand.
-                    self._dispatch_semaphore.release()
-                    self.decrement_dispatch_pending()
-                    raise
-                # Release the slot before decrementing pending so a newly-unblocked waiter sees
-                # a consistent state (slot free, pending still counts the completing task).
-                task.add_done_callback(self.release_dispatch_slot)
-                task.add_done_callback(self.on_dispatch_done)
+        self._dispatch_pending += 1
+        self._dispatch_idle_event.clear()
+        try:
+            task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+        except BaseException:
+            # Spawn failed: no task runs, so no done-callback fires. Release the slot and
+            # unwind the pending bookkeeping by hand.
+            self._dispatch_semaphore.release()
+            self.decrement_dispatch_pending()
+            raise
+        # Release the slot before decrementing pending so a newly-unblocked waiter sees
+        # a consistent state (slot free, pending still counts the completing task).
+        task.add_done_callback(self.release_dispatch_slot)
+        task.add_done_callback(self.on_dispatch_done)
 
     def expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
         payload = event.payload
