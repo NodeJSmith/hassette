@@ -11,7 +11,7 @@ import pytest
 
 from hassette import MISSING_VALUE, A, D
 from hassette.bus.injection import ParameterInjector
-from hassette.di import AnnotatedMatcher
+from hassette.di import AnnotatedMatcher, AnnotationDetails
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
@@ -211,3 +211,42 @@ class TestCustomDI:
         expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
 
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
+
+
+class TestSourceTypeLookup:
+    """Test DI source-type resolution in ParameterInjector.inject_parameters."""
+
+    def test_event_subclass_source_type_resolves(self, state_change_events: list[RawStateChangeEvent]):
+        """An AnnotationDetails with source_type=RawStateChangeEvent resolves via type(event)."""
+
+        def extractor(event: RawStateChangeEvent) -> str:
+            return event.payload.data.entity_id
+
+        def handler(entity: Annotated[str, AnnotationDetails(extractor=extractor, source_type=RawStateChangeEvent)]):
+            pass
+
+        event = state_change_events[0]
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+        kwargs = injector.inject_parameters(event)
+
+        assert kwargs["entity"] == event.payload.data.entity_id
+
+    def test_unsupported_source_type_raises_clear_error(self, state_change_events: list[RawStateChangeEvent]):
+        """A source_type not in available raises DependencyResolutionError with a descriptive message."""
+
+        class UnknownSource:
+            pass
+
+        def extractor(_src: UnknownSource) -> str:
+            return "unreachable"
+
+        def handler(value: Annotated[str, AnnotationDetails(extractor=extractor, source_type=UnknownSource)]):
+            pass
+
+        event = state_change_events[0]
+        signature = get_typed_signature(handler)
+        injector = ParameterInjector(handler.__name__, signature)
+
+        with pytest.raises(DependencyResolutionError, match="no source available for type 'UnknownSource'"):
+            injector.inject_parameters(event)

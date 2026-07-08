@@ -58,7 +58,7 @@ class ParameterInjector:
         Raises:
             DependencyResolutionError: If parameter extraction or conversion fails.
         """
-        available: dict[type, Any] = {Event: event}
+        available: dict[type, Any] = {Event: event, type(event): event}
 
         for param in self.invoker.params:
             if param.name in kwargs:
@@ -69,7 +69,14 @@ class ParameterInjector:
                 )
 
             try:
-                raw_value = param.extractor(available[param.source_type])
+                source = available.get(param.source_type)
+                if source is None:
+                    raise DependencyResolutionError(
+                        f"Handler '{self.handler_name}' - no source available for type "
+                        f"'{param.source_type.__name__}' (parameter '{param.name}'). "
+                        f"Available types: {[t.__name__ for t in available]}"
+                    )
+                raw_value = param.extractor(source)
                 target_type, converter = self.conversion_map[param.name]
                 kwargs[param.name] = self.extract_and_convert_parameter(
                     param.name,
@@ -99,6 +106,21 @@ class ParameterInjector:
         param_type: Any,
         converter: Callable[[Any, Any], Any] | None = None,
     ) -> Any:
+        """Convert a raw injected value to the handler parameter's target type.
+
+        Args:
+            param_name: Handler parameter name, used in diagnostic messages.
+            raw_value: Extracted value before conversion.
+            param_type: Target type annotation from the handler signature.
+            converter: Optional converter; falls back to ``ANNOTATION_CONVERTER``.
+
+        Returns:
+            The raw value unchanged when it already matches ``param_type``,
+            or the converted value otherwise.
+
+        Raises:
+            DependencyResolutionError: If conversion fails.
+        """
         actual_type = get_pretty_actual_type_from_value(raw_value)
 
         normalized = normalize_annotation(param_type, constructible=True)
