@@ -555,15 +555,14 @@ class Listener:
         return changed
 
     def matches(self, ev: "Event[Any]") -> bool:
-        """Check if the event matches the listener's predicate."""
+        """Check if the event matches the listener's predicate.
+
+        Raises if the predicate raises — the caller (BusService.dispatch) handles
+        isolation, telemetry recording, and error-handler routing.
+        """
         if self.predicate is None:
             return True
-        try:
-            matched = self.predicate(ev)
-        except Exception:
-            self.logger.exception("Predicate raised for %s; skipping this listener", self)
-            return False
-
+        matched = self.predicate(ev)
         verdict = "matched" if matched else "did not match"
         self.logger.debug("Listener %s %s predicate for event: %s", self, verdict, ev)
         return matched

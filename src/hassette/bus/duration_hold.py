@@ -82,11 +82,18 @@ class DurationHoldManager:
         """Check hold predicates (state-value only) against an event.
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
+        Catches predicate exceptions here because the duration-hold path has no
+        executor access for telemetry recording — a raising predicate logs and
+        returns False so the spawned timer task doesn't crash.
         """
         hold_pred = listener.duration_config.hold_predicate if listener.duration_config else None
-        if hold_pred is None:
-            return listener.matches(event)
-        return hold_pred(event)
+        try:
+            if hold_pred is None:
+                return listener.matches(event)
+            return hold_pred(event)
+        except Exception:
+            self.logger.exception("Predicate raised in hold_matches for %s; treating as non-match", listener)
+            return False
 
     async def immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
