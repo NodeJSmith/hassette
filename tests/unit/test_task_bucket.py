@@ -1,4 +1,4 @@
-"""Unit tests for TaskBucket.pending_tasks() public accessor.
+"""Unit tests for TaskBucket.
 
 Tests cover the snapshot-semantics and filtering guarantees of
 ``TaskBucket.pending_tasks()``:
@@ -8,9 +8,16 @@ Tests cover the snapshot-semantics and filtering guarantees of
 - Excludes tasks that have already completed
 - Excludes tasks that have been cancelled
 - Returns a new list (snapshot) each call — not a reference to the internal set
+
+Cross-thread spawn:
+- Raises RuntimeError (not hangs) when the event loop is stopped
 """
 
 import asyncio
+import threading
+from concurrent.futures import Future as CfFuture
+from concurrent.futures import TimeoutError as CfTimeout
+from unittest.mock import patch
 
 import pytest
 
@@ -156,3 +163,35 @@ class TestSpawnTaskNaming:
 
         gate.set()
         await task
+
+
+class TestCrossThreadSpawnTimeout:
+    """Cross-thread spawn raises RuntimeError instead of hanging when the loop is unresponsive."""
+
+    async def test_cross_thread_spawn_timeout_raises_runtime_error(self) -> None:
+        """spawn() wraps CfTimeoutError into a descriptive RuntimeError."""
+        mock_h = make_mock_hassette()
+        mock_h.loop_thread_id = -1  # force cross-thread path
+        bucket = TaskBucket(mock_h)
+
+        error: Exception | None = None
+
+        async def noop() -> None:
+            pass
+
+        def try_spawn() -> None:
+            nonlocal error
+            try:
+                bucket.spawn(noop(), name="doomed-task")
+            except RuntimeError as e:
+                error = e
+
+        with patch.object(CfFuture, "result", side_effect=CfTimeout("timed out")):
+            t = threading.Thread(target=try_spawn)
+            t.start()
+            t.join(timeout=5.0)
+
+        assert not t.is_alive(), "Spawn thread should not hang"
+        assert error is not None, "Expected RuntimeError from timed-out cross-thread spawn"
+        assert "doomed-task" in str(error)
+        assert "timed out" in str(error).lower()
