@@ -10,9 +10,9 @@ from typing import Annotated
 
 import pytest
 
-from hassette.bus.extraction import extract_from_annotated, extract_from_event_type
+from hassette.di import AnnotatedMatcher, TypeMatcher
 from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, is_event_type
-from hassette.utils.type_utils import is_annotated_type
+from hassette.utils.type_utils import get_typed_signature, is_annotated_type
 
 
 class TestTypeDetection:
@@ -50,7 +50,7 @@ class TestTypeDetection:
 
 
 class TestExtractFromAnnotated:
-    """Test extract_from_annotated function."""
+    """Test AnnotatedMatcher.match (formerly extract_from_annotated)."""
 
     def test_extract_with_callable_metadata_wraps_in_annodation_details(self):
         """Test that callable metadata is wrapped in AnnotationDetails."""
@@ -58,55 +58,87 @@ class TestExtractFromAnnotated:
         def my_extractor(_event):
             return "extracted"
 
-        annotation = Annotated[str, my_extractor]
+        def handler(value: Annotated[str, my_extractor]):
+            pass
 
-        param_details_dict = extract_from_annotated(annotation)
+        signature = get_typed_signature(handler)
+        result = AnnotatedMatcher(source_type=Event).match(signature.parameters["value"])
 
-        assert param_details_dict is not None
-        base_type, annotation_details = param_details_dict
-        assert base_type is str
-        assert annotation_details.extractor is my_extractor
+        assert result is not None
+        assert result.target_type is str
+        assert result.extractor is my_extractor
 
     def test_extract_with_non_callable_metadata_warns(self):
         """Test that non-callable metadata returns None."""
-        annotation = Annotated[str, "not_callable"]
+
+        def handler(value: Annotated[str, "not_callable"]):
+            pass
+
+        signature = get_typed_signature(handler)
 
         with pytest.warns(
             UserWarning, match="Invalid Annotated metadata: not_callable is not AnnotationDetails or callable extractor"
         ):
-            param_details_dict = extract_from_annotated(annotation)
+            result = AnnotatedMatcher(source_type=Event).match(signature.parameters["value"])
 
-        assert param_details_dict is None
+        assert result is None
 
     def test_extract_with_non_annotated(self):
         """Test that non-Annotated types return None."""
-        assert extract_from_annotated(str) is None
-        assert extract_from_annotated(int) is None
+
+        def handler_str(value: str):
+            pass
+
+        def handler_int(value: int):
+            pass
+
+        matcher = AnnotatedMatcher(source_type=Event)
+        for handler in (handler_str, handler_int):
+            signature = get_typed_signature(handler)
+            assert matcher.match(signature.parameters["value"]) is None
 
 
 class TestExtractFromEventType:
-    """Test extract_from_event_type function."""
+    """Test TypeMatcher(Event).match (formerly extract_from_event_type)."""
 
     def test_extract_with_event_class(self):
         """Test extraction with Event class returns identity function."""
-        event_type, annotation_details = extract_from_event_type(Event)
 
-        assert event_type is not None
+        def handler(event: Event):
+            pass
 
-        assert event_type is Event
+        signature = get_typed_signature(handler)
+        result = TypeMatcher(Event).match(signature.parameters["event"])
+
+        assert result is not None
+        assert result.target_type is Event
 
         # Test that extractor is identity function
         mock_event = Event(topic="test", payload={})
-        assert annotation_details.extractor(mock_event) is mock_event
+        assert result.extractor(mock_event) is mock_event
 
     def test_extract_with_state_change_event(self):
         """Test extraction with RawStateChangeEvent subclass."""
-        event_type, _annotation_details = extract_from_event_type(RawStateChangeEvent)
 
-        assert event_type is not None
-        assert event_type is RawStateChangeEvent
+        def handler(event: RawStateChangeEvent):
+            pass
+
+        signature = get_typed_signature(handler)
+        result = TypeMatcher(Event).match(signature.parameters["event"])
+
+        assert result is not None
+        assert result.target_type is RawStateChangeEvent
 
     def test_extract_with_non_event(self):
         """Test that non-Event types return None."""
-        assert extract_from_event_type(str) is None
-        assert extract_from_event_type(dict) is None
+
+        def handler_str(value: str):
+            pass
+
+        def handler_dict(value: dict):
+            pass
+
+        matcher = TypeMatcher(Event)
+        for handler in (handler_str, handler_dict):
+            signature = get_typed_signature(handler)
+            assert matcher.match(signature.parameters["value"]) is None
