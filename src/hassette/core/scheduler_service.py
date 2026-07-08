@@ -21,6 +21,7 @@ from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done,
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.scheduler.classes import ScheduledJob
 from hassette.types.enums import ExecutionMode, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_stable_name
@@ -29,7 +30,6 @@ from hassette.utils.serialization import safe_json_serialize
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
-    from hassette.scheduler.classes import ScheduledJob
 
 
 T = TypeVar("T")
@@ -380,11 +380,8 @@ class SchedulerService(Service):
         # so a skip never invokes the handler.
         if job.predicate is not None:
             try:
-                should_run = (
-                    job.predicate(job)  # pyright: ignore[reportCallIssue]
-                    if job._predicate_wants_job
-                    else job.predicate()  # pyright: ignore[reportCallIssue]
-                )
+                kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+                should_run = job.predicate(**kwargs)
             except Exception:
                 self.logger.exception("Predicate raised for job %s — running job anyway (fail-open)", job)
                 should_run = True

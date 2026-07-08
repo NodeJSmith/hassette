@@ -136,23 +136,21 @@ class SchedulerSyncFacade(Resource):
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
             where: Optional predicate (or sequence of predicates) evaluated at dispatch
-                time, before the handler runs. A predicate with no ``ScheduledJob``
-                annotation is called with zero arguments (the common case). A predicate
-                with a positional parameter annotated as ``ScheduledJob`` receives the
-                job instance at dispatch time. A sequence is collapsed into a single
-                closure that ANDs all members together — sequence members must not
-                carry a ``ScheduledJob`` annotation. Predicates must be synchronous;
-                async callables raise ``TypeError`` here. When the predicate returns
-                ``False``, the handler does not run and a ``'skipped'`` execution is
-                recorded instead.
+                time, before the handler runs. Predicate signatures are inspected via
+                the shared DI layer (``hassette.di``): a parameter annotated as
+                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                predicates are called with zero arguments. A sequence is collapsed into
+                a single closure that ANDs all members — sequence members must not carry
+                a ``ScheduledJob`` annotation. Predicates must be synchronous; async
+                callables raise ``TypeError``. When the predicate returns ``False``,
+                the handler does not run and a ``'skipped'`` execution is recorded.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.
 
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
-                ``where`` is (or contains) an async callable, or a callable with a
-                ``ScheduledJob`` annotation on a keyword-only parameter."""
+                ``where`` is (or contains) an async callable."""
 
         return self.task_bucket.run_sync(
             self._scheduler.schedule(

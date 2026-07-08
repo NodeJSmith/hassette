@@ -315,11 +315,11 @@ class TestPredicateField:
         job = make_job(predicate=always_true)
         assert job.predicate is always_true
 
-    def test_predicate_wants_job_defaults_to_false(self) -> None:
-        """_predicate_wants_job defaults to False — set programmatically by Scheduler.schedule(),
+    def test_predicate_invoker_defaults_to_none(self) -> None:
+        """predicate_invoker defaults to None — set programmatically by Scheduler.schedule(),
         not by direct construction."""
         job = make_job(predicate=lambda: True)
-        assert job._predicate_wants_job is False
+        assert job.predicate_invoker is None
 
 
 class TestMatchesPredicate:

@@ -378,24 +378,3 @@ def get_pretty_actual_type_from_value(value: Any) -> str:
     """Return a pretty string describing the runtime structure of value."""
     ann = get_normalized_actual_type_from_value(value)
     return format_annotation(ann)
-
-
-def annotation_contains_type(annotation: Any, target: type) -> bool:
-    """Check whether *annotation* is *target* or a union containing it."""
-    if annotation is target:
-        return True
-    args = get_args(annotation)
-    return any(arg is target for arg in args) if args else False
-
-
-def find_parameter_by_type(sig: inspect.Signature, target: type) -> inspect.Parameter | None:
-    """Return the first parameter whose annotation is (or contains) *target*.
-
-    Skips parameters with no annotation. Returns ``None`` when no match is found.
-    """
-    for param in sig.parameters.values():
-        if param.annotation is inspect.Parameter.empty:
-            continue
-        if annotation_contains_type(param.annotation, target):
-            return param
-    return None

@@ -145,15 +145,13 @@ class Predicate(Protocol[EventT]):
     def __call__(self, value: EventT, /) -> bool: ...
 
 
-SchedulerPredicate = Callable[[], bool] | Callable[["ScheduledJob"], bool]
-"""Type representing a scheduler predicate: zero-arg (common case) or one-arg (receives
-the ``ScheduledJob`` instance for access to ``args``/``kwargs``/other metadata).
+SchedulerPredicate = Callable[..., bool]
+"""Synchronous callable used as a scheduler ``where=`` gate.
 
-Detection is annotation-based: a positional parameter annotated as ``ScheduledJob``
-triggers one-arg dispatch; unannotated predicates (including lambdas) dispatch as
-zero-arg. Distinct from :class:`Predicate`, which requires exactly one event argument
-for bus subscriptions. Scheduler predicates are synchronous only — async callables
-raise ``TypeError`` at registration time."""
+Dispatch arity is determined by the shared DI layer (``hassette.di``): a parameter
+annotated as ``ScheduledJob`` receives the job instance via kwargs; unannotated
+predicates (including lambdas) are called with zero arguments. Async callables raise
+``TypeError`` at registration time."""
 
 
 class Condition(Protocol[V_contra]):

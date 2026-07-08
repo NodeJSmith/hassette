@@ -1,7 +1,7 @@
 # Design: Scheduler `where=` Predicate Support
 
 **Date:** 2026-07-06
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-VR3Z3i/brief.md
 

@@ -1,6 +1,6 @@
-"""Tests for Scheduler where= parameter: normalization, arity detection, and forwarding.
+"""Tests for Scheduler where= parameter: normalization, DI plan building, and forwarding.
 
-Covers ``_normalize_where()`` and ``_predicate_wants_job()`` (module-level helpers in
+Covers ``_normalize_where()`` and ``_build_predicate_invoker()`` (module-level helpers in
 ``hassette.scheduler.scheduler``) plus ``where=`` forwarding through ``schedule()`` and
 all seven convenience methods. Mirrors the pattern in ``test_scheduler_error_handler.py``
 for ``on_error=`` forwarding.
@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hassette.scheduler.classes import ScheduledJob
-from hassette.scheduler.scheduler import _normalize_where, _predicate_wants_job
+from hassette.scheduler.scheduler import _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
@@ -20,112 +20,133 @@ from .conftest import make_scheduler, noop
 PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
 
-class TestPredicateArityDetection:
-    """Unit tests for `_predicate_wants_job()` — annotation-based ScheduledJob detection."""
+class TestBuildPredicateInvoker:
+    """Unit tests for `_build_predicate_invoker()` — DI-based ScheduledJob detection."""
 
-    def test_zero_arg_predicate_wants_job_false(self) -> None:
+    def test_zero_arg_predicate_empty_plan(self) -> None:
         def pred() -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is False
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 0
 
-    def test_annotated_scheduled_job_wants_job_true(self) -> None:
+    def test_annotated_scheduled_job_has_plan(self) -> None:
         def pred(_job: ScheduledJob) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is True
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 1
+        assert invoker.params[0].source_type is ScheduledJob
 
-    def test_optional_scheduled_job_annotation_wants_job_true(self) -> None:
-        """A union containing ScheduledJob (e.g. ScheduledJob | None) is detected."""
-
+    def test_optional_scheduled_job_annotation_has_plan(self) -> None:
         def pred(_job: ScheduledJob | None = None) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is True
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 1
 
-    def test_scheduled_job_with_extra_optional_wants_job_true(self) -> None:
-        """ScheduledJob annotation on the first param is detected regardless of extras."""
-
+    def test_scheduled_job_with_extra_optional_has_plan(self) -> None:
         def pred(_job: ScheduledJob, _threshold: float = 0.5) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is True
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 1
+        assert invoker.params[0].name == "_job"
 
-    def test_unannotated_one_arg_wants_job_false(self) -> None:
-        """An unannotated positional parameter does NOT trigger job injection."""
-
+    def test_unannotated_one_arg_empty_plan(self) -> None:
         def pred(_x) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is False
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 0
 
-    def test_wrong_annotation_wants_job_false(self) -> None:
-        """A positional parameter annotated with a non-ScheduledJob type is ignored."""
-
+    def test_wrong_annotation_empty_plan(self) -> None:
         def pred(_x: int) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is False
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 0
 
-    def test_multiple_positional_no_scheduled_job_wants_job_false(self) -> None:
-        """Multiple positional params without ScheduledJob annotations are zero-arg."""
-
+    def test_multiple_positional_no_scheduled_job_empty_plan(self) -> None:
         def pred(_a: int, _b: str) -> bool:
             return True
 
-        assert _predicate_wants_job(pred) is False
-
-    def test_keyword_only_scheduled_job_raises_type_error(self) -> None:
-        """ScheduledJob on a keyword-only parameter raises TypeError — dispatch is positional."""
-
-        def pred(*, _job: ScheduledJob) -> bool:
-            return True
-
-        with pytest.raises(TypeError, match="keyword-only"):
-            _predicate_wants_job(pred)
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 0
 
     def test_async_predicate_raises_type_error(self) -> None:
         async def pred() -> bool:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            _predicate_wants_job(pred)
+            _build_predicate_invoker(pred)
 
-    def test_no_introspectable_signature_defaults_to_zero_arg(self) -> None:
+    def test_no_introspectable_signature_defaults_to_empty_plan(self) -> None:
         def pred() -> bool:
             return True
 
         with patch("hassette.scheduler.scheduler.get_typed_signature", side_effect=ValueError("no signature")):
-            assert _predicate_wants_job(pred) is False
+            invoker = _build_predicate_invoker(pred)
+            assert len(invoker.params) == 0
 
-    def test_lambda_wants_job_false(self) -> None:
-        """Lambdas have no annotations and are always zero-arg."""
-        assert _predicate_wants_job(lambda: True) is False
+    def test_lambda_empty_plan(self) -> None:
+        invoker = _build_predicate_invoker(lambda: True)
+        assert len(invoker.params) == 0
+
+    def test_var_positional_predicate_falls_back_to_empty_plan(self) -> None:
+        """Predicates with *args are valid zero-arg predicates — no DI error."""
+
+        def pred(*_args) -> bool:
+            return True
+
+        invoker = _build_predicate_invoker(pred)
+        assert len(invoker.params) == 0
+
+    def test_invoker_resolves_kwargs_for_annotated_predicate(self) -> None:
+        def pred(job: ScheduledJob) -> bool:
+            return job.name == "test"
+
+        invoker = _build_predicate_invoker(pred)
+        mock_job = MagicMock(spec=ScheduledJob)
+        mock_job.name = "test"
+
+        kwargs = invoker.invoke({ScheduledJob: mock_job})
+        assert kwargs == {"job": mock_job}
+
+    def test_invoker_resolves_empty_kwargs_for_zero_arg(self) -> None:
+        def pred() -> bool:
+            return True
+
+        invoker = _build_predicate_invoker(pred)
+        kwargs = invoker.invoke({ScheduledJob: MagicMock()})
+        assert kwargs == {}
 
 
 class TestNormalizeWhere:
     """Unit tests for `_normalize_where()` — the single entry point used by `schedule()`."""
 
-    def test_none_returns_none_predicate_and_false(self) -> None:
-        predicate, wants_job = _normalize_where(None)
+    def test_none_returns_none_predicate_and_none_invoker(self) -> None:
+        predicate, invoker = _normalize_where(None)
         assert predicate is None
-        assert wants_job is False
+        assert invoker is None
 
     def test_single_zero_arg_callable_stored_directly(self) -> None:
         def pred() -> bool:
             return True
 
-        predicate, wants_job = _normalize_where(pred)
+        predicate, invoker = _normalize_where(pred)
         assert predicate is pred
-        assert wants_job is False
+        assert invoker is not None
+        assert len(invoker.params) == 0
 
-    def test_single_annotated_callable_sets_wants_job_true(self) -> None:
+    def test_single_annotated_callable_has_invoker_with_plan(self) -> None:
         def pred(_job: ScheduledJob) -> bool:
             return True
 
-        predicate, wants_job = _normalize_where(pred)
+        predicate, invoker = _normalize_where(pred)
         assert predicate is pred
-        assert wants_job is True
+        assert invoker is not None
+        assert len(invoker.params) == 1
 
     def test_sequence_collapses_into_zero_arg_closure_anding_results(self) -> None:
         calls: list[str] = []
@@ -138,9 +159,10 @@ class TestNormalizeWhere:
             calls.append("false")
             return False
 
-        predicate, wants_job = _normalize_where([pred_true, pred_false])
+        predicate, invoker = _normalize_where([pred_true, pred_false])
 
-        assert wants_job is False
+        assert invoker is not None
+        assert len(invoker.params) == 0
         assert callable(predicate)
         assert predicate is not pred_true
         assert predicate is not pred_false
@@ -160,8 +182,6 @@ class TestNormalizeWhere:
             _normalize_where([lambda: True, async_pred])
 
     def test_sequence_with_scheduled_job_annotation_raises_type_error(self) -> None:
-        """A sequence member with a ScheduledJob annotation raises TypeError."""
-
         def job_pred(_job: ScheduledJob) -> bool:
             return True
 
@@ -191,9 +211,10 @@ class TestScheduleAcceptsWhere:
             job = await scheduler.schedule(noop, Every(hours=1), where=pred)
 
             assert job.predicate is pred
-            assert job._predicate_wants_job is False
+            assert job.predicate_invoker is not None
+            assert len(job.predicate_invoker.params) == 0
 
-    async def test_schedule_stores_annotated_predicate_with_wants_job_true(self) -> None:
+    async def test_schedule_stores_annotated_predicate_with_invoker(self) -> None:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
 
@@ -203,7 +224,8 @@ class TestScheduleAcceptsWhere:
             job = await scheduler.schedule(noop, Every(hours=1), where=pred)
 
             assert job.predicate is pred
-            assert job._predicate_wants_job is True
+            assert job.predicate_invoker is not None
+            assert len(job.predicate_invoker.params) == 1
 
     async def test_schedule_defaults_predicate_to_none(self) -> None:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
@@ -212,7 +234,7 @@ class TestScheduleAcceptsWhere:
             job = await scheduler.schedule(noop, Every(hours=1))
 
             assert job.predicate is None
-            assert job._predicate_wants_job is False
+            assert job.predicate_invoker is None
 
     async def test_schedule_raises_for_async_predicate(self) -> None:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):

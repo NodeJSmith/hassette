@@ -92,6 +92,35 @@ class TestTypeMatcher:
 
         assert matcher.match(sig.parameters["value"]) is None
 
+    def test_matches_union_containing_target(self):
+        def handler(event: Event | None):
+            pass
+
+        sig = get_typed_signature(handler)
+        matcher = TypeMatcher(Event)
+
+        result = matcher.match(sig.parameters["event"])
+        assert result is not None
+        assert result.source_type is Event
+
+    def test_union_without_target_returns_none(self):
+        def handler(value: str | None):
+            pass
+
+        sig = get_typed_signature(handler)
+        matcher = TypeMatcher(Event)
+
+        assert matcher.match(sig.parameters["value"]) is None
+
+    def test_parameterized_generic_containing_target_returns_none(self):
+        def handler(events: list[Event]):
+            pass
+
+        sig = get_typed_signature(handler)
+        matcher = TypeMatcher(Event)
+
+        assert matcher.match(sig.parameters["events"]) is None
+
 
 class TestAnnotatedMatcher:
     """Tests for AnnotatedMatcher.match."""

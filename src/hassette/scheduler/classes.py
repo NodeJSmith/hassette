@@ -18,6 +18,7 @@ if typing.TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
+    from hassette.di import CallableInvoker
     from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
@@ -238,10 +239,12 @@ class ScheduledJob:
     prevents ``Callable | None`` from corrupting the ``@dataclass(order=True)`` heap ordering.
     """
 
-    _predicate_wants_job: bool = field(default=False, init=False, repr=False, compare=False)
-    """Whether ``predicate`` has a positional parameter annotated as ``ScheduledJob``.
-    Set by ``Scheduler.schedule()`` after inspecting the predicate's type annotations
-    once at registration time; dispatch uses this flag without re-inspecting."""
+    predicate_invoker: "CallableInvoker | None" = field(default=None, init=False, repr=False, compare=False)
+    """Pre-built DI invoker for the predicate, or ``None`` when no ``where=`` was given.
+
+    Built once at registration time by ``Scheduler.schedule()`` using the shared DI layer
+    (``hassette.di``). At dispatch time, ``predicate_invoker.invoke({ScheduledJob: job})``
+    produces kwargs and the predicate is called with ``predicate(**kwargs)``."""
 
     guard: ExecutionModeGuard = field(init=False, compare=False)
     """Per-job overlap state machine. Created in ``__post_init__`` from ``mode``. Lives for the

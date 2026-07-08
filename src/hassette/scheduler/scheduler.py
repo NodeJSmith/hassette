@@ -72,13 +72,15 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
+from hassette.exceptions import DependencyInjectionError
 from hassette.resources.base import Resource
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
 from hassette.utils.source_capture import capture_registration_source
-from hassette.utils.type_utils import find_parameter_by_type, get_typed_signature
+from hassette.utils.type_utils import get_typed_signature
 
 from .classes import ScheduledJob
 from .sync import SchedulerSyncFacade
@@ -416,23 +418,21 @@ class Scheduler(Resource):
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
             where: Optional predicate (or sequence of predicates) evaluated at dispatch
-                time, before the handler runs. A predicate with no ``ScheduledJob``
-                annotation is called with zero arguments (the common case). A predicate
-                with a positional parameter annotated as ``ScheduledJob`` receives the
-                job instance at dispatch time. A sequence is collapsed into a single
-                closure that ANDs all members together — sequence members must not
-                carry a ``ScheduledJob`` annotation. Predicates must be synchronous;
-                async callables raise ``TypeError`` here. When the predicate returns
-                ``False``, the handler does not run and a ``'skipped'`` execution is
-                recorded instead.
+                time, before the handler runs. Predicate signatures are inspected via
+                the shared DI layer (``hassette.di``): a parameter annotated as
+                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                predicates are called with zero arguments. A sequence is collapsed into
+                a single closure that ANDs all members — sequence members must not carry
+                a ``ScheduledJob`` annotation. Predicates must be synchronous; async
+                callables raise ``TypeError``. When the predicate returns ``False``,
+                the handler does not run and a ``'skipped'`` execution is recorded.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.
 
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
-                ``where`` is (or contains) an async callable, or a callable with a
-                ``ScheduledJob`` annotation on a keyword-only parameter.
+                ``where`` is (or contains) an async callable.
         """
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
@@ -443,7 +443,7 @@ class Scheduler(Resource):
                 "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
             )
 
-        predicate, predicate_wants_job = _normalize_where(where)
+        predicate, predicate_invoker = _normalize_where(where)
 
         parent = self.parent
         assert parent is not None
@@ -492,7 +492,7 @@ class Scheduler(Resource):
             mode=resolved_mode,
             predicate=predicate,
         )
-        job._predicate_wants_job = predicate_wants_job
+        job.predicate_invoker = predicate_invoker
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
         # source_location/registration_source are NOT passed here; add_job backfills them.
@@ -971,90 +971,60 @@ class Scheduler(Resource):
         )
 
 
-def _normalize_where(
-    where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None",
-) -> tuple["SchedulerPredicate | None", bool]:
-    """Normalize a ``where=`` clause into a stored predicate and its dispatch-arity flag.
-
-    Returns a ``(predicate, wants_job)`` tuple:
-
-    - ``where=None`` -> ``(None, False)``.
-    - A single callable is stored directly, and its annotations are inspected once
-      (via ``_predicate_wants_job``) to decide whether dispatch calls it with zero
-      or one (``ScheduledJob``) argument. A parameter annotated as ``ScheduledJob``
-      triggers one-arg dispatch; unannotated predicates dispatch as zero-arg.
-    - A sequence of predicates collapses into a single zero-arg closure that ANDs
-      the results (``wants_job=False``). Each member must be synchronous and must
-      not carry a ``ScheduledJob`` annotation (sequence members are always called
-      with zero arguments).
-
-    Distinct from the bus's ``normalize_where()``/``AllOf`` combinator, which are
-    typed for the one-arg ``Predicate[EventT]`` protocol and cannot accept zero-arg
-    scheduler predicates.
-    """
-    if where is None:
-        return None, False
-
-    if callable(where):
-        return where, _predicate_wants_job(where)
-
-    preds = tuple(where)
-    for pred in preds:
-        if inspect.iscoroutinefunction(pred):
-            raise TypeError(f"Scheduler predicates must be synchronous; got async callable {pred!r} in where=")
-        if _predicate_wants_job(pred):
-            raise TypeError(
-                f"Scheduler predicate {pred!r} in a sequence has a ScheduledJob annotation; "
-                "sequence members are called with zero arguments. Use a closure to wrap it."
-            )
-
-    def _all_predicates() -> bool:
-        # Each member must be zero-arg (design invariant: sequence members that need
-        # ScheduledJob wrap it in a closure) — Pyright can't verify this statically
-        # because SchedulerPredicate's union also permits the one-arg variant.
-        return all(p() for p in preds)  # pyright: ignore[reportCallIssue]
-
-    return _all_predicates, False
+_SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
 
 
-def _predicate_wants_job(predicate: "SchedulerPredicate") -> bool:
-    """Inspect a predicate's type annotations to determine its dispatch arity.
-
-    Uses the shared ``find_parameter_by_type`` / ``get_typed_signature`` utilities
-    from ``hassette.utils.type_utils`` — the same annotation resolution pipeline the
-    bus DI system uses for handler parameters.
-
-    A predicate that wants the ``ScheduledJob`` instance must annotate a positional
-    parameter with ``ScheduledJob`` (or a union containing it, e.g.
-    ``ScheduledJob | None``). Unannotated parameters are ignored — lambdas and
-    plain ``def pred():`` both dispatch as zero-arg.
-
-    Args:
-        predicate: The single callable to inspect (not a sequence).
-
-    Returns:
-        ``True`` when a positional parameter carries a ``ScheduledJob`` annotation;
-        ``False`` otherwise.
+def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker:
+    """Build a ``CallableInvoker`` for a single predicate using the shared DI layer.
 
     Raises:
-        TypeError: If the predicate is async, or if a ``ScheduledJob`` annotation
-            appears on a keyword-only parameter (dispatch passes the job positionally).
+        TypeError: If the predicate is async.
     """
     if inspect.iscoroutinefunction(predicate):
         raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
 
     try:
         sig = get_typed_signature(predicate)
-    except (TypeError, ValueError):
-        return False
+        plan = build_injection_plan(sig, _SCHEDULER_MATCHERS)
+    except (TypeError, ValueError, DependencyInjectionError):
+        return CallableInvoker(())
 
-    match = find_parameter_by_type(sig, ScheduledJob)
-    if match is None:
-        return False
+    return CallableInvoker(plan)
 
-    if match.kind is inspect.Parameter.KEYWORD_ONLY:
-        raise TypeError(
-            f"Scheduler predicate {predicate!r} annotates keyword-only parameter "
-            f"'{match.name}' as ScheduledJob; the job is passed positionally"
-        )
-    return True
+
+def _normalize_where(
+    where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None",
+) -> tuple["SchedulerPredicate | None", CallableInvoker | None]:
+    """Normalize a ``where=`` clause into a stored predicate and its DI invoker.
+
+    Returns a ``(predicate, invoker)`` tuple:
+
+    - ``where=None`` -> ``(None, None)``.
+    - A single callable is stored directly. Its signature is inspected once via the
+      shared DI layer to build a ``CallableInvoker`` that resolves kwargs at dispatch
+      time. A parameter annotated as ``ScheduledJob`` receives the job; unannotated
+      predicates are called with zero arguments.
+    - A sequence of predicates collapses into a single zero-arg closure that ANDs
+      the results (empty invoker). Each member must be synchronous and must not carry
+      a ``ScheduledJob`` annotation (sequence members are always called with zero
+      arguments).
+    """
+    if where is None:
+        return None, None
+
+    if callable(where):
+        return where, _build_predicate_invoker(where)
+
+    preds = tuple(where)
+    for pred in preds:
+        invoker = _build_predicate_invoker(pred)
+        if invoker.params:
+            raise TypeError(
+                f"Scheduler predicate {pred!r} in a sequence has a ScheduledJob annotation; "
+                "sequence members are called with zero arguments. Use a closure to wrap it."
+            )
+
+    def _all_predicates() -> bool:
+        return all(p() for p in preds)  # pyright: ignore[reportCallIssue]
+
+    return _all_predicates, CallableInvoker(())

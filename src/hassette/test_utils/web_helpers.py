@@ -267,8 +267,8 @@ def make_real_job(
         group: Optional group name.
         app_key: Optional app key.
         instance_index: Optional app instance index.
-        predicate: Optional ``where=`` predicate. Does not set ``_predicate_wants_job`` —
-            callers that need arity detection should set it directly on the returned job.
+        predicate: Optional ``where=`` predicate. Does not set ``predicate_invoker`` —
+            callers that need DI resolution should set it directly on the returned job.
     """
     return ScheduledJob(
         owner_id=owner_id,
