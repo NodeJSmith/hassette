@@ -80,7 +80,7 @@ async def wait_for(
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:
-        result = (await predicate()) if is_async else predicate()  # pyright: ignore[reportGeneralIssues]
+        result = (await predicate()) if is_async else predicate()  # pyright: ignore[reportGeneralTypeIssues]
         if result:
             return
         if loop.time() >= deadline:
