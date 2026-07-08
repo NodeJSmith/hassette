@@ -56,11 +56,11 @@ The `at` parameter accepts `"HH:MM"` strings. Without `at=`, the job fires at mi
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
 ```
 
-A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation takes zero arguments (the common case). A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome. Only a one-shot job (`run_in`, `run_once`) is consumed when skipped.
+A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation takes zero arguments (the common case). A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance, for access to `job.args` and `job.kwargs`. Recurring jobs keep their schedule regardless of the outcome. Only a one-shot job (`run_in`, `run_once`) is consumed when skipped. Register a new one-shot job to retry a skipped execution.
 
 A skipped run still shows up in telemetry, with a `skipped` status and no error. The [monitoring UI](../../web-ui/index.md) distinguishes "didn't run because the condition wasn't met" from "ran and failed."
 
-![Job detail showing a where= predicate, the Skipped stat, and a skipped execution row](../../_static/web_ui_predicate_skipped.png)
+![Job detail showing a where= predicate, the Skipped stat, and a skipped execution row](../../../_static/web_ui_predicate_skipped.png)
 
 See [Scheduling Methods](methods.md#conditional-execution-with-where) for the full parameter reference, including predicate arity rules and fail-open exception handling.
 

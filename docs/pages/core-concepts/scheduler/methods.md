@@ -184,7 +184,7 @@ A predicate that raises an exception is fail-open. The scheduler logs the except
 Skip semantics differ by job type:
 
 - **Recurring jobs** (`run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) keep their schedule when skipped. The scheduler computes and enqueues the next occurrence the same as a normal run.
-- **One-shot jobs** (`run_in`, `run_once`) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry.
+- **One-shot jobs** (`run_in`, `run_once`) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry. Register a new one-shot job to schedule another attempt.
 
 A skipped run produces an execution record with `status="skipped"` instead of invoking the handler. The [monitoring UI](../../web-ui/index.md) shows this record alongside `predicate_description` and `human_description` on the job.
 
