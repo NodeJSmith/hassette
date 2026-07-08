@@ -90,6 +90,14 @@ class TestBuildPredicateInvoker:
         with pytest.raises(TypeError, match="synchronous"):
             _build_predicate_invoker(pred)
 
+    def test_async_callable_instance_raises_type_error(self) -> None:
+        class AsyncPred:
+            async def __call__(self) -> bool:
+                return True
+
+        with pytest.raises(TypeError, match="synchronous"):
+            _build_predicate_invoker(AsyncPred())
+
     def test_no_introspectable_signature_defaults_to_empty_plan(self) -> None:
         def pred() -> bool:
             return True

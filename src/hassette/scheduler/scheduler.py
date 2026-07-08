@@ -64,7 +64,6 @@ Examples:
 """
 
 import asyncio
-import inspect
 import typing
 from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass
@@ -79,7 +78,7 @@ from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
-from hassette.utils.func_utils import callable_stable_name
+from hassette.utils.func_utils import callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
@@ -990,7 +989,7 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
         DependencyInjectionError: If the signature is invalid for DI (e.g. ``*args``
             or positional-only parameters).
     """
-    if inspect.iscoroutinefunction(predicate):
+    if is_async_callable(predicate):
         raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
 
     try:
