@@ -71,6 +71,11 @@ filename = "manual_job_app.py"
 class_name = "ManualJobApp"
 config = { instance_name = "manual_job_app" }
 
+[hassette.apps.predicate_demo]
+filename = "predicate_demo.py"
+class_name = "PredicateDemo"
+config = { instance_name = "predicate_demo", check_interval = 8.0 }
+
 [hassette.apps.backpressure_demo]
 filename = "backpressure_demo.py"
 class_name = "BackpressureDemo"

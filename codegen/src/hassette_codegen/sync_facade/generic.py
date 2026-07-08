@@ -173,10 +173,12 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from hassette import Hassette, Scheduler
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.enums import ExecutionMode
-    from hassette.types.types import SchedulerErrorHandlerType
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 '''
 

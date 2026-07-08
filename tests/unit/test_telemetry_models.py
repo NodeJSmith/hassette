@@ -263,6 +263,64 @@ class TestJobSummary:
         assert model.suppressed_count == 3
         assert model.dropped_count == 1
 
+    def test_job_summary_skipped_field_present(self) -> None:
+        """skipped field surfaces predicate-skip execution counts; defaults to 0."""
+        assert "skipped" in JobSummary.model_fields
+        assert JobSummary.model_fields["skipped"].default == 0
+
+    def test_job_summary_predicate_description_fields(self) -> None:
+        """predicate_description and human_description round-trip correctly."""
+        data = {
+            "job_id": 8,
+            "app_key": "test_app",
+            "instance_index": 0,
+            "job_name": "my_job",
+            "handler_method": "run_job",
+            "trigger_type": "interval",
+            "args_json": "[]",
+            "kwargs_json": "{}",
+            "source_location": TEST_SOURCE_LOCATION,
+            "registration_source": None,
+            "total_executions": 0,
+            "successful": 0,
+            "failed": 0,
+            "last_executed_at": None,
+            "total_duration_ms": 0.0,
+            "avg_duration_ms": 0.0,
+            "predicate_description": "<function is_home at 0x...>",
+            "human_description": "is_home",
+        }
+        model = JobSummary.model_validate(data)
+        assert model.predicate_description == "<function is_home at 0x...>"
+        assert model.human_description == "is_home"
+
+    def test_job_summary_invariant_with_skipped(self) -> None:
+        """successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
+        data = {
+            "job_id": 9,
+            "app_key": "test_app",
+            "instance_index": 0,
+            "job_name": "my_job",
+            "handler_method": "run_job",
+            "trigger_type": "interval",
+            "args_json": "[]",
+            "kwargs_json": "{}",
+            "source_location": TEST_SOURCE_LOCATION,
+            "registration_source": None,
+            "total_executions": 10,
+            "successful": 5,
+            "failed": 1,
+            "cancelled": 1,
+            "timed_out": 1,
+            "skipped": 2,
+            "last_executed_at": TEST_EPOCH_B,
+            "total_duration_ms": 100.0,
+            "avg_duration_ms": 20.0,
+        }
+        model = JobSummary.model_validate(data)
+        assert model.successful + model.failed + model.cancelled + model.timed_out + model.skipped == 10
+        assert model.total_executions == 10
+
 
 class TestGlobalSummary:
     def test_global_summary_from_dict(self) -> None:

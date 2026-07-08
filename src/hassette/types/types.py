@@ -65,6 +65,7 @@ class ExecutionStatus(StrEnum):
     ERROR = "error"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
+    SKIPPED = "skipped"
 
 
 QuerySourceTier = Literal["app", "framework", "all"]
@@ -142,6 +143,15 @@ class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
     def __call__(self, value: EventT, /) -> bool: ...
+
+
+SchedulerPredicate = Callable[..., bool]
+"""Synchronous callable used as a scheduler ``where=`` gate.
+
+Dispatch arity is determined by the shared DI layer (``hassette.di``): a parameter
+annotated as ``ScheduledJob`` receives the job instance via kwargs; unannotated
+predicates (including lambdas) are called with zero arguments. Async callables raise
+``TypeError`` at registration time."""
 
 
 class Condition(Protocol[V_contra]):

@@ -16,10 +16,12 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from hassette import Hassette, Scheduler
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.enums import ExecutionMode
-    from hassette.types.types import SchedulerErrorHandlerType
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 class SchedulerSyncFacade(Resource):
@@ -92,6 +94,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job using a trigger object.
 
@@ -132,9 +135,26 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) evaluated at dispatch
+                time, before the handler runs. Predicate signatures are inspected via
+                the shared DI layer (``hassette.di``): a parameter annotated as
+                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                predicates are called with zero arguments. A sequence is collapsed into
+                a single combinator that ANDs all members — each member keeps the
+                single-predicate contract. Predicates must be synchronous; async
+                callables raise ``TypeError``. When the predicate returns ``False``,
+                the handler does not run and a ``'skipped'`` execution is recorded.
+                When the predicate raises, the handler does not run, an ``'error'``
+                execution is recorded, and the job's ``on_error`` handler is invoked.
 
         Returns:
-            The scheduled job. ``job.db_id`` is a valid integer immediately on return."""
+            The scheduled job. ``job.db_id`` is a valid integer immediately on return.
+
+        Raises:
+            TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
+                ``where`` is (or contains) an async callable.
+            DependencyInjectionError: If a predicate's signature is incompatible with
+                DI (e.g. ``*args`` or positional-only parameters)."""
 
         return self.task_bucket.run_sync(
             self._scheduler.schedule(
@@ -150,6 +170,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -168,6 +189,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run after a fixed delay (one-shot).
 
@@ -191,6 +213,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -209,6 +233,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -228,6 +253,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
@@ -256,6 +282,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -275,6 +303,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -295,6 +324,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run at a fixed interval.
 
@@ -320,6 +350,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -340,6 +372,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -358,6 +391,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run every N minutes.
 
@@ -381,6 +415,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -399,6 +435,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -417,6 +454,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run every N hours.
 
@@ -440,6 +478,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -458,6 +498,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -476,6 +517,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job to run once per day at a fixed wall-clock time.
 
@@ -502,6 +544,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job."""
@@ -520,6 +564,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 
@@ -538,6 +583,7 @@ class SchedulerSyncFacade(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> ScheduledJob:
         """Schedule a job using a cron expression.
 
@@ -565,6 +611,8 @@ class SchedulerSyncFacade(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -586,6 +634,7 @@ class SchedulerSyncFacade(Resource):
                 if_exists=if_exists,
                 args=args,
                 kwargs=kwargs,
+                where=where,
             )
         )
 

@@ -37,6 +37,7 @@ export function executionStatusKind(status: string): StatusKind {
   if (status === "timed_out") return "warn";
   if (status === "cancelled") return "cancel";
   if (status === "error") return "err";
+  if (status === "skipped") return "mute";
   console.warn(`Unknown execution status: "${status}"`);
   return "err";
 }

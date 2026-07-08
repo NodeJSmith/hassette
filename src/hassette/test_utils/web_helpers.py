@@ -26,7 +26,7 @@ from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
-from hassette.types.types import ExecutionStatus
+from hassette.types.types import ExecutionStatus, SchedulerPredicate
 from hassette.web.models import (
     AppConfigResponse,
     AppHealthResponse,
@@ -251,6 +251,7 @@ def make_real_job(
     group: str | None = None,
     app_key: str = "",
     instance_index: int = 0,
+    predicate: SchedulerPredicate | None = None,
 ) -> ScheduledJob:
     """Build a real ``ScheduledJob`` instance for tests that need full object behavior.
 
@@ -266,6 +267,8 @@ def make_real_job(
         group: Optional group name.
         app_key: Optional app key.
         instance_index: Optional app instance index.
+        predicate: Optional ``where=`` predicate. Does not set ``predicate_invoker`` —
+            callers that need DI resolution should pass one when constructing their own job.
     """
     return ScheduledJob(
         owner_id=owner_id,
@@ -277,6 +280,7 @@ def make_real_job(
         group=group,
         app_key=app_key,
         instance_index=instance_index,
+        predicate=predicate,
     )
 
 

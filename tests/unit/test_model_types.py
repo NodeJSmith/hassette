@@ -38,7 +38,7 @@ class TestExecutionStatus:
             )
 
     def test_accepts_all_valid_values(self) -> None:
-        for value in ("success", "error", "cancelled", "timed_out"):
+        for value in ("success", "error", "cancelled", "timed_out", "skipped"):
             obj = Execution(
                 kind="handler",
                 execution_start_ts=1.0,

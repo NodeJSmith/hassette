@@ -519,3 +519,165 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     # Job should be dequeued
     remaining = hassette_with_scheduler.scheduler.list_jobs()
     assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"
+
+
+async def test_recurring_job_skip_records_and_reschedules(hassette_with_scheduler: HassetteHarness) -> None:
+    """A recurring job whose predicate returns False is skipped, recorded, and rescheduled."""
+    handler_called = False
+
+    def target() -> None:
+        nonlocal handler_called
+        handler_called = True
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+
+    job = await hassette_with_scheduler.scheduler.run_every(
+        target, hours=1, name="recurring_skip_job", where=lambda: False
+    )
+    original_next_run = job.next_run
+
+    try:
+        await scheduler_service.dispatch_and_log(job)
+
+        assert handler_called is False, "Handler should not run when predicate returns False"
+        executor.enqueue_record.assert_called_once()
+        record = executor.enqueue_record.call_args[0][0]
+        assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+        assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
+        assert job.next_run > original_next_run, "Recurring job should be rescheduled for its next occurrence"
+
+        remaining = hassette_with_scheduler.scheduler.list_jobs()
+        assert any(j is job for j in remaining), "Recurring job should remain scheduled after a skip"
+    finally:
+        job.cancel()
+
+
+async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: HassetteHarness) -> None:
+    """A one-shot job whose predicate returns False is skipped, recorded, and consumed."""
+    handler_called = False
+
+    def target() -> None:
+        nonlocal handler_called
+        handler_called = True
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+
+    job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=10, name="one_shot_skip_job", where=lambda: False
+    )
+
+    await scheduler_service.dispatch_and_log(job)
+
+    assert handler_called is False, "Handler should not run when predicate returns False"
+    executor.enqueue_record.assert_called_once()
+    record = executor.enqueue_record.call_args[0][0]
+    assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+    assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
+
+    remaining = hassette_with_scheduler.scheduler.list_jobs()
+    assert not any(j is job for j in remaining), "One-shot job should be removed from scheduler after a skip"
+
+
+async def test_predicate_exception_records_failure_and_does_not_run(
+    hassette_with_scheduler: HassetteHarness,
+) -> None:
+    """A predicate that raises is recorded as an 'error' execution — the job does not run.
+
+    The exception must not propagate out of ``dispatch_and_log``: it is logged, recorded
+    with error details, routed to the job's ``on_error`` handler, and (for a one-shot)
+    the job is still removed from the scheduler instead of leaking in ``_jobs_by_name``.
+    """
+    job_ran = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_ran.set)
+
+    def bad_predicate() -> bool:
+        raise ZeroDivisionError("boom")
+
+    def on_error(_ctx: object) -> None:
+        pass
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+    executor.invoke_error_handler.reset_mock()
+
+    job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=10, name="predicate_raises_job", where=bad_predicate, on_error=on_error
+    )
+
+    await scheduler_service.dispatch_and_log(job)
+
+    assert not job_ran.is_set(), "Job should not run when predicate raises"
+
+    executor.enqueue_record.assert_called_once()
+    record = executor.enqueue_record.call_args[0][0]
+    assert record.status == "error", f"Expected status='error', got {record.status!r}"
+    assert record.error_type == "ZeroDivisionError"
+    assert record.error_message == "boom"
+    assert record.error_traceback is not None
+    assert "ZeroDivisionError" in record.error_traceback
+    assert record.execution_id is not None
+
+    executor.invoke_error_handler.assert_called_once()
+    handler_arg, ctx = executor.invoke_error_handler.call_args[0]
+    assert handler_arg is on_error
+    assert isinstance(ctx.exception, ZeroDivisionError)
+    assert ctx.job_name == "predicate_raises_job"
+    assert ctx.execution_id == record.execution_id
+
+    remaining = hassette_with_scheduler.scheduler.list_jobs()
+    assert not any(j is job for j in remaining), "One-shot job should be removed after a predicate failure"
+
+
+async def test_predicate_receives_scheduled_job(hassette_with_scheduler: HassetteHarness) -> None:
+    """A one-arg predicate receives the ScheduledJob instance and can inspect its kwargs."""
+    job_ran = asyncio.Event()
+
+    async def target(**_kwargs: object) -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_ran.set)
+
+    def predicate(job: ScheduledJob) -> bool:
+        return job.kwargs.get("key") == "expected"
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+
+    job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=10, name="predicate_job_arg_job", kwargs={"key": "expected"}, where=predicate
+    )
+
+    await scheduler_service.dispatch_and_log(job)
+
+    await asyncio.wait_for(job_ran.wait(), timeout=1)
+    executor.enqueue_record.assert_not_called()
+
+
+async def test_job_without_predicate_executes_unconditionally(hassette_with_scheduler: HassetteHarness) -> None:
+    """Baseline: a job with no ``where=`` executes unconditionally, unaffected by predicate support."""
+    job_ran = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_ran.set)
+
+    scheduler_service = hassette_with_scheduler.scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.enqueue_record.reset_mock()
+
+    job = await hassette_with_scheduler.scheduler.run_in(target, delay=10, name="no_predicate_job")
+
+    await scheduler_service.dispatch_and_log(job)
+
+    await asyncio.wait_for(job_ran.wait(), timeout=1)
+    executor.enqueue_record.assert_not_called()

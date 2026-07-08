@@ -525,6 +525,53 @@ describe("HandlersTab", () => {
     expect(warnValue?.textContent).toBe("2");
   });
 
+  it("job stats row: shows Skipped when skipped > 0", async () => {
+    const job = createJob({ job_id: 54, skipped: 4 });
+    const { getByTestId } = renderHandlersTab([], [job], "job/54");
+    await waitFor(() => getByTestId("job-stats-row"));
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Skipped");
+    expect(statsRow.textContent).toContain("4");
+    const muteValue = statsRow.querySelector("[data-tone='mute']");
+    expect(muteValue?.textContent).toBe("4");
+  });
+
+  it("job stats row: does not show Skipped when count is zero", async () => {
+    const job = createJob({ job_id: 55, skipped: 0 });
+    const { getByTestId, queryByText } = renderHandlersTab([], [job], "job/55");
+    await waitFor(() => getByTestId("job-stats-row"));
+    expect(queryByText("Skipped")).toBeNull();
+  });
+
+  it("job detail: shows human_description as predicate description when present", async () => {
+    const job = createJob({
+      job_id: 56,
+      predicate_description: "<lambda>",
+      human_description: "binary_sensor.home_occupied is on",
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "job/56");
+    await waitFor(() => getByTestId("job-detail-56"));
+    expect(getByTestId("job-predicate-description").textContent).toBe("binary_sensor.home_occupied is on");
+  });
+
+  it("job detail: falls back to predicate_description when human_description is null", async () => {
+    const job = createJob({
+      job_id: 57,
+      predicate_description: "<lambda>",
+      human_description: null,
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "job/57");
+    await waitFor(() => getByTestId("job-detail-57"));
+    expect(getByTestId("job-predicate-description").textContent).toBe("<lambda>");
+  });
+
+  it("job detail: does not show predicate description when both fields are null", async () => {
+    const job = createJob({ job_id: 58, predicate_description: null, human_description: null });
+    const { getByTestId, queryByTestId } = renderHandlersTab([], [job], "job/58");
+    await waitFor(() => getByTestId("job-detail-58"));
+    expect(queryByTestId("job-predicate-description")).toBeNull();
+  });
+
   it("shows placeholder when selectedHandler has invalid format", () => {
     const { queryByTestId, getByTestId } = renderHandlersTab(
       [createListener({ listener_id: 1 })],

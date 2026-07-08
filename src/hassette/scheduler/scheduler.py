@@ -65,18 +65,22 @@ Examples:
 
 import asyncio
 import typing
-from collections.abc import Coroutine, Mapping
+from collections.abc import Coroutine, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
 from hassette.resources.base import Resource
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
+from hassette.utils.func_utils import callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
+from hassette.utils.type_utils import get_typed_signature
 
 from .classes import ScheduledJob
 from .sync import SchedulerSyncFacade
@@ -85,7 +89,7 @@ from .triggers import After, Cron, Daily, Every, Once
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.types import JobCallable
-    from hassette.types.types import SchedulerErrorHandlerType
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 class Scheduler(Resource):
@@ -372,6 +376,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a trigger object.
 
@@ -412,9 +417,26 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) evaluated at dispatch
+                time, before the handler runs. Predicate signatures are inspected via
+                the shared DI layer (``hassette.di``): a parameter annotated as
+                ``ScheduledJob`` receives the job instance at dispatch time; unannotated
+                predicates are called with zero arguments. A sequence is collapsed into
+                a single combinator that ANDs all members — each member keeps the
+                single-predicate contract. Predicates must be synchronous; async
+                callables raise ``TypeError``. When the predicate returns ``False``,
+                the handler does not run and a ``'skipped'`` execution is recorded.
+                When the predicate raises, the handler does not run, an ``'error'``
+                execution is recorded, and the job's ``on_error`` handler is invoked.
 
         Returns:
             The scheduled job. ``job.db_id`` is a valid integer immediately on return.
+
+        Raises:
+            TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
+                ``where`` is (or contains) an async callable.
+            DependencyInjectionError: If a predicate's signature is incompatible with
+                DI (e.g. ``*args`` or positional-only parameters).
         """
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
@@ -424,6 +446,8 @@ class Scheduler(Resource):
                 f"trigger must implement TriggerProtocol; got {type(trigger).__name__}. "
                 "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
             )
+
+        predicate, predicate_invoker = _normalize_where(where)
 
         parent = self.parent
         assert parent is not None
@@ -470,6 +494,8 @@ class Scheduler(Resource):
             instance_name=instance_name,
             source_tier=source_tier,
             mode=resolved_mode,
+            predicate=predicate,
+            predicate_invoker=predicate_invoker,
         )
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
@@ -491,6 +517,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run after a fixed delay (one-shot).
 
@@ -514,6 +541,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -534,6 +563,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_once(
@@ -552,6 +582,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once at a specific wall-clock time (one-shot).
 
@@ -580,6 +611,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -600,6 +633,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_every(
@@ -619,6 +653,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run at a fixed interval.
 
@@ -644,6 +679,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -664,6 +701,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_minutely(
@@ -681,6 +719,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N minutes.
 
@@ -704,6 +743,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -726,6 +767,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_hourly(
@@ -743,6 +785,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run every N hours.
 
@@ -766,6 +809,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -788,6 +833,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_daily(
@@ -805,6 +851,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job to run once per day at a fixed wall-clock time.
 
@@ -831,6 +878,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -851,6 +900,7 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
 
     def run_cron(
@@ -868,6 +918,7 @@ class Scheduler(Resource):
         if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
+        where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Schedule a job using a cron expression.
 
@@ -895,6 +946,8 @@ class Scheduler(Resource):
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
+            where: Optional predicate (or sequence of predicates) gating execution.
+                See ``schedule()`` for details.
 
         Returns:
             The scheduled job.
@@ -918,4 +971,81 @@ class Scheduler(Resource):
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
+            where=where,
         )
+
+
+_SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
+
+
+def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker:
+    """Build a ``CallableInvoker`` for a single predicate using the shared DI layer.
+
+    A callable whose signature cannot be inspected (some builtins, C callables) falls
+    back to an empty invoker and is dispatched with zero arguments.
+
+    Raises:
+        TypeError: If the predicate is async.
+        DependencyInjectionError: If the signature is invalid for DI (e.g. ``*args``
+            or positional-only parameters).
+    """
+    if is_async_callable(predicate):
+        raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
+
+    try:
+        sig = get_typed_signature(predicate)
+    except (TypeError, ValueError):
+        return CallableInvoker(())
+
+    plan = build_injection_plan(sig, _SCHEDULER_MATCHERS)
+    return CallableInvoker(plan)
+
+
+@dataclass(frozen=True)
+class _AllPredicates:
+    """Combinator that ANDs a sequence of predicates, the scheduler's analog of the bus's ``AllOf``.
+
+    Each member carries its own pre-built DI invoker, so sequence members have the same
+    contract as a single ``where=`` predicate: a ``ScheduledJob``-annotated parameter
+    receives the job, and unannotated members are called with zero arguments. Frozen so
+    two instances built from the same predicate functions compare equal — ``if_exists=``
+    collision detection relies on this (see ``ScheduledJob.matches``).
+    """
+
+    predicates: tuple[tuple["SchedulerPredicate", CallableInvoker], ...]
+
+    def __call__(self, job: ScheduledJob) -> bool:
+        available: dict[type, Any] = {ScheduledJob: job}
+        return all(pred(**invoker.invoke(available)) for pred, invoker in self.predicates)
+
+    def summarize(self) -> str:
+        """Human-readable description for telemetry, mirroring ``AllOf.summarize`` on the bus."""
+        return " and ".join(callable_stable_name(pred) for pred, _ in self.predicates)
+
+
+def _normalize_where(
+    where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None",
+) -> tuple["SchedulerPredicate | None", CallableInvoker | None]:
+    """Normalize a ``where=`` clause into a stored predicate and its DI invoker.
+
+    Returns a ``(predicate, invoker)`` tuple:
+
+    - ``where=None`` -> ``(None, None)``.
+    - A single callable is stored directly. Its signature is inspected once via the
+      shared DI layer to build a ``CallableInvoker`` that resolves kwargs at dispatch
+      time. A parameter annotated as ``ScheduledJob`` receives the job; unannotated
+      predicates are called with zero arguments.
+    - A sequence of predicates collapses into an ``_AllPredicates`` combinator that ANDs
+      the results. Each member must be synchronous and keeps the single-predicate
+      contract (a ``ScheduledJob``-annotated member receives the job). The returned
+      invoker injects the job into the combinator itself.
+    """
+    if where is None:
+        return None, None
+
+    if callable(where):
+        return where, _build_predicate_invoker(where)
+
+    pairs = tuple((pred, _build_predicate_invoker(pred)) for pred in where)
+    combined = _AllPredicates(pairs)
+    return combined, _build_predicate_invoker(combined)

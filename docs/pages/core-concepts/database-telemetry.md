@@ -8,7 +8,7 @@ Hassette records four types of data automatically, with no configuration require
 
 **Handler invocations.** Every bus listener firing produces a row in the `executions` table. Each row captures the start time, wall-clock duration, and outcome (`success`, `error`, `cancelled`, or `timed_out`). Failed executions include full exception details.
 
-**Job executions.** Every scheduled job run produces an equivalent row. The same columns apply; a `kind` column distinguishes handler rows from job rows.
+**Job executions.** Every scheduled job run produces a row in the same `executions` table. A `kind` column distinguishes handler rows from job rows. Jobs support one additional outcome: `skipped`, recorded when a [`where=` predicate](scheduler/index.md#conditional-execution) returns `False` at dispatch time. Skipped executions have zero duration.
 
 **Listener registrations.** Every registered bus listener is stored by name and topic in the `listeners` table. Counts appear in the Apps page stats strip.
 

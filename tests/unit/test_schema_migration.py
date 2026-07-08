@@ -101,6 +101,31 @@ class TestFreshMigration:
         finally:
             conn.close()
 
+    def test_check_constraints_accept_skipped_status(self, tmp_path: Path) -> None:
+        """executions with status='skipped' is accepted by the CHECK constraint (added in 009.sql)."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            conn.execute(
+                "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location)"
+                " VALUES ('app', 0, 'my_job', 'do_thing', 'app.py:1')"
+            )
+            conn.commit()
+            conn.execute(
+                "INSERT INTO executions "
+                "(kind, job_id, session_id, execution_start_ts, duration_ms, status, source_tier) "
+                "VALUES ('job', 1, 1, 1.0, 0.0, 'skipped', 'app')"
+            )
+            conn.commit()
+            row = conn.execute("SELECT status, duration_ms FROM executions WHERE status = 'skipped'").fetchone()
+            assert row == ("skipped", 0.0)
+        finally:
+            conn.close()
+
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
         """executions with negative duration_ms raises IntegrityError."""
         db_path = tmp_path / "test.db"
@@ -215,7 +240,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_user_version_set_after_migration(self, tmp_path: Path) -> None:
-        """PRAGMA user_version is 8 after all migrations run."""
+        """PRAGMA user_version is 9 after all migrations run."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -225,7 +250,7 @@ class TestFreshMigration:
         finally:
             conn.close()
 
-        assert version == 8
+        assert version == 9
 
     def test_listeners_has_mode_column_default_single(self, tmp_path: Path) -> None:
         """003.sql adds a mode column to listeners defaulting to 'single'."""

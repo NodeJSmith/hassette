@@ -161,6 +161,32 @@ These parameters are accepted by every scheduling method. Individual method tabl
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple \| None` | `None` | Positional arguments passed to the handler at call time. |
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at call time. |
+| `where` | `SchedulerPredicate \| Sequence[SchedulerPredicate] \| None` | `None` | Predicate (or sequence of predicates) gating execution. See [Conditional execution with `where=`](#conditional-execution-with-where). |
+
+## Conditional execution with where
+
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`ScheduledJob`][hassette.scheduler.classes.ScheduledJob] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `ScheduledJob` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
+```
+
+A predicate that needs the job must use a named function with a `ScheduledJob` type annotation — lambdas cannot carry annotations and are always called with zero arguments.
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
+```
+
+A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a `ScheduledJob`-annotated member receives the job. Unannotated members are called with zero arguments.
+
+A predicate that raises an exception fails that fire — the handler does not run. The scheduler logs the exception with a traceback and records the execution with `status="error"`. It then invokes the job's `on_error` handler, or the app-level fallback if none is set — the same routing a raising handler receives (see [Handle Errors](management.md#handle-errors)). A recurring job keeps its schedule and tries again at the next occurrence. A one-shot job is consumed; register a new one-shot job to schedule another attempt.
+
+Skip semantics differ by job type:
+
+- **Recurring jobs** (`run_every`, `run_daily`, `run_cron`, `run_minutely`, `run_hourly`) keep their schedule when skipped. The scheduler computes and enqueues the next occurrence the same as a normal run.
+- **One-shot jobs** (`run_in`, `run_once`) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry. Register a new one-shot job to schedule another attempt.
+
+A skipped run produces an execution record with `status="skipped"` instead of invoking the handler. The [monitoring UI](../../web-ui/index.md) shows this record alongside `predicate_description` and `human_description` on the job.
 
 ## Passing arguments to handlers
 

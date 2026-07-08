@@ -991,7 +991,7 @@ export interface components {
          *     serialises back to plain strings in JSON responses.
          * @enum {string}
          */
-        ExecutionStatus: "success" | "error" | "cancelled" | "timed_out";
+        ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1001,8 +1001,9 @@ export interface components {
          * JobSummary
          * @description Per-job summary returned by ``get_job_summary()``.
          *
-         *     ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.
-         *     Invariant: ``successful + failed + cancelled + timed_out == total_executions``.
+         *     ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
+         *     are tracked separately.
+         *     Invariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``.
          */
         JobSummary: {
             /** Job Id */
@@ -1038,6 +1039,10 @@ export interface components {
              * @enum {string}
              */
             source_tier: "app" | "framework";
+            /** Predicate Description */
+            predicate_description?: string | null;
+            /** Human Description */
+            human_description?: string | null;
             /** Total Executions */
             total_executions: number;
             /** Successful */
@@ -1054,6 +1059,11 @@ export interface components {
              * @default 0
              */
             timed_out: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
             /**
              * Thread Leaked
              * @default 0

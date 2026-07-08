@@ -35,7 +35,7 @@ class ListenerRegistration:
     """Listener ordering priority."""
 
     predicate_description: str | None
-    """Human-readable description of the predicate, or None."""
+    """Python repr of the listener's predicate, or None if no ``where=`` was given."""
 
     human_description: str | None
     """Stable, human-readable summary from predicate.summarize(), or None."""
@@ -120,3 +120,10 @@ class ScheduledJobRegistration:
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     """Resolved overlap mode (single/restart/queued/parallel). Persisted to
     the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""
+
+    predicate_description: str | None = None
+    """Python repr of the job's predicate, or None if no ``where=`` was given."""
+
+    human_description: str | None = None
+    """Stable, human-readable summary of the predicate — ``predicate.summarize()`` when
+    available, otherwise ``callable_stable_name()`` as a fallback. None if no predicate."""

@@ -68,6 +68,8 @@ def make_job_registration(
     group: str | None = None,
     name_auto: bool = False,
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE,
+    predicate_description: str | None = None,
+    human_description: str | None = None,
 ) -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
         app_key=app_key,
@@ -85,6 +87,8 @@ def make_job_registration(
         group=group,
         name_auto=name_auto,
         mode=mode,
+        predicate_description=predicate_description,
+        human_description=human_description,
     )
 
 

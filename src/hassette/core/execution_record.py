@@ -35,7 +35,7 @@ class ExecutionRecord:
     """Execution duration in milliseconds."""
 
     status: str
-    """Outcome: 'success', 'error', 'cancelled', or 'timed_out'."""
+    """Outcome: 'success', 'error', 'cancelled', 'timed_out', or 'skipped'."""
 
     # FK fields: exactly one will be non-None (matches the DB CHECK constraint)
     listener_id: int | None = None

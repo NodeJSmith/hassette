@@ -6,8 +6,10 @@ live in `bus/extraction.py:extract_from_annotated`.
 """
 
 import inspect
+import types
+import typing
 from dataclasses import dataclass
-from typing import get_origin
+from typing import get_args, get_origin
 from warnings import warn
 
 from hassette.utils.type_utils import get_type_and_details, is_annotated_type, normalize_annotation
@@ -30,9 +32,15 @@ class TypeMatcher:
         if annotation is inspect.Parameter.empty:
             return None
 
-        base_type = get_origin(annotation) or annotation
+        origin = get_origin(annotation)
+        base_type = origin or annotation
 
-        if not (inspect.isclass(base_type) and issubclass(base_type, self.match_type)):
+        matched = inspect.isclass(base_type) and issubclass(base_type, self.match_type)
+        if not matched and (origin is types.UnionType or origin is typing.Union):
+            args = get_args(annotation)
+            matched = any(inspect.isclass(arg) and issubclass(arg, self.match_type) for arg in args)
+
+        if not matched:
             return None
 
         return InjectionParam(

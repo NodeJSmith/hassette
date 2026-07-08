@@ -1,31 +1,37 @@
 import asyncio
 import heapq
 import random
+import time
+import traceback
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import ClassVar, Generic, TypeVar
 
+import uuid_utils
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.database_service import DatabaseService
+from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.types.enums import ExecutionMode, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.func_utils import callable_stable_name
 from hassette.utils.serialization import safe_json_serialize
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
-    from hassette.scheduler.classes import ScheduledJob
 
 
 T = TypeVar("T")
@@ -273,6 +279,16 @@ class SchedulerService(Service):
             trigger_type = "custom"
             trigger_label = ""
             trigger_detail = None
+
+        predicate_description: str | None = None
+        human_description: str | None = None
+        if job.predicate is not None:
+            predicate_description = repr(job.predicate)
+            if hasattr(job.predicate, "summarize"):
+                human_description = job.predicate.summarize()  # pyright: ignore[reportFunctionMemberAccess]
+            else:
+                human_description = callable_stable_name(job.predicate)
+
         reg = ScheduledJobRegistration(
             app_key=job.app_key,
             instance_index=job.instance_index,
@@ -289,6 +305,8 @@ class SchedulerService(Service):
             group=job.group,
             name_auto=job.name_auto,
             mode=job.mode,
+            predicate_description=predicate_description,
+            human_description=human_description,
         )
         job.mark_registered(await self._executor.register_job(reg))
         await self.enqueue_job(job)
@@ -297,7 +315,7 @@ class SchedulerService(Service):
         """Dispatch a job and log its execution.
 
         Ordering: skip-if-dequeued → compute next → (enqueue next OR mark for removal) →
-        run-through-guard → remove-if-marked.
+        predicate check → run-through-guard → remove-if-marked.
 
         The current due fire ALWAYS runs once popped. Computing the next occurrence
         happens first so the next tick is on the heap before the run completes, enabling
@@ -358,22 +376,143 @@ class SchedulerService(Service):
         else:
             remove_after_fire = True
 
-        # Step 2: Run the current due fire through the mode guard.
+        # Step 2: Evaluate the job's predicate (if any) before running the handler.
+        # This must come after step 1 (next occurrence computed/enqueued) so a skipped
+        # recurring job still continues its schedule, and before step 3 (guard/execution)
+        # so a skip never invokes the handler.
+        if job.predicate is not None:
+            predicate_start = time.time()
+            try:
+                kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+                should_run = job.predicate(**kwargs)
+            except Exception as exc:
+                self.logger.exception("Predicate raised for job %s — recording failure; the job does not run", job)
+                self._record_predicate_failure(job, exc, predicate_start)
+                if remove_after_fire:
+                    await self._try_remove_job(job, "predicate-error")
+                return
+
+            if not should_run:
+                self.logger.debug("Predicate returned False for job %s — skipping", job)
+                self._record_skipped(job)
+                if remove_after_fire:
+                    await self._try_remove_job(job, "skipped")
+                return
+
+        # Step 3: Run the current due fire through the mode guard.
         try:
             await self.run_job_with_guard(job)
         except asyncio.CancelledError:
-            # Step 3 is skipped on cancellation: a job marked for removal stays in
+            # Step 4 is skipped on cancellation: a job marked for removal stays in
             # _jobs_by_name until Scheduler.on_shutdown clears it unconditionally. This
             # only happens during shutdown-driven task cancellation.
             self.logger.debug("Dispatch cancelled for job %s", job)
             raise
 
-        # Step 3: Remove if marked (trigger exhausted or raised, or one-shot).
+        # Step 4: Remove if marked (trigger exhausted or raised, or one-shot).
         if remove_after_fire:
-            try:
-                await self._remove_job(job)
-            except Exception:
-                self.logger.exception("Error removing exhausted job %s", job)
+            await self._try_remove_job(job, "exhausted")
+
+    def _record_skipped(self, job: "ScheduledJob") -> None:
+        """Build and enqueue a 'skipped' ExecutionRecord for a job whose predicate returned False.
+
+        Bypasses ``CommandExecutor._execute()``/``track_execution()`` entirely — a skip has no
+        meaningful invocation to time. ``duration_ms=0.0`` marks it distinctly in duration
+        aggregations (which exclude ``status='skipped'`` — see ``summary_queries.py``).
+
+        Args:
+            job: The job whose predicate returned False.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        record = ExecutionRecord(
+            kind="job",
+            listener_id=None,
+            job_id=job.db_id,
+            session_id=session_id,
+            execution_start_ts=time.time(),
+            duration_ms=0.0,
+            status="skipped",
+            app_key=job.app_key,
+            instance_index=job.instance_index,
+            source_tier=job.source_tier,
+            execution_id=str(uuid_utils.uuid7()),
+        )
+        self._executor.enqueue_record(record)
+
+    def _record_predicate_failure(self, job: "ScheduledJob", exc: Exception, start_ts: float) -> None:
+        """Record a raising predicate as a failed execution and route it to error handlers.
+
+        The handler never ran, so this bypasses ``CommandExecutor._execute()`` the same way
+        ``_record_skipped`` does — but the outcome is an ``'error'`` record (with the real
+        predicate-evaluation duration) so a broken predicate is visible in telemetry instead
+        of vanishing into the task bucket's unhandled-exception log. The per-job ``on_error``
+        handler (or the app-level fallback) is invoked with the same ``SchedulerErrorContext``
+        a raising handler would produce.
+
+        Args:
+            job: The job whose predicate raised.
+            exc: The exception the predicate raised.
+            start_ts: Unix timestamp when predicate evaluation began.
+        """
+        try:
+            session_id: int | None = self.hassette.session_id
+        except RuntimeError:
+            session_id = None
+
+        traceback_str = "".join(traceback.format_exception(exc))
+        execution_id = str(uuid_utils.uuid7())
+        record = ExecutionRecord(
+            kind="job",
+            listener_id=None,
+            job_id=job.db_id,
+            session_id=session_id,
+            execution_start_ts=start_ts,
+            duration_ms=(time.time() - start_ts) * 1000,
+            status="error",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            error_traceback=traceback_str,
+            app_key=job.app_key,
+            instance_index=job.instance_index,
+            source_tier=job.source_tier,
+            execution_id=execution_id,
+        )
+        self._executor.enqueue_record(record)
+
+        app_level_error_handler = (
+            job.app_error_handler_resolver() if job.app_error_handler_resolver is not None else None
+        )
+        error_handler = job.error_handler or app_level_error_handler
+        if error_handler is not None:
+            ctx = SchedulerErrorContext(
+                exception=exc,
+                traceback=traceback_str,
+                execution_id=execution_id,
+                job_name=job.name,
+                job_group=job.group,
+                args=job.args,
+                kwargs=dict(job.kwargs),
+            )
+            self.task_bucket.spawn(
+                self._executor.invoke_error_handler(error_handler, ctx),
+                name="scheduler:predicate_error_handler",
+            )
+
+    async def _try_remove_job(self, job: "ScheduledJob", reason: str) -> None:
+        """Remove a job, logging any exception without propagating it.
+
+        Args:
+            job: The job to remove.
+            reason: Why the job is being removed (e.g. "skipped", "exhausted") — used in the log message.
+        """
+        try:
+            await self._remove_job(job)
+        except Exception:
+            self.logger.exception("Error removing %s job %s", reason, job)
 
     async def run_job_with_guard(self, job: "ScheduledJob", trigger_mode: str | None = None) -> None:
         """Route one job invocation through the job's execution-mode guard.
