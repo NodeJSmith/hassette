@@ -35,6 +35,33 @@ async def get_service_watcher_mock(hassette_with_bus):
         await reset_hassette_lifecycle(hassette, original_children=original_children)
 
 
+async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Call restart_service and wait for the spawned execute_restart task to complete.
+
+    restart_service now spawns the backoff+restart as a detached task and returns
+    immediately. Tests that call restart_service sequentially need to wait for the
+    in-restart flag to clear before the next call.
+    """
+    key = watcher.service_key(event.payload.data.resource_name, event.payload.data.role)
+    was_restarting = key in watcher._restarting
+    await watcher.restart_service(event)
+    if not was_restarting and key in watcher._restarting:
+        await wait_for(
+            lambda: key not in watcher._restarting,
+            desc=f"execute_restart for {key} completed",
+            timeout=5.0,
+        )
+
+
+async def on_running_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Call on_service_running and wait for the spawned readiness task to complete."""
+    pending_before = set(watcher.task_bucket.pending_tasks())
+    await watcher.on_service_running(event)
+    new_tasks = set(watcher.task_bucket.pending_tasks()) - pending_before
+    for task in new_tasks:
+        await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+
+
 def get_dummy_service(
     called: dict[str, int],
     hassette,
@@ -50,7 +77,10 @@ def get_dummy_service(
         restart_spec: ClassVar[RestartSpec] = spec
 
         async def serve(self):
-            pass
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise
 
         async def on_shutdown(self):
             called["cancel"] += 1
@@ -112,10 +142,10 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
     event = make_service_failed_event(dummy_service)
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
-    # Each call to restart_service increments budget and attempts restart.
+    # Each call to restart_service increments budget and spawns a restart task.
     # The service fails on restart but exceptions are caught.
     for _ in range(3):
-        await watcher.restart_service(event)
+        await restart_and_await(watcher, event)
 
     budget = watcher._budgets.get(key)
     assert budget is not None
@@ -147,7 +177,7 @@ async def test_crashed_event_emitted_before_shutdown(get_service_watcher_mock: S
     event = make_service_failed_event(dummy_service)
 
     # First call uses the one budget slot
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
 
     # Second call exceeds budget — should emit CRASHED then shutdown
     mock_send = AsyncMock()
@@ -194,7 +224,7 @@ async def test_exponential_backoff(get_service_watcher_mock: ServiceWatcher):
 
     with patch.object(watcher, "shutdown_safe_sleep", side_effect=mock_shutdown_safe_sleep):
         for _ in range(3):
-            await watcher.restart_service(event)
+            await restart_and_await(watcher, event)
 
     # attempt 1: backoff = 1.0 * 2^0 = 1.0
     # attempt 2: backoff = 1.0 * 2^1 = 2.0
@@ -222,7 +252,7 @@ async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher
 
     # Accumulate 2 restart attempts
     for _ in range(2):
-        await watcher.restart_service(event)
+        await restart_and_await(watcher, event)
 
     budget = watcher._budgets[key]
     budget.evict_expired()
@@ -230,7 +260,7 @@ async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher
 
     # Mark the service ready, then fire RUNNING event — budget should reset
     dummy_service.mark_ready(reason="test")
-    await watcher.on_service_running(make_service_running_event(dummy_service))
+    await on_running_and_await(watcher, make_service_running_event(dummy_service))
 
     budget.evict_expired()
     assert len(budget._timestamps) == 0  # budget reset
@@ -254,12 +284,12 @@ async def test_permanent_exhaustion_triggers_shutdown(get_service_watcher_mock: 
     event = make_service_failed_event(dummy_service)
 
     # Use up budget
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
 
     assert not hassette.shutdown_event.is_set(), "Should not shutdown until budget exhausted"
 
-    # Exhaust budget
+    # Exhaust budget (budget check is synchronous — no spawn needed)
     await watcher.restart_service(event)
     assert hassette.shutdown_event.is_set()
 
@@ -285,9 +315,9 @@ async def test_permanent_exhaustion_records_fatal_reason(get_service_watcher_moc
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)  # exhausts → handle_exhaustion (PERMANENT)
+    await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
+    await watcher.restart_service(event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
 
     assert hassette._fatal_shutdown_reason is not None
     assert dummy_service.class_name in hassette._fatal_shutdown_reason
@@ -336,8 +366,8 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Use up budget
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
 
     # Capture events emitted on exhaustion
     emitted_events: list = []
@@ -347,7 +377,7 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Exhaust budget
+    # Exhaust budget (budget check is synchronous — no spawn needed)
     await watcher.restart_service(event)
 
     hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -385,8 +415,8 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
     event = make_service_failed_event(dummy_service)
 
     # Use up budget
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
 
     emitted_events: list = []
 
@@ -395,7 +425,7 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
 
     hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Exhaust budget
+    # Exhaust budget (budget check is synchronous — no spawn needed)
     await watcher.restart_service(event)
 
     hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
@@ -570,7 +600,7 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(get_service_watcher_mock: 
     # Set shutdown event to trigger early abort during backoff
     hassette.shutdown_event.set()
 
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
 
     # Service should NOT have been restarted
     assert call_counts["start"] == 0, "Service should not restart when shutdown is requested during backoff"
@@ -597,8 +627,8 @@ async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: Serv
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Accumulate 2 restart attempts
-    await watcher.restart_service(event)
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
 
     budget = watcher._budgets[key]
     budget.evict_expired()
@@ -606,7 +636,7 @@ async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: Serv
 
     # Mark the service ready, then fire RUNNING event — budget should reset
     dummy_service.mark_ready(reason="test")
-    await watcher.on_service_running(make_service_running_event(dummy_service))
+    await on_running_and_await(watcher, make_service_running_event(dummy_service))
 
     budget.evict_expired()
     assert len(budget._timestamps) == 0  # budget.reset() was called
@@ -632,14 +662,20 @@ async def test_readiness_timeout_no_budget_impact(get_service_watcher_mock: Serv
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Accumulate 1 restart attempt
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
 
     budget = watcher._budgets[key]
     budget.evict_expired()
     count_before = len(budget._timestamps)
 
     # Fire RUNNING event WITHOUT marking ready — timeout will occur, no budget impact
+    # on_service_running spawns a readiness task; wait for it to time out
     await watcher.on_service_running(make_service_running_event(dummy_service))
+    await wait_for(
+        lambda: watcher.task_bucket.pending_tasks() == [],
+        desc="readiness timeout task completed",
+        timeout=5.0,
+    )
 
     budget.evict_expired()
     assert len(budget._timestamps) == count_before, "Readiness timeout should not impact restart budget"
@@ -665,9 +701,9 @@ async def test_cooldown_then_recovery(get_service_watcher_mock: ServiceWatcher):
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
     # Use up the budget (1 restart)
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
 
-    # Exhaust budget — should schedule cooldown task
+    # Exhaust budget — should schedule cooldown task (budget check is synchronous)
     await watcher.restart_service(event)
 
     assert key in watcher._cooldown_tasks
@@ -817,7 +853,7 @@ async def test_restart_exception_caught_no_double_count(get_service_watcher_mock
     dummy_service.restart = raise_on_restart  # pyright: ignore[reportAttributeAccessIssue]
 
     # Should not propagate the exception from restart
-    await watcher.restart_service(event)
+    await restart_and_await(watcher, event)
 
     budget = watcher._budgets.get(key)
     assert budget is not None

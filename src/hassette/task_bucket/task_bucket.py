@@ -15,6 +15,8 @@ from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
+_CROSS_THREAD_SPAWN_TIMEOUT_SECS = 10.0
+
 
 @dataclass
 class SyncWorkerHandle:
@@ -175,7 +177,18 @@ class TaskBucket(Resource):
                     result.set_exception(e)
 
             self.hassette.loop.call_soon_threadsafe(_create)
-            return result.result()  # block this worker thread briefly to hand back the Task
+            try:
+                return result.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECS)
+            except CfTimeoutError:
+                self.logger.error(
+                    "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
+                    name,
+                    _CROSS_THREAD_SPAWN_TIMEOUT_SECS,
+                )
+                raise RuntimeError(
+                    f"Cross-thread spawn of '{name}' timed out waiting for the event loop "
+                    "— the loop may have stopped or is severely congested"
+                ) from None
 
     def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
         """Run a synchronous function on the dedicated sync-handler executor.

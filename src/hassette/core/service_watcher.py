@@ -390,6 +390,23 @@ class ServiceWatcher(Resource):
         self._restarting.add(key)
         budget.record_restart()
 
+        # Spawn the backoff + restart as a detached task so this handler returns
+        # immediately and releases its dispatch semaphore slot.
+        self.task_bucket.spawn(
+            self.execute_restart(name, role, key, spec, services, budget),
+            name=f"service_watcher:restart:{key}",
+        )
+
+    async def execute_restart(
+        self,
+        name: str,
+        role: object,
+        key: str,
+        spec: RestartSpec,
+        services: list[Service],
+        budget: RestartBudget,
+    ) -> None:
+        """Execute backoff sleep and service restart (runs as a detached task)."""
         attempts = budget.current_attempts()
 
         # Step 6: Apply exponential backoff with shutdown-safe sleep
@@ -398,29 +415,28 @@ class ServiceWatcher(Resource):
             spec.backoff_max_seconds,
         )
 
-        if backoff > 0:
-            self.logger.info(
-                "%s '%s' restarting (attempt %d, waiting %.1fs)",
-                role,
-                name,
-                attempts,
-                backoff,
-            )
-            completed = await self.shutdown_safe_sleep(backoff)
-            if not completed or self.hassette.shutdown_event.is_set():
-                self.logger.debug("%s '%s' backoff sleep aborted (shutdown requested)", role, name)
-                self._restarting.discard(key)
-                return
-
-        self.logger.debug("%s '%s' is being restarted after '%s'", role, name, event.payload.data.status)
-
-        if len(services) > 1:
-            self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
-
-        # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
-        # Clear in-restart guard AFTER the entire loop so concurrent FAILED events cannot
-        # enter restart_service() while restarts are still in progress.
         try:
+            if backoff > 0:
+                self.logger.info(
+                    "%s '%s' restarting (attempt %d, waiting %.1fs)",
+                    role,
+                    name,
+                    attempts,
+                    backoff,
+                )
+                completed = await self.shutdown_safe_sleep(backoff)
+                if not completed or self.hassette.shutdown_event.is_set():
+                    self.logger.debug("%s '%s' backoff sleep aborted (shutdown requested)", role, name)
+                    return
+
+            self.logger.debug("%s '%s' is being restarted", role, name)
+
+            if len(services) > 1:
+                self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
+
+            # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
+            # Clear in-restart guard in the finally AFTER the entire loop so concurrent FAILED
+            # events cannot enter restart_service() while restarts are still in progress.
             for svc in services:
                 try:
                     await svc.restart()
@@ -505,6 +521,22 @@ class ServiceWatcher(Resource):
         spec = service.restart_spec if isinstance(service, Service) else None
         readiness_timeout = spec.startup_timeout_seconds if spec is not None else 30.0
 
+        # Spawn readiness check as a detached task so this handler returns
+        # immediately and releases its dispatch semaphore slot.
+        self.task_bucket.spawn(
+            self.await_service_readiness(service, name, role, key, readiness_timeout),
+            name=f"service_watcher:readiness:{key}",
+        )
+
+    async def await_service_readiness(
+        self,
+        service: Resource,
+        name: str,
+        role: object,
+        key: str,
+        readiness_timeout: float,
+    ) -> None:
+        """Wait for a restarted service to become ready and reset its budget (runs as a detached task)."""
         try:
             await service.wait_ready(timeout=readiness_timeout)
         except TimeoutError:
@@ -514,17 +546,14 @@ class ServiceWatcher(Resource):
                 name,
                 readiness_timeout,
             )
-            # Readiness timeout does NOT affect the restart budget
             return
 
         self.logger.debug("%s '%s' is running and ready, resetting restart budget", role, name)
 
-        # Reset budget on confirmed recovery
         budget = self._budgets.get(key)
         if budget:
             budget.reset()
 
-        # Clear in-restart flag — restart succeeded
         self._restarting.discard(key)
 
     async def reconcile_after_bus_recovery(self) -> None:

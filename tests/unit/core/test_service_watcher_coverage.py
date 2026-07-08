@@ -16,7 +16,7 @@ from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.restart import RestartSpec
-from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event
+from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
 
@@ -272,6 +272,8 @@ class TestRestartServiceMultipleMatches:
         event = make_service_failed_event(svc_a)
 
         await watcher.restart_service(event)
+        key = watcher.service_key(svc_a.class_name, svc_a.role)
+        await wait_for(lambda: key not in watcher._restarting, desc="execute_restart completed")
 
         svc_a.restart.assert_awaited_once()
         svc_b.restart.assert_awaited_once()
@@ -363,6 +365,7 @@ class TestOnServiceRunningBudgetNoneBranch:
 
         event = make_service_running_event(dummy)
         await watcher.on_service_running(event)
+        await wait_for(lambda: key not in watcher._restarting, desc="await_service_readiness completed")
 
         assert key not in watcher._restarting
         assert key not in watcher._budgets

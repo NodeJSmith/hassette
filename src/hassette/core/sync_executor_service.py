@@ -54,15 +54,14 @@ SYNC_EXECUTOR_THREAD_NAME_PREFIX = "hassette-sync"
 class SyncExecutorService(Service):
     """Service that owns the dedicated thread-pool executor for sync user code.
 
-    The executor is constructed in __init__ (not a startup hook). Once wire_services()
-    has registered this service, hassette.sync_executor returns a live executor; before
-    that the property raises RuntimeError. Constructing in __init__ avoids a None window
-    on the service instance itself once it exists.
+    The executor is constructed in ``on_initialize()`` so that restart-in-place
+    (``shutdown`` → ``initialize`` on the same instance, driven by ServiceWatcher)
+    rebuilds the thread pool.  Consumers (BusService, SchedulerService, AppHandler)
+    declare ``depends_on=[SyncExecutorService]`` and wait for readiness, so no
+    consumer can submit work before the pool exists.
 
     SyncExecutorService declares depends_on=[] (it needs no DB or other service).
-    Its consumers (BusService, SchedulerService, AppHandler) declare
-    depends_on=[SyncExecutorService], which causes wave-based shutdown to tear
-    them down before the executor.
+    Wave-based shutdown tears consumers down before this service.
     """
 
     depends_on: ClassVar[list[type[Resource]]] = []
@@ -83,9 +82,12 @@ class SyncExecutorService(Service):
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
-        # Construct immediately — no None window before serve() runs.
+        self._active_workers = 0
+        self._last_saturation_warn_ts = 0.0
+
+    async def on_initialize(self) -> None:
         self.executor = InterruptibleThreadPoolExecutor(
-            max_workers=hassette.config.lifecycle.sync_executor_max_workers,
+            max_workers=self.hassette.config.lifecycle.sync_executor_max_workers,
             thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
         )
         self._active_workers = 0
@@ -196,6 +198,8 @@ class SyncExecutorService(Service):
         ``sync_executor_shutdown_timeout_seconds`` below ``resource_shutdown_timeout_seconds``
         to give the wave explicit headroom.
         """
+        if not hasattr(self, "executor"):
+            return
         lifecycle = self.hassette.config.lifecycle
         budget = min(
             lifecycle.sync_executor_shutdown_timeout_seconds,
