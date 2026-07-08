@@ -18,12 +18,13 @@ Accessors also compose with predicates. `P.ValueIs(source=A.get_service_data_key
 
 A custom extractor is a plain callable that receives the raw event and returns a value. [`AnnotationDetails`][hassette.di.AnnotationDetails] wraps that callable and registers it with the DI system.
 
-`AnnotationDetails` is a frozen dataclass with two fields:
+`AnnotationDetails` is a frozen dataclass with three fields:
 
 | Field | Type | Required | Purpose |
 |---|---|---|---|
-| `extractor` | `Callable[[T], Any]` | Yes | Extracts the value from the event |
+| `extractor` | `Callable[[T], Any]` | Yes | Extracts the value from the source object |
 | `converter` | `Callable[[Any, Any], Any] \| None` | No | Converts the extracted value to the declared type |
+| `source_type` | `type[T] \| None` | No | Overrides the default source type for this extractor |
 
 Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(...)]` completes the setup. Hassette discovers `AnnotationDetails` in `Annotated` metadata automatically at registration time — no explicit registration step needed.
 
