@@ -47,7 +47,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from inspect import isawaitable
 from logging import getLogger
-from typing import Any, Generic, TypeGuard, TypeVar
+from typing import Any, Generic, Self, TypeGuard, TypeVar
 
 from boltons.iterutils import is_collection
 
@@ -98,31 +98,37 @@ class Guard(typing.Generic[EventT]):
         return "custom condition"
 
 
+def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
+    """Return a human-readable summary of a predicate or condition.
+
+    Delegates to the object's ``summarize()`` method when available, falls back to a
+    stable callable name for callables, or to ``non_callable_fallback`` otherwise.
+    """
+    if hasattr(obj, "summarize"):
+        return obj.summarize()  # pyright: ignore[reportAttributeAccessIssue]
+    if callable(obj):
+        return callable_name(obj)
+    return non_callable_fallback(obj)
+
+
 def _summarize_predicate(predicate: "Predicate") -> str:
     """Return a human-readable summary of a predicate.
 
     Delegates to the predicate's ``summarize()`` method when available,
-    otherwise falls back to a stable callable name.
+    otherwise falls back to a stable callable name, or ``repr()`` for
+    non-callable values.
     """
-    if hasattr(predicate, "summarize"):
-        return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
-    if callable(predicate):
-        return callable_name(predicate)
-    return repr(predicate)
+    return _summarize(predicate, repr)
 
 
 def _summarize_condition(condition: Any) -> str:
     """Return a human-readable summary of a condition.
 
     Delegates to the condition's ``summarize()`` method when available,
-    falls back to a stable callable name for callables, or ``repr()``
+    falls back to a stable callable name for callables, or ``str()``
     for non-callable literals.
     """
-    if hasattr(condition, "summarize"):
-        return condition.summarize()
-    if callable(condition):
-        return callable_name(condition)
-    return str(condition)
+    return _summarize(condition, str)
 
 
 def _strip_outer_parens(s: str) -> str:
@@ -155,11 +161,24 @@ def summarize_top_level(predicate: "Predicate") -> str:
 
 
 @dataclass(frozen=True)
-class AllOf:
-    """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
+class _PredicateCombinator:
+    """Base for combinators that wrap a tuple of predicates.
+
+    Provides the shared ``ensure_iterable`` constructor that flattens a single predicate
+    or a (possibly nested) collection of predicates into the combinator's tuple form.
+    """
 
     predicates: tuple["Predicate", ...]
     """The predicates to evaluate."""
+
+    @classmethod
+    def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> Self:
+        return cls(ensure_tuple(where))
+
+
+@dataclass(frozen=True)
+class AllOf(_PredicateCombinator):
+    """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
 
     def __call__(self, value: "Event") -> bool:
         return all(p(value) for p in self.predicates)
@@ -170,17 +189,10 @@ class AllOf:
             return f"({joined})"
         return joined
 
-    @classmethod
-    def ensure_iterable(cls, where: "Predicate | Sequence[Predicate] | list[Predicate]") -> "AllOf":
-        return cls(ensure_tuple(where))
-
 
 @dataclass(frozen=True)
-class AnyOf:
+class AnyOf(_PredicateCombinator):
     """Predicate that evaluates to True if any of the contained predicates evaluate to True."""
-
-    predicates: tuple["Predicate", ...]
-    """The predicates to evaluate."""
 
     def __call__(self, event: "Event") -> bool:
         return any(p(event) for p in self.predicates)
@@ -190,10 +202,6 @@ class AnyOf:
         if len(self.predicates) >= 2:
             return f"({joined})"
         return joined
-
-    @classmethod
-    def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> "AnyOf":
-        return cls(ensure_tuple(where))
 
 
 @dataclass(frozen=True)
@@ -415,6 +423,11 @@ class AttrDidChange:
         return f"attr {self.attr_name} changed"
 
 
+def _glob_or_literal(value: str) -> "str | Glob":
+    """Wrap ``value`` in a Glob condition if it contains glob syntax, else return it as-is."""
+    return Glob(value) if is_glob(value) else value
+
+
 @dataclass(frozen=True)
 class DomainMatches:
     """Checks if the event domain matches a specific value."""
@@ -422,8 +435,7 @@ class DomainMatches:
     domain: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
-        cond = Glob(self.domain) if is_glob(self.domain) else self.domain
-        return ValueIs(source=get_domain, condition=cond)(value)
+        return ValueIs(source=get_domain, condition=_glob_or_literal(self.domain))(value)
 
     def summarize(self) -> str:
         return f"domain {self.domain}"
@@ -439,8 +451,7 @@ class EntityMatches:
     entity_id: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
-        cond = Glob(self.entity_id) if is_glob(self.entity_id) else self.entity_id
-        return ValueIs(source=get_entity_id, condition=cond)(value)
+        return ValueIs(source=get_entity_id, condition=_glob_or_literal(self.entity_id))(value)
 
     def summarize(self) -> str:
         return f"entity {self.entity_id}"
@@ -456,8 +467,7 @@ class ServiceMatches:
     service: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
-        cond = Glob(self.service) if is_glob(self.service) else self.service
-        return ValueIs(source=get_path("payload.data.service"), condition=cond)(value)
+        return ValueIs(source=get_path("payload.data.service"), condition=_glob_or_literal(self.service))(value)
 
     def summarize(self) -> str:
         return f"service {self.service}"

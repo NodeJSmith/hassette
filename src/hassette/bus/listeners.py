@@ -457,7 +457,7 @@ class Listener:
     def mark_registered(self, db_id: int) -> None:
         """Set the database ID after persistence. One-time assignment by BusService."""
         if self.db_id is not None:
-            LOGGER.warning(
+            self.logger.warning(
                 "Listener %s already registered with db_id=%s, ignoring new db_id=%s",
                 self.listener_id,
                 self.db_id,

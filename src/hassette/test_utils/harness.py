@@ -92,6 +92,22 @@ async def shutdown_resource(res: Resource) -> None:
     await res.shutdown()
 
 
+@contextlib.contextmanager
+def _collect_shutdown_errors(
+    errors: list[Exception],
+    exc_types: type[Exception] | tuple[type[Exception], ...] = Exception,
+) -> Generator[None, None, None]:
+    """Run the wrapped block, appending any matching exception to ``errors`` instead of raising.
+
+    Used by ``HassetteHarness.stop()`` so a failure in one teardown step doesn't skip the rest —
+    all collected errors are raised together as an ExceptionGroup once teardown finishes.
+    """
+    try:
+        yield
+    except exc_types as exc:
+        errors.append(exc)
+
+
 async def _harness_dispatch(
     invoke_fn: Callable[[], Awaitable[None]],
     error_handler: Callable[..., Any] | None,
@@ -533,42 +549,63 @@ class HassetteHarness:
 
     async def start(self) -> "HassetteHarness":
         self._resolve_dependencies()
+        loop, loop_thread_id = self._setup_loop_emulation()
+        self._maybe_install_loop_watchdog(loop, loop_thread_id)
+        await self._start_components()
+        self._install_default_mocks()
 
-        # Emulate run_forever() on the real Hassette: populate the backing slots that the
-        # public loop / loop_thread_id accessors read. These are read-only properties with no
-        # setter, so the harness writes the private slots directly — the same way run_forever
-        # does — rather than reaching through a public accessor.
-        self.hassette._loop = asyncio.get_running_loop()
-        self._previous_task_factory = self.hassette._loop.get_task_factory()
-        self.hassette._loop_thread_id = threading.get_ident()
+        self.hassette.ready_event.set()
+        await self.hassette.start_children_and_wait(timeout=Timeouts.WAIT_FOR_READY)
+
+        self._capture_original_app_manifests()
+
+        return self
+
+    def _setup_loop_emulation(self) -> tuple[asyncio.AbstractEventLoop, int]:
+        """Emulate run_forever() on the real Hassette: populate the backing slots that the
+        public loop / loop_thread_id accessors read. These are read-only properties with no
+        setter, so the harness writes the private slots directly — the same way run_forever
+        does — rather than reaching through a public accessor.
+        """
+        loop = asyncio.get_running_loop()
+        loop_thread_id = threading.get_ident()
+        self.hassette._loop = loop
+        self._previous_task_factory = loop.get_task_factory()
+        self.hassette._loop_thread_id = loop_thread_id
         self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
-        self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
+        loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
+        return loop, loop_thread_id
 
-        # Install Tier 1 loop-responsiveness watchdog when a real CommandExecutor is present.
-        # The harness uses mock executors by default; the watchdog only activates when the
-        # executor has a live current_execution attribute (i.e., it is a real CommandExecutor).
+    def _maybe_install_loop_watchdog(self, loop: asyncio.AbstractEventLoop, loop_thread_id: int) -> None:
+        """Install Tier 1 loop-responsiveness watchdog when a real CommandExecutor is present.
+
+        The harness uses mock executors by default; the watchdog only activates when the
+        executor has a live current_execution attribute (i.e., it is a real CommandExecutor).
+        """
         executor = getattr(self.hassette, "_command_executor", None)
-        if (
+        if not (
             executor is not None
             and isinstance(executor, CommandExecutor)
             and self.hassette.config.blocking_io.watchdog_enabled
         ):
-            _loop = self.hassette._loop
-            self.hassette._loop_watchdog = LoopWatchdog(
-                self.hassette,
-                loop=_loop,
-                loop_thread_id=self.hassette._loop_thread_id,
-                executor=executor,
-                # Mirror core.py: marshal record_blocking_event onto the loop thread so integration
-                # tests exercise the same Tier 1 persistence path as production. Without on_stall the
-                # watchdog warns but drops telemetry. Gate on is_running() like core does.
-                on_stall=lambda ev: (
-                    _loop.call_soon_threadsafe(executor.record_blocking_event, ev) if _loop.is_running() else None
-                ),
-            )
-            self.hassette._loop_watchdog.start()
+            return
 
-        # Start components in dependency order
+        self.hassette._loop_watchdog = LoopWatchdog(
+            self.hassette,
+            loop=loop,
+            loop_thread_id=loop_thread_id,
+            executor=executor,
+            # Mirror core.py: marshal record_blocking_event onto the loop thread so integration
+            # tests exercise the same Tier 1 persistence path as production. Without on_stall the
+            # watchdog warns but drops telemetry. Gate on is_running() like core does.
+            on_stall=lambda ev: (
+                loop.call_soon_threadsafe(executor.record_blocking_event, ev) if loop.is_running() else None
+            ),
+        )
+        self.hassette._loop_watchdog.start()
+
+    async def _start_components(self) -> None:
+        """Start components in dependency order via their registered starter coroutines."""
         for component in STARTUP_ORDER:
             if not self.has_component(component):
                 continue
@@ -576,7 +613,8 @@ class HassetteHarness:
             if starter:
                 await starter(self)
 
-        # Set up API and websocket mocks if not provided by a real component
+    def _install_default_mocks(self) -> None:
+        """Set up API, websocket, and state mocks not already provided by a real component."""
         if not self.hassette._api_service:
             self.hassette._api_service = AsyncMock()
             self.hassette._api_service.ready_event = asyncio.Event()
@@ -597,15 +635,12 @@ class HassetteHarness:
         if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
 
-        self.hassette.ready_event.set()
-        await self.hassette.start_children_and_wait(timeout=Timeouts.WAIT_FOR_READY)
-
+    def _capture_original_app_manifests(self) -> None:
+        """Snapshot app manifests after startup so reset() can restore them between tests."""
         if self.has_component("app_handler"):
             self._original_app_manifests = {
                 k: v.model_copy(deep=True) for k, v in self.app_handler.registry.manifests.items()
             }
-
-        return self
 
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
@@ -616,41 +651,31 @@ class HassetteHarness:
             # warnings during teardown and ensures no daemon thread outlives the test. A failed
             # stop() can leave a daemon thread alive across tests, so surface it like the rest.
             if self.hassette._loop_watchdog is not None:
-                try:
+                with _collect_shutdown_errors(shutdown_errors):
                     self.hassette._loop_watchdog.stop()
-                except Exception as exc:
-                    shutdown_errors.append(exc)
                 self.hassette._loop_watchdog = None
 
             # Shut down in reverse order so dependents stop before their dependencies.
             for resource in reversed(self.hassette.children):
-                try:
+                with _collect_shutdown_errors(shutdown_errors):
                     await shutdown_resource(resource)
-                except Exception as exc:
-                    shutdown_errors.append(exc)
 
             # Close event streams after all children have stopped — children send
             # STOPPED status events during shutdown, so streams must stay open until then.
             # Use _close_streams_now() to bypass the no-op override on _HarnessEventStreamService,
             # which prevents test-initiated hassette.shutdown() calls from closing streams prematurely.
-            try:
+            with _collect_shutdown_errors(shutdown_errors):
                 ess = self.hassette._event_stream_service
                 if isinstance(ess, _HarnessEventStreamService) and not ess.event_streams_closed:
                     await ess._close_streams_now()
-            except Exception as exc:
-                shutdown_errors.append(exc)
 
-            try:
+            with _collect_shutdown_errors(shutdown_errors):
                 await self._exit_stack.aclose()
-            except Exception as exc:
-                shutdown_errors.append(exc)
 
             # Assert clean AFTER all other cleanup so assertion errors are not masked.
-            try:
+            with _collect_shutdown_errors(shutdown_errors, exc_types=AssertionError):
                 if self.api_mock is not None:
                     self.api_mock.assert_clean()
-            except AssertionError as exc:
-                shutdown_errors.append(exc)
         finally:
             # Reset the global singleton unconditionally, ahead of the loop teardown below so a
             # failure restoring the loop can't skip it. If any statement above escapes the
