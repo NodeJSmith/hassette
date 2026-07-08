@@ -67,6 +67,7 @@ import asyncio
 import inspect
 import typing
 from collections.abc import Coroutine, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from whenever import ZonedDateTime
@@ -995,6 +996,14 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
     return CallableInvoker(plan)
 
 
+@dataclass(frozen=True)
+class _AllPredicates:
+    preds: tuple["SchedulerPredicate", ...]
+
+    def __call__(self) -> bool:
+        return all(p() for p in self.preds)  # pyright: ignore[reportCallIssue]
+
+
 def _normalize_where(
     where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None",
 ) -> tuple["SchedulerPredicate | None", CallableInvoker | None]:
@@ -1027,7 +1036,4 @@ def _normalize_where(
                 "sequence members are called with zero arguments. Use a closure to wrap it."
             )
 
-    def _all_predicates() -> bool:
-        return all(p() for p in preds)  # pyright: ignore[reportCallIssue]
-
-    return _all_predicates, CallableInvoker(())
+    return _AllPredicates(preds), CallableInvoker(())

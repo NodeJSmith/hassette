@@ -189,6 +189,28 @@ class TestNormalizeWhere:
         with pytest.raises(TypeError, match="sequence"):
             _normalize_where([lambda: True, job_pred])
 
+    def test_sequence_predicates_with_same_members_compare_equal(self) -> None:
+        def p1() -> bool:
+            return True
+
+        def p2() -> bool:
+            return False
+
+        pred_a, _ = _normalize_where([p1, p2])
+        pred_b, _ = _normalize_where([p1, p2])
+        assert pred_a == pred_b
+
+    def test_sequence_predicates_with_different_members_compare_unequal(self) -> None:
+        def p1() -> bool:
+            return True
+
+        def p2() -> bool:
+            return False
+
+        pred_a, _ = _normalize_where([p1])
+        pred_b, _ = _normalize_where([p1, p2])
+        assert pred_a != pred_b
+
     def test_sequence_closure_captures_tuple_not_mutable_list(self) -> None:
         preds: list = [lambda: True]
 
