@@ -381,6 +381,44 @@ class TestHoldMatches:
 
         assert result is True
 
+    def test_raising_hold_predicate_returns_false(self) -> None:
+        """hold_matches catches a raising hold_predicate and returns False."""
+        manager = make_manager()
+
+        def bad_pred(_ev: object) -> bool:
+            raise ValueError("hold boom")
+
+        listener = create_listener(
+            topic="hass.event.state_changed.light.kitchen",
+            entity_id="light.kitchen",
+            duration=5.0,
+            hold_predicate=bad_pred,
+        )
+        event = MagicMock()
+
+        result = manager.hold_matches(listener, event)
+        assert result is False
+
+    def test_raising_listener_predicate_in_hold_matches_returns_false(self) -> None:
+        """hold_matches catches a raising listener.matches() fallback and returns False."""
+        manager = make_manager()
+
+        def bad_pred(_ev: object) -> bool:
+            raise RuntimeError("matches boom")
+
+        listener = create_listener(
+            topic="hass.event.state_changed.light.kitchen",
+            entity_id="light.kitchen",
+            duration=5.0,
+            where=bad_pred,
+        )
+        assert listener.duration_config is not None
+        assert listener.duration_config.hold_predicate is None
+
+        event = MagicMock()
+        result = manager.hold_matches(listener, event)
+        assert result is False
+
     def test_falls_back_when_no_duration_config(self) -> None:
         """hold_matches falls back to listener.matches when duration_config is None.
 
