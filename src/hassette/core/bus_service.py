@@ -395,7 +395,10 @@ class BusService(Service):
                 except Exception as exc:
                     failed.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
-                    self._record_predicate_failure(listener, route, event, exc, predicate_start)
+                    try:
+                        self._record_predicate_failure(listener, route, event, exc, predicate_start)
+                    except Exception:
+                        self.logger.exception("Failed to record predicate failure for %s", listener)
                     continue
                 if matched:
                     chosen[listener.listener_id] = (route, listener)
