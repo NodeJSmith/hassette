@@ -10,6 +10,8 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
 
+ONCE_LISTENER_NAME = "test_app.on_event.once"
+
 
 async def test_register_listener_inserts_and_returns_id(
     telemetry_repo: TelemetryRepository,
@@ -58,7 +60,7 @@ async def test_register_job_persists_group(
     cursor = await telemetry_db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == "morning", f"Expected group='morning', got {row[0]!r}"
+    assert row["group"] == "morning", f"Expected group='morning', got {row['group']!r}"
 
 
 async def test_register_job_persists_null_group(
@@ -72,7 +74,7 @@ async def test_register_job_persists_null_group(
     cursor = await telemetry_db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, f"Expected group=None, got {row[0]!r}"
+    assert row["group"] is None, f"Expected group=None, got {row['group']!r}"
 
 
 async def test_register_job_persists_name_auto_true(
@@ -86,7 +88,7 @@ async def test_register_job_persists_name_auto_true(
     cursor = await telemetry_db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 1
+    assert row["name_auto"] == 1
 
 
 async def test_register_job_persists_name_auto_false(
@@ -100,7 +102,7 @@ async def test_register_job_persists_name_auto_false(
     cursor = await telemetry_db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 0
+    assert row["name_auto"] == 0
 
 
 async def test_mark_job_cancelled_sets_cancelled_at(
@@ -114,7 +116,7 @@ async def test_mark_job_cancelled_sets_cancelled_at(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, "cancelled_at should be NULL before cancellation"
+    assert row["cancelled_at"] is None, "cancelled_at should be NULL before cancellation"
 
     before_ts = time.time()
     await telemetry_repo.mark_job_cancelled(job_id)
@@ -123,8 +125,10 @@ async def test_mark_job_cancelled_sets_cancelled_at(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "cancelled_at should be set after mark_job_cancelled()"
-    assert before_ts <= row[0] <= after_ts, f"cancelled_at={row[0]} should be between {before_ts} and {after_ts}"
+    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_job_cancelled()"
+    assert before_ts <= row["cancelled_at"] <= after_ts, (
+        f"cancelled_at={row['cancelled_at']} should be between {before_ts} and {after_ts}"
+    )
 
 
 async def test_reconcile_deletes_stale_without_history(
@@ -137,13 +141,13 @@ async def test_reconcile_deletes_stale_without_history(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (listener_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0, "Stale listener without history should be deleted"
+    assert row["count"] == 0, "Stale listener without history should be deleted"
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0, "Stale job without history should be deleted"
+    assert row["count"] == 0, "Stale job without history should be deleted"
 
 
 async def test_reconcile_retires_stale_with_history(
@@ -173,12 +177,12 @@ async def test_reconcile_retires_stale_with_history(
     cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "Stale listener with history should have retired_at set"
+    assert row["retired_at"] is not None, "Stale listener with history should have retired_at set"
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "Stale job with history should have retired_at set"
+    assert row["retired_at"] is not None, "Stale job with history should have retired_at set"
 
 
 async def test_reconcile_preserves_live_listeners(
@@ -193,13 +197,13 @@ async def test_reconcile_preserves_live_listeners(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [id_a], [])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (id_a,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_a,))
     row = await cursor.fetchone()
-    assert row[0] == 1, "Live listener should be preserved"
+    assert row["count"] == 1, "Live listener should be preserved"
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (id_b,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_b,))
     row = await cursor.fetchone()
-    assert row[0] == 0, "Stale listener without history should be deleted"
+    assert row["count"] == 0, "Stale listener without history should be deleted"
 
 
 @pytest.mark.usefixtures("telemetry_session_id")
@@ -208,7 +212,7 @@ async def test_reconcile_deletes_once_true_previous_session(
     telemetry_db: aiosqlite.Connection,
 ) -> None:
     """reconcile_registrations() deletes once=True rows from previous sessions (no current executions)."""
-    once_reg = make_listener_registration(once=True, name="test_app.on_event.once")
+    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
     now = time.time()
@@ -222,9 +226,9 @@ async def test_reconcile_deletes_once_true_previous_session(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0, "once=True listener from previous session should be deleted"
+    assert row["count"] == 0, "once=True listener from previous session should be deleted"
 
 
 async def test_reconcile_preserves_once_true_with_current_executions(
@@ -233,7 +237,7 @@ async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_session_id: int,
 ) -> None:
     """reconcile_registrations() preserves once=True rows that have current-session executions."""
-    once_reg = make_listener_registration(once=True, name="test_app.on_event.once")
+    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
     # Create an execution in the CURRENT session
@@ -246,9 +250,9 @@ async def test_reconcile_preserves_once_true_with_current_executions(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=telemetry_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()
-    assert row[0] == 1, "once=True listener with current-session executions should be preserved"
+    assert row["count"] == 1, "once=True listener with current-session executions should be preserved"
 
 
 async def test_reconcile_empty_ids_no_crash(
@@ -280,7 +284,7 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "Row should be retired after reconciliation"
+    assert row["retired_at"] is not None, "Row should be retired after reconciliation"
 
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-upsert should return the same ID"
@@ -288,7 +292,7 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     cursor = await telemetry_db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, "retired_at should be reset to NULL after re-upsert"
+    assert row["retired_at"] is None, "retired_at should be reset to NULL after re-upsert"
 
 
 async def test_upsert_same_natural_key_returns_same_id(
@@ -296,18 +300,18 @@ async def test_upsert_same_natural_key_returns_same_id(
 ) -> None:
     """register_listener() with same natural key returns the same ID (upsert)."""
     reg = make_listener_registration()
-    id1 = await telemetry_repo.register_listener(reg)
-    id2 = await telemetry_repo.register_listener(reg)
-    assert id1 == id2
+    id_a = await telemetry_repo.register_listener(reg)
+    id_b = await telemetry_repo.register_listener(reg)
+    assert id_a == id_b
 
 
 async def test_upsert_different_natural_key_returns_new_id(
     telemetry_repo: TelemetryRepository,
 ) -> None:
     """register_listener() with different topic returns a new ID."""
-    id1 = await telemetry_repo.register_listener(make_listener_registration(topic="topic.a", name="test_app.on_a"))
-    id2 = await telemetry_repo.register_listener(make_listener_registration(topic="topic.b", name="test_app.on_b"))
-    assert id1 != id2
+    id_a = await telemetry_repo.register_listener(make_listener_registration(topic="topic.a", name="test_app.on_a"))
+    id_b = await telemetry_repo.register_listener(make_listener_registration(topic="topic.b", name="test_app.on_b"))
+    assert id_a != id_b
 
 
 async def test_upsert_updates_mutable_fields(
@@ -319,13 +323,13 @@ async def test_upsert_updates_mutable_fields(
     listener_id = await telemetry_repo.register_listener(reg)
 
     updated_reg = make_listener_registration(debounce=5.0)
-    id2 = await telemetry_repo.register_listener(updated_reg)
-    assert id2 == listener_id
+    new_id = await telemetry_repo.register_listener(updated_reg)
+    assert new_id == listener_id
 
     cursor = await telemetry_db.execute("SELECT debounce FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 5.0
+    assert row["debounce"] == 5.0
 
 
 async def test_once_true_upserts_by_name_topic(
@@ -334,14 +338,14 @@ async def test_once_true_upserts_by_name_topic(
 ) -> None:
     """once=True listeners with a name upsert on (name, topic) like once=False listeners."""
     # Two registrations with same name+topic — should upsert to same row
-    once_reg = make_listener_registration(once=True, name="test_app.on_event.once")
-    id1 = await telemetry_repo.register_listener(once_reg)
-    id2 = await telemetry_repo.register_listener(once_reg)
-    assert id1 == id2
+    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
+    id_a = await telemetry_repo.register_listener(once_reg)
+    id_b = await telemetry_repo.register_listener(once_reg)
+    assert id_a == id_b
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE name = 'test_app.on_event.once'")
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE name = ?", (ONCE_LISTENER_NAME,))
     row = await cursor.fetchone()
-    assert row[0] == 1, "Upsert should produce a single row, not two inserts"
+    assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 
 async def test_upsert_does_not_update_human_description(
@@ -353,13 +357,13 @@ async def test_upsert_does_not_update_human_description(
     listener_id = await telemetry_repo.register_listener(reg)
 
     reg2 = make_listener_registration(human_description="entity light.kitchen")
-    id2 = await telemetry_repo.register_listener(reg2)
-    assert id2 == listener_id
+    new_id = await telemetry_repo.register_listener(reg2)
+    assert new_id == listener_id
 
     cursor = await telemetry_db.execute("SELECT human_description FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == "entity light.kitchen"
+    assert row["human_description"] == "entity light.kitchen"
 
 
 async def test_upsert_with_name_overrides_key(
@@ -458,9 +462,9 @@ async def test_persist_execution_batch_handles_empty_list(
     """persist_execution_batch() with empty list completes without error and inserts nothing."""
     await telemetry_repo.persist_execution_batch([])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM executions")
     row = await cursor.fetchone()
-    assert row[0] == 0
+    assert row["count"] == 0
 
 
 async def test_persist_execution_batch_unified(
@@ -561,13 +565,13 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [job_id_a])
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id_a,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id_a,))
     row = await cursor.fetchone()
-    assert row[0] == 1, "Live job should be preserved"
+    assert row["count"] == 1, "Live job should be preserved"
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM scheduled_jobs WHERE id = ?", (job_id_b,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id_b,))
     row = await cursor.fetchone()
-    assert row[0] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
+    assert row["count"] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
 
 
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
@@ -591,12 +595,14 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_b,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "Stale job with history should have retired_at set (non-empty live_job_ids branch)"
+    assert row["retired_at"] is not None, (
+        "Stale job with history should have retired_at set (non-empty live_job_ids branch)"
+    )
 
     cursor = await telemetry_db.execute("SELECT retired_at FROM scheduled_jobs WHERE id = ?", (job_id_a,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, "Live job should not be retired"
+    assert row["retired_at"] is None, "Live job should not be retired"
 
 
 async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
@@ -607,7 +613,7 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     live_reg = make_listener_registration(topic="topic.live", name="test_app.live")
     live_id = await telemetry_repo.register_listener(live_reg)
 
-    once_reg = make_listener_registration(once=True, name="test_app.on_event.once")
+    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
     once_id = await telemetry_repo.register_listener(once_reg)
 
     now = time.time()
@@ -621,15 +627,15 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [], session_id=new_session_id)
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (once_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (once_id,))
     row = await cursor.fetchone()
-    assert row[0] == 0, (
+    assert row["count"] == 0, (
         "once=True listener from previous session should be deleted (non-empty live_listener_ids branch)"
     )
 
-    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM listeners WHERE id = ?", (live_id,))
+    cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (live_id,))
     row = await cursor.fetchone()
-    assert row[0] == 1, "Live listener should be preserved"
+    assert row["count"] == 1, "Live listener should be preserved"
 
 
 async def test_mark_listener_cancelled_sets_cancelled_at(
@@ -643,7 +649,7 @@ async def test_mark_listener_cancelled_sets_cancelled_at(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, "cancelled_at should be NULL before cancellation"
+    assert row["cancelled_at"] is None, "cancelled_at should be NULL before cancellation"
 
     before_ts = time.time()
     await telemetry_repo.mark_listener_cancelled(listener_id)
@@ -652,8 +658,8 @@ async def test_mark_listener_cancelled_sets_cancelled_at(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "cancelled_at should be set after mark_listener_cancelled()"
-    assert before_ts <= row[0] <= after_ts
+    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_listener_cancelled()"
+    assert before_ts <= row["cancelled_at"] <= after_ts
 
 
 async def test_register_listener_clears_cancelled_at_on_reregistration(
@@ -669,7 +675,7 @@ async def test_register_listener_clears_cancelled_at_on_reregistration(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is not None, "cancelled_at should be set after mark_listener_cancelled()"
+    assert row["cancelled_at"] is not None, "cancelled_at should be set after mark_listener_cancelled()"
 
     new_id = await telemetry_repo.register_listener(reg)
     assert new_id == listener_id, "Re-registration must preserve the row id"
@@ -677,4 +683,4 @@ async def test_register_listener_clears_cancelled_at_on_reregistration(
     cursor = await telemetry_db.execute("SELECT cancelled_at FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] is None, "cancelled_at should be cleared to NULL after re-registration"
+    assert row["cancelled_at"] is None, "cancelled_at should be cleared to NULL after re-registration"
