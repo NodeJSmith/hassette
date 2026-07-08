@@ -25,6 +25,8 @@ export type AppConfigData = Omit<components["schemas"]["AppConfigResponse"], "co
 };
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
+export type ActionResponse = components["schemas"]["ActionResponse"];
+export type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
 export const WS_PATH = "/api/ws";
 
@@ -45,9 +47,9 @@ export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps/manif
 
 export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`/apps/${encodeURIComponent(appKey)}/manifest`);
 
-export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/start`);
-export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);
-export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
+export const startApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/start`);
+export const stopApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/stop`);
+export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
 export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, { signal });
@@ -174,8 +176,7 @@ export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
 export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), { signal });
 
-export const triggerJob = (jobId: number) =>
-  apiPost<{ status: string; job_id: number; job_name: string }>(`/scheduler/jobs/${jobId}/trigger`);
+export const triggerJob = (jobId: number) => apiPost<JobTriggerResponse>(`/scheduler/jobs/${jobId}/trigger`);
 
 // ---- System status ----
 
