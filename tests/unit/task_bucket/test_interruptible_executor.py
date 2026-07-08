@@ -51,8 +51,8 @@ def capture_warnings(logger_name: str = _EXECUTOR_LOGGER) -> Iterator[list[loggi
     logger itself, and the logger's level is pinned to WARNING for the duration so the
     record is not filtered by an ancestor's level.
 
-    test_sync_executor_service.py works around the same ``propagate=False`` problem by
-    mock-patching the service logger's ``.warning`` method instead.
+    test_sync_executor_service_saturation.py works around the same ``propagate=False``
+    problem by mock-patching the service logger's ``.warning`` method instead.
     """
     records: list[logging.LogRecord] = []
 
