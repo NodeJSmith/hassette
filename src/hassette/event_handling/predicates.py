@@ -45,7 +45,7 @@ import inspect
 import typing
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from inspect import isawaitable, iscoroutinefunction
+from inspect import isawaitable
 from logging import getLogger
 from typing import Any, Generic, TypeGuard, TypeVar
 
@@ -54,6 +54,7 @@ from boltons.iterutils import is_collection
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.utils.func_utils import callable_stable_name as callable_name
+from hassette.utils.func_utils import is_async_callable
 from hassette.utils.glob_utils import is_glob
 
 from .accessors import (
@@ -562,8 +563,7 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     if not callable(condition):
         return actual == condition
 
-    # Disallow async predicates to keep filters pure/fast.
-    if iscoroutinefunction(condition):
+    if is_async_callable(condition):
         raise TypeError("Async predicates are not supported; make the condition synchronous.")
 
     if typing.TYPE_CHECKING:
@@ -615,19 +615,30 @@ def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
     return is_collection(obj)
 
 
+def _reject_async_predicate(pred: Any) -> None:
+    if is_async_callable(pred):
+        raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
+
+
 def normalize_where(where: "Predicate | Sequence[Predicate] | None") -> "Predicate | None":
-    """Normalize a 'where' clause into a single Predicate (usually AllOf.ensure_iterable), or None.
+    """Normalize a 'where' clause into a single Predicate, or None.
+
+    Rejects async callables (including inside collections) at registration time.
 
     - If where is None → None
-    - If where is a predicate collection (list/tuple/set/...) → AllOf.ensure_iterable(where)
+    - If where is a predicate collection (list/tuple/set/...) → AllOf wrapping flattened members
     - Otherwise (single predicate or mapping handled elsewhere) → where
     """
     if where is None:
         return None
 
-    # prevent circular import only when needed
+    _reject_async_predicate(where)
+
     if is_predicate_collection(where):
-        return AllOf.ensure_iterable(where)
+        flat = ensure_tuple(where)
+        for pred in flat:
+            _reject_async_predicate(pred)
+        return AllOf(flat)
 
     # help the type checker know that `where` is not an Sequence here
     if typing.TYPE_CHECKING:
