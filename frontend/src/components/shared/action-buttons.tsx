@@ -1,6 +1,7 @@
 import { useEffect } from "preact/hooks";
 
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
+import { useAsyncAction } from "../../hooks/use-async-action";
 import { useSignal } from "../../hooks/use-signal";
 import styles from "./action-buttons.module.css";
 import { Button } from "./button";
@@ -15,22 +16,10 @@ interface Props {
 }
 
 export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
-  const loading = useSignal(false);
-  const error = useSignal<string | null>(null);
+  const { loading, error, run } = useAsyncAction();
   const showStopConfirm = useSignal(false);
 
-  const exec = async (action: (key: string) => Promise<unknown>) => {
-    if (loading.value) return;
-    error.value = null;
-    loading.value = true;
-    try {
-      await action(appKey);
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-    } finally {
-      loading.value = false;
-    }
-  };
+  const exec = (action: (key: string) => Promise<unknown>) => run(() => action(appKey));
 
   // Clear stale error when app status changes (e.g., WS event arrives after failed action)
   useEffect(() => {
