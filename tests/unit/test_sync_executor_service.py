@@ -83,7 +83,7 @@ def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> Has
     )
 
 
-def make_mock_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
+def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
     """Build a mock Hassette configured for SyncExecutorService tests."""
     config = make_test_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
     mock_hassette = MagicMock()
@@ -101,7 +101,7 @@ def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExe
     Constructs the executor inline (simulating on_initialize) so sync tests
     can use the service without entering an async context.
     """
-    mock_hassette = make_mock_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+    mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
     svc = SyncExecutorService(mock_hassette)
     svc.executor = InterruptibleThreadPoolExecutor(
         max_workers=mock_hassette.config.lifecycle.sync_executor_max_workers,
@@ -146,14 +146,14 @@ class TestSyncExecutorServiceClassAttrs:
 class TestExecutorConstruction:
     def test_executor_not_available_before_initialize(self) -> None:
         """Executor does not exist after __init__ — only after on_initialize."""
-        mock_hassette = make_mock_hassette(max_workers=3)
+        mock_hassette = make_sync_executor_hassette(max_workers=3)
         svc = SyncExecutorService(mock_hassette)
         assert not hasattr(svc, "executor")
 
     @pytest.mark.anyio
     async def test_executor_constructed_in_on_initialize(self) -> None:
         """Executor is built in on_initialize, not __init__, so restart rebuilds it."""
-        mock_hassette = make_mock_hassette(max_workers=3)
+        mock_hassette = make_sync_executor_hassette(max_workers=3)
         svc = SyncExecutorService(mock_hassette)
 
         await svc.on_initialize()
@@ -165,7 +165,7 @@ class TestExecutorConstruction:
     @pytest.mark.anyio
     async def test_executor_uses_config_max_workers(self) -> None:
         """Executor is constructed with max_workers from lifecycle config."""
-        mock_hassette = make_mock_hassette(max_workers=7)
+        mock_hassette = make_sync_executor_hassette(max_workers=7)
         svc = SyncExecutorService(mock_hassette)
 
         await svc.on_initialize()
@@ -186,7 +186,7 @@ class TestExecutorConstruction:
     @pytest.mark.anyio
     async def test_restart_rebuilds_executor(self) -> None:
         """Shutdown then on_initialize on the same instance rebuilds a usable pool."""
-        mock_hassette = make_mock_hassette(max_workers=2)
+        mock_hassette = make_sync_executor_hassette(max_workers=2)
         svc = SyncExecutorService(mock_hassette)
         await svc.on_initialize()
 
@@ -414,7 +414,7 @@ class TestOnShutdown:
     @pytest.mark.anyio
     async def test_on_shutdown_skips_when_executor_not_initialized(self) -> None:
         """on_shutdown is a no-op if on_initialize was never called."""
-        mock_hassette = make_mock_hassette()
+        mock_hassette = make_sync_executor_hassette()
         svc = SyncExecutorService(mock_hassette)
         await svc.on_shutdown()
 

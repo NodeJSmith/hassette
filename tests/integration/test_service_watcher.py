@@ -77,10 +77,7 @@ def get_dummy_service(
         restart_spec: ClassVar[RestartSpec] = spec
 
         async def serve(self):
-            try:
-                await asyncio.Event().wait()
-            except asyncio.CancelledError:
-                raise
+            await asyncio.Event().wait()
 
         async def on_shutdown(self):
             called["cancel"] += 1
