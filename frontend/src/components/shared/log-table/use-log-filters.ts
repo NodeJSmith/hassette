@@ -97,32 +97,33 @@ export function filterLogEntries(
     return true;
   };
 
-  const matched: LogEntry[] = [];
   // useLogData provides rows in timestamp DESC order: REST comes from
   // /logs/recent ordered DESC, and live WS rows are reversed before merge.
   // Preserve that order for the hot live path instead of re-sorting every batch.
   const keepTimestampSourceOrder = sort.key === "timestamp";
+  const visibleTimestampDescEntries: LogEntry[] = [];
+  const sortableEntries: LogEntry[] = [];
   for (const entry of source) {
     if (!matches(entry)) continue;
     count++;
 
     if (keepTimestampSourceOrder && sort.dir === "desc") {
-      if (matched.length < visibleLimit) matched.push(entry);
+      if (visibleTimestampDescEntries.length < visibleLimit) visibleTimestampDescEntries.push(entry);
       continue;
     }
 
-    matched.push(entry);
+    sortableEntries.push(entry);
   }
 
   if (keepTimestampSourceOrder) {
     return {
-      entries: sort.dir === "asc" ? matched.reverse().slice(0, visibleLimit) : matched,
+      entries: sort.dir === "asc" ? sortableEntries.reverse().slice(0, visibleLimit) : visibleTimestampDescEntries,
       count,
     };
   }
 
   return {
-    entries: sortEntries(matched, sort).slice(0, visibleLimit),
+    entries: sortEntries(sortableEntries, sort).slice(0, visibleLimit),
     count,
   };
 }

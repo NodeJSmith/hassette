@@ -74,6 +74,10 @@ function filterState(overrides: Partial<FilterState> = {}): FilterState {
   };
 }
 
+function waitForSearchDebounce(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, SEARCH_DEBOUNCE_MS + 50));
+}
+
 beforeEach(() => {
   mockSearch = "";
   mockNavigate.mockReset();
@@ -340,8 +344,7 @@ describe("search filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("hello"));
-    // Wait for debounce
-    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
+    await waitForSearchDebounce();
     const messages = hook.result.current.visibleEntries.map((e) => e.message);
     expect(messages).toContain("Hello World");
     expect(messages).not.toContain("unrelated");
@@ -354,7 +357,7 @@ describe("search filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("MY_APP"));
-    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
+    await waitForSearchDebounce();
     const messages = hook.result.current.visibleEntries.map((e) => e.message);
     expect(messages).toContain("msg");
     expect(messages).not.toContain("other");
@@ -457,7 +460,6 @@ describe("livePaused", () => {
       hook.result.current.setSort({ key: "level", dir: "desc" });
     });
 
-    // After sorting by level, livePaused=true, so restEntries is the source
     const messages = hook.result.current.visibleEntries.map((e) => e.message);
     expect(messages).toContain("rest");
     expect(messages).not.toContain("live");
@@ -468,7 +470,6 @@ describe("livePaused", () => {
     const rest = [entry({ message: "rest" })];
     const { hook } = renderLocal(live, rest);
 
-    // livePaused=false by default (timestamp sort), so allEntries is the source
     const messages = hook.result.current.visibleEntries.map((e) => e.message);
     expect(messages).toContain("live");
     expect(messages).not.toContain("rest");

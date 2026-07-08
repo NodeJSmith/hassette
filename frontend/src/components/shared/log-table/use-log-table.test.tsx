@@ -155,6 +155,11 @@ function makeEntry(seq: number): LogEntry {
   };
 }
 
+function setFiltered(entries: LogEntry[], total = entries.length): void {
+  mockFiltered.value = entries;
+  mockFilteredCount.value = total;
+}
+
 beforeEach(() => {
   mockFilterState.value = {
     level: "INFO",
@@ -290,8 +295,7 @@ describe("useLogTable — countLabel", () => {
 
   it("shows '1 entry' for a single result", () => {
     act(() => {
-      mockFiltered.value = [makeEntry(1)];
-      mockFilteredCount.value = 1;
+      setFiltered([makeEntry(1)]);
     });
     const { result } = renderUseLogTable();
     expect(result.current.countLabel).toBe("1 entry");
@@ -299,8 +303,7 @@ describe("useLogTable — countLabel", () => {
 
   it("shows '3 entries' for multiple results", () => {
     act(() => {
-      mockFiltered.value = [makeEntry(1), makeEntry(2), makeEntry(3)];
-      mockFilteredCount.value = 3;
+      setFiltered([makeEntry(1), makeEntry(2), makeEntry(3)]);
     });
     const { result } = renderUseLogTable();
     expect(result.current.countLabel).toBe("3 entries");
@@ -308,8 +311,10 @@ describe("useLogTable — countLabel", () => {
 
   it("shows visible cap with exact total count when results are truncated", () => {
     act(() => {
-      mockFiltered.value = Array.from({ length: RENDER_CAP }, (_, i) => makeEntry(i));
-      mockFilteredCount.value = RENDER_CAP + 25;
+      setFiltered(
+        Array.from({ length: RENDER_CAP }, (_, i) => makeEntry(i)),
+        RENDER_CAP + 25,
+      );
     });
     const { result } = renderUseLogTable();
     expect(result.current.tableProps.entries).toHaveLength(RENDER_CAP);
@@ -363,8 +368,7 @@ describe("useLogTable — isEmpty / isLoading", () => {
 
   it("isEmpty is false when filtered list has entries", () => {
     act(() => {
-      mockFiltered.value = [makeEntry(1)];
-      mockFilteredCount.value = 1;
+      setFiltered([makeEntry(1)]);
     });
     const { result } = renderUseLogTable();
     expect(result.current.isEmpty).toBe(false);
@@ -372,8 +376,7 @@ describe("useLogTable — isEmpty / isLoading", () => {
 
   it("isEmpty is false when exact filtered count is nonzero but visible entries are empty", () => {
     act(() => {
-      mockFiltered.value = [];
-      mockFilteredCount.value = 3;
+      setFiltered([], 3);
     });
     const { result } = renderUseLogTable();
     expect(result.current.isEmpty).toBe(false);

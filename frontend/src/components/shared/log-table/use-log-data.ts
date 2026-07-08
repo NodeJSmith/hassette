@@ -53,6 +53,7 @@ function useThrottledLogVersion(): number {
 
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
   const { logs } = useAppState();
+  // Drives recomputation from a throttled view of the live WS buffer.
   const logsVersion = useThrottledLogVersion();
 
   const { data, isPending, isError, error } = useQuery({
@@ -84,7 +85,6 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     }) as LogEntry[];
 
     return [...wsEntries.reverse(), ...restEntries];
-    // logsVersion drives recomputation from a throttled view of the live WS buffer.
   }, [data, restEntries, watermark, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };

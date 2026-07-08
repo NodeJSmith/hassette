@@ -50,6 +50,12 @@ function makeLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
   };
 }
 
+async function waitForLoaded(result: { current: { loading: boolean } }): Promise<void> {
+  await vi.waitFor(() => {
+    expect(result.current.loading).toBe(false);
+  });
+}
+
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
 });
@@ -79,9 +85,7 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
     });
   });
 
@@ -167,7 +171,6 @@ describe("useLogData", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      // Push a WS entry with a timestamp strictly above the REST watermark.
       act(() => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
@@ -189,9 +192,7 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       act(() => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
@@ -213,16 +214,11 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       act(() => {
-        // At the watermark — should be filtered out.
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 5000, message: "dup-at-watermark" }));
-        // Below the watermark — should be filtered out.
         state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "dup-below-watermark" }));
-        // Above the watermark — waits for the throttled WS merge to run.
         state.logs.push(makeLogEntry({ seq: 4, timestamp: 6000, message: "valid-after-watermark" }));
       });
 
@@ -241,9 +237,7 @@ describe("useLogData", () => {
 
       const { result } = renderHook(() => useLogData({ appKey: "my_app" }), { wrapper: createWrapper(state) });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       act(() => {
         state.logs.push(makeLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
@@ -264,9 +258,7 @@ describe("useLogData", () => {
 
       const { result } = renderHook(() => useLogData({ executionId: "exec-1" }), { wrapper: createWrapper(state) });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       act(() => {
         state.logs.push(makeLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
@@ -289,9 +281,7 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       act(() => {
         state.logs.push(makeLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
@@ -314,9 +304,7 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      await waitForLoaded(result);
 
       vi.useFakeTimers();
       try {
