@@ -10,7 +10,7 @@ import { AppStateContext } from "../../../state/context";
 import { type AppState, createAppState } from "../../../state/create-app-state";
 import { createTestQueryClient } from "../../../test/query-test-utils";
 import { server } from "../../../test/server";
-import { REST_FETCH_LIMIT } from "./constants";
+import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
 
 vi.mock("sonner", () => ({
@@ -153,7 +153,7 @@ describe("useLogData", () => {
   });
 
   describe("WS merge", () => {
-    it("appends WS entries above the REST watermark to allEntries", async () => {
+    it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
       const state = createAppState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
@@ -172,8 +172,35 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
 
-      expect(result.current.allEntries).toHaveLength(2);
-      expect(result.current.allEntries[1].message).toBe("ws-new");
+      await vi.waitFor(() => {
+        expect(result.current.allEntries).toHaveLength(2);
+        expect(result.current.allEntries[0].message).toBe("ws-new");
+        expect(result.current.allEntries[1].message).toBe("rest");
+      });
+    });
+
+    it("orders multiple WS entries newest first before REST entries", async () => {
+      const state = createAppState();
+      const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
+
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      act(() => {
+        state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
+        state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.allEntries.map((e) => e.message)).toEqual(["ws-newer", "ws-older", "rest"]);
+      });
     });
 
     it("does not include WS entries at or below the REST watermark (deduplication)", async () => {
@@ -195,11 +222,16 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 5000, message: "dup-at-watermark" }));
         // Below the watermark — should be filtered out.
         state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "dup-below-watermark" }));
+        // Above the watermark — waits for the throttled WS merge to run.
+        state.logs.push(makeLogEntry({ seq: 4, timestamp: 6000, message: "valid-after-watermark" }));
       });
 
-      const messages = result.current.allEntries.map((e) => e.message);
-      expect(messages).not.toContain("dup-at-watermark");
-      expect(messages).not.toContain("dup-below-watermark");
+      await vi.waitFor(() => {
+        const messages = result.current.allEntries.map((e) => e.message);
+        expect(messages).toContain("valid-after-watermark");
+        expect(messages).not.toContain("dup-at-watermark");
+        expect(messages).not.toContain("dup-below-watermark");
+      });
     });
 
     it("excludes WS entries for a different app_key when appKey is provided", async () => {
@@ -218,9 +250,11 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
       });
 
-      const messages = result.current.allEntries.map((e) => e.message);
-      expect(messages).toContain("mine");
-      expect(messages).not.toContain("not-mine");
+      await vi.waitFor(() => {
+        const messages = result.current.allEntries.map((e) => e.message);
+        expect(messages).toContain("mine");
+        expect(messages).not.toContain("not-mine");
+      });
     });
 
     it("excludes WS entries for a different execution_id when executionId is provided", async () => {
@@ -239,9 +273,11 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
       });
 
-      const messages = result.current.allEntries.map((e) => e.message);
-      expect(messages).toContain("this-exec");
-      expect(messages).not.toContain("other-exec");
+      await vi.waitFor(() => {
+        const messages = result.current.allEntries.map((e) => e.message);
+        expect(messages).toContain("this-exec");
+        expect(messages).not.toContain("other-exec");
+      });
     });
 
     it("includes all WS entries above the watermark when no filters are provided", async () => {
@@ -262,9 +298,46 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
       });
 
-      const messages = result.current.allEntries.map((e) => e.message);
-      expect(messages).toContain("a");
-      expect(messages).toContain("b");
+      await vi.waitFor(() => {
+        const messages = result.current.allEntries.map((e) => e.message);
+        expect(messages).toContain("a");
+        expect(messages).toContain("b");
+      });
+    });
+
+    it("throttles live WS entries before exposing them to the table", async () => {
+      const state = createAppState();
+
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
+
+      const { result } = renderHook(() => useLogData({}), {
+        wrapper: createWrapper(state),
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      vi.useFakeTimers();
+      try {
+        act(() => {
+          state.logs.push(makeLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
+        });
+
+        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
+
+        await act(async () => {
+          vi.advanceTimersByTime(LIVE_LOG_UPDATE_INTERVAL_MS - 1);
+        });
+        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
+
+        await act(async () => {
+          vi.advanceTimersByTime(1);
+        });
+        expect(result.current.allEntries.map((e) => e.message)).toContain("throttled");
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

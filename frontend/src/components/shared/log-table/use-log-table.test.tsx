@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState } from "../../../state/create-app-state";
+import { RENDER_CAP } from "./constants";
+import type { FilterState } from "./types";
 import { useLogTable } from "./use-log-table";
 
 // ---------------------------------------------------------------------------
@@ -34,8 +36,11 @@ vi.mock("./use-log-data", () => ({
 
 vi.mock("./use-log-filters", () => ({
   useLogFilters: () => ({
-    get filtered() {
+    get visibleEntries() {
       return mockFiltered.value;
+    },
+    get totalFilteredCount() {
+      return mockFilteredCount.value;
     },
     get filterState() {
       return mockFilterState;
@@ -96,23 +101,17 @@ vi.mock("wouter", () => ({
 // the signals are guaranteed to be initialized before any test reads them.
 // ---------------------------------------------------------------------------
 
-const mockFilterState = signal<{
-  level: string;
-  tier: string;
-  app: string;
-  func: string;
-  search: string;
-  sort: { column: string; asc: boolean };
-}>({
+const mockFilterState = signal<FilterState>({
   level: "INFO",
   tier: "all",
   app: "",
   func: "",
   search: "",
-  sort: { column: "timestamp", asc: false },
+  sort: { key: "timestamp", dir: "desc" },
 });
 
 const mockFiltered = signal<LogEntry[]>([]);
+const mockFilteredCount = signal(0);
 // mockLoading is a signal so the useLogData mock can return mockLoading.value
 // (subscribing to it during render) and tests can mutate it to trigger re-renders.
 const mockLoading = signal(false);
@@ -163,9 +162,10 @@ beforeEach(() => {
     app: "",
     func: "",
     search: "",
-    sort: { column: "timestamp", asc: false },
+    sort: { key: "timestamp", dir: "desc" },
   };
   mockFiltered.value = [];
+  mockFilteredCount.value = 0;
   mockLoading.value = false;
   vi.clearAllMocks();
 });
@@ -291,6 +291,7 @@ describe("useLogTable — countLabel", () => {
   it("shows '1 entry' for a single result", () => {
     act(() => {
       mockFiltered.value = [makeEntry(1)];
+      mockFilteredCount.value = 1;
     });
     const { result } = renderUseLogTable();
     expect(result.current.countLabel).toBe("1 entry");
@@ -299,9 +300,20 @@ describe("useLogTable — countLabel", () => {
   it("shows '3 entries' for multiple results", () => {
     act(() => {
       mockFiltered.value = [makeEntry(1), makeEntry(2), makeEntry(3)];
+      mockFilteredCount.value = 3;
     });
     const { result } = renderUseLogTable();
     expect(result.current.countLabel).toBe("3 entries");
+  });
+
+  it("shows visible cap with exact total count when results are truncated", () => {
+    act(() => {
+      mockFiltered.value = Array.from({ length: RENDER_CAP }, (_, i) => makeEntry(i));
+      mockFilteredCount.value = RENDER_CAP + 25;
+    });
+    const { result } = renderUseLogTable();
+    expect(result.current.tableProps.entries).toHaveLength(RENDER_CAP);
+    expect(result.current.countLabel).toBe(`showing ${RENDER_CAP} of ${RENDER_CAP + 25}`);
   });
 });
 
@@ -352,6 +364,16 @@ describe("useLogTable — isEmpty / isLoading", () => {
   it("isEmpty is false when filtered list has entries", () => {
     act(() => {
       mockFiltered.value = [makeEntry(1)];
+      mockFilteredCount.value = 1;
+    });
+    const { result } = renderUseLogTable();
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("isEmpty is false when exact filtered count is nonzero but visible entries are empty", () => {
+    act(() => {
+      mockFiltered.value = [];
+      mockFilteredCount.value = 3;
     });
     const { result } = renderUseLogTable();
     expect(result.current.isEmpty).toBe(false);

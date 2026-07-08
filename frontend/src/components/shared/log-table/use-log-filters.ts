@@ -10,6 +10,7 @@ import {
   DEFAULT_SORT,
   LEVEL_INDEX,
   LEVELS,
+  RENDER_CAP,
   resolveSortKey,
   SEARCH_DEBOUNCE_MS,
 } from "./constants";
@@ -24,7 +25,8 @@ interface UseLogFiltersParams {
 }
 
 interface UseLogFiltersResult {
-  filtered: LogEntry[];
+  visibleEntries: LogEntry[];
+  totalFilteredCount: number;
   filterState: ReadonlySignal<FilterState>;
   livePaused: ReadonlySignal<boolean>;
   defaultTier: TierFilter;
@@ -60,6 +62,69 @@ export function sortEntries(entries: readonly LogEntry[], sort: LogSortState): L
         return a.message.localeCompare(b.message) * direction;
     }
   });
+}
+
+export interface FilteredLogEntriesResult {
+  entries: LogEntry[];
+  count: number;
+}
+
+export function filterLogEntries(
+  source: readonly LogEntry[],
+  { level, tier, app, search, func, sort }: FilterState,
+  visibleLimit = RENDER_CAP,
+): FilteredLogEntriesResult {
+  const lowerSearch = search.toLowerCase();
+  const lowerFunc = func.toLowerCase();
+  const minLevelIndex = level ? LEVELS.indexOf(level as (typeof LEVELS)[number]) : -1;
+  let count = 0;
+
+  const matches = (e: LogEntry): boolean => {
+    if (level) {
+      const idx = LEVELS.indexOf(e.level as (typeof LEVELS)[number]);
+      if (idx < minLevelIndex) return false;
+    }
+    if (tier !== "all" && e.source_tier !== tier) return false;
+    if (app && e.app_key !== app) return false;
+    if (
+      lowerSearch &&
+      !e.message.toLowerCase().includes(lowerSearch) &&
+      !e.logger_name.toLowerCase().includes(lowerSearch)
+    ) {
+      return false;
+    }
+    if (lowerFunc && !(e.func_name ?? "").toLowerCase().includes(lowerFunc)) return false;
+    return true;
+  };
+
+  const matched: LogEntry[] = [];
+  // useLogData provides rows in timestamp DESC order: REST comes from
+  // /logs/recent ordered DESC, and live WS rows are reversed before merge.
+  // Preserve that order for the hot live path instead of re-sorting every batch.
+  const keepTimestampSourceOrder = sort.key === "timestamp";
+  for (const entry of source) {
+    if (!matches(entry)) continue;
+    count++;
+
+    if (keepTimestampSourceOrder && sort.dir === "desc") {
+      if (matched.length < visibleLimit) matched.push(entry);
+      continue;
+    }
+
+    matched.push(entry);
+  }
+
+  if (keepTimestampSourceOrder) {
+    return {
+      entries: sort.dir === "asc" ? matched.reverse().slice(0, visibleLimit) : matched,
+      count,
+    };
+  }
+
+  return {
+    entries: sortEntries(matched, sort).slice(0, visibleLimit),
+    count,
+  };
 }
 
 export function useLogFilters({
@@ -136,39 +201,10 @@ export function useLogFilters({
   const { level, tier, app, search, func, sort } = filterState.value;
   const source = paused ? restEntries : allEntries;
 
-  const filtered = useMemo<LogEntry[]>(() => {
-    let result = source;
-
-    if (level) {
-      const minIndex = LEVELS.indexOf(level as (typeof LEVELS)[number]);
-      result = result.filter((e) => {
-        const idx = LEVELS.indexOf(e.level as (typeof LEVELS)[number]);
-        return idx >= minIndex;
-      });
-    }
-
-    if (tier !== "all") {
-      result = result.filter((e) => e.source_tier === tier);
-    }
-
-    if (app) {
-      result = result.filter((e) => e.app_key === app);
-    }
-
-    if (search) {
-      const lower = search.toLowerCase();
-      result = result.filter(
-        (e) => e.message.toLowerCase().includes(lower) || e.logger_name.toLowerCase().includes(lower),
-      );
-    }
-
-    if (func) {
-      const lower = func.toLowerCase();
-      result = result.filter((e) => (e.func_name ?? "").toLowerCase().includes(lower));
-    }
-
-    return sortEntries(result, sort);
-  }, [source, level, tier, app, search, func, sort.key, sort.dir]);
+  const filtered = useMemo<FilteredLogEntriesResult>(
+    () => filterLogEntries(source, { level, tier, app, search, func, sort }),
+    [source, level, tier, app, search, func, sort.key, sort.dir],
+  );
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) {
@@ -251,7 +287,8 @@ export function useLogFilters({
   }
 
   return {
-    filtered,
+    visibleEntries: filtered.entries,
+    totalFilteredCount: filtered.count,
     filterState,
     livePaused,
     defaultTier,

@@ -385,13 +385,46 @@ class TestGetLogRecords:
         results = await service.get_log_records(limit=100)
         assert len(results) == 4
 
-    async def test_ordered_by_timestamp_desc(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
-        """get_log_records() returns results ordered by timestamp DESC."""
+    async def test_ordered_by_timestamp_desc_then_seq_desc(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records() returns newest records first, using seq as a stable tie-breaker."""
 
-        await seed_log_records(db_service)
+        now = time.time()
+
+        def log(seq: int, timestamp: float, message: str) -> dict[str, object]:
+            return {
+                "seq": seq,
+                "timestamp": timestamp,
+                "level": "INFO",
+                "logger_name": "hassette.test",
+                "func_name": "f",
+                "lineno": seq,
+                "message": message,
+                "exc_info": None,
+                "app_key": "app_a",
+                "instance_name": "app_a_0",
+                "instance_index": 0,
+                "execution_id": "exec-1",
+                "source_tier": "app",
+            }
+
+        records = [
+            log(1, now - 10, "oldest"),
+            log(2, now, "same-timestamp-lower-seq"),
+            log(3, now, "same-timestamp-higher-seq"),
+            log(4, now + 10, "newest"),
+        ]
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+
         results = await service.get_log_records(limit=100)
-        timestamps = [r["timestamp"] for r in results]
-        assert timestamps == sorted(timestamps, reverse=True)
+
+        assert [r["message"] for r in results] == [
+            "newest",
+            "same-timestamp-higher-seq",
+            "same-timestamp-lower-seq",
+            "oldest",
+        ]
 
     async def test_filter_by_app_key(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by app_key."""

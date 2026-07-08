@@ -304,6 +304,29 @@ class TestLogsEndpoints:
         assert isinstance(data, list)
         assert len(data) == 6
 
+    async def test_get_logs_recent_preserves_newest_first_order(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        records = [
+            make_log_record(4, "INFO", "newest", app_key="my_app"),
+            make_log_record(3, "INFO", "same-timestamp-higher-seq", app_key="my_app"),
+            make_log_record(2, "INFO", "same-timestamp-lower-seq", app_key="my_app"),
+            make_log_record(1, "INFO", "oldest", app_key="my_app"),
+        ]
+        records[1]["timestamp"] = 2.0
+        records[2]["timestamp"] = 2.0
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=records)
+
+        response = await client.get("/api/logs/recent")
+
+        assert response.status_code == 200
+        assert [entry["message"] for entry in response.json()] == [
+            "newest",
+            "same-timestamp-higher-seq",
+            "same-timestamp-lower-seq",
+            "oldest",
+        ]
+
     async def test_get_logs_recent_new_fields_present(
         self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
