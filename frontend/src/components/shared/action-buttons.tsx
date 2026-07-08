@@ -133,7 +133,11 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           }}
         />
       )}
-      {error.value && <p class="ht-text-danger ht-text-sm">{error.value}</p>}
+      {error.value && (
+        <p class="ht-text-danger ht-text-sm" role="alert" data-testid="action-buttons-error">
+          {error.value}
+        </p>
+      )}
     </>
   );
 }
