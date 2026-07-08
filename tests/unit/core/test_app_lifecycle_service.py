@@ -262,8 +262,6 @@ class TestCleanupFailedInstance:
         lifecycle_service: AppLifecycleService,
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
-        mock_hassette: MagicMock,
-        mock_registry: MagicMock,
     ) -> None:
         """Bus listeners registered before the failure are removed via Bus.remove_all_listeners."""
         mock_app_instance.initialize.side_effect = ValueError("boom")
@@ -279,7 +277,6 @@ class TestCleanupFailedInstance:
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
-        mock_registry: MagicMock,
     ) -> None:
         """Scheduler jobs registered before the failure are removed."""
         mock_app_instance.initialize.side_effect = ValueError("boom")
@@ -297,7 +294,6 @@ class TestCleanupFailedInstance:
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
-        mock_registry: MagicMock,
     ) -> None:
         """TimeoutError path also cleans up listeners and jobs."""
         mock_app_instance.initialize.side_effect = TimeoutError("Timed out")
@@ -342,7 +338,6 @@ class TestCleanupFailedInstance:
         lifecycle_service: AppLifecycleService,
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
-        mock_hassette: MagicMock,
         mock_registry: MagicMock,
     ) -> None:
         """If cleanup raises, init failure is still recorded."""
@@ -360,7 +355,6 @@ class TestCleanupFailedInstance:
         mock_app_instance: AsyncMock,
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
-        mock_registry: MagicMock,
     ) -> None:
         """Bus listener cleanup failure does not prevent scheduler job cleanup."""
         mock_app_instance.bus.remove_all_listeners.side_effect = RuntimeError("bus exploded")
