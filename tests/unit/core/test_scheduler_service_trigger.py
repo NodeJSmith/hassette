@@ -14,10 +14,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
-from hassette.scheduler.classes import ScheduledJob
+from hassette.test_utils.web_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
 
 
@@ -45,22 +44,11 @@ def make_scheduler_service() -> SchedulerService:
     return svc
 
 
-def make_job(mode: ExecutionMode = ExecutionMode.SINGLE) -> ScheduledJob:
-    """Create a minimal ScheduledJob for testing."""
-    now = date_utils.now()
-    return ScheduledJob(
-        owner_id="test_owner",
-        next_run=now,
-        job=lambda: None,
-        mode=mode,
-    )
-
-
 class TestRunJobTriggerMode:
     async def test_run_job_passes_trigger_mode_to_execute_job(self) -> None:
         """run_job(trigger_mode='manual') threads through to ExecuteJob.trigger_mode."""
         svc = make_scheduler_service()
-        job = make_job()
+        job = make_real_job()
 
         await svc.run_job(job, trigger_mode="manual")
 
@@ -72,7 +60,7 @@ class TestRunJobTriggerMode:
     async def test_run_job_defaults_trigger_mode_to_none(self) -> None:
         """run_job() called without trigger_mode produces ExecuteJob.trigger_mode=None."""
         svc = make_scheduler_service()
-        job = make_job()
+        job = make_real_job()
 
         await svc.run_job(job)
 
@@ -88,7 +76,7 @@ class TestRunJobWithGuardTriggerMode:
     async def test_threads_trigger_mode(self, mode: ExecutionMode) -> None:
         """run_job_with_guard(trigger_mode='manual') threads through to run_job for both modes."""
         svc = make_scheduler_service()
-        job = make_job(mode=mode)
+        job = make_real_job(mode=mode)
         svc.run_job = (
             AsyncMock()
         )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
@@ -101,7 +89,7 @@ class TestRunJobWithGuardTriggerMode:
     async def test_defaults_trigger_mode_to_none(self, mode: ExecutionMode) -> None:
         """run_job_with_guard() without trigger_mode passes None through for both modes."""
         svc = make_scheduler_service()
-        job = make_job(mode=mode)
+        job = make_real_job(mode=mode)
         svc.run_job = (
             AsyncMock()
         )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
@@ -115,8 +103,7 @@ class TestTriggerJob:
     async def test_returns_job_found_on_heap(self) -> None:
         """trigger_job() returns the ScheduledJob whose db_id matches on the live heap."""
         svc = make_scheduler_service()
-        job = make_job()
-        job.db_id = 42
+        job = make_real_job(db_id=42)
         svc.get_all_jobs = AsyncMock(
             return_value=[job]
         )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
@@ -128,8 +115,7 @@ class TestTriggerJob:
     async def test_raises_value_error_for_missing_db_id(self) -> None:
         """trigger_job() raises ValueError when no job on the heap matches db_id."""
         svc = make_scheduler_service()
-        other_job = make_job()
-        other_job.db_id = 1
+        other_job = make_real_job(db_id=1)
         svc.get_all_jobs = AsyncMock(
             return_value=[other_job]
         )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
