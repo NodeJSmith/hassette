@@ -73,7 +73,6 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
-from hassette.exceptions import DependencyInjectionError
 from hassette.resources.base import Resource
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
@@ -433,6 +432,8 @@ class Scheduler(Resource):
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
+            DependencyInjectionError: If a predicate's signature is incompatible with
+                DI (e.g. ``*args`` or positional-only parameters).
         """
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
@@ -979,16 +980,18 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
 
     Raises:
         TypeError: If the predicate is async.
+        DependencyInjectionError: If the signature is invalid for DI (e.g. ``*args``
+            or positional-only parameters).
     """
     if inspect.iscoroutinefunction(predicate):
         raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")
 
     try:
         sig = get_typed_signature(predicate)
-        plan = build_injection_plan(sig, _SCHEDULER_MATCHERS)
-    except (TypeError, ValueError, DependencyInjectionError):
+    except (TypeError, ValueError):
         return CallableInvoker(())
 
+    plan = build_injection_plan(sig, _SCHEDULER_MATCHERS)
     return CallableInvoker(plan)
 
 

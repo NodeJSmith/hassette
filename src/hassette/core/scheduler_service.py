@@ -379,12 +379,8 @@ class SchedulerService(Service):
         # recurring job still continues its schedule, and before step 3 (guard/execution)
         # so a skip never invokes the handler.
         if job.predicate is not None:
-            try:
-                kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
-                should_run = job.predicate(**kwargs)
-            except Exception:
-                self.logger.exception("Predicate raised for job %s — running job anyway (fail-open)", job)
-                should_run = True
+            kwargs = job.predicate_invoker.invoke({ScheduledJob: job}) if job.predicate_invoker else {}
+            should_run = job.predicate(**kwargs)
 
             if not should_run:
                 self.logger.debug("Predicate returned False for job %s — skipping", job)

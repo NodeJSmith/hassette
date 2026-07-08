@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+import pytest
 from whenever import ZonedDateTime
 
 from hassette.app.app import App
@@ -584,8 +585,8 @@ async def test_one_shot_job_skip_records_and_removes(hassette_with_scheduler: Ha
     assert not any(j is job for j in remaining), "One-shot job should be removed from scheduler after a skip"
 
 
-async def test_predicate_exception_fails_open(hassette_with_scheduler: HassetteHarness) -> None:
-    """A predicate that raises runs the job anyway instead of skipping it (fail-open)."""
+async def test_predicate_exception_propagates(hassette_with_scheduler: HassetteHarness) -> None:
+    """A predicate that raises propagates the exception — the job does not run."""
     job_ran = asyncio.Event()
 
     async def target() -> None:
@@ -596,20 +597,15 @@ async def test_predicate_exception_fails_open(hassette_with_scheduler: HassetteH
 
     scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
-    executor = scheduler_service._executor
-    executor.enqueue_record.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_in(
         target, delay=10, name="predicate_raises_job", where=bad_predicate
     )
 
-    await scheduler_service.dispatch_and_log(job)
+    with pytest.raises(ZeroDivisionError, match="boom"):
+        await scheduler_service.dispatch_and_log(job)
 
-    await asyncio.wait_for(job_ran.wait(), timeout=1)
-    executor.enqueue_record.assert_not_called()
-
-    remaining = hassette_with_scheduler.scheduler.list_jobs()
-    assert not any(j is job for j in remaining), "One-shot job should still be consumed after it runs"
+    assert not job_ran.is_set(), "Job should not run when predicate raises"
 
 
 async def test_predicate_receives_scheduled_job(hassette_with_scheduler: HassetteHarness) -> None:

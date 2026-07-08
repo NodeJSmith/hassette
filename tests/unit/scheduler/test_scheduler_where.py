@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from hassette.exceptions import DependencyInjectionError
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
@@ -93,14 +94,14 @@ class TestBuildPredicateInvoker:
         invoker = _build_predicate_invoker(lambda: True)
         assert len(invoker.params) == 0
 
-    def test_var_positional_predicate_falls_back_to_empty_plan(self) -> None:
-        """Predicates with *args are valid zero-arg predicates — no DI error."""
+    def test_var_positional_predicate_raises_di_error(self) -> None:
+        """Predicates with *args are rejected at registration, matching bus handler behavior."""
 
         def pred(*_args) -> bool:
             return True
 
-        invoker = _build_predicate_invoker(pred)
-        assert len(invoker.params) == 0
+        with pytest.raises(DependencyInjectionError, match="\\*args"):
+            _build_predicate_invoker(pred)
 
     def test_invoker_resolves_kwargs_for_annotated_predicate(self) -> None:
         def pred(job: ScheduledJob) -> bool:
