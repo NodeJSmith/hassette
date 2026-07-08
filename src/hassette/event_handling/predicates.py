@@ -615,24 +615,29 @@ def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
     return is_collection(obj)
 
 
+def _reject_async_predicate(pred: Any) -> None:
+    if is_async_callable(pred):
+        raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
+
+
 def normalize_where(where: "Predicate | Sequence[Predicate] | None") -> "Predicate | None":
-    """Normalize a 'where' clause into a single Predicate (usually AllOf.ensure_iterable), or None.
+    """Normalize a 'where' clause into a single Predicate, or None.
+
+    Rejects async callables (including inside collections) at registration time.
 
     - If where is None → None
-    - If where is a predicate collection (list/tuple/set/...) → AllOf.ensure_iterable(where)
+    - If where is a predicate collection (list/tuple/set/...) → AllOf wrapping flattened members
     - Otherwise (single predicate or mapping handled elsewhere) → where
     """
     if where is None:
         return None
 
-    if is_async_callable(where):
-        raise TypeError(f"Bus predicates must be synchronous; got async callable {where!r}")
+    _reject_async_predicate(where)
 
     if is_predicate_collection(where):
         flat = ensure_tuple(where)
         for pred in flat:
-            if is_async_callable(pred):
-                raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
+            _reject_async_predicate(pred)
         return AllOf(flat)
 
     # help the type checker know that `where` is not an Sequence here
