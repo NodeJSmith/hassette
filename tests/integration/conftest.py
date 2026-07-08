@@ -1,6 +1,5 @@
 """Shared fixtures for integration tests."""
 
-import asyncio
 import shutil
 import time
 from collections.abc import AsyncIterator
@@ -88,36 +87,6 @@ async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-
-@pytest.fixture(scope="session")
-def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Run Alembic migrations once per pytest worker and return the migrated DB file path.
-
-    Under xdist (-n 2), each worker runs this independently — still a large win since each
-    worker has ~75+ DB-heavy tests. Copying this file (~135KB) takes <1ms vs ~700ms for
-    running migrations from scratch.
-    """
-    tmpl_dir = tmp_path_factory.mktemp("db_template")
-    mock = make_mock_hassette(
-        data_dir=tmpl_dir,
-        set_loop=False,
-        sealed=False,
-        database={"max_size_mb": 0, "telemetry_write_queue_max": 500},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
-        web_api={"run": True},
-    )
-
-    db_service = DatabaseService(mock, parent=mock)
-
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(db_service.on_initialize())
-        loop.run_until_complete(db_service.on_shutdown())
-    finally:
-        loop.close()
-
-    return tmpl_dir / "hassette.db"
 
 
 @pytest.fixture
