@@ -26,13 +26,15 @@ A custom extractor is a plain callable that receives the raw event and returns a
 | `converter` | `Callable[[Any, Any], Any] \| None` | No | Converts the extracted value to the declared type |
 | `source_type` | `type[T] \| None` | No | Overrides the default source type for this extractor |
 
-Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(...)]` completes the setup. Hassette discovers `AnnotationDetails` in `Annotated` metadata automatically at registration time — no explicit registration step needed.
+`Annotated[T, AnnotationDetails(...)]` completes the setup. Hassette discovers the `AnnotationDetails` instance in the `Annotated` metadata automatically at registration time — no explicit registration step needed.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/custom_extractor_own.py"
 ```
 
-`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] (which has `event.payload.data.new_state`, `event.payload.data.old_state`, and `event.payload.data.entity_id`) and returns a string. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation. A plain callable in the `Annotated` metadata position is the simplest form — Hassette wraps it in `AnnotationDetails` automatically. The explicit `AnnotationDetails` form above is needed only when adding a type converter or overriding the default `source_type`.
+`get_friendly_name` receives the raw [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] and returns a string. The event exposes `event.payload.data.new_state`, `event.payload.data.old_state`, and `event.payload.data.entity_id`. The `Annotated[str, get_friendly_name]` annotation tells the DI system to call that function for `name` on each invocation.
+
+A plain callable in the `Annotated` metadata position is the simplest form — Hassette wraps it in `AnnotationDetails` automatically. The explicit `AnnotationDetails` form above is needed only when adding a type converter or overriding the default `source_type`.
 
 ## Adding Type Conversion
 
@@ -44,7 +46,7 @@ Placing an `AnnotationDetails` instance inside `Annotated[T, AnnotationDetails(.
 
 `extract_timestamp` returns an ISO string. `convert_to_datetime` converts that string to a `datetime`. The `LastChanged` type alias bundles both into a reusable annotation. Any handler parameter typed as `LastChanged` receives a `datetime` with no inline parsing.
 
-Hassette converts standard scalar types (`int`, `float`, `bool`, `str`) automatically — no converter needed for those. `AnnotationDetails.converter` handles conversions specific to a single extractor, covering types the built-in registry does not handle. See [State Conversion](../states/conversion.md) for the full type registry.
+Hassette converts standard scalar types (`int`, `float`, `bool`, `str`) automatically — no converter needed for those. `AnnotationDetails.converter` handles conversions specific to a single extractor — types the built-in registry doesn't cover. See [State Conversion](../states/conversion.md) for the full type registry.
 
 ## See Also
 
