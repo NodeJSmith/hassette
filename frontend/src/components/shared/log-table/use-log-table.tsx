@@ -87,7 +87,8 @@ export function useLogTable({
   });
 
   const {
-    filtered,
+    visibleEntries,
+    totalFilteredCount,
     filterState,
     livePaused,
     defaultTier,
@@ -122,7 +123,7 @@ export function useLogTable({
   }, [externalSearch, setSearch]);
 
   const state = filterState.value;
-  const entries = filtered;
+  const entries = visibleEntries;
   const paused = livePaused.value;
   const isLoading = loading;
 
@@ -146,10 +147,10 @@ export function useLogTable({
     state.func !== "" ||
     state.search !== "";
 
-  const isTruncated = entries.length > RENDER_CAP;
+  const isTruncated = totalFilteredCount > RENDER_CAP;
   const countLabel = isTruncated
-    ? `showing ${RENDER_CAP} of ${entries.length}`
-    : pluralize(entries.length, "entry", "entries");
+    ? `showing ${RENDER_CAP} of ${totalFilteredCount}`
+    : pluralize(totalFilteredCount, "entry", "entries");
 
   const columnFilters: ColumnFilters = useMemo(() => {
     const filters: ColumnFilters = {
@@ -243,22 +244,20 @@ export function useLogTable({
     setFunc,
   ]);
 
-  const cappedEntries = entries.slice(0, RENDER_CAP);
-
   return {
     tableProps: {
       visibleColumns,
       sort: state.sort,
       onSort: setSort,
       columnFilters,
-      entries: cappedEntries,
+      entries,
       selectedKey: selectedKey.value,
       onRowClick: handleRowClick,
       isMobile,
     },
     drawerProps: {
       selectedKey: selectedKey.value,
-      entries: cappedEntries,
+      entries,
       onClose: handleDrawerClose,
       onNavigate: handleDrawerNavigate,
     },
@@ -275,7 +274,7 @@ export function useLogTable({
       onReset: reset,
     },
     isMobile,
-    isEmpty: !isLoading && entries.length === 0,
+    isEmpty: !isLoading && totalFilteredCount === 0,
     isLoading,
   };
 }

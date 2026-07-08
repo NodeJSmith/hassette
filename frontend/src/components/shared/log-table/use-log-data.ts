@@ -1,12 +1,12 @@
+import { useSignalEffect } from "@preact/signals";
 import { useQuery } from "@tanstack/preact-query";
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
-import { useSubscribe } from "../../../hooks/use-subscribe";
 import { queryKeys } from "../../../lib/query-keys";
 import { useAppState } from "../../../state/context";
-import { REST_FETCH_LIMIT } from "./constants";
+import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
 
 interface UseLogDataParams {
   appKey?: string;
@@ -21,10 +21,40 @@ interface UseLogDataResult {
   loading: boolean;
 }
 
+function useThrottledLogVersion(): number {
+  const { logs } = useAppState();
+  const [version, setVersion] = useState(logs.version.value);
+  const latestVersion = useRef(logs.version.value);
+  const publishedVersion = useRef(logs.version.value);
+  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useSignalEffect(() => {
+    const nextVersion = logs.version.value;
+    latestVersion.current = nextVersion;
+    if (nextVersion === publishedVersion.current) return;
+    if (timeout.current) return;
+
+    timeout.current = setTimeout(() => {
+      timeout.current = null;
+      publishedVersion.current = latestVersion.current;
+      setVersion(latestVersion.current);
+    }, LIVE_LOG_UPDATE_INTERVAL_MS);
+  });
+
+  useEffect(
+    () => () => {
+      if (timeout.current) clearTimeout(timeout.current);
+    },
+    [],
+  );
+
+  return version;
+}
+
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
   const { logs } = useAppState();
-
-  useSubscribe(logs.version);
+  // Drives recomputation from a throttled view of the live WS buffer.
+  const logsVersion = useThrottledLogVersion();
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: queryKeys.recentLogs(appKey, executionId),
@@ -54,9 +84,8 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
       return true;
     }) as LogEntry[];
 
-    return [...restEntries, ...wsEntries];
-    // logs.version.value in dep array drives recomputation on every WS push
-  }, [data, restEntries, watermark, logs.version.value, appKey, executionId]);
+    return [...wsEntries.reverse(), ...restEntries];
+  }, [data, restEntries, watermark, logsVersion, appKey, executionId]);
 
   return { allEntries, restEntries, loading: isPending };
 }

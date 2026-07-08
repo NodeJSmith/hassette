@@ -220,6 +220,7 @@ docs/code-reference
 .claude/plan.done.md
 .claude/worktrees/
 .mcp.json
+.codegraph/
 
 # Node (JS dev tooling)
 node_modules/

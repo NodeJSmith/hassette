@@ -161,6 +161,7 @@ export function levelClass(styles: Record<string, string>, prefix: string, level
   return styles[`${prefix}${level}`];
 }
 
-export const RENDER_CAP = 500;
+export const RENDER_CAP = 200;
 export const SEARCH_DEBOUNCE_MS = 150;
 export const REST_FETCH_LIMIT = 1000;
+export const LIVE_LOG_UPDATE_INTERVAL_MS = 750;
