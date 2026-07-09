@@ -18,12 +18,10 @@ from hassette.event_handling.predicates import (
 
 
 def always_true(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
-    """Test helper that always returns True."""
     return True
 
 
 def always_false(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
-    """Test helper that always returns False."""
     return False
 
 

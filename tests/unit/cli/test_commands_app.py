@@ -35,7 +35,7 @@ class TestCmdApp:
         """Bare app command fetches from GET /api/apps/manifests."""
         manifest = make_manifest_response()
         data = make_manifest_list_response([manifest])
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -56,7 +56,7 @@ class TestCmdApp:
         """app renders a table with app_key and status columns."""
         manifest = make_manifest_response(app_key="my_app", status="running", display_name="My App")
         data = make_manifest_list_response([manifest])
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -70,7 +70,7 @@ class TestCmdApp:
         """app --json outputs the manifests list as a JSON array."""
         manifest = make_manifest_response(app_key="my_app")
         data = make_manifest_list_response([manifest])
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         captured: list[str] = []
 
         with (
@@ -86,7 +86,7 @@ class TestCmdApp:
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """app renders a no-results message when manifests list is empty."""
         data = make_manifest_list_response([])
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
@@ -116,7 +116,7 @@ class TestCmdAppHealth:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """app health fetches from GET /api/telemetry/app/{key}/health."""
         health = make_app_health_response()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
         called_paths: list[str] = []
@@ -138,7 +138,7 @@ class TestCmdAppHealth:
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
         """app health --instance 1 passes instance_index=1 as a query param."""
         health = make_app_health_response()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
         received_params: list[dict] = []
@@ -173,7 +173,7 @@ class TestCmdAppHealth:
         manifest_list = AppManifestListResponse(
             total=1, running=1, failed=0, stopped=0, disabled=0, blocked=0, manifests=[manifest_resp]
         )
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [
                 ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
@@ -200,7 +200,7 @@ class TestCmdAppHealth:
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """app health renders a key-value detail panel."""
         health = make_app_health_response(health_status="excellent", error_rate=0.05)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
         with (
@@ -215,7 +215,7 @@ class TestCmdAppHealth:
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """app health --json outputs a JSON object."""
         health = make_app_health_response(error_rate=0.1)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
         captured: list[str] = []
@@ -245,7 +245,7 @@ class TestCmdAppActivity:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity fetches from GET /api/telemetry/app/{key}/activity."""
         entry = make_activity_feed_entry()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         called_paths: list[str] = []
@@ -267,7 +267,7 @@ class TestCmdAppActivity:
     def test_no_instance_omits_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity with no --instance does NOT pass instance_index param."""
         entry = make_activity_feed_entry()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         received_params: list[dict] = []
@@ -292,7 +292,7 @@ class TestCmdAppActivity:
     def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity --since and --limit are forwarded as query params."""
         entry = make_activity_feed_entry()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         received_params: list[dict] = []
@@ -318,7 +318,7 @@ class TestCmdAppActivity:
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity --instance 2 passes instance_index=2."""
         entry = make_activity_feed_entry()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         received_params: list[dict] = []
@@ -342,7 +342,7 @@ class TestCmdAppActivity:
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity renders a table with handler name and status."""
         entry = make_activity_feed_entry(handler_name="on_light_change", app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         with (
@@ -357,7 +357,7 @@ class TestCmdAppActivity:
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity --json outputs entries as a JSON array."""
         entry = make_activity_feed_entry(row_id="h-42")
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
         captured: list[str] = []
@@ -392,7 +392,7 @@ class TestCmdAppConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """app config fetches from GET /api/apps/{key}/config."""
         cfg = make_app_config_response(app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -412,7 +412,7 @@ class TestCmdAppConfig:
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """app config renders a detail panel with app_key and class_name."""
         cfg = make_app_config_response(app_key="my-app", class_name="MyApp")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -425,7 +425,7 @@ class TestCmdAppConfig:
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """app config --json outputs a JSON object."""
         cfg = make_app_config_response(app_key="my-app", enabled=True)
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         captured: list[str] = []
 
         with (
@@ -445,7 +445,7 @@ class TestCmdAppConfig:
             app_config={"setting_name": "visible_value"},
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -462,7 +462,7 @@ class TestCmdAppConfig:
             app_config={"setting_name": "visible_value"},
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -484,7 +484,7 @@ class TestCmdAppConfig:
             ],
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -506,7 +506,7 @@ class TestCmdAppConfig:
             app_config=[],
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -526,7 +526,7 @@ class TestCmdAppSource:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """app source fetches from GET /api/apps/{key}/source."""
         src = make_app_source_response(app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -546,7 +546,7 @@ class TestCmdAppSource:
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """app source renders a detail panel showing filename and content."""
         src = make_app_source_response(app_key="my-app", filename="my_app.py", content="class MyApp: pass\n")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
@@ -558,7 +558,7 @@ class TestCmdAppSource:
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """app source --json outputs a JSON object with content field."""
         src = make_app_source_response(app_key="my-app", content="class MyApp: pass\n", line_count=1)
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         captured: list[str] = []
 
         with (

@@ -104,11 +104,6 @@ def build_web_api_config() -> WebApiConfig:
 
 
 class TestConfig(HassetteConfig):
-    """
-    A test configuration class that inherits from HassetteConfig.
-    This is used to provide a specific configuration for testing purposes.
-    """
-
     model_config = HassetteConfig.model_config.copy() | {
         "toml_file": TEST_TOML_FILE,
         "env_file": ENV_FILE,
@@ -131,20 +126,11 @@ class TestConfig(HassetteConfig):
 
 @pytest.fixture(scope="session")
 def test_config_class() -> type[HassetteConfig]:
-    """
-    Provide the TestConfig class for testing.
-    This is used to ensure the configuration class is available for tests that require it.
-    """
     return TestConfig
 
 
 @pytest.fixture(scope="session")
 def test_config(unused_tcp_port_factory) -> HassetteConfig:
-    """
-    Provide a HassetteConfig instance for testing.
-    This is used to ensure the configuration is set up correctly for tests.
-    """
-
     port = unused_tcp_port_factory()
 
     tc = TestConfig(web_api={"port": port})
@@ -154,11 +140,6 @@ def test_config(unused_tcp_port_factory) -> HassetteConfig:
 
 @pytest.fixture(scope="session")
 def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> HassetteConfig:
-    """
-    Provide a HassetteConfig instance for testing.
-    This is used to ensure the configuration is set up correctly for tests.
-    """
-
     temp_dir = tmp_path_factory.mktemp("hassette_test_config")
     temp_path = Path(temp_dir)
     toml_path = temp_path / "hassette.toml"
@@ -199,10 +180,6 @@ def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture
 def env_file_path() -> Path:
-    """
-    Provide the path to the test environment file.
-    This is used to ensure the environment is set up correctly for tests.
-    """
     return ENV_FILE
 
 
@@ -233,10 +210,6 @@ def test_config_with_apps(apps_config_file: Path) -> HassetteConfig:
 
 @pytest.fixture
 def my_app_class() -> type:
-    """
-    Provide the MyApp class for testing.
-    This is used to ensure the MyApp class is available for tests that require it.
-    """
     # lazy-import: data.apps resolves via pytest's rootdir sys.path insertion, not at conftest module load
     from data.apps.my_app import MyApp
 

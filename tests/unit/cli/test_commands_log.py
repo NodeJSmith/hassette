@@ -22,7 +22,7 @@ class TestCmdLog:
     def test_calls_logs_recent_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """log (no flags) fetches from GET /api/logs/recent."""
         entry = make_log_entry_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -42,7 +42,7 @@ class TestCmdLog:
     def test_app_flag_passes_app_key_as_query_param(self, cli_client_factory: CLIClientFactory) -> None:
         """log --app my-app passes app_key=my-app as a query param (not routing)."""
         entry = make_log_entry_response(app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         received_params: list[dict] = []
         original_get = client.get
 
@@ -64,7 +64,7 @@ class TestCmdLog:
     def test_app_flag_does_not_route_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """log --app my-app still uses /api/logs/recent, not a per-app endpoint."""
         entry = make_log_entry_response(app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -85,7 +85,7 @@ class TestCmdLog:
     def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
         """log --since 1h --limit 20 passes since (epoch float) and limit=20."""
         entry = make_log_entry_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         received_params: list[dict] = []
         original_get = client.get
 
@@ -109,7 +109,7 @@ class TestCmdLog:
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """log --source-tier framework passes source_tier=framework as a query param."""
         entry = make_log_entry_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         received_params: list[dict] = []
         original_get = client.get
 
@@ -130,7 +130,7 @@ class TestCmdLog:
 
     def test_instance_flag_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """log --instance 0 exits non-zero with a usage error (not supported on log)."""
-        client, _ = cli_client_factory.build_with_routes([])
+        client = cli_client_factory.build_with_routes([])
 
         with (
             capture_stderr() as err_buf,
@@ -145,7 +145,7 @@ class TestCmdLog:
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """log renders a table with timestamp, level, and message."""
         entry = make_log_entry_response(level="INFO", message="System started", app_key="my_app")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
@@ -159,7 +159,7 @@ class TestCmdLog:
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """log --json outputs the log entries as a JSON array."""
         entry = make_log_entry_response(message="Hello world", level="WARNING")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         captured: list[str] = []
 
         with (
@@ -175,7 +175,7 @@ class TestCmdLog:
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """log renders a no-results message when no entries are returned."""
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [])])
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
@@ -206,7 +206,7 @@ class TestCmdExecution:
         """execution <uuid> fetches from GET /api/executions/{execution_id}."""
         execution_id = "abc-123-def"
         response_obj = make_logs_by_execution_response()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", f"/api/executions/{execution_id}", 200, response_obj.model_dump())]
         )
         called_paths: list[str] = []
@@ -228,7 +228,7 @@ class TestCmdExecution:
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """execution <uuid> --limit 50 passes limit=50 as a query param."""
         response_obj = make_logs_by_execution_response()
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/abc-123", 200, response_obj.model_dump())]
         )
         received_params: list[dict] = []
@@ -253,7 +253,7 @@ class TestCmdExecution:
         """execution renders the records list from the LogsByExecutionResponse wrapper."""
         entry = make_log_entry_response(message="Handler invoked", level="DEBUG")
         response_obj = make_logs_by_execution_response(records=[entry])
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-1", 200, response_obj.model_dump())]
         )
         with (
@@ -270,7 +270,7 @@ class TestCmdExecution:
         """execution renders a table with log entry columns."""
         entry = make_log_entry_response(level="ERROR", message="Something failed")
         response_obj = make_logs_by_execution_response(records=[entry])
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-2", 200, response_obj.model_dump())]
         )
         with (
@@ -286,7 +286,7 @@ class TestCmdExecution:
         """execution --json outputs the records list as a JSON array."""
         entry = make_log_entry_response(message="Executed ok", level="INFO")
         response_obj = make_logs_by_execution_response(records=[entry])
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-3", 200, response_obj.model_dump())]
         )
         captured: list[str] = []
@@ -304,7 +304,7 @@ class TestCmdExecution:
     def test_empty_execution_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """execution shows no-results message when records list is empty."""
         response_obj = make_logs_by_execution_response(records=[])
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-4", 200, response_obj.model_dump())]
         )
         with (

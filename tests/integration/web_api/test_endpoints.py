@@ -11,10 +11,10 @@ from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.test_utils.web_helpers import make_manifest
 from hassette.web.config_view import MASK_SENTINEL
 
+from .conftest import make_log_record
+
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
-
-from .conftest import make_log_record
 
 
 class TestHealthEndpoints:

@@ -722,6 +722,7 @@ def wire_global_summary(
     hassette,
     framework_global_summary: GlobalSummary,
     default_global_summary: GlobalSummary,
+    framework_tier_errors: list[HandlerErrorRecord] | None = None,
 ) -> None:
     """Wire global summary and error count side effects onto the mock telemetry query service."""
 
@@ -734,9 +735,15 @@ def wire_global_summary(
         side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
     )
 
+    fw_errors = framework_tier_errors or []
+    framework_error_counts = (
+        sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
+        sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
+    )
+
     def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
         if source_tier == "framework":
-            return FRAMEWORK_ERROR_COUNTS
+            return framework_error_counts
         return (3, 6)
 
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
@@ -818,63 +825,16 @@ def wire_config(hassette) -> None:
     )
 
 
-#
-# All constants are derived from the builder functions above — never
-# hand-written literals.  Use these in E2E test assertions so that
-# changing a seed value here automatically updates the tests.
-#
-# Naming convention: <TIER>_<ENTITY>_<FIELD>
-#   APP_TIER_   — per-app health summaries (build_app_health_summaries)
-#   GLOBAL_     — all-tier global summary (build_global_summaries)
-#   ERRORS_     — error feed counts (build_error_records)
-#   LISTENER_   — per-listener telemetry (build_listener_telemetry)
-
-
-_app_health = build_app_health_summaries()
-
-APP_TIER_MY_APP_TOTAL_INVOCATIONS: int = _app_health["my_app"].total_invocations
-APP_TIER_MY_APP_TOTAL_EXECUTIONS: int = _app_health["my_app"].total_executions
-APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS: int = _app_health["broken_app"].total_invocations
-APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS: int = _app_health["broken_app"].total_executions
-
-
-_framework_global_summary, _default_global_summary = build_global_summaries()
-
-GLOBAL_TOTAL_INVOCATIONS: int = _default_global_summary.listeners.total_invocations
-GLOBAL_TOTAL_EXECUTIONS: int = _default_global_summary.jobs.total_executions
-GLOBAL_HANDLER_ERRORS: int = (
-    _default_global_summary.listeners.total_errors + _default_global_summary.listeners.total_timed_out
-)
-GLOBAL_JOB_ERRORS: int = _default_global_summary.jobs.total_errors + _default_global_summary.jobs.total_timed_out
-GLOBAL_TOTAL_FAILURES: int = GLOBAL_HANDLER_ERRORS + GLOBAL_JOB_ERRORS
-GLOBAL_COMBINED_TOTAL: int = GLOBAL_TOTAL_INVOCATIONS + GLOBAL_TOTAL_EXECUTIONS
-
-
-_app_tier_errors, _framework_tier_errors = build_error_records()
-
-ERRORS_APP_TIER_COUNT: int = len(_app_tier_errors)
-ERRORS_FRAMEWORK_TIER_COUNT: int = len(_framework_tier_errors)
-ERRORS_COMBINED_COUNT: int = ERRORS_APP_TIER_COUNT + ERRORS_FRAMEWORK_TIER_COUNT
-
-# Framework error counts derived from builder output — used by
-# wire_global_summary to mock get_error_counts(source_tier="framework").
-FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (
-    sum(1 for e in _framework_tier_errors if isinstance(e, HandlerErrorRecord)),
-    sum(1 for e in _framework_tier_errors if isinstance(e, JobErrorRecord)),
-)
-FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = FRAMEWORK_ERROR_COUNTS[0]
-FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = FRAMEWORK_ERROR_COUNTS[1]
-
+# Derived constants for E2E test assertions — computed from the builder
+# functions above so that changing a seed value automatically updates tests.
 
 _listeners = build_listener_telemetry()
 
 LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
 LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
-LISTENER_MY_APP_1_SOURCE_LOCATION: str = _listeners["my_app"][0].source_location
 
 
 _jobs = build_job_telemetry()
 
 JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs["my_app"][0].total_executions
 JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs["my_app"][1].total_executions
-JOB_MY_APP_1_SOURCE_LOCATION: str = _jobs["my_app"][0].source_location

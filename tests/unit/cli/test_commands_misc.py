@@ -15,7 +15,7 @@ class TestCmdConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """config command fetches from GET /api/config."""
         config_data = make_config_schema_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -35,7 +35,7 @@ class TestCmdConfig:
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """config command produces a key-value panel showing config_values fields."""
         config_data = make_config_schema_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.misc.make_client", return_value=client),
@@ -48,7 +48,7 @@ class TestCmdConfig:
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """config --json outputs config_values as a JSON object."""
         config_data = make_config_schema_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         captured: list[str] = []
 
         with (
@@ -64,7 +64,7 @@ class TestCmdConfig:
     def test_json_mode_renders_config_values_not_envelope(self, cli_client_factory: CLIClientFactory) -> None:
         """config --json outputs only config_values, not the full ConfigSchemaResponse envelope."""
         config_data = make_config_schema_response()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
+        client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         captured: list[str] = []
 
         with (

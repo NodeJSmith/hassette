@@ -1,5 +1,4 @@
 import asyncio
-from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
 
@@ -11,8 +10,6 @@ from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
 from hassette.utils.date_utils import now
-
-TZ = ZoneInfo("America/Chicago")
 
 
 async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:

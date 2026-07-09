@@ -1,8 +1,4 @@
 # pyright: reportInvalidTypeForm=none
-
-# disabling reportInvalidTypeForm - i know this is invalid, but it works best for the dynamic
-# nature of the tests
-
 """Tests for signature extraction, validation, and pre-defined type alias extractors."""
 
 import inspect

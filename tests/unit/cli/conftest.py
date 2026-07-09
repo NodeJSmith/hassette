@@ -64,13 +64,12 @@ class MockTransportBuilder:
     def __init__(self) -> None:
         self._routes: list[tuple[str, str, int, Any]] = []
 
-    def add(self, method: str, path_fragment: str, status: int, body: Any) -> "MockTransportBuilder":
+    def add(self, method: str, path_fragment: str, status: int, body: Any) -> None:
         """Register a mock response for requests whose URL contains ``path_fragment``.
 
         The first matching route wins.
         """
         self._routes.append((method.upper(), path_fragment, status, body))
-        return self
 
     def build(self) -> httpx.MockTransport:
         routes = list(self._routes)
@@ -109,23 +108,18 @@ class CLIClientFactory:
         self,
         routes: list[tuple[str, str, int, Any]],
         json_mode: bool = False,
-    ) -> tuple[HassetteCLIClient, MockTransportBuilder]:
+    ) -> HassetteCLIClient:
         """Build a client pre-wired with route responses.
 
         Args:
             routes: List of ``(method, path_fragment, status, body)`` tuples.
             json_mode: Whether the client operates in JSON mode.
-
-        Returns:
-            A ``(client, builder)`` pair. The builder can be inspected for
-            what routes were registered.
         """
         builder = MockTransportBuilder()
         for method, path_fragment, status, body in routes:
             builder.add(method, path_fragment, status, body)
         transport = builder.build()
-        client = self.build(transport, json_mode=json_mode)
-        return client, builder
+        return self.build(transport, json_mode=json_mode)
 
 
 @pytest.fixture
@@ -135,7 +129,7 @@ def cli_client_factory() -> CLIClientFactory:
     Example usage in a command test::
 
         def test_status_command(cli_client_factory):
-            client, _ = cli_client_factory.build_with_routes([
+            client = cli_client_factory.build_with_routes([
                 ("GET", "/api/health", 200, {"status": "ok", ...}),
             ])
             # call command with client

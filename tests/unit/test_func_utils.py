@@ -1,7 +1,6 @@
 """Tests for callable_name() and callable_short_name() utility functions."""
 
-import functools
-from functools import partial
+from functools import partial, wraps
 
 from hassette.utils.func_utils import callable_name, callable_short_name, callable_stable_name
 
@@ -25,7 +24,7 @@ class CallableClass:
 
 
 def decorator(fn):
-    @functools.wraps(fn)
+    @wraps(fn)
     def wrapper(*args, **kwargs):
         return fn(*args, **kwargs)
 

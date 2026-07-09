@@ -21,7 +21,7 @@ class TestCmdListener:
     def test_calls_global_listeners_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """listener (no --app) fetches from GET /api/bus/listeners."""
         listener = make_listener_with_summary()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         called_paths: list[str] = []
         original_get = client.get
 
@@ -41,7 +41,7 @@ class TestCmdListener:
     def test_app_flag_routes_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --app my-app fetches from /api/telemetry/app/my-app/listeners."""
         listener = make_listener_with_summary(app_key="my-app")
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
         called_paths: list[str] = []
@@ -63,7 +63,7 @@ class TestCmdListener:
     def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --app my-app --instance 0 passes instance_index=0 as a query param."""
         listener = make_listener_with_summary(app_key="my-app", instance_index=0)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
         received_params: list[dict] = []
@@ -86,7 +86,7 @@ class TestCmdListener:
 
     def test_instance_without_app_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --instance 0 (without --app) exits non-zero with usage error."""
-        client, _ = cli_client_factory.build_with_routes([])
+        client = cli_client_factory.build_with_routes([])
 
         with (
             capture_stderr(),
@@ -100,7 +100,7 @@ class TestCmdListener:
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --source-tier app passes source_tier=app as a query param."""
         listener = make_listener_with_summary()
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         received_params: list[dict] = []
         original_get = client.get
 
@@ -122,7 +122,7 @@ class TestCmdListener:
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """listener renders a table with listener_id and entity_id."""
         listener = make_listener_with_summary(listener_id=42, entity_id="light.kitchen")
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         with (
             capture_stdout() as buf,
             patch("hassette.cli.commands.listener.make_client", return_value=client),
@@ -136,7 +136,7 @@ class TestCmdListener:
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --json outputs the listener list as a JSON array."""
         listener = make_listener_with_summary(listener_id=7)
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         captured: list[str] = []
 
         with (
@@ -151,7 +151,7 @@ class TestCmdListener:
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """listener renders a no-results message when no listeners are returned."""
-        client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [])])
+        client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [])])
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
@@ -179,7 +179,7 @@ class TestCmdListenerDetail:
     def test_calls_invocations_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> fetches from GET /api/telemetry/listener/{id}/executions."""
         invocation = make_execution(kind="handler", listener_id=42)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         called_paths: list[str] = []
@@ -201,7 +201,7 @@ class TestCmdListenerDetail:
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --limit 5 passes limit=5 as a query param."""
         invocation = make_execution(kind="handler", listener_id=42)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         received_params: list[dict] = []
@@ -225,7 +225,7 @@ class TestCmdListenerDetail:
     def test_since_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --since passes since as a query param."""
         invocation = make_execution(kind="handler", listener_id=42)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
         received_params: list[dict] = []
@@ -250,7 +250,7 @@ class TestCmdListenerDetail:
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> renders a table with status and duration."""
         invocation = make_execution(kind="handler", listener_id=1, duration_ms=12.5)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
         with (
@@ -265,7 +265,7 @@ class TestCmdListenerDetail:
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --json outputs the invocations as a JSON array."""
         invocation = make_execution(kind="handler", listener_id=1, duration_ms=20.0)
-        client, _ = cli_client_factory.build_with_routes(
+        client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
         captured: list[str] = []

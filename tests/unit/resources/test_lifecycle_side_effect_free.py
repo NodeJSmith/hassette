@@ -15,7 +15,6 @@ class TestLifecycleSideEffectFree:
 
         resource.mark_ready("some reason")
 
-        # hassette.send_event must NOT have been called
         assert not hassette.send_event.called
 
     async def test_mark_not_ready_does_not_emit(self) -> None:
@@ -29,5 +28,4 @@ class TestLifecycleSideEffectFree:
 
         resource.mark_not_ready("not ready")
 
-        # hassette.send_event must NOT have been called
         assert not hassette.send_event.called

@@ -109,7 +109,7 @@ def mock_hassette():
     wire_error_telemetry(hassette, app_tier_errors, framework_tier_errors)
 
     framework_summary, default_summary = build_global_summaries()
-    wire_global_summary(hassette, framework_summary, default_summary)
+    wire_global_summary(hassette, framework_summary, default_summary, framework_tier_errors)
 
     # Owner resolution wiring.
     wire_owner_resolution(hassette)
