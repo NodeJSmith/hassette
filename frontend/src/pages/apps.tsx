@@ -79,7 +79,7 @@ function StatusFilterContent({
 }: {
   counts: Record<string, number>;
   active: FilterId;
-  onChange: (f: FilterId) => void;
+  onChange: (filter: FilterId) => void;
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
@@ -159,8 +159,8 @@ export function AppsPage() {
 
   const statusCounts: Record<string, number> = {};
   for (const a of allApps) {
-    const s = appStatus.value[a.app_key]?.status ?? a.status;
-    statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+    const liveStatus = appStatus.value[a.app_key]?.status ?? a.status;
+    statusCounts[liveStatus] = (statusCounts[liveStatus] ?? 0) + 1;
   }
 
   const uniqueStatuses = Object.keys(statusCounts);
@@ -182,16 +182,16 @@ export function AppsPage() {
     },
   };
 
-  const q = search.toLowerCase();
+  const searchLower = search.toLowerCase();
   const filtered = allApps
     .filter((a) => {
-      const s = appStatus.value[a.app_key]?.status ?? a.status;
-      if (filter !== "all" && s !== filter) return false;
+      const liveStatus = appStatus.value[a.app_key]?.status ?? a.status;
+      if (filter !== "all" && liveStatus !== filter) return false;
       if (
-        q &&
-        !a.app_key.toLowerCase().includes(q) &&
-        !a.class_name.toLowerCase().includes(q) &&
-        !a.display_name.toLowerCase().includes(q)
+        searchLower &&
+        !a.app_key.toLowerCase().includes(searchLower) &&
+        !a.class_name.toLowerCase().includes(searchLower) &&
+        !a.display_name.toLowerCase().includes(searchLower)
       )
         return false;
       return true;
@@ -230,7 +230,7 @@ export function AppsPage() {
 
   let emptyStateTitle = "no apps match this filter.";
   if (filter !== "all") emptyStateTitle = `no apps match status: ${filter}.`;
-  else if (q) emptyStateTitle = `no apps match "${q}".`;
+  else if (search) emptyStateTitle = `no apps match "${search}".`;
 
   return (
     <div class={`ht-page ${styles.page}`} data-testid="apps-page">
@@ -245,7 +245,7 @@ export function AppsPage() {
         <TableCard footer={footer}>
           {filtered.length === 0 ? (
             <EmptyState title={emptyStateTitle}>
-              {(filter !== "all" || q) && (
+              {(filter !== "all" || search) && (
                 <Button ghost size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>

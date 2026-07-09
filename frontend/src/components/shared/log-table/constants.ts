@@ -19,7 +19,9 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
   { value: "framework", label: "Framework" },
 ] as const;
 
-export const LEVEL_INDEX: Record<string, number> = {
+type Level = (typeof LEVELS)[number];
+
+export const LEVEL_INDEX: Record<Level, number> = {
   DEBUG: 0,
   INFO: 1,
   WARNING: 2,
@@ -27,7 +29,7 @@ export const LEVEL_INDEX: Record<string, number> = {
   CRITICAL: 4,
 };
 
-export const LEVEL_ABBREV: Record<string, string> = {
+export const LEVEL_ABBREV: Record<Level, string> = {
   DEBUG: "D",
   INFO: "I",
   WARNING: "W",

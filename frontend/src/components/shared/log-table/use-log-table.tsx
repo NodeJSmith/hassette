@@ -71,7 +71,7 @@ export function useLogTable({
   appKey,
   appKeys,
   executionId,
-  useLocalState: useLocal = false,
+  useLocalState = false,
   search: externalSearch,
 }: UseLogTableParams): UseLogTableResult {
   const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
@@ -104,7 +104,7 @@ export function useLogTable({
     allEntries,
     restEntries,
     // Execution-scoped views always use local state — URL params are owned by the parent page.
-    useLocalState: useLocal || !!executionId,
+    useLocalState: useLocalState || !!executionId,
     appKey,
     executionId,
   });

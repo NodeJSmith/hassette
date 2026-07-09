@@ -17,9 +17,6 @@
  * Secret detection: mirrors backend _is_secret_node — checks writeOnly/format:password
  * on the node and inside anyOf branches (covers the SecretStr | None pattern).
  * The value is already masked server-side; the schema marker controls the visual style.
- *
- * ui.tier is part of the namespace shape but is unset on all fields and ignored here —
- * no show-advanced affordance is built.
  */
 
 import { useState } from "preact/hooks";
