@@ -25,6 +25,7 @@ if typing.TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
+    from hassette.core.bus_service import BusService
 
 try:
     from humanize import precisedelta
@@ -38,6 +39,12 @@ STARTING = ResourceStatus.STARTING
 RUNNING = ResourceStatus.RUNNING
 STOPPING = ResourceStatus.STOPPING
 STOPPED = ResourceStatus.STOPPED
+NOT_STARTED = ResourceStatus.NOT_STARTED
+
+# Deeper than the exception_utils.get_short_traceback default (1): init failures often
+# surface several frames deep (anyio.fail_after -> on_initialize -> nested awaits), and a
+# single frame is rarely enough to show the app's own code rather than just anyio internals.
+INIT_FAILURE_TRACEBACK_LIMIT = 5
 
 
 class AppLifecycleService(Resource):
@@ -95,6 +102,11 @@ class AppLifecycleService(Resource):
         """Timeout in seconds for app instance shutdown."""
         return self.hassette.config.lifecycle.app_shutdown_timeout_seconds
 
+    @property
+    def cleanup_timeout(self) -> int:
+        """Timeout in seconds for cleaning up a failed app instance's listeners and jobs."""
+        return self.hassette.config.lifecycle.failed_instance_cleanup_timeout_seconds
+
     async def initialize_instances(
         self,
         app_key: str,
@@ -129,29 +141,29 @@ class AppLifecycleService(Resource):
                     inst.app_config.instance_name,
                     class_name,
                 )
-                await self.emit_app_state_change(inst, status=RUNNING, prev_status=STARTING)
+                await self.emit_app_state_change(inst, status=RUNNING, previous_status=STARTING)
             except TimeoutError as e:
                 self.logger.error(
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(5),
+                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
                 self.registry.record_failure(app_key, idx, e)
-                await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=e)
             except Exception as e:
                 self.logger.error(
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
                     class_name,
-                    get_short_traceback(5),
+                    get_short_traceback(INIT_FAILURE_TRACEBACK_LIMIT),
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
                 self.registry.record_failure(app_key, idx, e)
-                await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=e)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -166,9 +178,8 @@ class AppLifecycleService(Resource):
         Must run before record_failure, which pops the instance from the registry — after that point,
         the normal shutdown path can never reach these registrations.
         """
-        cleanup_timeout = 5
         try:
-            with anyio.fail_after(cleanup_timeout):
+            with anyio.fail_after(self.cleanup_timeout):
                 try:
                     inst.bus.remove_all_listeners()
                 except Exception:
@@ -219,7 +230,7 @@ class AppLifecycleService(Resource):
             self.logger.debug(
                 "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
             )
-            await self.emit_app_state_change(inst, status=STOPPED, prev_status=STOPPING)
+            await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
         except Exception as e:
             self.logger.error(
                 "Failed to stop app '%s' after %s seconds:\n%s",
@@ -227,7 +238,7 @@ class AppLifecycleService(Resource):
                 self.shutdown_timeout,
                 get_short_traceback(),
             )
-            await self.emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
+            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=e)
         finally:
             if instance_index is not None:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
@@ -264,12 +275,12 @@ class AppLifecycleService(Resource):
         self,
         app: "App[AppConfig]",
         status: ResourceStatus,
-        prev_status: ResourceStatus | None = None,
+        previous_status: ResourceStatus | None = None,
         exception: Exception | BaseException | None = None,
     ) -> None:
         """Emit an app state change event via Hassette's event system."""
         event = HassetteAppStateEvent.from_data(
-            app=app, status=status, previous_status=prev_status, exception=exception
+            app=app, status=status, previous_status=previous_status, exception=exception
         )
         await self.hassette.send_event(event)
 
@@ -332,7 +343,7 @@ class AppLifecycleService(Resource):
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
             for inst in instances.values():
-                event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
+                event = HassetteAppStateEvent.from_data(app=inst, status=NOT_STARTED)
                 await self.hassette.send_event(event)
             await self.initialize_instances(app_key, instances, app_manifest)
 
@@ -553,6 +564,80 @@ class AppLifecycleService(Resource):
 
         return previously_blocked - currently_blocked
 
+    def collect_live_listener_ids(self, app_key: str, instances: "dict[int, App[AppConfig]]") -> set[int]:
+        """Collect listener db_ids registered by all instances.
+
+        Registration is synchronous with the DB — db_ids are set before on_initialize() returns.
+        """
+        live_listener_ids: set[int] = set()
+        for inst in instances.values():
+            try:
+                for listener in inst.bus.get_listeners():
+                    if listener.db_id is not None:
+                        live_listener_ids.add(listener.db_id)
+            except Exception:
+                self.logger.warning(
+                    "Failed to collect listener IDs from app '%s' instance — proceeding with partial set",
+                    app_key,
+                )
+        return live_listener_ids
+
+    def merge_router_listener_ids(
+        self,
+        app_key: str,
+        instances: "dict[int, App[AppConfig]]",
+        bus_service: "BusService",
+        live_listener_ids: set[int],
+    ) -> set[int]:
+        """Union in listener db_ids the Router knows are active.
+
+        Avoids retiring rows for mid-session active handlers that ``collect_live_listener_ids``
+        may have missed. Returns a new set rather than mutating ``live_listener_ids``.
+        """
+        try:
+            router = bus_service.router
+            router_ids: set[int] = set()
+            for inst in instances.values():
+                for listener in router.get_listeners_by_owner(inst.bus.owner_id):
+                    if listener.db_id is not None:
+                        router_ids.add(listener.db_id)
+            return live_listener_ids | router_ids
+        except Exception:
+            self.logger.warning(
+                "Router safety guard failed for app '%s' — proceeding with collected live IDs only",
+                app_key,
+            )
+            return live_listener_ids
+
+    def collect_live_job_ids(self, app_key: str, instances: "dict[int, App[AppConfig]]") -> list[int]:
+        """Collect scheduled-job db_ids registered by all instances."""
+        live_job_ids: list[int] = []
+        for inst in instances.values():
+            try:
+                live_job_ids.extend(inst.scheduler.get_job_db_ids())
+            except Exception:
+                self.logger.warning(
+                    "Failed to collect job IDs from app '%s' instance — proceeding with partial set",
+                    app_key,
+                )
+        return live_job_ids
+
+    def resolve_session_id(self, app_key: str) -> int | None:
+        """Resolve the current session ID for the once=True cleanup guard.
+
+        Returns None (degraded mode) if the session ID is unavailable — once=True
+        cleanup is skipped and deferred to the next restart.
+        """
+        try:
+            return self.hassette.session_id
+        except Exception:
+            self.logger.warning(
+                "session_id unavailable for app '%s' — reconciliation running in degraded mode; "
+                "once=True cleanup skipped (deferred to next restart)",
+                app_key,
+            )
+            return None
+
     async def reconcile_app_registrations(
         self,
         app_key: str,
@@ -571,57 +656,10 @@ class AppLifecycleService(Resource):
         try:
             bus_service = self.hassette.bus_service
 
-            # Collect live listener IDs from all instances.
-            # Registration is synchronous — db_ids are set before on_initialize() returns.
-            live_listener_ids: set[int] = set()
-            for inst in instances.values():
-                try:
-                    listeners = inst.bus.get_listeners()
-                    for listener in listeners:
-                        if listener.db_id is not None:
-                            live_listener_ids.add(listener.db_id)
-                except Exception:
-                    self.logger.warning(
-                        "Failed to collect listener IDs from app '%s' instance — proceeding with partial set",
-                        app_key,
-                    )
-
-            # Router safety guard: union with IDs of listeners the Router knows
-            # are active, to avoid retiring rows for mid-session active handlers.
-            try:
-                router = bus_service.router
-                for inst in instances.values():
-                    router_listeners = router.get_listeners_by_owner(inst.bus.owner_id)
-                    for listener in router_listeners:
-                        if listener.db_id is not None:
-                            live_listener_ids.add(listener.db_id)
-            except Exception:
-                self.logger.warning(
-                    "Router safety guard failed for app '%s' — proceeding with collected live IDs only",
-                    app_key,
-                )
-
-            # Collect live job IDs from all instances.
-            live_job_ids: list[int] = []
-            for inst in instances.values():
-                try:
-                    live_job_ids.extend(inst.scheduler.get_job_db_ids())
-                except Exception:
-                    self.logger.warning(
-                        "Failed to collect job IDs from app '%s' instance — proceeding with partial set",
-                        app_key,
-                    )
-
-            # Get current session ID for once=True guard.
-            try:
-                session_id: int | None = self.hassette.session_id
-            except Exception:
-                session_id = None
-                self.logger.warning(
-                    "session_id unavailable for app '%s' — reconciliation running in degraded mode; "
-                    "once=True cleanup skipped (deferred to next restart)",
-                    app_key,
-                )
+            live_listener_ids = self.collect_live_listener_ids(app_key, instances)
+            live_listener_ids = self.merge_router_listener_ids(app_key, instances, bus_service, live_listener_ids)
+            live_job_ids = self.collect_live_job_ids(app_key, instances)
+            session_id = self.resolve_session_id(app_key)
 
             await self.hassette.command_executor.reconcile_registrations(
                 app_key,

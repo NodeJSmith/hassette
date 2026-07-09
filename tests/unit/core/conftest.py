@@ -17,7 +17,6 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_filter import EventFilter
-from hassette.core.migration_runner import run_migrations
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
@@ -358,15 +357,6 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
     svc._dispatch_semaphore = asyncio.Semaphore(max_concurrent_dispatches)
     svc._last_saturation_warn_ts = 0.0
     return svc
-
-
-@pytest.fixture(scope="session")
-def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Run the real migration runner once per session and return the template DB path."""
-    tmpl_dir = tmp_path_factory.mktemp("telemetry_repo_db")
-    db_path = tmpl_dir / "hassette.db"
-    run_migrations(db_path)
-    return db_path
 
 
 @pytest.fixture

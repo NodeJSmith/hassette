@@ -584,8 +584,12 @@ export interface components {
          * @description Response for app mutation endpoints (start/stop/reload).
          */
         ActionResponse: {
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @default accepted
+             * @constant
+             */
+            status: "accepted";
             /** App Key */
             app_key: string;
             /** Action */
@@ -1121,8 +1125,12 @@ export interface components {
          *     the trigger response identifies the job, not an app action.
          */
         JobTriggerResponse: {
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @default accepted
+             * @constant
+             */
+            status: "accepted";
             /** Job Id */
             job_id: number;
             /** Job Name */

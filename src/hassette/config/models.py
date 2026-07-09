@@ -113,6 +113,9 @@ class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
     heartbeat_interval_seconds: int = Field(default=30)
     """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
 
+    cleanup_timeout_seconds: float = Field(default=2.0)
+    """Length of time to wait for the recv task to finish cancelling during partial cleanup."""
+
     connect_retry_max_attempts: int = Field(default=5)
     """Maximum number of attempts to establish the initial WebSocket connection before giving up."""
 
@@ -229,6 +232,9 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
 
     app_shutdown_timeout_seconds: int = Field(default=APP_SHUTDOWN_TIMEOUT_SECONDS)
     """Length of time to wait for an app to shut down before giving up."""
+
+    failed_instance_cleanup_timeout_seconds: int = Field(default=5)
+    """Length of time to wait for listener/job cleanup after an app instance fails to initialize."""
 
     resource_shutdown_timeout_seconds: int = Field(
         default_factory=lambda data: data.get("app_shutdown_timeout_seconds", APP_SHUTDOWN_TIMEOUT_SECONDS)

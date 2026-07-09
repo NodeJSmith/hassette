@@ -19,6 +19,7 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
+from hassette.core.migration_runner import run_migrations
 from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
 
@@ -179,6 +180,21 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> Hass
 def test_events_path() -> Path:
     """Provide the path to the test events directory."""
     return TEST_EVENTS_PATH
+
+
+@pytest.fixture(scope="session")
+def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run migrations once per pytest worker and return the migrated DB file path.
+
+    Under xdist, each worker runs this independently — still a large win since each worker has
+    many DB-heavy tests. Copying this file takes <1ms vs ~700ms for running migrations from
+    scratch. Shared by both unit and integration suites: `run_migrations()` produces the same
+    on-disk schema as booting a real `DatabaseService`, without the service lifecycle overhead.
+    """
+    tmpl_dir = tmp_path_factory.mktemp("db_template")
+    db_path = tmpl_dir / "hassette.db"
+    run_migrations(db_path)
+    return db_path
 
 
 @pytest.fixture

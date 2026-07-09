@@ -1557,7 +1557,9 @@
         "properties": {
           "status": {
             "type": "string",
-            "title": "Status"
+            "const": "accepted",
+            "title": "Status",
+            "default": "accepted"
           },
           "app_key": {
             "type": "string",
@@ -1570,7 +1572,6 @@
         },
         "type": "object",
         "required": [
-          "status",
           "app_key",
           "action"
         ],
@@ -2836,7 +2837,9 @@
         "properties": {
           "status": {
             "type": "string",
-            "title": "Status"
+            "const": "accepted",
+            "title": "Status",
+            "default": "accepted"
           },
           "job_id": {
             "type": "integer",
@@ -2849,7 +2852,6 @@
         },
         "type": "object",
         "required": [
-          "status",
           "job_id",
           "job_name"
         ],

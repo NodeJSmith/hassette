@@ -622,6 +622,12 @@
           "title": "App Shutdown Timeout Seconds",
           "type": "integer"
         },
+        "failed_instance_cleanup_timeout_seconds": {
+          "default": 5,
+          "description": "Length of time to wait for listener/job cleanup after an app instance fails to initialize.",
+          "title": "Failed Instance Cleanup Timeout Seconds",
+          "type": "integer"
+        },
         "resource_shutdown_timeout_seconds": {
           "description": "Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds.",
           "title": "Resource Shutdown Timeout Seconds",
@@ -1197,6 +1203,12 @@
           "description": "Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp.",
           "title": "Heartbeat Interval Seconds",
           "type": "integer"
+        },
+        "cleanup_timeout_seconds": {
+          "default": 2.0,
+          "description": "Length of time to wait for the recv task to finish cancelling during partial cleanup.",
+          "title": "Cleanup Timeout Seconds",
+          "type": "number"
         },
         "connect_retry_max_attempts": {
           "default": 5,

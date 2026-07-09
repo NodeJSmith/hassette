@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Every
+from hassette.test_utils.web_helpers import make_real_job
 from hassette.types.enums import ExecutionMode
 
 if TYPE_CHECKING:
@@ -31,15 +31,7 @@ def make_scheduled_job(
     returns True — used to test the SINGLE-mode pre-check and the RESTART/QUEUED/PARALLEL
     bypass of that pre-check.
     """
-    job = ScheduledJob(
-        owner_id="test_owner",
-        next_run=date_utils.now(),
-        job=lambda: None,
-        mode=mode,
-        trigger=trigger,
-        name=name,
-    )
-    job.db_id = db_id
+    job = make_real_job(name=name, trigger=trigger, mode=mode, db_id=db_id)
     if guard_running:
         job.guard = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
         job.guard.is_running.return_value = True
