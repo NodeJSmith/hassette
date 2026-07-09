@@ -66,17 +66,17 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
 
         resolved_app_dir = app_dir.resolve()
 
-        for fr in reversed(tb_list):
+        for frame in reversed(tb_list):
             try:
-                if Path(fr.filename).resolve().is_relative_to(resolved_app_dir):
-                    return fr
+                if Path(frame.filename).resolve().is_relative_to(resolved_app_dir):
+                    return frame
             except (ValueError, OSError):
                 continue
 
-        for fr in reversed(tb_list):
-            fn = fr.filename
+        for frame in reversed(tb_list):
+            fn = frame.filename
             if not any(part in fn for part in EXCLUDED_PATH_PARTS):
-                return fr
+                return frame
 
         return tb_list[-1]
 
@@ -87,16 +87,16 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
 
 def log_compact_load_error(app_manifest: "AppManifest", exc: BaseException) -> None:
     """Log a compact, user-friendly error for a failed app load."""
-    fr = find_user_frame(exc, app_manifest.app_dir)
+    user_frame = find_user_frame(exc, app_manifest.app_dir)
     traceback_str = traceback.format_exception_only(type(exc), exc)[-1].strip()
-    if fr:
+    if user_frame:
         msg = "Failed to load app '%s':\n\t%s (at %s:%d)"
         LOGGER.error(
             msg,
             app_manifest.display_name,
             traceback_str,
-            fr.filename,
-            fr.lineno,
+            user_frame.filename,
+            user_frame.lineno,
             stacklevel=2,
         )
     else:
@@ -502,20 +502,20 @@ def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
     return ".".join([pkg_name, *parts])
 
 
-def _ensure_on_sys_path(p: Path) -> None:
+def _ensure_on_sys_path(dir_path: Path) -> None:
     """Ensure the given path is on sys.path for module resolution.
 
     Args:
-        p: Directory to add to sys.path
+        dir_path: Directory to add to sys.path
 
     Note:
       - Will not add root directories (with <=1 parts) for safety.
     """
 
-    p = p.resolve()
-    if len(p.parts) <= 1:
-        LOGGER.warning("Refusing to add root directory %s to sys.path", p)
+    dir_path = dir_path.resolve()
+    if len(dir_path.parts) <= 1:
+        LOGGER.warning("Refusing to add root directory %s to sys.path", dir_path)
         return
 
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+    if str(dir_path) not in sys.path:
+        sys.path.insert(0, str(dir_path))

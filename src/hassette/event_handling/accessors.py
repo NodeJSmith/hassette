@@ -65,7 +65,7 @@ DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
 
-    def _inner(obj):
+    def extract_path(obj):
         try:
             return glom(obj, path)
         except PathAccessError:
@@ -75,7 +75,7 @@ def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
             LOGGER.error("Error accessing path %r: %s - %s", path, type(exc).__name__, exc)
             return MISSING_VALUE
 
-    return _inner
+    return extract_path
 
 
 def get_state_value_old(event: "RawStateChangeEvent") -> Any | FalseySentinel:
@@ -211,9 +211,9 @@ def get_all_attrs_old_new(
 
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
-    result = cast("str", get_path("payload.data.domain")(event))
-    if result is not MISSING_VALUE:
-        return result
+    domain = cast("str", get_path("payload.data.domain")(event))
+    if domain is not MISSING_VALUE:
+        return domain
 
     if isinstance(event, RawStateChangeEvent):
         return event.payload.domain or MISSING_VALUE
@@ -227,9 +227,9 @@ def get_domain(event: "HassEvent") -> str | FalseySentinel:
 
 def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
     """Get the entity_id from the event payload."""
-    result = cast("str", get_path("payload.data.entity_id")(event))
-    if result is not MISSING_VALUE:
-        return result
+    entity_id = cast("str", get_path("payload.data.entity_id")(event))
+    if entity_id is not MISSING_VALUE:
+        return entity_id
 
     if isinstance(event, CallServiceEvent):
         return event.payload.data.service_data.get("entity_id", MISSING_VALUE)

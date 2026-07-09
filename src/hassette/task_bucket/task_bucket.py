@@ -238,13 +238,13 @@ class TaskBucket(Resource):
         # submissions stop (fully-starved pool); this check catches the rising-load
         # signal on each new submission.
         try:
-            svc = self.hassette.sync_executor_service
+            executor_service = self.hassette.sync_executor_service
         except RuntimeError:
             # The property raises RuntimeError until wire_services() wires the service
             # (early startup, or unit tests that never construct it).
-            svc = None
-        if svc is not None:
-            svc.track_submission(cast("asyncio.Future[Any]", future))
+            executor_service = None
+        if executor_service is not None:
+            executor_service.track_submission(cast("asyncio.Future[Any]", future))
 
         return future
 

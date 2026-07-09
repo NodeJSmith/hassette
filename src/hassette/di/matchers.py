@@ -70,11 +70,11 @@ class AnnotatedMatcher:
         if not is_annotated_type(annotation):
             return None
 
-        result = get_type_and_details(annotation)
-        if result is None:
+        type_details = get_type_and_details(annotation)
+        if type_details is None:
             return None
 
-        inner_type, metadata = result
+        inner_type, metadata = type_details
 
         if isinstance(metadata, AnnotationDetails):
             details = metadata

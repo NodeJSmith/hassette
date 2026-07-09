@@ -63,23 +63,23 @@ def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
     )
 
 
-def app_manifest_response_from(m: AppManifestInfo) -> AppManifestResponse:
+def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse:
     """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``."""
-    instances = [instance_response_from(inst) for inst in m.instances]
+    instances = [instance_response_from(inst) for inst in manifest.instances]
     return AppManifestResponse(
-        app_key=m.app_key,
-        class_name=m.class_name,
-        display_name=m.display_name,
-        filename=m.filename,
-        enabled=m.enabled,
-        auto_loaded=m.auto_loaded,
-        autostart=m.autostart,
-        status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
-        block_reason=m.block_reason,
-        instance_count=m.instance_count,
+        app_key=manifest.app_key,
+        class_name=manifest.class_name,
+        display_name=manifest.display_name,
+        filename=manifest.filename,
+        enabled=manifest.enabled,
+        auto_loaded=manifest.auto_loaded,
+        autostart=manifest.autostart,
+        status=cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
+        block_reason=manifest.block_reason,
+        instance_count=manifest.instance_count,
         instances=instances,
-        error_message=m.error_message,
-        error_traceback=m.error_traceback,
+        error_message=manifest.error_message,
+        error_traceback=manifest.error_traceback,
     )
 
 
@@ -92,7 +92,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
         stopped=full.stopped,
         disabled=full.disabled,
         blocked=full.blocked,
-        manifests=[app_manifest_response_from(m) for m in full.manifests],
+        manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
         only_app=full.only_app,
     )
 
@@ -105,13 +105,13 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     ]
     services = [
         ServiceInfoResponse(
-            name=svc.name,
-            status=cast("ResourceStatus", svc.status),  # ServiceInfo.status is str
-            role=svc.role,
-            ready_phase=svc.ready_phase,
-            retry_at=svc.retry_at,
+            name=service.name,
+            status=cast("ResourceStatus", service.status),  # ServiceInfo.status is str
+            role=service.role,
+            ready_phase=service.ready_phase,
+            retry_at=service.retry_at,
         )
-        for svc in status.services
+        for service in status.services
     ]
     return SystemStatusResponse(
         status=status.status,
@@ -163,7 +163,7 @@ def listener_kind_from_topic(topic: str) -> ListenerKind:
 
 
 def to_listener_with_summary(
-    ls: ListenerSummary,
+    listener: ListenerSummary,
     live_counts: dict[int, LiveCounts] | None = None,
 ) -> ListenerWithSummary:
     """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
@@ -172,19 +172,19 @@ def to_listener_with_summary(
     ``handler_summary`` string via :func:`~hassette.web.telemetry_helpers.format_handler_summary`.
 
     Args:
-        ls: The persisted listener summary from the telemetry DB.
+        listener: The persisted listener summary from the telemetry DB.
         live_counts: Live execution counts keyed by listener ``db_id``, sourced from the bus's
             in-memory guards. A listener with no live guard (e.g. retired) defaults to
             ``LiveCounts(0, 0, 0)``.
     """
-    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(ls.listener_id, LiveCounts(0, 0, 0))
+    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
     # Every ListenerSummary field has a same-named field on ListenerWithSummary, so
     # from_attributes copies them 1:1. The five fields below have no source attribute
     # (they are computed or sourced from live_counts) and are set via model_copy.
-    return ListenerWithSummary.model_validate(ls, from_attributes=True).model_copy(
+    return ListenerWithSummary.model_validate(listener, from_attributes=True).model_copy(
         update={
-            "listener_kind": listener_kind_from_topic(ls.topic),
-            "handler_summary": format_handler_summary(ls),
+            "listener_kind": listener_kind_from_topic(listener.topic),
+            "handler_summary": format_handler_summary(listener),
             "suppressed_count": suppressed,
             "dropped_count": dropped,
             "backpressure_dropped_count": backpressure_dropped,

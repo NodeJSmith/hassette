@@ -378,18 +378,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         seen: set[int] = set()
         deps: list[Resource] = []
         for dep_type in self.depends_on:
-            matches = [c for c in self.hassette.children if isinstance(c, dep_type)]
+            matches = [child for child in self.hassette.children if isinstance(child, dep_type)]
             if not matches:
                 raise RuntimeError(
                     f"{self.class_name} declares depends_on=[{dep_type.__name__}] "
                     f"but no matching child found in Hassette"
                 )
-            for m in matches:
-                if id(m) not in seen:
-                    seen.add(id(m))
-                    deps.append(m)
+            for match in matches:
+                if id(match) not in seen:
+                    seen.add(id(match))
+                    deps.append(match)
 
-        dep_names = ", ".join(d.class_name for d in deps)
+        dep_names = ", ".join(dep.class_name for dep in deps)
         self.logger.info("Waiting for dependencies: [%s]", dep_names)
 
         ready = await self.hassette.wait_for_ready(deps)
@@ -397,7 +397,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             if self.hassette.shutdown_event.is_set():
                 self.mark_not_ready("shutdown during dependency wait")
                 return
-            status_report = ", ".join(f"{d.class_name}({d.status.value})" for d in deps)
+            status_report = ", ".join(f"{dep.class_name}({dep.status.value})" for dep in deps)
             raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
 
         self.logger.debug("Dependencies satisfied: [%s]", dep_names)

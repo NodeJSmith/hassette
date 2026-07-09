@@ -34,11 +34,11 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
 
     Raises RuntimeError if a different Hassette instance is already set.
     """
-    curr_inst = HASSETTE_INSTANCE.get(None)
-    if curr_inst is hassette:
+    current_instance = HASSETTE_INSTANCE.get(None)
+    if current_instance is hassette:
         return None  # already set to the same instance
 
-    if curr_inst is not None:
+    if current_instance is not None:
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
         raise RuntimeError(f"Hassette instance is already set. {extra_msg}".rstrip())
 

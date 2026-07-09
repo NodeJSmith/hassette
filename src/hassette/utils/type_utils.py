@@ -219,8 +219,8 @@ def make_union(types: set[Any]) -> Any:
             flat.update(get_args(t))
         else:
             # Handle both A|B and typing.Union[...] via get_origin
-            o = get_origin(t)
-            if o is UnionType:
+            origin = get_origin(t)
+            if origin is UnionType:
                 flat.update(get_args(t))
             else:
                 flat.add(t)
@@ -228,13 +228,13 @@ def make_union(types: set[Any]) -> Any:
     # Also flatten typing.Union if any slipped in
     really_flat: set[Any] = set()
     for t in flat:
-        o = get_origin(t)
-        if o is None:
+        origin = get_origin(t)
+        if origin is None:
             really_flat.add(t)
         else:
             # PEP604 unions report origin types.UnionType in 3.10+ via get_origin?
             # But typing.Union reports origin typing.Union.
-            if str(o).endswith("typing.Union"):
+            if str(origin).endswith("typing.Union"):
                 really_flat.update(get_args(t))
             else:
                 really_flat.add(t)

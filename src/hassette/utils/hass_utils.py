@@ -55,9 +55,9 @@ def make_entity_id(entity_id: str, domain: str) -> str:
         ValueError: If the entity_id has a domain prefix that does not match the expected domain.
     """
     if "." in entity_id:
-        d, _ = split_entity_id(entity_id)
-        if d != domain:
-            raise ValueError(f"Entity ID '{entity_id}' has domain '{d}', expected '{domain}'.")
+        entity_domain, _ = split_entity_id(entity_id)
+        if entity_domain != domain:
+            raise ValueError(f"Entity ID '{entity_id}' has domain '{entity_domain}', expected '{domain}'.")
         if not valid_entity_id(entity_id):
             raise ValueError(f"Entity ID '{entity_id}' is not valid.")
         return entity_id
