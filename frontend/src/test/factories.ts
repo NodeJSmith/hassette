@@ -244,47 +244,27 @@ export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse
 }
 
 export function createExecution(kind: "handler" | "job", overrides: Partial<Execution> = {}): Execution {
-  const base: Execution =
+  const kindFields =
     kind === "handler"
-      ? {
-          kind: "handler",
-          listener_id: 1,
-          job_id: null,
-          execution_start_ts: 1700000000,
-          duration_ms: 50,
-          status: "success",
-          source_tier: "app",
-          error_type: null,
-          error_message: null,
-          execution_id: null,
-          trigger_context_id: null,
-          trigger_origin: null,
-          retry_count: 0,
-          attempt_number: 1,
-          args_json: "[]",
-          kwargs_json: "{}",
-          thread_leaked: false,
-        }
-      : {
-          kind: "job",
-          listener_id: null,
-          job_id: 1,
-          execution_start_ts: 1700000000,
-          duration_ms: 75,
-          status: "success",
-          source_tier: "app",
-          error_type: null,
-          error_message: null,
-          execution_id: null,
-          trigger_context_id: null,
-          trigger_origin: null,
-          retry_count: 0,
-          attempt_number: 1,
-          args_json: "[]",
-          kwargs_json: "{}",
-          thread_leaked: false,
-        };
-  return { ...base, ...overrides } satisfies Execution;
+      ? { kind: "handler" as const, listener_id: 1, job_id: null, duration_ms: 50 }
+      : { kind: "job" as const, listener_id: null, job_id: 1, duration_ms: 75 };
+  return {
+    ...kindFields,
+    execution_start_ts: 1700000000,
+    status: "success",
+    source_tier: "app",
+    error_type: null,
+    error_message: null,
+    execution_id: null,
+    trigger_context_id: null,
+    trigger_origin: null,
+    retry_count: 0,
+    attempt_number: 1,
+    args_json: "[]",
+    kwargs_json: "{}",
+    thread_leaked: false,
+    ...overrides,
+  } satisfies Execution;
 }
 
 /**

@@ -5,12 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { createInstance, createListener, createManifest } from "../../test/factories";
+import { withManifests as installManifests } from "../../test/handlers";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { CommandPalette } from "./command-palette";
 
+type AppManifest = components["schemas"]["AppManifestResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
-type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 
 // Mock wouter — factory cannot reference top-level variables (hoisting)
 vi.mock("wouter", () => ({
@@ -28,21 +29,8 @@ function renderPalette(props: { open?: boolean; onClose?: () => void } = {}) {
   return renderWithAppState(<CommandPalette open={props.open ?? true} onClose={props.onClose ?? vi.fn()} />);
 }
 
-function withManifests(manifests: ReturnType<typeof createManifest>[]) {
-  server.use(
-    http.get("/api/apps/manifests", () =>
-      HttpResponse.json<ManifestListResponse>({
-        total: manifests.length,
-        running: manifests.filter((m) => m.status === "running").length,
-        failed: manifests.filter((m) => m.status === "failed").length,
-        stopped: 0,
-        disabled: 0,
-        blocked: 0,
-        manifests,
-        only_app: null,
-      }),
-    ),
-  );
+function withManifests(manifests: AppManifest[]) {
+  installManifests(manifests, server);
 }
 
 describe("CommandPalette — open/close", () => {

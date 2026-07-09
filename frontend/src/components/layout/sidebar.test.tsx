@@ -1,34 +1,19 @@
 import { signal } from "@preact/signals";
 import { fireEvent, screen } from "@testing-library/preact";
-import { http, HttpResponse } from "msw";
 import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { createInstance, createManifest } from "../../test/factories";
+import { withManifests as installManifests } from "../../test/handlers";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { Sidebar } from "./sidebar";
 
-type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
-/** Installs an MSW handler returning the given manifests for the duration of the test. */
 function withManifests(manifests: AppManifest[]) {
-  server.use(
-    http.get("/api/apps/manifests", () =>
-      HttpResponse.json<ManifestListResponse>({
-        total: manifests.length,
-        running: manifests.filter((m) => m.status === "running").length,
-        failed: manifests.filter((m) => m.status === "failed").length,
-        stopped: 0,
-        disabled: 0,
-        blocked: 0,
-        manifests,
-        only_app: null,
-      }),
-    ),
-  );
+  installManifests(manifests, server);
 }
 
 // Mock wouter to control the current location
