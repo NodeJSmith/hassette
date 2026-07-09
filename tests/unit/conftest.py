@@ -1,5 +1,6 @@
 """Shared fixtures for tests/unit/."""
 
+import asyncio
 import collections.abc
 import gc
 import inspect
@@ -20,6 +21,8 @@ import structlog.stdlib
 
 from hassette import context
 from hassette.api.api import Api
+from hassette.config import HassetteConfig
+from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX, SyncExecutorService
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
@@ -31,11 +34,45 @@ from hassette.logging_ import (
 )
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
+from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 
 if TYPE_CHECKING:
     from contextvars import Token
 
     from hassette import Hassette
+
+TEST_TOKEN = "test-token"
+
+
+def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
+    return HassetteConfig(
+        token=TEST_TOKEN,
+        lifecycle={
+            "sync_executor_max_workers": max_workers,
+            "sync_executor_shutdown_timeout_seconds": shutdown_timeout,
+        },
+    )
+
+
+def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
+    config = make_test_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+    mock_hassette = MagicMock()
+    mock_hassette.config = config
+    mock_hassette.task_bucket = MagicMock()
+    mock_hassette.shutdown_event = asyncio.Event()
+    mock_hassette.children = []
+    mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
+    return mock_hassette
+
+
+def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExecutorService:
+    mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+    svc = SyncExecutorService(mock_hassette)
+    svc.executor = InterruptibleThreadPoolExecutor(
+        max_workers=mock_hassette.config.lifecycle.sync_executor_max_workers,
+        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
+    )
+    return svc
 
 
 def make_mock_parent() -> MagicMock:

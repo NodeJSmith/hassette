@@ -14,66 +14,23 @@ Saturation warnings, shutdown-interruption, and config-driven behavior tests liv
 test_sync_executor_service_saturation.py.
 """
 
-import asyncio
 from contextvars import ContextVar
 from typing import ClassVar
-from unittest.mock import MagicMock
 
 import pytest
 
 import hassette.context as ctx_module
-from hassette.config import HassetteConfig
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.sync_executor_service import SYNC_EXECUTOR_THREAD_NAME_PREFIX, SyncExecutorService
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
-
-# Helpers
-
-
-def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
-    """Build a minimal HassetteConfig for unit tests."""
-    return HassetteConfig(
-        token="test-token",
-        lifecycle={
-            "sync_executor_max_workers": max_workers,
-            "sync_executor_shutdown_timeout_seconds": shutdown_timeout,
-        },
-    )
-
-
-def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
-    """Build a mock Hassette configured for SyncExecutorService tests."""
-    config = make_test_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
-    mock_hassette = MagicMock()
-    mock_hassette.config = config
-    mock_hassette.task_bucket = MagicMock()
-    mock_hassette.shutdown_event = asyncio.Event()
-    mock_hassette.children = []
-    mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
-    return mock_hassette
-
-
-def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExecutorService:
-    """Build a SyncExecutorService with executor ready for use.
-
-    Constructs the executor inline (simulating on_initialize) so sync tests
-    can use the service without entering an async context.
-    """
-    mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
-    svc = SyncExecutorService(mock_hassette)
-    svc.executor = InterruptibleThreadPoolExecutor(
-        max_workers=mock_hassette.config.lifecycle.sync_executor_max_workers,
-        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-    )
-    return svc
-
+from tests.unit.conftest import make_service, make_sync_executor_hassette, make_test_config
 
 # Class-level structure tests (no event loop needed)
 

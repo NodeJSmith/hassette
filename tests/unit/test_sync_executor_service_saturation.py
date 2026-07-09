@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import coverage
 import pytest
@@ -38,11 +38,11 @@ from hassette.core.sync_executor_service import (
     _SATURATION_PROBE_INTERVAL_SECS,
     _SATURATION_WARN_RATE_LIMIT_SECS,
     _SATURATION_WARN_THRESHOLD,
-    SYNC_EXECUTOR_THREAD_NAME_PREFIX,
     SyncExecutorService,
 )
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
+from tests.unit.conftest import TEST_TOKEN, make_service, make_sync_executor_hassette
 
 # async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
 # coverage's settrace tracer on Python 3.11. Python 3.12+ trace via sys.monitoring (PEP 669)
@@ -52,47 +52,6 @@ skip_c_blocked_under_coverage_py311 = pytest.mark.skipif(
     sys.version_info < (3, 12) and coverage.Coverage.current() is not None,
     reason="async_raise into a C-blocked worker deadlocks under coverage's settrace tracer on Python 3.11",
 )
-
-# Helpers
-
-
-def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
-    """Build a minimal HassetteConfig for unit tests."""
-    return HassetteConfig(
-        token="test-token",
-        lifecycle={
-            "sync_executor_max_workers": max_workers,
-            "sync_executor_shutdown_timeout_seconds": shutdown_timeout,
-        },
-    )
-
-
-def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
-    """Build a mock Hassette configured for SyncExecutorService tests."""
-    config = make_test_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
-    mock_hassette = MagicMock()
-    mock_hassette.config = config
-    mock_hassette.task_bucket = MagicMock()
-    mock_hassette.shutdown_event = asyncio.Event()
-    mock_hassette.children = []
-    mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
-    return mock_hassette
-
-
-def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExecutorService:
-    """Build a SyncExecutorService with executor ready for use.
-
-    Constructs the executor inline (simulating on_initialize) so sync tests
-    can use the service without entering an async context.
-    """
-    mock_hassette = make_sync_executor_hassette(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
-    svc = SyncExecutorService(mock_hassette)
-    svc.executor = InterruptibleThreadPoolExecutor(
-        max_workers=mock_hassette.config.lifecycle.sync_executor_max_workers,
-        thread_name_prefix=SYNC_EXECUTOR_THREAD_NAME_PREFIX,
-    )
-    return svc
-
 
 # on_shutdown uses configured budget
 
@@ -646,7 +605,7 @@ class TestConfigBehavior:
 
     def test_default_max_workers_is_reasonable(self) -> None:
         """Default max_workers is min(32, cpu_count + 4) — a reasonable pool ceiling."""
-        config = HassetteConfig(token="test-token")
+        config = HassetteConfig(token=TEST_TOKEN)
         expected = min(32, (os.cpu_count() or 1) + 4)
         assert config.lifecycle.sync_executor_max_workers == expected
 
@@ -672,14 +631,14 @@ class TestConfigBehavior:
 
     def test_default_shutdown_timeout_is_10s(self) -> None:
         """Default sync_executor_shutdown_timeout_seconds is 10.0 (HA's value)."""
-        config = HassetteConfig(token="test-token")
+        config = HassetteConfig(token=TEST_TOKEN)
         assert config.lifecycle.sync_executor_shutdown_timeout_seconds == 10.0
 
     def test_validator_rejects_shutdown_timeout_gte_total(self) -> None:
         """sync_executor_shutdown_timeout_seconds >= total_shutdown_timeout_seconds is rejected."""
         with pytest.raises(ValidationError, match="sync_executor_shutdown_timeout_seconds"):
             HassetteConfig(
-                token="test-token",
+                token=TEST_TOKEN,
                 lifecycle={
                     "sync_executor_shutdown_timeout_seconds": 30.0,
                     "total_shutdown_timeout_seconds": 30,  # equal — must be rejected
