@@ -140,7 +140,7 @@ class WebsocketService(Service):
         return self._connection_state
 
     @property
-    def ever_connected(self) -> bool:
+    def has_ever_connected(self) -> bool:
         """True once the connection has reached CONNECTED at least once; never reverts."""
         return self._ever_connected
 
@@ -209,7 +209,7 @@ class WebsocketService(Service):
         return self.hassette.config.websocket.cleanup_timeout_seconds
 
     @property
-    def connected(self) -> bool:
+    def is_connected(self) -> bool:
         return self._connection_state == ConnectionState.CONNECTED
 
     def get_next_message_id(self) -> int:
@@ -351,7 +351,7 @@ class WebsocketService(Service):
         recv_task = self.task_bucket.spawn(self.recv_loop(), name="ws:recv")
         self._recv_task = recv_task
 
-        # CONNECTED before subscribe — send_json() gates on self.connected
+        # CONNECTED before subscribe — send_json() gates on self.is_connected
         self.set_connection_state(ConnectionState.CONNECTED)
 
         await self.send_connection_established_event()
@@ -612,10 +612,10 @@ class WebsocketService(Service):
     async def send_json(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)
 
-        if not self.connected:
+        if not self.is_connected:
             raise ConnectionClosedError("WebSocket connection is not established")
 
-        # this should never be an issue because self.connected checks for this already
+        # this should never be an issue because self.is_connected checks for this already
         assert self._ws is not None, "WebSocket must be initialized before sending messages"
 
         if "id" not in data:

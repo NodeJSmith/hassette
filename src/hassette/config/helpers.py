@@ -1,9 +1,9 @@
-import logging
 import os
 import sys
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from importlib.metadata import version
+from logging import getLogger
 from pathlib import Path
 from typing import cast, get_args
 
@@ -19,6 +19,8 @@ LOG_LEVEL_VALUES = get_args(LOG_LEVEL_TYPE)
 PACKAGE_KEY = "hassette"
 VERSION = Version(version(PACKAGE_KEY))
 
+LOGGER = getLogger(__name__)
+
 
 def get_dev_mode() -> bool:
     """Check if developer mode should be enabled.
@@ -29,8 +31,6 @@ def get_dev_mode() -> bool:
     with suppress(HassetteNotInitializedError):
         curr_config = context.get_hassette_config()
         return curr_config.dev_mode
-
-    logger = logging.getLogger(__name__)
 
     enabled = False
     reason = None
@@ -46,8 +46,8 @@ def get_dev_mode() -> bool:
         reason = "python -X dev"
 
     if enabled:
-        logger.setLevel(get_log_level())
-        logger.info("Developer mode enabled (%s)", reason)
+        LOGGER.setLevel(get_log_level())
+        LOGGER.info("Developer mode enabled (%s)", reason)
 
     return enabled
 
@@ -107,9 +107,6 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     paths = set(p for p in paths if p.exists())
 
     return paths
-
-
-LOGGER = logging.getLogger(__name__)
 
 
 def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:

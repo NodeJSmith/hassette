@@ -189,32 +189,32 @@ class TestWebsocketReadinessEvents:
         assert "connected" in payload.ready_phase.lower()
 
 
-class TestEverConnectedLatch:
-    """ever_connected latch starts False, flips True on CONNECTED, stays True after disconnect."""
+class TestHasEverConnectedLatch:
+    """has_ever_connected latch starts False, flips True on CONNECTED, stays True after disconnect."""
 
-    def test_ever_connected_starts_false(self, websocket_service: WebsocketService) -> None:
-        """ever_connected is False before any connection transition."""
-        assert websocket_service.ever_connected is False
+    def test_has_ever_connected_starts_false(self, websocket_service: WebsocketService) -> None:
+        """has_ever_connected is False before any connection transition."""
+        assert websocket_service.has_ever_connected is False
 
-    def test_ever_connected_becomes_true_after_connected_transition(
+    def test_has_ever_connected_becomes_true_after_connected_transition(
         self,
         websocket_service: WebsocketService,
     ) -> None:
-        """ever_connected flips True when set_connection_state transitions to CONNECTED."""
+        """has_ever_connected flips True when set_connection_state transitions to CONNECTED."""
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        assert websocket_service.ever_connected is False  # not yet
+        assert websocket_service.has_ever_connected is False  # not yet
 
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
-        assert websocket_service.ever_connected is True
+        assert websocket_service.has_ever_connected is True
 
-    def test_ever_connected_stays_true_after_disconnect(
+    def test_has_ever_connected_stays_true_after_disconnect(
         self,
         websocket_service: WebsocketService,
     ) -> None:
-        """ever_connected remains True after a subsequent disconnect (one-way latch)."""
+        """has_ever_connected remains True after a subsequent disconnect (one-way latch)."""
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
-        assert websocket_service.ever_connected is True
+        assert websocket_service.has_ever_connected is True
 
         websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
-        assert websocket_service.ever_connected is True  # latch does not revert
+        assert websocket_service.has_ever_connected is True  # latch does not revert

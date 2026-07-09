@@ -1,9 +1,9 @@
 import contextlib
 import json
-import logging
 import os
 import random
 import typing
+from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,7 +14,7 @@ from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable

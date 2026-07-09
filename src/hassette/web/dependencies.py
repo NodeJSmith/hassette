@@ -1,9 +1,8 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from logging import getLogger
+from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, getLogger
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Query, Request
@@ -66,11 +65,11 @@ def db_degrades_to(response: Response) -> Iterator[None]:
 
 
 LOG_LEVELS: dict[str, int] = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
+    "DEBUG": DEBUG,
+    "INFO": INFO,
+    "WARNING": WARNING,
+    "ERROR": ERROR,
+    "CRITICAL": CRITICAL,
 }
 
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)

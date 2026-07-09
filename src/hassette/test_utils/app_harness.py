@@ -16,11 +16,11 @@ See design/specs/025-end-user-test-utils/design.md for architecture details.
 """
 
 import inspect
-import logging
 import re
 import shutil
 import tempfile
 from contextlib import AsyncExitStack
+from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock
@@ -49,7 +49,7 @@ from hassette.test_utils.simulation import SimulationMixin
 from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 EPOCH_TIMESTAMP = "1970-01-01T00:00:00+00:00"
 
 

@@ -42,22 +42,22 @@ async def test_get_next_message_id_increments(websocket_service: WebsocketServic
     assert second_id == 2, "Expected counter to increment by one"
 
 
-async def test_connected_reflects_websocket_state(websocket_service: WebsocketService) -> None:
-    """Verify the connected property mirrors the connection state machine."""
+async def test_is_connected_reflects_websocket_state(websocket_service: WebsocketService) -> None:
+    """Verify the is_connected property mirrors the connection state machine."""
 
-    assert websocket_service.connected is False
+    assert websocket_service.is_connected is False
 
     # CONNECTED state → connected
     websocket_service._connection_state = ConnectionState.CONNECTED
-    assert websocket_service.connected is True
+    assert websocket_service.is_connected is True
 
     # CONNECTING state → not connected
     websocket_service._connection_state = ConnectionState.CONNECTING
-    assert websocket_service.connected is False
+    assert websocket_service.is_connected is False
 
     # DISCONNECTED state → not connected
     websocket_service._connection_state = ConnectionState.DISCONNECTED
-    assert websocket_service.connected is False
+    assert websocket_service.is_connected is False
 
 
 async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:

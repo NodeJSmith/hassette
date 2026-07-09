@@ -284,7 +284,7 @@ class RuntimeQueryService(Resource):
 
         if ws_connected:
             status = "ok"
-        elif ws.ever_connected:
+        elif ws.has_ever_connected:
             status = "degraded"
         else:
             status = "starting"

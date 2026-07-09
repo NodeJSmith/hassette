@@ -1,10 +1,9 @@
 import asyncio
-import logging as _logging
 import typing
 import uuid
 from contextlib import suppress
 from functools import cached_property
-from logging import INFO, Logger, getLogger
+from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
 from diskcache import Cache
@@ -70,14 +69,14 @@ class FinalMeta(type):
                 raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)
 
 
-class _ResourceContextFilter(_logging.Filter):
+class _ResourceContextFilter(Filter):
     """Stamps source_tier on every LogRecord so downstream handlers and structlog processors can read it."""
 
     def __init__(self, source_tier: str) -> None:
         super().__init__()
         self.source_tier = source_tier
 
-    def filter(self, record: _logging.LogRecord) -> bool:
+    def filter(self, record: LogRecord) -> bool:
         record.source_tier = self.source_tier  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
