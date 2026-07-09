@@ -22,6 +22,18 @@ from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
 
 
+def make_call_counts() -> dict[str, int]:
+    """Fresh cancel/start counters for get_dummy_service."""
+    return {"cancel": 0, "start": 0}
+
+
+def make_fast_spec(**overrides: object) -> RestartSpec:
+    """RestartSpec with zero backoff for test speed. Override any field via kwargs."""
+    defaults: dict[str, object] = {"backoff_base_seconds": 0}
+    defaults.update(overrides)
+    return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
+
+
 @pytest.fixture
 async def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
@@ -92,17 +104,12 @@ def get_dummy_service(
 
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: ServiceWatcher):
     """Restarting a failed service cancels and reinitializes it."""
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
     dummy_service = get_dummy_service(
         call_counts,
         get_service_watcher_mock.hassette,
-        restart_spec=RestartSpec(
-            restart_type=RestartType.TRANSIENT,
-            backoff_base_seconds=0,
-            budget_intensity=5,
-            budget_period_seconds=300,
-        ),
+        restart_spec=make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5),
     )
     get_service_watcher_mock.hassette.children.append(dummy_service)
 
@@ -124,15 +131,10 @@ async def test_always_failing_service_stops_after_max_attempts(get_service_watch
     """A service that always fails on restart stops being restarted after budget exhaustion."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
     # budget_intensity=3 means 3 restarts before exhaustion
-    spec = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=3,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.PERMANENT, budget_intensity=3)
     dummy_service = get_dummy_service(call_counts, hassette, fail=True, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -160,14 +162,9 @@ async def test_crashed_event_emitted_before_shutdown(get_service_watcher_mock: S
     """When budget is exhausted for PERMANENT service, a CRASHED event is emitted before shutdown."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=1,  # exhaust on first restart
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.PERMANENT, budget_intensity=1)
     dummy_service = get_dummy_service(call_counts, hassette, fail=True, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -198,12 +195,11 @@ async def test_crashed_event_emitted_before_shutdown(get_service_watcher_mock: S
 async def test_exponential_backoff(get_service_watcher_mock: ServiceWatcher):
     """Backoff delay increases exponentially between restart attempts (using shutdown-safe sleep)."""
     watcher = get_service_watcher_mock
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=10,
-        budget_period_seconds=300,
         backoff_base_seconds=1.0,
         backoff_multiplier=2.0,
         backoff_max_seconds=60.0,
@@ -232,15 +228,9 @@ async def test_exponential_backoff(get_service_watcher_mock: ServiceWatcher):
 async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher):
     """Budget resets when a service transitions to RUNNING and becomes ready."""
     watcher = get_service_watcher_mock
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-        startup_timeout_seconds=1.0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0)
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True, restart_spec=spec)
     watcher.hassette.children.append(dummy_service)
 
@@ -267,14 +257,9 @@ async def test_permanent_exhaustion_triggers_shutdown(get_service_watcher_mock: 
     """PERMANENT service: exhausting budget triggers hassette.shutdown()."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=2,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.PERMANENT, budget_intensity=2)
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -302,13 +287,8 @@ async def test_permanent_exhaustion_records_fatal_reason(get_service_watcher_moc
     hassette = watcher.hassette
     assert hassette._fatal_shutdown_reason is None
 
-    spec = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=2,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
-    dummy_service = get_dummy_service({"cancel": 0, "start": 0}, hassette, restart_spec=spec)
+    spec = make_fast_spec(restart_type=RestartType.PERMANENT, budget_intensity=2)
+    dummy_service = get_dummy_service(make_call_counts(), hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
@@ -326,14 +306,12 @@ async def test_fatal_error_records_fatal_reason(get_service_watcher_mock: Servic
     hassette = watcher.hassette
     assert hassette._fatal_shutdown_reason is None
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
         fatal_error_names=("RuntimeError",),
     )
-    dummy_service = get_dummy_service({"cancel": 0, "start": 0}, hassette, restart_spec=spec)
+    dummy_service = get_dummy_service(make_call_counts(), hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service, exception=RuntimeError("boom"))
@@ -347,13 +325,11 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     """TRANSIENT service: exhausting budget emits EXHAUSTED_COOLING and schedules cooldown task."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=2,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
         cooldown_seconds=999,  # long cooldown so we can verify the task is created
     )
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
@@ -398,14 +374,9 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
     """TEMPORARY service: exhausting budget emits EXHAUSTED_DEAD, no further restarts."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TEMPORARY,
-        budget_intensity=2,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TEMPORARY, budget_intensity=2)
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -438,14 +409,12 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
     """Service with fatal_error_names: matching exception triggers immediate shutdown, no restart."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         fatal_error_names=("FatalDbError", "SchemaVersionError"),
         budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
     )
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
@@ -494,14 +463,12 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
     """Service with non_retryable_error_names: matching exception skips restart, goes to exhaustion."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TEMPORARY,
         non_retryable_error_names=("NonRetryableError",),
         budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
     )
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
@@ -544,14 +511,9 @@ async def test_in_restart_guard_prevents_double_budget(get_service_watcher_mock:
     """Two FAILED events while restart is in progress only record one budget entry."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=10,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=10)
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -579,12 +541,11 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(get_service_watcher_mock: 
     """Backoff sleep aborts early when shutdown_event is set."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=10,
-        budget_period_seconds=300,
         backoff_base_seconds=5.0,  # real backoff that would be interrupted
         backoff_multiplier=1.0,
     )
@@ -608,15 +569,9 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(get_service_watcher_mock: 
 async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: ServiceWatcher):
     """Budget resets when service reaches RUNNING and signals readiness."""
     watcher = get_service_watcher_mock
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-        startup_timeout_seconds=1.0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0)
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True, restart_spec=spec)
     watcher.hassette.children.append(dummy_service)
 
@@ -643,15 +598,9 @@ async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: Serv
 async def test_readiness_timeout_no_budget_impact(get_service_watcher_mock: ServiceWatcher):
     """Readiness timeout after RUNNING does NOT increment restart budget."""
     watcher = get_service_watcher_mock
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-        startup_timeout_seconds=0.05,  # very short timeout
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=0.05)
     dummy_service = get_dummy_service(call_counts, watcher.hassette, fail=True, restart_spec=spec)
     watcher.hassette.children.append(dummy_service)
 
@@ -682,13 +631,11 @@ async def test_cooldown_then_recovery(get_service_watcher_mock: ServiceWatcher):
     """TRANSIENT exhaustion → cooldown completes → budget reset → restart attempted."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=1,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
         cooldown_seconds=0.05,  # very short cooldown for test speed
     )
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
@@ -721,13 +668,11 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
     """TRANSIENT with max_cooldown_cycles=1: second exhaustion → EXHAUSTED_DEAD."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
+    spec = make_fast_spec(
         restart_type=RestartType.TRANSIENT,
         budget_intensity=1,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
         cooldown_seconds=0.01,
         max_cooldown_cycles=1,
     )
@@ -763,15 +708,10 @@ async def test_concurrent_failures_independent_budgets(get_service_watcher_mock:
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
 
-    counts_a = {"cancel": 0, "start": 0}
-    counts_b = {"cancel": 0, "start": 0}
+    counts_a = make_call_counts()
+    counts_b = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
 
     class _DummyA(Service):
         restart_spec: ClassVar[RestartSpec] = spec
@@ -829,14 +769,9 @@ async def test_restart_exception_caught_no_double_count(get_service_watcher_mock
     """service.restart() raises → exception caught and logged, budget not double-counted."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=10,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=10)
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 
@@ -866,14 +801,9 @@ async def test_bus_recovery_reconciliation(get_service_watcher_mock: ServiceWatc
     """BusService restarts, another service is in FAILED state during blind window → reconciliation picks it up."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
-    call_counts = {"cancel": 0, "start": 0}
+    call_counts = make_call_counts()
 
-    spec = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        backoff_base_seconds=0,
-    )
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
     dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
     hassette.children.append(dummy_service)
 

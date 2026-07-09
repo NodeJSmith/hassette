@@ -59,7 +59,7 @@ async def test_exhausted_cooling_sets_status_on_instance():
             role=service.role,
             key=f"{service.class_name}:{service.role}",
             spec=spec,
-            original_data=payload,
+            status_payload=payload,
         )
 
     # Close captured coroutines to avoid "coroutine was never awaited" warnings
@@ -87,7 +87,7 @@ async def test_exhausted_dead_sets_status_on_instance():
         role=service.role,
         key=f"{service.class_name}:{service.role}",
         spec=spec,
-        original_data=payload,
+        status_payload=payload,
     )
 
     assert service.status == ResourceStatus.EXHAUSTED_DEAD, (
@@ -149,7 +149,7 @@ async def test_exhausted_status_skipped_when_service_not_found():
         role=ResourceRole.SERVICE,
         key="NonExistentService:service",
         spec=spec,
-        original_data=payload,
+        status_payload=payload,
     )
 
     hassette.send_event.assert_called()
