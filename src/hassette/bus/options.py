@@ -7,11 +7,10 @@ reference ``Unpack[Options]`` at runtime — keeping ``Options`` here breaks the
 cycle.
 """
 
-from typing import Literal
-
 from typing_extensions import TypedDict
 
 from hassette.types.enums import BackpressurePolicy, ExecutionMode
+from hassette.types.types import IfExistsPolicy
 
 
 class Options(TypedDict, total=False):
@@ -49,7 +48,7 @@ class Options(TypedDict, total=False):
     ``"block"``, so existing listeners see no behavior change.
     """
 
-    if_exists: Literal["error", "skip", "replace"]
+    if_exists: IfExistsPolicy
     """Behavior when a listener with the same natural key ``(app_key, instance_index, name, topic)`` already exists.
 
     ``"error"`` (default) raises ``DuplicateListenerError``.

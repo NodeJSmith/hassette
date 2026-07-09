@@ -93,7 +93,7 @@ import logging
 import typing
 from collections.abc import Coroutine, Mapping
 from functools import partial
-from typing import Any, Literal, Unpack
+from typing import Any, Unpack
 
 from typing_extensions import Sentinel
 
@@ -105,7 +105,7 @@ from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredErro
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
@@ -223,7 +223,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
         """Add a pre-built listener to the bus.
 
@@ -265,7 +265,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Listener | None":
         """Resolve a potential registration collision using the if_exists policy.
 
@@ -327,7 +327,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"],
+        if_exists: IfExistsPolicy,
     ) -> Subscription:
         """Resolve a collision then register the listener, returning its Subscription.
 
@@ -441,7 +441,7 @@ class Bus(Resource):
         backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -538,7 +538,7 @@ class Bus(Resource):
         backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         duration_config: "DurationConfig | None" = None,
         source_location: str = "",
         registration_source: str | None = None,

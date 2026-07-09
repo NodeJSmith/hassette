@@ -76,7 +76,7 @@ from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
 from hassette.resources.base import Resource
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
@@ -175,7 +175,7 @@ class Scheduler(Resource):
         return self.hassette.config.logging.scheduler_service
 
     def add_job(
-        self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"
+        self, job: "ScheduledJob", *, if_exists: IfExistsPolicy = "error"
     ) -> "Coroutine[Any, Any, ScheduledJob]":
         """Add a job to the scheduler.
 
@@ -229,7 +229,7 @@ class Scheduler(Resource):
         self,
         job: "ScheduledJob",
         *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         source_location: str = "",
         registration_source: str = "",
     ) -> "ScheduledJob":
@@ -373,7 +373,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -514,7 +514,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -579,7 +579,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -650,7 +650,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -716,7 +716,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -782,7 +782,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -848,7 +848,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -915,7 +915,7 @@ class Scheduler(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,

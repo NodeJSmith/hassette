@@ -371,8 +371,8 @@ class RegistryValidationError(HassetteError):
 
     def __init__(self, issues: list[Any]) -> None:
         self.issues = issues
-        error_count = sum(1 for i in issues if getattr(i, "severity", None) == "error")
-        warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
+        error_count = sum(1 for i in issues if i.severity == "error")
+        warning_count = sum(1 for i in issues if i.severity == "warning")
         total = len(issues)
         summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
         summary_lines.extend(

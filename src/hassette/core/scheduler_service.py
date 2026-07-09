@@ -20,11 +20,11 @@ from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
+from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.error_context import SchedulerErrorContext
-from hassette.types.enums import ExecutionMode, RestartType
+from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_stable_name
 from hassette.utils.serialization import safe_json_serialize
@@ -41,11 +41,7 @@ class SchedulerService(Service):
     """Service that manages scheduled jobs."""
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=2,
-        budget_period_seconds=30,
-    )
+    restart_spec = CORE_PERMANENT_RESTART
 
     _job_queue: "_ScheduledJobQueue"
     """Queue of scheduled jobs."""

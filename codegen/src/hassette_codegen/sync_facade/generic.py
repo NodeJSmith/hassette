@@ -105,7 +105,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, Literal, Unpack
+from typing import Any, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -113,7 +113,7 @@ from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -170,7 +170,7 @@ from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import ScheduledJob
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence

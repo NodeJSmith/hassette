@@ -5,12 +5,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from hassette.web.dependencies import TelemetryDep, db_degrades_to
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, TelemetryDep, db_degrades_to
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
 router = APIRouter(tags=["logs"])
-
-_VALID_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 _VALID_SOURCE_TIERS = frozenset({"app", "framework"})
 
 
@@ -28,9 +26,10 @@ async def get_logs(
     """Return recent log records from the database with optional filtering."""
     if level is not None:
         level = level.upper()
-        if level not in _VALID_LEVELS:
+        if level not in VALID_LOG_LEVEL_NAMES:
             raise HTTPException(
-                status_code=422, detail=f"Invalid level {level!r}. Must be one of: {', '.join(sorted(_VALID_LEVELS))}"
+                status_code=422,
+                detail=f"Invalid level {level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
             )
     if source_tier is not None:
         source_tier = source_tier.lower()
@@ -64,10 +63,10 @@ async def set_log_level(
     if not body.logger:
         raise HTTPException(status_code=422, detail="logger name must not be empty")
     level_upper = body.level.upper()
-    if level_upper not in _VALID_LEVELS:
+    if level_upper not in VALID_LOG_LEVEL_NAMES:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(_VALID_LEVELS))}",
+            detail=f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
         )
     target_logger = logging.getLogger(body.logger)
     target_logger.setLevel(level_upper)

@@ -326,9 +326,7 @@ class TelemetryRepository:
 
         row = await cursor.fetchone()
         await db.commit()
-        if row is None:
-            raise RuntimeError("RETURNING id returned no row after INSERT INTO listeners — this should never happen")
-        return row[0]
+        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
         """Upsert a scheduled job registration into the scheduled_jobs table.
@@ -413,9 +411,7 @@ class TelemetryRepository:
         )
         row = await cursor.fetchone()
         await db.commit()
-        if row is None:
-            raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
-        return row[0]
+        return row[0]  # pyright: ignore[reportOptionalSubscript] — RETURNING always yields one row
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Set ``cancelled_at`` to the current epoch time for the given job row.

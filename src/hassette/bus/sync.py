@@ -7,7 +7,7 @@ It is generated from `bus.Bus` by `codegen/src/hassette_codegen/sync_facade/`.
 
 import typing
 from collections.abc import Mapping
-from typing import Any, Literal, Unpack
+from typing import Any, Unpack
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -15,7 +15,7 @@ from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -51,9 +51,7 @@ class BusSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.bus_service
 
-    def add_listener(
-        self, listener: "Listener", *, if_exists: Literal["error", "skip", "replace"] = "error"
-    ) -> Subscription:
+    def add_listener(self, listener: "Listener", *, if_exists: IfExistsPolicy = "error") -> Subscription:
         """Add a pre-built listener to the bus.
 
         This is the direct entry point for callers that construct a ``Listener``
@@ -102,7 +100,7 @@ class BusSyncFacade(Resource):
         backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 

@@ -8,18 +8,11 @@ import anyio
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from hassette.web.dependencies import LOG_LEVELS
 from hassette.web.mappers import connected_payload_from
 
 router = APIRouter(tags=["websocket"])
 LOGGER = logging.getLogger(__name__)
-
-_LOG_LEVELS: dict[str, int] = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
-}
 
 # Exception types that indicate a normal client disconnect.
 _DISCONNECT_ERRORS = (
@@ -57,7 +50,7 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
                 ws_state["subscribe_logs"] = sub_data.get("logs", False)
                 raw_level = sub_data.get("min_log_level", "INFO")
                 level = raw_level.upper() if isinstance(raw_level, str) else "INFO"
-                ws_state["min_log_level"] = level if level in _LOG_LEVELS else "INFO"
+                ws_state["min_log_level"] = level if level in LOG_LEVELS else "INFO"
     except Exception as exc:
         if _is_disconnect(exc):
             return
@@ -76,8 +69,8 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             if message.get("type") == "log":
                 if not ws_state.get("subscribe_logs", False):
                     continue
-                msg_level = _LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
-                min_level = _LOG_LEVELS.get(ws_state.get("min_log_level", "INFO"), 20)
+                msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
+                min_level = LOG_LEVELS.get(ws_state.get("min_log_level", "INFO"), LOG_LEVELS["INFO"])
                 if msg_level < min_level:
                     continue
             await websocket.send_json(message)

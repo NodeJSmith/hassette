@@ -13,7 +13,7 @@ from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import ScheduledJob
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -48,7 +48,7 @@ class SchedulerSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.scheduler_service
 
-    def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error") -> ScheduledJob:
+    def add_job(self, job: "ScheduledJob", *, if_exists: IfExistsPolicy = "error") -> ScheduledJob:
         """Add a job to the scheduler.
 
         Scheduling completes before the call returns.
@@ -91,7 +91,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -186,7 +186,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -250,7 +250,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -321,7 +321,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -388,7 +388,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -451,7 +451,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -514,7 +514,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,
@@ -580,7 +580,7 @@ class SchedulerSyncFacade(Resource):
         *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
         where: "SchedulerPredicate | Sequence[SchedulerPredicate] | None" = None,

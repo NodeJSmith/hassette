@@ -1,5 +1,6 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from logging import getLogger
@@ -63,6 +64,16 @@ def db_degrades_to(response: Response) -> Iterator[None]:
         LOGGER.warning("DB query failed; degrading to 503", exc_info=True)
         response.status_code = 503
 
+
+LOG_LEVELS: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 
 SOURCE_TIER_PARAM = Query(
     default="app",

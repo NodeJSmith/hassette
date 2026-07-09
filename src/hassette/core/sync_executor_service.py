@@ -17,10 +17,9 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
+from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
-from hassette.types.enums import RestartType
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -65,11 +64,7 @@ class SyncExecutorService(Service):
     """
 
     depends_on: ClassVar[list[type[Resource]]] = []
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=2,
-        budget_period_seconds=30,
-    )
+    restart_spec = CORE_PERMANENT_RESTART
 
     executor: InterruptibleThreadPoolExecutor
     """The dedicated thread-pool executor for all sync user code."""
