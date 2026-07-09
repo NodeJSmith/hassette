@@ -711,10 +711,6 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     assert not handler_fired, "Handler should not fire after rate limiter cancellation"
 
 
-# test_cancel_before_add_task_completes_* tests deleted — the add-before-cancel race they
-# guarded is eliminated by sync routing. See test_bus_ordering.py cancel-then-add tests for the replacement.
-
-
 async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
     """on_state_change(immediate=True) registers successfully and sets field on listener."""
 

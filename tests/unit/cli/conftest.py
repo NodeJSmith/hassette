@@ -63,8 +63,6 @@ class MockTransportBuilder:
 
     def __init__(self) -> None:
         self._routes: list[tuple[str, str, int, Any]] = []
-        self._default_status = 200
-        self._default_body: Any = {}
 
     def add(self, method: str, path_fragment: str, status: int, body: Any) -> "MockTransportBuilder":
         """Register a mock response for requests whose URL contains ``path_fragment``.
@@ -143,9 +141,3 @@ def cli_client_factory() -> CLIClientFactory:
             # call command with client
     """
     return CLIClientFactory()
-
-
-@pytest.fixture
-def mock_transport_builder() -> MockTransportBuilder:
-    """Provide a fresh MockTransportBuilder for registering mock routes."""
-    return MockTransportBuilder()

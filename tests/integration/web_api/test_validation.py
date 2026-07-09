@@ -344,8 +344,6 @@ class TestLimitParameterValidation:
         response = await client.get("/api/logs/recent?limit=2000")
         assert response.status_code == 200
 
-    # Skipped — covered by TestTelemetrySessionsEndpoint.test_sessions_endpoint_limit_parameter
-
     async def test_listener_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/telemetry/listener/1/executions?limit=0")
         assert response.status_code == 422

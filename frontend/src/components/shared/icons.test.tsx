@@ -1,44 +1,9 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it } from "vitest";
 
-import {
-  IconBell,
-  IconBoxes,
-  IconCheck,
-  IconClock,
-  IconDashboard,
-  IconHistory,
-  IconInfo,
-  IconLayers,
-  IconPlay,
-  IconRefresh,
-  IconScroll,
-  IconScrollText,
-  IconSquare,
-  IconWarning,
-} from "./icons";
+import { IconPlay, IconRefresh, IconSquare, IconWarning } from "./icons";
 
 describe("Icons smoke tests", () => {
-  it("IconLayers renders an SVG element", () => {
-    const { container } = render(<IconLayers />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconBell renders an SVG element", () => {
-    const { container } = render(<IconBell />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconClock renders an SVG element", () => {
-    const { container } = render(<IconClock />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconScroll renders an SVG element", () => {
-    const { container } = render(<IconScroll />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
   it("IconPlay renders an SVG element", () => {
     const { container } = render(<IconPlay />);
     expect(container.querySelector("svg")).not.toBeNull();
@@ -59,53 +24,8 @@ describe("Icons smoke tests", () => {
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
-  it("IconInfo renders an SVG element", () => {
-    const { container } = render(<IconInfo />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconCheck renders an SVG element", () => {
-    const { container } = render(<IconCheck />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconDashboard renders an SVG element", () => {
-    const { container } = render(<IconDashboard />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconBoxes renders an SVG element", () => {
-    const { container } = render(<IconBoxes />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconHistory renders an SVG element", () => {
-    const { container } = render(<IconHistory />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
-  it("IconScrollText renders an SVG element", () => {
-    const { container } = render(<IconScrollText />);
-    expect(container.querySelector("svg")).not.toBeNull();
-  });
-
   it("all icons have the iconSvg module class", () => {
-    const icons = [
-      IconLayers,
-      IconBell,
-      IconClock,
-      IconScroll,
-      IconPlay,
-      IconSquare,
-      IconRefresh,
-      IconWarning,
-      IconInfo,
-      IconCheck,
-      IconDashboard,
-      IconBoxes,
-      IconHistory,
-      IconScrollText,
-    ];
+    const icons = [IconPlay, IconSquare, IconRefresh, IconWarning];
     for (const Icon of icons) {
       const { container } = render(<Icon />);
       const svg = container.querySelector("svg");
@@ -115,22 +35,7 @@ describe("Icons smoke tests", () => {
   });
 
   it("all icons have aria-hidden='true'", () => {
-    const icons = [
-      IconLayers,
-      IconBell,
-      IconClock,
-      IconScroll,
-      IconPlay,
-      IconSquare,
-      IconRefresh,
-      IconWarning,
-      IconInfo,
-      IconCheck,
-      IconDashboard,
-      IconBoxes,
-      IconHistory,
-      IconScrollText,
-    ];
+    const icons = [IconPlay, IconSquare, IconRefresh, IconWarning];
     for (const Icon of icons) {
       const { container } = render(<Icon />);
       const svg = container.querySelector("svg");

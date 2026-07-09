@@ -102,8 +102,8 @@ class FailedMessageError(HassetteError):
                 "vacation_mode",
                 UpdateInputBooleanParams(initial=False),
             )
-        except FailedMessageError as e:
-            if e.code == "not_found":
+        except FailedMessageError as exc:
+            if exc.code == "not_found":
                 # Helper was deleted between list and update — recreate it
                 ...
 

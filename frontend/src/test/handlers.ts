@@ -11,8 +11,6 @@ import { http, HttpResponse } from "msw";
 import type { components } from "../api/generated-types";
 import { createSystemConfig } from "./factories";
 
-// ---- Type aliases (keep in sync with endpoints.ts) ----
-
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
@@ -27,8 +25,6 @@ type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
-
-// ---- Default handlers ----
 
 export const handlers = [
   // GET /api/apps/manifests

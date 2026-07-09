@@ -43,10 +43,6 @@ function renderTableRow(row: UnifiedRow) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// HandlerTableRow
-// ---------------------------------------------------------------------------
-
 describe("HandlerTableRow", () => {
   it("renders kind badge 'event' for listener kind", () => {
     const { getByText } = renderTableRow(createRow({ kind: "listener" }));
@@ -180,10 +176,6 @@ describe("HandlerTableRow", () => {
     expect(getByTestId("job-row-job/10")).toBeDefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// HandlerMobileRow
-// ---------------------------------------------------------------------------
 
 describe("HandlerMobileRow", () => {
   function renderMobileRow(row: UnifiedRow) {

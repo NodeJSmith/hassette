@@ -697,7 +697,6 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
     best-effort by design.
     """
     cancelled_count = [0]
-    completed_count = [0]
     first_started = asyncio.Event()
     cancelled_in_execute = [0]  # counts CancelledError exits from execute() callable
 
@@ -709,7 +708,6 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
             first_started.set()
             try:
                 await asyncio.sleep(100)  # will be cancelled
-                completed_count[0] += 1
             except asyncio.CancelledError:
                 cancelled_count[0] += 1
                 raise

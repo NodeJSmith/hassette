@@ -11,8 +11,6 @@ vi.mock("./execution-logs", () => ({
 }));
 
 describe("ExecutionTable", () => {
-  // ── Empty states ──
-
   it("renders handler empty state when records are empty", () => {
     const { getByText } = render(<ExecutionTable records={[]} kind="handler" tableId="invocation-table-1" />);
     expect(getByText("no invocations recorded")).toBeDefined();
@@ -22,8 +20,6 @@ describe("ExecutionTable", () => {
     const { getByText } = render(<ExecutionTable records={[]} kind="job" tableId="execution-table-1" />);
     expect(getByText("no executions recorded.")).toBeDefined();
   });
-
-  // ── Table structure ──
 
   it("renders table with provided testid", () => {
     const { getByTestId } = render(
@@ -50,8 +46,6 @@ describe("ExecutionTable", () => {
     expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(3);
   });
 
-  // ── Status cell inline labels ──
-
   it("shows error type inline with status for error rows", () => {
     const { container } = render(
       <ExecutionTable
@@ -73,8 +67,6 @@ describe("ExecutionTable", () => {
     expect(row.textContent).not.toContain(uuid);
   });
 
-  // ── Expand/collapse ──
-
   it("clicking row expands detail panel", () => {
     const { container } = render(
       <ExecutionTable records={[createExecution("job", { execution_id: "test-uuid" })]} kind="job" tableId="t" />,
@@ -95,8 +87,6 @@ describe("ExecutionTable", () => {
     fireEvent.click(row);
     expect(container.querySelector("[data-testid='execution-detail']")).toBeNull();
   });
-
-  // ── Detail panel content ──
 
   it("expanded detail shows execution id", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
@@ -147,8 +137,6 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("No execution ID");
   });
 
-  // ── Handler-specific: context section ──
-
   it("shows context section for handler invocations with trigger_context_id", () => {
     const { container } = render(
       <ExecutionTable
@@ -170,8 +158,6 @@ describe("ExecutionTable", () => {
     fireEvent.click(container.querySelector("[data-testid='invocation-row']")!);
     expect(container.querySelector("[data-testid='invocation-detail']")).not.toBeNull();
   });
-
-  // ── Thread-leaked marker ──
 
   it("shows thread leaked badge when thread_leaked is true on a timed-out row", () => {
     const { container } = render(
@@ -207,8 +193,6 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("thread leaked");
   });
 
-  // ── Manual trigger badge ──
-
   it("shows manual badge when trigger_mode is manual", () => {
     const { container } = render(
       <ExecutionTable records={[createExecution("job", { trigger_mode: "manual" })]} kind="job" tableId="t" />,
@@ -234,8 +218,6 @@ describe("ExecutionTable", () => {
     expect(detail.textContent).toContain("manual");
   });
 
-  // ── Cancelled rows ──
-
   it("shows a cancelled label on a cancelled row", () => {
     const { container } = render(
       <ExecutionTable records={[createExecution("job", { status: "cancelled" })]} kind="job" tableId="t" />,
@@ -256,8 +238,6 @@ describe("ExecutionTable", () => {
     expect(detail.textContent).toContain("cancelled after");
     expect(detail.textContent).not.toContain("completed in");
   });
-
-  // ── Show More ──
 
   it("shows Show More button when records exceed 5", () => {
     const records = Array.from({ length: 6 }, (_, i) => createExecution("job", { execution_start_ts: 1700000000 + i }));

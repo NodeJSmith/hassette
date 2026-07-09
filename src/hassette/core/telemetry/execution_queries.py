@@ -4,13 +4,8 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from hassette.const.misc import SECONDS_PER_HOUR
-from hassette.core.telemetry.helpers import (
-    DEFAULT_QUERY_LIMIT,
-    DEFAULT_SPARKLINE_BUCKETS,
-    _row_to_dict,
-    _since_clause,
-    _source_tier_clause,
-)
+from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.telemetry_models import ActivityFeedEntry, AppLastError, Execution
 from hassette.types.types import QuerySourceTier
 
@@ -49,7 +44,7 @@ class ExecutionQueriesMixin:
             limit: Maximum number of records to return.
             since: When provided, restrict to records with ``execution_start_ts >= since``.
         """
-        since_clause, since_params = _since_clause(since, "e.execution_start_ts")
+        since_sql, since_params = since_clause(since, "e.execution_start_ts")
         clauses: list[str] = []
         params: dict[str, Any] = {"limit": limit, **since_params}
 
@@ -86,13 +81,13 @@ class ExecutionQueriesMixin:
                 e.kwargs_json,
                 e.thread_leaked
             FROM executions e
-            WHERE {where} {since_clause}
+            WHERE {where} {since_sql}
             ORDER BY e.execution_start_ts DESC
             LIMIT :limit
         """
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [Execution.model_validate(_row_to_dict(row)) for row in rows]
+        return [Execution.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_app_recent_activity(
         self,
@@ -123,10 +118,10 @@ class ExecutionQueriesMixin:
         # builder embeds the alias in its fragment but always binds the same parameter name
         # (`:source_tier`, `:since`), so both arms share one bind value — the second call's
         # params dict is a duplicate and is intentionally discarded.
-        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = _source_tier_clause(source_tier, "e_j")
-        since_hi_clause, since_params = _since_clause(since, "e_h.execution_start_ts")
-        since_je_clause, _ = _since_clause(since, "e_j.execution_start_ts")
+        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
+        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
+        since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+        since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
         instance_hi_clause = ""
         instance_je_clause = ""
@@ -191,7 +186,7 @@ class ExecutionQueriesMixin:
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
-        return [ActivityFeedEntry.model_validate(_row_to_dict(row)) for row in rows]
+        return [ActivityFeedEntry.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_per_app_activity_buckets(
         self,
@@ -212,8 +207,8 @@ class ExecutionQueriesMixin:
             return {}
 
         bucket_width = (now - since) / num_buckets
-        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = _source_tier_clause(source_tier, "e_j")
+        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
+        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
 
         query = f"""
             SELECT app_key, bucket_idx,
@@ -276,10 +271,10 @@ class ExecutionQueriesMixin:
             Dict mapping app_key to ``AppLastError``.
             Only apps with at least one error in the window are included.
         """
-        since_hi_clause, since_params = _since_clause(since, "e_h.execution_start_ts")
-        since_je_clause, _ = _since_clause(since, "e_j.execution_start_ts")
-        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "e_h")
-        tier_je_clause, _ = _source_tier_clause(source_tier, "e_j")
+        since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+        since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
+        tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
+        tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
 
         query = f"""
             SELECT app_key, error_message, error_type, execution_start_ts
@@ -325,7 +320,7 @@ class ExecutionQueriesMixin:
             Dict mapping app_key to invocation count. Apps with zero invocations are omitted.
         """
         one_hour_ago = time.time() - SECONDS_PER_HOUR
-        tier_clause, tier_params = _source_tier_clause(source_tier, "e")
+        tier_clause, tier_params = source_tier_clause(source_tier, "e")
 
         query = f"""
             SELECT l.app_key, COUNT(e.rowid) AS invocation_count

@@ -6,7 +6,6 @@ import { DEFAULT_SORT, RENDER_CAP, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter } from "./types";
 import { filterLogEntries, useLogFilters } from "./use-log-filters";
 
-// --- wouter mock (same pattern as use-query-params.test.ts) ---
 let mockSearch = "";
 const mockNavigate = vi.fn();
 
@@ -14,10 +13,6 @@ vi.mock("wouter", () => ({
   useSearch: () => mockSearch,
   useLocation: () => ["/logs", mockNavigate],
 }));
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function entry(overrides: Partial<LogEntry> = {}): LogEntry {
   return {
@@ -122,10 +117,6 @@ describe("filterLogEntries", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// defaultTier
-// ---------------------------------------------------------------------------
-
 describe("defaultTier", () => {
   it('is "app" when no appKey is provided', () => {
     const { hook } = renderLocal();
@@ -142,10 +133,6 @@ describe("defaultTier", () => {
     expect(hook.result.current.defaultTier).toBe("all");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Level filtering
-// ---------------------------------------------------------------------------
 
 describe("level filtering", () => {
   it("defaults to INFO level and filters out DEBUG entries", () => {
@@ -196,10 +183,6 @@ describe("level filtering", () => {
     expect(messages).toEqual(["crit"]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Tier filtering
-// ---------------------------------------------------------------------------
 
 describe("tier filtering", () => {
   it('defaults to "app" tier (no appKey) and excludes framework entries', () => {
@@ -312,10 +295,6 @@ describe("tier filtering", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// App filtering
-// ---------------------------------------------------------------------------
-
 describe("app filtering", () => {
   it("filters entries to only matching app_key", () => {
     const entries = [
@@ -331,10 +310,6 @@ describe("app filtering", () => {
     expect(messages).toEqual(["alpha msg"]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Search filtering
-// ---------------------------------------------------------------------------
 
 describe("search filtering", () => {
   it("matches message case-insensitively", async () => {
@@ -364,10 +339,6 @@ describe("search filtering", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Function filtering
-// ---------------------------------------------------------------------------
-
 describe("func filtering", () => {
   it("filters by func_name case-insensitively", () => {
     const entries = [
@@ -381,10 +352,6 @@ describe("func filtering", () => {
     expect(messages).not.toContain("b");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Sort
-// ---------------------------------------------------------------------------
 
 describe("sort", () => {
   it("defaults to timestamp descending", () => {
@@ -434,10 +401,6 @@ describe("sort", () => {
     expect(sort.dir).toBe("desc");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Live pause
-// ---------------------------------------------------------------------------
 
 describe("livePaused", () => {
   it("is false when sorting by timestamp", () => {
@@ -492,10 +455,6 @@ describe("livePaused", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// resetFilters
-// ---------------------------------------------------------------------------
-
 describe("resetFilters", () => {
   it("resets level, tier, app, func back to defaults", () => {
     const { hook } = renderLocal([], [], undefined);
@@ -525,10 +484,6 @@ describe("resetFilters", () => {
     expect(search).toBe("");
   });
 });
-
-// ---------------------------------------------------------------------------
-// URL state (useLocalState: false)
-// ---------------------------------------------------------------------------
 
 describe("URL state mode", () => {
   it("reads level from URL param", () => {
@@ -592,10 +547,6 @@ describe("URL state mode", () => {
     expect(url).not.toContain("dir");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Search debounce
-// ---------------------------------------------------------------------------
 
 describe("search debounce", () => {
   it("does not update filter immediately", async () => {

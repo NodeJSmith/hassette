@@ -27,8 +27,6 @@ import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
 import styles from "./apps.module.css";
 import { AppTableRow } from "./apps-table-row";
 
-// ---- Filter types ----
-
 const FILTER_OPTIONS = ["all", "running", "failed", "stopped", "disabled", "blocked"] as const;
 type FilterId = (typeof FILTER_OPTIONS)[number];
 
@@ -43,8 +41,6 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
-
-// ---- Stats strip helpers ----
 
 function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: boolean): StatsStripCell[] {
   const statusCounts: Record<string, number> = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
@@ -75,8 +71,6 @@ function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: 
   cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
   return cells;
 }
-
-// ---- Status filter popover content ----
 
 function StatusFilterContent({
   counts,
@@ -115,8 +109,6 @@ function StatusFilterContent({
     </div>
   );
 }
-
-// ---- Page ----
 
 export function AppsPage() {
   useDocumentTitle("Apps");

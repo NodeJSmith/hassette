@@ -626,9 +626,9 @@ class WebsocketService(Service):
         except ClientConnectionResetError:
             self.logger.error("WebSocket connection reset by peer")
             raise
-        except Exception as e:
+        except Exception as exc:
             self.logger.exception("Exception when sending message: %s", data)
-            raise FailedMessageError(f"Failed to send message: {data}") from e
+            raise FailedMessageError(f"Failed to send message: {data}") from exc
 
     async def authenticate(self) -> None:
         """Authenticate with the Home Assistant WebSocket API."""

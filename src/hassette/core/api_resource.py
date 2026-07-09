@@ -159,19 +159,21 @@ class ApiResource(Resource):
                 response.raise_for_status()
 
                 return response
-            except aiohttp.ClientResponseError as e:
-                if e.status == HTTPStatus.NOT_FOUND:
+            except aiohttp.ClientResponseError as exc:
+                if exc.status == HTTPStatus.NOT_FOUND:
                     if not suppress_error_message:
                         self.logger.error(
-                            "Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2
+                            "Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=2
                         )
 
                     raise EntityNotFoundError(f"Entity not found: {url}") from None
                 raise
 
-            except aiohttp.ClientError as e:
+            except aiohttp.ClientError as exc:
                 if not suppress_error_message:
-                    self.logger.error("Error occurred while making %s request to %s: %s", method, url, e, stacklevel=2)
+                    self.logger.error(
+                        "Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=2
+                    )
 
                 raise
 

@@ -645,8 +645,8 @@ class Hassette(Resource):
             await self.shutdown_event.wait()
         except asyncio.CancelledError:  # noqa: ASYNC103 — top-level run loop; converts cancellation to graceful shutdown
             self.logger.debug("Hassette run loop cancelled")
-        except Exception as e:
-            self.logger.error("Error in Hassette run loop: %s", e)
+        except Exception as exc:
+            self.logger.error("Error in Hassette run loop: %s", exc)
         finally:
             await self.shutdown()
 

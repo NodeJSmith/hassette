@@ -98,11 +98,6 @@ def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
     expect(tbody).not_to_contain_text("MyApp initialized")
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Accessibility: detail drawer, filter aria labels
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     """Clicking a log row opens the detail drawer; close button dismisses it."""
     page.goto(base_url + "/logs")
@@ -125,11 +120,6 @@ def test_log_filter_controls_have_aria_labels(page: Page, base_url: str) -> None
     page.goto(base_url + "/logs")
     expect(page.locator("[data-testid='sort-level'] [data-testid='filter-btn']")).to_be_visible()
     expect(page.locator("input[aria-label='Search logs']")).to_be_visible()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Layout: column overflow regression guard
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_log_table_columns_do_not_visually_overlap(page: Page, base_url: str) -> None:
@@ -166,11 +156,6 @@ def test_source_column_has_overflow_hidden(page: Page, base_url: str) -> None:
     msg_cell = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child").first
     overflow = msg_cell.evaluate("el => getComputedStyle(el).overflow")
     assert overflow == "hidden", f"Expected overflow:hidden on message cell, got {overflow}"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Reactive truncation detection
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_truncation_affordance_appears_on_narrow_viewport(page: Page, base_url: str) -> None:
@@ -237,16 +222,6 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     assert text_overflow == "ellipsis", f"Expected text-overflow:ellipsis, got {text_overflow}"
 
 
-# ──────────────────────────────────────────────────────────────────────
-# App filter
-# ──────────────────────────────────────────────────────────────────────
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Error toast (#556)
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_toast_appears_on_log_fetch_error(page: Page, base_url: str) -> None:
     """A sonner error toast appears when the log API returns a server error."""
     page.route("**/api/logs/recent*", lambda route: route.fulfill(status=500, body="Internal Server Error"))
@@ -263,11 +238,6 @@ def test_toast_dismiss_via_close_button(page: Page, base_url: str) -> None:
     expect(toast).to_be_visible(timeout=5000)
     page.locator("[data-sonner-toast] [data-close-button]").click()
     expect(toast).not_to_be_visible(timeout=5000)
-
-
-# ──────────────────────────────────────────────────────────────────────
-# App filter
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_log_table_app_column_hidden_at_mobile(page: Page, base_url: str) -> None:

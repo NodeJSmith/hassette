@@ -90,12 +90,12 @@ def test_failed_message_error_chain_preserves_original() -> None:
     def _chain_and_reraise() -> None:
         try:
             raise FailedMessageError("first", code="a", original_data={"k": 1})
-        except FailedMessageError as e:
+        except FailedMessageError as exc:
             raise FailedMessageError(
                 "wrapped",
-                code=e.code,
-                original_data=e.original_data,
-            ) from e
+                code=exc.code,
+                original_data=exc.original_data,
+            ) from exc
 
     with pytest.raises(FailedMessageError) as exc_info:
         _chain_and_reraise()

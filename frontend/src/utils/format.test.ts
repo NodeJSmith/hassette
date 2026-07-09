@@ -12,10 +12,6 @@ import {
   pluralize,
 } from "./format";
 
-// ---------------------------------------------------------------------------
-// formatTimestamp
-// ---------------------------------------------------------------------------
-
 describe("formatTimestamp", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -43,10 +39,6 @@ describe("formatTimestamp", () => {
     expect(result).toMatch(/^\d{2}\/\d{2} \d{1,2}:\d{2}:\d{2} (AM|PM)$/i);
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatDuration
-// ---------------------------------------------------------------------------
 
 describe("formatDuration", () => {
   it("test_formatDuration_sub_ms: returns '<1ms' for values below 1ms", () => {
@@ -112,10 +104,6 @@ describe("formatOptionalDuration", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// pluralize
-// ---------------------------------------------------------------------------
-
 describe("pluralize", () => {
   it("test_pluralize_singular: count=1 uses singular form", () => {
     expect(pluralize(1, "entry", "entries")).toBe("1 entry");
@@ -137,10 +125,6 @@ describe("pluralize", () => {
     expect(pluralize(0, "item")).toBe("0 items");
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatTriggerDetail
-// ---------------------------------------------------------------------------
 
 describe("formatTriggerDetail", () => {
   it("test_formatTriggerDetail_seconds: small seconds value passes through as-is", () => {
@@ -176,10 +160,6 @@ describe("formatTriggerDetail", () => {
     expect(formatTriggerDetail("07:00")).toBe("07:00");
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatRelativeTime
-// ---------------------------------------------------------------------------
 
 const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
 
@@ -254,9 +234,6 @@ describe("formatRelativeTime", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// formatAge
-// ---------------------------------------------------------------------------
 describe("formatAge", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -303,10 +280,6 @@ describe("formatAge", () => {
     expect(formatAge(BASE_TIME_S - 432000)).toBe("5d");
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatRate
-// ---------------------------------------------------------------------------
 
 describe("formatRate", () => {
   it("test_formatRate_zero_of_total: 0 failures out of 100 runs returns '0.0%'", () => {

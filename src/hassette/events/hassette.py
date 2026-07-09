@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from hassette import App
 
 
-def _extract_exception_fields(
+def extract_exception_fields(
     exception: Exception | BaseException | None,
 ) -> tuple[str | None, str | None, str | None]:
     """Extract (message, type_name, traceback) from an exception, or (None, None, None)."""
@@ -65,7 +65,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         ready: bool = False,
         ready_phase: str | None = None,
     ) -> "HassetteServiceEvent":
-        exc_str, exc_type, exc_tb = _extract_exception_fields(exception)
+        exc_str, exc_type, exc_tb = extract_exception_fields(exception)
         payload = ServiceStatusPayload(
             resource_name=resource_name,
             role=role,
@@ -133,7 +133,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         previous_status: ResourceStatus | None = None,
         exception: Exception | BaseException | None = None,
     ) -> "HassetteAppStateEvent":
-        exc_str, exc_type, exc_tb = _extract_exception_fields(exception)
+        exc_str, exc_type, exc_tb = extract_exception_fields(exception)
         payload = AppStateChangePayload(
             app_key=app.app_key,
             index=app.index,

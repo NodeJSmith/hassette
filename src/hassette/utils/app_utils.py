@@ -132,8 +132,8 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         try:
             load_app_class_from_manifest(app_manifest=app_manifest)
 
-        except CannotOverrideFinalError as e:
-            LOGGER.error("App %s: %s", app_manifest.display_name, e)
+        except CannotOverrideFinalError as exc:
+            LOGGER.error("App %s: %s", app_manifest.display_name, exc)
             had_errors = True
 
         except (UndefinedUserConfigError, InvalidInheritanceError):
@@ -143,8 +143,8 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             )
             had_errors = True
 
-        except Exception as e:
-            log_compact_load_error(app_manifest, e)
+        except Exception as exc:
+            log_compact_load_error(app_manifest, exc)
             had_errors = True
 
     if had_errors:
@@ -382,8 +382,8 @@ def load_app_class(
     try:
         pkg_name = config.apps.directory.name
         path_str, module = import_module(app_dir, module_path, pkg_name)
-    except Exception as e:
-        FAILED_TO_LOAD_CLASSES[cache_key] = e
+    except Exception as exc:
+        FAILED_TO_LOAD_CLASSES[cache_key] = exc
         raise
 
     try:
@@ -404,8 +404,8 @@ def load_app_class(
 
     try:
         app_class.app_config_cls = validate_app(app_class)
-    except Exception as e:
-        app_class._import_exception = e
+    except Exception as exc:
+        app_class._import_exception = exc
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class

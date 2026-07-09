@@ -16,62 +16,22 @@ export const WS_DEBOUNCE_DELAY_MS = 500;
  */
 export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
 
-type SignalFilterPair<T> = readonly [ReadonlySignal<T>, (value: T) => boolean];
-type ErasedSignalFilterPair = readonly [ReadonlySignal<unknown>, (value: unknown) => boolean];
-
 /**
- * Subscribes to one or more Preact signals, applies filter functions, and calls
+ * Subscribes to a Preact signal, applies a filter function, and calls
  * `queryClient.invalidateQueries({ queryKey })` after a debounce.
  *
  * Debounce algorithm:
  * - Trailing timer: resets on each matching event; fires `delayMs` after the last event.
  * - Max-wait timer: starts on the first matching event; fires after `maxWaitMs` regardless
  *   of subsequent events. Does NOT reset on subsequent matching events.
- *
- * The multi-signal overload shares a single debounce timer across all signals — two
- * signals firing within the debounce window produce exactly one `invalidateQueries` call.
  */
 export function useQueryInvalidator<T>(
   signal: ReadonlySignal<T>,
   filterFn: (value: T) => boolean,
   queryKey: readonly unknown[],
-  delayMs?: number,
-  maxWaitMs?: number,
-): void;
-
-export function useQueryInvalidator<const TValues extends readonly unknown[]>(
-  signals: { readonly [K in keyof TValues]: SignalFilterPair<TValues[K]> },
-  queryKey: readonly unknown[],
-  delayMs?: number,
-  maxWaitMs?: number,
-): void;
-
-export function useQueryInvalidator<T, const TValues extends readonly unknown[]>(
-  signalOrSignals: ReadonlySignal<T> | { readonly [K in keyof TValues]: SignalFilterPair<TValues[K]> },
-  filterFnOrQueryKey: ((value: T) => boolean) | readonly unknown[],
-  queryKeyOrDelayMs?: readonly unknown[] | number,
-  delayMsOrMaxWaitMs?: number,
-  maxWaitMsArg?: number,
+  delayMs: number = WS_DEBOUNCE_DELAY_MS,
+  maxWaitMs: number = WS_DEBOUNCE_MAX_WAIT_MS,
 ): void {
-  let pairs: readonly ErasedSignalFilterPair[];
-  let queryKey: readonly unknown[];
-  let delayMs: number;
-  let maxWaitMs: number;
-
-  if (Array.isArray(signalOrSignals)) {
-    pairs = signalOrSignals as readonly ErasedSignalFilterPair[];
-    queryKey = filterFnOrQueryKey as readonly unknown[];
-    delayMs = (queryKeyOrDelayMs as number | undefined) ?? WS_DEBOUNCE_DELAY_MS;
-    maxWaitMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_MAX_WAIT_MS;
-  } else {
-    const sig = signalOrSignals as ReadonlySignal<T>;
-    const fn = filterFnOrQueryKey as (value: T) => boolean;
-    pairs = [[sig as ReadonlySignal<unknown>, fn as (value: unknown) => boolean]];
-    queryKey = queryKeyOrDelayMs as readonly unknown[];
-    delayMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_DELAY_MS;
-    maxWaitMs = maxWaitMsArg ?? WS_DEBOUNCE_MAX_WAIT_MS;
-  }
-
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,12 +45,9 @@ export function useQueryInvalidator<T, const TValues extends readonly unknown[]>
   const maxWaitMsRef = useRef(maxWaitMs);
   maxWaitMsRef.current = maxWaitMs;
 
-  const pairsRef = useRef(pairs);
-  pairsRef.current = pairs;
-  const lastValuesRef = useRef<unknown[]>(pairs.map(([s]) => s.peek()));
-  if (lastValuesRef.current.length !== pairs.length) {
-    lastValuesRef.current = pairs.map(([s]) => s.peek());
-  }
+  const filterFnRef = useRef(filterFn);
+  filterFnRef.current = filterFn;
+  const lastValueRef = useRef<T>(signal.peek());
 
   const fireRef = useRef(() => {});
   fireRef.current = () => {
@@ -106,17 +63,10 @@ export function useQueryInvalidator<T, const TValues extends readonly unknown[]>
   };
 
   useSignalEffect(() => {
-    let shouldFire = false;
-    for (let i = 0; i < pairsRef.current.length; i++) {
-      const value = pairsRef.current[i][0].value;
-      if (!Object.is(value, lastValuesRef.current[i])) {
-        lastValuesRef.current[i] = value;
-        if (pairsRef.current[i][1](value)) {
-          shouldFire = true;
-        }
-      }
-    }
-    if (!shouldFire) return;
+    const value = signal.value;
+    if (Object.is(value, lastValueRef.current)) return;
+    lastValueRef.current = value;
+    if (!filterFnRef.current(value)) return;
 
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);

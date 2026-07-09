@@ -10,7 +10,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry.helpers import _source_tier_clause
+from hassette.core.telemetry.helpers import source_tier_clause
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import (
@@ -29,26 +29,26 @@ from .helpers import (
 
 class TestSourceTierClause:
     def test_any_alias_accepted(self) -> None:
-        """_source_tier_clause accepts any alias (developer-controlled, not user input)."""
-        fragment, params = _source_tier_clause("app", "custom_alias")
+        """source_tier_clause accepts any alias (developer-controlled, not user input)."""
+        fragment, params = source_tier_clause("app", "custom_alias")
         assert "custom_alias.source_tier" in fragment
         assert params == {"source_tier": "app"}
 
     def test_framework_tier_returns_filter_fragment(self) -> None:
-        """_source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""
-        fragment, params = _source_tier_clause("framework", "l")
+        """source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""
+        fragment, params = source_tier_clause("framework", "l")
         assert "source_tier" in fragment
         assert params == {"source_tier": "framework"}
 
     def test_all_tier_returns_empty(self) -> None:
-        """_source_tier_clause('all', ...) returns an empty fragment and empty params."""
-        fragment, params = _source_tier_clause("all", "hi")
+        """source_tier_clause('all', ...) returns an empty fragment and empty params."""
+        fragment, params = source_tier_clause("all", "hi")
         assert fragment == ""
         assert params == {}
 
     def test_app_tier_returns_filter_fragment(self) -> None:
-        """_source_tier_clause('app', ...) returns an AND clause with 'app' param."""
-        fragment, params = _source_tier_clause("app", "je")
+        """source_tier_clause('app', ...) returns an AND clause with 'app' param."""
+        fragment, params = source_tier_clause("app", "je")
         assert "source_tier" in fragment
         assert params == {"source_tier": "app"}
 
@@ -56,7 +56,7 @@ class TestSourceTierClause:
         """All four valid aliases are accepted without raising."""
         for alias in ("l", "hi", "je", "sj"):
             # Should not raise
-            _source_tier_clause("app", alias)
+            source_tier_clause("app", alias)
 
 
 class TestGetJobSummarySinceScoped:

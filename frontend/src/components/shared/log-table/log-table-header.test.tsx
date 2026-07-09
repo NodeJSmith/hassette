@@ -49,10 +49,6 @@ vi.mock("../sort-header", () => ({
 
 import { LogTableHeader } from "./log-table-header";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function renderHeader(props: Partial<Parameters<typeof LogTableHeader>[0]> = {}) {
   const defaults = {
     visibleColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
@@ -66,10 +62,6 @@ function renderHeader(props: Partial<Parameters<typeof LogTableHeader>[0]> = {})
     </table>,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("LogTableHeader", () => {
   describe("thead structure", () => {

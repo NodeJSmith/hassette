@@ -26,10 +26,6 @@ vi.mock("../../../hooks/use-media-query", () => ({
 
 import { LogTableView } from "./log-table-view";
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 function makeEntry(seq: number): LogEntry {
   return {
     seq,
@@ -63,10 +59,6 @@ function renderView(overrides: Partial<Parameters<typeof LogTableView>[0]> = {})
   };
   return render(<LogTableView {...props} />);
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("LogTableView", () => {
   describe("table root element", () => {

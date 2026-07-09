@@ -15,10 +15,6 @@ vi.mock("./log-detail-drawer", () => ({
 import { LogTableWithDrawer } from "./log-table-with-drawer";
 import type { LogDrawerProps } from "./use-log-table";
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 function makeEntry(seq: number): LogEntry {
   return {
     seq,
@@ -47,10 +43,6 @@ function makeDrawerProps(overrides: Partial<LogDrawerProps> = {}): LogDrawerProp
 function renderWithDrawer(drawerProps: LogDrawerProps, children = <div data-testid="table-content" />) {
   return render(<LogTableWithDrawer drawerProps={drawerProps}>{children}</LogTableWithDrawer>);
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("LogTableWithDrawer", () => {
   describe("wrapper element", () => {

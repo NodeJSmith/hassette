@@ -71,8 +71,8 @@ class StateProxy(Resource):
 
             self.mark_ready(reason="Initial state sync complete")
 
-        except Exception as e:
-            self.logger.exception("Failed to perform initial state sync: %s", e)
+        except Exception as exc:
+            self.logger.exception("Failed to perform initial state sync: %s", exc)
             raise
 
     async def subscribe_to_events(self) -> None:
@@ -321,15 +321,15 @@ class StateProxy(Resource):
             try:
                 await self.load_cache()
                 load_cache_succeeded = True
-            except Exception as e:
-                self.logger.exception("Failed to resync states after HA restart: %s", e)
+            except Exception as exc:
+                self.logger.exception("Failed to resync states after HA restart: %s", exc)
 
             subscribe_succeeded = False
             try:
                 await self.subscribe_to_events()
                 subscribe_succeeded = True
-            except Exception as e:
-                self.logger.exception("Failed to subscribe to events after reconnect: %s", e)
+            except Exception as exc:
+                self.logger.exception("Failed to subscribe to events after reconnect: %s", exc)
 
             if load_cache_succeeded and subscribe_succeeded:
                 self.mark_ready(reason="Connected")

@@ -17,9 +17,6 @@ from tests.e2e.mock_fixtures import (
 pytestmark = pytest.mark.e2e
 
 
-# ── Health strip ─────────────────────────────────────────────────────
-
-
 def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
     """Health strip is visible on the handlers tab with correct labels."""
     page.goto(base_url + "/apps/my_app/handlers")
@@ -27,9 +24,6 @@ def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
     expect(strip).to_be_visible()
     expect(strip).to_contain_text("Handlers")
     expect(strip).to_contain_text("Success Rate")
-
-
-# ── Action buttons ───────────────────────────────────────────────────
 
 
 def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
@@ -61,9 +55,6 @@ def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
     """Failed app detail shows its error message."""
     page.goto(base_url + "/apps/broken_app")
     expect(page.locator("body")).to_contain_text("Init error: bad config")
-
-
-# ── Handler list (master list) ───────────────────────────────────────
 
 
 def test_app_detail_renders_handler_list(page: Page, base_url: str) -> None:
@@ -110,9 +101,6 @@ def test_handler_row_shows_timed_out_count(page: Page, base_url: str) -> None:
     expect(row).to_contain_text("timed out")
 
 
-# ── Job list ─────────────────────────────────────────────────────────
-
-
 def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
     """Job rows visible with run counts in the unified handler list."""
     page.goto(base_url + "/apps/my_app/handlers")
@@ -124,9 +112,6 @@ def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
     # Execution counts
     expect(handler_list).to_contain_text(f"{JOB_MY_APP_1_TOTAL_EXECUTIONS}")
     expect(handler_list).to_contain_text(f"{JOB_MY_APP_2_TOTAL_EXECUTIONS}")
-
-
-# ── Master/detail layout ─────────────────────────────────────────────
 
 
 def test_clicking_handler_row_shows_detail_pane(page: Page, base_url: str) -> None:
@@ -178,9 +163,6 @@ def test_stats_strip_renders(page: Page, base_url: str) -> None:
     expect(stats_strip).to_contain_text("Handler")
 
 
-# ── Code tab ─────────────────────────────────────────────────────────
-
-
 def test_code_tab_renders_source(page: Page, base_url: str) -> None:
     """Code tab renders the source file content."""
     page.goto(base_url + "/apps/my_app")
@@ -207,9 +189,6 @@ def test_code_tab_nosource_shows_not_found(page: Page, base_url: str) -> None:
     error_display = page.locator("[data-testid='code-tab-error']")
     expect(error_display).to_be_visible(timeout=5000)
     expect(error_display).to_contain_text("not found")
-
-
-# ── Config tab ───────────────────────────────────────────────────────
 
 
 def test_config_tab_renders(page: Page, base_url: str) -> None:
@@ -240,9 +219,6 @@ def test_app_detail_header_shows_filename(page: Page, base_url: str) -> None:
     expect(subtitle).to_contain_text("my_app.py")
 
 
-# ── Logs tab ─────────────────────────────────────────────────────────
-
-
 def test_app_detail_logs_tab(page: Page, base_url: str) -> None:
     """Logs tab renders log entries filtered to the app."""
     page.goto(base_url + "/apps/my_app")
@@ -261,9 +237,6 @@ def test_app_detail_logs_tab(page: Page, base_url: str) -> None:
     expect(body).not_to_contain_text("Hassette started successfully")
 
 
-# ── Stopped/disabled app ─────────────────────────────────────────────
-
-
 def test_stopped_app_renders_without_error(page: Page, base_url: str) -> None:
     """Stopped app detail page renders without errors."""
     page.goto(base_url + "/apps/other_app")
@@ -274,9 +247,6 @@ def test_app_detail_shows_display_name(page: Page, base_url: str) -> None:
     """App detail header shows the app_key as the title."""
     page.goto(base_url + "/apps/my_app")
     expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
-
-
-# ── Multi-instance ───────────────────────────────────────────────────
 
 
 def test_multi_instance_app_shows_overview(page: Page, base_url: str) -> None:

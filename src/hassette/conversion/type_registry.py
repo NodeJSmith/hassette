@@ -200,8 +200,8 @@ class TypeRegistry:
         if key not in self.conversion_map and to_type is not type(None):
             try:
                 new_value = to_type(value)
-            except Exception as e:
-                raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
+            except Exception as exc:
+                raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from exc
             LOGGER.debug(
                 "Converted %r (%s) to %r (%s) using constructor",
                 value,
@@ -224,7 +224,7 @@ class TypeRegistry:
                 fn.func.__name__,
             )
             return new_value
-        except fn.error_types as e:
+        except fn.error_types as exc:
             default_err_msg = f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}"
             err_msg = fn.error_message or default_err_msg
             if get_format_fields(err_msg):
@@ -232,9 +232,9 @@ class TypeRegistry:
 
             LOGGER.debug("Error converting %r (%s) to %s: %s", value, type(value).__name__, to_type.__name__, err_msg)
 
-            raise UnableToConvertValueError(err_msg) from e
-        except Exception as e:
-            raise RuntimeError(f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}") from e
+            raise UnableToConvertValueError(err_msg) from exc
+        except Exception as exc:
+            raise RuntimeError(f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}") from exc
 
     def list_conversions(self) -> list[tuple[type, type, TypeConverterEntry]]:
         """List all registered type conversions.

@@ -3,10 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SortHeader, type SortState } from "./sort-header";
 
-// ---------------------------------------------------------------------------
-// Composition case 1: sort-only (existing behavior)
-// ---------------------------------------------------------------------------
-
 describe("SortHeader — sort-only", () => {
   it("renders a sort button", () => {
     const sort: SortState<string> = { key: "name", dir: "asc" };
@@ -78,10 +74,6 @@ describe("SortHeader — sort-only", () => {
     expect(onSort).toHaveBeenCalledWith({ key: "name", dir: "asc" });
   });
 });
-
-// ---------------------------------------------------------------------------
-// Composition case 2: sort + filter
-// ---------------------------------------------------------------------------
 
 describe("SortHeader — sort+filter", () => {
   it("renders a sort button and a filter trigger button", () => {
@@ -216,10 +208,6 @@ describe("SortHeader — sort+filter", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Composition case 3: filter-only (no sort props)
-// ---------------------------------------------------------------------------
-
 describe("SortHeader — filter-only", () => {
   it("renders a plain label span (no sort button) when no sort props", () => {
     render(
@@ -280,10 +268,6 @@ describe("SortHeader — filter-only", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Composition case 4: plain label (neither sort nor filter)
-// ---------------------------------------------------------------------------
-
 describe("SortHeader — plain label", () => {
   it("renders label text with no buttons when no sort or filter props", () => {
     render(
@@ -312,10 +296,6 @@ describe("SortHeader — plain label", () => {
     expect(container.querySelector("svg")).toBeNull();
   });
 });
-
-// ---------------------------------------------------------------------------
-// ariaLabel prop
-// ---------------------------------------------------------------------------
 
 describe("SortHeader — ariaLabel", () => {
   it("applies aria-label to the <th>", () => {
@@ -377,10 +357,6 @@ describe("SortHeader — ariaLabel", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// hasActiveFilter — dot indicator
-// ---------------------------------------------------------------------------
-
 describe("SortHeader — hasActiveFilter", () => {
   it("shows the active dot on the filter icon when hasActiveFilter=true", () => {
     render(
@@ -412,10 +388,6 @@ describe("SortHeader — hasActiveFilter", () => {
     expect(screen.queryByTestId("filter-icon-dot")).toBeNull();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Popover open/close toggle
-// ---------------------------------------------------------------------------
 
 describe("SortHeader — popover toggle", () => {
   it("opens popover on filter button click and closes on Escape", async () => {

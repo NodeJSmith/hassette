@@ -72,14 +72,14 @@ class AppFactory:
                     app_manifest=manifest,
                 )
                 self.registry.register_app(app_key, idx, app_instance)
-            except Exception as e:
+            except Exception as exc:
                 self.logger.error(
                     "Failed to validate/init config for %s (%s):\n%s",
                     instance_name,
                     app_class.__name__,
                     get_short_traceback(),
                 )
-                self.registry.record_failure(app_key, idx, e)
+                self.registry.record_failure(app_key, idx, exc)
 
     def load_class(
         self,

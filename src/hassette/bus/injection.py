@@ -37,10 +37,10 @@ class ParameterInjector:
 
         try:
             plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
-        except Exception as e:
+        except Exception as exc:
             raise DependencyInjectionError(
-                f"Handler '{handler_name}' has invalid signature for dependency injection: {e}"
-            ) from e
+                f"Handler '{handler_name}' has invalid signature for dependency injection: {exc}"
+            ) from exc
 
         self.invoker = CallableInvoker(plan)
         self.conversion_map = {param.name: (param.target_type, param.converter) for param in plan}
@@ -86,16 +86,16 @@ class ParameterInjector:
                 )
             except DependencyError:
                 raise
-            except Exception as e:
+            except Exception as exc:
                 LOGGER.error(
                     "Handler '%s' - unexpected error extracting parameter '%s': %s",
                     self.handler_name,
                     param.name,
-                    e,
+                    exc,
                 )
                 raise DependencyResolutionError(
-                    f"Handler '{self.handler_name}' - failed to extract parameter '{param.name}': {e}"
-                ) from e
+                    f"Handler '{self.handler_name}' - failed to extract parameter '{param.name}': {exc}"
+                ) from exc
 
         return kwargs
 
@@ -141,9 +141,9 @@ class ParameterInjector:
 
         try:
             return effective_converter(raw_value, param_type)
-        except Exception as e:
+        except Exception as exc:
             raise DependencyResolutionError(
                 f"Handler '{self.handler_name}' - failed to convert parameter '{param_name}' "
                 f"of type '{actual_type}' to '{param_type}' "
-                f"using converter {converter_name}: {type(e).__name__}: {e}"
-            ) from e
+                f"using converter {converter_name}: {type(exc).__name__}: {exc}"
+            ) from exc

@@ -5,8 +5,6 @@ import { apiFetch, apiPost, apiPut } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
-// ---- Generated type aliases ----
-
 export type AppManifest = components["schemas"]["AppManifestResponse"];
 export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -30,8 +28,6 @@ export type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
 export const WS_PATH = "/api/ws";
 
-// ---- Query string helpers ----
-
 function buildUrl(path: string, params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, val] of Object.entries(params)) {
@@ -40,8 +36,6 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
   const qs = search.toString();
   return qs ? `${path}?${qs}` : path;
 }
-
-// ---- App management ----
 
 export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
 
@@ -56,8 +50,6 @@ export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
 
 export const getAppSource = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, { signal });
-
-// ---- Telemetry ----
 
 export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null) =>
   apiFetch<AppHealthData>(
@@ -123,16 +115,12 @@ export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal)
 
 export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetryStatus>("/telemetry/status", { signal });
 
-// ---- System config ----
-
 export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
   config_schema: SchemaNode;
   config_values: ConfigRecord;
 };
 
 export const getConfig = () => apiFetch<SystemConfig>("/config");
-
-// ---- Logs ----
 
 export type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 export type LogLevelResponse = components["schemas"]["LogLevelResponse"];
@@ -166,19 +154,13 @@ export const getLogsByExecution = (executionId: string, limit?: number) =>
 export const setLogLevel = (logger: string, level: string) =>
   apiPut<LogLevelResponse>("/logs/level", { logger, level });
 
-// ---- Bus ----
-
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
-
-// ---- Scheduler (global) ----
 
 export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), { signal });
 
 export const triggerJob = (jobId: number) => apiPost<JobTriggerResponse>(`/scheduler/jobs/${jobId}/trigger`);
-
-// ---- System status ----
 
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];
 export type BootIssue = components["schemas"]["BootIssueResponse"];

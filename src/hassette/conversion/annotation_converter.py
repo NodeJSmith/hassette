@@ -50,8 +50,8 @@ class AnnotationConverter:
             for arm in get_args(tp):
                 try:
                     return self.convert(value, arm)
-                except Exception as e:
-                    last_err = e
+                except Exception as exc:
+                    last_err = exc
             raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}") from last_err
 
         # Literal: match exact allowed values (conversion generally not meaningful)

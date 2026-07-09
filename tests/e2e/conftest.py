@@ -315,7 +315,6 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
 
 
-# ── WebSocket-enabled server fixtures ─────────────────────────────────
 #
 # Two server configurations serve different testing needs:
 #

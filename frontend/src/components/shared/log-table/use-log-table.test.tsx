@@ -11,16 +11,12 @@ import { RENDER_CAP } from "./constants";
 import type { FilterState } from "./types";
 import { useLogTable } from "./use-log-table";
 
-// ---------------------------------------------------------------------------
-// Module mocks
 //
 // vi.mock() calls are hoisted by Vitest to run before all other module-level
 // code, but the factory *body* executes at import time — after module-scope
 // variable declarations have been evaluated. The inner hook functions run at
 // call time (inside renderHook), so they safely read the `mock*` variables
 // declared below. We use object getter syntax so each property is read lazily
-// at call time rather than captured once at factory evaluation.
-// ---------------------------------------------------------------------------
 
 vi.mock("./use-log-data", () => ({
   useLogData: () => ({
@@ -94,12 +90,8 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/", vi.fn()],
 }));
 
-// ---------------------------------------------------------------------------
-// Shared mutable signals — initialized at module scope, reset per test.
 // The mock factories above close over these bindings via getter functions;
 // because getters are evaluated at call time (not at factory evaluation time),
-// the signals are guaranteed to be initialized before any test reads them.
-// ---------------------------------------------------------------------------
 
 const mockFilterState = signal<FilterState>({
   level: "INFO",
@@ -124,10 +116,6 @@ const mockSetFunc = vi.fn();
 const mockSetSort = vi.fn();
 const mockResetSort = vi.fn();
 const mockResetFilters = vi.fn();
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function createWrapper() {
   const state = createAppState();
@@ -174,10 +162,6 @@ beforeEach(() => {
   mockLoading.value = false;
   vi.clearAllMocks();
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("useLogTable — columnFilters", () => {
   it("always includes 'level' filter", () => {

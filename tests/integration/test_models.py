@@ -148,8 +148,8 @@ def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[di
             converted = STATE_REGISTRY.try_convert_state(state_dict)
             if type(converted) is not state_cls:
                 failures.append(f"{entity_id}: converted to {type(converted).__name__}, expected {state_cls.__name__}")
-        except Exception as e:
-            failures.append(f"{entity_id}: {e}")
+        except Exception as exc:
+            failures.append(f"{entity_id}: {exc}")
 
     assert not failures, (
         f"{len(failures)} fixture entities failed to parse as their registered state class:\n" + "\n".join(failures)

@@ -27,10 +27,6 @@ from hassette.schemas.telemetry_models import (
 from hassette.test_utils.web_helpers import make_job, make_manifest
 from hassette.types.enums import ResourceStatus
 
-# ──────────────────────────────────────────────────────────────────────
-# Manifest builders
-# ──────────────────────────────────────────────────────────────────────
-
 
 def build_manifests() -> list[AppManifestInfo]:
     """Build a rich set of app manifests for e2e tests."""
@@ -200,11 +196,6 @@ def build_scheduler_jobs() -> list[SimpleNamespace]:
             instance_index=0,
         ),
     ]
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Telemetry seed data builders
-# ──────────────────────────────────────────────────────────────────────
 
 
 def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
@@ -616,11 +607,6 @@ def build_global_summaries() -> tuple[GlobalSummary, GlobalSummary]:
     return framework_global_summary, default_global_summary
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Telemetry wiring helpers
-# ──────────────────────────────────────────────────────────────────────
-
-
 def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummary]]) -> None:
     """Wire listener summary side effects onto the mock telemetry query service."""
     all_listeners = [ls for app_listeners in listeners_by_app.values() for ls in app_listeners]
@@ -832,8 +818,6 @@ def wire_config(hassette) -> None:
     )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Module-level computed constants for E2E assertions
 #
 # All constants are derived from the builder functions above — never
 # hand-written literals.  Use these in E2E test assertions so that
@@ -844,10 +828,7 @@ def wire_config(hassette) -> None:
 #   GLOBAL_     — all-tier global summary (build_global_summaries)
 #   ERRORS_     — error feed counts (build_error_records)
 #   LISTENER_   — per-listener telemetry (build_listener_telemetry)
-#   JOB_        — per-job telemetry (build_job_telemetry)
-# ──────────────────────────────────────────────────────────────────────
 
-# ── App-tier health summaries ──────────────────────────────────────────
 
 _app_health = build_app_health_summaries()
 
@@ -856,7 +837,6 @@ APP_TIER_MY_APP_TOTAL_EXECUTIONS: int = _app_health["my_app"].total_executions
 APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS: int = _app_health["broken_app"].total_invocations
 APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS: int = _app_health["broken_app"].total_executions
 
-# ── Global summary (default = app + framework combined denominator) ────
 
 _framework_global_summary, _default_global_summary = build_global_summaries()
 
@@ -869,7 +849,6 @@ GLOBAL_JOB_ERRORS: int = _default_global_summary.jobs.total_errors + _default_gl
 GLOBAL_TOTAL_FAILURES: int = GLOBAL_HANDLER_ERRORS + GLOBAL_JOB_ERRORS
 GLOBAL_COMBINED_TOTAL: int = GLOBAL_TOTAL_INVOCATIONS + GLOBAL_TOTAL_EXECUTIONS
 
-# ── Error feed counts ──────────────────────────────────────────────────
 
 _app_tier_errors, _framework_tier_errors = build_error_records()
 
@@ -886,7 +865,6 @@ FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (
 FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = FRAMEWORK_ERROR_COUNTS[0]
 FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = FRAMEWORK_ERROR_COUNTS[1]
 
-# ── Per-listener telemetry for my_app ─────────────────────────────────
 
 _listeners = build_listener_telemetry()
 
@@ -894,7 +872,6 @@ LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocat
 LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
 LISTENER_MY_APP_1_SOURCE_LOCATION: str = _listeners["my_app"][0].source_location
 
-# ── Per-job telemetry for my_app ───────────────────────────────────────
 
 _jobs = build_job_telemetry()
 

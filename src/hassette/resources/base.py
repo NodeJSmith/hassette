@@ -203,12 +203,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         try:
             self.logger.setLevel(self.config_log_level)
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError) as exc:
             self.logger.error(
                 "Invalid log level %r for %s; falling back to INFO: %s",
                 self.config_log_level,
                 self.unique_name,
-                e,
+                exc,
             )
             self.logger.setLevel(INFO)
 
@@ -334,14 +334,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 with suppress(Exception):
                     await self.handle_failed(asyncio.CancelledError())
                 raise
-            except Exception as e:
+            except Exception as exc:
                 if continue_on_error:
-                    self.logger.error("Error during shutdown: %s %s", type(e).__name__, e)
+                    self.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
                     with suppress(Exception):
-                        await self.handle_failed(e)
+                        await self.handle_failed(exc)
                 else:
                     with suppress(Exception):
-                        await self.handle_failed(e)
+                        await self.handle_failed(exc)
                     raise
 
     def _ordered_children_for_shutdown(self) -> list["Resource"]:
@@ -458,8 +458,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 await self.cleanup()
         except TimeoutError:
             self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
-        except Exception as e:
-            self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
+        except Exception as exc:
+            self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
 
         children_clean = await self._shutdown_children()
 
@@ -480,8 +480,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if not self.hassette.event_streams_closed:
             try:
                 await self.handle_stop()
-            except Exception as e:
-                self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
+            except Exception as exc:
+                self.logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
         else:
             self.logger.debug("Skipping STOPPED event as event streams are closed")
 
@@ -637,5 +637,5 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._cache is not None:
             try:
                 self.cache.close()
-            except Exception as e:
-                self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
+            except Exception as exc:
+                self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)

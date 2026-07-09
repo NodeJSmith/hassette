@@ -109,11 +109,11 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:
-    logger.warning("Log level %r is not valid, defaulting to %r", log_level, fallback_value)
+    LOGGER.warning("Log level %r is not valid, defaulting to %r", log_level, fallback_value)
 
 
 def get_log_level() -> LOG_LEVEL_TYPE:

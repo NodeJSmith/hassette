@@ -24,11 +24,6 @@ from tests.e2e.conftest import DESKTOP_VIEWPORT
 pytestmark = pytest.mark.e2e
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Tab deep-links — path segments drive active tab
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_logs_tab_deep_link(page: Page, base_url: str) -> None:
     """Direct navigation to /apps/:key/logs activates the logs tab."""
     page.goto(base_url + "/apps/my_app/logs")
@@ -57,11 +52,6 @@ def test_handlers_tab_deep_link(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_be_visible(timeout=5000)
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Handler deep-links select the handler
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
@@ -94,11 +84,6 @@ def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) ->
     page.wait_for_load_state("networkidle")
     # Handler should still be selected after refresh
     expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=5000)
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Logs tab with query params
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None:
@@ -137,11 +122,6 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     assert selected_value == "ERROR", f"Expected level filter to be ERROR after reload, got {selected_value}"
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Filter persistence on /apps page
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting status filter on /apps and refreshing restores the filter."""
     page.goto(base_url + "/apps")
@@ -159,11 +139,6 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     # Filter should still be running — only running app visible
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Sort persistence — replace history, no new entry
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_handlers_page_sort_persists_on_refresh(page: Page, base_url: str) -> None:
@@ -211,11 +186,6 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Browser back/forward for tab navigation
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_browser_back_after_tab_switch(page: Page, base_url: str) -> None:
     """Pressing back after switching tabs returns to the previous tab."""
     # Start on handlers tab
@@ -260,11 +230,6 @@ def test_browser_forward_after_back(page: Page, base_url: str) -> None:
     expect(code_content).to_be_visible(timeout=5000)
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Default params are omitted from URL
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_apps_page_default_state_has_no_query_params(page: Page, base_url: str) -> None:
     """Navigating to /apps with default filters produces /apps with no query params."""
     page.goto(base_url + "/apps")
@@ -288,11 +253,6 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
     assert "filter=" not in current_url, (
         f"Expected filter param to be removed when reset to default, but URL is: {current_url}"
     )
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Time window override via ?window=
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_window_param_applied_to_handlers_page(page: Page, base_url: str) -> None:
@@ -347,11 +307,6 @@ def test_time_preset_button_updates_url_and_preference(page: Page, base_url: str
     expect(page).to_have_url(re.compile(r"\?.*window=24h"))
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Invalid handler ID correction
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> None:
     """Navigating to an invalid handler ID shows handlers tab with no selection."""
     page.goto(base_url + "/apps/my_app/handlers/listener/99999")
@@ -375,11 +330,6 @@ def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
     assert "listener/99999" not in current_url, (
         f"Expected invalid handler ID to be corrected from URL, but URL is: {current_url}"
     )
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Multi-instance routing
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
@@ -416,11 +366,6 @@ def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=5000)
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Out-of-range instance correction
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> None:
     """Navigating to ?instance=99 on an app with 3 instances corrects to ?instance=0."""
     page.goto(base_url + "/apps/multi_app?instance=99")
@@ -436,11 +381,6 @@ def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> N
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible(timeout=5000)
     expect(switcher).to_contain_text("MultiApp[0]")
-
-
-# ──────────────────────────────────────────────────────────────────────
-# View in code — ?line= param
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_code_tab_with_line_param(page: Page, base_url: str) -> None:
@@ -481,11 +421,6 @@ def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) ->
     expect(page).to_have_url(re.compile(r"/apps/my_app/code"))
     # URL should contain line= parameter
     expect(page).to_have_url(re.compile(r"line=\d+"))
-
-
-# ──────────────────────────────────────────────────────────────────────
-# All navigation sources produce new-format URLs
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str) -> None:

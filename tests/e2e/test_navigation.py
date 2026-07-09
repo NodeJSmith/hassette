@@ -9,13 +9,6 @@ from tests.e2e.conftest import ANIMATION_SETTLE_MS, DESKTOP_VIEWPORT, MOBILE_VIE
 
 pytestmark = pytest.mark.e2e
 
-# Nav items in the new sidebar: Apps, Logs, Config (overview removed)
-PAGES = [
-    ("/apps", "apps", "apps"),
-    ("/logs", None, None),
-    ("/config", "config", "config"),
-]
-
 
 def test_root_redirects_to_apps(page: Page, base_url: str) -> None:
     """/ redirects to /apps."""
@@ -34,11 +27,6 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
     expect(page.locator("body")).to_contain_text("config")
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Sidebar nav items
-# ──────────────────────────────────────────────────────────────────────
-
-# Sidebar nav links: Apps, Logs, Config (overview page removed)
 SIDEBAR_LINKS = [
     ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),
@@ -86,11 +74,6 @@ def test_sidebar_active_state(page: Page, base_url: str, path: str, testid: str)
     expect(active_item).to_have_class(re.compile(r"\bis-active\b"))
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Sidebar layout
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_sidebar_visible_on_desktop(page: Page, base_url: str) -> None:
     """Sidebar renders on desktop viewport."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
@@ -104,11 +87,6 @@ def test_brand_link_navigates_to_apps(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
     page.locator("[aria-label='Hassette home']").click()
     expect(page).to_have_url(re.compile(r"/apps"))
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Responsive: sidebar hidden below 768px, off-canvas drawer on mobile
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
@@ -154,11 +132,6 @@ def test_mobile_drawer_closes_on_navigation(page: Page, base_url: str) -> None:
     expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Accessibility: skip-nav, page titles, aria-hidden icons
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
     """Skip-nav link is first focusable element and targets #main-content."""
     page.goto(base_url + "/apps")
@@ -197,11 +170,6 @@ def test_sidebar_icons_are_aria_hidden(page: Page, base_url: str) -> None:
     nav_svgs = page.locator("nav[aria-label='Main navigation'] svg")
     for i in range(nav_svgs.count()):
         expect(nav_svgs.nth(i)).to_have_attribute("aria-hidden", "true")
-
-
-# ──────────────────────────────────────────────────────────────────────
-# App list in sidebar
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
@@ -269,11 +237,6 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Instance list should now be visible
     expect(page.locator("[data-testid='instance-list']").first).to_be_visible()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# SPA client-side navigation
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:

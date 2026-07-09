@@ -142,7 +142,7 @@ class AppLifecycleService(Resource):
                     class_name,
                 )
                 await self.emit_app_state_change(inst, status=RUNNING, previous_status=STARTING)
-            except TimeoutError as e:
+            except TimeoutError as exc:
                 self.logger.error(
                     "Timed out while starting app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
@@ -151,9 +151,9 @@ class AppLifecycleService(Resource):
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
-                self.registry.record_failure(app_key, idx, e)
-                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=e)
-            except Exception as e:
+                self.registry.record_failure(app_key, idx, exc)
+                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=exc)
+            except Exception as exc:
                 self.logger.error(
                     "Failed to start app '%s' (%s):\n%s",
                     inst.app_config.instance_name,
@@ -162,8 +162,8 @@ class AppLifecycleService(Resource):
                 )
                 inst.status = STOPPED
                 await self.cleanup_failed_instance(inst)
-                self.registry.record_failure(app_key, idx, e)
-                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=e)
+                self.registry.record_failure(app_key, idx, exc)
+                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=exc)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -231,14 +231,14 @@ class AppLifecycleService(Resource):
                 "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
             )
             await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
-        except Exception as e:
+        except Exception as exc:
             self.logger.error(
                 "Failed to stop app '%s' after %s seconds:\n%s",
                 inst.app_config.instance_name,
                 self.shutdown_timeout,
                 get_short_traceback(),
             )
-            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=e)
+            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
         finally:
             if instance_index is not None:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
@@ -311,9 +311,9 @@ class AppLifecycleService(Resource):
             await self.hassette.send_event(
                 HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
             )
-        except Exception as e:
+        except Exception as exc:
             self.logger.exception("Failed to initialize apps")
-            await self.handle_crash(e)
+            await self.handle_crash(exc)
             raise
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
@@ -491,8 +491,8 @@ class AppLifecycleService(Resource):
         # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
         try:
             self.hassette.config.reload()
-        except Exception as e:
-            self.logger.exception("Failed to reload configuration: %s", e)
+        except Exception as exc:
+            self.logger.exception("Failed to reload configuration: %s", exc)
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}

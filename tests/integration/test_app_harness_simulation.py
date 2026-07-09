@@ -93,11 +93,6 @@ async def test_trigger_due_jobs_fires_scheduled():
     """Freeze at 6:00, advance to 7:00, trigger — daily job fires."""
     # The app registers run_daily at 7:00 during on_initialize.
     async with AppTestHarness(SimTestApp, config={}) as harness:
-        # Freeze before app init so run_daily uses frozen time when scheduling
-        # Actually app is already initialized; we need to ensure job fires.
-        # The job was scheduled at "today at 7:00" using real now() during on_initialize.
-        # We need to freeze to a time after that scheduled run time.
-        # Let's get the job's next_run time, then freeze past it.
         jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
         assert len(jobs) > 0, "No jobs registered"
         daily_job = next((j for j in jobs if j.name == "daily"), None)

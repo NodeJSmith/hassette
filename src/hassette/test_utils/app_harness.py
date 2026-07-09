@@ -141,8 +141,8 @@ def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], co
 
     try:
         return hermetic_cls()
-    except pydantic.ValidationError as e:
-        raise AppConfigurationError(app_cls, e) from e
+    except pydantic.ValidationError as exc:
+        raise AppConfigurationError(app_cls, exc) from exc
 
 
 def synthesize_manifest(app_cls: type[App]) -> AppManifest:
@@ -362,8 +362,8 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         """Remove auto-created tmpdir on teardown."""
         try:
             shutil.rmtree(data_dir, ignore_errors=True)
-        except Exception as e:
-            LOGGER.warning("Failed to clean up tmpdir %s: %s", data_dir, e)
+        except Exception as exc:
+            LOGGER.warning("Failed to clean up tmpdir %s: %s", data_dir, exc)
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         """Delegate teardown to the AsyncExitStack (LIFO order)."""
@@ -454,11 +454,11 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         """
         try:
             domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[type(record)]
-        except KeyError as e:
+        except KeyError as exc:
             raise ValueError(
                 f"Unknown helper record type: {type(record).__name__}. "
                 f"Expected one of: {sorted(t.__name__ for t in RECORD_TYPE_TO_DOMAIN)}"
-            ) from e
+            ) from exc
         if record.id in self.api_recorder.helper_definitions[domain]:  # pyright: ignore[reportAttributeAccessIssue]
             raise ValueError(
                 f"A {type(record).__name__} with id={record.id!r} is already seeded. "  # pyright: ignore[reportAttributeAccessIssue]

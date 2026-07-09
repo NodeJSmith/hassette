@@ -173,8 +173,8 @@ class TaskBucket(Resource):
                     with ctx.use_task_bucket(self):
                         task = asyncio.create_task(coro, name=name)
                     result.set_result(task)
-                except Exception as e:
-                    result.set_exception(e)
+                except Exception as exc:
+                    result.set_exception(exc)
 
             self.hassette.loop.call_soon_threadsafe(_create)
             try:
@@ -338,8 +338,8 @@ class TaskBucket(Resource):
         def _call() -> None:
             try:
                 fut.set_result(fn(*args, **kwargs))
-            except Exception as e:
-                fut.set_exception(e)
+            except Exception as exc:
+                fut.set_exception(exc)
 
         self.hassette.loop.call_soon_threadsafe(_call)
         return await fut

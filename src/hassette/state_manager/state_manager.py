@@ -157,9 +157,9 @@ class DomainStates(Generic[StateT]):
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
             try:
                 yield entity_id, self._validate_or_return_from_cache(entity_id, state)
-            except Exception as e:
+            except Exception as exc:
                 LOGGER.error(
-                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, e
+                    "Error validating state for entity_id '%s' as type %s: %s", entity_id, self._model.__name__, exc
                 )
                 continue
 
@@ -351,11 +351,11 @@ class StateManager(Resource):
 
         try:
             return self.hassette.state_registry.try_convert_state(state_dict, entity_id)
-        except Exception as e:
+        except Exception as exc:
             LOGGER.error(
                 "Failed to convert state for entity '%s': %s",
                 entity_id,
-                e,
+                exc,
                 stacklevel=2,
             )
             return None

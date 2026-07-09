@@ -305,8 +305,8 @@ class ServiceWatcher(Resource):
         for service in services:
             try:
                 await service.restart()
-            except Exception as e:
-                self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, e)
+            except Exception as exc:
+                self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Restart a failed service using per-service RestartSpec-driven behavior."""
@@ -428,12 +428,12 @@ class ServiceWatcher(Resource):
             for service in services:
                 try:
                     await service.restart()
-                except Exception as e:
+                except Exception as exc:
                     self.logger.error(
                         "%s '%s' restart raised an exception (service left in FAILED state): %s",
                         role,
                         name,
-                        e,
+                        exc,
                     )
         finally:
             self._restarting.discard(key)
@@ -484,8 +484,8 @@ class ServiceWatcher(Resource):
                 reason += f": {status_payload.exception_type}"
             self.hassette.record_fatal_reason(reason)
             self.hassette.request_shutdown(reason)
-        except Exception as e:
-            self.logger.error("Failed to handle %s crash for '%s': %s", role, name, e)
+        except Exception as exc:
+            self.logger.error("Failed to handle %s crash for '%s': %s", role, name, exc)
             raise
 
     async def on_service_running(self, event: HassetteServiceEvent) -> None:

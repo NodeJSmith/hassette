@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import time
-from logging import getLogger
 
 import anyio
 from fastapi import APIRouter
@@ -12,7 +11,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from hassette.web.mappers import connected_payload_from
 
 router = APIRouter(tags=["websocket"])
-LOGGER = getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 _LOG_LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,

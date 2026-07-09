@@ -24,8 +24,6 @@ type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type Execution = components["schemas"]["Execution"];
 
-// ---- Individual object factories ----
-
 export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
   return {
     app_key: "test_app",

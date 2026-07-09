@@ -5,8 +5,6 @@ import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
 import styles from "./alert-banner.module.css";
 
-// ---- AlertBanner: failed-apps list -----------------------------------------
-
 interface FailedApp {
   app_key: string;
   error_message: string | null;
@@ -35,8 +33,6 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
     </div>
   );
 }
-
-// ---- TelemetryDegradedBanner: reads signals from AppState ------------------
 
 /**
  * TelemetryDegradedBanner renders an amber warning banner when the telemetry

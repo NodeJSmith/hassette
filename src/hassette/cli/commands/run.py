@@ -45,20 +45,20 @@ def cmd_run(
         asyncio.run(run_server(config))
     except KeyboardInterrupt:
         LOGGER.info("Keyboard interrupt received, shutting down")
-    except AppPrecheckFailedError as e:
-        LOGGER.error("App precheck failed: %s", e)
+    except AppPrecheckFailedError as exc:
+        LOGGER.error("App precheck failed: %s", exc)
         LOGGER.error("Hassette is shutting down due to app precheck failure")
         raise SystemExit(1) from None
-    except FatalError as e:
-        LOGGER.error("Fatal error occurred: %s", e)
+    except FatalError as exc:
+        LOGGER.error("Fatal error occurred: %s", exc)
         LOGGER.error("Hassette is shutting down due to a fatal error")
         raise SystemExit(1) from None
-    except OSError as e:
-        if e.errno == errno.EADDRINUSE:
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
             LOGGER.error("Port %s is already in use — is another hassette instance running?", config.web_api.port)
             raise SystemExit(1) from None
-        LOGGER.exception("OS error in Hassette: %s", e)
+        LOGGER.exception("OS error in Hassette: %s", exc)
         raise
-    except Exception as e:
-        LOGGER.exception("Unexpected error in Hassette: %s", e)
+    except Exception as exc:
+        LOGGER.exception("Unexpected error in Hassette: %s", exc)
         raise

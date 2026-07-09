@@ -318,8 +318,8 @@ class Cron:
         self._expression = expression
         try:
             self._cron = CronTrigger(expression)
-        except ValueError as e:
-            raise ValueError(f"Invalid cron expression: {expression!r}") from e
+        except ValueError as exc:
+            raise ValueError(f"Invalid cron expression: {expression!r}") from exc
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return the first cron-grid-aligned run time at or after current_time."""

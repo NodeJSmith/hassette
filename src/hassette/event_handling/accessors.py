@@ -71,8 +71,8 @@ def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
         except PathAccessError:
             # no logging for regular PathAccessError; just return MISSING_VALUE
             return MISSING_VALUE
-        except Exception as e:
-            LOGGER.error("Error accessing path %r: %s - %s", path, type(e).__name__, e)
+        except Exception as exc:
+            LOGGER.error("Error accessing path %r: %s - %s", path, type(exc).__name__, exc)
             return MISSING_VALUE
 
     return _inner

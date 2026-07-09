@@ -17,8 +17,6 @@ from hassette.models.states.media_player import MediaPlayerAttributes
 from hassette.models.states.sensor import SensorAttributes
 from hassette.models.states.weather import WeatherAttributes
 
-# ── Sensor (Finding #9) ──────────────────────────────────────────────
-
 
 class TestSensorAttributes:
     def test_last_reset_present(self) -> None:
@@ -30,9 +28,6 @@ class TestSensorAttributes:
         assert attrs.last_reset is None
 
 
-# ── Humidifier (Finding #10) ─────────────────────────────────────────
-
-
 class TestHumidifierAttributes:
     def test_target_humidity_step_present(self) -> None:
         attrs = HumidifierAttributes(target_humidity_step=5.0)
@@ -41,9 +36,6 @@ class TestHumidifierAttributes:
     def test_target_humidity_step_defaults_to_none(self) -> None:
         attrs = HumidifierAttributes()
         assert attrs.target_humidity_step is None
-
-
-# ── Alarm Control Panel (Finding #11) ────────────────────────────────
 
 
 class TestAlarmControlPanelAttributes:
@@ -58,9 +50,6 @@ class TestAlarmControlPanelAttributes:
     def test_removed_next_state_lands_in_extras(self) -> None:
         attrs = AlarmControlPanelAttributes(next_state="disarmed")
         assert attrs.extra("next_state") == "disarmed"
-
-
-# ── Light (Finding #4) ───────────────────────────────────────────────
 
 
 class TestLightAttributes:
@@ -79,9 +68,6 @@ class TestLightAttributes:
     def test_rgbww_color_defaults_to_none(self) -> None:
         attrs = LightAttributes()
         assert attrs.rgbww_color is None
-
-
-# ── Climate (Finding #5) ─────────────────────────────────────────────
 
 
 class TestClimateAttributes:
@@ -118,9 +104,6 @@ class TestClimateAttributes:
         assert getattr(attrs, field) is None
 
 
-# ── Weather (Finding #6) ─────────────────────────────────────────────
-
-
 class TestWeatherAttributes:
     @pytest.mark.parametrize(
         ("field", "value"),
@@ -144,9 +127,6 @@ class TestWeatherAttributes:
         assert getattr(attrs, field) is None
 
 
-# ── Fan (Finding #7) ─────────────────────────────────────────────────
-
-
 class TestFanAttributes:
     def test_direction_present(self) -> None:
         attrs = FanAttributes(direction="forward")
@@ -165,9 +145,6 @@ class TestFanAttributes:
         assert attrs.extra(field) == "test_value"
 
 
-# ── Camera (Finding #8) ──────────────────────────────────────────────
-
-
 class TestCameraAttributes:
     def test_motion_detection_present(self) -> None:
         attrs = CameraAttributes(motion_detection=True)
@@ -176,9 +153,6 @@ class TestCameraAttributes:
     def test_motion_detection_defaults_to_none(self) -> None:
         attrs = CameraAttributes()
         assert attrs.motion_detection is None
-
-
-# ── Lock (Finding #3) ────────────────────────────────────────────────
 
 
 class TestLockAttributes:
@@ -197,9 +171,6 @@ class TestLockAttributes:
     def test_code_format_defaults_to_none(self) -> None:
         attrs = LockAttributes()
         assert attrs.code_format is None
-
-
-# ── Media Player (Finding #1) ────────────────────────────────────────
 
 
 class TestMediaPlayerAttributes:

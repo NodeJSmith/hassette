@@ -694,8 +694,8 @@ class BusService(Service):
                     break
                 try:
                     await self.dispatch(str(event.topic), event)
-                except Exception as e:
-                    self.logger.exception("Error processing event: %s", e)
+                except Exception as exc:
+                    self.logger.exception("Error processing event: %s", exc)
 
 
 def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:

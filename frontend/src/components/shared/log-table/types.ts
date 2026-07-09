@@ -27,10 +27,8 @@ export interface ColumnDef {
   label: string;
   shortLabel?: string;
   sortKey?: LogSortKey;
-  filterable: boolean;
   width: string;
   mobileWidth: string;
-  mono: boolean;
   ariaLabel: string;
 }
 

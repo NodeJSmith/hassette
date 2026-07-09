@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 from typing import Any
 
-_LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 # Number of join/interrupt loop iterations before giving up on remaining threads.
 _JOIN_ATTEMPTS = 10
@@ -71,7 +71,7 @@ def _log_thread_running_at_shutdown(name: str, ident: int) -> None:
     frames = sys._current_frames()
     stack = frames.get(ident)
     formatted_stack = traceback.format_stack(stack)
-    _LOGGER.warning(
+    LOGGER.warning(
         "Thread[%s] is still running at shutdown: %s",
         name,
         "".join(formatted_stack).strip(),

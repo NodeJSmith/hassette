@@ -88,11 +88,6 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
     return trig
 
 
-def frozen_now() -> ZonedDateTime:
-    """Return a stable ZonedDateTime for use in monkeypatching."""
-    return ZonedDateTime(2025, 1, 15, 12, 0, 0, tz="UTC")
-
-
 class TestRescheduleNoneRemovesJob:
     async def test_reschedule_none_removes_job(self) -> None:
         """next_run_time() returning None removes the job; job not re-enqueued."""
