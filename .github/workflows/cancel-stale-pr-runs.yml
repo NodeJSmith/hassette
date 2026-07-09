@@ -1,8 +1,10 @@
 name: Cancel Stale PR Runs
 
 # When a PR is closed (merged or not), cancel any in-progress or queued
-# workflow runs for that PR's head branch. Without this, merged PRs keep
-# consuming runners for checks nobody will look at.
+# workflow runs for that PR's head branch. The per-workflow concurrency
+# groups cancel superseded runs on the same ref while a PR is open; this
+# handles the different case where the PR closes and nobody needs the
+# result at all.
 on:
     pull_request:
         types: [closed]
@@ -20,13 +22,12 @@ jobs:
                   HEAD_BRANCH: ${{ github.head_ref }}
                   REPO: ${{ github.repository }}
               run: |
+                  # --status is a single-value flag; fetch all and filter client-side
                   gh run list \
                     --repo "$REPO" \
                     --branch "$HEAD_BRANCH" \
-                    --status in_progress \
-                    --status queued \
-                    --json databaseId \
-                    --jq '.[].databaseId' \
+                    --json databaseId,status \
+                    --jq '.[] | select(.status == "in_progress" or .status == "queued") | .databaseId' \
                   | while read -r run_id; do
                       echo "Cancelling run $run_id"
                       gh run cancel "$run_id" --repo "$REPO" || true
