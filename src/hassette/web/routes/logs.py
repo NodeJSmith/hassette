@@ -5,11 +5,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, TelemetryDep, db_degrades_to
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
 router = APIRouter(tags=["logs"])
-_VALID_SOURCE_TIERS = frozenset({"app", "framework"})
 
 
 @router.get("/logs/recent", response_model=list[LogEntryResponse])
@@ -33,10 +32,10 @@ async def get_logs(
             )
     if source_tier is not None:
         source_tier = source_tier.lower()
-    if source_tier is not None and source_tier not in _VALID_SOURCE_TIERS:
+    if source_tier is not None and source_tier not in VALID_SOURCE_TIERS:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid source_tier {source_tier!r}. Must be one of: {', '.join(sorted(_VALID_SOURCE_TIERS))}",
+            detail=f"Invalid source_tier {source_tier!r}. Must be one of: {', '.join(sorted(VALID_SOURCE_TIERS))}",
         )
     records: list[LogEntryResponse] = []
     with db_degrades_to(response):

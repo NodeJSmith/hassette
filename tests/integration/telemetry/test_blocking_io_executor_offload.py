@@ -148,6 +148,7 @@ async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseSe
     session_id = cursor.lastrowid
     await db_service.db.commit()
     h.session_id = session_id
+    h.try_session_id.return_value = session_id
     h.database_service = db_service
     try:
         yield db_service, h, session_id

@@ -53,6 +53,7 @@ from boltons.iterutils import is_collection
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.types import ChangeType, ComparisonCondition, EventT
+from hassette.types.types import WhereClause
 from hassette.utils.func_utils import callable_stable_name as callable_name
 from hassette.utils.func_utils import is_async_callable
 from hassette.utils.glob_utils import is_glob
@@ -630,7 +631,7 @@ def _reject_async_predicate(pred: Any) -> None:
         raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
 
 
-def normalize_where(where: "Predicate | Sequence[Predicate] | None") -> "Predicate | None":
+def normalize_where(where: WhereClause) -> "Predicate | None":
     """Normalize a 'where' clause into a single Predicate, or None.
 
     Rejects async callables (including inside collections) at registration time.

@@ -441,10 +441,7 @@ class CommandExecutor(Service):
             execution_start_ts: Unix timestamp when execution began.
             execution_id: UUIDv7 string for this execution instance.
         """
-        try:
-            session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            session_id = None
+        session_id = self.hassette.try_session_id()
 
         match cmd:
             case InvokeHandler():
@@ -848,10 +845,7 @@ class CommandExecutor(Service):
         # Drain-time session_id injection
         # Records enqueued before session creation have session_id=None.
         # Inject the real session_id now at persist time.
-        try:
-            current_session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            current_session_id = None
+        current_session_id = self.hassette.try_session_id()
 
         if current_session_id is not None:
             records = [
@@ -990,10 +984,7 @@ class CommandExecutor(Service):
             event: A ``WatchdogEvent`` (tier='watchdog') or ``MonkeypatchEvent``
                 (tier='monkeypatch') describing the detected blocking call.
         """
-        try:
-            session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            session_id = None
+        session_id = self.hassette.try_session_id()
 
         if isinstance(event, WatchdogEvent):
             blocking_event = BlockingEvent(

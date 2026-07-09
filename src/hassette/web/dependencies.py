@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, getLogger
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, Path, Query, Request
 from starlette.responses import Response
 
 from hassette.exceptions import TelemetryUnavailableError
@@ -74,8 +74,21 @@ LOG_LEVELS: dict[str, int] = {
 
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 
+DEFAULT_LOG_LEVEL = "INFO"
+
+VALID_SOURCE_TIERS: frozenset[str] = frozenset({"app", "framework"})
+
 SOURCE_TIER_PARAM = Query(
     default="app",
     description="Filter by source tier. 'app' excludes framework internals. "
     "'framework' returns only internal actors. 'all' returns everything.",
+)
+
+INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
+    default=0,
+    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
+)
+
+APP_KEY_PARAM = Path(  # pyright: ignore[reportCallInDefaultInitializer]
+    description="Use `__hassette__` to query framework-internal actor telemetry.",
 )

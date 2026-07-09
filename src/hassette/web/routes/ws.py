@@ -8,7 +8,7 @@ import anyio
 from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from hassette.web.dependencies import LOG_LEVELS
+from hassette.web.dependencies import DEFAULT_LOG_LEVEL, LOG_LEVELS
 from hassette.web.mappers import connected_payload_from
 
 router = APIRouter(tags=["websocket"])
@@ -48,9 +48,9 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
             elif msg_type == "subscribe":
                 sub_data = data.get("data", {})
                 ws_state["subscribe_logs"] = sub_data.get("logs", False)
-                raw_level = sub_data.get("min_log_level", "INFO")
-                level = raw_level.upper() if isinstance(raw_level, str) else "INFO"
-                ws_state["min_log_level"] = level if level in LOG_LEVELS else "INFO"
+                raw_level = sub_data.get("min_log_level", DEFAULT_LOG_LEVEL)
+                level = raw_level.upper() if isinstance(raw_level, str) else DEFAULT_LOG_LEVEL
+                ws_state["min_log_level"] = level if level in LOG_LEVELS else DEFAULT_LOG_LEVEL
     except Exception as exc:
         if _is_disconnect(exc):
             return
@@ -70,7 +70,8 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
                 if not ws_state.get("subscribe_logs", False):
                     continue
                 msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
-                min_level = LOG_LEVELS.get(ws_state.get("min_log_level", "INFO"), LOG_LEVELS["INFO"])
+                configured = ws_state.get("min_log_level", DEFAULT_LOG_LEVEL)
+                min_level = LOG_LEVELS.get(configured, LOG_LEVELS[DEFAULT_LOG_LEVEL])
                 if msg_level < min_level:
                     continue
             await websocket.send_json(message)
@@ -86,7 +87,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     runtime = websocket.app.state.hassette.runtime_query_service
     queue = await runtime.register_ws_client()
-    ws_state: dict = {"subscribe_logs": False, "min_log_level": "INFO"}
+    ws_state: dict = {"subscribe_logs": False, "min_log_level": DEFAULT_LOG_LEVEL}
     try:
         # Send initial connection info (includes uptime_seconds for time-window filtering)
         status = runtime.get_system_status()

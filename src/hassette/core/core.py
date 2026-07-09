@@ -260,6 +260,13 @@ class Hassette(Resource):
             raise _service_not_wired_error("SessionManager")
         return self._session_manager.session_id
 
+    def try_session_id(self) -> int | None:
+        """Return the current session ID, or None if no session exists yet."""
+        try:
+            return self.session_id
+        except RuntimeError:
+            return None
+
     @property
     def ws_url(self) -> str:
         """Construct the WebSocket URL for Home Assistant."""

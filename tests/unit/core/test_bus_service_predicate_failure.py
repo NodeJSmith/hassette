@@ -3,7 +3,7 @@
 import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
@@ -18,6 +18,7 @@ def make_bus_service() -> tuple[BusService, MagicMock]:
     """Build a BusService with mocked dependencies for unit testing."""
     hassette = MagicMock()
     hassette.session_id = 42
+    hassette.try_session_id.return_value = 42
     hassette.config.lifecycle.max_concurrent_dispatches = 10
     hassette.config.lifecycle.event_handler_timeout_seconds = 30.0
     hassette.config.logging.bus_service = "INFO"
@@ -70,7 +71,7 @@ class TestRecordPredicateFailure:
 
     def test_session_id_fallback_on_runtime_error(self) -> None:
         bs, executor = make_bus_service()
-        type(bs.hassette).session_id = PropertyMock(side_effect=RuntimeError("no session"))
+        bs.hassette.try_session_id = MagicMock(return_value=None)
 
         listener = make_listener_with_error_handler()
         event = Event(topic="test.pred", payload=SimpleNamespace())

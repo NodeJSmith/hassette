@@ -113,7 +113,7 @@ from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence

@@ -197,6 +197,7 @@ class TestReadTimeout:
         session_id = cursor.lastrowid
         await db_service.db.commit()
         short_timeout_hassette.session_id = session_id
+        short_timeout_hassette.try_session_id.return_value = session_id
         short_timeout_hassette.database_service = db_service
         yield db_service, session_id
         await db_service.on_shutdown()

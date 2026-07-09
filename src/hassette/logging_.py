@@ -75,6 +75,12 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     }
 
 
+def _format_exc_info(record: logging.LogRecord) -> str | None:
+    if record.exc_info:
+        return "".join(traceback.format_exception(*record.exc_info))
+    return None
+
+
 class LogCaptureHandler(logging.Handler):
     """Captures log records into a bounded deque and broadcasts to WS clients."""
 
@@ -122,7 +128,7 @@ class LogCaptureHandler(logging.Handler):
             func_name=record.funcName or "",
             lineno=record.lineno,
             message=record.getMessage(),
-            exc_info="".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
+            exc_info=_format_exc_info(record),
             **attrs,
         )
         self._buffer.append(entry)
@@ -282,7 +288,7 @@ class LogPersistenceHandler(logging.Handler):
             "func_name": record.funcName or "",
             "lineno": record.lineno,
             "message": record.getMessage(),
-            "exc_info": "".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
+            "exc_info": _format_exc_info(record),
             **_extract_correlation_attrs(record),
         }
 

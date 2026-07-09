@@ -9,7 +9,7 @@ import time
 from logging import getLogger
 from typing import Literal, cast
 
-from fastapi import APIRouter, Path, Query, Response
+from fastapi import APIRouter, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
@@ -23,6 +23,8 @@ from hassette.schemas.telemetry_models import (
 )
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import (
+    APP_KEY_PARAM,
+    INSTANCE_INDEX_PARAM,
     SOURCE_TIER_PARAM,
     HassetteDep,
     RuntimeDep,
@@ -109,16 +111,6 @@ def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
     """
     success_rate = compute_success_rate(error_rate_from_summary(summary))
     return classify_health_bar(success_rate)
-
-
-INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
-    default=0,
-    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-)
-
-APP_KEY_PARAM = Path(  # pyright: ignore[reportCallInDefaultInitializer]
-    description="Use `__hassette__` to query framework-internal actor telemetry.",
-)
 
 
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)

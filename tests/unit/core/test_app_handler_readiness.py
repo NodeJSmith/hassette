@@ -24,6 +24,7 @@ def mock_hassette() -> AsyncMock:
     hassette.send_event = AsyncMock()
     hassette.bus_service.router = MagicMock()
     hassette.session_id = 1
+    hassette.try_session_id.return_value = 1
     return hassette
 
 

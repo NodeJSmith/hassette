@@ -419,10 +419,7 @@ class SchedulerService(Service):
         Args:
             job: The job whose predicate returned False.
         """
-        try:
-            session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            session_id = None
+        session_id = self.hassette.try_session_id()
 
         record = ExecutionRecord(
             kind="job",
@@ -454,10 +451,7 @@ class SchedulerService(Service):
             exc: The exception the predicate raised.
             start_ts: Unix timestamp when predicate evaluation began.
         """
-        try:
-            session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            session_id = None
+        session_id = self.hassette.try_session_id()
 
         traceback_str = "".join(traceback.format_exception(exc))
         execution_id = str(uuid_utils.uuid7())

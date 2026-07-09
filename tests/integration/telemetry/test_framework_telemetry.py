@@ -56,6 +56,7 @@ async def framework_hassette(premigrated_db_path: Path) -> AsyncIterator[MagicMo
 
     await db_service.db.commit()
     hassette.session_id = session_id
+    hassette.try_session_id.return_value = session_id
     hassette.database_service = db_service
 
     yield hassette

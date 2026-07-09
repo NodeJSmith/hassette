@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from datetime import time
 from enum import StrEnum
@@ -146,6 +146,10 @@ class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
     def __call__(self, value: EventT, /) -> bool: ...
+
+
+WhereClause: TypeAlias = "Predicate | Sequence[Predicate] | None"
+"""Type alias for the ``where=`` parameter on bus/scheduler subscription methods."""
 
 
 SchedulerPredicate = Callable[..., bool]

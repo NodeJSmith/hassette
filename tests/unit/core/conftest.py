@@ -131,6 +131,7 @@ def mock_hassette() -> AsyncMock:
     hassette.scheduler_service = MagicMock()
     hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=lambda _owner: asyncio.sleep(0))
     hassette.session_id = 1
+    hassette.try_session_id.return_value = 1
     return hassette
 
 
@@ -224,6 +225,7 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     hassette.config.lifecycle.error_handler_timeout_seconds = error_handler_timeout
     hassette.database_service = MagicMock()
     hassette.session_id = 42
+    hassette.try_session_id.return_value = 42
     executor = CommandExecutor.__new__(CommandExecutor)
     executor._write_queue = asyncio.Queue(maxsize=1000)
     executor._dropped_overflow = 0

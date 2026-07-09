@@ -20,6 +20,13 @@ from hassette.utils.hass_utils import extract_domain
 
 MAX_RETRY_ATTEMPTS = 5
 
+_retry_on_not_ready = retry(
+    retry=retry_if_exception_type(ResourceNotReadyError),
+    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential_jitter(),
+    reraise=True,
+)
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
@@ -127,12 +134,7 @@ class StateProxy(Resource):
         """
         return sum(1 for _ in self.yield_domain_states(domain))
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
 
@@ -152,10 +154,13 @@ class StateProxy(Resource):
 
         return self.get_state_once(entity_id)
 
-    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        # Stale reads allowed when cache is populated; only raise during cold start
+    def _check_ready(self) -> None:
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+
+    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
+        # Stale reads allowed when cache is populated; only raise during cold start
+        self._check_ready()
 
         return self.states.get(entity_id)
 
@@ -175,12 +180,7 @@ class StateProxy(Resource):
 
         return {eid: state for eid, state in self.yield_domain_states(domain)}
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all states for a specific domain.
 
@@ -199,8 +199,7 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready() and not self.states:
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+        self._check_ready()
 
         def iter_states() -> Generator[tuple[str, "HassStateDict"], Any, None]:
             # Snapshot to avoid RuntimeError if load_cache() mutates the dict mid-iteration
@@ -213,12 +212,7 @@ class StateProxy(Resource):
 
         return iter_states()
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in the state proxy.
 
@@ -232,8 +226,7 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready() and not self.states:
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+        self._check_ready()
         return entity_id in self.states
 
     async def on_state_change(self, event: RawStateChangeEvent) -> None:

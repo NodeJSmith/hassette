@@ -388,14 +388,10 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 
 
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
-    """build_record() reads session_id from self.hassette.session_id directly.
-
-    _safe_session_id() was removed; session_id is now always read directly.
-    The phased startup contract guarantees a valid session_id exists before any
-    handler can fire, so RuntimeError from session_id is a programming error.
-    """
+    """build_record() reads session_id via try_session_id() and embeds it in the record."""
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     db_hassette.session_id = 99
+    db_hassette.try_session_id.return_value = 99
 
     listener = make_mock_listener()
 
@@ -443,14 +439,14 @@ async def test_persist_batch_drops_presession_records(
         status="success",
     )
 
-    # Patch session_id to raise RuntimeError so the "session not ready" path is triggered
-    executor.hassette.session_id = PropertyMock(side_effect=RuntimeError("no session"))
-    type(executor.hassette).session_id = PropertyMock(side_effect=RuntimeError("no session"))
+    # Patch try_session_id to return None so the "session not ready" path is triggered
+    executor.hassette.try_session_id = MagicMock(return_value=None)
 
     await executor.persist_batch([valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
     type(executor.hassette).session_id = PropertyMock(return_value=session_id)
+    executor.hassette.try_session_id = MagicMock(return_value=session_id)
 
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",
