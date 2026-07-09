@@ -5,6 +5,8 @@ Tests use RestartSpec-based per-service configuration rather than global config 
 
 import asyncio
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
@@ -21,6 +23,8 @@ from hassette.test_utils.reset import reset_hassette_lifecycle
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import RestartType
 
+AWAIT_TIMEOUT = 5.0
+
 
 def make_call_counts() -> dict[str, int]:
     """Fresh cancel/start counters for get_dummy_service."""
@@ -32,6 +36,22 @@ def make_fast_spec(**overrides: object) -> RestartSpec:
     defaults: dict[str, object] = {"backoff_base_seconds": 0}
     defaults.update(overrides)
     return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
+
+
+@contextmanager
+def capture_events(hassette) -> Generator[list, None, None]:
+    """Temporarily replace hassette.send_event to capture emitted events."""
+    events: list = []
+    original = hassette.send_event
+
+    async def capture(ev):
+        events.append(ev)
+
+    hassette.send_event = capture  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        yield events
+    finally:
+        hassette.send_event = original  # pyright: ignore[reportAttributeAccessIssue]
 
 
 @pytest.fixture
@@ -61,7 +81,7 @@ async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent
         await wait_for(
             lambda: key not in watcher._restarting,
             desc=f"execute_restart for {key} completed",
-            timeout=5.0,
+            timeout=AWAIT_TIMEOUT,
         )
 
 
@@ -71,7 +91,7 @@ async def on_running_and_await(watcher: ServiceWatcher, event: HassetteServiceEv
     await watcher.on_service_running(event)
     new_tasks = set(watcher.task_bucket.pending_tasks()) - pending_before
     for task in new_tasks:
-        await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
+        await asyncio.wait_for(asyncio.shield(task), timeout=AWAIT_TIMEOUT)
 
 
 def get_dummy_service(
@@ -342,18 +362,9 @@ async def test_transient_exhaustion_enters_cooldown(get_service_watcher_mock: Se
     await restart_and_await(watcher, event)
     await restart_and_await(watcher, event)
 
-    # Capture events emitted on exhaustion
-    emitted_events: list = []
-
-    async def capture_event(ev):
-        emitted_events.append(ev)
-
-    hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
-
     # Exhaust budget (budget check is synchronous — no spawn needed)
-    await watcher.restart_service(event)
-
-    hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
+    with capture_events(hassette) as emitted_events:
+        await watcher.restart_service(event)
 
     assert not hassette.shutdown_event.is_set(), "TRANSIENT exhaustion should NOT trigger shutdown"
     assert len(emitted_events) >= 1
@@ -386,17 +397,9 @@ async def test_temporary_exhaustion_stays_dead(get_service_watcher_mock: Service
     await restart_and_await(watcher, event)
     await restart_and_await(watcher, event)
 
-    emitted_events: list = []
-
-    async def capture_event(ev):
-        emitted_events.append(ev)
-
-    hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
-
     # Exhaust budget (budget check is synchronous — no spawn needed)
-    await watcher.restart_service(event)
-
-    hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
+    with capture_events(hassette) as emitted_events:
+        await watcher.restart_service(event)
 
     assert not hassette.shutdown_event.is_set()
     assert len(emitted_events) == 1
@@ -437,18 +440,8 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
         ),
     )
 
-    emitted_events: list = []
-
-    async def capture_event(ev):
-        emitted_events.append(ev)
-        await hassette.shutdown()
-
-    original_send = hassette.send_event
-    hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
-
-    await watcher.restart_service(fatal_event)
-
-    hassette.send_event = original_send  # pyright: ignore[reportAttributeAccessIssue]
+    with capture_events(hassette) as emitted_events:
+        await watcher.restart_service(fatal_event)
 
     # Should have emitted CRASHED and triggered shutdown
     assert hassette.shutdown_event.is_set()
@@ -489,16 +482,8 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
         ),
     )
 
-    emitted_events: list = []
-
-    async def capture_event(ev):
-        emitted_events.append(ev)
-
-    hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
-
-    await watcher.restart_service(nr_event)
-
-    hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
+    with capture_events(hassette) as emitted_events:
+        await watcher.restart_service(nr_event)
 
     # No restart attempt made
     assert call_counts["start"] == 0
@@ -620,7 +605,7 @@ async def test_readiness_timeout_no_budget_impact(get_service_watcher_mock: Serv
     await wait_for(
         lambda: watcher.task_bucket.pending_tasks() == [],
         desc="readiness timeout task completed",
-        timeout=5.0,
+        timeout=AWAIT_TIMEOUT,
     )
 
     budget.evict_expired()
@@ -687,17 +672,9 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
     watcher._cooldown_cycles[key] = 2  # already exceeded max_cooldown_cycles=1
     dummy_service._status = ResourceStatus.EXHAUSTED_COOLING
 
-    emitted_events: list = []
-
-    async def capture_event(ev):
-        emitted_events.append(ev)
-
-    hassette.send_event = capture_event  # pyright: ignore[reportAttributeAccessIssue]
-
     # Run cooldown_and_retry directly — should detect exceeded cycles and emit EXHAUSTED_DEAD
-    await watcher.cooldown_and_retry(dummy_service.class_name, dummy_service.role, key, spec)
-
-    hassette.send_event = hassette._event_stream_service.send_event  # pyright: ignore[reportAttributeAccessIssue]
+    with capture_events(hassette) as emitted_events:
+        await watcher.cooldown_and_retry(dummy_service.class_name, dummy_service.role, key, spec)
 
     assert len(emitted_events) == 1
     assert emitted_events[0].payload.data.status == ResourceStatus.EXHAUSTED_DEAD
