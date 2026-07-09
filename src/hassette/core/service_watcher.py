@@ -20,6 +20,9 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
+DEFAULT_READINESS_TIMEOUT = 30.0
+SERVICE_STATUS_PATH = "payload.data.status"
+
 
 class RestartBudget:
     """Sliding-window restart budget tracker.
@@ -121,6 +124,15 @@ class ServiceWatcher(Resource):
             self._budgets[key] = RestartBudget(spec.budget_intensity, spec.budget_period_seconds)
         return self._budgets[key]
 
+    def set_service_status(self, name: str, role: object, status: ResourceStatus, context: str | None = None) -> None:
+        """Find the service by name/role and set its status, warning if not found."""
+        services = self.get_service(name, role)
+        if not services:
+            label = context if context is not None else status.name
+            self.logger.warning("No %s found for '%s' after %s, skipping status set", role, name, label)
+            return
+        services[0].status = status
+
     async def shutdown_safe_sleep(self, duration: float) -> bool:
         """Sleep for duration seconds, waking early if shutdown is requested.
 
@@ -142,9 +154,7 @@ class ServiceWatcher(Resource):
         role: object,
         status: ResourceStatus,
         previous_status: ResourceStatus,
-        exception: str | None = None,
-        exception_type: str | None = None,
-        exception_traceback: str | None = None,
+        source_payload: ServiceStatusPayload | None = None,
         retry_at: float | None = None,
     ) -> HassetteServiceEvent:
         """Build a HassetteServiceEvent for a service status transition."""
@@ -158,9 +168,9 @@ class ServiceWatcher(Resource):
                     role=role,  # pyright: ignore[reportArgumentType]
                     status=status,
                     previous_status=previous_status,
-                    exception=exception,
-                    exception_type=exception_type,
-                    exception_traceback=exception_traceback,
+                    exception=source_payload.exception if source_payload else None,
+                    exception_type=source_payload.exception_type if source_payload else None,
+                    exception_traceback=source_payload.exception_traceback if source_payload else None,
                     retry_at=retry_at,
                     ready=False,
                     ready_phase=None,
@@ -174,7 +184,7 @@ class ServiceWatcher(Resource):
         role: object,
         key: str,
         spec: RestartSpec,
-        original_data: ServiceStatusPayload,
+        status_payload: ServiceStatusPayload,
     ) -> None:
         """Handle budget exhaustion according to restart_type."""
         if spec.restart_type == RestartType.PERMANENT:
@@ -192,9 +202,7 @@ class ServiceWatcher(Resource):
                 role=role,
                 status=ResourceStatus.CRASHED,
                 previous_status=ResourceStatus.FAILED,
-                exception=original_data.exception,
-                exception_type=original_data.exception_type,
-                exception_traceback=original_data.exception_traceback,
+                source_payload=status_payload,
             )
             await self.hassette.send_event(crashed_event)
             await self.hassette.shutdown()
@@ -213,17 +221,11 @@ class ServiceWatcher(Resource):
                 role=role,
                 status=ResourceStatus.EXHAUSTED_COOLING,
                 previous_status=ResourceStatus.FAILED,
-                exception=original_data.exception,
-                exception_type=original_data.exception_type,
-                exception_traceback=original_data.exception_traceback,
+                source_payload=status_payload,
                 retry_at=retry_at,
             )
             await self.hassette.send_event(cooling_event)
-            services = self.get_service(name, role)
-            if not services:
-                self.logger.warning("No %s found for '%s' after EXHAUSTED_COOLING, skipping status set", role, name)
-            else:
-                services[0].status = ResourceStatus.EXHAUSTED_COOLING
+            self.set_service_status(name, role, ResourceStatus.EXHAUSTED_COOLING)
             # Cancel existing cooldown for this service if any
             existing = self._cooldown_tasks.get(key)
             if existing and not existing.done():
@@ -245,16 +247,10 @@ class ServiceWatcher(Resource):
                 role=role,
                 status=ResourceStatus.EXHAUSTED_DEAD,
                 previous_status=ResourceStatus.FAILED,
-                exception=original_data.exception,
-                exception_type=original_data.exception_type,
-                exception_traceback=original_data.exception_traceback,
+                source_payload=status_payload,
             )
             await self.hassette.send_event(dead_event)
-            services = self.get_service(name, role)
-            if not services:
-                self.logger.warning("No %s found for '%s' after EXHAUSTED_DEAD, skipping status set", role, name)
-            else:
-                services[0].status = ResourceStatus.EXHAUSTED_DEAD
+            self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
 
     async def cooldown_and_retry(self, name: str, role: object, key: str, spec: RestartSpec) -> None:
         """Long-cooldown sleep followed by budget reset and restart attempt.
@@ -279,13 +275,7 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.EXHAUSTED_COOLING,
             )
             await self.hassette.send_event(dead_event)
-            services = self.get_service(name, role)
-            if not services:
-                self.logger.warning(
-                    "No %s found for '%s' after cooldown cycle limit, skipping EXHAUSTED_DEAD status set", role, name
-                )
-            else:
-                services[0].status = ResourceStatus.EXHAUSTED_DEAD
+            self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD, "cooldown cycle limit")
             return
 
         self.logger.info(
@@ -320,9 +310,9 @@ class ServiceWatcher(Resource):
 
     async def restart_service(self, event: HassetteServiceEvent) -> None:
         """Restart a failed service using per-service RestartSpec-driven behavior."""
-        data = event.payload.data
-        name = data.resource_name
-        role = data.role
+        status_payload = event.payload.data
+        name = status_payload.resource_name
+        role = status_payload.role
 
         key = self.service_key(name, role)
 
@@ -336,37 +326,35 @@ class ServiceWatcher(Resource):
         spec = service.restart_spec
 
         # Step 1: Check fatal errors — immediate shutdown regardless of restart type
-        if data.exception_type and data.exception_type in spec.fatal_error_names:
+        if status_payload.exception_type and status_payload.exception_type in spec.fatal_error_names:
             self.logger.error(
                 "%s '%s' raised fatal error '%s', triggering immediate shutdown",
                 role,
                 name,
-                data.exception_type,
+                status_payload.exception_type,
             )
             # Record the fatal reason synchronously (see handle_exhaustion for rationale).
-            self.hassette.record_fatal_reason(f"{role} '{name}' raised fatal error '{data.exception_type}'")
+            self.hassette.record_fatal_reason(f"{role} '{name}' raised fatal error '{status_payload.exception_type}'")
             crashed_event = self.emit_service_status_event(
                 name=name,
                 role=role,
                 status=ResourceStatus.CRASHED,
                 previous_status=ResourceStatus.FAILED,
-                exception=data.exception,
-                exception_type=data.exception_type,
-                exception_traceback=data.exception_traceback,
+                source_payload=status_payload,
             )
             await self.hassette.send_event(crashed_event)
             await self.hassette.shutdown()
             return
 
         # Step 2: Check non-retryable errors — skip restart, go to exhaustion handling
-        if data.exception_type and data.exception_type in spec.non_retryable_error_names:
+        if status_payload.exception_type and status_payload.exception_type in spec.non_retryable_error_names:
             self.logger.warning(
                 "%s '%s' raised non-retryable error '%s', skipping restart",
                 role,
                 name,
-                data.exception_type,
+                status_payload.exception_type,
             )
-            await self.handle_exhaustion(name, role, key, spec, data)
+            await self.handle_exhaustion(name, role, key, spec, status_payload)
             return
 
         # Step 3: In-restart guard — prevent double budget depletion from concurrent FAILED events
@@ -383,7 +371,7 @@ class ServiceWatcher(Resource):
         if budget.is_exhausted():
             # Clear any stale in-restart state before handling exhaustion
             self._restarting.discard(key)
-            await self.handle_exhaustion(name, role, key, spec, data)
+            await self.handle_exhaustion(name, role, key, spec, status_payload)
             return
 
         # Step 5: Mark in-restart and record the restart
@@ -437,9 +425,9 @@ class ServiceWatcher(Resource):
             # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
             # Clear in-restart guard in the finally AFTER the entire loop so concurrent FAILED
             # events cannot enter restart_service() while restarts are still in progress.
-            for svc in services:
+            for service in services:
                 try:
-                    await svc.restart()
+                    await service.restart()
                 except Exception as e:
                     self.logger.error(
                         "%s '%s' restart raised an exception (service left in FAILED state): %s",
@@ -451,10 +439,11 @@ class ServiceWatcher(Resource):
             self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
-        name = event.payload.data.resource_name
-        role = event.payload.data.role
-
-        status, previous_status = event.payload.data.status, event.payload.data.previous_status
+        status_payload = event.payload.data
+        name = status_payload.resource_name
+        role = status_payload.role
+        status = status_payload.status
+        previous_status = status_payload.previous_status
 
         if status == previous_status:
             self.logger.debug("%s '%s' status unchanged at '%s', not logging", role, name, status)
@@ -464,8 +453,8 @@ class ServiceWatcher(Resource):
             "%s '%s' transitioned to status '%s' from '%s'",
             role,
             name,
-            event.payload.data.status,
-            event.payload.data.previous_status,
+            status,
+            previous_status,
         )
 
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
@@ -478,9 +467,9 @@ class ServiceWatcher(Resource):
         makes a crash-driven exit non-zero to external supervisors (systemd Restart=on-failure,
         Docker healthcheck).
         """
-        data = event.payload.data
-        name = data.resource_name
-        role = data.role
+        status_payload = event.payload.data
+        name = status_payload.resource_name
+        role = status_payload.role
 
         try:
             self.logger.error(
@@ -488,11 +477,11 @@ class ServiceWatcher(Resource):
                 role,
                 name,
                 event.payload.event_id,
-                data.exception_traceback,
+                status_payload.exception_traceback,
             )
             reason = f"{role} '{name}' crashed"
-            if data.exception_type:
-                reason += f": {data.exception_type}"
+            if status_payload.exception_type:
+                reason += f": {status_payload.exception_type}"
             self.hassette.record_fatal_reason(reason)
             self.hassette.request_shutdown(reason)
         except Exception as e:
@@ -501,9 +490,9 @@ class ServiceWatcher(Resource):
 
     async def on_service_running(self, event: HassetteServiceEvent) -> None:
         """Reset restart budget when a service transitions to RUNNING and becomes ready."""
-        data = event.payload.data
-        name = data.resource_name
-        role = data.role
+        status_payload = event.payload.data
+        name = status_payload.resource_name
+        role = status_payload.role
 
         key = self.service_key(name, role)
         if key not in self._budgets and key not in self._restarting:
@@ -519,7 +508,7 @@ class ServiceWatcher(Resource):
 
         # Use per-service startup_timeout_seconds from restart_spec
         spec = service.restart_spec if isinstance(service, Service) else None
-        readiness_timeout = spec.startup_timeout_seconds if spec is not None else 30.0
+        readiness_timeout = spec.startup_timeout_seconds if spec is not None else DEFAULT_READINESS_TIMEOUT
 
         # Spawn readiness check as a detached task so this handler returns
         # immediately and releases its dispatch semaphore slot.
@@ -607,13 +596,13 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
-            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.FAILED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.FAILED),
         )
         await self.bus.on(
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
-            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED),
         )
         await self.bus.on(
             topic=topic,
@@ -624,18 +613,18 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.on_service_running,
             name="hassette.service_watcher.on_service_running",
-            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.RUNNING),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING),
         )
         await self.bus.on(
             topic=topic,
             handler=self.on_bus_service_running,
             name="hassette.service_watcher.on_bus_service_running",
-            where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.RUNNING),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING),
         )
 
     async def on_bus_service_running(self, event: HassetteServiceEvent) -> None:
         """Trigger reconciliation scan when BusService recovers."""
-        data = event.payload.data
-        if data.resource_name != BusService.__name__:
+        status_payload = event.payload.data
+        if status_payload.resource_name != BusService.__name__:
             return
         await self.reconcile_after_bus_recovery()
