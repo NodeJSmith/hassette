@@ -29,7 +29,7 @@ def make_bus_service() -> tuple[BusService, MagicMock]:
 
     executor = MagicMock()
     executor.enqueue_record = MagicMock()
-    executor.invoke_error_handler = AsyncMock()
+    executor.invoke_error_handler = MagicMock()
 
     bs = object.__new__(BusService)
     bs.hassette = hassette
