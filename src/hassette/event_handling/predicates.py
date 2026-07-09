@@ -160,6 +160,11 @@ def summarize_top_level(predicate: "Predicate") -> str:
     return _strip_outer_parens(_summarize_predicate(predicate))
 
 
+def _glob_or_literal(value: str) -> "str | Glob":
+    """Wrap ``value`` in a Glob condition if it contains glob syntax, else return it as-is."""
+    return Glob(value) if is_glob(value) else value
+
+
 @dataclass(frozen=True)
 class _PredicateCombinator:
     """Base for combinators that wrap a tuple of predicates.
@@ -421,11 +426,6 @@ class AttrDidChange:
 
     def summarize(self) -> str:
         return f"attr {self.attr_name} changed"
-
-
-def _glob_or_literal(value: str) -> "str | Glob":
-    """Wrap ``value`` in a Glob condition if it contains glob syntax, else return it as-is."""
-    return Glob(value) if is_glob(value) else value
 
 
 @dataclass(frozen=True)
