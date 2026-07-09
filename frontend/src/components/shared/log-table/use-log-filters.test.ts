@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
+import { createLogEntry } from "../../../test/factories";
 import { DEFAULT_SORT, RENDER_CAP, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter } from "./types";
 import { filterLogEntries, useLogFilters } from "./use-log-filters";
@@ -14,20 +15,8 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/logs", mockNavigate],
 }));
 
-function entry(overrides: Partial<LogEntry> = {}): LogEntry {
-  return {
-    seq: 1,
-    timestamp: 1000,
-    level: "INFO",
-    logger_name: "hassette.apps.my_app",
-    func_name: "on_event",
-    lineno: 42,
-    message: "hello world",
-    exc_info: null,
-    app_key: "my_app",
-    source_tier: "app",
-    ...overrides,
-  } as LogEntry;
+function entry(overrides: Partial<LogEntry> = {}) {
+  return createLogEntry({ app_key: "my_app", source_tier: "app", message: "hello world", ...overrides });
 }
 
 interface RenderLocalProps {
@@ -561,7 +550,7 @@ describe("search debounce", () => {
     expect(search).toBe("");
   });
 
-  it("applies filter after 150ms debounce", async () => {
+  it("applies filter after SEARCH_DEBOUNCE_MS", async () => {
     const entries = [entry({ message: "needle" }), entry({ message: "haystack" })];
     const { hook } = renderLocal(entries);
 

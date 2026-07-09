@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState } from "../../../state/create-app-state";
+import { createLogEntry } from "../../../test/factories";
 import { RENDER_CAP } from "./constants";
 import type { FilterState } from "./types";
 import { useLogTable } from "./use-log-table";
@@ -128,19 +129,8 @@ function renderUseLogTable(params: Parameters<typeof useLogTable>[0] = {}) {
   return renderHook(() => useLogTable(params), { wrapper: createWrapper() });
 }
 
-function makeEntry(seq: number): LogEntry {
-  return {
-    seq,
-    timestamp: 1000 + seq,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "f",
-    lineno: 1,
-    message: `msg-${seq}`,
-    exc_info: null,
-    app_key: null,
-    source_tier: "app",
-  };
+function makeEntry(seq: number) {
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, source_tier: "app" });
 }
 
 function setFiltered(entries: LogEntry[], total = entries.length): void {

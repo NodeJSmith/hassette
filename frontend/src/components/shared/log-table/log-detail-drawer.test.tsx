@@ -2,6 +2,8 @@ import { act, fireEvent, render } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
+import { createLogEntry } from "../../../test/factories";
+import { COPY_CONFIRM_MS } from "./constants";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
 
@@ -19,23 +21,14 @@ vi.mock("wouter", () => ({
   ),
 }));
 
-function makeEntry(overrides: Partial<LogEntry> = {}): LogEntry {
-  return {
-    seq: 1,
-    timestamp: 1000,
-    level: "INFO",
-    logger_name: "hassette.apps.test",
+function makeEntry(overrides: Partial<LogEntry> = {}) {
+  return createLogEntry({
+    app_key: "my_app",
     func_name: "on_ready",
     lineno: 42,
     message: "test message",
-    exc_info: null,
-    app_key: "my_app",
-    execution_id: null,
-    instance_name: null,
-    instance_index: null,
-    source_tier: "app",
     ...overrides,
-  } as LogEntry;
+  });
 }
 
 function renderDrawer(
@@ -297,9 +290,8 @@ describe("LogDetailDrawer", () => {
 
       expect(copyBtn.textContent).toBe("✓");
 
-      // Advance past COPY_CONFIRM_MS (1500 ms)
       await act(async () => {
-        vi.advanceTimersByTime(1500);
+        vi.advanceTimersByTime(COPY_CONFIRM_MS);
       });
 
       expect(copyBtn.textContent).toBe("⧉");

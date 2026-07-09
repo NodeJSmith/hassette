@@ -1,7 +1,7 @@
 import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
+import { createLogEntry } from "../../../test/factories";
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
 import type { ColumnId } from "./types";
@@ -21,24 +21,13 @@ vi.mock("./log-table-row", () => ({
 // For the isMobile=true tests we import the real hook and spy on it instead.
 vi.mock("../../../hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
-  BREAKPOINT_MOBILE: "(max-width: 640px)",
+  BREAKPOINT_MOBILE: 768,
 }));
 
 import { LogTableView } from "./log-table-view";
 
-function makeEntry(seq: number): LogEntry {
-  return {
-    seq,
-    timestamp: 1000 + seq,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "fn",
-    lineno: 1,
-    message: `msg-${seq}`,
-    exc_info: null,
-    app_key: "app",
-    source_tier: "app",
-  };
+function makeEntry(seq: number) {
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app", source_tier: "app" });
 }
 
 const DEFAULT_COLUMNS: ColumnId[] = ["level", "timestamp", "app", "message"];

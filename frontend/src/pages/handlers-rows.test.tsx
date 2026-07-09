@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithAppState } from "../test/render-helpers";
-import { formatRate } from "../utils/format";
+import { formatRate, SECONDS_PER_HOUR } from "../utils/format";
 import type { UnifiedRow } from "../utils/handler-rows";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
@@ -212,7 +212,7 @@ describe("HandlerMobileRow", () => {
   });
 
   it("shows footer with 'next' for jobs that have next_run_ts", () => {
-    const futureTs = Math.floor(Date.now() / 1000) + 3600;
+    const futureTs = Math.floor(Date.now() / 1000) + SECONDS_PER_HOUR;
     const row = createRow({ kind: "job", next_run_ts: futureTs });
     const { getByText } = renderMobileRow(row);
     // Footer renders "next <relative time>"
@@ -220,7 +220,7 @@ describe("HandlerMobileRow", () => {
   });
 
   it("does not show footer for listeners", () => {
-    const futureTs = Math.floor(Date.now() / 1000) + 3600;
+    const futureTs = Math.floor(Date.now() / 1000) + SECONDS_PER_HOUR;
     // listeners always have next_run_ts: null, but even if we force one,
     // MobileRow only renders the footer for kind === "job"
     const row = createRow({ kind: "listener", next_run_ts: futureTs });

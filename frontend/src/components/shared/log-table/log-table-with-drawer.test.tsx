@@ -1,7 +1,7 @@
 import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LogEntry } from "../../../api/endpoints";
+import { createLogEntry } from "../../../test/factories";
 
 // CSS modules in this project use vite-css-modules which generates hashed class
 // names even in vitest (e.g. "_wrapper_abc123").  Query with attribute substring
@@ -15,19 +15,8 @@ vi.mock("./log-detail-drawer", () => ({
 import { LogTableWithDrawer } from "./log-table-with-drawer";
 import type { LogDrawerProps } from "./use-log-table";
 
-function makeEntry(seq: number): LogEntry {
-  return {
-    seq,
-    timestamp: 1000 + seq,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "fn",
-    lineno: 1,
-    message: `msg-${seq}`,
-    exc_info: null,
-    app_key: "app",
-    source_tier: "app",
-  };
+function makeEntry(seq: number) {
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app", source_tier: "app" });
 }
 
 function makeDrawerProps(overrides: Partial<LogDrawerProps> = {}): LogDrawerProps {
