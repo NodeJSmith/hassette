@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.48.0](https://github.com/NodeJSmith/hassette/compare/v0.47.0...v0.48.0) (2026-07-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove `hassette event` CLI and events API endpoint ([#1192](https://github.com/NodeJSmith/hassette/issues/1192))
+
+### Features
+
+* add Run Now button for scheduled jobs ([#1216](https://github.com/NodeJSmith/hassette/issues/1216)) ([54dd25d](https://github.com/NodeJSmith/hassette/commit/54dd25daa611abca592578441f8612f9141bb3e1)), closes [#346](https://github.com/NodeJSmith/hassette/issues/346)
+* add single-app manifest endpoint for app detail page ([#1184](https://github.com/NodeJSmith/hassette/issues/1184)) ([020aed9](https://github.com/NodeJSmith/hassette/commit/020aed91f41b60333950f22be51cde5eb2a4a8a3)), closes [#368](https://github.com/NodeJSmith/hassette/issues/368)
+* add time-since convenience properties to BaseState ([#1212](https://github.com/NodeJSmith/hassette/issues/1212)) ([d8e96ba](https://github.com/NodeJSmith/hassette/commit/d8e96bad9c370eddbb368436ea55505dcea442ad)), closes [#964](https://github.com/NodeJSmith/hassette/issues/964)
+* add `where=` predicate support to scheduler jobs ([#1242](https://github.com/NodeJSmith/hassette/issues/1242)) ([8df4059](https://github.com/NodeJSmith/hassette/commit/8df40594ad3793707da9da5ec6901cac129c09bd)), closes [#1067](https://github.com/NodeJSmith/hassette/issues/1067)
+* export JSON Schema for `hassette.toml` config ([#1186](https://github.com/NodeJSmith/hassette/issues/1186)) ([4f756a7](https://github.com/NodeJSmith/hassette/commit/4f756a714ffa6a888fb7d4952a33b7ea47c60f46)), closes [#663](https://github.com/NodeJSmith/hassette/issues/663)
+* remove `hassette event` CLI and events API endpoint ([#1192](https://github.com/NodeJSmith/hassette/issues/1192)) ([513389a](https://github.com/NodeJSmith/hassette/commit/513389a9367177d16311c61d3c4d1bfec0189816)), closes [#915](https://github.com/NodeJSmith/hassette/issues/915) [#874](https://github.com/NodeJSmith/hassette/issues/874)
+* route raising bus predicates to `on_error` handlers and telemetry ([#1259](https://github.com/NodeJSmith/hassette/issues/1259)) ([c4fe09a](https://github.com/NodeJSmith/hassette/commit/c4fe09a85e99e0ef2b6e6c5c50c37e72c0ce33f0)), closes [#1255](https://github.com/NodeJSmith/hassette/issues/1255)
+* **ui:** add keyboard navigation to interactive tables ([#1190](https://github.com/NodeJSmith/hassette/issues/1190)) ([97a70de](https://github.com/NodeJSmith/hassette/commit/97a70deb78ece5a9713d049ca20523a10f295378)), closes [#750](https://github.com/NodeJSmith/hassette/issues/750)
+* update typed state models for HA 2026.7 ([#1197](https://github.com/NodeJSmith/hassette/issues/1197)) ([46359de](https://github.com/NodeJSmith/hassette/commit/46359dedc6cbc83e8799bd1340433cbcc4047279)), closes [#1161](https://github.com/NodeJSmith/hassette/issues/1161)
+
+
+### Bug Fixes
+
+* `entity.turn_on()`/`turn_off()`/`toggle()` now use the `homeassistant` domain ([#1205](https://github.com/NodeJSmith/hassette/issues/1205)) ([9dbb403](https://github.com/NodeJSmith/hassette/commit/9dbb4032d3ff7467191f981cd18e110613db8d06)), closes [#1021](https://github.com/NodeJSmith/hassette/issues/1021)
+* bus predicates that raise no longer silently swallow the error ([#1257](https://github.com/NodeJSmith/hassette/issues/1257)) ([9d655d2](https://github.com/NodeJSmith/hassette/commit/9d655d22030c757148e8f38cebbfdc8d89e15a0a)), closes [#1243](https://github.com/NodeJSmith/hassette/issues/1243) [#1244](https://github.com/NodeJSmith/hassette/issues/1244)
+* sync handler executor no longer crashes on rapid restart ([#1263](https://github.com/NodeJSmith/hassette/issues/1263)) ([1533a56](https://github.com/NodeJSmith/hassette/commit/1533a565cec3be920bb8f0b89466998ec2372fb6)), closes [#1225](https://github.com/NodeJSmith/hassette/issues/1225) [#1226](https://github.com/NodeJSmith/hassette/issues/1226)
+* app listeners and jobs are cleaned up on reload instead of leaking ([#1264](https://github.com/NodeJSmith/hassette/issues/1264)) ([1269eb8](https://github.com/NodeJSmith/hassette/commit/1269eb826c60e4d6f57204b8eebb6cbd1d276ab7)), closes [#1220](https://github.com/NodeJSmith/hassette/issues/1220) [#1221](https://github.com/NodeJSmith/hassette/issues/1221)
+* mask app secret fields in global GET `/config` manifest data ([#1171](https://github.com/NodeJSmith/hassette/issues/1171)) ([65966b7](https://github.com/NodeJSmith/hassette/commit/65966b7dcb655d0115c6567c990e44f22374d7e1)), closes [#1139](https://github.com/NodeJSmith/hassette/issues/1139)
+* generated state model enum names now use canonical Python conventions ([#1201](https://github.com/NodeJSmith/hassette/issues/1201)) ([7f507c7](https://github.com/NodeJSmith/hassette/commit/7f507c7bdb4d94a42444956b50773ada9a0a491a)), closes [#1199](https://github.com/NodeJSmith/hassette/issues/1199)
+* `contextvars` now propagate to sync handler worker threads ([#1172](https://github.com/NodeJSmith/hassette/issues/1172)) ([c414353](https://github.com/NodeJSmith/hassette/commit/c414353fdb695c43c88a8e696b3860eb67747f0a)), closes [#1145](https://github.com/NodeJSmith/hassette/issues/1145)
+
+
+### Performance Improvements
+
+* reduce re-renders on the logs page under live WebSocket updates ([#1254](https://github.com/NodeJSmith/hassette/issues/1254)) ([d5b3fd3](https://github.com/NodeJSmith/hassette/commit/d5b3fd36a393da8dc8fd6162e3b2e4b3402fcc85))
+
+
+### Documentation
+
+* add IDE support section to configuration page ([#1195](https://github.com/NodeJSmith/hassette/issues/1195)) ([7f2317c](https://github.com/NodeJSmith/hassette/commit/7f2317cebd456a8348ee0c6310ff0c6cfd24b49f)), closes [#1188](https://github.com/NodeJSmith/hassette/issues/1188)
+
 ## [0.47.0](https://github.com/NodeJSmith/hassette/compare/v0.46.0...v0.47.0) (2026-07-02)
 
 ### Breaking Changes
