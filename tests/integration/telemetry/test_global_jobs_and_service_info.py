@@ -423,18 +423,18 @@ class TestServiceInfoResponseExtension:
         mock_child._ready_reason = "connected to HA"
         mock_child._retry_at = None
 
-        mock_hs = MagicMock()
-        mock_hs.websocket_service = mock_child
-        mock_hs.websocket_service.is_ready.return_value = True
-        mock_hs._websocket_service = mock_child
-        mock_hs.state_proxy.states = {}
-        mock_hs.state_proxy.is_ready.return_value = True
-        mock_hs.children = [mock_child]
-        mock_hs.app_handler.registry.get_full_snapshot.return_value = MagicMock(manifests=[])
-        mock_hs.app_handler.get_status_snapshot.return_value = MagicMock(total_count=0)
+        mock_hassette = MagicMock()
+        mock_hassette.websocket_service = mock_child
+        mock_hassette.websocket_service.is_ready.return_value = True
+        mock_hassette._websocket_service = mock_child
+        mock_hassette.state_proxy.states = {}
+        mock_hassette.state_proxy.is_ready.return_value = True
+        mock_hassette.children = [mock_child]
+        mock_hassette.app_handler.registry.get_full_snapshot.return_value = MagicMock(manifests=[])
+        mock_hassette.app_handler.get_status_snapshot.return_value = MagicMock(total_count=0)
 
         svc_instance = RuntimeQueryService.__new__(RuntimeQueryService)
-        svc_instance.hassette = mock_hs
+        svc_instance.hassette = mock_hassette
         svc_instance._start_time = time.time() - 10
         svc_instance.logger = MagicMock()
 

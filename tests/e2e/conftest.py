@@ -169,8 +169,8 @@ def log_handler():
     return handler
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-SPA_INDEX = _REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
 @pytest.fixture(scope="session")
@@ -178,7 +178,7 @@ def ensure_spa_built():
     """Build the frontend SPA if the build output is missing."""
     if SPA_INDEX.exists():
         return
-    frontend_dir = _REPO_ROOT / "frontend"
+    frontend_dir = REPO_ROOT / "frontend"
     if not (frontend_dir / "package.json").exists():
         pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
     if not shutil.which("npm"):

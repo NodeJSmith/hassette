@@ -18,9 +18,9 @@ from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.restart import RestartSpec
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
 from hassette.types import ResourceStatus, Topic
-from hassette.types.enums import RestartType
+from hassette.types.enums import ResourceRole, RestartType
 
-from .conftest import _DummyService, build_watcher_hassette, make_watcher
+from .conftest import DummyService, build_watcher_hassette, make_watcher
 
 
 class TestConfigLogLevel:
@@ -97,7 +97,7 @@ class TestLogServiceEvent:
 
         payload = ServiceStatusPayload(
             resource_name="SomeService",
-            role="Service",
+            role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.RUNNING,
             ready=True,
@@ -119,7 +119,7 @@ class TestLogServiceEvent:
 
         payload = ServiceStatusPayload(
             resource_name="SomeService",
-            role="Service",
+            role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
             ready=True,
@@ -143,8 +143,8 @@ class TestOnBusServiceRunning:
         watcher = make_watcher(hassette)
         watcher.reconcile_after_bus_recovery = AsyncMock()  # boundary-exempt: collaborator of on_bus_service_running
 
-        dummy = _DummyService(hassette)
-        event = make_service_running_event(dummy)  # resource_name == "_DummyService"
+        dummy = DummyService(hassette)
+        event = make_service_running_event(dummy)  # resource_name == "DummyService"
 
         await watcher.on_bus_service_running(event)
 
@@ -158,7 +158,7 @@ class TestOnBusServiceRunning:
 
         payload = ServiceStatusPayload(
             resource_name=BusService.__name__,
-            role="Service",
+            role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
             ready=True,
@@ -176,7 +176,7 @@ class TestOnServiceRunningEarlyReturns:
         """A RUNNING event for a service with no budget entry and no in-progress restart is a no-op."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         hassette.children = [dummy]
 
         event = make_service_running_event(dummy)
@@ -193,7 +193,7 @@ class TestOnServiceRunningEarlyReturns:
         """A RUNNING event for a service no longer present in hassette.children is a no-op."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         # Budget exists (so the first guard passes) but the service itself is gone.
         key = watcher.service_key(dummy.class_name, dummy.role)
         watcher._budgets[key] = watcher.get_budget(key, dummy.restart_spec)
@@ -210,7 +210,7 @@ class TestCooldownAndRetry:
         """cooldown_and_retry does not attempt a restart if shutdown fires during the cooldown sleep."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         dummy.restart = AsyncMock()  # boundary-exempt: collaborator of cooldown_and_retry
         hassette.children = [dummy]
 
@@ -227,7 +227,7 @@ class TestCooldownAndRetry:
         """A service.restart() failure after cooldown is logged, not propagated."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         # branch-isolation: restart forced to raise for cooldown_and_retry error path
         dummy.restart = AsyncMock(side_effect=RuntimeError("restart blew up"))
         hassette.children = [dummy]
@@ -259,8 +259,8 @@ class TestRestartServiceMultipleMatches:
         watcher = make_watcher(hassette)
         watcher.logger = Mock()
 
-        svc_a = _DummyService(hassette)
-        svc_b = _DummyService(hassette)
+        svc_a = DummyService(hassette)
+        svc_b = DummyService(hassette)
         # boundary-exempt: collaborator of restart_service
         svc_a.restart = AsyncMock()
         svc_b.restart = AsyncMock()
@@ -287,7 +287,7 @@ class TestRestartServiceNoServiceFound:
         watcher = make_watcher(hassette)
         hassette.children = []
 
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         event = make_service_failed_event(dummy)
 
         await watcher.restart_service(event)
@@ -307,7 +307,7 @@ class TestShutdownIfCrashed:
 
         payload = ServiceStatusPayload(
             resource_name="SomeService",
-            role="Service",
+            role=ResourceRole.SERVICE,
             status=ResourceStatus.CRASHED,
             previous_status=ResourceStatus.FAILED,
             exception=None,
@@ -331,7 +331,7 @@ class TestShutdownIfCrashed:
 
         payload = ServiceStatusPayload(
             resource_name="SomeService",
-            role="Service",
+            role=ResourceRole.SERVICE,
             status=ResourceStatus.CRASHED,
             previous_status=ResourceStatus.FAILED,
             exception="boom",
@@ -355,7 +355,7 @@ class TestOnServiceRunningBudgetNoneBranch:
         without fabricating a budget."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         dummy.mark_ready(reason="test")
         hassette.children = [dummy]
 
@@ -391,7 +391,7 @@ class TestReconcileAfterBusRecoverySkips:
         watcher = make_watcher(hassette)
         watcher.restart_service = AsyncMock()  # boundary-exempt: collaborator of reconcile_after_bus_recovery
 
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         dummy._status = ResourceStatus.RUNNING
         hassette.children = [dummy]
 
@@ -405,7 +405,7 @@ class TestReconcileAfterBusRecoverySkips:
         watcher = make_watcher(hassette)
         watcher.restart_service = AsyncMock()  # boundary-exempt: collaborator of reconcile_after_bus_recovery
 
-        dummy = _DummyService(hassette)
+        dummy = DummyService(hassette)
         dummy._status = ResourceStatus.FAILED
         hassette.children = [dummy]
 

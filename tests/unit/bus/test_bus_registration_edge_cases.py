@@ -192,8 +192,8 @@ class TestComponentServiceAppKeyFilters:
         with mock_add_listener(bus):
             sub = await bus.on_app_state_changed(handler=handler_a, app_key="my_app", name="my_app_state")
 
-        matching_app = _make_app_stub(app_key="my_app")
-        other_app = _make_app_stub(app_key="other_app")
+        matching_app = make_app_stub(app_key="my_app")
+        other_app = make_app_stub(app_key="other_app")
         matching_event = HassetteAppStateEvent.from_data(matching_app, status=ResourceStatus.RUNNING)
         other_event = HassetteAppStateEvent.from_data(other_app, status=ResourceStatus.RUNNING)
 
@@ -213,7 +213,7 @@ class TestStateChangeComparisonCondition:
         assert sub.listener.matches(decreased) is False
 
 
-def _make_app_stub(*, app_key: str, index: int = 0, instance_name: str | None = None):
+def make_app_stub(*, app_key: str, index: int = 0, instance_name: str | None = None):
     """Minimal stand-in for an App instance, exposing only what HassetteAppStateEvent.from_data reads."""
 
     class _AppStub:

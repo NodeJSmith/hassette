@@ -219,24 +219,24 @@ def _is_detected(cls: type, name: str) -> bool:
     Uses inspect.getattr_static to resolve inherited methods that are not in
     vars(cls) directly, avoiding false negatives for subclassed methods.
     """
-    m = inspect.getattr_static(cls, name, None)
-    if m is None or not callable(m):
+    method = inspect.getattr_static(cls, name, None)
+    if method is None or not callable(method):
         return False
-    if inspect.iscoroutinefunction(m):
+    if inspect.iscoroutinefunction(method):
         return True
-    ann = getattr(m, "__annotations__", {})
-    ret = ann.get("return")
-    if ret is None:
+    annotations = getattr(method, "__annotations__", {})
+    return_ann = annotations.get("return")
+    if return_ann is None:
         return False
-    if isinstance(ret, str):
-        mod = sys.modules.get(cls.__module__)
-        if mod is None:
+    if isinstance(return_ann, str):
+        module = sys.modules.get(cls.__module__)
+        if module is None:
             return False
         try:
-            ret = eval(ret, vars(mod))  # noqa: S307 — resolving module annotation
+            return_ann = eval(return_ann, vars(module))  # noqa: S307 — resolving module annotation
         except Exception:
             return False
-    return getattr(ret, "__origin__", None) is collections.abc.Coroutine
+    return getattr(return_ann, "__origin__", None) is collections.abc.Coroutine
 
 
 # Canonical list completeness/disjointness guard

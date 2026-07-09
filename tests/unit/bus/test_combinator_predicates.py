@@ -17,11 +17,11 @@ from hassette.event_handling.predicates import (
 )
 
 
-def always_true(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+def always_true(_event) -> bool:
     return True
 
 
-def always_false(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+def always_false(_event) -> bool:
     return False
 
 
@@ -121,13 +121,13 @@ def test_guard_wraps_callable_and_executes_it() -> None:
 def test_ensure_tuple_flattening() -> None:
     """Test ensure_tuple flattens nested predicate sequences."""
 
-    def pred1(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+    def pred1(_event) -> bool:
         return True
 
-    def pred2(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+    def pred2(_event) -> bool:
         return False
 
-    def pred3(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+    def pred3(_event) -> bool:
         return True
 
     # Nested sequence
@@ -153,7 +153,7 @@ def test_ensure_tuple_flattens_nested_sequences() -> None:
 def test_ensure_tuple_handles_single_predicate() -> None:
     """Test that ensure_tuple wraps single predicates in a tuple."""
 
-    def predicate(_event) -> bool:  # pyright: ignore[reportUnusedParameter]
+    def predicate(_event) -> bool:
         return True
 
     result = ensure_tuple(predicate)  # pyright: ignore[reportArgumentType]
@@ -186,7 +186,7 @@ def test_normalize_where_returns_allof_for_sequences() -> None:
 def test_normalize_where_returns_single_predicate() -> None:
     """Test that normalize_where returns single predicates unchanged."""
 
-    def single(event) -> bool:  # pyright: ignore[reportUnusedParameter] # noqa: ARG001
+    def single(_event) -> bool:
         return True
 
     predicate = normalize_where(single)

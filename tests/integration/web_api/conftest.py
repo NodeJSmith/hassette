@@ -10,7 +10,7 @@ from hassette.types.enums import ResourceStatus
 @pytest.fixture
 def mock_hassette():
     """Create a mock Hassette instance for the FastAPI app."""
-    _instance = AppInstanceInfo(
+    instance = AppInstanceInfo(
         app_key="my_app",
         index=0,
         instance_name="MyApp[0]",
@@ -35,7 +35,7 @@ def mock_hassette():
                 "last_updated": "2024-01-01T00:00:00",
             },
         },
-        old_snapshot=AppStatusSnapshot(running=[_instance], failed=[]),
+        old_snapshot=AppStatusSnapshot(running=[instance], failed=[]),
         app_action_mocks=True,
     )
 

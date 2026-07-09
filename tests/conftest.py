@@ -228,7 +228,7 @@ def _isolate_registries():
 
 
 @pytest.fixture
-async def bucket_fixture(hassette_with_sync_executor: "HassetteHarness") -> AsyncIterator[TaskBucket]:
+async def bucket(hassette_with_sync_executor: "HassetteHarness") -> AsyncIterator[TaskBucket]:
     # Tasks already running at entry belong to the module-scoped harness (e.g. the
     # SyncExecutorService serve loop), not to this test — exclude them from the parachute.
     preexisting = asyncio.all_tasks()

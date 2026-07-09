@@ -16,19 +16,19 @@ async def sleeper():
         raise
 
 
-async def test_cancel_all_cancels_cooperative_tasks(bucket_fixture: TaskBucket):
+async def test_cancel_all_cancels_cooperative_tasks(bucket: TaskBucket):
     """cancel_all cooperatively stops tracked tasks."""
     cooperative_task = asyncio.create_task(sleeper(), name="cooperative")
     # factory should auto-register; no explicit bucket.add/spawn needed
     await asyncio.sleep(0)  # let it start
 
-    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
+    assert len(bucket) >= 1, f"bucket should track at least one task, tracks {len(bucket)}"
 
-    await bucket_fixture.cancel_all()
+    await bucket.cancel_all()
 
     loop = asyncio.get_running_loop()
     current_time = loop.time()
-    cancellation_deadline = current_time + bucket_fixture.config_cancel_timeout + 0.5
+    cancellation_deadline = current_time + bucket.config_cancel_timeout + 0.5
     while not cooperative_task.done() and current_time < cancellation_deadline:
         await asyncio.sleep(0.01)
         current_time = loop.time()
@@ -43,7 +43,7 @@ async def boom(event: asyncio.Event):
     raise RuntimeError("boom")
 
 
-async def test_crash_invokes_exception_recorder(bucket_fixture: TaskBucket):
+async def test_crash_invokes_exception_recorder(bucket: TaskBucket):
     """Task crashes are observed via the exception recorder callback."""
     task_started = asyncio.Event()
     recorded: list[tuple[asyncio.Task, BaseException]] = []
@@ -51,7 +51,7 @@ async def test_crash_invokes_exception_recorder(bucket_fixture: TaskBucket):
     def recorder(t: asyncio.Task, exc: BaseException) -> None:
         recorded.append((t, exc))
 
-    bucket_fixture.install_exception_recorder(recorder)
+    bucket.install_exception_recorder(recorder)
 
     try:
         crashing_task = asyncio.create_task(boom(task_started), name="exploder")
@@ -64,7 +64,7 @@ async def test_crash_invokes_exception_recorder(bucket_fixture: TaskBucket):
         assert recorded[0][0] is crashing_task
         assert isinstance(recorded[0][1], RuntimeError)
     finally:
-        bucket_fixture.uninstall_exception_recorder(recorder)
+        bucket.uninstall_exception_recorder(recorder)
 
 
 async def stubborn(event: asyncio.Event):
@@ -76,16 +76,16 @@ async def stubborn(event: asyncio.Event):
     event.set()
 
 
-async def test_stubborn_task_survives_cancel_all(bucket_fixture: TaskBucket):
+async def test_stubborn_task_survives_cancel_all(bucket: TaskBucket):
     """Tasks that ignore cancellation finish on their own terms after cancel_all."""
     stubborn_task_finished = asyncio.Event()
     stubborn_task_handle = asyncio.create_task(stubborn(stubborn_task_finished), name="stubborn")
 
-    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
+    assert len(bucket) >= 1, f"bucket should track at least one task, tracks {len(bucket)}"
 
     await asyncio.sleep(0)
 
-    await bucket_fixture.cancel_all()
+    await bucket.cancel_all()
     await stubborn_task_finished.wait()
     await asyncio.sleep(0)
 
@@ -93,36 +93,36 @@ async def test_stubborn_task_survives_cancel_all(bucket_fixture: TaskBucket):
     assert not stubborn_task_handle.cancelled()
 
 
-async def test_factory_tracks_rogue_create_task(bucket_fixture: TaskBucket):
+async def test_factory_tracks_rogue_create_task(bucket: TaskBucket):
     """Task factory picks up plain asyncio.create_task usage."""
     rogue_task_started = asyncio.Event()
 
     async def rogue():
-        bucket_fixture.post_to_loop(rogue_task_started.set)
+        bucket.post_to_loop(rogue_task_started.set)
         await asyncio.sleep(10)
 
     rogue_task_handle = asyncio.create_task(rogue(), name="rogue")
     await asyncio.sleep(0)
     await rogue_task_started.wait()
     # No direct bucket.add; rely on factory
-    assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
+    assert len(bucket) >= 1, f"bucket should track at least one task, tracks {len(bucket)}"
 
-    await bucket_fixture.cancel_all()
+    await bucket.cancel_all()
     assert rogue_task_handle.done(), f"task should be done after cancel_all, is {rogue_task_handle._state}"
     assert rogue_task_handle.cancelled(), "task should be cancelled after cancel_all"
 
 
-async def test_run_sync_raises_inside_loop(bucket_fixture: TaskBucket) -> None:
+async def test_run_sync_raises_inside_loop(bucket: TaskBucket) -> None:
     """run_sync rejects being invoked inside the running event loop."""
 
     async def sample_coroutine():
         return 42
 
     with pytest.raises(RuntimeError):
-        bucket_fixture.run_sync(sample_coroutine())
+        bucket.run_sync(sample_coroutine())
 
 
-async def test_run_sync_drives_coroutine_from_worker_thread(bucket_fixture: TaskBucket) -> None:
+async def test_run_sync_drives_coroutine_from_worker_thread(bucket: TaskBucket) -> None:
     """run_sync bridges a coroutine from a worker thread onto the running loop and returns its result.
 
     This is the path every sync facade (api/bus/scheduler/entity) depends on: a sync caller
@@ -134,11 +134,11 @@ async def test_run_sync_drives_coroutine_from_worker_thread(bucket_fixture: Task
         await asyncio.sleep(0)
         return a + b
 
-    result = await asyncio.to_thread(bucket_fixture.run_sync, add(2, 3))
+    result = await asyncio.to_thread(bucket.run_sync, add(2, 3))
     assert result == 5
 
 
-async def test_run_sync_timeout_zero_fails_immediately(bucket_fixture: TaskBucket) -> None:
+async def test_run_sync_timeout_zero_fails_immediately(bucket: TaskBucket) -> None:
     """timeout_seconds=0 fails immediately instead of falling back to the config default.
 
     Guards the ``if timeout_seconds is None`` semantics: an explicit 0 is a real value, not
@@ -149,4 +149,4 @@ async def test_run_sync_timeout_zero_fails_immediately(bucket_fixture: TaskBucke
         await asyncio.sleep(100)
 
     with pytest.raises(concurrent.futures.TimeoutError):
-        await asyncio.to_thread(bucket_fixture.run_sync, never_returns(), timeout_seconds=0)
+        await asyncio.to_thread(bucket.run_sync, never_returns(), timeout_seconds=0)

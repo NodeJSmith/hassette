@@ -22,7 +22,7 @@ class TestAppConfigEndpoint:
             app_config={"instance_name": "MyApp.0", "brightness": 100},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -56,7 +56,7 @@ class TestAppConfigEndpoint:
             app_config=list_config,
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -101,24 +101,24 @@ class TestAppConfigEndpoint:
         """Response includes framework_fields listing base AppConfig + manifest fields."""
         manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
         response = await client.get("/api/apps/my_app/config")
 
         data = response.json()
-        ff = data["framework_fields"]
-        assert "instance_name" in ff
-        assert "log_level" in ff
-        assert "app_key" in ff
-        assert "enabled" in ff
-        assert "autostart" in ff
-        assert "brightness" not in ff
+        framework_fields = data["framework_fields"]
+        assert "instance_name" in framework_fields
+        assert "log_level" in framework_fields
+        assert "app_key" in framework_fields
+        assert "enabled" in framework_fields
+        assert "autostart" in framework_fields
+        assert "brightness" not in framework_fields
 
     async def test_autostart_returned(self, client, mock_hassette) -> None:
         """Response includes autostart from the manifest."""
         manifest = make_manifest_mock(app_key="my_app", autostart=False, app_config={"brightness": 100})
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -129,7 +129,7 @@ class TestAppConfigEndpoint:
         """Config schema includes enabled and autostart property definitions."""
         manifest = make_manifest_mock(app_key="my_app", app_config={"brightness": 100})
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithBasicConfig()
+        mock_hassette._app_handler.registry.get.return_value = AppWithBasicConfig()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -141,54 +141,54 @@ class TestAppConfigEndpoint:
         assert props["autostart"]["type"] == "boolean"
 
 
-def _has_ref(obj: Any) -> bool:
+def has_ref(obj: Any) -> bool:
     """Return True if the object or any nested value contains a '$ref' key."""
     if isinstance(obj, dict):
-        return "$ref" in obj or any(_has_ref(v) for v in obj.values())
+        return "$ref" in obj or any(has_ref(v) for v in obj.values())
     if isinstance(obj, list):
-        return any(_has_ref(v) for v in obj)
+        return any(has_ref(v) for v in obj)
     return False
 
 
-class _UnmaskedKeyConfig(BaseModel):
+class UnmaskedKeyConfig(BaseModel):
     """Stub app config: api_key is a plain str — schema says it is NOT a secret."""
 
     api_key: str = "default"
 
 
-class _MaskedKeyConfig(BaseModel):
+class MaskedKeyConfig(BaseModel):
     """Stub app config: api_key is SecretStr — schema marks it writeOnly/password."""
 
     api_key: SecretStr
 
 
-class _NestedGroup(BaseModel):
+class NestedGroup(BaseModel):
     """Nested sub-model that forces a $ref in the raw JSON schema."""
 
     host: str = "localhost"
     port: int = 8080
 
 
-class _NestedAppConfig(BaseModel):
+class NestedAppConfig(BaseModel):
     """Stub app config with a nested model — raw schema has $defs/$ref."""
 
-    connection: _NestedGroup = _NestedGroup()
+    connection: NestedGroup = NestedGroup()
     name: str = "default"
 
 
-class _AppWithUnmaskedKey:
-    app_config_cls = _UnmaskedKeyConfig
+class AppWithUnmaskedKey:
+    app_config_cls = UnmaskedKeyConfig
 
 
-class _AppWithMaskedKey:
-    app_config_cls = _MaskedKeyConfig
+class AppWithMaskedKey:
+    app_config_cls = MaskedKeyConfig
 
 
-class _AppWithNested:
-    app_config_cls = _NestedAppConfig
+class AppWithNested:
+    app_config_cls = NestedAppConfig
 
 
-class _BasicAppConfig(BaseModel):
+class BasicAppConfig(BaseModel):
     """Stub app config with only plain (non-secret) fields — nothing should mask."""
 
     instance_name: str = ""
@@ -196,8 +196,8 @@ class _BasicAppConfig(BaseModel):
     zone: str = ""
 
 
-class _AppWithBasicConfig:
-    app_config_cls = _BasicAppConfig
+class AppWithBasicConfig:
+    app_config_cls = BasicAppConfig
 
 
 class TestAppConfigTypeDrivenMasking:
@@ -218,7 +218,7 @@ class TestAppConfigTypeDrivenMasking:
             app_config={"api_key": "my-real-value"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithUnmaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithUnmaskedKey()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -233,7 +233,7 @@ class TestAppConfigTypeDrivenMasking:
             app_config={"api_key": "plaintext-secret"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -248,7 +248,7 @@ class TestAppConfigTypeDrivenMasking:
             app_config={"api_key": "super-secret-value-12345"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -270,7 +270,7 @@ class TestSchemaDeref:
             app_config={"connection": {"host": "myhost", "port": 9090}, "name": "test"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithNested()
+        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -278,7 +278,7 @@ class TestSchemaDeref:
         data = response.json()
         # config_schema must be fully inlined — the nested group schema is under connection.properties
         assert data["config_schema"] is not None
-        assert not _has_ref(data["config_schema"]), (
+        assert not has_ref(data["config_schema"]), (
             f"config_schema still contains $ref: {json.dumps(data['config_schema'], indent=2)}"
         )
 
@@ -289,7 +289,7 @@ class TestSchemaDeref:
             app_config={"name": "test"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithNested()
+        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -305,7 +305,7 @@ class TestSchemaDeref:
         data = response.json()
         assert "config_schema" in data
         assert "config_values" in data
-        assert not _has_ref(data["config_schema"]), (
+        assert not has_ref(data["config_schema"]), (
             f"config_schema still contains $ref: {json.dumps(data['config_schema'], indent=2)}"
         )
 
@@ -316,7 +316,7 @@ class TestSchemaDeref:
             app_config={"connection": {"host": "h", "port": 1}, "name": "n"},
         )
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
-        mock_hassette._app_handler.registry.get.return_value = _AppWithNested()
+        mock_hassette._app_handler.registry.get.return_value = AppWithNested()
 
         response = await client.get("/api/apps/my_app/config")
 
@@ -339,7 +339,7 @@ class TestGlobalConfigManifestMasking:
                 "app_config": {"api_key": "plaintext-secret"},
             },
         }
-        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
         response = await client.get("/api/config")
 
@@ -354,7 +354,7 @@ class TestGlobalConfigManifestMasking:
                 "app_config": {"api_key": "my-real-value"},
             },
         }
-        mock_hassette._app_handler.registry.get.return_value = _AppWithUnmaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithUnmaskedKey()
 
         response = await client.get("/api/config")
 
@@ -386,7 +386,7 @@ class TestGlobalConfigManifestMasking:
                 "app_config": {"api_key": "super-secret-value-12345"},
             },
         }
-        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
         response = await client.get("/api/config")
 
@@ -403,7 +403,7 @@ class TestGlobalConfigManifestMasking:
                 ],
             },
         }
-        mock_hassette._app_handler.registry.get.return_value = _AppWithMaskedKey()
+        mock_hassette._app_handler.registry.get.return_value = AppWithMaskedKey()
 
         response = await client.get("/api/config")
 

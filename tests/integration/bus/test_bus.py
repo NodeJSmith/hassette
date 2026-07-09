@@ -93,7 +93,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
     """on_state_change composes entity, state, and extra predicates."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_state_change(
@@ -121,7 +121,7 @@ async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
 async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
     """on_attribute_change adds AttrDidChange predicate for the supplied attribute."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -162,7 +162,7 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
 async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
     """on_call_service composes domain/service guards with ServiceDataWhere and extra predicates."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     extra_guard = Guard(lambda event: event.payload.data.service_data.get("brightness", 0) > 150)
@@ -335,10 +335,10 @@ async def assert_glob_matching(
     else:
         await harness.bus.on_state_change(entity_id=entity_id, handler=handler, name="glob_state_match")
 
-    for eid in GLOB_ENTITIES:
-        attrs = {"friendly_name": f"{eid} Name"} if use_attribute else {}
+    for entity in GLOB_ENTITIES:
+        attrs = {"friendly_name": f"{entity} Name"} if use_attribute else {}
         await harness.send_event(
-            create_state_change_event(entity_id=eid, old_value="off", new_value="on", new_attrs=attrs),
+            create_state_change_event(entity_id=entity, old_value="off", new_value="on", new_attrs=attrs),
         )
 
     with contextlib.suppress(asyncio.TimeoutError):
@@ -370,7 +370,7 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
     bus = hassette.bus
     assert bus is not None
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_state_change("sensor.eager_test", handler=handler, name="eager_test")
@@ -714,7 +714,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
     """on_state_change(immediate=True) registers successfully and sets field on listener."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, immediate=True, name="kitchen_immediate")
@@ -725,7 +725,7 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
 async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
     """on_state_change(duration=5.0) registers successfully and sets field on listener."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, duration=5.0, name="kitchen_duration")
@@ -736,7 +736,7 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
 async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
     """on_state_change raises ValueError if entity_id contains glob chars and immediate=True."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     with pytest.raises(ValueError, match="immediate"):
@@ -749,7 +749,7 @@ async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
 async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
     """on_attribute_change(immediate=True) registers successfully and sets field on listener."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -762,7 +762,7 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
 async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
     """on_attribute_change(duration=5.0) registers successfully and sets field on listener."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -775,7 +775,7 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
 async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:
     """on_attribute_change raises ValueError if entity_id contains glob chars and immediate=True."""
 
-    def handler(event: Event) -> None:
+    def handler(_event: Event) -> None:
         pass
 
     with pytest.raises(ValueError, match="immediate"):

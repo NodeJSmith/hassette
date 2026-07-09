@@ -38,7 +38,7 @@ class TestAppStatusChangedPayloadMatchesDataclass:
             exception_type=None,
             exception_traceback=None,
         )
-        serialized = {k: str(v) if hasattr(v, "value") else v for k, v in asdict(dataclass_instance).items()}
+        serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         payload = AppStatusChangedPayload.model_validate(serialized)
         assert payload.app_key == "my_app"
         assert payload.index == 0
@@ -68,7 +68,7 @@ class TestServiceStatusPayloadMatchesDataclass:
             ready=True,
             ready_phase="connected",
         )
-        serialized = {k: str(v) if hasattr(v, "value") else v for k, v in asdict(dataclass_instance).items()}
+        serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         payload = WsServiceStatusPayload.model_validate(serialized)
         assert payload.resource_name == "telemetry"
         assert payload.ready is True

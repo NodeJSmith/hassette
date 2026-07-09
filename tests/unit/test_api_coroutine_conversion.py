@@ -24,7 +24,7 @@ from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 
 @pytest.fixture(autouse=True)
-def _drain(drain_forgotten_await_handles: None) -> None:
+def drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 

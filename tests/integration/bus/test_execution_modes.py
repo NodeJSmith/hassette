@@ -233,12 +233,12 @@ async def test_queued_cap_drops_newest(
     await first_started.wait()
 
     # Fill the queue to its cap, then one more that must be dropped (newest-dropped).
-    prev = "running"
+    previous = "running"
     for i in range(DEFAULT_QUEUE_DEPTH):
-        nxt = f"q{i}"
-        await fire(harness, prev, nxt)
-        prev = nxt
-    await fire(harness, prev, "overflow")  # at cap -> dropped
+        next_val = f"q{i}"
+        await fire(harness, previous, next_val)
+        previous = next_val
+    await fire(harness, previous, "overflow")  # at cap -> dropped
 
     assert sub.listener.invoker.guard.dropped == 1
 

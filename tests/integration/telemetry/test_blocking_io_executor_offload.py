@@ -89,8 +89,8 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         web_api={"run": True},
     )
-    h = MagicMock()
-    h.config = config
+    mock_hassette = MagicMock()
+    mock_hassette.config = config
 
     # The owning app for the bound execution's app_key. The real resolver reads
     # owner.app_config.blocking_io_behavior; returning this from app_handler.get exercises the
@@ -101,17 +101,17 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
             instance_name="ignored_app_0",
         )
     )
-    h.app_handler.get.return_value = app_owner
+    mock_hassette.app_handler.get.return_value = app_owner
 
     # Lifecycle signals.
-    h.ready_event = AsyncMock()
-    h.shutdown_event = MagicMock()
-    h.session_id = None
-    h.database_service = None
-    h._loop_thread_id = threading.get_ident()
-    h.children = []
+    mock_hassette.ready_event = AsyncMock()
+    mock_hassette.shutdown_event = MagicMock()
+    mock_hassette.session_id = None
+    mock_hassette.database_service = None
+    mock_hassette._loop_thread_id = threading.get_ident()
+    mock_hassette.children = []
 
-    return h
+    return mock_hassette
 
 
 @pytest.fixture
@@ -138,8 +138,8 @@ async def executor(
 @pytest.fixture
 async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseService, "MagicMock", int]]:
     """DatabaseService + unsealed hassette mock + session_id for ignore-behavior tests."""
-    h = _make_ignore_hassette(premigrated_db_path)
-    db_service = DatabaseService(h, parent=None)
+    mock_hassette = _make_ignore_hassette(premigrated_db_path)
+    db_service = DatabaseService(mock_hassette, parent=None)
     await db_service.on_initialize()
     cursor = await db_service.db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -147,11 +147,11 @@ async def ignore_db(premigrated_db_path: Path) -> AsyncIterator[tuple[DatabaseSe
     )
     session_id = cursor.lastrowid
     await db_service.db.commit()
-    h.session_id = session_id
-    h.try_session_id.return_value = session_id
-    h.database_service = db_service
+    mock_hassette.session_id = session_id
+    mock_hassette.try_session_id.return_value = session_id
+    mock_hassette.database_service = db_service
     try:
-        yield db_service, h, session_id
+        yield db_service, mock_hassette, session_id
     finally:
         await db_service.on_shutdown()
 
@@ -161,8 +161,8 @@ async def ignore_executor(
     ignore_db: tuple[DatabaseService, "MagicMock", int],
 ) -> AsyncIterator[CommandExecutor]:
     """CommandExecutor wired to the ignore_db hassette and session."""
-    _db_service, h, _session_id = ignore_db
-    exc = CommandExecutor(h, parent=None)
+    _db_service, mock_hassette, _session_id = ignore_db
+    exc = CommandExecutor(mock_hassette, parent=None)
     await exc.on_initialize()
     try:
         yield exc
@@ -191,14 +191,14 @@ class TestExecutorOffloadProducesNoBlocking:
         HassetteBlockingIOWarning fires and no blocking_events row is written.
         """
         db_svc, _ = db
-        h = executor.hassette
+        mock_hassette = executor.hassette
 
         # Enable Tier 2 in dev mode so it would fire if the gate were absent.
-        h.config.dev_mode = True
-        h.config.blocking_io.deep_detection_enabled = True
+        mock_hassette.config.dev_mode = True
+        mock_hassette.config.blocking_io.deep_detection_enabled = True
 
         assert not guard_mod.is_installed(), "Tier 2 must not be pre-installed"
-        install(h, loop_thread_id=loop_thread_id, executor=executor)
+        install(mock_hassette, loop_thread_id=loop_thread_id, executor=executor)
         assert guard_mod.is_installed()
 
         caught_warnings: list[warnings.WarningMessage] = []
@@ -228,7 +228,7 @@ class TestExecutorOffloadProducesNoBlocking:
                 await _drain(db_svc)
         finally:
             uninstall()
-            h.config.blocking_io.deep_detection_enabled = None
+            mock_hassette.config.blocking_io.deep_detection_enabled = None
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (
@@ -253,20 +253,20 @@ class TestExecutorOffloadProducesNoBlocking:
         in-loop tick callback keeps advancing, so no lag episode is opened.
         """
         db_svc, _ = db
-        h = executor.hassette
+        mock_hassette = executor.hassette
         loop = asyncio.get_running_loop()
 
         # A short lag threshold so the watchdog is sensitive. The interval must be SMALLER than the
         # threshold: otherwise the gap between ticks alone exceeds the threshold and a responsive
         # loop can look stale, producing false positives that would mask a real regression here.
-        orig_lag = h.config.blocking_io.lag_threshold_seconds
-        orig_interval = h.config.blocking_io.watchdog_interval_seconds
-        h.config.blocking_io.lag_threshold_seconds = 0.05
-        h.config.blocking_io.watchdog_interval_seconds = 0.01
+        orig_lag = mock_hassette.config.blocking_io.lag_threshold_seconds
+        orig_interval = mock_hassette.config.blocking_io.watchdog_interval_seconds
+        mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
+        mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.01
 
         stall_events: list[object] = []
         watchdog = LoopWatchdog(
-            h,
+            mock_hassette,
             loop=loop,
             loop_thread_id=loop_thread_id,
             executor=executor,
@@ -309,8 +309,8 @@ class TestExecutorOffloadProducesNoBlocking:
                     executor.unbind_execution_context(token)
         finally:
             watchdog.stop()
-            h.config.blocking_io.lag_threshold_seconds = orig_lag
-            h.config.blocking_io.watchdog_interval_seconds = orig_interval
+            mock_hassette.config.blocking_io.lag_threshold_seconds = orig_lag
+            mock_hassette.config.blocking_io.watchdog_interval_seconds = orig_interval
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (
@@ -346,16 +346,16 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         app_handler.get and reads its IGNORE behavior — the genuine resolution path, not a mock
         short-circuit. A resolver spy (wraps, not replace) proves that path was actually reached.
         """
-        db_svc, h, _ = ignore_db
+        db_svc, mock_hassette, _ = ignore_db
 
-        h.config.dev_mode = True
-        h.config.blocking_io.deep_detection_enabled = True
+        mock_hassette.config.dev_mode = True
+        mock_hassette.config.blocking_io.deep_detection_enabled = True
 
         # Live execution: marker.app_key drives app_handler.get(app_key) → the IGNORE owner.
         _exec_id, token = ignore_executor.bind_execution_context("ignored_app", 0, None)
 
         assert not guard_mod.is_installed()
-        install(h, loop_thread_id=loop_thread_id, executor=ignore_executor)
+        install(mock_hassette, loop_thread_id=loop_thread_id, executor=ignore_executor)
         assert guard_mod.is_installed()
 
         caught_warnings: list[warnings.WarningMessage] = []
@@ -379,7 +379,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                 ignore_executor.unbind_execution_context(token)
 
         assert resolve_spy.called, "guard must reach per-app behavior resolution (test not vacuous)"
-        h.app_handler.get.assert_called_with("ignored_app", 0)
+        mock_hassette.app_handler.get.assert_called_with("ignored_app", 0)
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (
@@ -402,11 +402,11 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         behavior the watchdog resolves to IGNORE in _emit() and short-circuits before
         warnings.warn and before record_blocking_event.
         """
-        db_svc, h, _ = ignore_db
+        db_svc, mock_hassette, _ = ignore_db
         loop = asyncio.get_running_loop()
 
-        h.config.blocking_io.lag_threshold_seconds = 0.05
-        h.config.blocking_io.watchdog_interval_seconds = 0.1
+        mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
+        mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.1
 
         # The watchdog only acts when an execution marker is live (it attributes the stall to the
         # running execution). Set one so the stall is actually detected and attributed — without
@@ -424,7 +424,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
 
         stall_events: list[object] = []
         watchdog = LoopWatchdog(
-            h,
+            mock_hassette,
             loop=loop,
             loop_thread_id=loop_thread_id,
             executor=ignore_executor,

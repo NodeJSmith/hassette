@@ -24,9 +24,9 @@ from hassette.resources.service import Service
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceStatus, RestartType
 
-# Minimal DDL for log_records tests — intentionally omits many real columns.
+# Minimal DDL for telemetry tests — intentionally omits many real columns.
 # See test_database_service_migrations.py for the canonical schema contract.
-LOG_RECORDS_TEST_DDL = """
+TELEMETRY_TEST_DDL = """
 CREATE TABLE log_records (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     seq             INTEGER NOT NULL,
@@ -254,7 +254,7 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     return executor
 
 
-class _DummyService(Service):
+class DummyService(Service):
     """Minimal concrete Service for watcher-level tests."""
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TRANSIENT)
@@ -266,7 +266,7 @@ class _DummyService(Service):
             raise
 
 
-class _TempService(Service):
+class TempService(Service):
     """TEMPORARY restart type service for EXHAUSTED_DEAD tests."""
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TEMPORARY)

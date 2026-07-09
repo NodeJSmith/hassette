@@ -434,7 +434,7 @@ SERVICE_LOG_LEVEL_ATTRS = (
 )
 
 
-class _LogLevelTestConfig(HassetteConfig):
+class LogLevelTestConfig(HassetteConfig):
     """Isolated config subclass for log-level inheritance tests.
 
     Disables CLI parsing and TOML/env file loading so the only sources are
@@ -456,7 +456,7 @@ def test_service_log_levels_inherit_global_debug(monkeypatch):
     """Setting HASSETTE__LOGGING__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
     monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
 
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
 
     assert config.logging.log_level == "DEBUG", f"Expected logging.log_level='DEBUG', got {config.logging.log_level!r}"
     for attr in SERVICE_LOG_LEVEL_ATTRS:
@@ -467,7 +467,7 @@ def test_service_log_levels_inherit_global_debug(monkeypatch):
 @pytest.mark.usefixtures("clean_log_level_env")
 def test_service_log_levels_default_to_info_when_global_unset():
     """With no log_level override all 13 service log level fields default to INFO."""
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
 
     assert config.logging.log_level == "INFO", f"Expected logging.log_level='INFO', got {config.logging.log_level!r}"
     for attr in SERVICE_LOG_LEVEL_ATTRS:
@@ -481,7 +481,7 @@ def test_service_specific_override_takes_precedence(monkeypatch):
     monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("HASSETTE__LOGGING__WEBSOCKET", "WARNING")
 
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
 
     assert config.logging.websocket == "WARNING", (
         f"Expected logging.websocket='WARNING', got {config.logging.websocket!r}"
@@ -498,18 +498,18 @@ class TestAuthHeaders:
     """Test authentication header construction."""
 
     def test_auth_headers_builds_bearer_token(self) -> None:
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.auth_headers == {"Authorization": "Bearer test-token"}
 
     def test_auth_headers_returns_new_dict_each_call(self) -> None:
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         h1 = config.auth_headers
         h2 = config.auth_headers
         assert h1 == h2
         assert h1 is not h2
 
     def test_headers_merges_auth_and_content_type(self) -> None:
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         headers = config.headers
         assert headers == {
             "Authorization": "Bearer test-token",
@@ -517,39 +517,39 @@ class TestAuthHeaders:
         }
 
     def test_headers_does_not_mutate_auth_headers(self) -> None:
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         _ = config.headers
         assert "Content-Type" not in config.auth_headers
 
     def test_truncated_token_shows_prefix_and_suffix(self) -> None:
-        config = _LogLevelTestConfig(token="abcdef1234567890ghijkl")
+        config = LogLevelTestConfig(token="abcdef1234567890ghijkl")
         assert config.truncated_token == "abcdef...ghijkl"
 
     def test_truncated_token_preserves_six_chars_each_end(self) -> None:
-        config = _LogLevelTestConfig(token="123456__middle__789012")
+        config = LogLevelTestConfig(token="123456__middle__789012")
         result = config.truncated_token
         assert result.startswith("123456")
         assert result.endswith("789012")
         assert "..." in result
 
     def test_truncated_token_masks_very_short_token(self) -> None:
-        config = _LogLevelTestConfig(token="abc123")
+        config = LogLevelTestConfig(token="abc123")
         assert config.truncated_token == "***"
 
     def test_truncated_token_masks_two_char_token(self) -> None:
-        config = _LogLevelTestConfig(token="ab")
+        config = LogLevelTestConfig(token="ab")
         assert config.truncated_token == "***"
 
     def test_truncated_token_eight_char_shows_prefix(self) -> None:
-        config = _LogLevelTestConfig(token="abcdefgh")
+        config = LogLevelTestConfig(token="abcdefgh")
         assert config.truncated_token == "abc***"
 
     def test_truncated_token_guards_twelve_char_boundary(self) -> None:
-        config = _LogLevelTestConfig(token="abcdefghijkl")
+        config = LogLevelTestConfig(token="abcdefghijkl")
         assert config.truncated_token == "abc***"
 
     def test_truncated_token_thirteen_char_uses_full_format(self) -> None:
-        config = _LogLevelTestConfig(token="abcdefghijklm")
+        config = LogLevelTestConfig(token="abcdefghijklm")
         assert config.truncated_token == "abcdef...hijklm"
 
 
@@ -558,38 +558,38 @@ class TestErrorHandlerTimeoutSeconds:
 
     def test_error_handler_timeout_default(self) -> None:
         """lifecycle.error_handler_timeout_seconds defaults to 5.0."""
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.lifecycle.error_handler_timeout_seconds == 5.0
 
     def test_error_handler_timeout_accepts_none(self) -> None:
         """lifecycle.error_handler_timeout_seconds accepts None to disable the timeout."""
-        config = _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": None})
+        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": None})
         assert config.lifecycle.error_handler_timeout_seconds is None
 
     def test_error_handler_timeout_accepts_positive_float(self) -> None:
         """lifecycle.error_handler_timeout_seconds accepts a positive float."""
-        config = _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 10.0})
+        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 10.0})
         assert config.lifecycle.error_handler_timeout_seconds == 10.0
 
     def test_error_handler_timeout_rejects_zero(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects zero (must be positive)."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 0.0})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 0.0})
 
     def test_error_handler_timeout_rejects_negative(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects negative values."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": -1.0})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": -1.0})
 
     def test_error_handler_timeout_rejects_bool(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects booleans."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
 
 
 def test_websocket_connect_retry_defaults() -> None:
     """Connect-retry fields under websocket group have the correct default values."""
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
     assert config.websocket.connect_retry_max_attempts == 5
     assert isinstance(config.websocket.connect_retry_max_attempts, int)
     assert config.websocket.connect_retry_initial_wait_seconds == 1.0
@@ -600,7 +600,7 @@ def test_websocket_connect_retry_defaults() -> None:
 
 def test_websocket_early_drop_defaults() -> None:
     """Early-drop fields under websocket group have the correct default values."""
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
     assert config.websocket.early_drop_stable_window_seconds == 30.0
     assert isinstance(config.websocket.early_drop_stable_window_seconds, float)
     assert config.websocket.early_drop_max_retries == 5
@@ -613,7 +613,7 @@ def test_websocket_early_drop_defaults() -> None:
 
 def test_websocket_max_recovery_default() -> None:
     """websocket.max_recovery_seconds defaults to 300.0."""
-    config = _LogLevelTestConfig()
+    config = LogLevelTestConfig()
     assert config.websocket.max_recovery_seconds == 300.0
     assert isinstance(config.websocket.max_recovery_seconds, float)
 
@@ -797,13 +797,13 @@ class TestLegacyEnvVarMigration:
         app_dir = tmp_path / "my_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.directory == app_dir
 
     @pytest.mark.usefixtures("clean_log_level_env")
     def test_log_level_migrates_to_logging_log_level(self, monkeypatch):
         monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.logging.log_level == "DEBUG"
 
     def test_new_path_wins_over_legacy(self, monkeypatch, tmp_path):
@@ -813,7 +813,7 @@ class TestLegacyEnvVarMigration:
         new_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(legacy_dir))
         monkeypatch.setenv("HASSETTE__APPS__DIRECTORY", str(new_dir))
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.directory == new_dir
 
     def test_multiple_legacy_keys_migrate_independently(self, monkeypatch, tmp_path):
@@ -821,24 +821,24 @@ class TestLegacyEnvVarMigration:
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
         monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.directory == app_dir
         assert config.apps.autodetect is False
 
     def test_bool_legacy_key_coerces_correctly(self, monkeypatch):
         monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.autodetect is False
 
     def test_empty_env_var_is_ignored(self, monkeypatch):
         """Empty legacy env vars are skipped (matches env_ignore_empty=True semantics)."""
         monkeypatch.setenv("HASSETTE__APP_DIR", "")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.directory == Path.cwd() / "apps"
 
     def test_unknown_extra_key_not_migrated(self, monkeypatch):
         monkeypatch.setenv("HASSETTE__COMPLETELY_UNKNOWN_KEY", "foo")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert not hasattr(config.apps, "completely_unknown_key")
         assert not hasattr(config.logging, "completely_unknown_key")
 
@@ -855,7 +855,7 @@ class TestLegacyEnvVarMigration:
             encoding="utf-8",
         )
 
-        class _TomlTestConfig(HassetteConfig):
+        class TomlTestConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": [toml_file],
@@ -864,7 +864,7 @@ class TestLegacyEnvVarMigration:
             token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
-        config = _TomlTestConfig()
+        config = TomlTestConfig()
         assert config.apps.directory == app_dir
 
     def test_env_var_lands_in_model_extra_then_migrates(self, monkeypatch, tmp_path):
@@ -874,7 +874,7 @@ class TestLegacyEnvVarMigration:
         app_dir = tmp_path / "my_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.directory == app_dir
         assert "app_dir" not in (config.model_extra or {})
 
@@ -901,7 +901,7 @@ class TestLegacyEnvVarMigration:
         )
         monkeypatch.setenv("HASSETTE__APP_DIR", str(env_dir))
 
-        class _PriorityTestConfig(HassetteConfig):
+        class PriorityTestConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": [toml_file],
@@ -910,20 +910,20 @@ class TestLegacyEnvVarMigration:
             token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
-        config = _PriorityTestConfig()
+        config = PriorityTestConfig()
         assert config.apps.directory == env_dir
 
     def test_empty_string_skipped_but_zero_string_migrates(self, monkeypatch):
         """The `if not raw_value` guard skips empty strings (matching env_ignore_empty=True)
         but passes through '0' and 'false' since non-empty strings are truthy in Python."""
         monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "0")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.autodetect is False
 
     def test_string_false_migrates_to_bool(self, monkeypatch):
         """The string 'false' passes through the emptiness guard and Pydantic coerces it to bool."""
         monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert config.apps.autodetect is False
 
     def test_group_updates_round_trip_preserves_validation(self, monkeypatch, tmp_path):
@@ -932,7 +932,7 @@ class TestLegacyEnvVarMigration:
         app_dir = tmp_path / "validated_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
-        config = _LogLevelTestConfig()
+        config = LogLevelTestConfig()
         assert isinstance(config.apps.directory, Path)
         assert config.apps.directory == app_dir
 
@@ -945,7 +945,7 @@ class TestLegacyEnvVarMigration:
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
 
-        class _NoEnvSourceConfig(HassetteConfig):
+        class NoEnvSourceConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": [],
@@ -958,5 +958,5 @@ class TestLegacyEnvVarMigration:
             def settings_customise_sources(cls, _settings_cls, init_settings, **_kwargs):
                 return (init_settings,)
 
-        config = _NoEnvSourceConfig()
+        config = NoEnvSourceConfig()
         assert config.apps.directory == app_dir

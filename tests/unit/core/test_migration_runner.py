@@ -30,7 +30,7 @@ def _user_version(db_path: Path) -> int:
         conn.close()
 
 
-def _tables(db_path: Path) -> set[str]:
+def tables(db_path: Path) -> set[str]:
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -39,7 +39,7 @@ def _tables(db_path: Path) -> set[str]:
         conn.close()
 
 
-def _columns(db_path: Path, table: str) -> set[str]:
+def columns(db_path: Path, table: str) -> set[str]:
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.execute(f"PRAGMA table_info({table})")
@@ -146,7 +146,7 @@ def test_apply_migration_creates_table(tmp_path: Path) -> None:
 
     _apply_migration(db_path, 1, sql_path)
 
-    assert "foo" in _tables(db_path)
+    assert "foo" in tables(db_path)
     assert _user_version(db_path) == 1
 
 
@@ -173,7 +173,7 @@ def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:
     # user_version must still be 1 — the failed migration left no trace
     assert _user_version(db_path) == 1
     # v2 table must not exist (rolled back)
-    assert "v2" not in _tables(db_path)
+    assert "v2" not in tables(db_path)
 
 
 def test_run_migrations_applies_001(tmp_path: Path) -> None:
@@ -182,12 +182,12 @@ def test_run_migrations_applies_001(tmp_path: Path) -> None:
     run_migrations(db_path)
 
     assert _user_version(db_path) == 9
-    assert "executions" in _tables(db_path)
-    assert "listeners" in _tables(db_path)
-    assert "scheduled_jobs" in _tables(db_path)
-    assert "sessions" in _tables(db_path)
-    assert "log_records" in _tables(db_path)
-    assert "blocking_events" in _tables(db_path)
+    assert "executions" in tables(db_path)
+    assert "listeners" in tables(db_path)
+    assert "scheduled_jobs" in tables(db_path)
+    assert "sessions" in tables(db_path)
+    assert "log_records" in tables(db_path)
+    assert "blocking_events" in tables(db_path)
 
 
 def test_run_migrations_idempotent(tmp_path: Path) -> None:
@@ -205,7 +205,7 @@ def test_run_migrations_partial_target(tmp_path: Path) -> None:
     run_migrations(db_path, target=0)
 
     assert _user_version(db_path) == 0
-    assert "executions" not in _tables(db_path)
+    assert "executions" not in tables(db_path)
 
 
 def test_run_migrations_skips_already_applied(tmp_path: Path) -> None:
@@ -232,7 +232,7 @@ def test_new_columns_exist_after_001(tmp_path: Path) -> None:
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
-    cols = _columns(db_path, "executions")
+    cols = columns(db_path, "executions")
     # Future columns baked into initial schema to avoid follow-up migrations
     assert "trigger_mode" in cols, "trigger_mode missing from executions"
     assert "retry_count" in cols, "retry_count missing from executions"

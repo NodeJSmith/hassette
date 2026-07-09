@@ -72,11 +72,11 @@ async def test_sync_turn_on_records_with_correct_shape():
 async def test_sync_turn_on_coerces_strenum():
     """sync.turn_on coerces StrEnum entity_id to plain str in recorded kwargs."""
 
-    class _EntityId(StrEnum):
+    class EntityId(StrEnum):
         KITCHEN = "light.kitchen"
 
     api = make_recording_api()
-    api.sync.turn_on(_EntityId.KITCHEN)
+    api.sync.turn_on(EntityId.KITCHEN)
     call = api.calls[0]
     entity_id = call.kwargs["entity_id"]
     assert type(entity_id) is str, f"Expected plain str, got {type(entity_id).__name__}"

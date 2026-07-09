@@ -31,10 +31,10 @@ class TestCorrelationFilterSeqIncrements:
 
     def test_seq_increments_monotonically_via_filter(self) -> None:
         """seq increments monotonically when CorrelationFilter runs before emit."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_increment")
-        logger.addFilter(f)
+        logger.addFilter(corr_filter)
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)
 
@@ -48,15 +48,15 @@ class TestCorrelationFilterSeqIncrements:
         for i in range(1, len(seqs)):
             assert seqs[i] == seqs[i - 1] + 1
 
-        logger.removeFilter(f)
+        logger.removeFilter(corr_filter)
         logger.removeHandler(handler)
 
     def test_seq_starts_at_positive_value_via_filter(self) -> None:
         """seq is a positive integer stamped by CorrelationFilter."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_start")
-        logger.addFilter(f)
+        logger.addFilter(corr_filter)
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)
 
@@ -65,22 +65,22 @@ class TestCorrelationFilterSeqIncrements:
         entries = list(handler.buffer)
         assert entries[0].seq >= 1
 
-        logger.removeFilter(f)
+        logger.removeFilter(corr_filter)
         logger.removeHandler(handler)
 
     def test_shared_filter_produces_global_seq(self) -> None:
         """Two handlers sharing a CorrelationFilter get a global (non-independent) seq."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         handler_a = LogCaptureHandler(buffer_size=100)
         handler_b = LogCaptureHandler(buffer_size=100)
 
         logger_a = logging.getLogger("test.seq_shared_a")
-        logger_a.addFilter(f)
+        logger_a.addFilter(corr_filter)
         logger_a.addHandler(handler_a)
         logger_a.setLevel(logging.DEBUG)
 
         logger_b = logging.getLogger("test.seq_shared_b")
-        logger_b.addFilter(f)
+        logger_b.addFilter(corr_filter)
         logger_b.addHandler(handler_b)
         logger_b.setLevel(logging.DEBUG)
 
@@ -95,9 +95,9 @@ class TestCorrelationFilterSeqIncrements:
         all_seqs = seqs_a + seqs_b
         assert len(all_seqs) == len(set(all_seqs)), "seq values must be globally unique"
 
-        logger_a.removeFilter(f)
+        logger_a.removeFilter(corr_filter)
         logger_a.removeHandler(handler_a)
-        logger_b.removeFilter(f)
+        logger_b.removeFilter(corr_filter)
         logger_b.removeHandler(handler_b)
 
 
@@ -432,43 +432,43 @@ class TestCorrelationFilter:
 
     def test_filter_stamps_execution_id_from_context_var(self) -> None:
         """Filter reads CURRENT_EXECUTION_ID from context var and stamps it on the record."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
         token = CURRENT_EXECUTION_ID.set("abc-123")
         try:
-            f.filter(record)
+            corr_filter.filter(record)
         finally:
             CURRENT_EXECUTION_ID.reset(token)
         assert record.execution_id == "abc-123"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_filter_stamps_none_execution_id_outside_context(self) -> None:
         """Filter stamps execution_id=None when CURRENT_EXECUTION_ID is not set."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
         token = CURRENT_EXECUTION_ID.set(None)
         try:
-            f.filter(record)
+            corr_filter.filter(record)
             assert record.execution_id is None  # pyright: ignore[reportAttributeAccessIssue]
         finally:
             CURRENT_EXECUTION_ID.reset(token)
 
     def test_filter_stamps_seq_monotonically(self) -> None:
         """Filter seq counter increments monotonically across multiple filter calls."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         records = [logging.LogRecord("hassette.test", logging.INFO, "", 0, f"msg{i}", (), None) for i in range(5)]
         for r in records:
-            f.filter(r)
+            corr_filter.filter(r)
         seqs = [r.seq for r in records]  # pyright: ignore[reportAttributeAccessIssue]
         assert seqs == list(range(seqs[0], seqs[0] + 5))
 
     def test_filter_stamps_app_key_from_contextvars(self) -> None:
         """Filter reads app_key from structlog contextvars and stamps it on the record."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(app_key="my_app", instance_name="MyApp.0", instance_index=0)
         try:
-            f.filter(record)
+            corr_filter.filter(record)
         finally:
             structlog.contextvars.clear_contextvars()
         assert record.app_key == "my_app"  # pyright: ignore[reportAttributeAccessIssue]
@@ -477,10 +477,10 @@ class TestCorrelationFilter:
 
     def test_filter_stamps_none_app_key_outside_context(self) -> None:
         """Filter stamps None for app_key/instance_name/instance_index when not bound."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
         structlog.contextvars.clear_contextvars()
-        f.filter(record)
+        corr_filter.filter(record)
         assert record.app_key is None  # pyright: ignore[reportAttributeAccessIssue]
         assert record.instance_name is None  # pyright: ignore[reportAttributeAccessIssue]
         assert record.instance_index is None  # pyright: ignore[reportAttributeAccessIssue]
@@ -598,11 +598,11 @@ class TestSeqMovedToFilter:
 
     def test_seq_stamped_on_record_before_emit(self) -> None:
         """When CorrelationFilter runs before LogCaptureHandler, seq is on the record."""
-        f = CorrelationFilter()
+        corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         # Manually run filter then emit
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
-        f.filter(record)
+        corr_filter.filter(record)
         handler.emit(record)
         entry = list(handler.buffer)[0]
         assert entry.seq >= 1

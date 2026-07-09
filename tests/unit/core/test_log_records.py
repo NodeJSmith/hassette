@@ -17,7 +17,7 @@ from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.telemetry_models import LogRecord
 
-from .conftest import LOG_RECORDS_TEST_DDL as DDL
+from .conftest import TELEMETRY_TEST_DDL as DDL
 
 
 def run_migrations_to_head(db_path: str) -> None:
