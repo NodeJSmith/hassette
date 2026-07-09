@@ -32,8 +32,6 @@ from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
 from tests.unit.conftest import make_service, make_sync_executor_hassette, make_test_config
 
-# Class-level structure tests (no event loop needed)
-
 
 class TestSyncExecutorServiceClassAttrs:
     def test_depends_on_is_empty(self) -> None:
@@ -64,9 +62,6 @@ class TestSyncExecutorServiceClassAttrs:
 
 # SyncExecutorService's restart_spec is covered by the parametrized tests in
 # test_service_restart_specs.py (ALL_SERVICES now includes it) — no duplicate here.
-
-
-# Executor construction (no event loop needed)
 
 
 class TestExecutorConstruction:
@@ -136,9 +131,6 @@ class TestExecutorConstruction:
         assert result == ["after"]
 
         svc.executor.shutdown(join_threads_or_timeout=False)
-
-
-# Dependency graph validation
 
 
 class TestDependencyGraph:
@@ -259,9 +251,6 @@ class TestWireServicesRegistration:
         finally:
             if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
                 h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
-
-
-# Shutdown regression: AppSync hook submits work during shutdown
 
 
 class TestShutdownOrderingRegression:

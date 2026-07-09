@@ -17,8 +17,6 @@ class TestCLIContextDefaults:
         ctx = CLIContext()
         assert ctx.json_mode is False
         assert ctx.debug_mode is False
-        assert ctx.env_file_override is None
-        assert ctx.config_file_override is None
 
 
 class TestCLIContextFrozen:

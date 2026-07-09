@@ -187,7 +187,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
 
   return (
     <aside class={styles.sidebar} data-testid="sidebar">
-      {/* Wordmark */}
       <div class={styles.sidebarBrand}>
         <Link href="/apps" class={styles.brandLink} aria-label="Hassette home">
           <span class={styles.wordmark}>hassette</span>
@@ -199,7 +198,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         )}
       </div>
 
-      {/* Cmd-K trigger */}
       <button
         type="button"
         class={styles.cmdkey}
@@ -211,7 +209,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         <kbd class={styles.cmdkeyHint}>{SHORTCUT_HINT}</kbd>
       </button>
 
-      {/* Top-level navigation */}
       <nav aria-label="Main navigation">
         <ul class={styles.navList}>
           {NAV_ITEMS.map((item) => {
@@ -232,15 +229,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </ul>
       </nav>
 
-      {/* App section */}
       <div class={styles.appNav} data-testid="app-nav">
-        {/* APPS section header */}
         <div class={styles.sectionHeader}>
           <span class={styles.sectionLabel}>APPS</span>
           <span class={styles.sectionCount}>{isFiltering ? `${filteredCount}/${totalCount}` : totalCount}</span>
         </div>
 
-        {/* Search */}
         <div class={styles.searchWrap}>
           <input
             type="search"
@@ -252,7 +246,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           />
         </div>
 
-        {/* Status groups */}
         {manifestsLoading && <Spinner />}
         {!manifestsLoading && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
         {GROUP_DEFS.map((def) => {

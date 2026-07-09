@@ -114,9 +114,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   return (
     <>
-      {/* Backdrop */}
       <div class={styles.backdrop} aria-hidden="true" data-testid="cmd-palette-backdrop" onClick={onClose} />
-      {/* Panel */}
       <div
         role="dialog"
         aria-modal="true"
@@ -135,7 +133,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           }}
         />
 
-        {/* Search input */}
         <div class={styles.inputWrap}>
           <svg class={styles.searchIcon} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
@@ -163,7 +160,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           />
         </div>
 
-        {/* Results */}
         <div
           ref={resultsRef}
           id="cmd-palette-results"
@@ -209,7 +205,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
         <div tabIndex={0} aria-hidden="true" class={styles.focusTrap} onFocus={() => inputRef.current?.focus()} />
 
-        {/* Footer */}
         <div class={styles.footer} aria-hidden="true" data-testid="cmd-palette-footer">
           <span>
             <kbd>↑↓</kbd> navigate

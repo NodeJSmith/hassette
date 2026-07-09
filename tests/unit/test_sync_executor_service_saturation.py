@@ -53,8 +53,6 @@ skip_c_blocked_under_coverage_py311 = pytest.mark.skipif(
     reason="async_raise into a C-blocked worker deadlocks under coverage's settrace tracer on Python 3.11",
 )
 
-# on_shutdown uses configured budget
-
 
 class TestOnShutdown:
     @pytest.mark.anyio
@@ -83,8 +81,6 @@ class TestOnShutdown:
         svc = SyncExecutorService(mock_hassette)
         await svc.on_shutdown()
 
-
-# Saturation warnings and shutdown interruption
 
 # Module-level constant relationship (probe interval >= suppress window)
 
@@ -122,9 +118,6 @@ class TestConstantInvariant:
             f"sync_executor rate-limit ({_SATURATION_WARN_RATE_LIMIT_SECS}s) must match "
             f"command_executor rate-limit ({_CAPACITY_WARN_RATE_LIMIT_SECS}s)"
         )
-
-
-# Submission-time saturation WARNING
 
 
 class TestSubmissionTimeSaturationWarning:
@@ -282,9 +275,6 @@ class TestSubmissionTimeSaturationWarning:
         svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# Periodic probe fires when submissions stop
-
-
 class TestPeriodicSaturationProbe:
     """serve() loop emits the saturation WARNING via the periodic probe."""
 
@@ -386,9 +376,6 @@ class TestPeriodicSaturationProbe:
         finally:
             gate.set()
             svc.executor.shutdown(join_threads_or_timeout=False)
-
-
-# Python busy-loop worker interrupted within shutdown budget
 
 
 class TestShutdownInterruptsPythonWorker:
@@ -500,9 +487,6 @@ class TestShutdownInterruptsPythonWorker:
         assert terminated.is_set(), "Worker must have received SystemExit via on_shutdown"
 
 
-# C-blocked worker logged and abandoned; shutdown still completes
-
-
 @skip_c_blocked_under_coverage_py311
 class TestShutdownCBlockedWorker:
     """C-blocked workers (time.sleep) are abandoned at budget expiry; shutdown completes."""
@@ -591,9 +575,6 @@ class TestShutdownCBlockedWorker:
         assert elapsed < 1.3, f"on_shutdown took {elapsed:.2f}s — expected < 1.3s with 1.0s budget"
 
 
-# Config drives behavior; defaults apply when unset
-
-
 class TestConfigBehavior:
     """Custom max_workers and shutdown_timeout change behavior; defaults apply when unset."""
 
@@ -644,9 +625,6 @@ class TestConfigBehavior:
                     "total_shutdown_timeout_seconds": 30,  # equal — must be rejected
                 },
             )
-
-
-# Submission-time check integration: track_submission increments counter
 
 
 class TestTrackSubmission:

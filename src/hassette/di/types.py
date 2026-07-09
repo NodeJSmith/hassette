@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
 
 T = TypeVar("T")
-R = TypeVar("R")
 
 
 def identity(x: Any) -> Any:

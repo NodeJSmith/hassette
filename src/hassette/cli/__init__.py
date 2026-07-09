@@ -128,7 +128,7 @@ def launcher(
         bool, Parameter(name=["--debug"], help="Show full HTTP response on CLI errors.", negative=[])
     ] = False,
 ) -> None:
-    ctx = CLIContext(json_mode=json, debug_mode=debug, env_file_override=env_file, config_file_override=config_file)
+    ctx = CLIContext(json_mode=json, debug_mode=debug)
 
     if env_file:
         HassetteConfig.model_config["env_file"] = env_file

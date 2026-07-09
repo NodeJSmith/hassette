@@ -16,8 +16,6 @@ from hassette.logging_ import (
 )
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-# Helpers
-
 
 def remove_queue_handlers() -> None:
     """Remove all QueueHandlers from the hassette logger."""
@@ -72,9 +70,6 @@ def make_logging_service(
     return svc
 
 
-# Tests: LogPersistenceHandler constructor injection
-
-
 class TestLogPersistenceHandlerConstructor:
     """LogPersistenceHandler accepts db_service and loop via constructor; no set_database()."""
 
@@ -120,9 +115,6 @@ class TestLogPersistenceHandlerConstructor:
         await asyncio.sleep(0)
 
         assert db_service.enqueue.called
-
-
-# Tests: LoggingService.on_initialize()
 
 
 class TestLoggingServiceOnInitialize:
@@ -275,9 +267,6 @@ class TestLoggingServiceOnInitialize:
             remove_queue_handlers()
 
 
-# Tests: LoggingService.on_shutdown()
-
-
 class TestLoggingServiceOnShutdown:
     """LoggingService.on_shutdown stops the QueueListener and restores the stream handler."""
 
@@ -346,9 +335,6 @@ class TestLoggingServiceOnShutdown:
         remove_queue_handlers()
 
 
-# Tests: dropped_count property
-
-
 class TestDroppedCount:
     """Verify dropped_count delegates to persistence_handler."""
 
@@ -389,9 +375,6 @@ class TestDroppedCount:
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
-
-
-# Tests: sync→async swap — no record loss
 
 
 class TestSyncToAsyncSwap:

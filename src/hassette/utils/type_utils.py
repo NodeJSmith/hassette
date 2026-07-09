@@ -89,31 +89,6 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     return tp
 
 
-def is_optional_type(tp: type) -> bool:
-    """Return True if the annotation is Optional[...] (i.e. contains None)."""
-    origin = get_origin(tp)
-    args = get_args(tp)
-
-    if origin is None:
-        return False
-
-    return type(None) in args
-
-
-def get_optional_type_arg(tp: type) -> type:
-    """If the annotation is Optional[T], return T; else raise ValueError."""
-    if not is_optional_type(tp):
-        raise ValueError(f"Type {tp} is not Optional[...]")
-
-    args = get_args(tp)
-    non_none_args = [arg for arg in args if arg is not type(None)]
-
-    if len(non_none_args) != 1:
-        raise ValueError(f"Optional type {tp} does not have exactly one non-None argument")
-
-    return non_none_args[0]
-
-
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     signature = inspect.signature(call)
     globalns = getattr(call, "__globals__", {})

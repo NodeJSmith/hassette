@@ -124,7 +124,6 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         aria-label="Log entry detail"
         data-testid="log-detail-drawer"
       >
-        {/* Header bar */}
         <div class={styles.headerBar}>
           <div class={styles.navButtons}>
             <button
@@ -160,13 +159,11 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           </div>
         ) : entry ? (
           <div class={styles.content}>
-            {/* Severity + timestamp */}
             <div class={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
               <span class={styles.levelLabel}>{entry.level}</span>
               <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>
 
-            {/* Metadata grid */}
             <dl class={styles.metaGrid}>
               {entry.app_key && (
                 <>
@@ -203,7 +200,6 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               <dd class={styles.monoValue}>{entry.logger_name}</dd>
             </dl>
 
-            {/* Message section */}
             <div class={styles.section}>
               <div class={styles.sectionHeader}>
                 <span class={styles.sectionLabel}>message</span>
@@ -214,7 +210,6 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               </pre>
             </div>
 
-            {/* Exception section */}
             {entry.exc_info && (
               <div class={styles.section}>
                 <div class={styles.sectionHeader}>

@@ -13,8 +13,6 @@ from pydantic import ValidationError
 from hassette.core.execution_record import ExecutionRecord
 from hassette.schemas.telemetry_models import Execution
 
-# Execution model — shared/base field construction
-
 
 class TestExecutionModelKindHandler:
     def test_kind_handler_accepted(self) -> None:
@@ -212,9 +210,6 @@ class TestExecutionModelNewColumns:
         assert model.attempt_number == 3
         assert model.args_json == "[1, 2]"
         assert model.kwargs_json == '{"key": "value"}'
-
-
-# ExecutionRecord dataclass
 
 
 class TestExecutionRecordKind:

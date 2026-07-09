@@ -49,8 +49,6 @@ from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.test_utils.config import make_test_config
 from hassette.types.enums import BlockingIOBehavior
 
-# Shared helpers
-
 
 async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     """Return all rows from blocking_events as plain dicts."""
@@ -116,9 +114,6 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     return h
 
 
-# Fixtures — executor-offload tests: use the telemetry conftest's sealed db_hassette
-
-
 @pytest.fixture
 def loop_thread_id() -> int:
     """The loop thread id — in the test harness this is the main test thread."""
@@ -138,9 +133,6 @@ async def executor(
         yield exc
     finally:
         await exc.on_shutdown()
-
-
-# Fixtures — ignore-behavior tests: unsealed mock with IGNORE wiring + dedicated DB
 
 
 @pytest.fixture
@@ -175,9 +167,6 @@ async def ignore_executor(
         yield exc
     finally:
         await exc.on_shutdown()
-
-
-# Executor offload: sync handler on worker thread — zero warnings, zero rows
 
 
 class TestExecutorOffloadProducesNoBlocking:
@@ -330,9 +319,6 @@ class TestExecutorOffloadProducesNoBlocking:
 
         rows = await _fetch_blocking_events(db_svc)
         assert len(rows) == 0, f"Expected zero blocking_events rows for worker-thread sleep, got {len(rows)}: {rows}"
-
-
-# Per-app 'ignore' behavior — zero warnings, zero rows
 
 
 class TestIgnoreBehaviorSuppressesRowAndWarning:

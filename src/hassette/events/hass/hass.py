@@ -1,6 +1,5 @@
 import typing
 from dataclasses import dataclass, field
-from logging import getLogger
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
@@ -12,9 +11,6 @@ from .raw import HassEventEnvelopeDict, HassStateDict
 
 if typing.TYPE_CHECKING:
     from hassette.const.misc import FalseySentinel
-
-
-LOGGER = getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
