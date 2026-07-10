@@ -213,12 +213,12 @@ The serif display face is a deliberate accent — an editorial note in an otherw
 | `--fs-small` | 12.5px | `--lh-small` 1.5 | — | Table cells, app links |
 | `--fs-micro` | 12px | `--lh-micro` 1.4 | — | Badges, chips, inputs, metadata |
 | `--fs-xs` | 11px | `--lh-xs` 1.3 | — | Smallest labels |
-
-`--lh-relaxed` (1.6) is used for code blocks, tracebacks, and compact button rows where lines need more breathing room than `--lh-small` (1.5).
 | `--fs-stat` | 26px | — | — | StatsStrip values |
 | `--fs-badge` | 11.5px | — | — | Badge text (specific) |
 | `--fs-mono-sm` | 12px | — | — | Small monospace (inputs, code) |
 | `--fs-mono-md` | 13px | — | — | Medium monospace (tabs) |
+
+`--lh-relaxed` (1.6) is used for code blocks, tracebacks, and compact button rows where lines need more breathing room than `--lh-small` (1.5).
 
 #### Letter Spacing
 
@@ -358,14 +358,6 @@ Motion confirms interactions and orients users during overlays/drawers. No decor
 | `--sz-dialog-max` | 480px | Maximum width for dialogs (confirm dialog) |
 | `--sz-drawer` | 400px | Log detail drawer width |
 | `--sz-palette` | 620px | Command palette width (clamped to 90% on small screens) |
-
-### Effects
-
-| Token | Value | Usage |
-|---|---|---|
-| `--blur-overlay` | 2px | Backdrop blur for overlays (command palette, confirm dialog) |
-| `--border-med` | 2px | Focus-visible outlines, failing-state accent borders |
-| `--border-thick` | 3px | Heavy borders (spinner track, error accent borders) |
 
 ---
 
