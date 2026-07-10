@@ -13,8 +13,8 @@ import pytest
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
-from hassette.scheduler.classes import ScheduledJob
 from hassette.test_utils import make_mock_hassette
+from hassette.types.enums import ExecutionMode
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -125,14 +125,30 @@ def make_mock_listener(*, error_handler=None) -> MagicMock:
     return listener
 
 
-def make_mock_job(*, error_handler=None) -> MagicMock:
-    """Return a mock ScheduledJob with optional error handler."""
-    job = MagicMock(spec=ScheduledJob)
-    job.error_handler = error_handler
-    job.name = "test_job"
-    job.group = None
+def make_mock_job(
+    *,
+    owner_id: str = "test_owner",
+    app_key: str = "my_app",
+    instance_index: int = 1,
+    name: str = "test_job",
+    error_handler=None,
+    db_id: int | None = None,
+    mode: ExecutionMode = ExecutionMode.SINGLE,
+) -> MagicMock:
+    """Return a mock ScheduledJob with the union of fields needed across integration tests."""
+    job = MagicMock()
+    job.owner_id = owner_id
+    job.app_key = app_key
+    job.instance_index = instance_index
+    job.name = name
+    job.job = MagicMock(__qualname__="MyApp.my_job")
+    job.trigger = None
     job.args = ()
     job.kwargs = {}
+    job.db_id = db_id
+    job.mode = mode
+    job.error_handler = error_handler
+    job.group = None
     return job
 
 

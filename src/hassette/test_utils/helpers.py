@@ -27,12 +27,15 @@ from hassette.events import (
     ServiceRegisteredEvent,
     create_event_from_hass,
 )
-from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
+from hassette.events.base import HassettePayload
+from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
 from hassette.types import StateT
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict, HassStateDict
@@ -437,6 +440,31 @@ def make_service_running_event(service: "Service") -> HassetteServiceEvent:
     )
 
 
+def make_crashed_event(
+    resource_name: str = "TestService",
+    exception_type: str = "RuntimeError",
+    exception: str = "something broke",
+    exception_traceback: str = "Traceback ...",
+) -> HassetteServiceEvent:
+    """Build a CRASHED HassetteServiceEvent for testing."""
+    return HassetteServiceEvent(
+        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+        payload=HassettePayload(
+            data=ServiceStatusPayload(
+                resource_name=resource_name,
+                role=ResourceRole.SERVICE,
+                status=ResourceStatus.CRASHED,
+                previous_status=ResourceStatus.FAILED,
+                exception=exception,
+                exception_type=exception_type,
+                exception_traceback=exception_traceback,
+                ready=False,
+                ready_phase=None,
+            ),
+        ),
+    )
+
+
 async def wire_up_app_state_listener(
     bus: "Bus",
     event: asyncio.Event,
@@ -516,6 +544,7 @@ def create_listener(
     is_attribute_listener: bool = False,
     hold_predicate: "Predicate | None" = None,
     error_handler: "BusErrorHandlerType | None" = None,
+    app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
     source_location: str = "",
     registration_source: str = "",
     logger: Logger | None = None,
@@ -566,6 +595,7 @@ def create_listener(
         kwargs=kwargs,
         options=options,
         error_handler=error_handler,
+        app_error_handler_resolver=app_error_handler_resolver,
     )
 
     duration_config: DurationConfig | None = None

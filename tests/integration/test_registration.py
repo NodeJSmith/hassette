@@ -19,6 +19,8 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.test_utils.factories import make_job_registration, make_listener_registration
 from hassette.types.enums import ExecutionMode
 
+from .conftest import make_mock_job
+
 
 @pytest.fixture
 async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
@@ -46,27 +48,8 @@ def make_mock_listener(
     listener.predicate = None
     listener.listener_id = 1
     listener.db_id = None
-    # Must be None to avoid the duration-timer branch in add_listener.
     listener.duration_config = None
     return listener
-
-
-def make_mock_job(
-    *, owner_id: str = "test_owner", app_key: str = "my_app", instance_index: int = 1, name: str = "test_job"
-) -> MagicMock:
-    """Return a mock ScheduledJob."""
-    job = MagicMock()
-    job.owner_id = owner_id
-    job.app_key = app_key
-    job.instance_index = instance_index
-    job.name = name
-    job.job = MagicMock(__qualname__="MyApp.my_job")
-    job.trigger = None
-    job.args = ()
-    job.kwargs = {}
-    job.db_id = None
-    job.mode = ExecutionMode.SINGLE
-    return job
 
 
 def stub_task_bucket() -> MagicMock:

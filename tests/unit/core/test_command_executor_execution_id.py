@@ -7,63 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import structlog.contextvars
 import uuid_utils
-import whenever
 
-from hassette.commands import ExecuteJob
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import SYNTHETIC_ORIGIN
-from hassette.events.base import Event, HassContext, HassPayload
-from hassette.test_utils.factories import make_hassette_event, make_invoke_handler_cmd
+from hassette.test_utils.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
 
-from .conftest import make_executor
-
-
-def make_hass_event(origin: str = "LOCAL") -> Event:
-    """Build a minimal HassPayload-based Event."""
-    context = HassContext(id="ctx-abc123", parent_id=None, user_id=None)
-    payload = HassPayload(
-        event_type="state_changed",
-        data=None,
-        origin=origin,  # pyright: ignore[reportArgumentType]
-        time_fired=whenever.ZonedDateTime.now("UTC"),
-        context=context,
-    )
-    return Event(topic="hass.state_changed", payload=payload)
-
-
-def make_listener(*, side_effect=None) -> MagicMock:
-    """Build a minimal Listener-like mock."""
-    listener = MagicMock()
-    listener.listener_id = 1
-    listener.invoker.error_handler = None
-    if side_effect is None:
-        listener.invoker.invoke = AsyncMock(return_value=None)
-    else:
-        listener.invoker.invoke = AsyncMock(side_effect=side_effect)
-    listener.__repr__ = lambda _self: "Listener<test>"
-    return listener
-
-
-def make_execute_job_cmd(*, side_effect=None, job_error_handler=None) -> MagicMock:
-    """Build a minimal ExecuteJob-like mock."""
-    cmd = MagicMock(spec=ExecuteJob)
-    cmd.source_tier = "app"
-    cmd.job_db_id = 1
-    if side_effect is None:
-        cmd.callable = AsyncMock(return_value=None)
-    else:
-        cmd.callable = AsyncMock(side_effect=side_effect)
-    cmd.effective_timeout = None
-    cmd.job = MagicMock()
-    cmd.job.job_id = 99
-    cmd.job.error_handler = job_error_handler
-    cmd.job.name = "test_job"
-    cmd.job.group = None
-    cmd.job.args = ()
-    cmd.job.kwargs = {}
-    cmd.app_level_error_handler = None
-    return cmd
+from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listener
 
 
 async def drain_tasks(executor: CommandExecutor) -> None:
@@ -101,7 +51,7 @@ class TestExecutionIdContextVar:
         async def handler_fn(*_args) -> None:
             captured.append(CURRENT_EXECUTION_ID.get())
 
-        listener = make_listener()
+        listener = make_mock_cmd_listener()
         listener.invoker.invoke = AsyncMock(side_effect=handler_fn)
         cmd = make_invoke_handler_cmd(listener=listener)
 
@@ -119,7 +69,7 @@ class TestExecutionIdContextVar:
     async def test_execution_id_none_after_handler_execution(self) -> None:
         """CURRENT_EXECUTION_ID resets to None after execute_handler() returns."""
         executor = make_executor()
-        listener = make_listener()
+        listener = make_mock_cmd_listener()
         cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor.execute_handler(cmd)
@@ -130,7 +80,7 @@ class TestExecutionIdContextVar:
         """CURRENT_EXECUTION_ID resets to None even when handler raises CancelledError."""
         executor = make_executor()
 
-        listener = make_listener(side_effect=asyncio.CancelledError)
+        listener = make_mock_cmd_listener(side_effect=asyncio.CancelledError)
         cmd = make_invoke_handler_cmd(listener=listener)
 
         with pytest.raises(asyncio.CancelledError):
@@ -148,7 +98,7 @@ class TestExecutionIdContextVar:
             ids.append(CURRENT_EXECUTION_ID.get())
 
         for _ in range(2):
-            listener = make_listener()
+            listener = make_mock_cmd_listener()
             listener.invoker.invoke = AsyncMock(side_effect=capture)
             cmd = make_invoke_handler_cmd(listener=listener)
             await executor.execute_handler(cmd)
@@ -214,12 +164,12 @@ class TestExecutionIdContextVar:
             await barrier.wait()
             captured.append(CURRENT_EXECUTION_ID.get())
 
-        listener1 = make_listener()
+        listener1 = make_mock_cmd_listener()
         listener1.invoke = AsyncMock(side_effect=capture_with_yield)
         listener1.invoker.invoke = AsyncMock(side_effect=capture_with_yield)
         cmd1 = make_invoke_handler_cmd(listener=listener1)
 
-        listener2 = make_listener()
+        listener2 = make_mock_cmd_listener()
         listener2.invoke = AsyncMock(side_effect=capture_after_barrier)
         listener2.invoker.invoke = AsyncMock(side_effect=capture_after_barrier)
         cmd2 = make_invoke_handler_cmd(listener=listener2)
@@ -240,7 +190,7 @@ class TestHandlerRecordTriggerFields:
         """trigger_context_id on the enqueued record matches the HassPayload's event_id."""
         executor = make_executor()
         event = make_hass_event()
-        listener = make_listener()
+        listener = make_mock_cmd_listener()
         cmd = make_invoke_handler_cmd(listener=listener, event=event)
 
         await executor.execute_handler(cmd)
@@ -390,7 +340,7 @@ class TestBindExecutionContextPrecomputedInstanceName:
         """execute_handler reads instance_name from listener.identity and forwards it to bind."""
         executor = make_executor()
 
-        listener = make_listener()
+        listener = make_mock_cmd_listener()
         listener.identity = MagicMock()
         listener.identity.app_key = "my_app"
         listener.identity.instance_index = 0
@@ -449,7 +399,7 @@ class TestErrorHandlerExecutionIdInheritance:
         async def error_handler(_ctx) -> None:
             handler_id.append(CURRENT_EXECUTION_ID.get())
 
-        listener = make_listener(side_effect=capture_main)
+        listener = make_mock_cmd_listener(side_effect=capture_main)
         listener.invoker.error_handler = error_handler
         cmd = make_invoke_handler_cmd(listener=listener)
 

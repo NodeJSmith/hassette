@@ -432,7 +432,7 @@ class TestHermeticConfigClosure:
         assert r2.instance_name == "second"
 
 
-def make_task_bucket() -> TaskBucket:
+def make_task_bucket() -> TaskBucket:  # factory-local: real TaskBucket via __new__, not a MagicMock
     """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
     hassette = Mock()
     hassette.config.lifecycle.task_cancellation_timeout_seconds = 5

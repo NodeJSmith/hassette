@@ -1,20 +1,9 @@
 """Tests for build_tracked_invoke_fn() carrying app_level_error_handler on InvokeHandler."""
 
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
 from hassette.test_utils.factories import make_mock_event, make_mock_executor
 from hassette.test_utils.helpers import create_listener
-
-
-def make_listener_with_resolver(
-    *,
-    resolver=None,
-) -> Listener:
-    """Create a Listener with a pre-set app_error_handler_resolver."""
-    listener = create_listener(topic="test.topic")
-    listener.invoker.set_app_error_handler_resolver(resolver)
-    return listener
 
 
 class TestDispatchCarriesAppLevelHandler:
@@ -26,7 +15,7 @@ class TestDispatchCarriesAppLevelHandler:
         async def app_handler(ctx) -> None:
             pass
 
-        listener = make_listener_with_resolver(resolver=lambda: app_handler)
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: app_handler)
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
         await invoke_fn()
@@ -40,8 +29,7 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        # Listener without resolver (simulates framework listener or test harness listener)
-        listener = make_listener_with_resolver(resolver=None)
+        listener = create_listener(topic="test.topic")
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
         await invoke_fn()
@@ -55,7 +43,7 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        listener = make_listener_with_resolver(resolver=lambda: None)
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: None)
 
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
         await invoke_fn()
@@ -69,24 +57,20 @@ class TestDispatchCarriesAppLevelHandler:
         executor = make_mock_executor()
         event = make_mock_event()
 
-        # Simulate a Bus._error_handler that can change
         current_handler = [None]
 
         async def handler_v2(ctx) -> None:
             pass
 
-        listener = make_listener_with_resolver(resolver=lambda: current_handler[0])
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: current_handler[0])
 
-        # First dispatch: no handler
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
         await invoke_fn()
         cmd = executor.execute.call_args[0][0]
         assert cmd.app_level_error_handler is None
 
-        # Update the Bus's handler
         current_handler[0] = handler_v2
 
-        # Second dispatch: handler is now set
         invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: 600.0)
         await invoke_fn()
         cmd = executor.execute.call_args[0][0]

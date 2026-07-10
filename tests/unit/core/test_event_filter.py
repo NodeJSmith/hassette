@@ -14,12 +14,9 @@ import logging
 from dataclasses import dataclass
 from unittest.mock import MagicMock
 
-import whenever
-
 from hassette.core.event_filter import EventFilter
-from hassette.events import Event, HassPayload
-from hassette.events.base import HassContext
-from hassette.test_utils.factories import make_hassette_event
+from hassette.events import Event
+from hassette.test_utils.factories import make_hass_event, make_hassette_event
 
 
 def make_logger() -> logging.Logger:
@@ -35,25 +32,6 @@ def make_filter(
         excluded_entities=excluded_entities,
         logger=make_logger(),
     )
-
-
-def make_context() -> HassContext:
-    return HassContext(id="ctx-test", parent_id=None, user_id=None)
-
-
-def make_hass_payload(event_type: str = "state_changed", data=None) -> HassPayload:
-    return HassPayload(
-        event_type=event_type,
-        data=data,
-        origin="LOCAL",  # pyright: ignore[reportArgumentType]
-        time_fired=whenever.ZonedDateTime.now("UTC"),
-        context=make_context(),
-    )
-
-
-def make_hass_event(event_type: str = "state_changed", data=None) -> Event:
-    payload = make_hass_payload(event_type=event_type, data=data)
-    return Event(topic=f"hass.{event_type}", payload=payload)
 
 
 def make_no_payload_event() -> Event:

@@ -50,9 +50,12 @@ SHARED_FACTORIES = {
     "make_mock_event": "hassette.test_utils.factories",
     "make_recording_api": "hassette.test_utils.factories",
     "make_hassette_event": "hassette.test_utils.factories",
+    "make_hass_event": "hassette.test_utils.factories",
     "make_mock_parent": "hassette.test_utils.factories",
     "make_invoke_handler_cmd": "hassette.test_utils.factories",
     "make_manifest": "hassette.test_utils.web_helpers",
+    "make_crashed_event": "hassette.test_utils.helpers",
+    "make_task_bucket": "hassette.test_utils.helpers",
     "async_noop": "hassette.test_utils.helpers",
     "noop": "hassette.test_utils.helpers",
 }

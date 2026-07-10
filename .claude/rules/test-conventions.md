@@ -28,6 +28,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_mock_event()` — `MagicMock(spec=Event)`
 - `make_recording_api(states=None)` — `RecordingApi` wired to a mock hassette + state proxy
 - `make_hassette_event(topic=..., data=...)` — `Event` carrying a `HassettePayload`
+- `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 
 `src/hassette/test_utils/helpers.py` — event/state builders and misc test helpers:
@@ -35,6 +36,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `create_listener(**kw)`, `create_state_change_event(**kw)`, `create_call_service_event(**kw)`
 - `make_state_dict(**kw)`, `make_light_state_dict(**kw)`, `make_sensor_state_dict(**kw)`, `make_switch_state_dict(**kw)`
 - `make_typed_state(state_class, state_dict)`, `make_task_bucket()`
+- `make_crashed_event(**kw)` — `HassetteServiceEvent` with CRASHED status for service-watcher/session tests
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 

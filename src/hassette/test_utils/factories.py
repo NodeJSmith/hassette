@@ -14,7 +14,7 @@ from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.state_proxy import StateProxy
-from hassette.events.base import Event, HassettePayload
+from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 from hassette.scheduler.classes import ScheduledJob
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -203,6 +203,24 @@ def make_recording_api(states: dict[str, Any] | None = None) -> RecordingApi:
 def make_hassette_event(topic: str = "hassette.ready", data: Any = None) -> Event:
     """Build an Event carrying a HassettePayload."""
     return Event(topic=topic, payload=HassettePayload(data=data))
+
+
+def make_hass_event(
+    event_type: str = "state_changed",
+    data: Any = None,
+    origin: str = "LOCAL",
+    context_id: str = "ctx-test",
+) -> Event:
+    """Build an Event carrying a HassPayload (Home Assistant origin)."""
+    context = HassContext(id=context_id, parent_id=None, user_id=None)
+    payload = HassPayload(
+        event_type=event_type,
+        data=data,
+        origin=origin,  # pyright: ignore[reportArgumentType]
+        time_fired=ZonedDateTime.now("UTC"),
+        context=context,
+    )
+    return Event(topic=f"hass.{event_type}", payload=payload)
 
 
 def make_mock_parent(

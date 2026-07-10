@@ -13,6 +13,7 @@ import pytest
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.router import Router
+from hassette.commands import ExecuteJob
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
@@ -256,6 +257,50 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor.task_bucket = task_bucket
     executor._spawned_tasks = spawned_tasks
     return executor
+
+
+def make_mock_cmd_listener(
+    *,
+    side_effect=None,
+    error_handler=None,
+) -> MagicMock:
+    """Build a MagicMock standing in for a Listener in CommandExecutor tests."""
+    listener = MagicMock()
+    listener.listener_id = 1
+    listener.invoker.error_handler = error_handler
+    if side_effect is None:
+        listener.invoker.invoke = AsyncMock(return_value=None)
+    else:
+        listener.invoker.invoke = AsyncMock(side_effect=side_effect)
+    listener.__repr__ = lambda _self: "Listener<test>"
+    return listener
+
+
+def make_execute_job_cmd(
+    *,
+    side_effect=None,
+    job_error_handler=None,
+    app_level_error_handler=None,
+    job_id: int = 99,
+) -> MagicMock:
+    """Build a MagicMock spec'd to ExecuteJob for CommandExecutor tests."""
+    cmd = MagicMock(spec=ExecuteJob)
+    cmd.source_tier = "app"
+    cmd.job_db_id = 1
+    if side_effect is None:
+        cmd.callable = AsyncMock(return_value=None)
+    else:
+        cmd.callable = AsyncMock(side_effect=side_effect)
+    cmd.effective_timeout = None
+    cmd.job = MagicMock()
+    cmd.job.job_id = job_id
+    cmd.job.error_handler = job_error_handler
+    cmd.job.name = "test_job"
+    cmd.job.group = None
+    cmd.job.args = ()
+    cmd.job.kwargs = {}
+    cmd.app_level_error_handler = app_level_error_handler
+    return cmd
 
 
 class DummyService(Service):

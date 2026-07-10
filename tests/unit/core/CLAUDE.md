@@ -8,6 +8,8 @@
 
 ## Shared helpers (module-level functions, not fixtures)
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
+- `make_mock_cmd_listener(**kw)` — `MagicMock` Listener for `CommandExecutor` tests (side_effect, error_handler)
+- `make_execute_job_cmd(**kw)` — `MagicMock` spec'd to `ExecuteJob` for executor tests
 - `make_bus_service(**kw)`, `make_scheduler_service(**kw)` — service instances bypassing `Resource.__init__`
 - `make_watcher(hassette)`, `build_watcher_hassette(**kw)` — `ServiceWatcher` test setup
 
