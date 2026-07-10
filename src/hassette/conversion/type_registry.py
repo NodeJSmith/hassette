@@ -164,7 +164,6 @@ class TypeRegistry:
         Returns:
             The converted value.
         """
-
         # handle tuple
         if isinstance(to_type, tuple):
             if isinstance(value, to_type):

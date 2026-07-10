@@ -655,7 +655,8 @@ async def test_serve_loops_without_blocking_when_queue_empty():
 
 async def test_serve_timer_drains_items_added_during_drain():
     """Items put back into the queue during drain_and_persist (e.g. deferred retries) are
-    picked up on the next loop iteration, not lost."""
+    picked up on the next loop iteration, not lost.
+    """
     executor = init_executor()
 
     # First item to seed the initial drain

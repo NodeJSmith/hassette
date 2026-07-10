@@ -55,7 +55,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, mock_hassette_for_db: MagicMock
     ) -> None:
         """_do_run_retention_cleanup() deletes log_records older than log_retention_days."""
-
         # Seed: one old record (5 days ago), one recent (now)
         now = time.time()
         old_ts = now - (5 * SECONDS_PER_DAY)  # 5 days ago (older than log_retention_days=3)
@@ -108,7 +107,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention cleanup keeps records within log_retention_days."""
-
         now = time.time()
         # Use half-day offsets to avoid exact boundary ambiguity with log_retention_days=3:
         # 0.5, 1.5, 2.5 days → within 3 days (kept); 3.5, 4.5 days → older than 3 days (deleted)
@@ -147,7 +145,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention for log_records uses log_retention_days, not db_retention_days."""
-
         # log_retention_days=3, db_retention_days=7
         # A record 5 days old is within db_retention_days but outside log_retention_days
         now = time.time()
@@ -186,7 +183,6 @@ class TestSizeFailsafePrePass:
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, log_count: int = 10, exec_count: int = 5
     ) -> None:
         """Seed log_records and executions."""
-
         now = time.time()
         logs = [
             {
@@ -219,7 +215,6 @@ class TestSizeFailsafePrePass:
         self, db: aiosqlite.Connection, db_service_writer: DatabaseService, mock_hassette_for_db: MagicMock
     ) -> None:
         """Size failsafe pre-pass deletes from log_records before execution records."""
-
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
@@ -256,7 +251,6 @@ class TestSizeFailsafePrePass:
         The re-check after the pre-pass still returns over limit, so the failsafe
         proceeds to delete execution records.
         """
-
         # Seed a small number of logs (all get deleted in pre-pass but still over limit)
         await self.seed_both_tables(db, db_service_writer, log_count=2, exec_count=5)
 

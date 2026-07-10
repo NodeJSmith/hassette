@@ -173,7 +173,6 @@ class StateRegistry:
         Raises:
             UnableToConvertStateError: If conversion fails for any reason.
         """
-
         class_name = state_class.__name__
         truncated_data = repr(data)
         if len(truncated_data) > STATE_REPR_MAX_LENGTH:

@@ -193,7 +193,6 @@ class TestAppFactoryCreateInstances:
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):
         """Verifies registry.register_app() called for each successful instance."""
-
         mock_manifest.app_config = [
             {"instance_name": "instance_0"},
             {"instance_name": "instance_1"},
@@ -242,7 +241,6 @@ class TestAppFactoryLoadClass:
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     def test_load_class_returns_none_when_previously_failed(self, mock_failed, factory: AppFactory, mock_manifest):
         """Returns None for previously failed classes."""
-
         result = factory.load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is None
@@ -286,7 +284,6 @@ class TestAppFactoryGetLoadError:
 
     def test_get_load_error_returns_runtime_error_if_no_cached(self, factory: AppFactory, mock_manifest):
         """Returns RuntimeError if no cached error."""
-
         result = factory.get_load_error(mock_manifest)
 
         assert isinstance(result, RuntimeError)

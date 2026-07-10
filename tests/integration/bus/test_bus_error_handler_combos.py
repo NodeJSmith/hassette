@@ -260,7 +260,7 @@ async def test_immediate_per_listener_error_handler_wins(
 async def test_immediate_once_error_handler_and_removal(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
-    """immediate + once=True + on_error: handler raises, error handler fires, listener consumed."""
+    """Immediate + once=True + on_error: handler raises, error handler fires, listener consumed."""
     harness, hassette, bus = bus_harness
 
     await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
@@ -340,7 +340,7 @@ async def test_immediate_error_handler_receives_synthetic_event(
 async def test_immediate_duration_elapsed_exceeds_error_handler(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
-    """immediate + duration (elapsed >= duration) + on_error: fires immediately, error handler called."""
+    """Immediate + duration (elapsed >= duration) + on_error: fires immediately, error handler called."""
     harness, hassette, bus = bus_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
@@ -379,7 +379,7 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
 async def test_immediate_duration_remaining_timer_error_handler(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
-    """immediate + duration (elapsed < duration) + on_error: timer fires after remaining, error handler called."""
+    """Immediate + duration (elapsed < duration) + on_error: timer fires after remaining, error handler called."""
     harness, hassette, bus = bus_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)

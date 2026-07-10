@@ -75,8 +75,8 @@ class SchedulerSyncFacade(Resource):
         Raises:
             TypeError: If job is not a ScheduledJob.
             ValueError: If a job with the same name already exists and either
-                ``if_exists="error"`` or the existing job's configuration differs."""
-
+                ``if_exists="error"`` or the existing job's configuration differs.
+        """
         return self.task_bucket.run_sync(self._scheduler.add_job(job, if_exists=if_exists))
 
     def schedule(
@@ -154,8 +154,8 @@ class SchedulerSyncFacade(Resource):
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
             DependencyInjectionError: If a predicate's signature is incompatible with
-                DI (e.g. ``*args`` or positional-only parameters)."""
-
+                DI (e.g. ``*args`` or positional-only parameters).
+        """
         return self.task_bucket.run_sync(
             self._scheduler.schedule(
                 func,
@@ -217,8 +217,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_in(
                 func,
@@ -286,8 +286,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_once(
                 func,
@@ -354,8 +354,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_every(
                 func,
@@ -419,8 +419,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_minutely(
                 func,
@@ -482,8 +482,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_hourly(
                 func,
@@ -548,8 +548,8 @@ class SchedulerSyncFacade(Resource):
                 See ``schedule()`` for details.
 
         Returns:
-            The scheduled job."""
-
+            The scheduled job.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_daily(
                 func,
@@ -618,8 +618,8 @@ class SchedulerSyncFacade(Resource):
             The scheduled job.
 
         Raises:
-            ValueError: If the cron expression is syntactically invalid."""
-
+            ValueError: If the cron expression is syntactically invalid.
+        """
         return self.task_bucket.run_sync(
             self._scheduler.run_cron(
                 func,
@@ -655,8 +655,8 @@ class SchedulerSyncFacade(Resource):
 
         Args:
             handler: A sync or async callable that accepts a
-                :class:`~hassette.scheduler.error_context.SchedulerErrorContext`."""
-
+                :class:`~hassette.scheduler.error_context.SchedulerErrorContext`.
+        """
         return self._scheduler.on_error(handler)
 
     def cancel_job(self, job: "ScheduledJob") -> None:
@@ -674,8 +674,8 @@ class SchedulerSyncFacade(Resource):
             job: The job to cancel.
 
         Raises:
-            ValueError: If the job belongs to a different scheduler instance."""
-
+            ValueError: If the job belongs to a different scheduler instance.
+        """
         return self._scheduler.cancel_job(job)
 
     def cancel_group(self, group: str) -> None:
@@ -688,8 +688,8 @@ class SchedulerSyncFacade(Resource):
         not exist.
 
         Args:
-            group: The group name to cancel."""
-
+            group: The group name to cancel.
+        """
         return self._scheduler.cancel_group(group)
 
     def list_jobs(self, group: str | None = None) -> list["ScheduledJob"]:
@@ -700,6 +700,6 @@ class SchedulerSyncFacade(Resource):
                 If ``None`` (default), return all jobs.
 
         Returns:
-            List of ScheduledJob instances."""
-
+            List of ScheduledJob instances.
+        """
         return self._scheduler.list_jobs(group)

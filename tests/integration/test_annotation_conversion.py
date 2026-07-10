@@ -42,7 +42,6 @@ class TestDependencyInjectionHandlesTypeConversion:
 
     async def test_state_conversion(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test that StateNew converts BaseState to domain-specific state type."""
-
         for state_change_event in state_change_events_with_new_state:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             domain = state_change_event.payload.data.domain
@@ -58,7 +57,6 @@ class TestDependencyInjectionHandlesTypeConversion:
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test that StateNew[BaseState] returns BaseState without conversion."""
-
         for state_change_event in state_change_events_with_new_state:
             domain = state_change_event.payload.data.domain
 
@@ -71,7 +69,6 @@ class TestDependencyInjectionHandlesTypeConversion:
 
     async def test_maybe_state_conversion(self, state_change_events: list[RawStateChangeEvent]):
         """Test that MaybeStateNew converts BaseState to domain-specific state type."""
-
         for state_change_event in state_change_events:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             domain = state_change_event.payload.data.domain
@@ -92,7 +89,6 @@ class TestDependencyInjectionHandlesTypeConversion:
 
     async def test_maybe_state_as_base_state_stays_base_state(self, state_change_events: list[RawStateChangeEvent]):
         """Test that MaybeStateNew[BaseState] returns BaseState without conversion."""
-
         for state_change_event in state_change_events:
             domain = state_change_event.payload.data.domain
 
@@ -115,7 +111,6 @@ class TestDependencyInjectionHandlesTypeConversion:
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test StateNew and MaybeStateOld conversion when only new_state is present."""
-
         for state_change_event in state_change_events_with_new_state:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
@@ -137,7 +132,6 @@ class TestDependencyInjectionHandlesTypeConversion:
         self, state_change_events_with_old_state: list[RawStateChangeEvent]
     ):
         """Test MaybeStateNew and StateOld conversion when only old_state is present."""
-
         for state_change_event in state_change_events_with_old_state:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
@@ -180,7 +174,6 @@ class TestDependencyInjectionHandlesTypeConversion:
 
     async def test_typed_state_change_event(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test TypedStateChangeEvent provides typed states."""
-
         for state_change_event in state_change_events_with_new_state:
             model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
 
@@ -203,7 +196,6 @@ class TestDependencyInjectionHandlesTypeConversion:
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test TypedStateChangeEvent provides typed states."""
-
         for state_change_event in state_change_events_with_new_state:
             correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
@@ -229,7 +221,6 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test TypedStateChangeEvent provides typed states."""
-
         for state_change_event in state_change_events_with_new_state:
             correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
@@ -251,7 +242,6 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
         self, state_change_events_with_new_state: list[RawStateChangeEvent]
     ):
         """Test TypedStateChangeEvent provides typed states."""
-
         for state_change_event in state_change_events_with_new_state:
             correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
             incorrect_model = get_random_model([correct_model])
@@ -381,11 +371,9 @@ class TestDependencyInjectionTypeConversionHandlesComplexTypes:
         assert kwargs == {"rgb_color": [12345, "test", 13579]}
 
     async def test_typed_annotation_handles_incoming_elements_with_str_annotation_converts_all_to_str(self):
+        """Asserts that when the union starts with str, all elements are converted to str, regardless of other
+        types in the Union.
         """
-        Asserts that when the union starts with str, all elements are converted to str, regardless of other
-        types in the Union
-        """
-
         light_state_old = make_light_state_dict(rgb_color=[255, 0, 0])
         light_state_new = make_light_state_dict(rgb_color=[12345, "test", "13579"])
         light_event = make_full_state_change_event(

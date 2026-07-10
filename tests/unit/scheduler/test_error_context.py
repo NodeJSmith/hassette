@@ -41,7 +41,7 @@ class TestSchedulerErrorContextConstruction:
             ctx.job_name = "other_job"  # pyright: ignore[reportGeneralIssues]
 
     def test_scheduler_error_context_args_kwargs(self) -> None:
-        """args and kwargs are recorded at registration time and accessible on context."""
+        """Args and kwargs are recorded at registration time and accessible on context."""
         exc = TypeError("bad arg")
 
         ctx = SchedulerErrorContext(
@@ -58,7 +58,7 @@ class TestSchedulerErrorContextConstruction:
         assert ctx.job_group == "my_group"
 
     def test_scheduler_error_context_traceback_always_populated(self) -> None:
-        """traceback is always a non-empty string (type is str, not str | None)."""
+        """Traceback is always a non-empty string (type is str, not str | None)."""
         exc = ValueError("test")
         tb_str = "Traceback (most recent call last):\n  ...\nValueError: test"
 

@@ -353,7 +353,7 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
 
 
 async def test_db_property_works_after_init(initialized_service: DatabaseService) -> None:
-    """db property returns the connection after initialization."""
+    """Db property returns the connection after initialization."""
     conn = initialized_service.db
     assert conn is not None
 
@@ -435,7 +435,6 @@ async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
 
 async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseService) -> None:
     """enqueue() drops the coroutine and logs an error when the queue is full."""
-
     # Block the worker so nothing drains by using a gate coroutine
     gate = asyncio.Event()
     drained: list[int] = []
@@ -472,7 +471,6 @@ async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseSer
 
 async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service: DatabaseService) -> None:
     """enqueue() logs a warning when queue depth is a nonzero multiple of 100."""
-
     gate = asyncio.Event()
 
     async def gated_coro() -> None:

@@ -40,7 +40,7 @@ def make_job(
 
 class TestScheduledJobTimeoutFields:
     def test_scheduled_job_timeout_field_default(self) -> None:
-        """timeout defaults to None."""
+        """Timeout defaults to None."""
         job = make_job()
         assert job.timeout is None
 

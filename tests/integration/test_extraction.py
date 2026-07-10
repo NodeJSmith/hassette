@@ -30,7 +30,6 @@ class TestTypeAliasExtractors:
 
     def test_entity_id_extractor(self, all_events: list[Event]):
         """Test EntityId type alias extracts entity_id."""
-
         # get an event of each type
         event_types: defaultdict[type[Event], list[Event]] = defaultdict(list)
         for event in all_events:
@@ -72,7 +71,6 @@ class TestTypeAliasExtractors:
 
     def test_domain_extractor(self, all_events: list[Event]):
         """Test Domain type alias extracts domain from any Event."""
-
         # get an event of each type
         event_types = defaultdict(list)
         for event in all_events:

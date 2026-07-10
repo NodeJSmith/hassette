@@ -122,7 +122,7 @@ class TestDatabaseConfig:
             DatabaseConfig(size_failsafe_max_iterations=0)
 
     def test_custom_path(self):
-        """path accepts a Path value."""
+        """Path accepts a Path value."""
         cfg = DatabaseConfig(path=Path("/tmp/test.db"))
         assert cfg.path == Path("/tmp/test.db")
 
@@ -362,13 +362,12 @@ class TestAppsConfig:
 
     def test_remove_incomplete_apps(self):
         """Apps missing required keys are removed with a warning."""
-
         cfg = AppsConfig(apps={"incomplete": {"filename": "foo.py"}})
 
         assert "incomplete" not in cfg.apps
 
     def test_directory_default_is_cwd_apps(self):
-        """directory defaults to cwd/apps."""
+        """Directory defaults to cwd/apps."""
         cfg = AppsConfig()
         assert cfg.directory == Path.cwd() / "apps"
 

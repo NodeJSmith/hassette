@@ -74,6 +74,7 @@ select = [
     "N",      #pep8-naming (N),
     "PERF",   # Perflint (PERF)
     "TID252", # relative imports
+    "D",      # pydocstyle (google convention)
 ]
 
 ignore = [
@@ -88,9 +89,13 @@ ignore = [
     "DTZ007", # call-datetime-strptime-without-zone (DTZ007)
     "D100",   # undocumented-public-module
     "D101",   # undocumented-public-class
+    "D102",   # undocumented-public-method — burn down incrementally
+    "D103",   # undocumented-public-function — burn down incrementally
     "D104",   # undocumented-public-package
-    # "D103", # undocumented-public-function
+    "D105",   # undocumented-magic-method
     "D107",   # undocumented-public-init
+    "D205",   # blank-line-after-summary — burn down incrementally (#1274)
+    "D417",   # undocumented-param — burn down incrementally (#1274)
     "ANN204", # missing-return-type-special-method
     "ANN003", # missing-type-kwargs
     "ANN002", # missing-type-args (ANN002)

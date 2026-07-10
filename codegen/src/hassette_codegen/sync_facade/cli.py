@@ -39,6 +39,7 @@ def _check_drift(target_path: Path, generated_content: str, label: str) -> bool:
 
     Returns:
         True if in-sync, False if drift detected.
+
     """
     if not target_path.exists():
         target = _LABEL_TO_TARGET.get(label, "all")

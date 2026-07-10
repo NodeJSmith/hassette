@@ -258,8 +258,7 @@ class TaskBucket(Resource):
     def make_async_adapter(self, fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
 
     def make_async_adapter(self, fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
-        """
-        Normalize a callable (sync or async) into an async callable with the same signature.
+        """Normalize a callable (sync or async) into an async callable with the same signature.
 
         - If `fn` is async: await it.
         - If `fn` is sync: run it in Hassette's thread pool executor via TaskBucket.run_in_thread.
@@ -295,7 +294,6 @@ class TaskBucket(Resource):
         Returns:
             The result of the function call.
         """
-
         if timeout_seconds is None:
             timeout_seconds = self.hassette.config.lifecycle.run_sync_timeout_seconds
 
@@ -411,7 +409,6 @@ def make_task_factory(
         to the task factory. We pop ``name`` and apply it after construction so the
         auto-naming fallback still works for callers that don't pass one.
         """
-
         # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not

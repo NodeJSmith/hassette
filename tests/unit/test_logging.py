@@ -30,7 +30,7 @@ class TestCorrelationFilterSeqIncrements:
     """CorrelationFilter stamps seq monotonically on records; LogCaptureHandler reads it."""
 
     def test_seq_increments_monotonically_via_filter(self) -> None:
-        """seq increments monotonically when CorrelationFilter runs before emit."""
+        """Seq increments monotonically when CorrelationFilter runs before emit."""
         corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_increment")
@@ -52,7 +52,7 @@ class TestCorrelationFilterSeqIncrements:
         logger.removeHandler(handler)
 
     def test_seq_starts_at_positive_value_via_filter(self) -> None:
-        """seq is a positive integer stamped by CorrelationFilter."""
+        """Seq is a positive integer stamped by CorrelationFilter."""
         corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_start")
@@ -118,7 +118,7 @@ class TestLogEntryToDictIncludesSeq:
         assert d["seq"] == 42
 
     def test_to_dict_seq_position(self) -> None:
-        """seq should be present alongside timestamp in the dict."""
+        """Seq should be present alongside timestamp in the dict."""
         entry = LogEntry(
             seq=7,
             timestamp=1000.0,
@@ -491,7 +491,6 @@ class TestAddExecutionIdProcessor:
 
     def test_processor_adds_execution_id_from_context(self) -> None:
         """add_execution_id processor stamps execution_id from CURRENT_EXECUTION_ID."""
-
         token = CURRENT_EXECUTION_ID.set("test-exec-id")
         try:
             event_dict = add_execution_id(None, "info", {"event": "hello"})
@@ -618,7 +617,6 @@ class TestExecutionIdInheritedByChildTask:
 
     async def test_child_task_inherits_execution_id(self) -> None:
         """A child task spawned during an execution inherits the execution_id."""
-
         child_event_dict: dict = {}
 
         async def child_work() -> None:

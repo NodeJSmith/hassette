@@ -74,8 +74,7 @@ class ApiResource(Resource):
         self._headers_factory: Callable[[], dict[str, str]] | None = headers_factory
 
     async def on_initialize(self) -> None:
-        """
-        Start the API service.
+        """Start the API service.
 
         WebsocketService is guaranteed ready by depends_on auto-wait.
         """
@@ -191,7 +190,6 @@ class ApiResource(Resource):
         no_attributes: bool = False,
     ) -> list[list[dict[str, Any]]]:
         """Get the history of a specific entity."""
-
         url = f"history/period/{format_time_param(start_time)}"
 
         params = {

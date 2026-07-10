@@ -108,7 +108,6 @@ def test_ensure_tuple_flattening() -> None:
 
 def test_normalize_where_handling() -> None:
     """Test normalize_where with various input types."""
-
     # None input
     assert normalize_where(None) is None
 

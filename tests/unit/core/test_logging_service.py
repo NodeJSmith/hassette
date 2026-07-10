@@ -39,7 +39,6 @@ def make_logging_service(
     hassette: MagicMock | None = None,
 ) -> LoggingService:
     """Construct a LoggingService with mocked dependencies."""
-
     if hassette is None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
@@ -123,7 +122,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_creates_queue_listener_and_starts_it(self) -> None:
         """QueueListener is created and started during on_initialize."""
-
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         stream_handler = logging.StreamHandler()
@@ -152,7 +150,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_calls_mark_ready(self) -> None:
         """mark_ready() is called after pipeline starts — unconditionally."""
-
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         svc = make_logging_service(hassette=hassette)
@@ -168,7 +165,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_all_three_handlers_attached_to_listener(self) -> None:
         """Stream, capture, and persistence handlers are all in the QueueListener."""
-
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         svc = make_logging_service(hassette=hassette)
@@ -188,7 +184,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_persistence_failure_still_starts_pipeline(self) -> None:
         """If persistence handler creation fails, pipeline still starts with stream + capture."""
-
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         svc = make_logging_service(hassette=hassette)
@@ -216,7 +211,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_swaps_stream_handler_for_queue_handler(self) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""
-
         hassette_logger = logging.getLogger("hassette")
         stream_handler = logging.StreamHandler()
         # Put stream handler on logger to simulate Phase 1
@@ -242,7 +236,6 @@ class TestLoggingServiceOnInitialize:
     @pytest.mark.asyncio
     async def test_on_initialize_defensive_cleanup_removes_stale_queue_handler(self) -> None:
         """A stale QueueHandler on the logger is removed before the new one is added."""
-
         hassette_logger = logging.getLogger("hassette")
         stale_q: queue.Queue[logging.LogRecord] = queue.Queue()
         stale_queue_handler = logging.handlers.QueueHandler(stale_q)

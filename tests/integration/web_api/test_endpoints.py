@@ -419,7 +419,8 @@ class TestConfigEndpointExpanded:
 
     async def test_set_token_is_masked_not_plaintext(self, client: "AsyncClient", mock_hassette) -> None:
         """A token with a value is returned as the mask sentinel — proves the full endpoint
-        masking flow (the schema marks token secret, the view builder replaces the value)."""
+        masking flow (the schema marks token secret, the view builder replaces the value).
+        """
         secret = "super-secret-plaintext-xyz"
         mock_hassette.config.model_dump.return_value["token"] = secret
         response = await client.get("/api/config")

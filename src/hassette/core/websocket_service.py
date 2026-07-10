@@ -552,7 +552,6 @@ class WebsocketService(Service):
         Raises:
             FailedMessageError: If sending the message fails after all retries.
         """
-
         caller_id = data.pop("id", None)
 
         @retry(
@@ -632,7 +631,6 @@ class WebsocketService(Service):
 
     async def authenticate(self) -> None:
         """Authenticate with the Home Assistant WebSocket API."""
-
         assert self._ws, "WebSocket must be initialized before authenticating"
         secret = self.hassette.config.token
         token = secret.get_secret_value() if secret is not None else None
@@ -666,7 +664,6 @@ class WebsocketService(Service):
         Raises:
             ConnectionClosedError: If the connection is closed.
         """
-
         if not self._ws:
             raise RuntimeError("WebSocket connection is not established")
 

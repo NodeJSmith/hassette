@@ -136,7 +136,6 @@ class TestRestartPersistence:
 
     async def test_records_survive_connection_close_and_reopen(self, tmp_path: Path) -> None:
         """Write records, close the connection, reopen, and confirm they're queryable."""
-
         db_path = str(tmp_path / "persistence_test.db")
         run_migrations_to_head(db_path)
 
@@ -185,7 +184,6 @@ class TestRestartPersistence:
 class TestInsertLogRecords:
     async def test_insert_writes_records(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
         """_insert_log_records() inserts records that are queryable."""
-
         now = time.time()
         records = [
             {
@@ -227,7 +225,6 @@ class TestInsertLogRecords:
 
     async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
         """_insert_log_records() with empty list does not raise."""
-
         await db_service._insert_log_records([])  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
@@ -236,7 +233,6 @@ class TestInsertLogRecords:
 
     async def test_insert_stores_all_fields(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
         """_insert_log_records() stores all specified fields correctly."""
-
         now = time.time()
         exc_text = "Traceback: something went wrong"
         records = [
@@ -278,7 +274,6 @@ class TestInsertLogRecords:
         self, db: aiosqlite.Connection, db_service: DatabaseService
     ) -> None:
         """Framework records with no app_key (None) are inserted correctly."""
-
         now = time.time()
         records = [
             {
@@ -308,7 +303,6 @@ class TestInsertLogRecords:
 
 async def seed_log_records(db_service: DatabaseService) -> None:
     """Insert a set of log records for filter tests."""
-
     now = time.time()
     records = [
         {
@@ -380,7 +374,6 @@ class TestGetLogRecords:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records() with no filters returns all records."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=100)
         assert len(results) == 4
@@ -389,7 +382,6 @@ class TestGetLogRecords:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records() returns newest records first, using seq as a stable tie-breaker."""
-
         now = time.time()
 
         def log(seq: int, timestamp: float, message: str) -> dict[str, object]:
@@ -428,7 +420,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_app_key(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by app_key."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, app_key="app_a")
         assert all(r["app_key"] == "app_a" for r in results)
@@ -436,7 +427,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_level(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by level."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, level="ERROR")
         assert all(r["level"] == "ERROR" for r in results)
@@ -444,7 +434,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_execution_id(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by execution_id."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, execution_id="exec-1")
         assert all(r["execution_id"] == "exec-1" for r in results)
@@ -452,7 +441,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_since(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by since (timestamp >= since)."""
-
         await seed_log_records(db_service)
         now = time.time()
         # Only records newer than now-30 (seq 3 and 4)
@@ -461,7 +449,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_source_tier(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by source_tier."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, source_tier="framework")
         assert all(r["source_tier"] == "framework" for r in results)
@@ -469,14 +456,12 @@ class TestGetLogRecords:
 
     async def test_limit_applied(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() respects the limit parameter."""
-
         await seed_log_records(db_service)
         results = await service.get_log_records(limit=2)
         assert len(results) == 2
 
     async def test_empty_result(self, service: TelemetryQueryService) -> None:
         """get_log_records() returns empty list when no records match."""
-
         results = await service.get_log_records(limit=100, app_key="nonexistent")
         assert results == []
 
@@ -526,7 +511,6 @@ class TestGetLogRecordsByExecution:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() returns records only for the given execution."""
-
         await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=100)
         assert len(records) == 5
@@ -534,7 +518,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_ordered_by_seq_asc(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records_by_execution() returns records ordered by seq ASC."""
-
         await self.seed_for_execution(db_service)
         records, _ = await service.get_log_records_by_execution("exec-exec", limit=100)
         seqs = [r["seq"] for r in records]
@@ -542,7 +525,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_truncated_when_over_limit(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records_by_execution() returns truncated=True when count > limit."""
-
         await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=3)
         assert len(records) == 3
@@ -552,7 +534,6 @@ class TestGetLogRecordsByExecution:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() returns truncated=False when count == limit."""
-
         await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=5)
         assert len(records) == 5
@@ -562,7 +543,6 @@ class TestGetLogRecordsByExecution:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() returns empty list for unknown execution_id."""
-
         await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("no-such-exec", limit=100)
         assert records == []
@@ -572,7 +552,6 @@ class TestGetLogRecordsByExecution:
         self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() excludes records from other executions."""
-
         await self.seed_for_execution(db_service)
         records, _ = await service.get_log_records_by_execution("exec-exec", limit=100)
         assert all(r["execution_id"] == "exec-exec" for r in records)
@@ -581,7 +560,6 @@ class TestGetLogRecordsByExecution:
 class TestLogRecordModel:
     def test_log_record_has_all_fields(self) -> None:
         """LogRecord model has all required fields."""
-
         now = time.time()
         record = LogRecord(
             id=1,
@@ -605,7 +583,6 @@ class TestLogRecordModel:
 
     def test_log_record_accepts_full_fields(self) -> None:
         """LogRecord model accepts all optional fields."""
-
         now = time.time()
         record = LogRecord(
             id=2,
@@ -631,7 +608,6 @@ class TestLogRecordModel:
 class TestConfigValidator:
     def test_log_retention_days_field_exists(self) -> None:
         """LoggingConfig has a log_retention_days field with default=3."""
-
         fields = LoggingConfig.model_fields
         assert "log_retention_days" in fields
         default = fields["log_retention_days"].default
@@ -639,7 +615,6 @@ class TestConfigValidator:
 
     def test_log_retention_days_ge_1(self) -> None:
         """log_retention_days rejects values < 1."""
-
         with pytest.raises(pydantic.ValidationError):
             HassetteConfig(
                 token="tok",
@@ -649,7 +624,6 @@ class TestConfigValidator:
 
     def test_log_retention_days_gt_db_retention_days_raises(self) -> None:
         """Validator rejects log_retention_days > db_retention_days."""
-
         with pytest.raises(pydantic.ValidationError, match="log_retention_days"):
             HassetteConfig(
                 token="tok",
@@ -660,7 +634,6 @@ class TestConfigValidator:
 
     def test_log_retention_days_equal_db_retention_days_ok(self) -> None:
         """log_retention_days == db_retention_days is valid."""
-
         cfg = HassetteConfig(
             token="tok",
             database={"retention_days": 5},
@@ -671,7 +644,6 @@ class TestConfigValidator:
 
     def test_log_retention_days_less_than_db_retention_days_ok(self) -> None:
         """log_retention_days < db_retention_days is valid."""
-
         cfg = HassetteConfig(
             token="tok",
             database={"retention_days": 7},

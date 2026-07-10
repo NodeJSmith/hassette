@@ -77,7 +77,8 @@ class TestTypeDrivenMasking:
 
     def test_type_driven_not_name_driven(self) -> None:
         """Fields named like secrets (token, api_key) stay unmasked when typed str; the
-        SecretStr field is masked regardless of its name."""
+        SecretStr field is masked regardless of its name.
+        """
         schema = _SecretSoundingButPlainConfig.model_json_schema()
         values = {"token": "t", "api_key": "k", "real_secret": "s"}
         result = build_config_view(schema, values)

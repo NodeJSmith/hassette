@@ -186,7 +186,6 @@ def env_file_path() -> Path:
 @pytest.fixture(scope="session")
 def apps_config_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
-
     tmp_dir = tmp_path_factory.mktemp("hassette_apps")
     toml_path = tmp_dir / "hassette.toml"
     toml_path.write_text(APPS_TOML_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")

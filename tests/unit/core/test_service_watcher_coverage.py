@@ -87,7 +87,8 @@ class TestLogServiceEvent:
     """log_service_event has no side effect beyond logging — assert the collaborator call
     itself (mocked logger), matching the existing codebase convention (e.g.
     test_web_ui_watcher.py's `watcher.logger.warning.assert_called_once()`), not log output
-    content via caplog."""
+    content via caplog.
+    """
 
     async def test_skips_logging_when_status_unchanged(self) -> None:
         """No transition (status == previous_status) logs at debug without a transition message."""
@@ -352,7 +353,8 @@ class TestShutdownIfCrashed:
 class TestOnServiceRunningBudgetNoneBranch:
     async def test_clears_in_restart_flag_without_creating_budget(self) -> None:
         """A RUNNING event while restarting (but with no budget entry yet) clears the flag,
-        without fabricating a budget."""
+        without fabricating a budget.
+        """
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)

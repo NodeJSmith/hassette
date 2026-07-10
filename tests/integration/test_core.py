@@ -94,20 +94,20 @@ async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) 
 
 
 def test_loop_property_raises_when_not_started(hassette_instance: Hassette) -> None:
-    """loop property raises when Hassette is not running."""
+    """Loop property raises when Hassette is not running."""
     with pytest.raises(RuntimeError):
         _ = hassette_instance.loop
 
 
 async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -> None:
-    """loop property returns the configured loop once set."""
+    """Loop property returns the configured loop once set."""
     running_loop = asyncio.get_running_loop()
     hassette_instance._loop = running_loop
     assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
 
 
 def test_apps_property_forwards_to_handler(hassette_instance: Hassette) -> None:
-    """apps property proxies to the app handler."""
+    """Apps property proxies to the app handler."""
     hassette_instance._app_handler = SimpleNamespace(apps={"demo": []})  # pyright: ignore[reportAttributeAccessIssue]
     assert hassette_instance.apps == {"demo": []}, "apps property should forward to handler"
 

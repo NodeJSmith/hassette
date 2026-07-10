@@ -44,7 +44,6 @@ async def test_get_next_message_id_increments(websocket_service: WebsocketServic
 
 async def test_is_connected_reflects_websocket_state(websocket_service: WebsocketService) -> None:
     """Verify the is_connected property mirrors the connection state machine."""
-
     assert websocket_service.is_connected is False
 
     # CONNECTED state → connected
@@ -62,7 +61,6 @@ async def test_is_connected_reflects_websocket_state(websocket_service: Websocke
 
 async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
-
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTED
@@ -75,7 +73,6 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
 
 async def test_send_json_preserves_message_id_when_present(websocket_service: WebsocketService) -> None:
     """Ensure send_json preserves a message id when present."""
-
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTED
@@ -93,7 +90,6 @@ async def test_send_json_requires_connection(websocket_service: WebsocketService
 
 async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
     """Raise when connection_state is not CONNECTED (CONNECTING state)."""
-
     fake_ws = build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
     # State machine is CONNECTING — not yet CONNECTED, so connected returns False
@@ -105,7 +101,6 @@ async def test_send_json_checks_connection_state(websocket_service: WebsocketSer
 
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
-
     fake_ws = build_fake_ws()
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
@@ -118,7 +113,6 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
 
 async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
-
     fake_ws = build_fake_ws()
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 

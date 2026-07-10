@@ -30,7 +30,6 @@ class TestApps:
 
     async def test_apps_are_working(self) -> None:
         """Test actual WebSocket calls against running HA instance."""
-
         assert self.app_handler.apps, "There should be at least one app group"
         assert "my_app" in self.app_handler.apps, "my_app should be one of the app groups"
         assert "my_app_sync" in self.app_handler.apps, "my_app_sync should be one of the app groups"
@@ -41,7 +40,6 @@ class TestApps:
 
     def test_get_app_instance(self) -> None:
         """Test getting a specific app instance."""
-
         app = self.app_handler.get("my_app", 0)
         assert app is not None, "App instance should be found"
         assert app.app_manifest is not None, "Factory-created app should carry its manifest"
@@ -52,7 +50,6 @@ class TestApps:
 
     def test_all_apps(self) -> None:
         """Test getting all running app instances."""
-
         all_apps = self.app_handler.all()
         assert isinstance(all_apps, list), "All apps should return a list"
         assert len(all_apps) == 2, "There should be at least two running app instances"
@@ -62,7 +59,6 @@ class TestApps:
 
     async def test_handle_changes_does_not_lose_apps(self) -> None:
         """Verify that calling handle_changes() without config modifications preserves all running apps."""
-
         orig_apps = set(self.app_handler.apps.keys())
 
         event = asyncio.Event()
@@ -100,7 +96,6 @@ class TestApps:
 
     async def test_handle_changes_disables_app(self) -> None:
         """Verify that editing hassette.toml to disable an app stops the running instance."""
-
         assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
         assert self.app_handler.registry.manifests["my_app"].enabled is True, (
             "Precondition: my_app config shows enabled"
@@ -137,7 +132,6 @@ class TestApps:
 
     async def test_handle_changes_enables_app(self) -> None:
         """Verify that editing hassette.toml to enable a disabled app starts the instance."""
-
         assert "disabled_app" not in self.app_handler.apps, "Precondition: disabled_app starts disabled"
         assert self.app_handler.registry.manifests["disabled_app"].enabled is False, (
             "Precondition: disabled_app config shows disabled"
@@ -183,7 +177,6 @@ class TestApps:
 
     async def test_config_changes_are_reflected_after_reload(self) -> None:
         """Verify that editing hassette.toml to change an app's config reloads the instance."""
-
         assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
 
         my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
@@ -216,7 +209,6 @@ class TestApps:
 
     async def test_app_with_instance_name(self) -> None:
         """Test that an app with a specific instance_name in config starts correctly."""
-
         assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
 
         my_app_instance = self.app_handler.get("my_app", 0)
@@ -227,7 +219,6 @@ class TestApps:
 
     async def test_app_without_instance_name(self) -> None:
         """Test that an app without a specific instance_name in config starts with default naming."""
-
         assert "my_app_sync" in self.app_handler.apps, "Precondition: my_app_sync starts enabled"
 
         expected_name = "MyAppSync.0"

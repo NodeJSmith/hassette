@@ -156,7 +156,7 @@ class TestGetAppHealthAggregates:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since parameter restricts both handler invocations and job executions by timestamp."""
+        """Since parameter restricts both handler invocations and job executions by timestamp."""
         db_svc, session_id = db
 
         since_ts = BASE_TS + 50.0
@@ -386,7 +386,7 @@ class TestGetListenerSummaryGlobal:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since parameter filters invocations — listeners still appear but with lower counts."""
+        """Since parameter filters invocations — listeners still appear but with lower counts."""
         db_svc, session_id = db
 
         since_ts = BASE_TS + 50.0

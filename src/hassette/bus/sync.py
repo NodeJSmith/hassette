@@ -72,16 +72,16 @@ class BusSyncFacade(Resource):
             ListenerNameRequiredError: If the listener has no ``name`` (required for all DB-registered
                 listeners, including once-listeners; cancel-listeners bypass this path entirely).
             DuplicateListenerError: If the listener's natural key is already registered and
-                ``if_exists="error"``."""
-
+                ``if_exists="error"``.
+        """
         return self.task_bucket.run_sync(self._bus.add_listener(listener, if_exists=if_exists))
 
     def emit(self, topic: str, data: object) -> None:
         """Broadcast data to all subscribers of the given topic.
 
         Subscribers annotated with ``D.EventData[T]`` receive ``data`` pre-extracted.
-        If the internal event stream is closed (during shutdown), the event is silently dropped."""
-
+        If the internal event stream is closed (during shutdown), the event is silently dropped.
+        """
         return self.task_bucket.run_sync(self._bus.emit(topic, data))
 
     def on(
@@ -147,8 +147,8 @@ class BusSyncFacade(Resource):
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
             ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
-                exists but with a different configuration (the message lists the changed fields)."""
-
+                exists but with a different configuration (the message lists the changed fields).
+        """
         return self.task_bucket.run_sync(
             self._bus.on(
                 topic=topic,
@@ -229,8 +229,8 @@ class BusSyncFacade(Resource):
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered on this bus in the current session and ``if_exists="error"``
-                (the default)."""
-
+                (the default).
+        """
         return self.task_bucket.run_sync(
             self._bus.on_state_change(
                 entity_id,
@@ -302,8 +302,8 @@ class BusSyncFacade(Resource):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered and ``if_exists="error"`` (the default)."""
-
+                registered and ``if_exists="error"`` (the default).
+        """
         return self.task_bucket.run_sync(
             self._bus.on_attribute_change(
                 entity_id,
@@ -368,8 +368,8 @@ class BusSyncFacade(Resource):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered and ``if_exists="error"`` (the default)."""
-
+                registered and ``if_exists="error"`` (the default).
+        """
         return self.task_bucket.run_sync(
             self._bus.on_call_service(
                 domain, service, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
@@ -401,8 +401,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_component_loaded(
                 component, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
@@ -436,8 +436,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_service_registered(
                 domain, service, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
@@ -462,8 +462,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(self._bus.on_homeassistant_restart(handler, where, kwargs, name, **opts))
 
     def on_homeassistant_start(
@@ -484,8 +484,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(self._bus.on_homeassistant_start(handler, where, kwargs, name, **opts))
 
     def on_homeassistant_stop(
@@ -506,8 +506,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(self._bus.on_homeassistant_stop(handler, where, kwargs, name, **opts))
 
     def on_hassette_service_status(
@@ -538,8 +538,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_hassette_service_status(
                 status, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
@@ -568,8 +568,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_hassette_service_failed(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -593,8 +593,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_hassette_service_crashed(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -618,8 +618,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_hassette_service_started(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -643,8 +643,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_websocket_connected(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -668,8 +668,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_websocket_disconnected(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -701,8 +701,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_app_state_changed(
                 handler=handler,
@@ -737,8 +737,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_app_running(handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -764,8 +764,8 @@ class BusSyncFacade(Resource):
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
-            A subscription object that can be used to manage the listener."""
-
+            A subscription object that can be used to manage the listener.
+        """
         return self.task_bucket.run_sync(
             self._bus.on_app_stopping(handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, **opts)
         )
@@ -786,8 +786,8 @@ class BusSyncFacade(Resource):
         for delivery-critical alerting during system teardown.
 
         Args:
-            handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`."""
-
+            handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`.
+        """
         return self._bus.on_error(handler)
 
     def remove_listener(self, listener: "Listener") -> None:
@@ -800,16 +800,14 @@ class BusSyncFacade(Resource):
 
         BusService.remove_listener also fires _on_listener_removed, but that callback only
         spawns mark_listener_cancelled when the key is still present (once-fire path). Because
-        this method pops the key first, the callback's spawn is skipped — avoiding a double write."""
-
+        this method pops the key first, the callback's spawn is skipped — avoiding a double write.
+        """
         return self._bus.remove_listener(listener)
 
     def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
-
         return self._bus.remove_all_listeners()
 
     def get_listeners(self) -> list["Listener"]:
         """Get all listeners owned by this bus's owner."""
-
         return self._bus.get_listeners()

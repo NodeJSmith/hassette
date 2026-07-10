@@ -1,5 +1,4 @@
-"""
-Predicates combine accessors and conditions to form reusable boolean functions.
+"""Predicates combine accessors and conditions to form reusable boolean functions.
 
 A predicate takes a ``source`` callable that extracts a value from an event, and a ``condition`` that
 tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.
@@ -481,7 +480,7 @@ class ServiceMatches:
 class ServiceDataWhere:
     """Predicate that applies a mapping of service_data conditions to a CallServiceEvent.
 
-    Examples
+    Examples:
     --------
     Exact matches only
 
@@ -541,7 +540,7 @@ class ServiceDataWhere:
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
         """Ergonomic constructor for literal kwargs.
 
-        Example
+        Example:
         -------
         >>> ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
         """

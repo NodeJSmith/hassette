@@ -65,7 +65,7 @@ class TestAfterValidation:
         assert trigger.trigger_id() == "after:120"
 
     def test_seconds_and_minutes_combine(self) -> None:
-        """seconds and minutes combine into a single delay."""
+        """Seconds and minutes combine into a single delay."""
         trigger = After(seconds=30, minutes=1)
         assert trigger.trigger_id() == "after:90"
 

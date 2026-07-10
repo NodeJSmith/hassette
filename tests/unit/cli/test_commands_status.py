@@ -22,7 +22,7 @@ from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdou
 
 class TestCmdStatus:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """status command fetches from GET /api/health."""
+        """Status command fetches from GET /api/health."""
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         spy = GetSpy(client)
@@ -37,7 +37,7 @@ class TestCmdStatus:
         assert "/api/health" in spy.paths
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """status command produces a key-value panel in human mode."""
+        """Status command produces a key-value panel in human mode."""
         status_data = make_system_status_response(status="ok", version="0.2.0", uptime_seconds=90.0)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
@@ -50,7 +50,7 @@ class TestCmdStatus:
         assert "0.2.0" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """status --json outputs a complete JSON object on stdout."""
+        """Status --json outputs a complete JSON object on stdout."""
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
 
@@ -77,7 +77,7 @@ class TestCmdStatus:
         assert "1h 1m 1s" in output
 
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
-        """status command prints status body (not an error) when instance is 'degraded' (200)."""
+        """Status command prints status body (not an error) when instance is 'degraded' (200)."""
         status_data = make_system_status_response(status="degraded", websocket_connected=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
@@ -89,7 +89,7 @@ class TestCmdStatus:
         assert "degraded" in output
 
     def test_status_starting_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
-        """status command prints status body (not an error) when instance is 'starting' (200)."""
+        """Status command prints status body (not an error) when instance is 'starting' (200)."""
         status_data = make_system_status_response(status="starting", websocket_connected=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
@@ -106,7 +106,7 @@ class TestCmdStatus:
 
 class TestCmdTelemetry:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """telemetry command fetches from GET /api/telemetry/status."""
+        """Telemetry command fetches from GET /api/telemetry/status."""
         tel_data = make_telemetry_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
         spy = GetSpy(client)
@@ -121,7 +121,7 @@ class TestCmdTelemetry:
         assert "/api/telemetry/status" in spy.paths
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """telemetry command produces a key-value panel showing degraded field."""
+        """Telemetry command produces a key-value panel showing degraded field."""
         tel_data = make_telemetry_status_response(degraded=False)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
         with (
@@ -133,7 +133,7 @@ class TestCmdTelemetry:
         assert "degraded" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """telemetry --json outputs a complete JSON object."""
+        """Telemetry --json outputs a complete JSON object."""
         tel_data = make_telemetry_status_response(dropped_overflow=5)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
 
@@ -178,7 +178,7 @@ class TestCmdTelemetry:
 
 class TestCmdDashboard:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """dashboard command fetches from GET /api/telemetry/dashboard/app-grid."""
+        """Dashboard command fetches from GET /api/telemetry/dashboard/app-grid."""
         grid = make_dashboard_app_grid_response()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
@@ -195,7 +195,7 @@ class TestCmdDashboard:
         assert any("/api/telemetry/dashboard/app-grid" in p for p in spy.paths)
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """dashboard command renders a table with app rows."""
+        """Dashboard command renders a table with app rows."""
         grid = make_dashboard_app_grid_response()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
@@ -213,7 +213,7 @@ class TestCmdDashboard:
         assert "test_app" in output or "test_a" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """dashboard --json outputs the apps list as JSON array."""
+        """Dashboard --json outputs the apps list as JSON array."""
         grid = make_dashboard_app_grid_response()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]

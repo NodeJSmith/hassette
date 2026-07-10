@@ -65,7 +65,7 @@ class TestGetJobSummarySinceScoped:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since filter restricts job execution counts to records after the threshold."""
+        """Since filter restricts job execution counts to records after the threshold."""
         db_svc, session_id = db
 
         base_ts = BASE_TS
@@ -305,7 +305,7 @@ class TestGetAppRecentActivity:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """limit parameter caps the number of returned entries."""
+        """Limit parameter caps the number of returned entries."""
         db_svc, session_id = db
 
         base_ts = BASE_TS
@@ -335,7 +335,7 @@ class TestGetAppRecentActivity:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since parameter excludes entries older than the threshold."""
+        """Since parameter excludes entries older than the threshold."""
         db_svc, session_id = db
 
         base_ts = BASE_TS

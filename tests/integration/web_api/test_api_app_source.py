@@ -20,7 +20,6 @@ class TestAppSourceEndpoint:
 
     async def test_valid_app_returns_source(self, client, mock_hassette) -> None:
         """Returns 200 with source content for a valid app."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
             src_file = app_dir / "my_app.py"
@@ -53,7 +52,6 @@ class TestAppSourceEndpoint:
 
     async def test_missing_file_returns_404(self, client, mock_hassette) -> None:
         """Returns 404 when the source file doesn't exist on disk."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
             # File deliberately not created
@@ -73,7 +71,6 @@ class TestAppSourceEndpoint:
 
     async def test_path_traversal_returns_403(self, client, mock_hassette) -> None:
         """Returns 403 when full_path resolves outside the app_dir."""
-
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir) / "apps"
             app_dir.mkdir()

@@ -368,7 +368,6 @@ class BusService(Service):
 
     async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
-
         if self._event_filter.should_skip(base_topic, event):
             return
 
@@ -671,7 +670,6 @@ class BusService(Service):
 
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
-
         async with self.stream:
             self.mark_ready(reason="Stream opened")
             async for event in self.stream:

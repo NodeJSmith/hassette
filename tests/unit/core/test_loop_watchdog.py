@@ -236,7 +236,7 @@ async def test_blocking_sleep_warning_reports_full_duration() -> None:
 
 @pytest.mark.asyncio(loop_scope="function")
 async def test_async_sleep_produces_no_warning() -> None:
-    """await asyncio.sleep(T) for T >> threshold MUST produce zero warnings.
+    """Await asyncio.sleep(T) for T >> threshold MUST produce zero warnings.
 
     The central correctness test: the loop stays responsive across an await, so the tick
     keeps advancing and no stall is ever detected.
@@ -416,7 +416,8 @@ def test_watchdog_event_fields() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_classify_attribution_distinguishes_outcomes() -> None:
     """Matching task → attributed; different (or absent) task → displaced; no task on the loop
-    at all → framework."""
+    at all → framework.
+    """
     loop = asyncio.get_running_loop()
     task = asyncio.current_task()
     assert task is not None
@@ -443,7 +444,8 @@ async def test_classify_attribution_distinguishes_outcomes() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_displaced_block_not_attributed_to_innocent_app() -> None:
     """A freeze whose marker was bound by a different task records NULL + reason='displaced',
-    and the warning labels it <framework> rather than blaming the marker's app."""
+    and the warning labels it <framework> rather than blaming the marker's app.
+    """
     loop = asyncio.get_running_loop()
     executor = MagicMock()
     # Marker bound by a different task than the one that will freeze the loop. id() is never

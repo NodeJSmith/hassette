@@ -35,7 +35,6 @@ def cleanup_env(*keys: str) -> None:
 
 def new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
     """Create a unique apps dir for test-created app modules."""
-
     pkg_name = "testapps_" + os.urandom(6).hex()
     app_dir = tmp_path / pkg_name
     app_dir.mkdir(parents=True, exist_ok=True)
@@ -44,7 +43,6 @@ def new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
 
 def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
     """Avoid cross-test module collisions and cached failures/successes."""
-
     sys.modules.pop(f"{pkg_name}.{module_name}", None)
     sys.modules.pop(pkg_name, None)
 
@@ -141,7 +139,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """With import_dot_env_files=True, Hassette loads env_files before app precheck imports."""
-
     pkg_name, app_dir = new_unique_app_dir(tmp_path)
     write_env_reader_app(app_dir)
 
@@ -175,7 +172,6 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """Without import_dot_env_files, app import-time env reads should not see custom env_files values."""
-
     pkg_name, app_dir = new_unique_app_dir(tmp_path)
     write_env_reader_app(app_dir)
 
@@ -207,7 +203,6 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
 
 async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """AppConfig subclasses (BaseSettings) can read required fields from os.environ."""
-
     monkeypatch.chdir(tmp_path)
 
     cleanup_env(ENV_SETTINGS_KEY)
@@ -250,7 +245,6 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """If an env var exists only in HassetteConfig.env_files, AppConfig won't see it unless imported to os.environ."""
-
     monkeypatch.chdir(tmp_path)
 
     cleanup_env(ENV_SETTINGS_KEY)
@@ -299,7 +293,6 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """With import_dot_env_files=True, custom env files become visible to AppConfig via os.environ."""
-
     monkeypatch.chdir(tmp_path)
 
     cleanup_env(ENV_SETTINGS_KEY)

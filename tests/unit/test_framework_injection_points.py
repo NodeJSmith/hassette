@@ -159,7 +159,8 @@ class TestHarnessTeardownClearsSingletonOnError:
 
         class _TeardownBoom(BaseException):
             """A BaseException is guaranteed to escape stop()'s ``except Exception`` collectors,
-            so the test pins the invariant for any escape — not just the specific 3.11 exception."""
+            so the test pins the invariant for any escape — not just the specific 3.11 exception.
+            """
 
         async def _boom() -> None:
             raise _TeardownBoom("forced teardown failure after children stopped")

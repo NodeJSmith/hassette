@@ -233,7 +233,6 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
 @pytest.fixture(scope="session")
 def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
-
     mock_hassette.telemetry_query_service.get_log_records = make_log_records_from_buffer(log_handler)
 
     # Wire log_handler as the capture_handler on the mock logging_service so

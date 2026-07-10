@@ -242,7 +242,7 @@ def test_new_columns_exist_after_001(tmp_path: Path) -> None:
 
 
 def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
-    """kind CHECK constraint rejects values other than 'handler' and 'job'."""
+    """Kind CHECK constraint rejects values other than 'handler' and 'job'."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 

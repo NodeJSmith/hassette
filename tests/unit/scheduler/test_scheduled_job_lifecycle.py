@@ -89,7 +89,7 @@ class TestPostInitValidation:
         assert job.timeout is None
 
     def test_args_and_kwargs_normalized_from_list(self) -> None:
-        """args passed as a list is normalized to a tuple; kwargs stays a dict."""
+        """Args passed as a list is normalized to a tuple; kwargs stays a dict."""
         job = make_job(args=[1, 2, 3], kwargs={"a": 1})
         assert job.args == (1, 2, 3)
         assert isinstance(job.args, tuple)
@@ -317,7 +317,8 @@ class TestPredicateField:
 
     def test_predicate_invoker_defaults_to_none(self) -> None:
         """predicate_invoker defaults to None — Scheduler.schedule() passes the built invoker
-        alongside predicate; direct construction without one leaves it unset."""
+        alongside predicate; direct construction without one leaves it unset.
+        """
         job = make_job(predicate=lambda: True)
         assert job.predicate_invoker is None
 

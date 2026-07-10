@@ -1,6 +1,7 @@
 """Utility functions for Home Assistant.
 
-These have been copied from HA to ensure we use the same logic."""
+These have been copied from HA to ensure we use the same logic.
+"""
 
 import functools
 import re

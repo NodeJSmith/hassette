@@ -13,7 +13,7 @@ from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdou
 
 class TestCmdConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """config command fetches from GET /api/config."""
+        """Config command fetches from GET /api/config."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         spy = GetSpy(client)
@@ -28,7 +28,7 @@ class TestCmdConfig:
         assert "/api/config" in spy.paths
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """config command produces a key-value panel showing config_values fields."""
+        """Config command produces a key-value panel showing config_values fields."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
         with (
@@ -41,7 +41,7 @@ class TestCmdConfig:
         assert "base_url" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """config --json outputs config_values as a JSON object."""
+        """Config --json outputs config_values as a JSON object."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 
@@ -56,7 +56,7 @@ class TestCmdConfig:
         assert parsed["web_api"]["port"] == 8126
 
     def test_json_mode_renders_config_values_not_envelope(self, cli_client_factory: CLIClientFactory) -> None:
-        """config --json outputs only config_values, not the full ConfigSchemaResponse envelope."""
+        """Config --json outputs only config_values, not the full ConfigSchemaResponse envelope."""
         config_data = make_config_schema_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/config", 200, config_data.model_dump())])
 

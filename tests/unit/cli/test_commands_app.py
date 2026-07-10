@@ -55,7 +55,7 @@ class TestCmdApp:
         assert "/api/apps/manifests" in spy.paths
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """app renders a table with app_key and status columns."""
+        """App renders a table with app_key and status columns."""
         manifest = make_manifest_response(app_key="my_app", status="running", display_name="My App")
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
@@ -69,7 +69,7 @@ class TestCmdApp:
         assert "running" in output
 
     def test_json_mode_outputs_manifests_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """app --json outputs the manifests list as a JSON array."""
+        """App --json outputs the manifests list as a JSON array."""
         manifest = make_manifest_response(app_key="my_app")
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
@@ -85,7 +85,7 @@ class TestCmdApp:
         assert parsed[0]["app_key"] == "my_app"
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
-        """app renders a no-results message when manifests list is empty."""
+        """App renders a no-results message when manifests list is empty."""
         data = make_manifest_list_response([])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
         with (
@@ -115,7 +115,7 @@ class TestCmdApp:
 
 class TestCmdAppHealth:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """app health fetches from GET /api/telemetry/app/{key}/health."""
+        """App health fetches from GET /api/telemetry/app/{key}/health."""
         health = make_app_health_response()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
@@ -132,7 +132,7 @@ class TestCmdAppHealth:
         assert any("/api/telemetry/app/my-app/health" in p for p in spy.paths)
 
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
-        """app health --instance 1 passes instance_index=1 as a query param."""
+        """App health --instance 1 passes instance_index=1 as a query param."""
         health = make_app_health_response()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
@@ -151,7 +151,7 @@ class TestCmdAppHealth:
         assert health_call["params"]["instance_index"] == 1
 
     def test_instance_name_resolution(self, cli_client_factory: CLIClientFactory) -> None:
-        """app health --instance office resolves the name to an index."""
+        """App health --instance office resolves the name to an index."""
         health = make_app_health_response()
         instance_resp = AppInstanceResponse(
             app_key="my-app",
@@ -184,7 +184,7 @@ class TestCmdAppHealth:
         assert health_call["params"]["instance_index"] == 2
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """app health renders a key-value detail panel."""
+        """App health renders a key-value detail panel."""
         health = make_app_health_response(health_status="excellent", error_rate=0.05)
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
@@ -199,7 +199,7 @@ class TestCmdAppHealth:
         assert "excellent" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """app health --json outputs a JSON object."""
+        """App health --json outputs a JSON object."""
         health = make_app_health_response(error_rate=0.1)
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
@@ -228,7 +228,7 @@ class TestCmdAppHealth:
 
 class TestCmdAppActivity:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity fetches from GET /api/telemetry/app/{key}/activity."""
+        """App activity fetches from GET /api/telemetry/app/{key}/activity."""
         entry = make_activity_feed_entry()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -245,7 +245,7 @@ class TestCmdAppActivity:
         assert any("/api/telemetry/app/my-app/activity" in p for p in spy.paths)
 
     def test_no_instance_omits_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity with no --instance does NOT pass instance_index param."""
+        """App activity with no --instance does NOT pass instance_index param."""
         entry = make_activity_feed_entry()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -265,7 +265,7 @@ class TestCmdAppActivity:
         assert "instance_index" not in params
 
     def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity --since and --limit are forwarded as query params."""
+        """App activity --since and --limit are forwarded as query params."""
         entry = make_activity_feed_entry()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -286,7 +286,7 @@ class TestCmdAppActivity:
         assert activity_call["params"]["limit"] == 10
 
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity --instance 2 passes instance_index=2."""
+        """App activity --instance 2 passes instance_index=2."""
         entry = make_activity_feed_entry()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -305,7 +305,7 @@ class TestCmdAppActivity:
         assert activity_call["params"]["instance_index"] == 2
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity renders a table with handler name and status."""
+        """App activity renders a table with handler name and status."""
         entry = make_activity_feed_entry(handler_name="on_light_change", app_key="my-app")
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -320,7 +320,7 @@ class TestCmdAppActivity:
         assert "on_light_c" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """app activity --json outputs entries as a JSON array."""
+        """App activity --json outputs entries as a JSON array."""
         entry = make_activity_feed_entry(row_id="h-42")
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
@@ -354,7 +354,7 @@ class TestCmdAppActivity:
 
 class TestCmdAppConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config fetches from GET /api/apps/{key}/config."""
+        """App config fetches from GET /api/apps/{key}/config."""
         cfg = make_app_config_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         spy = GetSpy(client)
@@ -369,7 +369,7 @@ class TestCmdAppConfig:
         assert any("/api/apps/my-app/config" in p for p in spy.paths)
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config renders a detail panel with app_key and class_name."""
+        """App config renders a detail panel with app_key and class_name."""
         cfg = make_app_config_response(app_key="my-app", class_name="MyApp")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
         with (
@@ -382,7 +382,7 @@ class TestCmdAppConfig:
         assert "MyApp" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config --json outputs a JSON object."""
+        """App config --json outputs a JSON object."""
         cfg = make_app_config_response(app_key="my-app", enabled=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
 
@@ -397,7 +397,7 @@ class TestCmdAppConfig:
         assert parsed["enabled"] is True
 
     def test_renders_config_values_not_schema_blob(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config shows masked config values but never dumps the inlined config_schema."""
+        """App config shows masked config values but never dumps the inlined config_schema."""
         cfg = make_app_config_response(
             app_key="my-app",
             app_config={"setting_name": "visible_value"},
@@ -414,7 +414,7 @@ class TestCmdAppConfig:
         assert "SCHEMA_BLOB_MARKER" not in output
 
     def test_json_mode_omits_schema_blob(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config --json emits values and metadata, not the config_schema envelope."""
+        """App config --json emits values and metadata, not the config_schema envelope."""
         cfg = make_app_config_response(
             app_key="my-app",
             app_config={"setting_name": "visible_value"},
@@ -432,7 +432,7 @@ class TestCmdAppConfig:
         assert "config_schema" not in parsed
 
     def test_json_mode_handles_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config --json renders a list-shaped (multi-instance) app_config without the schema blob."""
+        """App config --json renders a list-shaped (multi-instance) app_config without the schema blob."""
         cfg = make_app_config_response(
             app_key="my-app",
             app_config=[
@@ -456,7 +456,7 @@ class TestCmdAppConfig:
         assert "config_schema" not in parsed
 
     def test_json_mode_preserves_empty_multi_instance_app_config(self, cli_client_factory: CLIClientFactory) -> None:
-        """app config --json keeps an empty list as [], not the default dict, when there are no instances."""
+        """App config --json keeps an empty list as [], not the default dict, when there are no instances."""
         cfg = make_app_config_response(
             app_key="my-app",
             app_config=[],
@@ -479,7 +479,7 @@ class TestCmdAppConfig:
 
 class TestCmdAppSource:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """app source fetches from GET /api/apps/{key}/source."""
+        """App source fetches from GET /api/apps/{key}/source."""
         src = make_app_source_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         spy = GetSpy(client)
@@ -494,7 +494,7 @@ class TestCmdAppSource:
         assert any("/api/apps/my-app/source" in p for p in spy.paths)
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
-        """app source renders a detail panel showing filename and content."""
+        """App source renders a detail panel showing filename and content."""
         src = make_app_source_response(app_key="my-app", filename="my_app.py", content="class MyApp: pass\n")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         with (
@@ -506,7 +506,7 @@ class TestCmdAppSource:
         assert "my_app.py" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
-        """app source --json outputs a JSON object with content field."""
+        """App source --json outputs a JSON object with content field."""
         src = make_app_source_response(app_key="my-app", content="class MyApp: pass\n", line_count=1)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
 

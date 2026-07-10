@@ -87,7 +87,6 @@ class SchedulerService(Service):
 
     async def serve(self) -> None:
         """Run the scheduler forever, processing jobs as they become due."""
-
         self.mark_ready(reason="Scheduler started")
 
         while True:
@@ -109,14 +108,12 @@ class SchedulerService(Service):
 
     async def enqueue_job(self, job: "ScheduledJob") -> None:
         """Push a job onto the queue and wake the scheduler."""
-
         self.apply_jitter_to_heap(job)
         await self._job_queue.add(job)
         self.kick()
 
     async def _remove_jobs_by_owner(self, owner: str) -> None:
         """Remove all jobs for an owner and wake the scheduler if necessary."""
-
         removed = await self._job_queue.remove_owner(owner)
 
         if removed:
@@ -199,7 +196,6 @@ class SchedulerService(Service):
         Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
         instead. Both paths fire ``fire_removal_callbacks`` unconditionally.
         """
-
         removed = await self._job_queue.remove_job(job)
 
         if removed:
@@ -665,7 +661,6 @@ class SchedulerService(Service):
         Args:
             owner: The owner of the jobs to remove.
         """
-
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
     def dequeue_job(self, job: "ScheduledJob") -> bool:
@@ -747,7 +742,6 @@ class _ScheduledJobQueue(Resource):
         sets ``_dequeued`` lock-free but on the same event-loop thread, so the in-lock
         read here sees any set that preceded this lock acquisition.
         """
-
         async with self._lock:
             if job._dequeued:
                 self.logger.debug("Job %s was dequeued during re-enqueue window; skipping push", job)
@@ -769,7 +763,6 @@ class _ScheduledJobQueue(Resource):
         self, reference_time: ZonedDateTime
     ) -> tuple[list["ScheduledJob"], ZonedDateTime | None]:
         """Pop all due jobs and return the next run time in a single lock acquisition."""
-
         due_jobs: list[ScheduledJob] = []
 
         async with self._lock:
@@ -792,7 +785,6 @@ class _ScheduledJobQueue(Resource):
 
     async def remove_owner(self, owner: str) -> "list[ScheduledJob]":
         """Remove all jobs belonging to the given owner. Returns the removed jobs."""
-
         async with self._lock:
             removed = self._queue.remove_where(lambda job: job.owner_id == owner)
 
@@ -805,7 +797,6 @@ class _ScheduledJobQueue(Resource):
 
     async def remove_job(self, job: "ScheduledJob") -> bool:
         """Remove a specific job if it exists."""
-
         async with self._lock:
             removed = self._queue.remove_item(job)
 
@@ -860,7 +851,8 @@ class HeapQueue(Generic[T]):
         """Peek at the next job without removing it.
 
         Returns:
-            T | None: The next job in the queue, or None if the queue is empty"""
+            T | None: The next job in the queue, or None if the queue is empty
+        """
         return self._queue[0] if self._queue else None
 
     def is_empty(self) -> bool:
@@ -869,7 +861,6 @@ class HeapQueue(Generic[T]):
 
     def remove_where(self, predicate: Callable[[T], bool]) -> list[T]:
         """Remove all items matching the predicate, returning the removed items."""
-
         if not self._queue:
             return []
 
@@ -889,7 +880,6 @@ class HeapQueue(Generic[T]):
 
     def remove_item(self, item: T) -> bool:
         """Remove a specific item from the queue if present."""
-
         if item not in self._queue:
             return False
 

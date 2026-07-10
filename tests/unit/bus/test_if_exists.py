@@ -68,7 +68,7 @@ async def test_error_via_on_call_service(bus: "Bus") -> None:
 
 
 async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
-    """skip with identical config returns a subscription."""
+    """Skip with identical config returns a subscription."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -78,7 +78,7 @@ async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
 
 
 async def test_skip_returns_existing_listener(bus: "Bus") -> None:
-    """skip returns a subscription wrapping the existing listener."""
+    """Skip returns a subscription wrapping the existing listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -182,7 +182,7 @@ async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus")
 
 
 async def test_skip_does_not_call_add_listener_twice(bus: "Bus") -> None:
-    """skip does not register a second listener (add_listener called once)."""
+    """Skip does not register a second listener (add_listener called once)."""
     with mock_add_listener(bus) as add_mock:
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
@@ -203,7 +203,7 @@ async def test_skip_via_on_call_service(bus: "Bus") -> None:
 
 
 async def test_skip_drift_raises_value_error(bus: "Bus") -> None:
-    """skip with different handler raises ValueError."""
+    """Skip with different handler raises ValueError."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         with pytest.raises(ValueError, match="configuration has changed"):
@@ -222,7 +222,7 @@ async def test_skip_drift_error_names_changed_fields(bus: "Bus") -> None:
 
 
 async def test_skip_drift_with_predicate_change_notes_lambda_identity(bus: "Bus") -> None:
-    """skip drift on a changed predicate appends a note about lambda/closure identity comparison.
+    """Skip drift on a changed predicate appends a note about lambda/closure identity comparison.
 
     Two freshly-built lambdas with identical bodies compare unequal by identity, so a
     predicate-only drift is a realistic trap this note is meant to warn about.
@@ -244,7 +244,7 @@ async def test_skip_drift_with_predicate_change_notes_lambda_identity(bus: "Bus"
 
 
 async def test_replace_cancels_old_listener(bus: "Bus") -> None:
-    """replace cancels the existing listener."""
+    """Replace cancels the existing listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         old_listener = sub1.listener
@@ -254,7 +254,7 @@ async def test_replace_cancels_old_listener(bus: "Bus") -> None:
 
 
 async def test_replace_leaves_one_routed_listener(bus: "Bus") -> None:
-    """replace leaves exactly one listener in the registry (the new one)."""
+    """Replace leaves exactly one listener in the registry (the new one)."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
@@ -268,7 +268,7 @@ async def test_replace_leaves_one_routed_listener(bus: "Bus") -> None:
 
 
 async def test_replace_returns_subscription_to_new_listener(bus: "Bus") -> None:
-    """replace returns a subscription to the new listener."""
+    """Replace returns a subscription to the new listener."""
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
@@ -280,7 +280,7 @@ async def test_replace_returns_subscription_to_new_listener(bus: "Bus") -> None:
 
 
 async def test_replace_db_id_preserved(bus: "Bus") -> None:
-    """replace preserves the db_id of the natural-key row (row-id preservation)."""
+    """Replace preserves the db_id of the natural-key row (row-id preservation)."""
     # Use a mock that returns db_id=42 on first call
     first_call_made = False
 
@@ -385,7 +385,7 @@ async def test_cancel_no_db_id_no_spawn(bus: "Bus") -> None:
 
 
 async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
-    """replace's cancel-old step spawns mark_listener_cancelled."""
+    """Replace's cancel-old step spawns mark_listener_cancelled."""
     cancelled_db_ids: list[int] = []
     call_count = 0
 

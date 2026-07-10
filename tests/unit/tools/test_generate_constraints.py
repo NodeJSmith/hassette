@@ -60,7 +60,7 @@ def test_hassette_pin_uses_metadata_version(tmp_path: Path) -> None:
 
 
 def test_hassette_pin_is_not_range(tmp_path: Path) -> None:
-    """hassette should be pinned with ==, not >= or similar."""
+    """Hassette should be pinned with ==, not >= or similar."""
     lines = run_generate(tmp_path, SIMPLE_PYPROJECT)
     hassette_line = next((line for line in lines if line.startswith("hassette")), None)
     assert hassette_line is not None, "No hassette line found"
@@ -107,7 +107,7 @@ def test_all_deps_present(tmp_path: Path) -> None:
 
 
 def test_no_duplicate_hassette(tmp_path: Path) -> None:
-    """hassette should appear exactly once."""
+    """Hassette should appear exactly once."""
     lines = run_generate(tmp_path, SIMPLE_PYPROJECT)
     hassette_lines = [line for line in lines if line.startswith("hassette")]
     assert len(hassette_lines) == 1, f"Expected exactly one hassette line, got: {hassette_lines}"

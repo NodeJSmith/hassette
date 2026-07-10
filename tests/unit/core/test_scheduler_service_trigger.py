@@ -63,7 +63,8 @@ class TestRunJobTriggerMode:
 
 class TestRunJobWithGuardTriggerMode:
     """PARALLEL calls run_job(trigger_mode=...) directly; SINGLE captures trigger_mode in the
-    invoke lambda passed to run_through_guard. Different internal paths, same observable result."""
+    invoke lambda passed to run_through_guard. Different internal paths, same observable result.
+    """
 
     @pytest.mark.parametrize("mode", [ExecutionMode.PARALLEL, ExecutionMode.SINGLE])
     async def test_threads_trigger_mode(self, mode: ExecutionMode) -> None:

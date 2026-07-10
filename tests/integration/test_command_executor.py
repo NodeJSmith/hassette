@@ -63,7 +63,6 @@ async def test_restart_cancellation_persists_cancelled_row(
     ``status='cancelled'`` record; this test proves such a record persists to the ``executions``
     table — no new mechanism, the existing cancellation row path.
     """
-
     db_service, session_id = initialized_db
 
     listener_id = await executor.register_listener(make_listener_registration())
@@ -286,7 +285,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in executions after drain."""
-
     db_service, session_id = initialized_db
 
     # First register a listener to get a valid listener_id FK
@@ -321,7 +319,6 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """flush_queue() persists remaining records before returning."""
-
     db_service, session_id = initialized_db
 
     reg = make_listener_registration()

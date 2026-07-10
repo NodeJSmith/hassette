@@ -510,7 +510,7 @@ async def test_persist_execution_batch_unified(
 
 
 async def test_schema_has_name_column(telemetry_db: aiosqlite.Connection) -> None:
-    """listeners table includes the name column (NOT NULL in unified schema)."""
+    """Listeners table includes the name column (NOT NULL in unified schema)."""
     cursor = await telemetry_db.execute("PRAGMA table_info(listeners)")
     rows = await cursor.fetchall()
     column_names = [row["name"] for row in rows]

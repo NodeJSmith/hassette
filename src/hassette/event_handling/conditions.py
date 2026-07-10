@@ -1,5 +1,4 @@
-"""
-Conditions receive one or more values extracted from an event and return a boolean indicating
+"""Conditions receive one or more values extracted from an event and return a boolean indicating
 whether the condition is met.
 
 These are the building blocks for more complex predicates used in event listeners. Any callable
@@ -89,7 +88,6 @@ class Glob:
     """Callable matcher for string glob patterns.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=Glob("light.*"))
 
@@ -116,7 +114,6 @@ class StartsWith:
     """Callable matcher for string startswith checks.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=StartsWith("light."))
 
@@ -143,7 +140,6 @@ class EndsWith:
     """Callable matcher for string endswith checks.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=EndsWith(".kitchen"))
 
@@ -170,7 +166,6 @@ class Contains:
     """Callable matcher for string containment checks.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=Contains("kitchen"))
 
@@ -194,10 +189,9 @@ class Contains:
 
 @dataclass(frozen=True)
 class Regex:
-    """Callable matcher for regex pattern matching.
+    r"""Callable matcher for regex pattern matching.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=Regex(r"light\\..*kitchen"))
 
@@ -250,7 +244,6 @@ class IsIn:
     """Condition that checks if a value is in a given collection.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=IsIn(collection=["light.kitchen", "light.living"]))
     ```
@@ -274,7 +267,6 @@ class NotIn:
     """Condition that checks if a value is not in a given collection.
 
     Examples:
-
     ```python
     ValueIs(source=get_entity_id, condition=NotIn(collection=["light.kitchen", "light.living"]))
     ```
@@ -298,7 +290,6 @@ class Intersects:
     """Condition that checks if a collection value intersects with a given collection.
 
     Examples:
-
     ```python
     ValueIs(source=get_tags, condition=Intersects(collection=["kitchen", "living"]))
     ```
@@ -325,7 +316,6 @@ class NotIntersects:
     """Condition that checks if a collection value does not intersect with a given collection.
 
     Examples:
-
     ```python
     ValueIs(source=get_tags, condition=NotIntersects(collection=["kitchen", "living"]))
     ```
@@ -352,7 +342,6 @@ class IsOrContains:
     """Condition that checks if a value is equal to or contained in a given collection.
 
     Examples:
-
     ```python
     # check if the entity_id is either "light.kitchen" or a list containing it
     ValueIs(source=get_entity_id, condition=IsOrContains("light.kitchen"))
@@ -375,7 +364,6 @@ class IsNone:
     """Condition that checks if a value is None.
 
     Examples:
-
     ```python
     ValueIs(source=get_attribute, condition=IsNone())
     ```
@@ -393,7 +381,6 @@ class IsNotNone:
     """Condition that checks if a value is not None.
 
     Examples:
-
     ```python
     ValueIs(source=get_attribute, condition=IsNotNone())
     ```
@@ -459,7 +446,6 @@ class Increased:
     AttrComparison. Returns False on type conversion errors.
 
     Examples:
-
     ```python
     self.on_state_change("zone.home", changed=Increased())
     ```
@@ -483,7 +469,6 @@ class Decreased:
     AttrComparison. Returns False on type conversion errors.
 
     Examples:
-
     ```python
     self.on_state_change("zone.home", changed=Decreased())
     ```

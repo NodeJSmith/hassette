@@ -37,12 +37,12 @@ class TestScheduledJobModeAndGuard:
         assert job.mode is ExecutionMode.SINGLE
 
     def test_guard_created_in_post_init(self) -> None:
-        """guard is an ExecutionModeGuard created in __post_init__, not None."""
+        """Guard is an ExecutionModeGuard created in __post_init__, not None."""
         job = _make_raw_job()
         assert isinstance(job.guard, ExecutionModeGuard)
 
     def test_guard_reflects_mode(self) -> None:
-        """guard is created from the mode field."""
+        """Guard is created from the mode field."""
         job = _make_raw_job(mode=ExecutionMode.PARALLEL)
         assert job.mode is ExecutionMode.PARALLEL
         assert isinstance(job.guard, ExecutionModeGuard)

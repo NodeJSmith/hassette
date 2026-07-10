@@ -399,7 +399,7 @@ class TestRespondIfNecessaryGuards:
 
 class TestAuthenticateUnexpectedResponse:
     async def test_raises_on_unexpected_auth_response_type(self, websocket_service: WebsocketService) -> None:
-        """authenticate raises RuntimeError when HA sends neither auth_ok nor auth_invalid."""
+        """Authenticate raises RuntimeError when HA sends neither auth_ok nor auth_invalid."""
         fake_ws = build_fake_ws()
         fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "something_else"}])
         websocket_service._ws = fake_ws

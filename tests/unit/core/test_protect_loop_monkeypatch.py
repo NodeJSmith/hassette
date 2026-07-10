@@ -621,7 +621,8 @@ class TestTier2TaskIdentityAttribution:
     async def test_marker_without_task_id_is_trusted(self) -> None:
         """A marker bound outside any task (task_id=None) is trusted by Tier 2 — the deliberate
         asymmetry with Tier 1, which withholds in the same case (it reads cross-thread, Tier 2 reads
-        inline in the blocker's own call chain)."""
+        inline in the blocker's own call chain).
+        """
         tid = threading.get_ident()
         h = make_hassette(behavior=BlockingIOBehavior.WARN)
         ex = MagicMock()

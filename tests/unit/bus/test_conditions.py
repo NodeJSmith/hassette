@@ -118,7 +118,6 @@ def test_regex_condition() -> None:
 
 def test_comparison_condition() -> None:
     """Test Comparison condition matcher."""
-
     greater_than = Comparison("gt", 10)
     less_than = Comparison("lt", 20)
     equal_to = Comparison("eq", 15)

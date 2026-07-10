@@ -1,5 +1,4 @@
-"""
-Scheduler for running tasks at specific times or intervals with flexible triggers.
+"""Scheduler for running tasks at specific times or intervals with flexible triggers.
 
 The Scheduler provides intuitive methods for scheduling one-time and recurring tasks using
 trigger objects, simple time delays, cron expressions, or daily wall-clock times. Jobs are

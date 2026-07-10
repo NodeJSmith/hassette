@@ -1,5 +1,6 @@
 """E2E tests for WebSocket infrastructure: connection indicator and SPA
-rendering stability when WS is unavailable, and the WS uptime-scoped fetch path."""
+rendering stability when WS is unavailable, and the WS uptime-scoped fetch path.
+"""
 
 import time
 

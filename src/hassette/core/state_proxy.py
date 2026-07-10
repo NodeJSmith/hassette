@@ -148,7 +148,6 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
 
@@ -177,7 +176,6 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-
         return {eid: state for eid, state in self.yield_domain_states(domain)}
 
     @_retry_on_not_ready

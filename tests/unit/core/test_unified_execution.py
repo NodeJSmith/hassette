@@ -96,7 +96,7 @@ class TestExecutionModelKindHandler:
 
 class TestExecutionModelInvalidKind:
     def test_invalid_kind_raises_validation_error(self) -> None:
-        """kind rejects values other than 'handler' or 'job'."""
+        """Kind rejects values other than 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             Execution(
                 kind="invocation",  # pyright: ignore[reportArgumentType]

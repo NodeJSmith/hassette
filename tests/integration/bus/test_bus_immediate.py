@@ -124,7 +124,7 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
 
 
 async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
-    """immediate fires, subsequent live event does NOT fire (once=True consumed by immediate)."""
+    """Immediate fires, subsequent live event does NOT fire (once=True consumed by immediate)."""
     harness, hassette, bus = bus_harness
 
     await harness.seed_state(
@@ -162,7 +162,7 @@ async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[Hasset
 
 
 async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
-    """immediate fire passes through the debounce guard (fires after debounce period)."""
+    """Immediate fire passes through the debounce guard (fires after debounce period)."""
     harness, hassette, bus = bus_harness
 
     await harness.seed_state(
@@ -262,7 +262,6 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity held for 10s, duration=5 → fires immediately (elapsed >= duration)."""
-
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds ago
@@ -429,7 +428,7 @@ async def test_immediate_duration_attribute_change_always_zero(
 async def test_immediate_duration_once_fires_exactly_once(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
-    """immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
+    """Immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)

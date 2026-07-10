@@ -122,7 +122,8 @@ class TestNestedGroupDescriptions:
     def test_groups_with_own_model_config_still_emit_descriptions(self) -> None:
         """WebApiConfig and BlockingIODetectionConfig define their own model_config for ui
         metadata; use_attribute_docstrings must still merge in from the mixin (Pydantic v2
-        merges config across the MRO) so their documented fields keep emitting descriptions."""
+        merges config across the MRO) so their documented fields keep emitting descriptions.
+        """
         schema = HassetteConfig.model_json_schema()
         result = build_config_view(schema, {})
         props = result["config_schema"]["properties"]

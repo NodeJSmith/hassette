@@ -475,7 +475,6 @@ class Hassette(Resource):
     @classmethod
     def get_instance(cls) -> "Hassette":
         """Get the current instance of Hassette."""
-
         return context.get_hassette()
 
     async def send_event(self, event: "Event[Any]") -> None:

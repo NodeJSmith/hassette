@@ -15,7 +15,8 @@ def test_custom_class_defined_inside_function_still_returns_custom_state(
     hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """try_convert_state will return BaseState if a custom state class is defined inside a
-    function and not registered."""
+    function and not registered.
+    """
     hassette = hassette_with_state_registry
 
     # Register a custom state class for domain 'custom_domain'

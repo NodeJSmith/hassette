@@ -136,7 +136,7 @@ class TestGetJobSummaryGlobal:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since parameter filters executions by timestamp."""
+        """Since parameter filters executions by timestamp."""
         db_svc, session_id = db
 
         base_ts = 1_000_000.0

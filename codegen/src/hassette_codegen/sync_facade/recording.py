@@ -123,6 +123,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
 
     Returns:
         Complete Python source string for the generated sync_facade.py.
+
     """
     # Parse Api to get the ordered method list
     api_source = api_path.read_text(encoding="utf8")

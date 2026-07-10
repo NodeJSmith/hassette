@@ -25,8 +25,7 @@ class Expected:
 
 
 class SimpleTestServer:
-    """
-    Minimal HTTP double for Home Assistant.
+    """Minimal HTTP double for Home Assistant.
 
     Usage:
       mock.expect("GET", "/api/states/light.kitchen", "", json={...})

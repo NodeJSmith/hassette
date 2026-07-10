@@ -237,7 +237,7 @@ class TestDomainStatesConversionExceptionType:
         assert result is None
 
     def test_iteration_skips_bad_entity_and_yields_good(self) -> None:
-        """iteration logs-and-continues on un-convertible entity, yields good entities."""
+        """Iteration logs-and-continues on un-convertible entity, yields good entities."""
         proxy = MagicMock()
 
         good_state = make_light_state_dict("light.kitchen", "on", brightness=200)
@@ -276,7 +276,6 @@ class TestStateManagerIterationCache:
 
     def test_iter_returns_cached_domain_states(self, state_manager: StateManager) -> None:
         """__iter__ returns DomainStates from _domain_states_cache."""
-
         # Patch STATE_REGISTRY to have one entry: LightState
         with patch.object(STATE_REGISTRY, "items", return_value=iter([("light", LightState)])):
             items_list = list(state_manager)
@@ -291,7 +290,6 @@ class TestStateManagerIterationCache:
 
     def test_getitem_returns_fresh_uncached_instance(self, state_manager: StateManager) -> None:
         """__getitem__ always returns a fresh DomainStates, not the cached one."""
-
         with patch.object(STATE_REGISTRY, "items", return_value=iter([("light", LightState)])):
             # Populate cache via iteration
             list(state_manager)
@@ -304,7 +302,6 @@ class TestStateManagerIterationCache:
 
     def test_values_method_returns_cached_instances(self, state_manager: StateManager) -> None:
         """values() yields DomainStates instances from the cache."""
-
         with patch.object(STATE_REGISTRY, "values", return_value=iter([LightState])):
             values_list = list(state_manager.values())
             assert len(values_list) == 1

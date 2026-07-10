@@ -25,7 +25,6 @@ def cleanup_env(*keys: str) -> None:
 
 def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) -> None:
     """Configuration values honour overrides from the test TOML and .env."""
-
     test_config.reload()
 
     expected_value = dotenv.get_key(env_file_path, "hassette__logging__apps")
@@ -48,7 +47,6 @@ def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
 
 def test_extended_autodetect_exclude_dirs(test_config_class):
     """Test that extended autodetect_exclude_dirs are handled correctly."""
-
     config_with_extended_excludes = test_config_class(apps={"extend_exclude_dirs": [".hg", ".svn", "custom_dir"]})
     expected_excludes = set(AUTODETECT_EXCLUDE_DIRS_DEFAULT) | {".hg", ".svn", "custom_dir"}
     assert set(config_with_extended_excludes.apps.exclude_dirs) == expected_excludes, (
@@ -64,7 +62,6 @@ def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
     - `HassetteConfig.env_files` is a `set[Path]` (order is not preserved).
     - Missing files are silently filtered out.
     """
-
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
     missing = tmp_path / "missing.env"
@@ -90,7 +87,6 @@ def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
 
 def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatch, tmp_path):
     """The pydantic-settings dotenv source affects config values, but does not write into os.environ."""
-
     env_file = tmp_path / ".env"
     env_file.write_text("HASSETTE__LOGGING__LOG_LEVEL=DEBUG\n", encoding="utf-8")
 
@@ -115,7 +111,6 @@ def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatc
 
 async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch, tmp_path):
     """When import_dot_env_files=True, Hassette loads env_files into os.environ at startup."""
-
     env_file = tmp_path / "hassette.env"
     env_file.write_text("HASSETTE_TEST_IMPORTED=from_dotenv\n", encoding="utf-8")
     monkeypatch.delenv("HASSETTE_TEST_IMPORTED", raising=False)
@@ -138,7 +133,6 @@ async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch,
 
 async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch, tmp_path):
     """When import_dot_env_files=False, Hassette does not inject dotenv keys into os.environ."""
-
     env_file = tmp_path / "hassette.env"
     env_file.write_text("HASSETTE_TEST_IMPORTED=from_dotenv\n", encoding="utf-8")
     monkeypatch.delenv("HASSETTE_TEST_IMPORTED", raising=False)
@@ -161,7 +155,6 @@ async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch,
 
 async def test_import_dot_env_files_does_not_override_existing_environ(monkeypatch, tmp_path):
     """Current behavior: dotenv import does not override existing os.environ values."""
-
     env_file = tmp_path / "hassette.env"
     env_file.write_text("HASSETTE_TEST_EXISTING=from_dotenv\n", encoding="utf-8")
 
@@ -185,7 +178,6 @@ async def test_import_dot_env_files_does_not_override_existing_environ(monkeypat
 
 async def test_multiple_env_files_import_non_conflicting_keys(monkeypatch, tmp_path):
     """Multiple env files can be imported; non-conflicting keys should all show up in os.environ."""
-
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
     env1.write_text("HASSETTE_TEST_MULTI_ONE=1\n", encoding="utf-8")
@@ -220,7 +212,6 @@ async def test_multiple_env_files_conflicting_key_is_effectively_order_dependent
 
     This test documents the current outcome without assuming a deterministic order.
     """
-
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
     env1.write_text("HASSETTE_TEST_CONFLICT=one\n", encoding="utf-8")
@@ -252,7 +243,6 @@ def test_spec_env_files_preserves_declared_order(tmp_path):
     This is intentionally written to fail deterministically until `env_files` becomes an ordered
     sequence (e.g. list/tuple) rather than a set.
     """
-
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
     env1.write_text("A=1\n", encoding="utf-8")
@@ -284,7 +274,6 @@ async def test_spec_last_env_file_wins_on_conflicts(monkeypatch, tmp_path):
     This is intentionally written to fail deterministically until env_files ordering and override semantics
     are made explicit.
     """
-
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
     env1.write_text("HASSETTE_TEST_CONFLICT_SPEC=one\n", encoding="utf-8")
@@ -321,7 +310,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     - With `import_dot_env_files=True`, Hassette loads env files before app precheck imports.
     - Therefore an app module that reads os.environ at import time should see those values.
     """
-
     # Create a unique apps package name to avoid cross-test module collisions.
     pkg_name = "testapps_" + os.urandom(6).hex()
     app_dir = tmp_path / pkg_name
@@ -870,7 +858,8 @@ class TestLegacyEnvVarMigration:
     def test_env_var_lands_in_model_extra_then_migrates(self, monkeypatch, tmp_path):
         """Legacy env vars are absorbed by pydantic-settings into model_extra during source processing,
         then apply_legacy_migrations handles them in model_post_init. ExcludeExtrasMixin strips
-        consumed extras afterward, so model_extra is clean after init."""
+        consumed extras afterward, so model_extra is clean after init.
+        """
         app_dir = tmp_path / "my_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
@@ -915,7 +904,8 @@ class TestLegacyEnvVarMigration:
 
     def test_empty_string_skipped_but_zero_string_migrates(self, monkeypatch):
         """The `if not raw_value` guard skips empty strings (matching env_ignore_empty=True)
-        but passes through '0' and 'false' since non-empty strings are truthy in Python."""
+        but passes through '0' and 'false' since non-empty strings are truthy in Python.
+        """
         monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "0")
         config = LogLevelTestConfig()
         assert config.apps.autodetect is False
@@ -928,7 +918,8 @@ class TestLegacyEnvVarMigration:
 
     def test_group_updates_round_trip_preserves_validation(self, monkeypatch, tmp_path):
         """apply_group_updates reconstructs the nested model via model_dump/model_validate,
-        so field validators still run on the migrated value."""
+        so field validators still run on the migrated value.
+        """
         app_dir = tmp_path / "validated_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
@@ -939,8 +930,8 @@ class TestLegacyEnvVarMigration:
     @pytest.mark.filterwarnings("ignore:Config key.*will be ignored:UserWarning")
     def test_legacy_env_vars_fires_when_env_source_excluded(self, monkeypatch, tmp_path):
         """When a subclass excludes env settings from sources, legacy env vars don't land in model_extra.
-        apply_legacy_env_vars catches them by scanning os.environ directly."""
-
+        apply_legacy_env_vars catches them by scanning os.environ directly.
+        """
         app_dir = tmp_path / "no_env_source_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))

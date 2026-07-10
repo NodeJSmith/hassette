@@ -40,7 +40,7 @@ class TestStatesDomainAccessors:
     """Tests for domain-specific properties."""
 
     async def test_lights_returns_light_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """lights property returns DomainStates[LightState] containing only lights."""
+        """Lights property returns DomainStates[LightState] containing only lights."""
         hassette = hassette_with_state_proxy
 
         # Add mixed entity types
@@ -78,7 +78,7 @@ class TestStatesDomainAccessors:
         assert "sensor.temp" not in light_ids
 
     async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """sensors property returns DomainStates[SensorState] containing only sensors."""
+        """Sensors property returns DomainStates[SensorState] containing only sensors."""
         hassette = hassette_with_state_proxy
 
         # Add sensor states
@@ -103,7 +103,7 @@ class TestStatesDomainAccessors:
         assert "sensor.humidity" in sensor_ids
 
     async def test_switches_returns_switch_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """switches property returns DomainStates[SwitchState] containing only switches."""
+        """Switches property returns DomainStates[SwitchState] containing only switches."""
         hassette = hassette_with_state_proxy
 
         # Add switch states

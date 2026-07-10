@@ -87,7 +87,7 @@ class TestGetAllAppSummaries:
         query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """since filter restricts invocation/execution counts to records after the threshold."""
+        """Since filter restricts invocation/execution counts to records after the threshold."""
         db_svc, session_id = db
         base_ts = BASE_TS
         since_ts = base_ts + 5.0

@@ -31,7 +31,6 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
-
     # Unwrap type aliases (`type Foo = ...`)
     value = getattr(tp, "__value__", None)
     if value is not None:
@@ -132,8 +131,7 @@ def is_optional(tp: Any) -> bool:
 
 
 def normalize_constructible(tp: Any) -> Any:
-    """
-    If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
+    """If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
     list[int] / dict[str,int] when possible. Otherwise return tp unchanged.
     """
     origin = get_origin(tp)

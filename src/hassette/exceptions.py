@@ -147,7 +147,7 @@ class UndefinedUserConfigError(TypeError, HassetteError):
 
 
 class EntityNotFoundError(ValueError, HassetteError):
-    """Custom error for handling 404 in the Api"""
+    """Custom error for handling 404 in the Api."""
 
 
 class ResourceNotReadyError(HassetteError):

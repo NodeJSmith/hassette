@@ -69,7 +69,8 @@ class TestAppConfigEndpoint:
 
     async def test_disabled_app_secrets_masked_without_schema(self, client, mock_hassette) -> None:
         """A disabled app has no running instance and no loaded class, so no schema is
-        available — every string value is masked as a safe floor so a secret never leaks."""
+        available — every string value is masked as a safe floor so a secret never leaks.
+        """
         manifest = make_manifest_mock(
             app_key="disabled_app",
             enabled=False,

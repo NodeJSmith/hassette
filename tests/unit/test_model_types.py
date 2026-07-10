@@ -415,7 +415,7 @@ class TestLogLevelType:
 
 class TestWebSocketPayloadStatus:
     def test_execution_completed_data_rejects_bogus_kind(self) -> None:
-        """kind must be 'handler' or 'job'."""
+        """Kind must be 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             ExecutionCompletedData(
                 kind="unknown",  # pyright: ignore[reportArgumentType]

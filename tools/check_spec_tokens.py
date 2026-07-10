@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI guard: detect leaked spec-artifact tokens in comments, docstrings, and filenames.
+r"""CI guard: detect leaked spec-artifact tokens in comments, docstrings, and filenames.
 
 Design and work-package documents reference acceptance criteria, requirements,
 tasks, and work packages by short codes — an ``AC``/``FR``/``NFR``/``WP`` prefix

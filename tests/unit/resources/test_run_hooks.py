@@ -80,7 +80,8 @@ class TestCancelledErrorAlwaysPropagates:
 
     async def test_continue_on_error_true_still_reraises_and_stops_the_loop(self) -> None:
         """Unlike a generic Exception under continue_on_error=True, CancelledError always
-        stops the loop and propagates — the shutdown-hook runner does not swallow it."""
+        stops the loop and propagates — the shutdown-hook runner does not swallow it.
+        """
         resource = await make_starting_resource()
         calls: list[str] = []
 

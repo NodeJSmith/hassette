@@ -191,12 +191,12 @@ class TestListenerDurationValidation:
             create_listener(topic="test.topic", duration=-1.0, entity_id="light.test")
 
     def test_validate_duration_conflicts_with_debounce(self) -> None:
-        """duration + debounce raises ValueError."""
+        """Duration + debounce raises ValueError."""
         with pytest.raises(ValueError, match="duration"):
             create_listener(topic="test.topic", duration=5.0, debounce=1.0, entity_id="light.test")
 
     def test_validate_duration_conflicts_with_throttle(self) -> None:
-        """duration + throttle raises ValueError."""
+        """Duration + throttle raises ValueError."""
         with pytest.raises(ValueError, match="duration"):
             create_listener(topic="test.topic", duration=5.0, throttle=1.0, entity_id="light.test")
 

@@ -1,5 +1,6 @@
 """Tests for Service lifecycle: serve-task spawning lives in initialize/shutdown,
-not in on_initialize/on_shutdown, so subclasses can freely override hooks."""
+not in on_initialize/on_shutdown, so subclasses can freely override hooks.
+"""
 
 import asyncio
 import warnings

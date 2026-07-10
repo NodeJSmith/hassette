@@ -197,7 +197,6 @@ class BaseState(BaseModel, Generic[StateValueT]):
     @classmethod
     def get_domain(cls) -> str:
         """Returns the domain string for this state class, extracted from the domain field annotation."""
-
         fields = cls.model_fields
         domain_field = fields.get("domain")
         if not domain_field:

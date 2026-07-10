@@ -1,5 +1,4 @@
-"""
-Event bus for subscribing to Home Assistant and Hassette events with powerful filtering.
+"""Event bus for subscribing to Home Assistant and Hassette events with powerful filtering.
 
 The Bus provides a clean interface for listening to state changes, service calls, and other events
 from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions

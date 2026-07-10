@@ -254,7 +254,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
     async def _setup(self, exit_stack: AsyncExitStack) -> None:
         """Execute all setup steps, registering teardown callbacks as we go."""
-
         # Step 1: Resolve data directory
         if self._tmp_path is not None:
             data_dir = self._tmp_path

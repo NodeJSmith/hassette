@@ -762,7 +762,6 @@ class TestMarkRegistered:
 
     async def test_mark_registered_warns_on_double_call(self, bucket: TaskBucket) -> None:
         """mark_registered() keeps the original db_id when called a second time."""
-
         listener = create_listener(lambda _e: None, task_bucket=bucket, owner_id="test", topic="t")
         listener.mark_registered(42)
         listener.mark_registered(99)

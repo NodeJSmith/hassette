@@ -218,7 +218,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     def get_watchable_files(self) -> set[Path]:
         """Return a list of files to watch for changes."""
-
         files = self.env_files | self.toml_files
         files.add(self.apps.directory.resolve())
 

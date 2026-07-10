@@ -454,7 +454,6 @@ def _ensure_namespace_package(root: Path, pkg_name: str) -> None:
     - Creates/updates sys.modules[pkg_name] as a namespace package.
     - Adds `root` to submodule_search_locations so 'pkg_name.*' resolves under this directory.
     """
-
     root = root.resolve()
     if pkg_name in sys.modules and hasattr(sys.modules[pkg_name], "__path__"):
         ns_pkg = sys.modules[pkg_name]
@@ -511,7 +510,6 @@ def _ensure_on_sys_path(dir_path: Path) -> None:
     Note:
       - Will not add root directories (with <=1 parts) for safety.
     """
-
     dir_path = dir_path.resolve()
     if len(dir_path.parts) <= 1:
         LOGGER.warning("Refusing to add root directory %s to sys.path", dir_path)
