@@ -142,6 +142,27 @@ always reset explicitly when active. The cost is negligible (one
 
 Reset functions are defined in `src/hassette/test_utils/reset.py`.
 
+## Factory Naming Convention (`make_*` / `create_*` / `build_*`)
+
+The `make_`/`create_`/`build_` prefix signals what a factory returns, not just that it builds something:
+
+- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_index`) for tests that exercise web-layer behavior against a real job.
+- **`make_<name>()` returning `SimpleNamespace`** — a duck-typed stand-in, not a real instance. `make_job()` (`web_helpers.py`) returns a `SimpleNamespace` job for serialization tests that only need attribute access, not real `ScheduledJob` methods.
+- **`make_mock_*()`** — always returns a `Mock`/`MagicMock`/`AsyncMock`. `make_mock_executor()`, `make_mock_event()`, `make_mock_parent()` never construct the real production type.
+
+Three factories share the word "job" but return three different things — check the return type, not just the name, before reusing one: `make_scheduled_job()` (real `ScheduledJob`, scheduler-test defaults), `make_real_job()` (real `ScheduledJob`, web-test defaults), `make_job()` (`SimpleNamespace`, serialization tests).
+
+Similarly, `make_manifest()` in `web_helpers.py` returns `AppManifestInfo` (the runtime snapshot model) — this is a different type from local `make_manifest()` helpers in `test_config_classes.py` and `test_app_factory_lifecycle.py` that build `AppManifest` (the config-layer registration model). Those stay local; they are not consolidation targets.
+
+## Before Writing a New Factory
+
+1. Check `src/hassette/test_utils/factories.py` for an existing factory returning the type you need.
+2. Check `src/hassette/test_utils/helpers.py` for event/state builders and misc helpers.
+3. Check `src/hassette/test_utils/web_helpers.py` for web/API response and snapshot factories.
+4. If a matching factory exists, import it — don't redefine it locally, even with a different name for the same shape.
+5. If it doesn't exist and you need it in 3+ files, add it to the appropriate shared file instead of writing a fourth local copy.
+6. If the factory is genuinely local — a different return type, a narrower purpose than any shared factory with a similar name — annotate the `def` line with `# factory-local: <reason>` so `tools/check_test_factories.py` doesn't flag it as shadowing.
+
 ## Available Factories
 
 ### `make_mock_hassette(**config_overrides)` — `test_utils/mock_hassette.py`
@@ -175,6 +196,34 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 ### `make_job(**kwargs)` — `test_utils/web_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
+
+### `make_real_job(**kwargs)` — `test_utils/web_helpers.py`
+
+Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_index`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
+
+### `make_scheduled_job(**kwargs)` — `test_utils/factories.py`
+
+Builds a real `ScheduledJob` for unit/scheduler tests, with every field overridable (`job`, `name`, `owner_id`, `next_run`, `trigger`, `group`, `jitter`, `timeout`, `timeout_disabled`, `error_handler`, `mode`, `db_id`, `predicate`).
+
+### `make_mock_executor()` — `test_utils/factories.py`
+
+Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`.
+
+### `make_mock_event()` — `test_utils/factories.py`
+
+Builds a `MagicMock(spec=Event)`.
+
+### `make_recording_api(states=None)` — `test_utils/factories.py`
+
+Builds a `RecordingApi` wired to an unsealed `make_mock_hassette()` (with the real `STATE_REGISTRY`) and an `AsyncMock(spec=StateProxy)` whose `.states` is seeded from `states` and `.is_ready()` returns `True`.
+
+### `make_hassette_event(topic="hassette.ready", data=None)` — `test_utils/factories.py`
+
+Builds an `Event` carrying a `HassettePayload`.
+
+### `make_mock_parent(**kwargs)` — `test_utils/factories.py`
+
+Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
 
 ## Shared Integration Fixtures
 

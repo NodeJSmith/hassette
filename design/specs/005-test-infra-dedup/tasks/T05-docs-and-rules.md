@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add test-conventions rule, TESTING.md updates, and test CLAUDE.md files"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["FR#16", "FR#17", "FR#19", "AC#8", "AC#10", "AC#11"]
 ---
