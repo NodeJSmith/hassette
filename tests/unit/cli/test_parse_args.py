@@ -14,8 +14,7 @@ from whenever import Instant
 
 from hassette.cli import app
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
-
-NOW_EPOCH = 1_748_000_000.0
+from tests.unit.cli.conftest import NOW_EPOCH
 
 
 def _fixed_now() -> float:
