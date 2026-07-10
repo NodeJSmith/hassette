@@ -19,6 +19,6 @@
 .body {
   font-size: var(--fs-micro);
   color: var(--ink-3);
-  max-width: 320px;
+  max-width: var(--sz-content-narrow);
   margin: 0 auto;
 }

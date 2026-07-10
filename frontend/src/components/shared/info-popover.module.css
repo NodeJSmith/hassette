@@ -35,7 +35,7 @@
 .pop {
   position: fixed;
   z-index: var(--z-tooltip);
-  max-width: 280px;
+  max-width: var(--sz-popover-max);
   max-height: 60vh;
   overflow: auto;
   padding: var(--sp-2) var(--sp-3);

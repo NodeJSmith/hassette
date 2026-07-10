@@ -113,6 +113,13 @@
   --sz-icon-sm: 14px;
   --sz-sidebar: 240px;
   --sz-search-min: 160px;
+  --sz-popover-min: 200px;
+  --sz-popover-max: 280px;
+  --sz-content-narrow: 320px;
+  --sz-dialog-min: 320px;
+  --sz-dialog-max: 480px;
+  --sz-drawer: 400px;
+  --sz-palette: 620px;
 
   /* Additional font sizes */
   --fs-stat: 26px;
