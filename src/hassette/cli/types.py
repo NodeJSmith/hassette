@@ -82,7 +82,8 @@ SinceArg = Annotated[
     float | None,
     Parameter(
         name=["--since"],
-        converter=lambda _, value: convert_since(value),
+        # cyclopts passes (type, tuple[Token, ...]) — one Token per flag occurrence
+        converter=lambda _, tokens: convert_since(tokens[0].value),
         help=SINCE_HELP,
     ),
 ]
