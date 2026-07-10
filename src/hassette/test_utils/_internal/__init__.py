@@ -8,6 +8,7 @@ hassette's own internal tests continue to work after the public API restructure.
 """
 
 from hassette.test_utils.factories import (
+    make_hass_event,
     make_hassette_event,
     make_mock_event,
     make_mock_executor,
@@ -79,6 +80,7 @@ __all__ = [
     "hassette_with_state_proxy",
     "make_full_snapshot",
     "make_full_state_change_event",
+    "make_hass_event",
     "make_hassette_event",
     "make_job",
     "make_light_state_dict",

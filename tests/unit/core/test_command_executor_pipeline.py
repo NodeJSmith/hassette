@@ -84,7 +84,10 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor._write_queue = asyncio.Queue(maxsize=queue_max)
     executor._dropped_overflow = 0
     executor._dropped_exhausted = 0
+    executor._dropped_shutdown = 0
+    executor._error_handler_failures = 0
     executor._last_capacity_warn_ts = 0.0
+    executor._timeout_warn_timestamps = {}
     executor.repository = MagicMock()
     executor.repository.persist_batch = MagicMock()
     executor.hassette = MagicMock()

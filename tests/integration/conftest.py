@@ -2,10 +2,10 @@
 
 import shutil
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -121,7 +121,7 @@ def make_mock_job(
     app_key: str = "my_app",
     instance_index: int = 1,
     name: str = "test_job",
-    error_handler=None,
+    error_handler: Callable[..., Any] | None = None,
     db_id: int | None = None,
     mode: ExecutionMode = ExecutionMode.SINGLE,
 ) -> MagicMock:

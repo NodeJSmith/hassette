@@ -30,6 +30,7 @@ from ._internal import hassette_with_scheduler as hassette_with_scheduler
 from ._internal import hassette_with_state_proxy as hassette_with_state_proxy
 from ._internal import make_full_snapshot as make_full_snapshot
 from ._internal import make_full_state_change_event as make_full_state_change_event
+from ._internal import make_hass_event as make_hass_event
 from ._internal import make_hassette_event as make_hassette_event
 from ._internal import make_job as make_job
 from ._internal import make_manifest as make_manifest

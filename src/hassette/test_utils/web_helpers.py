@@ -50,8 +50,8 @@ SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
 _STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
 
 
-def _tally_statuses(manifests: Sequence) -> dict[str, int]:
-    """Count manifests by status. Works with any object that has a ``.status`` attribute."""
+def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
+    """Count manifests by status."""
     counts: dict[str, int] = {k: 0 for k in _STATUS_KEYS}
     for m in manifests:
         if m.status in counts:

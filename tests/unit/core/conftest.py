@@ -4,8 +4,9 @@ import asyncio
 import logging
 import shutil
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import aiosqlite
@@ -261,8 +262,8 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
 
 def make_mock_cmd_listener(
     *,
-    side_effect=None,
-    error_handler=None,
+    side_effect: Any = None,
+    error_handler: Callable[..., Any] | None = None,
 ) -> MagicMock:
     """Build a MagicMock standing in for a Listener in CommandExecutor tests."""
     listener = MagicMock()
@@ -278,9 +279,9 @@ def make_mock_cmd_listener(
 
 def make_execute_job_cmd(
     *,
-    side_effect=None,
-    job_error_handler=None,
-    app_level_error_handler=None,
+    side_effect: Any = None,
+    job_error_handler: Callable[..., Any] | None = None,
+    app_level_error_handler: Callable[..., Any] | None = None,
     job_id: int = 99,
 ) -> MagicMock:
     """Build a MagicMock spec'd to ExecuteJob for CommandExecutor tests."""

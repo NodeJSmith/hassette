@@ -73,9 +73,9 @@ app = create_fastapi_app(stub)
 
 - `mock_hassette` — in unit/integration non-web tests: lightweight hassette mock via `make_mock_hassette()` from `hassette.test_utils`; in web/API tests: MagicMock stub via `create_hassette_stub()` (defined locally per file, out of scope for consolidation)
 - `db_hassette` — database-backed hassette mock with `premigrated_db_path`, also via `make_mock_hassette()`
-- `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/conftest.py`)
-- `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
-- `client` — httpx2 `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
+- `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/web_api/conftest.py`)
+- `app` — FastAPI application instance (shared in `tests/integration/web_api/conftest.py`, can be overridden locally)
+- `client` — httpx2 `AsyncClient` (shared in `tests/integration/web_api/conftest.py`, can be overridden locally)
 
 ### Component extractors (local fixtures)
 

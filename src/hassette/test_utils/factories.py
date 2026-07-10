@@ -4,7 +4,7 @@ Override-friendly factories that replace per-file duplicates. Every field has
 a sensible default; callers pass only the fields they care about.
 """
 
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from whenever import ZonedDateTime
@@ -198,7 +198,6 @@ def make_scheduler(
 
     mock_service = Mock()
     mock_service.register_removal_callback = Mock()
-    mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
 
     if wire_dequeue:
 
@@ -207,7 +206,14 @@ def make_scheduler(
             scheduler._on_job_removed(job)
             return True
 
-        mock_service.dequeue_job.side_effect = _mock_dequeue
+        mock_service.dequeue_job = Mock(side_effect=_mock_dequeue)
+    else:
+
+        def _simple_dequeue(job: ScheduledJob) -> bool:
+            job._dequeued = True
+            return True
+
+        mock_service.dequeue_job = Mock(side_effect=_simple_dequeue)
 
     async def _add_job(job: ScheduledJob) -> None:
         job.mark_registered(1)
@@ -265,7 +271,7 @@ def make_hassette_event(topic: str = "hassette.ready", data: Any = None) -> Even
 def make_hass_event(
     event_type: str = "state_changed",
     data: Any = None,
-    origin: str = "LOCAL",
+    origin: Literal["LOCAL", "REMOTE"] = "LOCAL",
     context_id: str = "ctx-test",
 ) -> Event:
     """Build an Event carrying a HassPayload (Home Assistant origin)."""
@@ -273,7 +279,7 @@ def make_hass_event(
     payload = HassPayload(
         event_type=event_type,
         data=data,
-        origin=origin,  # pyright: ignore[reportArgumentType]
+        origin=origin,
         time_fired=ZonedDateTime.now("UTC"),
         context=context,
     )

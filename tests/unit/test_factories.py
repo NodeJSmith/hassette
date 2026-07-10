@@ -1,17 +1,18 @@
-"""Unit tests for the 6 shared factories added to hassette.test_utils.factories.
+"""Unit tests for the 7 shared factories added to hassette.test_utils.factories.
 
 Covers make_scheduled_job, make_mock_executor, make_mock_event,
-make_recording_api, make_hassette_event, and make_mock_parent.
+make_recording_api, make_hassette_event, make_hass_event, and make_mock_parent.
 """
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.events.base import Event, HassettePayload
+from hassette.events.base import Event, HassettePayload, HassPayload
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After
 from hassette.test_utils.factories import (
+    make_hass_event,
     make_hassette_event,
     make_mock_event,
     make_mock_executor,
@@ -99,6 +100,30 @@ class TestMakeHassetteEvent:
         event = make_hassette_event(topic="hassette.custom", data={"foo": "bar"})
         assert event.topic == "hassette.custom"
         assert event.payload.data == {"foo": "bar"}
+
+
+class TestMakeHassEvent:
+    def test_defaults(self):
+        event = make_hass_event()
+        assert isinstance(event, Event)
+        assert event.topic == "hass.state_changed"
+        assert isinstance(event.payload, HassPayload)
+        assert event.payload.event_type == "state_changed"
+        assert event.payload.origin == "LOCAL"
+        assert event.payload.context.id == "ctx-test"
+
+    def test_overrides(self):
+        event = make_hass_event(
+            event_type="zha_event",
+            data={"device": "switch"},
+            origin="REMOTE",
+            context_id="ctx-custom",
+        )
+        assert event.topic == "hass.zha_event"
+        assert event.payload.event_type == "zha_event"
+        assert event.payload.data == {"device": "switch"}
+        assert event.payload.origin == "REMOTE"
+        assert event.payload.context.id == "ctx-custom"
 
 
 class TestMakeMockParent:
