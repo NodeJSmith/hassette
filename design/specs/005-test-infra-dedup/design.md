@@ -1,7 +1,7 @@
 # Design: Test Infrastructure Deduplication & LLM Prevention
 
 **Date:** 2026-07-08
-**Status:** draft
+**Status:** approved
 **Scope-mode:** hold
 **Research:** `design/research/2026-07-08-llm-test-infra-duplication/research.md`
 
