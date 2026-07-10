@@ -192,6 +192,13 @@ repos:
         files: ^src/.*\.py$
         stages: [pre-commit, pre-push]
 
+      - id: check-test-factories
+        name: Check test factory shadowing
+        language: system
+        entry: ./tools/check_test_factories.py
+        files: ^tests/.*\.py$
+        stages: [pre-commit, pre-push]
+
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.408
     hooks:

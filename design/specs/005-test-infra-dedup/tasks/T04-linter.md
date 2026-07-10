@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add check_test_factories.py pre-commit linter"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#18", "AC#9"]
 ---
