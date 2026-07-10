@@ -12,7 +12,7 @@ from hassette.cli.commands.listener import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_execution, make_listener_with_summary
-from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
 
 # cmd_listener (bare — list all listeners)
 
@@ -22,21 +22,16 @@ class TestCmdListener:
         """listener (no --app) fetches from GET /api/bus/listeners."""
         listener = make_listener_with_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener()
 
-        assert "/api/bus/listeners" in called_paths
+        assert "/api/bus/listeners" in spy.paths
 
     def test_app_flag_routes_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --app my-app fetches from /api/telemetry/app/my-app/listeners."""
@@ -44,21 +39,16 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(app="my-app")
 
-        assert any("/api/telemetry/app/my-app/listeners" in p for p in called_paths)
+        assert any("/api/telemetry/app/my-app/listeners" in p for p in spy.paths)
 
     def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --app my-app --instance 0 passes instance_index=0 as a query param."""
@@ -66,21 +56,16 @@ class TestCmdListener:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(app="my-app", instance="0")
 
-        listeners_call = next(r for r in received_params if "listeners" in r["path"])
+        listeners_call = next(r for r in spy.calls if "listeners" in r["path"])
         assert listeners_call["params"] is not None
         assert listeners_call["params"]["instance_index"] == 0
 
@@ -101,21 +86,16 @@ class TestCmdListener:
         """listener --source-tier app passes source_tier=app as a query param."""
         listener = make_listener_with_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(source_tier="app")
 
-        listeners_call = next(r for r in received_params if "listeners" in r["path"])
+        listeners_call = next(r for r in spy.calls if "listeners" in r["path"])
         assert listeners_call["params"] is not None
         assert listeners_call["params"]["source_tier"] == "app"
 
@@ -137,11 +117,10 @@ class TestCmdListener:
         """listener --json outputs the listener list as a JSON array."""
         listener = make_listener_with_summary(listener_id=7)
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_listener(ctx=CLIContext(json_mode=True))
 
@@ -182,21 +161,16 @@ class TestCmdListenerDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(listener_id=42)
 
-        assert "/api/telemetry/listener/42/executions" in called_paths
+        assert "/api/telemetry/listener/42/executions" in spy.paths
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> --limit 5 passes limit=5 as a query param."""
@@ -204,21 +178,16 @@ class TestCmdListenerDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(listener_id=42, limit=5)
 
-        executions_call = next(r for r in received_params if "executions" in r["path"])
+        executions_call = next(r for r in spy.calls if "executions" in r["path"])
         assert executions_call["params"] is not None
         assert executions_call["params"]["limit"] == 5
 
@@ -228,22 +197,17 @@ class TestCmdListenerDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/42/executions", 200, [invocation.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         since_epoch = 1_700_000_000.0
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
             cmd_listener(listener_id=42, since=since_epoch)
 
-        executions_call = next(r for r in received_params if "executions" in r["path"])
+        executions_call = next(r for r in spy.calls if "executions" in r["path"])
         assert executions_call["params"] is not None
         assert executions_call["params"]["since"] == since_epoch
 
@@ -268,11 +232,10 @@ class TestCmdListenerDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/listener/1/executions", 200, [invocation.model_dump()])]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_listener(listener_id=1, ctx=CLIContext(json_mode=True))
 

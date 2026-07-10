@@ -12,7 +12,7 @@ from hassette.cli.commands.job import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_execution, make_job_summary
-from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
 
 # cmd_job (bare — list all jobs)
 
@@ -22,21 +22,16 @@ class TestCmdJob:
         """job (no --app) fetches from GET /api/scheduler/jobs."""
         job = make_job_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job()
 
-        assert "/api/scheduler/jobs" in called_paths
+        assert "/api/scheduler/jobs" in spy.paths
 
     def test_app_flag_routes_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """job --app my-app fetches from /api/telemetry/app/my-app/jobs."""
@@ -44,21 +39,16 @@ class TestCmdJob:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/jobs", 200, [job.model_dump()])]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(app="my-app")
 
-        assert any("/api/telemetry/app/my-app/jobs" in p for p in called_paths)
+        assert any("/api/telemetry/app/my-app/jobs" in p for p in spy.paths)
 
     def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """job --app my-app --instance 0 passes instance_index=0 as a query param."""
@@ -66,21 +56,16 @@ class TestCmdJob:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/jobs", 200, [job.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(app="my-app", instance="0")
 
-        jobs_call = next(r for r in received_params if "jobs" in r["path"])
+        jobs_call = next(r for r in spy.calls if "jobs" in r["path"])
         assert jobs_call["params"] is not None
         assert jobs_call["params"]["instance_index"] == 0
 
@@ -101,21 +86,16 @@ class TestCmdJob:
         """job --source-tier app passes source_tier=app as a query param."""
         job = make_job_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(source_tier="app")
 
-        jobs_call = next(r for r in received_params if "jobs" in r["path"])
+        jobs_call = next(r for r in spy.calls if "jobs" in r["path"])
         assert jobs_call["params"] is not None
         assert jobs_call["params"]["source_tier"] == "app"
 
@@ -138,11 +118,10 @@ class TestCmdJob:
         """job --json outputs the job list as a JSON array."""
         job = make_job_summary(job_id=3)
         client = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_job(ctx=CLIContext(json_mode=True))
 
@@ -184,21 +163,16 @@ class TestCmdJobDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5)
 
-        assert "/api/telemetry/job/5/executions" in called_paths
+        assert "/api/telemetry/job/5/executions" in spy.paths
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> --limit 5 passes limit=5 as a query param."""
@@ -206,21 +180,16 @@ class TestCmdJobDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5, limit=5)
 
-        executions_call = next(r for r in received_params if "executions" in r["path"])
+        executions_call = next(r for r in spy.calls if "executions" in r["path"])
         assert executions_call["params"] is not None
         assert executions_call["params"]["limit"] == 5
 
@@ -230,22 +199,17 @@ class TestCmdJobDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/5/executions", 200, [execution.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         since_epoch = 1_700_000_000.0
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5, since=since_epoch)
 
-        executions_call = next(r for r in received_params if "executions" in r["path"])
+        executions_call = next(r for r in spy.calls if "executions" in r["path"])
         assert executions_call["params"] is not None
         assert executions_call["params"]["since"] == since_epoch
 
@@ -270,11 +234,10 @@ class TestCmdJobDetail:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/job/1/executions", 200, [execution.model_dump()])]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_job(job_id=1, ctx=CLIContext(json_mode=True))
 

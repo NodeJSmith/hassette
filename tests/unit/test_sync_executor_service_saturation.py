@@ -42,7 +42,7 @@ from hassette.core.sync_executor_service import (
 )
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
-from tests.unit.conftest import TEST_TOKEN, make_service, make_sync_executor_hassette
+from tests.unit.conftest import TEST_TOKEN, capture_saturation_warnings, make_service, make_sync_executor_hassette
 
 # async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
 # coverage's settrace tracer on Python 3.11. Python 3.12+ trace via sys.monitoring (PEP 669)
@@ -154,8 +154,7 @@ class TestSubmissionTimeSaturationWarning:
             # Manually set active_workers to simulate what track_submission does.
             svc._active_workers = 2
 
-            warning_calls: list[tuple] = []
-            svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+            warning_calls = capture_saturation_warnings(svc)
 
             svc.log_saturation_rate_limited()
 
@@ -171,8 +170,7 @@ class TestSubmissionTimeSaturationWarning:
         """No WARNING is emitted when pool occupancy is below 75%."""
         svc = make_service(max_workers=4)
         # active_workers=0, max_workers=4 → 0% occupancy (well below 75%)
-        warning_calls: list[tuple] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+        warning_calls = capture_saturation_warnings(svc)
 
         svc.log_saturation_rate_limited()
 
@@ -188,8 +186,7 @@ class TestSubmissionTimeSaturationWarning:
         # Test the boundary below: 2/4 = 50% must NOT fire.
         svc._active_workers = 2  # 50% occupancy — below threshold
 
-        warning_calls: list[tuple] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+        warning_calls = capture_saturation_warnings(svc)
 
         svc.log_saturation_rate_limited()
 
@@ -203,8 +200,7 @@ class TestSubmissionTimeSaturationWarning:
         svc = make_service(max_workers=4)
         svc._active_workers = 3  # 3/4 = 75% — exactly at threshold
 
-        warning_calls: list[tuple] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+        warning_calls = capture_saturation_warnings(svc)
 
         svc.log_saturation_rate_limited()
 
@@ -218,8 +214,7 @@ class TestSubmissionTimeSaturationWarning:
         svc = make_service(max_workers=1)
         svc._active_workers = 1  # 100% — above threshold
 
-        warning_calls: list[tuple] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+        warning_calls = capture_saturation_warnings(svc)
 
         # First call — should log
         svc.log_saturation_rate_limited()
@@ -241,8 +236,7 @@ class TestSubmissionTimeSaturationWarning:
         svc = make_service(max_workers=1)
         svc._active_workers = 1  # 100% — above threshold
 
-        warning_calls: list[tuple] = []
-        svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+        warning_calls = capture_saturation_warnings(svc)
 
         svc.log_saturation_rate_limited()
         first_count = len(warning_calls)
@@ -299,8 +293,7 @@ class TestPeriodicSaturationProbe:
             # Pre-expire the rate-limit so the probe can fire immediately
             svc._last_saturation_warn_ts = 0.0
 
-            warning_calls: list[tuple] = []
-            svc.logger.warning = lambda msg, *a: warning_calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+            warning_calls = capture_saturation_warnings(svc)
 
             svc.log_saturation_rate_limited()
 

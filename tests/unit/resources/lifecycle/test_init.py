@@ -27,8 +27,9 @@ from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
-from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
+from tests.unit.resources.conftest import wait_for_running
 
 from .conftest import SimpleParent
 
@@ -201,7 +202,7 @@ async def test_service_init_propagation_after_serve_spawn():
     child = parent_svc.add_child(ServiceInitTrackingChild)
 
     await parent_svc.initialize()
-    await wait_for(lambda: parent_svc.status == ResourceStatus.RUNNING, desc="parent service RUNNING")
+    await wait_for_running(parent_svc)
 
     assert child.parent_serve_task_exists is True, "Child should see serve task during init"
 

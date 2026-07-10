@@ -1,11 +1,8 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
 import json
-from collections.abc import Callable
-from typing import Any
 from unittest.mock import patch
 
-from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
     cmd_dashboard,
@@ -18,25 +15,7 @@ from hassette.test_utils.web_helpers import (
     make_system_status_response,
     make_telemetry_status_response,
 )
-from tests.unit.cli.conftest import CLIClientFactory, capture_stdout
-
-
-def spy_on_get(client: HassetteCLIClient) -> tuple[list[str], Callable[..., object]]:
-    """Wrap client.get to record requested paths; returns (paths, side_effect)."""
-    called_paths: list[str] = []
-    original_get = client.get
-
-    def tracking_get(
-        path: str,
-        model: type[object],
-        params: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> object:
-        called_paths.append(path)
-        return original_get(path, model, params=params, **kwargs)
-
-    return called_paths, tracking_get
-
+from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stdout
 
 # cmd_status
 
@@ -46,16 +25,16 @@ class TestCmdStatus:
         """status command fetches from GET /api/health."""
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        called_paths, tracking_get = spy_on_get(client)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_status()
 
-        assert "/api/health" in called_paths
+        assert "/api/health" in spy.paths
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """status command produces a key-value panel in human mode."""
@@ -74,20 +53,14 @@ class TestCmdStatus:
         """status --json outputs a complete JSON object on stdout."""
         status_data = make_system_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
-        captured_stdout: list[str] = []
-
-        def capture_write(s: str) -> int:
-            captured_stdout.append(s)
-            return len(s)
 
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=capture_write),
+            capture_json_stdout() as captured,
         ):
             cmd_status(ctx=CLIContext(json_mode=True))
 
-        combined = "".join(captured_stdout)
-        parsed = json.loads(combined)
+        parsed = json.loads("".join(captured))
         assert parsed["status"] == "ok"
         assert "websocket_connected" in parsed
 
@@ -136,16 +109,16 @@ class TestCmdTelemetry:
         """telemetry command fetches from GET /api/telemetry/status."""
         tel_data = make_telemetry_status_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
-        called_paths, tracking_get = spy_on_get(client)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_telemetry()
 
-        assert "/api/telemetry/status" in called_paths
+        assert "/api/telemetry/status" in spy.paths
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """telemetry command produces a key-value panel showing degraded field."""
@@ -163,11 +136,10 @@ class TestCmdTelemetry:
         """telemetry --json outputs a complete JSON object."""
         tel_data = make_telemetry_status_response(dropped_overflow=5)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_telemetry(ctx=CLIContext(json_mode=True))
 
@@ -189,11 +161,10 @@ class TestCmdTelemetry:
         """A 503 in json mode emits the deserialized status (no error doc) and exits 0."""
         tel_data = make_telemetry_status_response(degraded=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 503, tel_data.model_dump())])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_telemetry(ctx=CLIContext(json_mode=True))
 
@@ -212,16 +183,16 @@ class TestCmdDashboard:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
         )
-        called_paths, tracking_get = spy_on_get(client)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_dashboard()
 
-        assert any("/api/telemetry/dashboard/app-grid" in p for p in called_paths)
+        assert any("/api/telemetry/dashboard/app-grid" in p for p in spy.paths)
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """dashboard command renders a table with app rows."""
@@ -247,11 +218,10 @@ class TestCmdDashboard:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_dashboard(ctx=CLIContext(json_mode=True))
 

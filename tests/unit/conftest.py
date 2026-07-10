@@ -75,6 +75,13 @@ def make_service(max_workers: int = 4, shutdown_timeout: float = 5.0) -> SyncExe
     return svc
 
 
+def capture_saturation_warnings(svc: SyncExecutorService) -> list[tuple]:
+    """Patch svc.logger.warning to capture saturation warning calls."""
+    calls: list[tuple] = []
+    svc.logger.warning = lambda msg, *a: calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
+    return calls
+
+
 def make_mock_parent() -> MagicMock:
     """Mock owning App resource with the attributes guard_await and telemetry read."""
     parent = MagicMock()

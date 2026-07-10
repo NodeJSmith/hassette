@@ -25,7 +25,7 @@ from hassette.test_utils.web_helpers import (
     make_manifest_response,
 )
 from hassette.web.models import AppInstanceResponse, AppManifestListResponse
-from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
 
 # cmd_app (bare — list all apps)
 
@@ -36,21 +36,16 @@ class TestCmdApp:
         manifest = make_manifest_response()
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app()
 
-        assert "/api/apps/manifests" in called_paths
+        assert "/api/apps/manifests" in spy.paths
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """app renders a table with app_key and status columns."""
@@ -71,11 +66,10 @@ class TestCmdApp:
         manifest = make_manifest_response(app_key="my_app")
         data = make_manifest_list_response([manifest])
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app(ctx=CLIContext(json_mode=True))
 
@@ -119,21 +113,16 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_health("my-app")
 
-        assert any("/api/telemetry/app/my-app/health" in p for p in called_paths)
+        assert any("/api/telemetry/app/my-app/health" in p for p in spy.paths)
 
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
         """app health --instance 1 passes instance_index=1 as a query param."""
@@ -141,21 +130,16 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_health("my-app", instance="1")
 
-        health_call = next(r for r in received_params if "health" in r["path"])
+        health_call = next(r for r in spy.calls if "health" in r["path"])
         assert health_call["params"] is not None
         assert health_call["params"]["instance_index"] == 1
 
@@ -179,21 +163,16 @@ class TestCmdAppHealth:
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
             ]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_health("my-app", instance="office")
 
-        health_call = next(r for r in received_params if "health" in r["path"])
+        health_call = next(r for r in spy.calls if "health" in r["path"])
         assert health_call["params"] is not None
         assert health_call["params"]["instance_index"] == 2
 
@@ -218,11 +197,10 @@ class TestCmdAppHealth:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_health("my-app", ctx=CLIContext(json_mode=True))
 
@@ -248,21 +226,16 @@ class TestCmdAppActivity:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_activity("my-app")
 
-        assert any("/api/telemetry/app/my-app/activity" in p for p in called_paths)
+        assert any("/api/telemetry/app/my-app/activity" in p for p in spy.paths)
 
     def test_no_instance_omits_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """app activity with no --instance does NOT pass instance_index param."""
@@ -270,21 +243,16 @@ class TestCmdAppActivity:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_activity("my-app")
 
-        activity_call = next(r for r in received_params if "activity" in r["path"])
+        activity_call = next(r for r in spy.calls if "activity" in r["path"])
         # instance_index must not be present — API returns all instances when absent
         params = activity_call["params"] or {}
         assert "instance_index" not in params
@@ -295,22 +263,17 @@ class TestCmdAppActivity:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         since_epoch = 1_700_000_000.0
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_activity("my-app", since=since_epoch, limit=10)
 
-        activity_call = next(r for r in received_params if "activity" in r["path"])
+        activity_call = next(r for r in spy.calls if "activity" in r["path"])
         assert activity_call["params"] is not None
         assert activity_call["params"]["since"] == since_epoch
         assert activity_call["params"]["limit"] == 10
@@ -321,21 +284,16 @@ class TestCmdAppActivity:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_activity("my-app", instance="2")
 
-        activity_call = next(r for r in received_params if "activity" in r["path"])
+        activity_call = next(r for r in spy.calls if "activity" in r["path"])
         assert activity_call["params"] is not None
         assert activity_call["params"]["instance_index"] == 2
 
@@ -360,11 +318,10 @@ class TestCmdAppActivity:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/activity", 200, [entry.model_dump()])]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_activity("my-app", ctx=CLIContext(json_mode=True))
 
@@ -393,21 +350,16 @@ class TestCmdAppConfig:
         """app config fetches from GET /api/apps/{key}/config."""
         cfg = make_app_config_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_config("my-app")
 
-        assert any("/api/apps/my-app/config" in p for p in called_paths)
+        assert any("/api/apps/my-app/config" in p for p in spy.paths)
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """app config renders a detail panel with app_key and class_name."""
@@ -426,11 +378,10 @@ class TestCmdAppConfig:
         """app config --json outputs a JSON object."""
         cfg = make_app_config_response(app_key="my-app", enabled=True)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
 
@@ -463,10 +414,9 @@ class TestCmdAppConfig:
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
 
@@ -485,10 +435,9 @@ class TestCmdAppConfig:
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
 
@@ -507,10 +456,9 @@ class TestCmdAppConfig:
             config_schema={"properties": {"setting_name": {"SCHEMA_BLOB_MARKER": True}}},
         )
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/config", 200, cfg.model_dump())])
-        captured: list[str] = []
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
 
@@ -527,21 +475,16 @@ class TestCmdAppSource:
         """app source fetches from GET /api/apps/{key}/source."""
         src = make_app_source_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
             cmd_app_source("my-app")
 
-        assert any("/api/apps/my-app/source" in p for p in called_paths)
+        assert any("/api/apps/my-app/source" in p for p in spy.paths)
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """app source renders a detail panel showing filename and content."""
@@ -559,11 +502,10 @@ class TestCmdAppSource:
         """app source --json outputs a JSON object with content field."""
         src = make_app_source_response(app_key="my-app", content="class MyApp: pass\n", line_count=1)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_app_source("my-app", ctx=CLIContext(json_mode=True))
 

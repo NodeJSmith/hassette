@@ -19,15 +19,14 @@ from unittest.mock import AsyncMock, MagicMock
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
-from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
-from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 from hassette.utils.date_utils import now
+from tests.unit.resources.conftest import wait_for_running
 
-from .conftest import HangingChild, ShutdownCounter
+from .conftest import HangingChild, ShutdownCounter, SimpleParent, SimpleService
 
 
 def make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
@@ -37,21 +36,6 @@ def make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
         pass
 
     return ScheduledJob(owner_id=owner_id, next_run=now(), job=_noop, name=name)
-
-
-class StubResource(Resource):
-    """Simple resource for testing _force_terminal()."""
-
-    pass
-
-
-class StubService(Service):
-    """Simple service for testing _force_terminal()."""
-
-    restart_spec = RestartSpec()
-
-    async def serve(self) -> None:
-        await asyncio.Event().wait()
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
@@ -106,10 +90,10 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
 async def test_force_terminal_recurses_to_grandchildren():
     """_force_terminal() recursively sets all descendants to STOPPED with shutdown_completed=True."""
     hassette = make_mock_hassette(sealed=False)
-    root = StubResource(hassette)
+    root = SimpleParent(hassette)
 
-    child = root.add_child(StubResource)
-    grandchild = child.add_child(StubResource)
+    child = root.add_child(SimpleParent)
+    grandchild = child.add_child(SimpleParent)
 
     # Initialize all so they're in RUNNING state
     await root.initialize()
@@ -131,8 +115,8 @@ async def test_force_terminal_recurses_to_grandchildren():
 async def test_force_terminal_cancels_task_bucket():
     """_force_terminal() calls cancel_all_sync() on each resource's task bucket."""
     hassette = make_mock_hassette(sealed=False)
-    root = StubResource(hassette)
-    child = root.add_child(StubResource)
+    root = SimpleParent(hassette)
+    child = root.add_child(SimpleParent)
 
     await root.initialize()
 
@@ -149,8 +133,8 @@ async def test_force_terminal_cancels_task_bucket():
 async def test_force_terminal_skips_completed_children():
     """_force_terminal() returns early for resources with shutdown_completed=True."""
     hassette = make_mock_hassette(sealed=False)
-    root = StubResource(hassette)
-    child = root.add_child(StubResource)
+    root = SimpleParent(hassette)
+    child = root.add_child(SimpleParent)
 
     await root.initialize()
 
@@ -174,10 +158,10 @@ async def test_force_terminal_skips_completed_children():
 async def test_service_force_terminal_cancels_serve_task():
     """Service._force_terminal() cancels the _serve_task before calling super()."""
     hassette = make_mock_hassette(sealed=False)
-    svc = StubService(hassette)
+    svc = SimpleService(hassette)
 
     await svc.initialize()
-    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+    await wait_for_running(svc)
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
@@ -257,13 +241,13 @@ async def test_finalize_shutdown_resets_initializing_flag():
     """_finalize_shutdown() clears initializing regardless of how shutdown was triggered."""
     hassette = make_mock_hassette(sealed=False)
 
-    resource1 = StubResource(hassette)
+    resource1 = SimpleParent(hassette)
     resource1.initializing = True
     resource1.shutdown_event.set()
     await resource1._finalize_shutdown()
     assert resource1.initializing is False
 
-    resource2 = StubResource(hassette)
+    resource2 = SimpleParent(hassette)
     resource2.initializing = True
     resource2.shutdown_event.clear()
     await resource2._finalize_shutdown()

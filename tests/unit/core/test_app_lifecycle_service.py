@@ -10,6 +10,8 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
+from .conftest import make_mock_app_instance
+
 
 class TestAppLifecycleServiceInit:
     def test_stores_registry_reference(
@@ -114,26 +116,8 @@ class TestInitializeInstances:
 
     async def test_multiple_instances(self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock) -> None:
         """Initializes all provided instances."""
-        app1 = AsyncMock()
-        app1.app_config = MagicMock(instance_name="instance_0")
-        app1.initialize = AsyncMock()
-        app1.mark_ready = Mock()
-        app1.bus = MagicMock()
-        app1.bus.get_listeners = Mock(return_value=[])
-        app1.bus.owner_id = "TestApp.instance_0"
-        app1.scheduler = MagicMock()
-        app1.scheduler.get_job_db_ids = Mock(return_value=[])
-
-        app2 = AsyncMock()
-        app2.app_config = MagicMock(instance_name="instance_1")
-        app2.initialize = AsyncMock()
-        app2.mark_ready = Mock()
-        app2.bus = MagicMock()
-        app2.bus.get_listeners = Mock(return_value=[])
-        app2.bus.owner_id = "TestApp.instance_1"
-        app2.scheduler = MagicMock()
-        app2.scheduler.get_job_db_ids = Mock(return_value=[])
-
+        app1 = make_mock_app_instance(instance_name="instance_0", class_name="TestApp")
+        app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
         instances = {0: app1, 1: app2}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -184,25 +168,10 @@ class TestInitializeInstances:
         self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock, mock_registry: MagicMock
     ) -> None:
         """Initializes remaining instances after one fails."""
-        app1 = AsyncMock()
-        app1.app_config = MagicMock(instance_name="instance_0")
+        app1 = make_mock_app_instance(instance_name="instance_0", class_name="TestApp")
         app1.initialize = AsyncMock(side_effect=ValueError("Failed"))
-        app1.status = ResourceStatus.NOT_STARTED
-        app1.bus = MagicMock()
-        app1.bus.get_listeners = Mock(return_value=[])
-        app1.bus.owner_id = "TestApp.instance_0"
-        app1.scheduler = MagicMock()
-        app1.scheduler.get_job_db_ids = Mock(return_value=[])
 
-        app2 = AsyncMock()
-        app2.app_config = MagicMock(instance_name="instance_1")
-        app2.initialize = AsyncMock()
-        app2.mark_ready = Mock()
-        app2.bus = MagicMock()
-        app2.bus.get_listeners = Mock(return_value=[])
-        app2.bus.owner_id = "TestApp.instance_1"
-        app2.scheduler = MagicMock()
-        app2.scheduler.get_job_db_ids = Mock(return_value=[])
+        app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
 
         instances = {0: app1, 1: app2}
 

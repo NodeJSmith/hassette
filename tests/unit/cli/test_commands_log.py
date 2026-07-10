@@ -13,7 +13,7 @@ from hassette.cli.commands.log import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
-from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
 
 # cmd_log — recent log entries
 
@@ -23,41 +23,31 @@ class TestCmdLog:
         """log (no flags) fetches from GET /api/logs/recent."""
         entry = make_log_entry_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_log()
 
-        assert "/api/logs/recent" in called_paths
+        assert "/api/logs/recent" in spy.paths
 
     def test_app_flag_passes_app_key_as_query_param(self, cli_client_factory: CLIClientFactory) -> None:
         """log --app my-app passes app_key=my-app as a query param (not routing)."""
         entry = make_log_entry_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_log(app="my-app")
 
-        logs_call = next(r for r in received_params if "logs/recent" in r["path"])
+        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
         assert logs_call["params"]["app_key"] == "my-app"
 
@@ -65,43 +55,33 @@ class TestCmdLog:
         """log --app my-app still uses /api/logs/recent, not a per-app endpoint."""
         entry = make_log_entry_response(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_log(app="my-app")
 
-        assert all("/api/logs/recent" in p for p in called_paths)
-        assert not any("telemetry/app" in p for p in called_paths)
+        assert all("/api/logs/recent" in p for p in spy.paths)
+        assert not any("telemetry/app" in p for p in spy.paths)
 
     def test_since_and_limit_passed_as_params(self, cli_client_factory: CLIClientFactory) -> None:
         """log --since 1h --limit 20 passes since (epoch float) and limit=20."""
         entry = make_log_entry_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         since_epoch = 1_700_000_000.0
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_log(since=since_epoch, limit=20)
 
-        logs_call = next(r for r in received_params if "logs/recent" in r["path"])
+        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
         assert logs_call["params"]["since"] == since_epoch
         assert logs_call["params"]["limit"] == 20
@@ -110,21 +90,16 @@ class TestCmdLog:
         """log --source-tier framework passes source_tier=framework as a query param."""
         entry = make_log_entry_response()
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_log(source_tier="framework")
 
-        logs_call = next(r for r in received_params if "logs/recent" in r["path"])
+        logs_call = next(r for r in spy.calls if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
         assert logs_call["params"]["source_tier"] == "framework"
 
@@ -160,11 +135,10 @@ class TestCmdLog:
         """log --json outputs the log entries as a JSON array."""
         entry = make_log_entry_response(message="Hello world", level="WARNING")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_log(ctx=CLIContext(json_mode=True))
 
@@ -209,21 +183,16 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", f"/api/executions/{execution_id}", 200, response_obj.model_dump())]
         )
-        called_paths: list[str] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            called_paths.append(path)
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_execution(uuid="abc-123-def")
 
-        assert f"/api/executions/{execution_id}" in called_paths
+        assert f"/api/executions/{execution_id}" in spy.paths
 
     def test_limit_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """execution <uuid> --limit 50 passes limit=50 as a query param."""
@@ -231,21 +200,16 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/abc-123", 200, response_obj.model_dump())]
         )
-        received_params: list[dict] = []
-        original_get = client.get
-
-        def tracking_get(path, model, params=None):
-            received_params.append({"path": path, "params": params})
-            return original_get(path, model, params=params)
+        spy = GetSpy(client)
 
         with (
-            patch.object(client, "get", side_effect=tracking_get),
+            patch.object(client, "get", side_effect=spy),
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
             cmd_execution(uuid="abc-123", limit=50)
 
-        exec_call = next(r for r in received_params if "executions" in r["path"])
+        exec_call = next(r for r in spy.calls if "executions" in r["path"])
         assert exec_call["params"] is not None
         assert exec_call["params"]["limit"] == 50
 
@@ -289,11 +253,10 @@ class TestCmdExecution:
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-3", 200, response_obj.model_dump())]
         )
-        captured: list[str] = []
 
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
-            patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            capture_json_stdout() as captured,
         ):
             cmd_execution(uuid="exec-3", ctx=CLIContext(json_mode=True))
 

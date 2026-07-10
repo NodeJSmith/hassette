@@ -25,15 +25,9 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
+from tests.unit.resources.lifecycle.conftest import SimpleService
 
-from .conftest import build_hassette
-
-
-class SimpleService(Service):
-    restart_spec = RestartSpec()
-
-    async def serve(self) -> None:
-        await asyncio.Event().wait()  # block forever until cancelled
+from .conftest import build_hassette, wait_for_running
 
 
 class _DepType(Resource):
@@ -126,7 +120,7 @@ class TestServiceShutdownIdempotency:
         hassette = make_mock_hassette(sealed=False)
         svc = SimpleService(hassette)
         await svc.initialize()
-        await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+        await wait_for_running(svc)
 
         calls: list[str] = []
 
@@ -144,7 +138,7 @@ class TestServiceShutdownIdempotency:
         hassette = make_mock_hassette(sealed=False)
         svc = SimpleService(hassette)
         await svc.initialize()
-        await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+        await wait_for_running(svc)
 
         svc.shutting_down = True  # simulate a concurrent shutdown already in progress
 
@@ -200,7 +194,7 @@ class TestIsRunning:
         assert svc.is_running() is False, "never started — no serve task"
 
         await svc.initialize()
-        await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+        await wait_for_running(svc)
         assert svc.is_running() is True, "serve task spawned and not done"
 
         await svc.shutdown()

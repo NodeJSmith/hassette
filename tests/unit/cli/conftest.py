@@ -1,6 +1,7 @@
 """Shared CLI test fixtures for CLI client and command tests."""
 
 import json
+from collections.abc import Generator
 from contextlib import contextmanager
 from io import StringIO
 from typing import Any
@@ -13,6 +14,37 @@ from rich.console import Console
 import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
+
+
+class GetSpy:
+    """Wraps ``client.get`` to record paths and params for assertion.
+
+    Pass as ``side_effect`` to ``patch.object(client, "get", side_effect=spy)``.
+    """
+
+    def __init__(self, client: HassetteCLIClient) -> None:
+        self.paths: list[str] = []
+        self.calls: list[dict[str, Any]] = []
+        self._original = client.get
+
+    def __call__(
+        self,
+        path: str,
+        model: type[object],
+        params: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> object:
+        self.paths.append(path)
+        self.calls.append({"path": path, "params": params})
+        return self._original(path, model, params=params, **kwargs)
+
+
+@contextmanager
+def capture_json_stdout() -> Generator[list[str], None, None]:
+    """Capture raw ``sys.stdout.write`` calls (used by JSON-mode commands)."""
+    captured: list[str] = []
+    with patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)):
+        yield captured
 
 
 @contextmanager

@@ -11,22 +11,8 @@ from hassette.resources.base import FinalMeta
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette, wait_for
-from hassette.types.enums import ResourceStatus
-
-
-class SimpleService(Service):
-    """Minimal concrete Service for testing."""
-
-    restart_spec = RestartSpec()
-    served: bool = False
-
-    async def serve(self) -> None:
-        self.served = True
-        # Block until cancelled so the task stays alive
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            raise
+from tests.unit.resources.conftest import wait_for_running
+from tests.unit.resources.lifecycle.conftest import SimpleService
 
 
 class ServiceWithCustomHooks(Service):
@@ -79,7 +65,7 @@ async def test_serve_task_spawned_even_when_on_initialize_overridden():
     svc.order = []  # pyright: ignore[reportAttributeAccessIssue]
 
     await svc.initialize()
-    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+    await wait_for_running(svc)
 
     assert svc.init_called, "on_initialize should have been called"
     assert svc._serve_task is not None, "serve task should have been spawned"
@@ -95,7 +81,7 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
     svc = ServiceWithCustomHooks(hassette)
 
     await svc.initialize()
-    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+    await wait_for_running(svc)
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
@@ -131,7 +117,7 @@ async def test_serve_task_cancelled_before_on_shutdown():
     svc.order = []
 
     await svc.initialize()
-    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+    await wait_for_running(svc)
 
     svc.order.clear()  # reset to only track shutdown ordering
     await svc.shutdown()
@@ -184,7 +170,7 @@ async def test_simple_service_completes_full_lifecycle():
     svc = SimpleService(hassette)
 
     await svc.initialize()
-    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+    await wait_for_running(svc)
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
