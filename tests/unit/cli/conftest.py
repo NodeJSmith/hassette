@@ -16,6 +16,7 @@ from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 
 SINCE_EPOCH = 1_700_000_000.0
+NOW_EPOCH = 1_748_000_000.0
 
 
 class GetSpy:

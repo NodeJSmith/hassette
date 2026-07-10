@@ -6,8 +6,7 @@ import pytest
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.types import convert_since
-
-NOW_EPOCH = 1_748_000_000.0
+from tests.unit.cli.conftest import NOW_EPOCH
 
 
 def _fixed_now() -> float:
