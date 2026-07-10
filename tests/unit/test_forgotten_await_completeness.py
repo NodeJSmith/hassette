@@ -29,8 +29,9 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
+from hassette.test_utils.factories import make_mock_parent
 from hassette.utils.date_utils import now
-from tests.unit.conftest import make_api, make_mock_parent
+from tests.unit.conftest import make_api
 
 # Canonical protected-method list — single source of truth consumed by every guard in this file.
 

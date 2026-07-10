@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hassette.test_utils.factories import make_mock_parent
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -30,13 +32,7 @@ async def hassette_with_bus(
 def bus(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource with a mock parent that has an app_key."""
     b = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
-    mock_parent = Mock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    b.parent = mock_parent
+    b.parent = make_mock_parent(app_key="test_app", index=0, unique_name="test_app.0", source_tier="app")
     return b  # pyright: ignore[reportReturnType]
 
 

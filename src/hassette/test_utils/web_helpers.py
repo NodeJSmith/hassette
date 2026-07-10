@@ -80,6 +80,7 @@ def make_manifest(
     instances: list[AppInstanceInfo] | None = None,
     error_message: str | None = None,
     error_traceback: str | None = None,
+    autostart: bool = True,
 ) -> AppManifestInfo:
     """Build an AppManifestInfo with sensible defaults."""
     return AppManifestInfo(
@@ -95,6 +96,7 @@ def make_manifest(
         instances=instances or [],
         error_message=error_message,
         error_traceback=error_traceback,
+        autostart=autostart,
     )
 
 

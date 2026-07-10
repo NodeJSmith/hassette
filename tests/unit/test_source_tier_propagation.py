@@ -19,6 +19,7 @@ from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
+from hassette.test_utils.factories import make_mock_parent
 from hassette.types.enums import ExecutionMode
 
 if typing.TYPE_CHECKING:
@@ -71,12 +72,7 @@ async def app_bus(
     """Bus whose parent is an App (source_tier='app')."""
     async with hassette_harness(test_config).with_bus() as harness:
         bus = harness.hassette._bus
-        mock_parent = Mock()
-        mock_parent.source_tier = "app"
-        mock_parent.app_key = "my_app"
-        mock_parent.index = 0
-        mock_parent.unique_name = "MyApp.0"
-        bus.parent = mock_parent
+        bus.parent = make_mock_parent(source_tier="app", app_key="my_app", index=0, unique_name="MyApp.0")
         yield bus
 
 
@@ -134,11 +130,12 @@ def make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     """Create a minimal Scheduler with a mocked parent at the given source_tier."""
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
 
-    mock_parent = Mock()
-    mock_parent.source_tier = source_tier
-    mock_parent.app_key = "test_app" if source_tier == "app" else ""
-    mock_parent.index = 0
-    mock_parent.unique_name = "TestParent"
+    mock_parent = make_mock_parent(
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+        app_key="test_app" if source_tier == "app" else "",
+        index=0,
+        unique_name="TestParent",
+    )
 
     _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
     _TestScheduler.parent = property(lambda _self: mock_parent)  # pyright: ignore[reportAttributeAccessIssue]

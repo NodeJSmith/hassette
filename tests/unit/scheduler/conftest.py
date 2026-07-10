@@ -6,16 +6,13 @@ from whenever import ZonedDateTime
 
 from hassette.scheduler import Scheduler
 from hassette.scheduler.classes import ScheduledJob
+from hassette.test_utils.factories import make_mock_parent
 
 TZ = "America/Chicago"
 
 
 def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: int = 0) -> ZonedDateTime:
     return ZonedDateTime(year, month, day, hour, minute, second, tz=TZ)
-
-
-async def noop() -> None:
-    pass
 
 
 def make_scheduler() -> Scheduler:
@@ -39,10 +36,5 @@ def make_scheduler() -> Scheduler:
     scheduler.scheduler_service = mock_service
     scheduler._unique_name = "test_scheduler"
     scheduler._error_handler = None
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestParent"
-    scheduler.parent = mock_parent
+    scheduler.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app", class_name="TestParent")
     return scheduler

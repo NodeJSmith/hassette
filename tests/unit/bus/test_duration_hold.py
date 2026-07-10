@@ -21,14 +21,8 @@ from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
+from hassette.test_utils.factories import make_mock_executor
 from hassette.test_utils.helpers import create_listener, make_state_dict
-
-
-def make_executor() -> MagicMock:
-    """Create a mock executor with an async execute method."""
-    executor = MagicMock()
-    executor.execute = AsyncMock()
-    return executor
 
 
 def make_config_resolver(value: float | None = 30.0) -> Callable[[], float | None]:
@@ -73,7 +67,7 @@ def make_manager(
     if task_bucket is None:
         task_bucket = make_task_bucket_with_spawn()
     if executor is None:
-        executor = make_executor()
+        executor = make_mock_executor()
     if router is None:
         router = Router()
     return DurationHoldManager(
@@ -105,7 +99,7 @@ class TestConstruction:
 class TestImmediateFireTask:
     async def test_returns_early_when_state_reader_returns_none(self) -> None:
         """immediate_fire_task returns early (no dispatch) when state_reader returns None."""
-        executor = make_executor()
+        executor = make_mock_executor()
         manager = make_manager(executor=executor)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -119,7 +113,7 @@ class TestImmediateFireTask:
 
     async def test_calls_state_reader_and_dispatches(self) -> None:
         """immediate_fire_task calls state_reader and dispatches when state exists and predicate matches."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state, executor=executor)
         listener = create_listener(
@@ -134,7 +128,7 @@ class TestImmediateFireTask:
 
     async def test_logs_error_and_returns_when_no_entity_id(self) -> None:
         """immediate_fire_task logs error and returns early when listener has no entity_id."""
-        executor = make_executor()
+        executor = make_mock_executor()
         manager = make_manager(state=make_state_dict("light.kitchen", "on"), executor=executor)
         # Listener without entity_id (no duration_config)
         listener = create_listener(
@@ -149,7 +143,7 @@ class TestImmediateFireTask:
 
     async def test_removes_listener_on_once_after_non_duration_fire(self) -> None:
         """immediate_fire_task calls remove_listener when once=True after non-duration dispatch."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "on")
         remove_listener = make_remove_listener()
         manager = make_manager(state=state, executor=executor, remove_listener=remove_listener)
@@ -166,7 +160,7 @@ class TestImmediateFireTask:
 
     async def test_does_not_dispatch_when_predicate_does_not_match(self) -> None:
         """immediate_fire_task does not dispatch when listener predicate returns False."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "off")
 
         # Predicate that never matches

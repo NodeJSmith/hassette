@@ -70,7 +70,7 @@ async def test_scheduler_sync_facade_schedules_job_from_sync_init():
 async def test_bus_sync_facade_raises_inside_event_loop():
     """Calling the bus facade from the loop thread fails fast instead of deadlocking."""
 
-    def noop(event: RawStateChangeEvent) -> None:
+    def noop(event: RawStateChangeEvent) -> None:  # factory-local: sync handler with event param for facade tests
         pass
 
     async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
@@ -81,7 +81,7 @@ async def test_bus_sync_facade_raises_inside_event_loop():
 async def test_scheduler_sync_facade_raises_inside_event_loop():
     """Calling the scheduler facade from the loop thread fails fast instead of deadlocking."""
 
-    def noop() -> None:
+    def noop() -> None:  # factory-local: sync no-arg handler for facade tests
         pass
 
     async with AppTestHarness(SyncRegisteringApp, config={}) as harness:

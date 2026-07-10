@@ -10,18 +10,13 @@ import asyncio
 from unittest.mock import MagicMock
 
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
-from hassette.events.base import Event
+from hassette.test_utils.factories import make_mock_event
 from hassette.test_utils.helpers import create_listener
 from hassette.types.enums import BackpressurePolicy
 
 from .conftest import make_bus_service
 
 TEST_TIMEOUT = 1.0
-
-
-def make_event() -> Event:
-    """Minimal non-hass event — routes to its base topic verbatim (no state_changed expansion)."""
-    return MagicMock(spec=Event)
 
 
 def register_listeners(svc: BusService, topic: str, count: int) -> None:
@@ -62,7 +57,7 @@ async def test_dispatch_bounds_concurrent_handlers() -> None:
 
     svc._dispatch = blocking_dispatch
 
-    dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_event()))
+    dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_mock_event()))
 
     # Two handlers reach their gate. Because acquire is synchronous when a permit is free,
     # the dispatch loop has already reached and blocked on the third acquire by the time both
@@ -96,7 +91,7 @@ async def test_dispatch_under_limit_runs_all_without_blocking() -> None:
 
     svc._dispatch = counting_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     assert seen == 3
@@ -113,7 +108,7 @@ async def test_slot_released_when_handler_raises() -> None:
 
     svc._dispatch = failing_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     await assert_all_slots_reacquirable(svc, 2)
@@ -139,7 +134,7 @@ async def test_slot_released_when_handler_cancelled() -> None:
 
     svc._dispatch = hanging_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     assert svc._dispatch_semaphore.locked()  # both slots held by the hanging handlers
 
     # Cancel the in-flight handler tasks (as shutdown would).
@@ -189,7 +184,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
 
     svc._dispatch = spy_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
 
     assert not handler_invoked, "DROP_NEWEST handler must not be invoked under saturation"
     assert listener.invoker.backpressure_dropped == 1, "backpressure_dropped must increment by one per dropped event"
@@ -208,7 +203,7 @@ async def test_drop_newest_multiple_drops_increment_counter() -> None:
     svc.router.add_route(listener.topic, listener)
     svc._dispatch = MagicMock()  # never called
 
-    event = make_event()
+    event = make_mock_event()
     await asyncio.wait_for(svc.dispatch("test.topic", event), timeout=TEST_TIMEOUT)
     await asyncio.wait_for(svc.dispatch("test.topic", event), timeout=TEST_TIMEOUT)
     await asyncio.wait_for(svc.dispatch("test.topic", event), timeout=TEST_TIMEOUT)
@@ -233,7 +228,7 @@ async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
 
     svc._dispatch = counting_dispatch
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
 
     assert dispatched == 1
@@ -270,7 +265,7 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
     svc.warn_dispatch_saturated = signaling_warn
 
     # Start dispatch — it will block waiting for the semaphore slot.
-    dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_event()))
+    dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_mock_event()))
 
     # Deterministic: proceed only once dispatch has reached the saturated-acquire point.
     await asyncio.wait_for(reached_block.wait(), timeout=TEST_TIMEOUT)
@@ -297,7 +292,7 @@ async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
     pending_before = svc._dispatch_pending
     idle_was_set = svc._dispatch_idle_event.is_set()
 
-    await asyncio.wait_for(svc.dispatch("test.topic", make_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
 
     assert svc._dispatch_pending == pending_before
     assert svc._dispatch_idle_event.is_set() == idle_was_set

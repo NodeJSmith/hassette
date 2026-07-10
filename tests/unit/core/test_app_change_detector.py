@@ -99,7 +99,7 @@ class TestAppChangeDetector:
         return AppChangeDetector()
 
     @pytest.fixture
-    def make_manifest(self) -> Callable:
+    def make_manifest(self) -> Callable:  # factory-local: fixture factory returning Callable
         """Factory for creating mock manifests."""
 
         def _make(app_key: str, full_path: Path | None = None, app_config: dict | None = None) -> MagicMock:

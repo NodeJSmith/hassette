@@ -8,12 +8,9 @@ that the two sides share the same calls list.
 import inspect
 import types
 from enum import StrEnum
-from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.conversion import STATE_REGISTRY
-from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
 from hassette.models.helpers import (
@@ -35,21 +32,9 @@ from hassette.models.helpers import (
     UpdateTimerParams,
 )
 from hassette.models.services import ServiceResponse
-from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.factories import make_recording_api
 from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.recording_api import RecordingApi
 from hassette.test_utils.sync_facade import STUB_MSG_GENERIC, STUB_MSG_STATE_CONVERSION, RecordingSyncFacade
-
-
-def make_recording_api(states: dict | None = None) -> RecordingApi:
-    """Create a RecordingApi with an optional pre-seeded StateProxy."""
-    hassette = make_mock_hassette(sealed=False)
-    hassette.state_registry = STATE_REGISTRY
-    state_proxy = AsyncMock(spec=StateProxy)
-    state_proxy.states = states or {}
-    state_proxy.is_ready = lambda: True
-    api = RecordingApi(hassette, state_proxy=state_proxy)
-    return api
 
 
 async def test_recording_api_sync_is_recording_sync_facade():

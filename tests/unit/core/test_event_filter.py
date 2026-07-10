@@ -18,7 +18,8 @@ import whenever
 
 from hassette.core.event_filter import EventFilter
 from hassette.events import Event, HassPayload
-from hassette.events.base import HassContext, HassettePayload
+from hassette.events.base import HassContext
+from hassette.test_utils.factories import make_hassette_event
 
 
 def make_logger() -> logging.Logger:
@@ -53,11 +54,6 @@ def make_hass_payload(event_type: str = "state_changed", data=None) -> HassPaylo
 def make_hass_event(event_type: str = "state_changed", data=None) -> Event:
     payload = make_hass_payload(event_type=event_type, data=data)
     return Event(topic=f"hass.{event_type}", payload=payload)
-
-
-def make_hassette_event() -> Event:
-    payload = HassettePayload(data=None)
-    return Event(topic="hassette.ready", payload=payload)
 
 
 def make_no_payload_event() -> Event:

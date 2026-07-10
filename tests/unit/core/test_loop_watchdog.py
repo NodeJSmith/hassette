@@ -62,7 +62,9 @@ def make_hassette(*, behavior: BlockingIOBehavior | None = None) -> MagicMock:
     return h
 
 
-def make_executor(app_key: str | None = "test_app") -> MagicMock:
+def make_executor(  # factory-local: ExecutionMarker-based mock, not execute=AsyncMock() pattern
+    app_key: str | None = "test_app",
+) -> MagicMock:
     """Build a mock executor with a controllable current_execution marker.
 
     Stamps the marker with the current task id so the watchdog's task-identity confirmation

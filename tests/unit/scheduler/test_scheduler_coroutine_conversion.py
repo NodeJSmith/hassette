@@ -20,11 +20,12 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from hassette.test_utils.helpers import noop
 from hassette.utils.await_guard import RegistrationHandle
 from hassette.utils.date_utils import now
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
-from .conftest import make_scheduler, noop
+from .conftest import make_scheduler
 
 
 @pytest.fixture(autouse=True)

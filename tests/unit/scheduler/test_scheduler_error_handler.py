@@ -4,8 +4,9 @@ from unittest.mock import MagicMock, patch
 
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.helpers import noop
 
-from .conftest import make_scheduler, noop
+from .conftest import make_scheduler
 
 PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 

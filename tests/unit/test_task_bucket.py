@@ -23,6 +23,7 @@ import pytest
 
 from hassette.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.helpers import noop
 
 
 @pytest.fixture
@@ -175,9 +176,6 @@ class TestCrossThreadSpawnTimeout:
         bucket = TaskBucket(mock_h)
 
         error: Exception | None = None
-
-        async def noop() -> None:
-            pass
 
         def try_spawn() -> None:
             nonlocal error

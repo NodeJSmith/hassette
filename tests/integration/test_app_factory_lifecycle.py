@@ -50,7 +50,7 @@ def app_lifecycle(hassette_with_app_handler: "HassetteHarness", app_registry: Ap
     return AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
 
 
-def make_manifest(
+def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
     app_key: str, filename: str, class_name: str, app_config: dict | list[dict] | None = None, enabled: bool = True
 ) -> AppManifest:
     """Helper to create AppManifest instances for testing."""

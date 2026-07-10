@@ -63,7 +63,9 @@ def make_hassette(
     return h
 
 
-def make_executor(*, app_key: str | None = "test_app", instance_index: int | None = 0) -> MagicMock:
+def make_executor(  # factory-local: ExecutionMarker-based mock, not execute=AsyncMock() pattern
+    *, app_key: str | None = "test_app", instance_index: int | None = 0
+) -> MagicMock:
     executor = MagicMock()
     executor.current_execution = ExecutionMarker(
         app_key=app_key,

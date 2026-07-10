@@ -17,7 +17,7 @@ RECURRING_TRIGGER = Every(seconds=60)
 """Shared recurring-job trigger fixture — most tests here don't care about the interval value."""
 
 
-def make_scheduled_job(
+def make_scheduled_job(  # factory-local: wraps make_real_job with guard_running for trigger tests
     *,
     db_id: int = 1,
     mode: ExecutionMode = ExecutionMode.SINGLE,

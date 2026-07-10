@@ -12,7 +12,7 @@ from hassette.event_handling.predicates import ServiceDataWhere
 from hassette.events import Event
 
 
-def make_event(service_data: dict[str, typing.Any]) -> Event:
+def make_event(service_data: dict[str, typing.Any]) -> Event:  # factory-local: SimpleNamespace with service_data
     """Create a mock CallServiceEvent for testing."""
     payload = SimpleNamespace(data=SimpleNamespace(service_data=service_data))
     return typing.cast("Event", SimpleNamespace(payload=payload))

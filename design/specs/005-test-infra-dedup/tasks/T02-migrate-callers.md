@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Migrate all local factory callers to shared imports"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#7", "FR#12", "FR#13", "FR#15", "AC#1", "AC#2", "AC#3"]
 ---

@@ -35,6 +35,7 @@ from hassette.logging_ import (
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
+from hassette.test_utils.factories import make_mock_parent
 
 if TYPE_CHECKING:
     from contextvars import Token
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 TEST_TOKEN = "test-token"
 
 
-def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
+def make_sync_executor_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> HassetteConfig:
     return HassetteConfig(
         token=TEST_TOKEN,
         lifecycle={
@@ -55,7 +56,7 @@ def make_test_config(max_workers: int = 4, shutdown_timeout: float = 5.0) -> Has
 
 
 def make_sync_executor_hassette(max_workers: int = 4, shutdown_timeout: float = 5.0) -> MagicMock:
-    config = make_test_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
+    config = make_sync_executor_config(max_workers=max_workers, shutdown_timeout=shutdown_timeout)
     mock_hassette = MagicMock()
     mock_hassette.config = config
     mock_hassette.task_bucket = MagicMock()
@@ -80,19 +81,6 @@ def capture_saturation_warnings(svc: SyncExecutorService) -> list[tuple]:
     calls: list[tuple] = []
     svc.logger.warning = lambda msg, *a: calls.append((msg, *a))  # pyright: ignore[reportAttributeAccessIssue]
     return calls
-
-
-def make_mock_parent() -> MagicMock:
-    """Mock owning App resource with the attributes guard_await and telemetry read."""
-    parent = MagicMock()
-    parent.app_key = "test_app"
-    parent.index = 0
-    parent.unique_name = "test_app.0"
-    parent.source_tier = "app"
-    parent.class_name = "TestApp"
-    parent.app_config = MagicMock()
-    parent.app_config.forgotten_await_behavior = None
-    return parent
 
 
 def make_api() -> Api:

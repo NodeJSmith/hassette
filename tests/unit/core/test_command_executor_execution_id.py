@@ -9,11 +9,12 @@ import structlog.contextvars
 import uuid_utils
 import whenever
 
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import SYNTHETIC_ORIGIN
-from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
+from hassette.events.base import Event, HassContext, HassPayload
+from hassette.test_utils.factories import make_hassette_event, make_invoke_handler_cmd
 
 from .conftest import make_executor
 
@@ -31,12 +32,6 @@ def make_hass_event(origin: str = "LOCAL") -> Event:
     return Event(topic="hass.state_changed", payload=payload)
 
 
-def make_hassette_event() -> Event:
-    """Build a minimal HassettePayload-based Event."""
-    payload = HassettePayload(data=None)
-    return Event(topic="hassette.ready", payload=payload)
-
-
 def make_listener(*, side_effect=None) -> MagicMock:
     """Build a minimal Listener-like mock."""
     listener = MagicMock()
@@ -48,29 +43,6 @@ def make_listener(*, side_effect=None) -> MagicMock:
         listener.invoker.invoke = AsyncMock(side_effect=side_effect)
     listener.__repr__ = lambda _self: "Listener<test>"
     return listener
-
-
-def make_invoke_handler_cmd(
-    *,
-    listener: MagicMock | None = None,
-    event: Event | None = None,
-    app_level_error_handler=None,
-) -> MagicMock:
-    """Build a minimal InvokeHandler-like mock."""
-    if listener is None:
-        listener = make_listener()
-    if event is None:
-        event = make_hass_event()
-    cmd = MagicMock(spec=InvokeHandler)
-    cmd.source_tier = "app"
-    cmd.listener_id = 1
-    cmd.topic = "hass.state_changed"
-    cmd.listener = listener
-    cmd.event = event
-    cmd.effective_timeout = None
-    cmd.app_level_error_handler = app_level_error_handler
-    cmd.is_synthetic = False
-    return cmd
 
 
 def make_execute_job_cmd(*, side_effect=None, job_error_handler=None) -> MagicMock:

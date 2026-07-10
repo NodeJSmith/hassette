@@ -36,6 +36,7 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import ScheduledJob
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
+from hassette.test_utils.helpers import noop
 from hassette.types.enums import ExecutionMode
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
@@ -136,20 +137,12 @@ class TestSchedulerModeViaHarness:
 
     async def test_framework_tier_omitted_mode_resolves_to_parallel(self, hassette_with_scheduler) -> None:
         """Framework-tier schedule with mode=None resolves to ExecutionMode.PARALLEL."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=3600))
         assert job.mode is ExecutionMode.PARALLEL
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_explicit_mode_enum_passes_through(self, hassette_with_scheduler) -> None:
         """An explicit ExecutionMode enum is stored unchanged."""
-
-        async def noop() -> None:
-            pass
-
         for mode in ExecutionMode:
             job = await hassette_with_scheduler.scheduler.schedule(
                 noop, Every(seconds=3600), mode=mode, name=f"passthrough_{mode.value}"
@@ -159,10 +152,6 @@ class TestSchedulerModeViaHarness:
 
     async def test_string_coercion_all_modes(self, hassette_with_scheduler) -> None:
         """Each valid mode string is coerced to the corresponding ExecutionMode member."""
-
-        async def noop() -> None:
-            pass
-
         cases = [
             ("single", ExecutionMode.SINGLE),
             ("parallel", ExecutionMode.PARALLEL),
@@ -178,10 +167,6 @@ class TestSchedulerModeViaHarness:
 
     async def test_invalid_string_raises_value_error(self, hassette_with_scheduler) -> None:
         """An invalid mode string raises ValueError naming all valid values."""
-
-        async def noop() -> None:
-            pass
-
         with pytest.raises(ValueError, match="Invalid execution mode") as exc_info:
             await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=60), mode="bogus")
         msg = str(exc_info.value)
@@ -190,10 +175,6 @@ class TestSchedulerModeViaHarness:
 
     async def test_invalid_string_raises_before_job_registered(self, hassette_with_scheduler) -> None:
         """ValueError is raised before any job is registered."""
-
-        async def noop() -> None:
-            pass
-
         count_before = len(hassette_with_scheduler.scheduler.list_jobs())
         with pytest.raises(ValueError, match="Invalid execution mode"):
             await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=60), mode="not_a_mode")
@@ -201,10 +182,6 @@ class TestSchedulerModeViaHarness:
 
     async def test_guard_present_on_scheduled_job(self, hassette_with_scheduler) -> None:
         """The scheduled job has an ExecutionModeGuard created from its mode."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.schedule(
             noop, Every(seconds=3600), mode=ExecutionMode.SINGLE, name="guard_check"
         )
@@ -218,49 +195,29 @@ class TestSchedulerModeViaHarness:
 class TestOneShotModeAcceptance:
     async def test_run_in_accepts_mode_no_error(self, hassette_with_scheduler) -> None:
         """run_in accepts mode= keyword argument without raising."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode=ExecutionMode.QUEUED)
         assert job.mode is ExecutionMode.QUEUED
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_once_accepts_mode_no_error(self, hassette_with_scheduler) -> None:
         """run_once accepts mode= keyword argument without raising."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_once(noop, at="23:59", mode=ExecutionMode.RESTART)
         assert job.mode is ExecutionMode.RESTART
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_in_string_mode_coerced(self, hassette_with_scheduler) -> None:
         """run_in accepts a string mode and coerces it correctly."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode="parallel")
         assert job.mode is ExecutionMode.PARALLEL
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_in_invalid_string_raises(self, hassette_with_scheduler) -> None:
         """run_in with an invalid mode string raises ValueError (delegates to schedule())."""
-
-        async def noop() -> None:
-            pass
-
         with pytest.raises(ValueError, match="Invalid execution mode"):
             await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode="bad_mode")
 
     async def test_run_in_mode_stored_on_job(self, hassette_with_scheduler) -> None:
         """A run_in job with mode= stores the resolved mode and a guard on the job object."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_in(
             noop, delay=3600, mode=ExecutionMode.QUEUED, name="oneshot_mode_stored"
         )
@@ -275,10 +232,6 @@ class TestOneShotModeAcceptance:
 class TestConvenienceMethodModeForwarding:
     async def test_run_every_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_every forwards mode= and the resolved mode appears on the job."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_every(
             noop, seconds=60, mode=ExecutionMode.RESTART, name="every_restart"
         )
@@ -287,20 +240,12 @@ class TestConvenienceMethodModeForwarding:
 
     async def test_run_daily_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_daily forwards mode= to schedule()."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_daily(noop, at="03:00", mode="queued", name="daily_queued")
         assert job.mode is ExecutionMode.QUEUED
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_cron_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_cron forwards mode= to schedule()."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_cron(
             noop, "0 * * * *", mode=ExecutionMode.SINGLE, name="cron_single"
         )
@@ -309,10 +254,6 @@ class TestConvenienceMethodModeForwarding:
 
     async def test_run_minutely_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_minutely forwards mode= to schedule()."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_minutely(
             noop, minutes=5, mode="restart", name="minutely_restart"
         )
@@ -321,10 +262,6 @@ class TestConvenienceMethodModeForwarding:
 
     async def test_run_hourly_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_hourly forwards mode= to schedule()."""
-
-        async def noop() -> None:
-            pass
-
         job = await hassette_with_scheduler.scheduler.run_hourly(
             noop, hours=2, mode=ExecutionMode.QUEUED, name="hourly_queued"
         )
@@ -333,10 +270,6 @@ class TestConvenienceMethodModeForwarding:
 
     async def test_omitted_mode_default_is_parallel_for_framework(self, hassette_with_scheduler) -> None:
         """Omitting mode= on the framework-tier harness scheduler gives PARALLEL."""
-
-        async def noop() -> None:
-            pass
-
         jobs = await asyncio.gather(
             hassette_with_scheduler.scheduler.run_every(noop, seconds=60, name="fw_j1"),
             hassette_with_scheduler.scheduler.run_daily(noop, at="04:00", name="fw_j2"),

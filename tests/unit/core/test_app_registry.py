@@ -507,7 +507,9 @@ class TestAppRegistryAutostart:
     def registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def make_manifest(self, enabled: bool = True, autostart: bool = True) -> SimpleNamespace:
+    def make_manifest(  # factory-local: returns SimpleNamespace for registry tests
+        self, enabled: bool = True, autostart: bool = True
+    ) -> SimpleNamespace:
         return SimpleNamespace(enabled=enabled, autostart=autostart)
 
     def test_autostart_manifests_includes_autostart_true(self, registry: AppRegistry) -> None:

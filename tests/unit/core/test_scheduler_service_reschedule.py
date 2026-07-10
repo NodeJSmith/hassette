@@ -27,24 +27,9 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
+from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
-
-
-def make_job(
-    trigger=None,
-    jitter: float | None = None,
-    owner_id: str = "test_owner",
-) -> ScheduledJob:
-    """Create a minimal ScheduledJob for testing."""
-    now = date_utils.now()
-    return ScheduledJob(
-        owner_id=owner_id,
-        next_run=now,
-        job=lambda: None,
-        trigger=trigger,
-        jitter=jitter,
-    )
 
 
 def make_interval_trigger(*, next_returns=None, next_raises=None):
@@ -66,7 +51,7 @@ class TestRescheduleNoneRemovesJob:
         """next_run_time() returning None removes the job; job not re-enqueued."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # reset call counts after construction
@@ -81,7 +66,7 @@ class TestRescheduleNoneRemovesJob:
         """Exhausted job (trigger returns None) is removed via _remove_job."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
@@ -95,7 +80,7 @@ class TestRescheduleExceptionRemovesJob:
         """next_run_time() raising removes job and logs exception with job_id, callable, trigger."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_raises=RuntimeError("bad trigger"))
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
@@ -114,7 +99,7 @@ class TestRescheduleExceptionRemovesJob:
         """Exceptions from next_run_time() do NOT propagate — scheduler must not crash."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_raises=ValueError("trigger broken"))
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Should not raise
@@ -127,7 +112,7 @@ class TestRescheduleRecurring:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         original_run = job.next_run
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -145,7 +130,7 @@ class TestRescheduleRecurring:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Confirm that ScheduledJob has no 'repeat' attribute
@@ -161,7 +146,7 @@ class TestJitter:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig, jitter=10.0)
+        job = make_scheduled_job(trigger=trig, jitter=10.0)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Patch random.uniform to always return the max jitter
@@ -183,7 +168,7 @@ class TestJitter:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig, jitter=None)
+        job = make_scheduled_job(trigger=trig, jitter=None)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
@@ -195,7 +180,7 @@ class TestJitter:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig, jitter=None)
+        job = make_scheduled_job(trigger=trig, jitter=None)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)
@@ -207,7 +192,7 @@ class TestJitter:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig, jitter=60.0)
+        job = make_scheduled_job(trigger=trig, jitter=60.0)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         with patch("hassette.core.scheduler_service.random.uniform", return_value=30.0):
@@ -242,7 +227,7 @@ class TestJitter:
         base_time = date_utils.now()
         future_fire = base_time.add(seconds=60)
 
-        job = make_job(trigger=None, jitter=60.0)
+        job = make_scheduled_job(trigger=None, jitter=60.0)
         job.set_next_run(base_time.add(seconds=-10))  # next_run in past
         job.fire_at = future_fire  # fire_at in future
 
@@ -261,7 +246,7 @@ class TestRemovalCallbacks:
         """Registered callback invoked when next_run_time() returns None."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
-        job = make_job(trigger=trig, owner_id="owner_a")
+        job = make_scheduled_job(trigger=trig, owner_id="owner_a")
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
@@ -275,7 +260,7 @@ class TestRemovalCallbacks:
         """Registered callback invoked when next_run_time() raises."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_raises=RuntimeError("oops"))
-        job = make_job(trigger=trig, owner_id="owner_b")
+        job = make_scheduled_job(trigger=trig, owner_id="owner_b")
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
@@ -290,7 +275,7 @@ class TestRemovalCallbacks:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
-        job = make_job(trigger=trig, owner_id="owner_c")
+        job = make_scheduled_job(trigger=trig, owner_id="owner_c")
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
@@ -311,7 +296,7 @@ class TestRemovalCallbacks:
         """Callback registered for owner_A is not called when owner_B's job is removed."""
         svc = make_scheduler_service()
         trig = make_interval_trigger(next_returns=None)
-        job = make_job(trigger=trig, owner_id="owner_b")
+        job = make_scheduled_job(trigger=trig, owner_id="owner_b")
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback_a = MagicMock()
@@ -333,7 +318,7 @@ class TestRemovalCallbacks:
         # Simulate job already popped by serve loop
         svc._job_queue.remove_job = AsyncMock(return_value=False)
         trig = make_interval_trigger(next_returns=None)
-        job = make_job(trigger=trig, owner_id="owner_d")
+        job = make_scheduled_job(trigger=trig, owner_id="owner_d")
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         callback = MagicMock()
@@ -406,8 +391,8 @@ class TestRemoveJobsByOwnerCallbacks:
         """_remove_jobs_by_owner invokes registered callback for each removed job."""
         svc = make_scheduler_service()
 
-        job_a = make_job(owner_id="owner_x")
-        job_b = make_job(owner_id="owner_x")
+        job_a = make_scheduled_job(owner_id="owner_x")
+        job_b = make_scheduled_job(owner_id="owner_x")
         # remove_owner must return the actual removed jobs
         svc._job_queue.remove_owner = AsyncMock(return_value=[job_a, job_b])
 
@@ -423,7 +408,7 @@ class TestRemoveJobsByOwnerCallbacks:
     async def test_remove_jobs_by_owner_no_callback_no_crash(self) -> None:
         """_remove_jobs_by_owner with no registered callback doesn't crash."""
         svc = make_scheduler_service()
-        job = make_job(owner_id="owner_y")
+        job = make_scheduled_job(owner_id="owner_y")
         svc._job_queue.remove_owner = AsyncMock(return_value=[job])
 
         # No callback registered — must not raise
@@ -432,7 +417,7 @@ class TestRemoveJobsByOwnerCallbacks:
     async def test_remove_jobs_by_owner_callback_not_called_for_different_owner(self) -> None:
         """Callback for owner_a is not called when owner_b's jobs are removed."""
         svc = make_scheduler_service()
-        job = make_job(owner_id="owner_b")
+        job = make_scheduled_job(owner_id="owner_b")
         svc._job_queue.remove_owner = AsyncMock(return_value=[job])
 
         callback_a = MagicMock()
@@ -492,7 +477,7 @@ class TestNonFutureGuard:
         # Trigger returns a time 5s in the past
         past_time = date_utils.now().add(seconds=-5)
         trig = make_interval_trigger(next_returns=past_time)
-        job = make_job(trigger=trig)
+        job = make_scheduled_job(trigger=trig)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.dispatch_and_log(job)

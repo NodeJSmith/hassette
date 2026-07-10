@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "context"})
 
 
-def noop() -> None:
+async def noop() -> None:
     pass
 
 
@@ -524,7 +524,7 @@ def create_listener(
     """Test factory: build a Listener from simple kwargs.
 
     Constructs sub-structs internally and delegates to Listener.create().
-    Default handler is a sync lambda; default task_bucket is a MagicMock.
+    Default handler is an async no-op (`noop`); default task_bucket is a MagicMock.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
