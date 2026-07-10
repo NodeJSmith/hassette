@@ -31,7 +31,7 @@
   color: var(--warn);
   border: 1px solid var(--warn);
   border-radius: var(--r-pill);
-  padding: 1px var(--sp-2);
+  padding: var(--sp-px) var(--sp-2);
 }
 
 /* Services grid — compact tiles; anomalous services span the full row */

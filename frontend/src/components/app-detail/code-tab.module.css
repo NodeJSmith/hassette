@@ -37,7 +37,7 @@
   font-family: var(--font-mono);
   border: 1px solid var(--line-1);
   border-radius: var(--r-sm);
-  padding: 1px var(--sp-2);
+  padding: var(--sp-px) var(--sp-2);
 }
 
 .body {
@@ -52,7 +52,7 @@
   background-color: var(--bg-page) !important;
   border-radius: 0;
   font-size: var(--fs-small);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
 }
 
 :global([data-theme="dark"]) .body :global(.shiki) {

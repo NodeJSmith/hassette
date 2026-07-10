@@ -142,6 +142,8 @@ These document the current implemented token direction. Do not treat this sectio
 - **Body**: `Geist`, system UI fallback. Used for navigation, labels, explanatory text, and controls.
 - **Mono**: `Geist Mono`, UI monospace fallback. Used for code, IDs, timestamps, paths, timings, and dense table data.
 - **Current scale**: display 38px, h1 28px, h2 20px, h3 16px, body 14px, small 12.5px, micro 12px, xs 11px.
+- **Line heights**: `--lh-display` 1.05, `--lh-h1` 1.15, `--lh-h2` 1.25, `--lh-h3` 1.35, `--lh-body` 1.55, `--lh-relaxed` 1.6, `--lh-small` 1.5, `--lh-micro` 1.4, `--lh-xs` 1.3.
+- **Tracking**: `--tr-label-tight` 0.03em, `--tr-label-mid` 0.04em, `--tr-label` 0.05em, `--tr-label-wide` 0.07em.
 - **Current weights**: normal 400, medium 500, semibold 600, bold 700.
 
 **Guidance**: The serif display face should remain a deliberate accent. If a page title feels disconnected from the rest of the UI, integrate surrounding hierarchy rather than removing the character by default.
@@ -149,7 +151,7 @@ These document the current implemented token direction. Do not treat this sectio
 ### Spacing
 
 - **Base**: 4px grid with half-steps where useful.
-- **Scale**: `--sp-0` 2px, `--sp-1` 4px, `--sp-2` 8px, `--sp-3` 12px, `--sp-4` 16px, `--sp-5` 20px, `--sp-6` 24px, `--sp-7` 32px, `--sp-8` 40px, `--sp-9` 56px, `--sp-10` 72px.
+- **Scale**: `--sp-px` 1px, `--sp-0` 2px, `--sp-1` 4px, `--sp-2` 8px, `--sp-3` 12px, `--sp-4` 16px, `--sp-5` 20px, `--sp-6` 24px, `--sp-7` 32px, `--sp-8` 40px, `--sp-9` 56px, `--sp-10` 72px.
 - **Current page rhythm**: `.ht-page` uses larger desktop padding and gaps, then tightens below mobile breakpoints.
 
 **Guidance**: Use spacing to clarify hierarchy, not to make the product airy. This UI should remain compact.
@@ -169,10 +171,22 @@ These document the current implemented token direction. Do not treat this sectio
 
 **Guidance**: Large rounded panels should be used carefully. Keep dense diagnostic elements tighter than marketing-style cards.
 
+### Component Sizing
+
+- `--sz-sidebar` 240px — sidebar width, used in layout grid and mobile drawer.
+- `--sz-search-min` 160px — minimum width for search inputs.
+- `--sz-touch` 44px, `--sz-icon-sm` 14px.
+
+### Effects
+
+- `--blur-overlay` 2px — backdrop blur for overlays (command palette, confirm dialog).
+- `--border-thick` 3px — heavy borders (spinner track, error accent borders).
+
 ### Motion
 
 - **Micro**: `--t-fast` 120ms.
 - **Transition**: `--t-med` 200ms.
+- **Spin**: `--t-spin` 0.8s — spinner animation duration.
 - **Easing**: `cubic-bezier(0.4, 0, 0.2, 1)`.
 
 **Guidance**: Motion should confirm interactions and orient users during overlays/drawers. Avoid decorative animation except for meaningful live-status indicators like the connection pulse.

@@ -14,7 +14,7 @@
 }
 .trigger:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: var(--sp-0);
 }
 
 .list {
@@ -59,5 +59,5 @@
 }
 .resetBtn:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: var(--sp-0);
 }

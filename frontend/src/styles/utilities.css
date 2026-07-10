@@ -83,7 +83,7 @@
   font-size: var(--fs-micro);
   overflow-x: auto;
   white-space: pre;
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
 }
 
 /* — Detail Label ——————————————————————————————————————— */
@@ -160,7 +160,7 @@
   background: var(--input-bg);
   color: var(--ink-1);
   outline: none;
-  min-width: 160px;
+  min-width: var(--sz-search-min);
   align-self: flex-end;
 }
 

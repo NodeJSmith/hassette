@@ -7,7 +7,7 @@
   gap: var(--sp-2);
   padding: var(--sp-3);
   cursor: pointer;
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--ease);
   background: var(--bg-surface);
   /* Button reset */
   border: none;
@@ -72,11 +72,11 @@
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
   border-radius: var(--r-sm);
-  padding: 1px var(--sp-1);
+  padding: var(--sp-px) var(--sp-1);
   color: var(--ink-3);
   text-transform: lowercase;
   letter-spacing: var(--tr-label-tight);
-  line-height: 1.4;
+  line-height: var(--lh-micro);
 }
 
 .name {
@@ -140,9 +140,9 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   border-radius: var(--r-sm);
-  padding: 1px var(--sp-1);
+  padding: var(--sp-px) var(--sp-1);
   color: var(--ink-3);
   text-transform: lowercase;
   letter-spacing: var(--tr-label-tight);
-  line-height: 1.4;
+  line-height: var(--lh-micro);
 }

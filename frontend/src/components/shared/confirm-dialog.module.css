@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(var(--blur-overlay));
 }
 
 .dialog {

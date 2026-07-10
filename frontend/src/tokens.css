@@ -78,6 +78,7 @@
   --tr-h3: -0.005em;
   --fs-body: 14px;
   --lh-body: 1.55;
+  --lh-relaxed: 1.6;
   --fs-small: 12.5px;
   --lh-small: 1.5;
   --fs-micro: 12px;
@@ -85,12 +86,14 @@
   --fs-xs: 11px;
   --lh-xs: 1.3;
   --tr-label-tight: 0.03em;
+  --tr-label-mid: 0.04em;
   --tr-label: 0.05em;
   --tr-label-wide: 0.07em;
   --fs-mono-sm: 12px;
   --fs-mono-md: 13px;
 
   /* Spacing (4px grid, half-steps where needed) */
+  --sp-px: 1px;
   --sp-0: 2px;
   --sp-1: 4px;
   --sp-2: 8px;
@@ -108,6 +111,8 @@
   /* Component sizing */
   --sz-touch: 44px;
   --sz-icon-sm: 14px;
+  --sz-sidebar: 240px;
+  --sz-search-min: 160px;
 
   /* Additional font sizes */
   --fs-stat: 26px;
@@ -143,6 +148,11 @@
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --t-fast: 120ms;
   --t-med: 200ms;
+  --t-spin: 0.8s;
+
+  /* Effects */
+  --blur-overlay: 2px;
+  --border-thick: 3px;
 
   /* Z-index scale */
   --z-table-head: 1;

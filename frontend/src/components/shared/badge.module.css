@@ -8,7 +8,7 @@
   font-weight: var(--fw-medium);
   padding: 0.15em 0.55em;
   border-radius: var(--r-pill);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -16,7 +16,7 @@
 .xs {
   font-size: var(--fs-xs);
   padding: 0.05em 0.4em;
-  line-height: 1.4;
+  line-height: var(--lh-micro);
 }
 
 .sm {
