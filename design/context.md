@@ -182,7 +182,7 @@ These document the current implemented token direction. Do not treat this sectio
 - `--sz-dialog-min` 320px — minimum width for dialogs (confirm dialog).
 - `--sz-dialog-max` 480px — maximum width for dialogs (confirm dialog).
 - `--sz-drawer` 400px — log detail drawer width (grid column + fixed panel).
-- `--sz-palette` 620px — command palette width (clamped to 90vw on small screens).
+- `--sz-palette` 620px — command palette width (clamped to 90% on small screens).
 
 ### Component Padding & Gap
 
