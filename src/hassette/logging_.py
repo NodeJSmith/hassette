@@ -20,7 +20,6 @@ import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
 
-MAX_SNAPSHOT_RETRIES = 5
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
 if TYPE_CHECKING:
@@ -100,19 +99,6 @@ class LogCaptureHandler(logging.Handler):
     @property
     def buffer(self) -> deque[LogEntry]:
         return self._buffer
-
-    def get_buffer_snapshot(self) -> list[LogEntry]:
-        """Return a thread-safe snapshot of the buffer.
-
-        The underlying deque can be mutated by emit() from worker threads,
-        so iterating it directly risks RuntimeError. This retries on mutation.
-        """
-        for _ in range(MAX_SNAPSHOT_RETRIES):
-            try:
-                return list(self._buffer)
-            except RuntimeError:
-                continue
-        return []
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""

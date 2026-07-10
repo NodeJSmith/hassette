@@ -9,19 +9,16 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import STORAGE_ERRORS, AppHealthAggregates
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
+from hassette.core.telemetry.helpers import AppHealthAggregates as AppHealthAggregates  # re-exported
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.resources.base import Resource
-from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette
-
-# Re-exported for callers that import these from the public query-service entry point.
-__all__ = ["DEFAULT_QUERY_LIMIT", "DEFAULT_SPARKLINE_BUCKETS", "AppHealthAggregates", "TelemetryQueryService"]
 
 
 class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, SummaryQueriesMixin, Resource):

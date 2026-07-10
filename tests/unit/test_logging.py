@@ -250,14 +250,14 @@ class TestLogCaptureHandlerStillCaptures:
 
     def test_capture_handler_captures_records(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """LogCaptureHandler captures records via the pipeline."""
-        initial_count = len(logging_pipeline.capture.get_buffer_snapshot())
+        initial_count = len(logging_pipeline.capture.buffer)
         child = logging.getLogger("hassette.test_capture")
         child.info("captured message")
         # Stop listener to flush all pending records
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = logging_pipeline.capture.get_buffer_snapshot()
+        entries = list(logging_pipeline.capture.buffer)
         assert len(entries) == initial_count + 1
         assert entries[-1].message == "captured message"
 
@@ -659,7 +659,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = logging_pipeline.capture.get_buffer_snapshot()
+        entries = list(logging_pipeline.capture.buffer)
         child_entries = [e for e in entries if e.message == "child record"]
         assert len(child_entries) == 1
         assert child_entries[0].seq > 0, "seq not stamped on child logger record — filter not running"
@@ -686,7 +686,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = logging_pipeline.capture.get_buffer_snapshot()
+        entries = list(logging_pipeline.capture.buffer)
         app_entries = [e for e in entries if e.message == "app record"]
         assert any(e.app_key == "my_app" for e in app_entries)
 
@@ -712,7 +712,7 @@ class TestQueueHandlerPipeline:
 
         assert "pipeline test" in logging_pipeline.stream.getvalue()
 
-        entries = logging_pipeline.capture.get_buffer_snapshot()
+        entries = list(logging_pipeline.capture.buffer)
         assert any(e.message == "pipeline test" for e in entries)
 
         logging_pipeline.listener.start()

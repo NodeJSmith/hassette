@@ -212,7 +212,7 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
         execution_id: str | None = None,
         source_tier: str | None = None,
     ) -> list[dict]:
-        entries: list[LogEntry] = handler.get_buffer_snapshot()
+        entries: list[LogEntry] = list(handler.buffer)
         result = [e.to_dict() for e in entries]
         if since is not None:
             result = [r for r in result if r["timestamp"] >= since]

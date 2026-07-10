@@ -139,7 +139,6 @@ class TestRouterSyncContract:
     ROUTER_MUTATION_METHODS: typing.ClassVar[list[str]] = [
         "add_route",
         "remove_route",
-        "remove_listener",
         "remove_listener_by_id",
         "clear_owner",
     ]
@@ -150,7 +149,7 @@ class TestRouterSyncContract:
     ]
 
     def test_all_router_methods_are_plain_def(self) -> None:
-        """All 7 Router mutation and query methods are plain def, not async def."""
+        """All 6 Router mutation and query methods are plain def, not async def."""
         router = Router()
         all_method_names = self.ROUTER_MUTATION_METHODS + self.ROUTER_QUERY_METHODS
 

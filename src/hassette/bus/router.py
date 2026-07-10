@@ -83,18 +83,6 @@ class Router:
             else:
                 self.owners.pop(owner, None)
 
-    def remove_listener(self, listener: "Listener") -> None:
-        """Remove a specific listener from the router.
-
-        Args:
-            listener: The listener to remove.
-        """
-
-        def matches_listener(candidate: "Listener") -> bool:
-            return candidate.listener_id == listener.listener_id
-
-        self.remove_route(listener.topic, matches_listener)
-
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID.
 

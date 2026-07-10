@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing
 from contextlib import suppress
-from typing import Any, ParamSpec, TypeVar, final
+from typing import Any, final
 
 from dotenv import load_dotenv
 
@@ -49,9 +49,6 @@ from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
-
-P = ParamSpec("P")
-R = TypeVar("R")
 
 
 def _service_not_wired_error(service: str) -> RuntimeError:
