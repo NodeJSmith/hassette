@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import tomli_w
 
-import hassette.utils.date_utils as _date_utils
+import hassette.utils.date_utils as date_utils
 from hassette.bus.listeners import (
     DurationConfig,
     HandlerInvoker,
@@ -27,12 +27,15 @@ from hassette.events import (
     ServiceRegisteredEvent,
     create_event_from_hass,
 )
-from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
+from hassette.events.base import HassettePayload
+from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
 from hassette.types import StateT
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict, HassStateDict
@@ -43,7 +46,11 @@ STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "c
 
 
 def noop() -> None:
-    pass
+    """Sync no-op — default handler for create_listener() and scheduler job tests."""
+
+
+async def async_noop() -> None:
+    """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
 
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
@@ -63,7 +70,7 @@ def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
             "event_type": event_type,
             "data": data,
             "origin": "LOCAL",
-            "time_fired": _date_utils.now().format_iso(),
+            "time_fired": date_utils.now().format_iso(),
             "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
         },
     }
@@ -165,7 +172,7 @@ def make_state_dict(
     Returns:
         Dictionary matching Home Assistant state format
     """
-    now = _date_utils.now().format_iso()
+    now = date_utils.now().format_iso()
     result = {
         "entity_id": entity_id,
         "state": state,
@@ -405,11 +412,6 @@ class {class_name}Config(AppConfig):
     app_file.write_text(textwrap.dedent(content).lstrip())
 
 
-async def emit_service_event(hassette: "Hassette", event: "HassetteServiceEvent") -> None:
-    """Inject a HassetteServiceEvent into the bus."""
-    await hassette.send_event(event)
-
-
 async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path]) -> None:
     """Emit a synthetic file-watcher event for the given paths."""
     event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
@@ -435,6 +437,31 @@ def make_service_running_event(service: "Service") -> HassetteServiceEvent:
         resource_name=service.class_name,
         role=service.role,
         status=ResourceStatus.RUNNING,
+    )
+
+
+def make_crashed_event(
+    resource_name: str = "TestService",
+    exception_type: str = "RuntimeError",
+    exception: str = "something broke",
+    exception_traceback: str = "Traceback ...",
+) -> HassetteServiceEvent:
+    """Build a CRASHED HassetteServiceEvent for testing."""
+    return HassetteServiceEvent(
+        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
+        payload=HassettePayload(
+            data=ServiceStatusPayload(
+                resource_name=resource_name,
+                role=ResourceRole.SERVICE,
+                status=ResourceStatus.CRASHED,
+                previous_status=ResourceStatus.FAILED,
+                exception=exception,
+                exception_type=exception_type,
+                exception_traceback=exception_traceback,
+                ready=False,
+                ready_phase=None,
+            ),
+        ),
     )
 
 
@@ -492,7 +519,7 @@ def make_task_bucket() -> MagicMock:
 
 
 def create_listener(
-    handler: "HandlerType | None" = None,
+    handler: "HandlerType" = noop,
     *,
     topic: str = "state_changed.light.test",
     owner_id: str = "test_owner",
@@ -517,6 +544,7 @@ def create_listener(
     is_attribute_listener: bool = False,
     hold_predicate: "Predicate | None" = None,
     error_handler: "BusErrorHandlerType | None" = None,
+    app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
     source_location: str = "",
     registration_source: str = "",
     logger: Logger | None = None,
@@ -524,7 +552,7 @@ def create_listener(
     """Test factory: build a Listener from simple kwargs.
 
     Constructs sub-structs internally and delegates to Listener.create().
-    Default handler is a sync lambda; default task_bucket is a MagicMock.
+    Default handler is a sync no-op (`noop`); default task_bucket is a MagicMock.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -532,8 +560,6 @@ def create_listener(
     if immediate and not entity_id:
         raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
-    if handler is None:
-        handler = noop
     if task_bucket is None:
         task_bucket = make_task_bucket()
 
@@ -569,6 +595,7 @@ def create_listener(
         kwargs=kwargs,
         options=options,
         error_handler=error_handler,
+        app_error_handler_resolver=app_error_handler_resolver,
     )
 
     duration_config: DurationConfig | None = None

@@ -30,7 +30,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
-from tests.unit.conftest import make_service, make_sync_executor_hassette, make_test_config
+from tests.unit.conftest import make_service, make_sync_executor_config, make_sync_executor_hassette
 
 
 class TestSyncExecutorServiceClassAttrs:
@@ -185,7 +185,7 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
-    config = make_test_config()
+    config = make_sync_executor_config()
     h = Hassette(config)
     h.wire_services()
     yield h  # pyright: ignore[reportReturnType]
@@ -213,7 +213,7 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor raises RuntimeError when wire_services() hasn't been called."""
-        config = make_test_config()
+        config = make_sync_executor_config()
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor
@@ -225,7 +225,7 @@ class TestWireServicesRegistration:
 
     def test_sync_executor_service_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor_service raises RuntimeError before wire_services()."""
-        config = make_test_config()
+        config = make_sync_executor_config()
         h = Hassette(config)
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor_service

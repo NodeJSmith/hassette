@@ -22,20 +22,11 @@ from hassette.resources.base import Resource
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.factories import make_scheduled_job
 from hassette.types.enums import ResourceStatus
-from hassette.utils.date_utils import now
 from tests.unit.resources.conftest import wait_for_running
 
 from .conftest import HangingChild, ShutdownCounter, SimpleParent, SimpleService
-
-
-def make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
-    """Create a minimal ScheduledJob for testing."""
-
-    async def _noop() -> None:
-        pass
-
-    return ScheduledJob(owner_id=owner_id, next_run=now(), job=_noop, name=name)
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
@@ -53,7 +44,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
 
     # Add a job so we know there's something to remove
     await scheduler.add_job(
-        make_dummy_job(owner_id=scheduler.owner_id, name="test_job"),
+        make_scheduled_job(owner_id=scheduler.owner_id, name="test_job"),
     )
 
     await scheduler.shutdown()

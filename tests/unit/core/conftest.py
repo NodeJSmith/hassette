@@ -4,8 +4,9 @@ import asyncio
 import logging
 import shutil
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import aiosqlite
@@ -13,9 +14,10 @@ import pytest
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.router import Router
+from hassette.commands import ExecuteJob
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
-from hassette.core.command_executor import CommandExecutor
+from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
@@ -23,7 +25,7 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils.mock_hassette import make_mock_hassette
-from hassette.types.enums import ResourceStatus, RestartType
+from hassette.types.enums import BlockingIOBehavior, ResourceStatus, RestartType
 
 # Minimal DDL for telemetry tests — intentionally omits many real columns.
 # See test_database_service_migrations.py for the canonical schema contract.
@@ -258,6 +260,50 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     return executor
 
 
+def make_mock_cmd_listener(
+    *,
+    side_effect: Any = None,
+    error_handler: Callable[..., Any] | None = None,
+) -> MagicMock:
+    """Build a MagicMock standing in for a Listener in CommandExecutor tests."""
+    listener = MagicMock()
+    listener.listener_id = 1
+    listener.invoker.error_handler = error_handler
+    if side_effect is None:
+        listener.invoker.invoke = AsyncMock(return_value=None)
+    else:
+        listener.invoker.invoke = AsyncMock(side_effect=side_effect)
+    listener.__repr__ = lambda _self: "Listener<test>"
+    return listener
+
+
+def make_execute_job_cmd(
+    *,
+    side_effect: Any = None,
+    job_error_handler: Callable[..., Any] | None = None,
+    app_level_error_handler: Callable[..., Any] | None = None,
+    job_id: int = 99,
+) -> MagicMock:
+    """Build a MagicMock spec'd to ExecuteJob for CommandExecutor tests."""
+    cmd = MagicMock(spec=ExecuteJob)
+    cmd.source_tier = "app"
+    cmd.job_db_id = 1
+    if side_effect is None:
+        cmd.callable = AsyncMock(return_value=None)
+    else:
+        cmd.callable = AsyncMock(side_effect=side_effect)
+    cmd.effective_timeout = None
+    cmd.job = MagicMock()
+    cmd.job.job_id = job_id
+    cmd.job.error_handler = job_error_handler
+    cmd.job.name = "test_job"
+    cmd.job.group = None
+    cmd.job.args = ()
+    cmd.job.kwargs = {}
+    cmd.app_level_error_handler = app_level_error_handler
+    return cmd
+
+
 class DummyService(Service):
     """Minimal concrete Service for watcher-level tests."""
 
@@ -398,6 +444,65 @@ def make_scheduler_service(
     svc.task_bucket.spawn = _spawn
 
     return svc
+
+
+def make_blocking_io_hassette(
+    *,
+    behavior: BlockingIOBehavior | None = None,
+    watchdog_enabled: bool = True,
+    lag_threshold_seconds: float = 0.10,
+    watchdog_interval_seconds: float = 0.25,
+    capture_stack_on_block: bool = False,
+    dev_mode: bool = True,
+    deep_detection_enabled: bool | None = None,
+    allow_deep_detection_in_prod: bool = False,
+) -> MagicMock:
+    """Minimal mock Hassette for blocking-IO guard and watchdog tests."""
+    cfg = MagicMock()
+    cfg.dev_mode = dev_mode
+    cfg.blocking_io.watchdog_enabled = watchdog_enabled
+    cfg.blocking_io.lag_threshold_seconds = lag_threshold_seconds
+    cfg.blocking_io.watchdog_interval_seconds = watchdog_interval_seconds
+    cfg.blocking_io.capture_stack_on_block = capture_stack_on_block
+    cfg.blocking_io.deep_detection_enabled = deep_detection_enabled
+    cfg.blocking_io.allow_deep_detection_in_prod = allow_deep_detection_in_prod
+    cfg.blocking_io.behavior = behavior
+    h = MagicMock()
+    h.config = cfg
+    h.app_handler.get.return_value = None
+    # resolve_blocking_io_behavior falls through two hops: per-app → global.
+    # None here forces the fallthrough to the global path.
+    h.app_config.blocking_io_behavior = None
+    h.hassette.config.blocking_io.behavior = behavior
+    return h
+
+
+def make_marker_executor(
+    *,
+    app_key: str | None = "test_app",
+    instance_index: int | None = None,
+    stamp_task_id: bool = False,
+    execution_id: str = "exec-test",
+) -> MagicMock:
+    """Build a mock executor with an ExecutionMarker on current_execution.
+
+    For watchdog tests, pass stamp_task_id=True to attribute blocks to the current task.
+    For monkeypatch tests, pass instance_index to identify the app instance.
+    """
+    executor = MagicMock()
+    task_id = None
+    if stamp_task_id:
+        task = asyncio.current_task()
+        task_id = id(task) if task is not None else None
+    executor.current_execution = ExecutionMarker(
+        app_key=app_key,
+        instance_name=None,
+        execution_id=execution_id,
+        started_at=time.monotonic(),
+        task_id=task_id,
+        instance_index=instance_index,
+    )
+    return executor
 
 
 @pytest.fixture

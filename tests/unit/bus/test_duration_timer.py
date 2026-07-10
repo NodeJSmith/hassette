@@ -57,7 +57,7 @@ def make_timer(
     return timer, task_bucket_mock, cancel_sub_mock
 
 
-def make_event() -> MagicMock:
+def make_event() -> MagicMock:  # factory-local: plain MagicMock, no spec=Event
     """Make a mock event."""
     return MagicMock(name="event")
 

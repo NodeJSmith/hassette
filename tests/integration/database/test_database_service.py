@@ -13,6 +13,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.helpers import async_noop
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
@@ -425,12 +426,8 @@ async def test_read_db_property_raises_before_init(service: DatabaseService) -> 
 
 async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
     """enqueue() raises RuntimeError when called before on_initialize()."""
-
-    async def noop() -> None:
-        pass
-
     with pytest.raises(RuntimeError, match="called before on_initialize"):
-        service.enqueue(noop())
+        service.enqueue(async_noop())
 
 
 async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseService) -> None:

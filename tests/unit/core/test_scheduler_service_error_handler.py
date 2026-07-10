@@ -8,7 +8,7 @@ from hassette.commands import ExecuteJob
 from .conftest import make_scheduler_service
 
 
-def make_job(
+def make_job(  # factory-local: returns MagicMock, not ScheduledJob
     *,
     error_handler=None,
     scheduler=None,

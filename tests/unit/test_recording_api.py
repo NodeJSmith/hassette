@@ -16,34 +16,17 @@ Tests cover:
 
 from enum import StrEnum
 from typing import cast
-from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.conversion import STATE_REGISTRY
-from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.light import LightEntity
 from hassette.models.services import ServiceResponse
 from hassette.test_utils import ApiCall as ApiCallFromInit
-from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.api_call import ApiCall
+from hassette.test_utils.factories import make_recording_api
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
-
-
-def make_recording_api(states: dict | None = None) -> RecordingApi:
-    """Create a RecordingApi with an optional pre-seeded StateProxy."""
-    hassette = make_mock_hassette(sealed=False)
-    hassette.state_registry = STATE_REGISTRY
-
-    # Build a minimal StateProxy stub (no bus/scheduler needed for read-only use)
-    state_proxy = AsyncMock(spec=StateProxy)
-    state_proxy.states = states or {}
-    state_proxy.is_ready = lambda: True
-
-    api = RecordingApi(hassette, state_proxy=state_proxy)
-    return api
 
 
 async def test_turn_on_records_call():

@@ -12,8 +12,9 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.test_utils import wait_for
+from hassette.test_utils.factories import make_mock_listener
 
-from .conftest import make_mock_job, make_mock_listener
+from .conftest import make_mock_job
 
 WAIT_TIMEOUT = 2.0
 

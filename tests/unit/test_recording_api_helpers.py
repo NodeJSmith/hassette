@@ -11,15 +11,11 @@ Covers:
 - counter action methods record an ApiCall
 """
 
-from unittest.mock import AsyncMock
-
 import pytest
 from pydantic import BaseModel
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.conversion import STATE_REGISTRY
-from hassette.core.state_proxy import StateProxy
 from hassette.exceptions import FailedMessageError
 from hassette.models.helpers import (
     CounterRecord,
@@ -35,9 +31,9 @@ from hassette.models.helpers import (
     TimerRecord,
     UpdateInputBooleanParams,
 )
-from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi, slugify_helper_name
+from hassette.test_utils.factories import make_recording_api
+from hassette.test_utils.recording_api import RECORD_TYPE_TO_DOMAIN, slugify_helper_name
 
 
 class _HarnessConfig(AppConfig):
@@ -49,16 +45,6 @@ class _HarnessApp(App[_HarnessConfig]):
 
     async def on_initialize(self) -> None:
         pass
-
-
-def make_recording_api() -> RecordingApi:
-    """Create a RecordingApi with an empty StateProxy."""
-    hassette = make_mock_hassette(sealed=False)
-    hassette.state_registry = STATE_REGISTRY
-    state_proxy = AsyncMock(spec=StateProxy)
-    state_proxy.states = {}
-    state_proxy.is_ready = lambda: True
-    return RecordingApi(hassette, state_proxy=state_proxy)
 
 
 async def test_seed_helper_then_list_returns_seeded_record():

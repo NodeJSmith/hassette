@@ -28,56 +28,11 @@ from hassette.core.loop_watchdog import LoopWatchdog, WatchdogEvent
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 
+from .conftest import make_blocking_io_hassette, make_marker_executor
+
 _LAG = 0.10  # threshold: 100ms
 _INTERVAL = 0.25  # watchdog_interval_seconds: 250ms (check_interval = /3 ≈ 83ms)
 _BLOCK = 0.55  # sync-sleep duration > threshold — reliably triggers detection
-
-
-def make_hassette(*, behavior: BlockingIOBehavior | None = None) -> MagicMock:
-    """Build a minimal mock Hassette with blocking_io config.
-
-    resolve_blocking_io_behavior reads through owner.app_config.blocking_io_behavior
-    (per-app) then owner.hassette.config.blocking_io.behavior (global). When the
-    watchdog calls _emit with no live app instance (app_handler.get returns None),
-    owner is self._hassette. So the resolver checks:
-      1. self._hassette.app_config.blocking_io_behavior — must be None to fall through
-      2. self._hassette.hassette.config.blocking_io.behavior — the global path
-
-    We set app_config.blocking_io_behavior = None explicitly to force the global path.
-    """
-    cfg = MagicMock()
-    cfg.blocking_io.watchdog_enabled = True
-    cfg.blocking_io.lag_threshold_seconds = _LAG
-    cfg.blocking_io.watchdog_interval_seconds = _INTERVAL
-    cfg.blocking_io.capture_stack_on_block = False  # skip stack for unit tests
-    cfg.blocking_io.behavior = behavior
-    h = MagicMock()
-    h.config = cfg
-    # app_handler.get returns None → watchdog uses h as owner for behavior resolution.
-    h.app_handler.get.return_value = None
-    # Force per-app path to None so resolver falls through to global config.
-    h.app_config.blocking_io_behavior = None
-    # Wire the global path: h.hassette.config.blocking_io.behavior = behavior
-    h.hassette.config.blocking_io.behavior = behavior
-    return h
-
-
-def make_executor(app_key: str | None = "test_app") -> MagicMock:
-    """Build a mock executor with a controllable current_execution marker.
-
-    Stamps the marker with the current task id so the watchdog's task-identity confirmation
-    treats a block in *this* task as attributed (the blocking-in-own-task case these tests model).
-    """
-    executor = MagicMock()
-    task = asyncio.current_task()
-    executor.current_execution = ExecutionMarker(
-        app_key=app_key,
-        instance_name=None,
-        execution_id="exec-123",
-        started_at=time.monotonic(),
-        task_id=id(task) if task is not None else None,
-    )
-    return executor
 
 
 def make_watchdog(
@@ -87,7 +42,7 @@ def make_watchdog(
     hassette: MagicMock | None = None,
 ) -> LoopWatchdog:
     if hassette is None:
-        hassette = make_hassette()
+        hassette = make_blocking_io_hassette()
     return LoopWatchdog(
         hassette,
         loop=loop,
@@ -106,7 +61,7 @@ def test_watchdog_does_not_call_set_debug() -> None:
 async def test_double_start_is_noop() -> None:
     """Starting the watchdog twice is a no-op — second call must not spawn another thread."""
     loop = asyncio.get_running_loop()
-    executor = make_executor()
+    executor = make_marker_executor(stamp_task_id=True)
     executor.current_execution = None  # no execution running
 
     watchdog = make_watchdog(loop, executor)
@@ -123,7 +78,7 @@ async def test_double_start_is_noop() -> None:
 async def test_stop_cleans_up_thread_and_handle() -> None:
     """After stop(), no daemon thread is alive and the tick handle is cancelled."""
     loop = asyncio.get_running_loop()
-    executor = make_executor()
+    executor = make_marker_executor(stamp_task_id=True)
     executor.current_execution = None
 
     watchdog = make_watchdog(loop, executor)
@@ -143,7 +98,7 @@ async def test_stop_cleans_up_thread_and_handle() -> None:
 async def test_stop_before_start_is_noop() -> None:
     """Calling stop() on an unstarted watchdog must not raise."""
     loop = asyncio.get_running_loop()
-    executor = make_executor()
+    executor = make_marker_executor(stamp_task_id=True)
     watchdog = make_watchdog(loop, executor)
     watchdog.stop()  # must not raise
 
@@ -152,7 +107,7 @@ async def test_stop_before_start_is_noop() -> None:
 async def test_restart_after_stop_works() -> None:
     """After stop(), a second start() re-installs cleanly."""
     loop = asyncio.get_running_loop()
-    executor = make_executor()
+    executor = make_marker_executor(stamp_task_id=True)
     executor.current_execution = None
 
     watchdog = make_watchdog(loop, executor)
@@ -176,7 +131,7 @@ async def test_blocking_sleep_emits_exactly_one_warning() -> None:
     loop keeps that freeze from starving other tests.
     """
     loop = asyncio.get_running_loop()
-    executor = make_executor("kitchen_lights")
+    executor = make_marker_executor(app_key="kitchen_lights", stamp_task_id=True)
 
     # filterwarnings("error") is the global default in this test suite, so
     # pytest.warns must temporarily downgrade back to warning to catch it.
@@ -212,7 +167,7 @@ async def test_blocking_sleep_warning_reports_full_duration() -> None:
     so it must be close to T (~550ms), not the old first-detection value (~threshold ≈ 167ms).
     """
     loop = asyncio.get_running_loop()
-    executor = make_executor("my_app")
+    executor = make_marker_executor(app_key="my_app", stamp_task_id=True)
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
         watchdog = make_watchdog(loop, executor)
@@ -246,7 +201,7 @@ async def test_async_sleep_produces_no_warning() -> None:
     ever flagged, even though the execution marker has been set for T seconds.
     """
     loop = asyncio.get_running_loop()
-    executor = make_executor("slow_but_fine_app")
+    executor = make_marker_executor(app_key="slow_but_fine_app", stamp_task_id=True)
 
     # Give the watchdog a live marker (as if an execution is running) and
     # let it run for more than _BLOCK while the loop stays responsive.
@@ -266,7 +221,7 @@ async def test_async_sleep_produces_no_warning() -> None:
 async def test_default_config_emits_warning_not_exception() -> None:
     """Under default config (WARN), a stall emits a warning — never an unconditional raise."""
     loop = asyncio.get_running_loop()
-    executor = make_executor("any_app")
+    executor = make_marker_executor(app_key="any_app", stamp_task_id=True)
 
     # Temporarily suppress the global "error" filter so we can catch the plain warning.
     with pytest.warns(HassetteBlockingIOWarning):
@@ -290,8 +245,8 @@ async def test_error_behavior_emits_via_warnings_not_unconditional_raise() -> No
     from the daemon thread, so it cannot propagate into this coroutine; we assert it is emitted.
     """
     loop = asyncio.get_running_loop()
-    executor = make_executor("strict_app")
-    hassette = make_hassette(behavior=BlockingIOBehavior.ERROR)
+    executor = make_marker_executor(app_key="strict_app", stamp_task_id=True)
+    hassette = make_blocking_io_hassette(behavior=BlockingIOBehavior.ERROR)
 
     with pytest.warns(HassetteBlockingIOWarning):
         watchdog = make_watchdog(loop, executor, hassette=hassette)
@@ -312,9 +267,9 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
     the daemon thread skipped the persist AND killed the watchdog.
     """
     loop = asyncio.get_running_loop()
-    executor = make_executor("persist_app")
+    executor = make_marker_executor(app_key="persist_app", stamp_task_id=True)
     on_stall = MagicMock()
-    hassette = make_hassette()
+    hassette = make_blocking_io_hassette()
 
     with warnings.catch_warnings():
         warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
@@ -345,11 +300,11 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
 async def test_ignore_behavior_suppresses_warning() -> None:
     """BlockingIOBehavior.IGNORE suppresses warning entirely."""
     loop = asyncio.get_running_loop()
-    executor = make_executor("ignored_app")
+    executor = make_marker_executor(app_key="ignored_app", stamp_task_id=True)
 
     # Build a hassette mock whose resolve_blocking_io_behavior returns IGNORE.
     # The simplest way: set the global blocking_io.behavior to IGNORE.
-    hassette = make_hassette(behavior=BlockingIOBehavior.IGNORE)
+    hassette = make_blocking_io_hassette(behavior=BlockingIOBehavior.IGNORE)
     # Also mock the config accessor path used by resolve_blocking_io_behavior.
     hassette.config.blocking_io.behavior = BlockingIOBehavior.IGNORE
 
@@ -369,7 +324,7 @@ async def test_ignore_behavior_suppresses_warning() -> None:
 async def test_deduplication_one_warning_per_stall_episode() -> None:
     """A single stall episode spanning multiple daemon polls emits exactly ONE warning."""
     loop = asyncio.get_running_loop()
-    executor = make_executor("dedup_app")
+    executor = make_marker_executor(app_key="dedup_app", stamp_task_id=True)
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
         watchdog = make_watchdog(loop, executor)
@@ -421,7 +376,7 @@ async def test_classify_attribution_distinguishes_outcomes() -> None:
     loop = asyncio.get_running_loop()
     task = asyncio.current_task()
     assert task is not None
-    watchdog = make_watchdog(loop, make_executor())
+    watchdog = make_watchdog(loop, make_marker_executor(stamp_task_id=True))
 
     attributed = ExecutionMarker("app", None, "e1", time.monotonic(), task_id=id(task))
     assert watchdog._classify_attribution(attributed) == "attributed"
@@ -437,7 +392,7 @@ async def test_classify_attribution_distinguishes_outcomes() -> None:
     # asyncio.current_task(loop) is a plain _current_tasks dict lookup, so a sentinel loop that was
     # never run resolves to None — no real loop needed (and nothing to leak).
     idle_loop = cast("asyncio.AbstractEventLoop", object())
-    idle_watchdog = make_watchdog(idle_loop, make_executor())
+    idle_watchdog = make_watchdog(idle_loop, make_marker_executor(stamp_task_id=True))
     assert idle_watchdog._classify_attribution(attributed) == "framework"
 
 
@@ -461,7 +416,7 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
         watchdog = LoopWatchdog(
-            make_hassette(),
+            make_blocking_io_hassette(),
             loop=loop,
             loop_thread_id=threading.get_ident(),
             executor=executor,
@@ -488,12 +443,12 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
 async def test_attributed_block_records_reason_attributed() -> None:
     """A freeze whose marker matches the frozen task is attributed to its app, reason='attributed'."""
     loop = asyncio.get_running_loop()
-    executor = make_executor("kitchen_lights")  # task_id stamped with this task
+    executor = make_marker_executor(app_key="kitchen_lights", stamp_task_id=True)  # task_id stamped with this task
     captured: list[WatchdogEvent] = []
 
     with pytest.warns(HassetteBlockingIOWarning):
         watchdog = LoopWatchdog(
-            make_hassette(),
+            make_blocking_io_hassette(),
             loop=loop,
             loop_thread_id=threading.get_ident(),
             executor=executor,
@@ -510,4 +465,4 @@ async def test_attributed_block_records_reason_attributed() -> None:
     assert captured
     assert captured[0].app_key == "kitchen_lights"
     assert captured[0].reason == "attributed"
-    assert captured[0].execution_id == "exec-123"
+    assert captured[0].execution_id == "exec-test"

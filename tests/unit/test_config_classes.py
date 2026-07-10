@@ -11,7 +11,7 @@ from pathlib import Path
 from hassette.config.classes import AppManifest
 
 
-def make_manifest(**overrides) -> AppManifest:
+def make_manifest(**overrides) -> AppManifest:  # factory-local: returns AppManifest, not AppManifestInfo
     """Create an AppManifest with sensible defaults, merging any overrides."""
     defaults = {
         "app_key": "test_app",

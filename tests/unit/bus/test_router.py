@@ -3,18 +3,8 @@
 import importlib.util
 import pathlib
 
-from hassette.bus.listeners import Listener
 from hassette.bus.router import Router
 from hassette.test_utils.helpers import create_listener
-
-
-def make_listener(
-    topic: str = "state_changed",
-    owner_id: str = "test_owner",
-    priority: int = 0,
-) -> Listener:
-    """Create a Listener with router-test defaults (topic='state_changed')."""
-    return create_listener(topic=topic, owner_id=owner_id, priority=priority)
 
 
 class TestRouterImport:
@@ -37,7 +27,7 @@ class TestRouterAddRouteExactMatch:
     def test_add_route_exact_match_found(self) -> None:
         """add_route + get_topic_listeners returns listener for exact topic match."""
         router = Router()
-        listener = make_listener(topic="state_changed")
+        listener = create_listener(topic="state_changed")
 
         router.add_route("state_changed", listener)
         result = router.get_topic_listeners("state_changed")
@@ -47,7 +37,7 @@ class TestRouterAddRouteExactMatch:
     def test_add_route_exact_match_not_found_for_different_topic(self) -> None:
         """Exact-match listener is not returned for a different topic."""
         router = Router()
-        listener = make_listener(topic="state_changed")
+        listener = create_listener(topic="state_changed")
 
         router.add_route("state_changed", listener)
         result = router.get_topic_listeners("call_service")
@@ -57,8 +47,8 @@ class TestRouterAddRouteExactMatch:
     def test_add_route_multiple_listeners_same_topic(self) -> None:
         """Multiple listeners on the same topic are all returned."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="state_changed", owner_id="owner2")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="state_changed", owner_id="owner2")
 
         router.add_route("state_changed", l1)
         router.add_route("state_changed", l2)
@@ -72,7 +62,7 @@ class TestRouterGlobMatch:
     def test_add_route_glob_match_wildcard(self) -> None:
         """Glob pattern matches topic with wildcard."""
         router = Router()
-        listener = make_listener(topic="state_changed/*")
+        listener = create_listener(topic="state_changed/*")
 
         router.add_route("state_changed/*", listener)
         result = router.get_topic_listeners("state_changed/light.kitchen")
@@ -82,7 +72,7 @@ class TestRouterGlobMatch:
     def test_add_route_glob_match_question_mark(self) -> None:
         """Glob pattern with ? wildcard matches single character."""
         router = Router()
-        listener = make_listener(topic="light.?itchen")
+        listener = create_listener(topic="light.?itchen")
 
         router.add_route("light.?itchen", listener)
         result = router.get_topic_listeners("light.kitchen")
@@ -92,7 +82,7 @@ class TestRouterGlobMatch:
     def test_add_route_glob_does_not_match_non_matching_topic(self) -> None:
         """Glob pattern does not match non-matching topic."""
         router = Router()
-        listener = make_listener(topic="state_changed/*")
+        listener = create_listener(topic="state_changed/*")
 
         router.add_route("state_changed/*", listener)
         result = router.get_topic_listeners("call_service/light.kitchen")
@@ -102,7 +92,7 @@ class TestRouterGlobMatch:
     def test_glob_listener_stored_in_globs_bucket(self) -> None:
         """Glob topic is stored in the globs bucket, not exact."""
         router = Router()
-        listener = make_listener(topic="*")
+        listener = create_listener(topic="*")
 
         router.add_route("*", listener)
 
@@ -114,9 +104,9 @@ class TestRouterPriority:
     def test_get_topic_listeners_sorted_by_priority_descending(self) -> None:
         """get_topic_listeners returns listeners sorted by priority highest-first."""
         router = Router()
-        low = make_listener(topic="state_changed", owner_id="low", priority=0)
-        high = make_listener(topic="state_changed", owner_id="high", priority=10)
-        medium = make_listener(topic="state_changed", owner_id="medium", priority=5)
+        low = create_listener(topic="state_changed", owner_id="low", priority=0)
+        high = create_listener(topic="state_changed", owner_id="high", priority=10)
+        medium = create_listener(topic="state_changed", owner_id="medium", priority=5)
 
         router.add_route("state_changed", low)
         router.add_route("state_changed", high)
@@ -132,7 +122,7 @@ class TestRouterRemoveListenerById:
     def test_remove_listener_by_id_removes_target(self) -> None:
         """remove_listener_by_id removes the specified listener by ID."""
         router = Router()
-        listener = make_listener(topic="state_changed")
+        listener = create_listener(topic="state_changed")
 
         router.add_route("state_changed", listener)
         router.remove_listener_by_id("state_changed", listener.listener_id)
@@ -143,8 +133,8 @@ class TestRouterRemoveListenerById:
     def test_remove_listener_by_id_leaves_other_listeners(self) -> None:
         """remove_listener_by_id only removes the targeted listener."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="state_changed", owner_id="owner2")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="state_changed", owner_id="owner2")
 
         router.add_route("state_changed", l1)
         router.add_route("state_changed", l2)
@@ -157,7 +147,7 @@ class TestRouterRemoveListenerById:
     def test_remove_listener_by_id_nonexistent_id_is_noop(self) -> None:
         """remove_listener_by_id with a non-existent ID does not raise."""
         router = Router()
-        listener = make_listener(topic="state_changed")
+        listener = create_listener(topic="state_changed")
 
         router.add_route("state_changed", listener)
         router.remove_listener_by_id("state_changed", 99999)
@@ -168,7 +158,7 @@ class TestRouterRemoveListenerById:
     def test_remove_listener_by_id_cleans_owner_index(self) -> None:
         """Removing a listener also removes it from the owner index."""
         router = Router()
-        listener = make_listener(topic="state_changed", owner_id="owner1")
+        listener = create_listener(topic="state_changed", owner_id="owner1")
 
         router.add_route("state_changed", listener)
         router.remove_listener_by_id("state_changed", listener.listener_id)
@@ -181,8 +171,8 @@ class TestRouterClearOwner:
     def test_clear_owner_removes_all_owner_listeners(self) -> None:
         """clear_owner removes all listeners for the given owner."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="call_service", owner_id="owner1")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="call_service", owner_id="owner1")
 
         router.add_route("state_changed", l1)
         router.add_route("call_service", l2)
@@ -195,8 +185,8 @@ class TestRouterClearOwner:
     def test_clear_owner_leaves_other_owners(self) -> None:
         """clear_owner does not remove listeners for other owners."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="state_changed", owner_id="owner2")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="state_changed", owner_id="owner2")
 
         router.add_route("state_changed", l1)
         router.add_route("state_changed", l2)
@@ -215,7 +205,7 @@ class TestRouterClearOwner:
     def test_clear_owner_removes_from_owners_index(self) -> None:
         """After clear_owner, get_listeners_by_owner returns empty list."""
         router = Router()
-        listener = make_listener(topic="state_changed", owner_id="owner1")
+        listener = create_listener(topic="state_changed", owner_id="owner1")
 
         router.add_route("state_changed", listener)
         router.clear_owner("owner1")
@@ -226,7 +216,7 @@ class TestRouterClearOwner:
     def test_clear_owner_glob_topic(self) -> None:
         """clear_owner also removes listeners with glob topics."""
         router = Router()
-        listener = make_listener(topic="state_changed/*", owner_id="owner1")
+        listener = create_listener(topic="state_changed/*", owner_id="owner1")
 
         router.add_route("state_changed/*", listener)
         removed = router.clear_owner("owner1")
@@ -240,8 +230,8 @@ class TestRouterGetListenersByOwner:
     def test_get_listeners_by_owner_returns_added_listeners(self) -> None:
         """get_listeners_by_owner returns listeners added for the given owner."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="call_service", owner_id="owner1")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="call_service", owner_id="owner1")
 
         router.add_route("state_changed", l1)
         router.add_route("call_service", l2)
@@ -259,8 +249,8 @@ class TestRouterGetListenersByOwner:
     def test_get_listeners_by_owner_does_not_return_other_owners(self) -> None:
         """get_listeners_by_owner is isolated by owner."""
         router = Router()
-        l1 = make_listener(topic="state_changed", owner_id="owner1")
-        l2 = make_listener(topic="state_changed", owner_id="owner2")
+        l1 = create_listener(topic="state_changed", owner_id="owner1")
+        l2 = create_listener(topic="state_changed", owner_id="owner2")
 
         router.add_route("state_changed", l1)
         router.add_route("state_changed", l2)

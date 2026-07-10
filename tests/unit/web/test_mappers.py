@@ -1,10 +1,11 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.telemetry_models import ListenerSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.web_helpers import make_manifest
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
@@ -141,28 +142,11 @@ def test_app_status_response_from_coerces_resource_status_enum():
     assert isinstance(result.apps[0].status, str)
 
 
-def make_manifest(
-    app_key: str, status: str, instances: list[AppInstanceInfo] | None = None, autostart: bool = True
-) -> AppManifestInfo:
-    return AppManifestInfo(
-        app_key=app_key,
-        class_name="MyApp",
-        display_name="My App",
-        filename="my_app.py",
-        enabled=True,
-        auto_loaded=True,
-        status=status,
-        autostart=autostart,
-        instances=instances or [],
-        instance_count=len(instances) if instances else 0,
-    )
-
-
 def test_app_manifest_list_response_from_builds_nested_instances():
     """Verify nested AppInstanceResponse objects are built correctly."""
     inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
     inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", "running", instances=[inst0, inst1])
+    manifest = make_manifest("app_a", status="running", instances=[inst0, inst1], instance_count=2)
     full = AppFullSnapshot(
         manifests=[manifest],
         total=1,
@@ -188,7 +172,7 @@ def test_app_manifest_list_response_from_builds_nested_instances():
 def test_app_manifest_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
     inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", "running", instances=[inst])
+    manifest = make_manifest("app_a", status="running", instances=[inst], instance_count=1)
     full = AppFullSnapshot(manifests=[manifest], total=1, running=1)
 
     result = app_manifest_list_response_from(full)
@@ -199,7 +183,7 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
 
 def test_app_manifest_list_response_from_manifest_status_already_str():
     """AppManifestInfo.status is already str — verify it passes through without error."""
-    manifest = make_manifest("app_a", "stopped")
+    manifest = make_manifest("app_a", status="stopped")
     full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
 
     result = app_manifest_list_response_from(full)
@@ -210,11 +194,11 @@ def test_app_manifest_list_response_from_manifest_status_already_str():
 def test_app_manifest_list_response_from_preserves_counts():
     """Aggregate counts from AppFullSnapshot pass through."""
     manifests = [
-        make_manifest("app_a", "running"),
-        make_manifest("app_b", "failed"),
-        make_manifest("app_c", "stopped"),
-        make_manifest("app_d", "disabled"),
-        make_manifest("app_e", "blocked"),
+        make_manifest("app_a", status="running"),
+        make_manifest("app_b", status="failed"),
+        make_manifest("app_c", status="stopped"),
+        make_manifest("app_d", status="disabled"),
+        make_manifest("app_e", status="blocked"),
     ]
     full = AppFullSnapshot(
         manifests=manifests,
@@ -238,7 +222,7 @@ def test_app_manifest_list_response_from_preserves_counts():
 
 def test_app_manifest_list_response_from_passes_autostart_true():
     """Mapper carries autostart=True from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_a", "stopped", autostart=True)
+    manifest = make_manifest("app_a", status="stopped", autostart=True)
     full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
 
     result = app_manifest_list_response_from(full)
@@ -248,7 +232,7 @@ def test_app_manifest_list_response_from_passes_autostart_true():
 
 def test_app_manifest_list_response_from_passes_autostart_false():
     """Mapper carries autostart=False from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_b", "stopped", autostart=False)
+    manifest = make_manifest("app_b", status="stopped", autostart=False)
     full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
 
     result = app_manifest_list_response_from(full)

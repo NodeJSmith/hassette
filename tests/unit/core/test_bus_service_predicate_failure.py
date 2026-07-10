@@ -42,9 +42,11 @@ def make_bus_service() -> tuple[BusService, MagicMock]:
 
 
 def make_listener_with_error_handler(error_handler=None, app_resolver=None) -> "Listener":
-    listener = create_listener(topic="test.pred", error_handler=error_handler)
-    if app_resolver is not None:
-        listener.invoker.set_app_error_handler_resolver(app_resolver)
+    listener = create_listener(
+        topic="test.pred",
+        error_handler=error_handler,
+        app_error_handler_resolver=app_resolver,
+    )
     listener.mark_registered(99)
     return listener
 

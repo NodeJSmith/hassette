@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from hassette.test_utils.factories import make_mock_parent
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -21,7 +23,13 @@ async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
 ) -> "typing.AsyncIterator[Hassette]":
-    """Function-scoped bus harness for isolation between tests."""
+    """Variant of test_utils.fixtures.hassette_with_bus scoped to function instead of module.
+
+    Bus unit tests mutate listener state per-test (e.g. `bus.parent`, direct
+    `add_listener` patching in `mock_add_listener`), so each test needs its own
+    harness instead of sharing one across the module. Yields the raw `Hassette`
+    instance rather than the `HassetteHarness` wrapper for direct access to `_bus`.
+    """
     async with hassette_harness(test_config).with_bus() as harness:
         yield cast("Hassette", harness.hassette)
 
@@ -29,15 +37,9 @@ async def hassette_with_bus(
 @pytest.fixture
 def bus(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource with a mock parent that has an app_key."""
-    b = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
-    mock_parent = Mock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    b.parent = mock_parent
-    return b  # pyright: ignore[reportReturnType]
+    bus = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
+    bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app")
+    return bus  # pyright: ignore[reportReturnType]
 
 
 @contextlib.contextmanager

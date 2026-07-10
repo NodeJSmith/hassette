@@ -9,35 +9,7 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.session_manager import SessionManager
-from hassette.events import HassetteServiceEvent
-from hassette.events.base import HassettePayload
-from hassette.events.hassette import ServiceStatusPayload
-from hassette.types import ResourceRole, ResourceStatus, Topic
-
-
-def make_crashed_event(
-    resource_name: str = "TestService",
-    exception_type: str = "RuntimeError",
-    exception: str = "something broke",
-    exception_traceback: str = "Traceback ...",
-) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing."""
-    return HassetteServiceEvent(
-        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-        payload=HassettePayload(
-            data=ServiceStatusPayload(
-                resource_name=resource_name,
-                role=ResourceRole.SERVICE,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                exception=exception,
-                exception_type=exception_type,
-                exception_traceback=exception_traceback,
-                ready=False,
-                ready_phase=None,
-            ),
-        ),
-    )
+from hassette.test_utils.helpers import make_crashed_event
 
 
 @pytest.fixture

@@ -164,17 +164,19 @@ class TestDomainStatesCacheValidation:
         assert ds._cache["light.bedroom"].model is second
 
 
+BAD_TIMESTAMP = "INVALID-TIMESTAMP"
+BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}
+
+
 def make_bad_state_dict(entity_id: str = "light.bad") -> dict:
-    """Return a state dict that fails LightState validation (invalid timestamp strings)."""
-    return {
-        "entity_id": entity_id,
-        "state": "on",
-        "attributes": {},
-        "last_changed": "INVALID-TIMESTAMP",
-        "last_updated": "INVALID-TIMESTAMP",
-        "last_reported": "INVALID-TIMESTAMP",
-        "context": {"id": None, "parent_id": None, "user_id": None},
-    }
+    return make_state_dict(
+        entity_id,
+        "on",
+        last_changed=BAD_TIMESTAMP,
+        last_updated=BAD_TIMESTAMP,
+        last_reported=BAD_TIMESTAMP,
+        context=BAD_CONTEXT,
+    )
 
 
 class TestDomainStatesConversionExceptionType:

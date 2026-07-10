@@ -16,8 +16,10 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
+from hassette.test_utils.factories import make_job_registration, make_listener_registration, make_mock_listener
 from hassette.types.enums import ExecutionMode
+
+from .conftest import make_mock_job
 
 
 @pytest.fixture
@@ -26,47 +28,6 @@ async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     return exc
-
-
-def make_mock_listener(
-    *, owner_id: str = "test_owner", app_key: str = "my_app", instance_index: int = 1, topic: str = "hass.event.test"
-) -> MagicMock:
-    """Return a mock Listener with configurable app_key and instance_index."""
-    listener = MagicMock()
-    listener.owner_id = owner_id
-    listener.app_key = app_key
-    listener.instance_index = instance_index
-    listener.topic = topic
-    listener.handler_name = "MyApp.on_event"
-    listener.debounce = None
-    listener.throttle = None
-    listener.rate_limiter = None
-    listener.once = False
-    listener.priority = 0
-    listener.predicate = None
-    listener.listener_id = 1
-    listener.db_id = None
-    # Must be None to avoid the duration-timer branch in add_listener.
-    listener.duration_config = None
-    return listener
-
-
-def make_mock_job(
-    *, owner_id: str = "test_owner", app_key: str = "my_app", instance_index: int = 1, name: str = "test_job"
-) -> MagicMock:
-    """Return a mock ScheduledJob."""
-    job = MagicMock()
-    job.owner_id = owner_id
-    job.app_key = app_key
-    job.instance_index = instance_index
-    job.name = name
-    job.job = MagicMock(__qualname__="MyApp.my_job")
-    job.trigger = None
-    job.args = ()
-    job.kwargs = {}
-    job.db_id = None
-    job.mode = ExecutionMode.SINGLE
-    return job
 
 
 def stub_task_bucket() -> MagicMock:

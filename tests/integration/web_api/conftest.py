@@ -1,10 +1,14 @@
 """Shared fixtures and helpers for web API integration tests."""
 
 import pytest
+from httpx2 import ASGITransport, AsyncClient
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.test_utils.web_mocks import create_hassette_stub
+from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceStatus
+from hassette.web.app import create_fastapi_app
+
+_SEED_TIMESTAMP = "2024-01-01T00:00:00"
 
 
 @pytest.fixture
@@ -24,20 +28,40 @@ def mock_hassette():
                 "entity_id": "light.kitchen",
                 "state": "on",
                 "attributes": {"brightness": 255},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": _SEED_TIMESTAMP,
+                "last_updated": _SEED_TIMESTAMP,
             },
             "sensor.temp": {
                 "entity_id": "sensor.temp",
                 "state": "21.5",
                 "attributes": {"unit_of_measurement": "°C"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": _SEED_TIMESTAMP,
+                "last_updated": _SEED_TIMESTAMP,
             },
         },
         old_snapshot=AppStatusSnapshot(running=[instance], failed=[]),
         app_action_mocks=True,
     )
+
+
+@pytest.fixture
+def runtime_query_service(mock_hassette):
+    """Create a RuntimeQueryService with mocked Hassette."""
+    return create_mock_runtime_query_service(mock_hassette)
+
+
+@pytest.fixture
+def app(mock_hassette, runtime_query_service):  # noqa: ARG001
+    """Create a FastAPI app with mocked dependencies."""
+    return create_fastapi_app(mock_hassette)
+
+
+@pytest.fixture
+async def client(app):
+    """Create an httpx2 AsyncClient for testing."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
 def make_log_record(

@@ -10,7 +10,6 @@ Tests cover:
 - compute_elapsed edge cases (attribute listener → 0.0, missing last_changed → 0.0)
 """
 
-import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -21,14 +20,8 @@ from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
-from hassette.test_utils.helpers import create_listener, make_state_dict
-
-
-def make_executor() -> MagicMock:
-    """Create a mock executor with an async execute method."""
-    executor = MagicMock()
-    executor.execute = AsyncMock()
-    return executor
+from hassette.test_utils.factories import make_mock_executor
+from hassette.test_utils.helpers import create_listener, make_state_dict, make_task_bucket
 
 
 def make_config_resolver(value: float | None = 30.0) -> Callable[[], float | None]:
@@ -48,18 +41,6 @@ def make_remove_listener() -> Callable[[Listener], None]:
     return MagicMock()
 
 
-def make_task_bucket_with_spawn() -> MagicMock:
-    """Create a task_bucket mock where spawn() actually runs tasks via asyncio."""
-    tb = MagicMock()
-    tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    def spawn_side_effect(coro: Any, *, name: str = "") -> asyncio.Task:  # noqa: ARG001
-        return asyncio.create_task(coro)
-
-    tb.spawn = MagicMock(side_effect=spawn_side_effect)
-    return tb
-
-
 def make_manager(
     state: dict[str, Any] | None = None,
     remove_listener: Callable[[Listener], None] | None = None,
@@ -71,9 +52,9 @@ def make_manager(
     if remove_listener is None:
         remove_listener = make_remove_listener()
     if task_bucket is None:
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
     if executor is None:
-        executor = make_executor()
+        executor = make_mock_executor()
     if router is None:
         router = Router()
     return DurationHoldManager(
@@ -105,7 +86,7 @@ class TestConstruction:
 class TestImmediateFireTask:
     async def test_returns_early_when_state_reader_returns_none(self) -> None:
         """immediate_fire_task returns early (no dispatch) when state_reader returns None."""
-        executor = make_executor()
+        executor = make_mock_executor()
         manager = make_manager(executor=executor)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
@@ -119,7 +100,7 @@ class TestImmediateFireTask:
 
     async def test_calls_state_reader_and_dispatches(self) -> None:
         """immediate_fire_task calls state_reader and dispatches when state exists and predicate matches."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state, executor=executor)
         listener = create_listener(
@@ -134,7 +115,7 @@ class TestImmediateFireTask:
 
     async def test_logs_error_and_returns_when_no_entity_id(self) -> None:
         """immediate_fire_task logs error and returns early when listener has no entity_id."""
-        executor = make_executor()
+        executor = make_mock_executor()
         manager = make_manager(state=make_state_dict("light.kitchen", "on"), executor=executor)
         # Listener without entity_id (no duration_config)
         listener = create_listener(
@@ -149,7 +130,7 @@ class TestImmediateFireTask:
 
     async def test_removes_listener_on_once_after_non_duration_fire(self) -> None:
         """immediate_fire_task calls remove_listener when once=True after non-duration dispatch."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "on")
         remove_listener = make_remove_listener()
         manager = make_manager(state=state, executor=executor, remove_listener=remove_listener)
@@ -166,7 +147,7 @@ class TestImmediateFireTask:
 
     async def test_does_not_dispatch_when_predicate_does_not_match(self) -> None:
         """immediate_fire_task does not dispatch when listener predicate returns False."""
-        executor = make_executor()
+        executor = make_mock_executor()
         state = make_state_dict("light.kitchen", "off")
 
         # Predicate that never matches
@@ -208,7 +189,7 @@ class TestStartDurationTimer:
         remove_listener_mock = make_remove_listener()
         manager.remove_listener = remove_listener_mock
 
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -229,7 +210,7 @@ class TestStartDurationTimer:
     def test_start_remaining_increments_duration_timers_active(self) -> None:
         """start_remaining_duration_timer increments duration_timers_active."""
         manager = make_manager()
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -251,7 +232,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -275,7 +256,7 @@ class TestStartDurationTimer:
         """on_duration_fire decrements counter even when state_reader returns None (early return)."""
         manager = make_manager(state=None)
 
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -301,7 +282,7 @@ class TestStartDurationTimer:
         state = make_state_dict("light.kitchen", "on")
         manager = make_manager(state=state)
 
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",
             entity_id="light.kitchen",
@@ -442,7 +423,7 @@ class TestCreateCancelListener:
     async def test_inserts_route_and_returns_subscription(self) -> None:
         """create_cancel_listener inserts a route and returns a Subscription."""
         router = Router()
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
 
         # Build a listener with a duration timer attached
@@ -472,7 +453,7 @@ class TestCreateCancelListener:
     async def test_subscription_cancel_removes_route(self) -> None:
         """Calling sub.cancel() removes the cancel listener from the router."""
         router = Router()
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         manager = make_manager(router=router, task_bucket=task_bucket)
 
         listener = create_listener(
@@ -500,7 +481,7 @@ class TestCreateCancelListener:
 
         Cancel-listeners bypass DB registration entirely; no registration_task field.
         """
-        task_bucket = make_task_bucket_with_spawn()
+        task_bucket = make_task_bucket()
         manager = make_manager(task_bucket=task_bucket)
         listener = create_listener(
             topic="hass.event.state_changed.light.kitchen",

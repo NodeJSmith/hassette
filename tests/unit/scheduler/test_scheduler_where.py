@@ -15,10 +15,9 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import _build_predicate_invoker, _normalize_where
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
+from hassette.test_utils.helpers import noop
 
-from .conftest import make_scheduler, noop
-
-PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
+from .conftest import PATCH_TARGET, make_scheduler
 
 
 def is_home() -> bool:

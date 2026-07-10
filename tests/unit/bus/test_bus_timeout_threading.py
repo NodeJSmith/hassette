@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.bus import Bus, Options
+from hassette.test_utils.factories import make_mock_parent
 
 
 def make_bus() -> Bus:
@@ -15,12 +16,7 @@ def make_bus() -> Bus:
     bus.logger = MagicMock()
     bus.task_bucket = MagicMock()
     bus.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestParent"
-    bus.parent = mock_parent
+    bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app", class_name="TestParent")
     bus._registered_listeners = {}
     bus._unique_name = "test_bus"
     bus.unique_id = "test_bus_id"

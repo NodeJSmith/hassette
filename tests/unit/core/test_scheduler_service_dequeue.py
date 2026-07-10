@@ -14,21 +14,10 @@ from unittest.mock import MagicMock
 
 from fair_async_rlock import FairAsyncRLock
 
-import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
-from hassette.scheduler.classes import ScheduledJob
+from hassette.test_utils.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
-
-
-def make_job(owner_id: str = "test_owner") -> ScheduledJob:
-    """Create a minimal ScheduledJob for testing."""
-    now = date_utils.now()
-    return ScheduledJob(
-        owner_id=owner_id,
-        next_run=now,
-        job=lambda: None,
-    )
 
 
 def make_dequeue_service() -> SchedulerService:
@@ -53,7 +42,7 @@ class TestRemoveItemSync:
         queue._queue = HeapQueue()
         queue.logger = MagicMock()
 
-        job = make_job()
+        job = make_scheduled_job()
         queue._queue.push(job)
 
         result = queue.remove_item_sync(job)
@@ -68,7 +57,7 @@ class TestRemoveItemSync:
         queue._queue = HeapQueue()
         queue.logger = MagicMock()
 
-        job = make_job()
+        job = make_scheduled_job()
         # Do NOT push — job is not in the queue
 
         result = queue.remove_item_sync(job)
@@ -96,7 +85,7 @@ class TestDequeueJobRemovesFromHeap:
     async def test_dequeue_job_removes_from_heap(self) -> None:
         """dequeue_job removes the job from the queue."""
         svc = make_dequeue_service()
-        job = make_job()
+        job = make_scheduled_job()
         svc._job_queue._queue.push(job)
 
         removed = svc.dequeue_job(job)
@@ -107,7 +96,7 @@ class TestDequeueJobRemovesFromHeap:
     async def test_dequeue_job_returns_false_when_not_in_heap(self) -> None:
         """dequeue_job returns False when job is not in the heap (idempotent no-op)."""
         svc = make_dequeue_service()
-        job = make_job()
+        job = make_scheduled_job()
         # Do NOT push job
 
         removed = svc.dequeue_job(job)
@@ -119,7 +108,7 @@ class TestDequeueJobRemovalCallbacks:
     async def test_dequeue_job_fires_removal_callbacks_when_removed(self) -> None:
         """dequeue_job fires removal callback when job was in the heap."""
         svc = make_dequeue_service()
-        job = make_job(owner_id="owner_a")
+        job = make_scheduled_job(owner_id="owner_a")
         svc._job_queue._queue.push(job)
 
         callback = MagicMock()
@@ -135,7 +124,7 @@ class TestDequeueJobRemovalCallbacks:
         This prevents dict leaks when the serve loop already popped the job.
         """
         svc = make_dequeue_service()
-        job = make_job(owner_id="owner_b")
+        job = make_scheduled_job(owner_id="owner_b")
         # Do NOT push — simulate job already popped by serve loop
 
         callback = MagicMock()
@@ -158,14 +147,14 @@ class TestDequeueJobKick:
         svc.kick = _spy_kick  # pyright: ignore[reportAttributeAccessIssue]
 
         # Case 1: job IS in the heap → kick should be called
-        job1 = make_job()
+        job1 = make_scheduled_job()
         svc._job_queue._queue.push(job1)
         svc.dequeue_job(job1)
         assert len(kick_calls) == 1, "kick() should be called when job was removed"
 
         # Case 2: job NOT in the heap → kick should NOT be called again
         kick_calls.clear()
-        job2 = make_job()
+        job2 = make_scheduled_job()
         svc.dequeue_job(job2)
         assert len(kick_calls) == 0, "kick() must NOT be called when job was not in heap"
 
@@ -191,7 +180,7 @@ class TestDispatchRaceGuard:
     async def test_dispatch_skips_dequeued_job(self) -> None:
         """dispatch_and_log returns immediately when job._dequeued is True."""
         svc = make_dequeue_service()
-        job = make_job()
+        job = make_scheduled_job()
 
         # Simulate the race: job was popped from heap, then cancelled
         job._dequeued = True
@@ -213,7 +202,7 @@ class TestDispatchRaceGuard:
     async def test_dispatch_runs_non_dequeued_job(self) -> None:
         """dispatch_and_log proceeds normally when job._dequeued is False."""
         svc = make_dequeue_service()
-        job = make_job()
+        job = make_scheduled_job()
         job._dequeued = False
 
         run_called = False

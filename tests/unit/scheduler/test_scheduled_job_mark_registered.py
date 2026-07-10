@@ -6,18 +6,14 @@ so a double-registration anomaly is surfaced rather than silently swallowed.
 """
 
 from hassette.scheduler.classes import ScheduledJob
+from hassette.test_utils.factories import make_scheduled_job
+from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
-
-from .conftest import noop
-
-
-def make_job() -> ScheduledJob:
-    return ScheduledJob(owner_id="test_owner", next_run=now(), job=noop, name="job")
 
 
 def test_mark_registered_sets_db_id() -> None:
     """mark_registered() sets db_id on first call."""
-    job = make_job()
+    job = make_scheduled_job(name="job")
     assert job.db_id is None
 
     job.mark_registered(42)
@@ -26,7 +22,7 @@ def test_mark_registered_sets_db_id() -> None:
 
 def test_mark_registered_keeps_first_db_id_on_double_call() -> None:
     """mark_registered() keeps the original db_id when called a second time."""
-    job = make_job()
+    job = make_scheduled_job(name="job")
     job.mark_registered(42)
     job.mark_registered(99)
 

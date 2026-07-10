@@ -1,7 +1,6 @@
 """Reusable factory functions for web-related test data.
 
-These build manifest, snapshot, listener-metric, and registry objects
-used by both e2e and integration web tests.
+These build manifest and snapshot objects used by both e2e and integration web tests.
 
 **Factory guide**:
 
@@ -13,9 +12,9 @@ used by both e2e and integration web tests.
 """
 
 import re
+from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Literal
-from unittest.mock import MagicMock
 
 from whenever import ZonedDateTime
 
@@ -48,6 +47,17 @@ from hassette.web.models import (
 
 SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
 
+_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
+
+
+def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
+    """Count manifests by status."""
+    counts: dict[str, int] = {k: 0 for k in _STATUS_KEYS}
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return counts
+
 
 def make_full_snapshot(
     manifests: list[AppManifestInfo] | None = None,
@@ -55,10 +65,7 @@ def make_full_snapshot(
 ) -> AppFullSnapshot:
     """Build an AppFullSnapshot from a list of manifests."""
     manifests = manifests or []
-    counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
+    counts = _tally_statuses(manifests)
     return AppFullSnapshot(
         manifests=manifests,
         only_app=only_app,
@@ -80,6 +87,7 @@ def make_manifest(
     instances: list[AppInstanceInfo] | None = None,
     error_message: str | None = None,
     error_traceback: str | None = None,
+    autostart: bool = True,
 ) -> AppManifestInfo:
     """Build an AppManifestInfo with sensible defaults."""
     return AppManifestInfo(
@@ -95,6 +103,7 @@ def make_manifest(
         instances=instances or [],
         error_message=error_message,
         error_traceback=error_traceback,
+        autostart=autostart,
     )
 
 
@@ -128,10 +137,7 @@ def make_manifest_list_response(
 ) -> AppManifestListResponse:
     """Build an AppManifestListResponse from a list of manifests."""
     manifests = manifests or []
-    counts: dict[ManifestStatus, int] = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
+    counts = _tally_statuses(manifests)
     return AppManifestListResponse(
         manifests=manifests,
         total=len(manifests),
@@ -141,60 +147,6 @@ def make_manifest_list_response(
         disabled=counts["disabled"],
         blocked=counts["blocked"],
     )
-
-
-def make_listener_metric(
-    listener_id: int,
-    app_key: str,
-    topic: str,
-    handler_method: str,
-    instance_index: int = 0,
-    invocations: int = 10,
-    successful: int = 9,
-    failed: int = 1,
-    predicate_description: str | None = None,
-    debounce: float | None = None,
-    throttle: float | None = None,
-    once: bool = False,
-    priority: int = 0,
-) -> MagicMock:
-    """Build a mock listener metric with `.to_dict()` and direct attribute access."""
-    d = {
-        "listener_id": listener_id,
-        "app_key": app_key,
-        "instance_index": instance_index,
-        "topic": topic,
-        "handler_method": handler_method,
-        "total_invocations": invocations,
-        "successful": successful,
-        "failed": failed,
-        "di_failures": 0,
-        "cancelled": 0,
-        "total_duration_ms": invocations * 2.0,
-        "min_duration_ms": 1.0,
-        "max_duration_ms": 5.0,
-        "avg_duration_ms": 2.0,
-        "predicate_description": predicate_description,
-        "debounce": debounce,
-        "throttle": throttle,
-        "once": once,
-        "priority": priority,
-        "last_invoked_at": None,
-        "last_error_message": None,
-        "last_error_type": None,
-    }
-    m = MagicMock()
-    m.to_dict.return_value = d
-    # Expose attributes directly for mock attribute access
-    for k, v in d.items():
-        setattr(m, k, v)
-    return m
-
-
-def setup_registry(hassette: MagicMock, manifests: list[AppManifestInfo] | None = None) -> None:
-    """Configure the mock registry to return a proper AppFullSnapshot."""
-    snapshot = make_full_snapshot(manifests)
-    hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
 
 
 def make_job(

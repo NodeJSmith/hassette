@@ -22,6 +22,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.test_utils.factories import make_mock_listener
 from hassette.test_utils.helpers import create_listener
 
 
@@ -31,16 +32,6 @@ async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     return exc
-
-
-def make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> MagicMock:
-    """Return a mock Listener with configurable db_id."""
-    listener = MagicMock()
-    listener.listener_id = listener_id
-    listener.db_id = db_id
-    listener.invoker.invoke = AsyncMock()
-    listener.invoker.error_handler = None
-    return listener
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:

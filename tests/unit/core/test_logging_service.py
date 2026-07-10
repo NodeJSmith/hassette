@@ -6,8 +6,6 @@ import logging.handlers
 import queue
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import pytest
-
 from hassette.core.logging_service import LoggingService
 from hassette.logging_ import (
     HassetteQueueListener,
@@ -97,7 +95,6 @@ class TestLogPersistenceHandlerConstructor:
         finally:
             loop.close()
 
-    @pytest.mark.asyncio
     async def test_flush_calls_enqueue_on_db_service(self) -> None:
         """After construction, flush() should call db_service.enqueue() — no wiring step."""
         db_service = make_db_service()
@@ -119,7 +116,6 @@ class TestLogPersistenceHandlerConstructor:
 class TestLoggingServiceOnInitialize:
     """LoggingService.on_initialize creates and starts the async logging pipeline."""
 
-    @pytest.mark.asyncio
     async def test_on_initialize_creates_queue_listener_and_starts_it(self) -> None:
         """QueueListener is created and started during on_initialize."""
         hassette = make_mock_hassette(sealed=False)
@@ -147,7 +143,6 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    @pytest.mark.asyncio
     async def test_on_initialize_calls_mark_ready(self) -> None:
         """mark_ready() is called after pipeline starts — unconditionally."""
         hassette = make_mock_hassette(sealed=False)
@@ -162,7 +157,6 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    @pytest.mark.asyncio
     async def test_on_initialize_all_three_handlers_attached_to_listener(self) -> None:
         """Stream, capture, and persistence handlers are all in the QueueListener."""
         hassette = make_mock_hassette(sealed=False)
@@ -181,7 +175,6 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    @pytest.mark.asyncio
     async def test_on_initialize_persistence_failure_still_starts_pipeline(self) -> None:
         """If persistence handler creation fails, pipeline still starts with stream + capture."""
         hassette = make_mock_hassette(sealed=False)
@@ -208,7 +201,6 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    @pytest.mark.asyncio
     async def test_on_initialize_swaps_stream_handler_for_queue_handler(self) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""
         hassette_logger = logging.getLogger("hassette")
@@ -233,7 +225,6 @@ class TestLoggingServiceOnInitialize:
             hassette_logger.removeHandler(svc._queue_handler)
             hassette_logger.addHandler(stream_handler)
 
-    @pytest.mark.asyncio
     async def test_on_initialize_defensive_cleanup_removes_stale_queue_handler(self) -> None:
         """A stale QueueHandler on the logger is removed before the new one is added."""
         hassette_logger = logging.getLogger("hassette")
@@ -263,7 +254,6 @@ class TestLoggingServiceOnInitialize:
 class TestLoggingServiceOnShutdown:
     """LoggingService.on_shutdown stops the QueueListener and restores the stream handler."""
 
-    @pytest.mark.asyncio
     async def test_on_shutdown_stops_listener_and_restores_stream_handler(self) -> None:
         """Shutdown removes QueueHandler, re-adds StreamHandler, stops QueueListener."""
         hassette_logger = logging.getLogger("hassette")
@@ -294,7 +284,6 @@ class TestLoggingServiceOnShutdown:
         finally:
             hassette_logger.removeHandler(stream_handler)
 
-    @pytest.mark.asyncio
     async def test_on_shutdown_sets_capture_handler_shutting_down(self) -> None:
         """capture_handler.shutting_down is set to True during shutdown."""
         hassette = make_mock_hassette(sealed=False)
@@ -309,7 +298,6 @@ class TestLoggingServiceOnShutdown:
 
         remove_queue_handlers()
 
-    @pytest.mark.asyncio
     async def test_on_shutdown_flushes_persistence_handler(self) -> None:
         """flush_if_pending() is called on persistence_handler during shutdown."""
         hassette = make_mock_hassette(sealed=False)
@@ -331,7 +319,6 @@ class TestLoggingServiceOnShutdown:
 class TestDroppedCount:
     """Verify dropped_count delegates to persistence_handler."""
 
-    @pytest.mark.asyncio
     async def test_dropped_count_zero_when_no_persistence_handler(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
@@ -350,7 +337,6 @@ class TestDroppedCount:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    @pytest.mark.asyncio
     async def test_dropped_count_reads_from_persistence_handler(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
@@ -373,7 +359,6 @@ class TestDroppedCount:
 class TestSyncToAsyncSwap:
     """Verify no records are lost during the handler swap."""
 
-    @pytest.mark.asyncio
     async def test_records_emitted_before_init_reach_capture_handler(self) -> None:
         """Records emitted via Phase 1 StreamHandler arrive in capture handler after init.
 

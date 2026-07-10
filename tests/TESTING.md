@@ -14,27 +14,27 @@ async with HassetteHarness(config).with_state_proxy() as harness:
 
 ### Available components
 
-| Method                   | Component                            | Auto-pulls           |
-| ------------------------ | ------------------------------------ | -------------------- |
-| `.with_bus()`            | Event bus + BusService               | —                    |
-| `.with_scheduler()`      | SchedulerService + Scheduler         | —                    |
-| `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                    |
+| Method                   | Component                            | Auto-pulls                        |
+| ------------------------ | ------------------------------------ | --------------------------------- |
+| `.with_bus()`            | Event bus + BusService               | —                                 |
+| `.with_scheduler()`      | SchedulerService + Scheduler         | —                                 |
+| `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                                 |
 | `.with_state_proxy()`    | StateProxy                           | `bus`, `scheduler`                |
-| `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                    |
-| `.with_file_watcher()`   | FileWatcherService                   | —                    |
+| `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                                 |
+| `.with_file_watcher()`   | FileWatcherService                   | —                                 |
 | `.with_app_handler()`    | AppHandler                           | `bus`, `scheduler`, `state_proxy` |
 
 ## Choosing a Mock Strategy
 
 Two parallel systems exist for different testing needs:
 
-| Scenario                                         | Tool                              | Why                                              |
-| ------------------------------------------------ | --------------------------------- | ------------------------------------------------ |
-| Bus routing, scheduler firing, state propagation | `HassetteHarness`                 | Wires real components — catches integration bugs |
-| Unit tests needing a hassette mock with real config | `make_mock_hassette()`         | Real Pydantic validation, sealed by default, no drift |
-| HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()`          | MagicMock stub — fast, no real services needed   |
-| RuntimeQueryService + event buffer               | `create_mock_runtime_query_service()` | Bypasses `__init__`, wires to the stub       |
-| FastAPI app from a stub                          | `create_test_fastapi_app()`       | Thin wrapper with optional log handler patch     |
+| Scenario                                            | Tool                                  | Why                                                  |
+| --------------------------------------------------- | ------------------------------------- | ---------------------------------------------------- |
+| Bus routing, scheduler firing, state propagation    | `HassetteHarness`                     | Wires real components — catches integration bugs     |
+| Unit tests needing a hassette mock with real config | `make_mock_hassette()`                | Real Pydantic validation, sealed by default, no drift |
+| HTTP endpoints, HTML responses, WebSocket frames    | `create_hassette_stub()`              | MagicMock stub — fast, no real services needed       |
+| RuntimeQueryService + event buffer                  | `create_mock_runtime_query_service()` | Bypasses `__init__`, wires to the stub               |
+| FastAPI app from a stub                             | `create_test_fastapi_app()`           | Thin wrapper with optional log handler patch         |
 
 ### `HassetteHarness` — real components
 
@@ -73,9 +73,9 @@ app = create_fastapi_app(stub)
 
 - `mock_hassette` — in unit/integration non-web tests: lightweight hassette mock via `make_mock_hassette()` from `hassette.test_utils`; in web/API tests: MagicMock stub via `create_hassette_stub()` (defined locally per file, out of scope for consolidation)
 - `db_hassette` — database-backed hassette mock with `premigrated_db_path`, also via `make_mock_hassette()`
-- `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/conftest.py`)
-- `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
-- `client` — httpx2 `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
+- `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/web_api/conftest.py`)
+- `app` — FastAPI application instance (shared in `tests/integration/web_api/conftest.py`, can be overridden locally)
+- `client` — httpx2 `AsyncClient` (shared in `tests/integration/web_api/conftest.py`, can be overridden locally)
 
 ### Component extractors (local fixtures)
 
@@ -116,8 +116,8 @@ async def cleanup_harness(request: pytest.FixtureRequest) -> None:
         await harness.reset()
 ```
 
-`_HARNESS_FIXTURES` covers the 8 module-scoped harness fixtures:
-`hassette_with_nothing`, `hassette_with_sync_executor`, `hassette_with_bus`,
+`_HARNESS_FIXTURES` covers the 7 module-scoped harness fixtures:
+`hassette_with_sync_executor`, `hassette_with_bus`,
 `hassette_with_scheduler`, `hassette_with_file_watcher`,
 `hassette_with_state_proxy`, `hassette_with_state_registry`,
 `hassette_with_app_handler`.
@@ -141,6 +141,27 @@ always reset explicitly when active. The cost is negligible (one
 `remove_all_listeners()` + one `_remove_all_jobs()` call per test at most).
 
 Reset functions are defined in `src/hassette/test_utils/reset.py`.
+
+## Factory Naming Convention (`make_*` / `create_*` / `build_*`)
+
+The `make_`/`create_`/`build_` prefix signals what a factory returns, not just that it builds something:
+
+- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_index`) for tests that exercise web-layer behavior against a real job.
+- **`make_<name>()` returning `SimpleNamespace`** — a duck-typed stand-in, not a real instance. `make_job()` (`web_helpers.py`) returns a `SimpleNamespace` job for serialization tests that only need attribute access, not real `ScheduledJob` methods.
+- **`make_mock_*()`** — always returns a `Mock`/`MagicMock`/`AsyncMock`. `make_mock_executor()`, `make_mock_event()`, `make_mock_parent()` never construct the real production type.
+
+Three factories share the word "job" but return three different things — check the return type, not just the name, before reusing one: `make_scheduled_job()` (real `ScheduledJob`, scheduler-test defaults), `make_real_job()` (real `ScheduledJob`, web-test defaults), `make_job()` (`SimpleNamespace`, serialization tests).
+
+Similarly, `make_manifest()` in `web_helpers.py` returns `AppManifestInfo` (the runtime snapshot model) — this is a different type from local `make_manifest()` helpers in `test_config_classes.py` and `test_app_factory_lifecycle.py` that build `AppManifest` (the config-layer registration model). Those stay local; they are not consolidation targets.
+
+## Before Writing a New Factory
+
+1. Check `src/hassette/test_utils/factories.py` for an existing factory returning the type you need.
+2. Check `src/hassette/test_utils/helpers.py` for event/state builders and misc helpers.
+3. Check `src/hassette/test_utils/web_helpers.py` for web/API response and snapshot factories.
+4. If a matching factory exists, import it — don't redefine it locally, even with a different name for the same shape.
+5. If it doesn't exist and you need it in 3+ files, add it to the appropriate shared file instead of writing a fourth local copy.
+6. If the factory is genuinely local — a different return type, a narrower purpose than any shared factory with a similar name — annotate the `def` line with `# factory-local: <reason>` so `tools/check_test_factories.py` doesn't flag it as shadowing.
 
 ## Available Factories
 
@@ -172,23 +193,46 @@ Builds an `AppManifestInfo` with sensible defaults.
 
 Builds an `AppFullSnapshot` from a list of manifests with auto-computed status counts.
 
-### `make_listener_metric(listener_id, owner, topic, handler_method, ...)` — `test_utils/web_helpers.py`
-
-Builds a mock listener metric with `.to_dict()` and direct attribute access.
-
 ### `make_job(**kwargs)` — `test_utils/web_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
 
-### `setup_registry(hassette, manifests)` — `test_utils/web_helpers.py`
+### `make_real_job(**kwargs)` — `test_utils/web_helpers.py`
 
-Configures the mock registry to return a proper `AppFullSnapshot`.
+Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_index`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
+
+### `make_scheduled_job(**kwargs)` — `test_utils/factories.py`
+
+Builds a real `ScheduledJob` for unit/scheduler tests, with every field overridable (`job`, `name`, `owner_id`, `next_run`, `trigger`, `group`, `jitter`, `timeout`, `timeout_disabled`, `error_handler`, `mode`, `db_id`, `predicate`).
+
+### `make_mock_executor()` — `test_utils/factories.py`
+
+Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`.
+
+### `make_mock_event()` — `test_utils/factories.py`
+
+Builds a `MagicMock(spec=Event)`.
+
+### `make_recording_api(states=None)` — `test_utils/factories.py`
+
+Builds a `RecordingApi` wired to an unsealed `make_mock_hassette()` (with the real `STATE_REGISTRY`) and an `AsyncMock(spec=StateProxy)` whose `.states` is seeded from `states` and `.is_ready()` returns `True`.
+
+### `make_hassette_event(topic="hassette.ready", data=None)` — `test_utils/factories.py`
+
+Builds an `Event` carrying a `HassettePayload`.
+
+### `make_mock_parent(**kwargs)` — `test_utils/factories.py`
+
+Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
 
 ## Shared Integration Fixtures
 
 `tests/integration/conftest.py` provides:
 
 - **`cleanup_harness`** — single autouse fixture that resets all active module-scoped harness components before each test by calling `harness.reset()` on each matching fixture
+
+`tests/integration/web_api/conftest.py` provides:
+
 - **`runtime_query_service`** — shared across integration web test files; each file defines its own `mock_hassette`
 - **`app`** — FastAPI application instance
 - **`client`** — httpx2 `AsyncClient`

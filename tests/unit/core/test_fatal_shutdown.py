@@ -11,11 +11,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from hassette.core.service_watcher import ServiceWatcher
-from hassette.events import HassetteServiceEvent
-from hassette.events.base import HassettePayload
-from hassette.events.hassette import ServiceStatusPayload
-from hassette.types import ResourceStatus, Topic
+from hassette.test_utils.helpers import make_crashed_event
+
+from .conftest import make_watcher
 
 
 class TestShutdownIfCrashedSetsFatalReason:
@@ -40,34 +38,10 @@ class TestShutdownIfCrashedSetsFatalReason:
         hassette.record_fatal_reason = MagicMock(side_effect=record)
         return hassette
 
-    def make_watcher(self, hassette) -> ServiceWatcher:
-        watcher = ServiceWatcher.__new__(ServiceWatcher)
-        watcher.hassette = hassette
-        watcher.logger = MagicMock()
-        return watcher
-
-    def make_crashed_event(self, name: str, exc_type: str) -> HassetteServiceEvent:
-        return HassetteServiceEvent(
-            topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-            payload=HassettePayload(
-                data=ServiceStatusPayload(
-                    resource_name=name,
-                    role="Service",
-                    status=ResourceStatus.CRASHED,
-                    previous_status=ResourceStatus.FAILED,
-                    exception="test crash",
-                    exception_type=exc_type,
-                    exception_traceback="tb line 1\ntb line 2",
-                    ready=False,
-                    ready_phase=None,
-                ),
-            ),
-        )
-
     async def test_sets_fatal_reason_with_service_name(self, watcher_hassette):
         """shutdown_if_crashed sets _fatal_shutdown_reason containing the crashed service name."""
-        watcher = self.make_watcher(watcher_hassette)
-        event = self.make_crashed_event("BusService", "RuntimeError")
+        watcher = make_watcher(watcher_hassette)
+        event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
         await watcher.shutdown_if_crashed(event)
 
@@ -76,8 +50,8 @@ class TestShutdownIfCrashedSetsFatalReason:
 
     async def test_sets_fatal_reason_with_exception_type(self, watcher_hassette):
         """Fatal reason contains the exception type."""
-        watcher = self.make_watcher(watcher_hassette)
-        event = self.make_crashed_event("SchedulerService", "MyFatalException")
+        watcher = make_watcher(watcher_hassette)
+        event = make_crashed_event(resource_name="SchedulerService", exception_type="MyFatalException")
 
         await watcher.shutdown_if_crashed(event)
 
@@ -87,8 +61,8 @@ class TestShutdownIfCrashedSetsFatalReason:
 
     async def test_calls_request_shutdown_not_shutdown(self, watcher_hassette):
         """shutdown_if_crashed calls request_shutdown (sets shutdown_event) not bare shutdown()."""
-        watcher = self.make_watcher(watcher_hassette)
-        event = self.make_crashed_event("BusService", "RuntimeError")
+        watcher = make_watcher(watcher_hassette)
+        event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
         await watcher.shutdown_if_crashed(event)
 
@@ -105,8 +79,8 @@ class TestShutdownIfCrashedSetsFatalReason:
             call_order.append("request_shutdown")
 
         watcher_hassette.request_shutdown = MagicMock(side_effect=track_request_shutdown)
-        watcher = self.make_watcher(watcher_hassette)
-        event = self.make_crashed_event("BusService", "RuntimeError")
+        watcher = make_watcher(watcher_hassette)
+        event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
         await watcher.shutdown_if_crashed(event)
 

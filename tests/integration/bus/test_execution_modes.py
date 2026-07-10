@@ -22,8 +22,10 @@ from hassette.events import RawStateChangeEvent
 from hassette.execution_mode import DEFAULT_QUEUE_DEPTH
 from hassette.schemas.live_counts import LiveCounts
 from hassette.test_utils import wait_for
+from hassette.test_utils.factories import make_mock_parent
 from hassette.test_utils.helpers import create_listener, create_state_change_event
 
+from .conftest import DURATION
 from .helpers import seed
 
 if typing.TYPE_CHECKING:
@@ -429,7 +431,7 @@ async def test_debounce_with_single_composes(
         started += 1
         await gate.wait()
 
-    await bus.on_state_change(ENTITY, handler=handler, name="debounce_single", mode="single", debounce=0.05)
+    await bus.on_state_change(ENTITY, handler=handler, name="debounce_single", mode="single", debounce=DURATION)
 
     # Three rapid fires collapse to one debounced start. The single guard then governs overlap of
     # whatever started — here exactly one invocation begins after the quiet window.
@@ -488,7 +490,7 @@ async def test_duration_hold_with_single_guards_at_expiry(
         name="duration_single",
         mode="single",
         changed_to="on",
-        duration=0.05,
+        duration=DURATION,
     )
 
     # The handler does NOT start at trigger arrival — it starts only after the 50ms hold elapses.
@@ -518,13 +520,7 @@ async def test_framework_tier_listener_processes_concurrent_events(
     # Substitute a mock parent reporting framework tier instead of mutating the live parent, so the
     # registration resolves to the framework default (mirrors test_source_tier_propagation.py).
     original_parent = bus.parent
-    mock_parent = Mock()
-    mock_parent.source_tier = "framework"
-    mock_parent.app_key = original_parent.app_key
-    mock_parent.index = original_parent.index
-    mock_parent.unique_name = original_parent.unique_name
-    mock_parent.class_name = original_parent.class_name
-    bus.parent = mock_parent
+    bus.parent = make_mock_parent(source_tier="framework")
 
     concurrent = 0
     peak = 0

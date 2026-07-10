@@ -1,90 +1,23 @@
 """Tests for Scheduler job name uniqueness validation."""
 
-from collections.abc import Callable
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
-from hassette.scheduler.classes import ScheduledJob
-from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Cron, Every
-from hassette.utils.date_utils import now
-
-
-def make_scheduler(*, wire_dequeue: bool = False) -> Scheduler:
-    """Create a minimal Scheduler instance with mocked internals.
-
-    Uses a unique per-call subclass so that property overrides for owner_id do
-    NOT mutate the shared Scheduler class — which would break parallel test
-    workers that create real Scheduler instances concurrently.
-
-    Args:
-        wire_dequeue: If True, configure scheduler_service.dequeue_job to mimic
-            real behavior (set _dequeued=True and fire _on_job_removed callback).
-            Required for tests that exercise cancel_job paths.
-    """
-    # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
-    _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
-    _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
-
-    scheduler = _TestScheduler.__new__(_TestScheduler)
-    scheduler.scheduler_service = Mock()
-    scheduler._jobs_by_name = {}
-    scheduler._jobs_by_group = {}
-    scheduler._error_handler = None
-    scheduler.logger = Mock()
-
-    # add_job is now awaited inline — must be AsyncMock; sets db_id=1 on the job
-    async def _add_job(job: "ScheduledJob") -> None:
-        job.mark_registered(1)
-
-    scheduler.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
-
-    # Base behavior: always set _dequeued=True (matches test_scheduler_resource.py)
-    scheduler.scheduler_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
-
-    if wire_dequeue:
-
-        def _mock_dequeue(job: "ScheduledJob") -> bool:
-            job._dequeued = True
-            scheduler._on_job_removed(job)
-            return True
-
-        scheduler.scheduler_service.dequeue_job.side_effect = _mock_dequeue
-
-    return scheduler
-
-
-def make_job(
-    name: str = "",
-    *,
-    job: Callable[..., None] | None = None,
-    trigger: object = None,
-    group: str | None = None,
-) -> ScheduledJob:
-    """Create a minimal ScheduledJob."""
-    return ScheduledJob(
-        owner_id="test_owner",
-        next_run=now(),
-        job=job or (lambda: None),
-        name=name,
-        trigger=trigger,
-        group=group,
-    )
+from hassette.test_utils.factories import make_scheduled_job, make_scheduler
 
 
 class TestJobNameUniqueness:
     async def test_duplicate_name_raises(self) -> None:
         scheduler = make_scheduler()
-        await scheduler.add_job(make_job("daily_backup"))
+        await scheduler.add_job(make_scheduled_job(name="daily_backup"))
 
         with pytest.raises(ValueError, match="daily_backup"):
-            await scheduler.add_job(make_job("daily_backup"))
+            await scheduler.add_job(make_scheduled_job(name="daily_backup"))
 
     async def test_different_names_ok(self) -> None:
         scheduler = make_scheduler()
-        await scheduler.add_job(make_job("job_a"))
-        await scheduler.add_job(make_job("job_b"))
+        await scheduler.add_job(make_scheduled_job(name="job_a"))
+        await scheduler.add_job(make_scheduled_job(name="job_b"))
 
         assert set(scheduler._jobs_by_name) == {"job_a", "job_b"}
 
@@ -92,8 +25,8 @@ class TestJobNameUniqueness:
         """Jobs with auto-derived names (from callable) are still subject to uniqueness checks."""
         scheduler = make_scheduler()
         # Both jobs use lambda, so __post_init__ auto-names them "<lambda>".
-        job1 = make_job("")
-        job2 = make_job("")
+        job1 = make_scheduled_job(name="")
+        job2 = make_scheduled_job(name="")
 
         await scheduler.add_job(job1)
 
@@ -102,7 +35,7 @@ class TestJobNameUniqueness:
 
     async def test_removal_allows_reuse(self) -> None:
         scheduler = make_scheduler()
-        job = make_job("ephemeral")
+        job = make_scheduled_job(name="ephemeral")
         await scheduler.add_job(job)
         assert "ephemeral" in scheduler._jobs_by_name
 
@@ -111,13 +44,13 @@ class TestJobNameUniqueness:
         assert "ephemeral" not in scheduler._jobs_by_name
 
         # Re-adding with the same name should now succeed
-        await scheduler.add_job(make_job("ephemeral"))
+        await scheduler.add_job(make_scheduled_job(name="ephemeral"))
         assert "ephemeral" in scheduler._jobs_by_name
 
     async def test_remove_all_clears_names(self) -> None:
         scheduler = make_scheduler()
-        await scheduler.add_job(make_job("a"))
-        await scheduler.add_job(make_job("b"))
+        await scheduler.add_job(make_scheduled_job(name="a"))
+        await scheduler.add_job(make_scheduled_job(name="b"))
         assert set(scheduler._jobs_by_name) == {"a", "b"}
 
         scheduler._remove_all_jobs()
@@ -131,8 +64,8 @@ class TestAutoGeneratedNamesWithTrigger:
         def my_handler() -> None:
             pass
 
-        job_60s = make_job("", job=my_handler, trigger=Every(seconds=60))
-        job_300s = make_job("", job=my_handler, trigger=Every(seconds=300))
+        job_60s = make_scheduled_job(name="", job=my_handler, trigger=Every(seconds=60))
+        job_300s = make_scheduled_job(name="", job=my_handler, trigger=Every(seconds=300))
 
         assert job_60s.name != job_300s.name
         assert "my_handler" in job_60s.name
@@ -146,8 +79,8 @@ class TestAutoGeneratedNamesWithTrigger:
         def my_handler() -> None:
             pass
 
-        job_hourly = make_job("", job=my_handler, trigger=Cron("0 * * * *"))
-        job_daily = make_job("", job=my_handler, trigger=Cron("0 0 * * *"))
+        job_hourly = make_scheduled_job(name="", job=my_handler, trigger=Cron("0 * * * *"))
+        job_daily = make_scheduled_job(name="", job=my_handler, trigger=Cron("0 0 * * *"))
 
         assert job_hourly.name != job_daily.name
         assert "cron" in job_hourly.name
@@ -160,8 +93,8 @@ class TestAutoGeneratedNamesWithTrigger:
             pass
 
         scheduler = make_scheduler()
-        job1 = make_job("", job=my_handler, trigger=Every(seconds=60))
-        job2 = make_job("", job=my_handler, trigger=Every(seconds=60))
+        job1 = make_scheduled_job(name="", job=my_handler, trigger=Every(seconds=60))
+        job2 = make_scheduled_job(name="", job=my_handler, trigger=Every(seconds=60))
 
         await scheduler.add_job(job1)
         with pytest.raises(ValueError, match="my_handler"):
@@ -173,7 +106,7 @@ class TestAutoGeneratedNamesWithTrigger:
         def my_handler() -> None:
             pass
 
-        job = make_job("", job=my_handler, trigger=None)
+        job = make_scheduled_job(name="", job=my_handler, trigger=None)
         assert job.name == "my_handler"
 
 
@@ -182,10 +115,10 @@ class TestIfExistsSkip:
         """if_exists='skip' returns the existing job when everything matches."""
         scheduler = make_scheduler()
         fn = lambda: None  # noqa: E731
-        job1 = make_job("poll", job=fn)
+        job1 = make_scheduled_job(name="poll", job=fn)
         added = await scheduler.add_job(job1)
 
-        job2 = make_job("poll", job=fn)
+        job2 = make_scheduled_job(name="poll", job=fn)
         result = await scheduler.add_job(job2, if_exists="skip")
 
         assert result is added
@@ -195,10 +128,10 @@ class TestIfExistsSkip:
         scheduler = make_scheduler()
         fn_a = lambda: None  # noqa: E731
         fn_b = lambda: None  # noqa: E731
-        await scheduler.add_job(make_job("poll", job=fn_a))
+        await scheduler.add_job(make_scheduled_job(name="poll", job=fn_a))
 
         with pytest.raises(ValueError, match="poll"):
-            await scheduler.add_job(make_job("poll", job=fn_b), if_exists="skip")
+            await scheduler.add_job(make_scheduled_job(name="poll", job=fn_b), if_exists="skip")
 
     async def test_skip_checks_trigger_equality(self) -> None:
         """if_exists='skip' considers trigger type and value."""
@@ -207,25 +140,27 @@ class TestIfExistsSkip:
         trigger_30s = Every(seconds=30)
         trigger_60s = Every(seconds=60)
 
-        await scheduler.add_job(make_job("poll", job=fn, trigger=trigger_30s))
+        await scheduler.add_job(make_scheduled_job(name="poll", job=fn, trigger=trigger_30s))
 
         # Same trigger config → skip
         same_trigger = Every(seconds=30)
-        result = await scheduler.add_job(make_job("poll", job=fn, trigger=same_trigger), if_exists="skip")
+        result = await scheduler.add_job(
+            make_scheduled_job(name="poll", job=fn, trigger=same_trigger), if_exists="skip"
+        )
         assert result is scheduler._jobs_by_name["poll"]
 
         # Different trigger config → error
         with pytest.raises(ValueError, match="poll"):
-            await scheduler.add_job(make_job("poll", job=fn, trigger=trigger_60s), if_exists="skip")
+            await scheduler.add_job(make_scheduled_job(name="poll", job=fn, trigger=trigger_60s), if_exists="skip")
 
     async def test_error_mode_always_raises_on_duplicate(self) -> None:
         """Default if_exists='error' raises even when config matches."""
         scheduler = make_scheduler()
         fn = lambda: None  # noqa: E731
-        await scheduler.add_job(make_job("poll", job=fn))
+        await scheduler.add_job(make_scheduled_job(name="poll", job=fn))
 
         with pytest.raises(ValueError, match="poll"):
-            await scheduler.add_job(make_job("poll", job=fn))
+            await scheduler.add_job(make_scheduled_job(name="poll", job=fn))
 
 
 class TestIfExistsReplace:
@@ -234,9 +169,9 @@ class TestIfExistsReplace:
         scheduler = make_scheduler(wire_dequeue=True)
         fn_old = lambda: None  # noqa: E731
         fn_new = lambda: None  # noqa: E731
-        old_job = await scheduler.add_job(make_job("sensor_check", job=fn_old))
+        old_job = await scheduler.add_job(make_scheduled_job(name="sensor_check", job=fn_old))
 
-        new_job = make_job("sensor_check", job=fn_new)
+        new_job = make_scheduled_job(name="sensor_check", job=fn_new)
         result = await scheduler.add_job(new_job, if_exists="replace")
 
         assert result is new_job
@@ -247,7 +182,7 @@ class TestIfExistsReplace:
         """if_exists='replace' with no pre-existing job behaves like a normal add."""
         scheduler = make_scheduler(wire_dequeue=True)
         fn = lambda: None  # noqa: E731
-        job = make_job("fresh_job", job=fn)
+        job = make_scheduled_job(name="fresh_job", job=fn)
 
         result = await scheduler.add_job(job, if_exists="replace")
 
@@ -259,10 +194,10 @@ class TestIfExistsReplace:
         scheduler = make_scheduler(wire_dequeue=True)
         fn_old = lambda: None  # noqa: E731
         fn_new = lambda: None  # noqa: E731
-        old_job = make_job("check", job=fn_old, group="monitors")
+        old_job = make_scheduled_job(name="check", job=fn_old, group="monitors")
         await scheduler.add_job(old_job)
 
-        new_job = make_job("check", job=fn_new, group="monitors")
+        new_job = make_scheduled_job(name="check", job=fn_new, group="monitors")
         await scheduler.add_job(new_job, if_exists="replace")
 
         assert new_job in scheduler._jobs_by_group["monitors"]
@@ -272,9 +207,9 @@ class TestIfExistsReplace:
         """if_exists='replace' returns the newly registered job object."""
         scheduler = make_scheduler(wire_dequeue=True)
         fn = lambda: None  # noqa: E731
-        old_job = await scheduler.add_job(make_job("poller", job=fn))
+        old_job = await scheduler.add_job(make_scheduled_job(name="poller", job=fn))
 
-        new_job = make_job("poller", job=fn, trigger=Every(seconds=120))
+        new_job = make_scheduled_job(name="poller", job=fn, trigger=Every(seconds=120))
         result = await scheduler.add_job(new_job, if_exists="replace")
 
         assert result is new_job
@@ -285,10 +220,10 @@ class TestIfExistsReplace:
         scheduler = make_scheduler(wire_dequeue=True)
         fn_old = lambda: None  # noqa: E731
         fn_new = lambda: None  # noqa: E731
-        old_job = make_job("check", job=fn_old, group="old_group")
+        old_job = make_scheduled_job(name="check", job=fn_old, group="old_group")
         await scheduler.add_job(old_job)
 
-        new_job = make_job("check", job=fn_new, group="new_group")
+        new_job = make_scheduled_job(name="check", job=fn_new, group="new_group")
         await scheduler.add_job(new_job, if_exists="replace")
 
         assert "old_group" not in scheduler._jobs_by_group or scheduler._jobs_by_group["old_group"] == set()
