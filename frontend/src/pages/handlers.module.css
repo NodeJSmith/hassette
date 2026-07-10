@@ -31,7 +31,7 @@
   border-bottom: 1px solid var(--line-2);
   text-decoration: none;
   color: inherit;
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--ease);
 }
 
 .mobileCard:last-child {

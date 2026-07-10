@@ -94,7 +94,7 @@
 }
 .iconBtn:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: var(--sp-0);
 }
 .iconBtn:disabled {
   color: var(--ink-4);
@@ -177,7 +177,7 @@
   text-align: right;
   text-transform: uppercase;
   letter-spacing: var(--tr-label-tight);
-  padding-top: 1px;
+  padding-top: var(--sp-px);
 }
 
 .metaGrid dd {
@@ -235,7 +235,7 @@
   margin: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
-  line-height: 1.5;
+  line-height: var(--lh-small);
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -248,7 +248,7 @@
 }
 
 .exceptionBlock {
-  border-left: 3px solid var(--err);
+  border-left: var(--border-thick) solid var(--err);
 }
 
 /* Copy button */
@@ -268,7 +268,7 @@
 }
 .copyBtn:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: var(--sp-0);
 }
 
 /* Filtered out state */

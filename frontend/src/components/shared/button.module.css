@@ -18,7 +18,7 @@
     border-color var(--t-fast),
     color var(--t-fast);
   text-decoration: none;
-  line-height: 1.5;
+  line-height: var(--lh-small);
 }
 
 .btn:hover {

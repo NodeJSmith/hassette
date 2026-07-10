@@ -8,7 +8,7 @@
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: var(--lh-small);
 }
 
 .modifier {
@@ -72,5 +72,5 @@
 /* size modifier */
 .sm {
   font-size: var(--fs-xs);
-  padding: 1px var(--sp-1);
+  padding: var(--sp-px) var(--sp-1);
 }

@@ -47,7 +47,7 @@
   font-family: var(--font-body);
   font-size: var(--fs-small);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tr-label-mid);
   text-transform: uppercase;
   color: var(--ink-2);
 }
