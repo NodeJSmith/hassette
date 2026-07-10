@@ -244,7 +244,7 @@ The serif display face is a deliberate accent — an editorial note in an otherw
 
 | Token | Value | Usage examples |
 |---|---|---|
-| `--sp-px` | 1px | Sub-grid vertical padding (chips, compact badges) |
+| `--sp-px` | 1px | Hairline border width, sub-grid vertical padding (chips, compact badges) |
 | `--sp-0` | 2px | Focus outline offset, micro margins |
 | `--sp-1` | 4px | Icon button padding, tight gaps |
 | `--sp-1h` | 6px | Input vertical padding (half-step) |
@@ -303,6 +303,7 @@ These are em-based so they scale with the component's font-size across size vari
 | Token | Value | Usage |
 |---|---|---|
 | `--blur-overlay` | 2px | Backdrop blur for overlays (command palette, confirm dialog) |
+| `--border-med` | 2px | Focus-visible outlines, failing-state accent borders |
 | `--border-thick` | 3px | Heavy borders (spinner track, error accent borders) |
 
 ### Motion
@@ -363,6 +364,7 @@ Motion confirms interactions and orients users during overlays/drawers. No decor
 | Token | Value | Usage |
 |---|---|---|
 | `--blur-overlay` | 2px | Backdrop blur for overlays (command palette, confirm dialog) |
+| `--border-med` | 2px | Focus-visible outlines, failing-state accent borders |
 | `--border-thick` | 3px | Heavy borders (spinner track, error accent borders) |
 
 ---

@@ -159,6 +159,7 @@
 
   /* Effects */
   --blur-overlay: 2px;
+  --border-med: 2px;
   --border-thick: 3px;
 
   /* Z-index scale */

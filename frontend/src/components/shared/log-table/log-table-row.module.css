@@ -1,7 +1,7 @@
 .row {
   cursor: pointer;
   outline: none;
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--ease);
 }
 
 .row:hover,

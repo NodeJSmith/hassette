@@ -17,7 +17,7 @@
 }
 
 .sortHeader:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
   border-radius: var(--r-sm);
 }
@@ -45,7 +45,7 @@
   padding: var(--sp-0);
   border-radius: var(--r-sm);
   color: var(--ink-4);
-  transition: color var(--t-fast);
+  transition: color var(--t-fast) var(--ease);
 }
 
 .filterBtn svg {
@@ -57,7 +57,7 @@
 }
 
 .filterBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 

@@ -22,7 +22,7 @@
   top: 0;
   height: 100vh;
   width: var(--sz-drawer);
-  border-left: 1px solid var(--line-1);
+  border-left: var(--sp-px) solid var(--line-1);
   box-shadow: var(--shadow-3);
   animation: slideInRight var(--t-med) var(--ease);
 }
@@ -33,7 +33,7 @@
   left: 0;
   width: 100%;
   max-height: 70vh;
-  border-top: 1px solid var(--line-1);
+  border-top: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   box-shadow: var(--shadow-3);
   animation: slideInUp var(--t-med) var(--ease);
@@ -63,7 +63,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
   flex-shrink: 0;
 }
 
@@ -84,8 +84,8 @@
   font-size: var(--fs-body);
   color: var(--ink-3);
   transition:
-    color var(--t-fast),
-    background-color var(--t-fast);
+    color var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease);
 }
 
 .iconBtn:hover {
@@ -93,7 +93,7 @@
   background: var(--bg-sunken);
 }
 .iconBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 .iconBtn:disabled {
@@ -259,7 +259,7 @@
   color: var(--ink-4);
   padding: var(--sp-0);
   border-radius: var(--r-sm);
-  transition: color var(--t-fast);
+  transition: color var(--t-fast) var(--ease);
   flex-shrink: 0;
 }
 
@@ -267,7 +267,7 @@
   color: var(--ink-2);
 }
 .copyBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 

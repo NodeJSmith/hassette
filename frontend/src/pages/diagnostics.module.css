@@ -29,7 +29,7 @@
   text-transform: uppercase;
   letter-spacing: var(--tr-label);
   color: var(--warn);
-  border: 1px solid var(--warn);
+  border: var(--sp-px) solid var(--warn);
   border-radius: var(--r-pill);
   padding: var(--sp-px) var(--sp-2);
 }
@@ -153,7 +153,7 @@
 
 .degradedBanner {
   background: var(--warn-bg);
-  border: 1px solid var(--warn);
+  border: var(--sp-px) solid var(--warn);
   border-radius: var(--r-sm);
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-small);
@@ -173,7 +173,7 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
 }
 
 .dropRow:last-child {

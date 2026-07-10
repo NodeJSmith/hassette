@@ -18,7 +18,7 @@
   align-items: baseline;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
 }
 
 .sectionTitle {
@@ -47,7 +47,7 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
 }
 
 .row:last-child {
@@ -77,7 +77,7 @@
 .spacer {
   flex: 1 1 var(--sp-4);
   min-width: var(--sp-4);
-  border-bottom: 1px dotted var(--line-strong);
+  border-bottom: var(--sp-px) dotted var(--line-strong);
   transform: translateY(-3px);
   opacity: 0.55;
 }
@@ -102,7 +102,7 @@
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);
   background: var(--bg-sunken);
-  border: 1px solid var(--line-2);
+  border: var(--sp-px) solid var(--line-2);
   padding: var(--sp-px) var(--sp-2);
   border-radius: var(--r-sm);
 }
@@ -125,7 +125,7 @@
 }
 
 /* The mask glyphs (••••) render visually small, so the secret value is sized up
-   a touch above the body size for legibility. 15px has no exact token. */
+   a touch above the body size for legibility. 15px and 2px have no exact tokens. */
 .valSecretMasked {
   font-style: italic;
   letter-spacing: 2px;
@@ -150,7 +150,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   padding: var(--sp-px) var(--sp-2);
   color: var(--ink-2);

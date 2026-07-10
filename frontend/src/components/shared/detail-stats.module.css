@@ -3,8 +3,8 @@
   gap: var(--sp-6);
   flex-wrap: wrap;
   padding: var(--sp-3) 0;
-  border-top: 1px solid var(--line-1);
-  border-bottom: 1px solid var(--line-1);
+  border-top: var(--sp-px) solid var(--line-1);
+  border-bottom: var(--sp-px) solid var(--line-1);
   margin-bottom: var(--sp-4);
 }
 

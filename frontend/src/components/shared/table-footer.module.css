@@ -4,7 +4,7 @@
   justify-content: space-between;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
-  border-top: 1px solid var(--line-2);
+  border-top: var(--sp-px) solid var(--line-2);
   background: var(--bg-surface);
   flex-shrink: 0;
 }
@@ -38,14 +38,14 @@
   padding: var(--sp-1);
   border-radius: var(--r-sm);
   color: var(--ink-3);
-  transition: color var(--t-fast);
+  transition: color var(--t-fast) var(--ease);
 }
 
 .filterBtn:hover {
   color: var(--ink-1);
 }
 .filterBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 .filterBtnActive {
@@ -81,13 +81,13 @@
   font-size: var(--fs-micro);
   color: var(--ink-3);
   padding: var(--sp-1) 0;
-  transition: color var(--t-fast);
+  transition: color var(--t-fast) var(--ease);
 }
 
 .resetFiltersBtn:hover {
   color: var(--ink-1);
 }
 .resetFiltersBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }

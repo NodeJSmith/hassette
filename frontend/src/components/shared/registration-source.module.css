@@ -6,7 +6,7 @@
   margin: var(--sp-1) 0 0;
   padding: var(--sp-3);
   background: var(--bg-sunken);
-  border: 1px dashed var(--line-1);
+  border: var(--sp-px) dashed var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);

@@ -17,13 +17,13 @@
 
 .alertWarning {
   background: var(--warn-bg);
-  border: 1px solid var(--warn);
+  border: var(--sp-px) solid var(--warn);
   color: var(--warn);
 }
 
 .alertDanger {
   background: var(--err-bg);
-  border: 1px solid var(--err);
+  border: var(--sp-px) solid var(--err);
   color: var(--err);
   flex-direction: column;
   align-items: stretch;
@@ -51,7 +51,7 @@
   border-radius: var(--r-md);
   margin-bottom: var(--sp-4);
   font-size: var(--fs-body);
-  border: 1px solid transparent;
+  border: var(--sp-px) solid transparent;
 }
 
 .degradedBannerWarn {

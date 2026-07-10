@@ -2,7 +2,7 @@
 
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   padding: var(--sp-3);
   cursor: pointer;
@@ -21,12 +21,12 @@
 }
 
 .card:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 
 .cardFailing {
-  border-top: 2px solid var(--err);
+  border-top: var(--border-med) solid var(--err);
 }
 
 .cardFailing:hover {

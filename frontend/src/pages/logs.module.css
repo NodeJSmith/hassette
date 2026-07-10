@@ -21,6 +21,6 @@
 }
 
 .pausedBtn:focus-visible {
-  outline: 2px solid var(--warn);
+  outline: var(--border-med) solid var(--warn);
   outline-offset: var(--sp-0);
 }

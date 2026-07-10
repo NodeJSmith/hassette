@@ -20,7 +20,7 @@
   display: flex;
   gap: 0;
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   overflow: hidden;
 }
@@ -48,7 +48,7 @@
 }
 
 .tabBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
   border-radius: var(--r-sm);
 }
@@ -84,7 +84,7 @@
   gap: var(--sp-2);
   padding: var(--sp-4);
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
@@ -102,7 +102,7 @@
 }
 
 .instanceCard:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 
@@ -151,7 +151,7 @@
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   background: none;
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
@@ -177,7 +177,7 @@
 }
 
 .instanceSwitcherBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 

@@ -28,7 +28,7 @@
   flex-direction: column;
   gap: var(--sp-1);
   padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
   text-decoration: none;
   color: inherit;
   transition: background var(--t-fast) var(--ease);
