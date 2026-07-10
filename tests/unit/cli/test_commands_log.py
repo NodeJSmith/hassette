@@ -13,7 +13,14 @@ from hassette.cli.commands.log import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import (
+    SINCE_EPOCH,
+    CLIClientFactory,
+    GetSpy,
+    capture_json_stdout,
+    capture_stderr,
+    capture_stdout,
+)
 
 # cmd_log — recent log entries
 
@@ -73,7 +80,7 @@ class TestCmdLog:
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         spy = GetSpy(client)
 
-        since_epoch = 1_700_000_000.0
+        since_epoch = SINCE_EPOCH
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),

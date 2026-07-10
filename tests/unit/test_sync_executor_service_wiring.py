@@ -184,7 +184,7 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def wired_hassette(_isolated_hassette_context: object) -> Hassette:
+def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
     config = make_test_config()
     h = Hassette(config)
     h.wire_services()

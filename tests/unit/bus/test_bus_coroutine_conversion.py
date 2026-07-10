@@ -57,66 +57,30 @@ def test_registration_method_is_plain_def(method_name: str) -> None:
 # await returns Subscription with db_id; no warnings emitted
 
 
-async def test_await_on_returns_subscription(bus: "Bus") -> None:
-    """Awaiting Bus.on() returns a Subscription, no warning emitted."""
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda b: b.on(topic="test.topic", handler=handler, name="t"), id="on"),
+        pytest.param(lambda b: b.on_state_change("light.kitchen", handler=handler, name="t"), id="on_state_change"),
+        pytest.param(
+            lambda b: b.on_attribute_change("light.kitchen", "brightness", handler=handler, name="t"),
+            id="on_attribute_change",
+        ),
+        pytest.param(lambda b: b.on_call_service(handler=handler, name="t"), id="on_call_service"),
+        pytest.param(lambda b: b.on_homeassistant_restart(handler=handler, name="t"), id="on_homeassistant_restart"),
+        pytest.param(lambda b: b.on_app_running(handler=handler, name="t"), id="on_app_running"),
+        pytest.param(
+            lambda b: b.on_hassette_service_failed(handler=handler, name="t"),
+            id="on_hassette_service_failed",
+        ),
+    ],
+)
+async def test_await_returns_subscription(bus: "Bus", call) -> None:
+    """Awaiting any registration method returns a Subscription, no warning emitted."""
     with mock_add_listener(bus):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            sub = await bus.on(topic="test.topic", handler=handler, name="await_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_on_state_change_returns_subscription(bus: "Bus") -> None:
-    """on_state_change: await returns Subscription, no warning emitted."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_state_change("light.kitchen", handler=handler, name="osc_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_on_attribute_change_returns_subscription(bus: "Bus") -> None:
-    """on_attribute_change: await returns Subscription, no warning emitted."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_attribute_change("light.kitchen", "brightness", handler=handler, name="oac_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_on_call_service_returns_subscription(bus: "Bus") -> None:
-    """on_call_service: await returns Subscription, no warning emitted."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_call_service(handler=handler, name="ocs_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_delegate_on_homeassistant_restart(bus: "Bus") -> None:
-    """Awaiting on_homeassistant_restart returns Subscription, no warning."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_homeassistant_restart(handler=handler, name="ha_restart_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_delegate_on_app_running(bus: "Bus") -> None:
-    """Awaiting on_app_running returns Subscription, no warning."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_app_running(handler=handler, name="app_running_test")
-        assert isinstance(sub, Subscription)
-
-
-async def test_await_delegate_on_hassette_service_failed(bus: "Bus") -> None:
-    """Awaiting on_hassette_service_failed returns Subscription, no warning."""
-    with mock_add_listener(bus):
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            sub = await bus.on_hassette_service_failed(handler=handler, name="svc_failed_test")
+            sub = await call(bus)
         assert isinstance(sub, Subscription)
 
 
@@ -136,34 +100,22 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
 # forgotten await on a delegate also emits HassetteForgottenAwaitWarning
 
 
-def test_forgotten_await_on_primary_warns(bus: "Bus") -> None:
-    """Dropping un-awaited Bus.on() handle emits HassetteForgottenAwaitWarning."""
-    with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning, match="Coroutine from 'on' was"):
-        _ = bus.on(topic="test.topic", handler=handler, name="forgot_primary")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_delegate_warns(bus: "Bus") -> None:
-    """Dropping un-awaited delegate handle emits HassetteForgottenAwaitWarning."""
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda b: b.on(topic="test.topic", handler=handler, name="t"), id="on"),
+        pytest.param(lambda b: b.on_homeassistant_restart(handler=handler, name="t"), id="on_homeassistant_restart"),
+        pytest.param(lambda b: b.on_app_running(handler=handler, name="t"), id="on_app_running"),
+        pytest.param(
+            lambda b: b.on_hassette_service_failed(handler=handler, name="t"),
+            id="on_hassette_service_failed",
+        ),
+    ],
+)
+def test_forgotten_await_warns(bus: "Bus", call) -> None:
+    """Dropping un-awaited handle emits HassetteForgottenAwaitWarning."""
     with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning):
-        _ = bus.on_homeassistant_restart(handler=handler, name="forgot_delegate")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_two_hop_delegate_warns(bus: "Bus") -> None:
-    """Two-hop delegate (on_app_running -> on_app_state_changed -> _subscribe) emits HassetteForgottenAwaitWarning."""
-    with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning):
-        _ = bus.on_app_running(handler=handler, name="forgot_two_hop")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_hassette_service_failed_warns(bus: "Bus") -> None:
-    """Two-hop delegate on_hassette_service_failed -> on_hassette_service_status emits HassetteForgottenAwaitWarning."""
-    with mock_add_listener(bus), pytest.warns(HassetteForgottenAwaitWarning):
-        _ = bus.on_hassette_service_failed(handler=handler, name="forgot_svc_failed")
+        _ = call(bus)
         del _
         gc.collect()
 

@@ -15,6 +15,8 @@ import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 
+SINCE_EPOCH = 1_700_000_000.0
+
 
 class GetSpy:
     """Wraps ``client.get`` to record paths and params for assertion.

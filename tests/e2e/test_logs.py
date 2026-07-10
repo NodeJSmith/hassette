@@ -3,6 +3,8 @@
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS, EXTENDED_SETTLE_MS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -46,7 +48,7 @@ def test_search_input_present(page: Page, base_url: str) -> None:
 def wait_for_log_entries(page: Page) -> None:
     """Wait for log table component to finish loading entries."""
     # Footer shows either "N entries" / "N entry" or "showing 500 of N"
-    page.locator("text=/\\d+ entr|showing \\d+/").wait_for(timeout=5000)
+    page.locator("text=/\\d+ entr|showing \\d+/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
@@ -79,7 +81,7 @@ def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
     page.locator("[data-testid='filter-level']").select_option("ERROR")
     # Close popover by clicking elsewhere
     page.keyboard.press("Escape")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     tbody = page.locator("tbody")
     expect(tbody).to_contain_text("Failed to call service")
     expect(tbody).not_to_contain_text("Hassette started successfully")
@@ -92,7 +94,7 @@ def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
     wait_for_log_entries(page)
     search_input = page.locator("input[aria-label='Search logs']")
     search_input.fill("unresponsive")
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     tbody = page.locator("tbody")
     expect(tbody).to_contain_text("Light kitchen unresponsive")
     expect(tbody).not_to_contain_text("MyApp initialized")
@@ -163,7 +165,7 @@ def test_truncation_affordance_appears_on_narrow_viewport(page: Page, base_url: 
     page.set_viewport_size({"width": 800, "height": 600})
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # The messageText div has text-overflow: ellipsis — verify at least one exists
     msg_text_div = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child div").first
     expect(msg_text_div).to_be_attached()
@@ -176,7 +178,7 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
     page.set_viewport_size({"width": 800, "height": 600})
     page.goto(base_url + "/logs")
     wait_for_log_entries(page)
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
 
     # Measure scroll overflow on message text divs at narrow viewport
     narrow_overflow = page.evaluate("""() => {
@@ -190,7 +192,7 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
     }""")
 
     page.set_viewport_size({"width": 2400, "height": 600})
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
 
     # Measure scroll overflow at wide viewport
     wide_overflow = page.evaluate("""() => {
@@ -227,7 +229,7 @@ def test_toast_appears_on_log_fetch_error(page: Page, base_url: str) -> None:
     page.route("**/api/logs/recent*", lambda route: route.fulfill(status=500, body="Internal Server Error"))
     page.goto(base_url + "/logs")
     toast = page.locator("[data-sonner-toast][data-type='error']")
-    expect(toast).to_be_visible(timeout=5000)
+    expect(toast).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_toast_dismiss_via_close_button(page: Page, base_url: str) -> None:
@@ -235,9 +237,9 @@ def test_toast_dismiss_via_close_button(page: Page, base_url: str) -> None:
     page.route("**/api/logs/recent*", lambda route: route.fulfill(status=500, body="Internal Server Error"))
     page.goto(base_url + "/logs")
     toast = page.locator("[data-sonner-toast][data-type='error']")
-    expect(toast).to_be_visible(timeout=5000)
+    expect(toast).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     page.locator("[data-sonner-toast] [data-close-button]").click()
-    expect(toast).not_to_be_visible(timeout=5000)
+    expect(toast).not_to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_log_table_app_column_hidden_at_mobile(page: Page, base_url: str) -> None:

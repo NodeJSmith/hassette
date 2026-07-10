@@ -27,6 +27,11 @@ from hassette.schemas.telemetry_models import (
 from hassette.test_utils.web_helpers import make_job, make_manifest
 from hassette.types.enums import ResourceStatus
 
+TS_BASE = 1_704_067_200.0
+TS_RECENT = 1_704_067_100.0
+TS_OLDER = 1_704_067_050.0
+TS_OLDEST = 1_704_067_000.0
+
 
 def build_manifests() -> list[AppManifestInfo]:
     """Build a rich set of app manifests for e2e tests."""
@@ -225,7 +230,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=2.0,
             min_duration_ms=1.0,
             max_duration_ms=5.0,
-            last_invoked_at=1704067200.0,
+            last_invoked_at=TS_BASE,
             last_error_type="ValueError",
             last_error_message="Bad state value",
         ),
@@ -252,7 +257,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=2.0,
             min_duration_ms=1.0,
             max_duration_ms=5.0,
-            last_invoked_at=1704067100.0,
+            last_invoked_at=TS_RECENT,
             last_error_type=None,
             last_error_message=None,
         ),
@@ -282,7 +287,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=5.0,
             min_duration_ms=2.0,
             max_duration_ms=10.0,
-            last_invoked_at=1704067050.0,
+            last_invoked_at=TS_OLDER,
             last_error_type="RuntimeError",
             last_error_message="Lock service timed out",
         ),
@@ -312,7 +317,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=1.0,
             min_duration_ms=1.0,
             max_duration_ms=1.0,
-            last_invoked_at=1704067000.0,
+            last_invoked_at=TS_OLDEST,
             last_error_type=None,
             last_error_message=None,
         ),
@@ -341,7 +346,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=15,
             successful=14,
             failed=1,
-            last_executed_at=1704067200.0,
+            last_executed_at=TS_BASE,
             total_duration_ms=52.5,
             avg_duration_ms=3.5,
         ),
@@ -359,7 +364,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=5,
             successful=5,
             failed=0,
-            last_executed_at=1704067100.0,
+            last_executed_at=TS_RECENT,
             total_duration_ms=60.0,
             avg_duration_ms=12.0,
         ),
@@ -379,7 +384,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=8,
             successful=3,
             failed=5,
-            last_executed_at=1704067050.0,
+            last_executed_at=TS_OLDER,
             total_duration_ms=64.0,
             avg_duration_ms=8.0,
         ),
@@ -400,7 +405,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=2,
             successful=2,
             failed=0,
-            last_executed_at=1704067000.0,
+            last_executed_at=TS_OLDEST,
             total_duration_ms=2.0,
             avg_duration_ms=1.0,
         ),
@@ -423,7 +428,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="handler",
             listener_id=1,
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=2.5,
             status="success",
             error_type=None,
@@ -433,7 +438,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="handler",
             listener_id=1,
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=3.1,
             status="error",
             error_type="ValueError",
@@ -446,7 +451,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="job",
             job_id=7,
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=3.0,
             status="success",
             error_type=None,
@@ -455,7 +460,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="job",
             job_id=7,
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=4.2,
             status="error",
             error_type="TimeoutError",
@@ -469,7 +474,7 @@ def build_session_list() -> list[SessionRecord]:
     return [
         SessionRecord(
             id=1,
-            started_at=1704067200.0,
+            started_at=TS_BASE,
             stopped_at=None,
             status="running",
             error_type=None,
@@ -509,7 +514,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=42,
             handler_method="on_light_change",
             topic="state_changed.light.kitchen",
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=3.1,
             source_tier="app",
             error_type="ValueError",
@@ -520,7 +525,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             job_id=7,
             handler_method="check_lights",
             job_name="check_lights",
-            execution_start_ts=1704067000.0,
+            execution_start_ts=TS_OLDEST,
             duration_ms=4.2,
             source_tier="app",
             error_type="TimeoutError",
@@ -531,7 +536,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=43,
             handler_method="on_door_open",
             topic="state_changed.binary_sensor.door",
-            execution_start_ts=1704067050.0,
+            execution_start_ts=TS_OLDER,
             duration_ms=10.0,
             source_tier="app",
             error_type="RuntimeError",
@@ -543,7 +548,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=None,
             handler_method=None,
             topic=None,
-            execution_start_ts=1704067000.5,
+            execution_start_ts=TS_OLDEST + 0.5,
             duration_ms=1.0,
             source_tier="app",
             error_type="RuntimeError",
@@ -556,7 +561,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=999,
             handler_method="on_state_change_dispatch",
             topic="state_changed",
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=1.5,
             source_tier="framework",
             error_type="DispatchError",
@@ -674,7 +679,7 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
             total_executions=20,
             total_job_errors=1,
             avg_duration_ms=2.0,
-            last_activity_ts=1704067200.0,
+            last_activity_ts=TS_BASE,
         ),
         "broken_app": AppHealthSummary(
             handler_count=1,
@@ -684,7 +689,7 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
             total_executions=8,
             total_job_errors=5,
             avg_duration_ms=5.0,
-            last_activity_ts=1704067050.0,
+            last_activity_ts=TS_OLDER,
         ),
     }
 

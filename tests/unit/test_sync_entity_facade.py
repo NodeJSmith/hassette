@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, TypeVar
 from unittest.mock import MagicMock
 
+import pytest
 from pydantic import BaseModel
 
 from hassette import context
@@ -247,73 +248,35 @@ def test_lock_sync_is_lock_entity_sync_facade() -> None:
         assert type(entity.sync) is LockEntitySyncFacade
 
 
-def test_lock_sync_turn_on_uses_homeassistant_domain() -> None:
-    """LockEntity.sync.turn_on() dispatches via homeassistant.turn_on, not lock.turn_on."""
+@pytest.mark.parametrize(
+    ("method", "expected_mock"),
+    [("turn_on", "turn_on"), ("turn_off", "turn_off"), ("toggle", "toggle_service")],
+)
+def test_lock_sync_uses_homeassistant_domain(method: str, expected_mock: str) -> None:
+    """LockEntity.sync dispatches via homeassistant.*, not lock.*."""
     api = make_api()
     with entity_session(make_lock_entity(api)) as entity:
         mock_sync = MagicMock()
         api.sync = mock_sync
 
-        entity.sync.turn_on()
+        getattr(entity.sync, method)()
 
-        mock_sync.turn_on.assert_called_once_with(LOCK_ENTITY_ID)
-
-
-def test_lock_sync_turn_off_uses_homeassistant_domain() -> None:
-    """LockEntity.sync.turn_off() dispatches via homeassistant.turn_off, not lock.turn_off."""
-    api = make_api()
-    with entity_session(make_lock_entity(api)) as entity:
-        mock_sync = MagicMock()
-        api.sync = mock_sync
-
-        entity.sync.turn_off()
-
-        mock_sync.turn_off.assert_called_once_with(LOCK_ENTITY_ID)
-
-
-def test_lock_sync_toggle_uses_homeassistant_domain() -> None:
-    """LockEntity.sync.toggle() dispatches via homeassistant.toggle, not lock.toggle."""
-    api = make_api()
-    with entity_session(make_lock_entity(api)) as entity:
-        mock_sync = MagicMock()
-        api.sync = mock_sync
-
-        entity.sync.toggle()
-
-        mock_sync.toggle_service.assert_called_once_with(LOCK_ENTITY_ID)
+        getattr(mock_sync, expected_mock).assert_called_once_with(LOCK_ENTITY_ID)
 
 
 # Async dispatch: LockEntity inherits BaseEntity.turn_on/turn_off/toggle
 
 
-def test_lock_async_turn_on_uses_homeassistant_domain() -> None:
-    """LockEntity.turn_on() calls api.turn_on with only the entity_id (no domain override)."""
+@pytest.mark.parametrize(
+    ("method", "api_attr"),
+    [("turn_on", "turn_on"), ("turn_off", "turn_off"), ("toggle", "toggle_service")],
+)
+def test_lock_async_uses_homeassistant_domain(method: str, api_attr: str) -> None:
+    """LockEntity async methods dispatch via api.*, no domain override."""
     api = make_api()
-    mock_turn_on = MagicMock()
-    api.turn_on = mock_turn_on
+    mock_method = MagicMock()
+    setattr(api, api_attr, mock_method)
     with entity_session(make_lock_entity(api)) as entity:
-        entity.turn_on()
+        getattr(entity, method)()
 
-        mock_turn_on.assert_called_once_with(LOCK_ENTITY_ID)
-
-
-def test_lock_async_turn_off_uses_homeassistant_domain() -> None:
-    """LockEntity.turn_off() calls api.turn_off with only the entity_id (no domain override)."""
-    api = make_api()
-    mock_turn_off = MagicMock()
-    api.turn_off = mock_turn_off
-    with entity_session(make_lock_entity(api)) as entity:
-        entity.turn_off()
-
-        mock_turn_off.assert_called_once_with(LOCK_ENTITY_ID)
-
-
-def test_lock_async_toggle_uses_homeassistant_domain() -> None:
-    """LockEntity.toggle() calls api.toggle_service with only the entity_id (no domain override)."""
-    api = make_api()
-    mock_toggle = MagicMock()
-    api.toggle_service = mock_toggle
-    with entity_session(make_lock_entity(api)) as entity:
-        entity.toggle()
-
-        mock_toggle.assert_called_once_with(LOCK_ENTITY_ID)
+        mock_method.assert_called_once_with(LOCK_ENTITY_ID)

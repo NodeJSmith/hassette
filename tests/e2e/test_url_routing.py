@@ -19,7 +19,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP_VIEWPORT
+from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS, DESKTOP_VIEWPORT, EXTENDED_SETTLE_MS
 
 pytestmark = pytest.mark.e2e
 
@@ -30,7 +30,7 @@ def test_logs_tab_deep_link(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # Logs tab content should be visible, not the handlers tab
     logs_section = page.locator("[data-testid='logs-section']")
-    expect(logs_section).to_be_visible(timeout=5000)
+    expect(logs_section).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Handler list should NOT be visible (wrong tab)
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_have_count(0)
@@ -41,7 +41,7 @@ def test_code_tab_deep_link(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app/code")
     page.wait_for_load_state("networkidle")
     code_content = page.locator("[data-testid='code-tab-content']")
-    expect(code_content).to_be_visible(timeout=5000)
+    expect(code_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_have_count(0)
 
@@ -51,7 +51,7 @@ def test_handlers_tab_deep_link(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     handler_list = page.locator("[data-testid='handler-list']")
-    expect(handler_list).to_be_visible(timeout=5000)
+    expect(handler_list).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
@@ -61,7 +61,7 @@ def test_handler_deep_link_selects_handler(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # Detail pane for listener 1 should be visible
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
@@ -70,7 +70,7 @@ def test_job_deep_link_selects_job(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app/handlers/job/1")
     page.wait_for_load_state("networkidle")
     detail = page.locator("[data-testid='job-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) -> None:
@@ -78,19 +78,19 @@ def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) ->
     page.goto(base_url + "/apps/my_app/handlers/listener/1")
     page.wait_for_load_state("networkidle")
     # Verify handler is selected
-    expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Reload the page
     page.reload()
     page.wait_for_load_state("networkidle")
     # Handler should still be selected after refresh
-    expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='listener-detail-1']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None:
     """Navigating to /logs?level=ERROR shows logs filtered to ERROR."""
     page.goto(base_url + "/logs?level=ERROR")
     page.wait_for_load_state("networkidle")
-    page.locator("[data-testid='log-table']").wait_for(timeout=5000)
+    page.locator("[data-testid='log-table']").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
     # Open the level filter popover, then check filter shows ERROR
     page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
@@ -108,7 +108,7 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     level_filter.select_option("ERROR")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # URL should contain ?level=ERROR
     expect(page).to_have_url(re.compile(r"level=ERROR"))
     # Reload the page
@@ -130,7 +130,7 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     page.locator("[data-testid='filter-btn']").click()
     page.locator("[data-testid='filter-running']").wait_for(state="visible")
     page.locator("[data-testid='filter-running']").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # URL should contain filter=running
     expect(page).to_have_url(re.compile(r"filter=running"))
     # Reload the page
@@ -172,12 +172,12 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     sort_button = page.locator("button[data-testid='sort-header-btn']").first
     expect(sort_button).to_be_visible()
     sort_button.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # URL should have changed (sort applied via replace)
     current_url = page.url
     # Press back — should go back to /apps (before /handlers), not to initial_url
     page.go_back()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Should be on /apps since sort used replace, not push
     current_after_back = page.url
     assert "/apps" in current_after_back, (
@@ -191,21 +191,21 @@ def test_browser_back_after_tab_switch(page: Page, base_url: str) -> None:
     # Start on handlers tab
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
-    expect(page.locator("[data-testid='handler-list']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='handler-list']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Click the Logs tab (should push a history entry)
     logs_tab_btn = page.locator("a[role='tab']", has_text="logs")
     expect(logs_tab_btn).to_be_visible()
     logs_tab_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Verify we're on logs tab
     expect(page).to_have_url(re.compile(r"/apps/my_app/logs"))
     # Press back
     page.go_back()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Should be back on handlers tab
     expect(page).to_have_url(re.compile(r"/apps/my_app/handlers"))
     handler_list = page.locator("[data-testid='handler-list']")
-    expect(handler_list).to_be_visible(timeout=5000)
+    expect(handler_list).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_browser_forward_after_back(page: Page, base_url: str) -> None:
@@ -216,18 +216,18 @@ def test_browser_forward_after_back(page: Page, base_url: str) -> None:
     code_tab_btn = page.locator("a[role='tab']", has_text="code")
     expect(code_tab_btn).to_be_visible()
     code_tab_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     expect(page).to_have_url(re.compile(r"/apps/my_app/code"))
     # Go back to handlers
     page.go_back()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     expect(page).to_have_url(re.compile(r"/apps/my_app/handlers"))
     # Go forward to code
     page.go_forward()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     expect(page).to_have_url(re.compile(r"/apps/my_app/code"))
     code_content = page.locator("[data-testid='code-tab-content']")
-    expect(code_content).to_be_visible(timeout=5000)
+    expect(code_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_apps_page_default_state_has_no_query_params(page: Page, base_url: str) -> None:
@@ -247,7 +247,7 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
     page.locator("[data-testid='filter-btn']").click()
     page.locator("[data-testid='filter-all']").wait_for(state="visible")
     page.locator("[data-testid='filter-all']").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # URL should not contain filter= anymore
     current_url = page.url
     assert "filter=" not in current_url, (
@@ -302,7 +302,7 @@ def test_time_preset_button_updates_url_and_preference(page: Page, base_url: str
     preset_btn = page.get_by_role("button", name="24h")
     expect(preset_btn).to_be_visible()
     preset_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # URL should now include ?window=24h
     expect(page).to_have_url(re.compile(r"\?.*window=24h"))
 
@@ -313,10 +313,10 @@ def test_invalid_handler_id_shows_no_selection(page: Page, base_url: str) -> Non
     page.wait_for_load_state("networkidle")
     # Handler list should be visible (on handlers tab)
     handler_list = page.locator("[data-testid='handler-list']")
-    expect(handler_list).to_be_visible(timeout=5000)
+    expect(handler_list).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # No handler detail pane should be shown — placeholder should be visible
     placeholder = page.locator("[data-testid='detail-placeholder']")
-    expect(placeholder).to_be_visible(timeout=5000)
+    expect(placeholder).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
@@ -338,7 +338,7 @@ def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # Instance switcher should be visible (we're in instance detail mode, not overview)
     switcher = page.locator("[data-testid='instance-switcher']")
-    expect(switcher).to_be_visible(timeout=5000)
+    expect(switcher).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Instance 1 should be selected in the switcher
     expect(switcher).to_contain_text("MultiApp[1]")
 
@@ -348,7 +348,7 @@ def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> N
     page.goto(base_url + "/apps/multi_app")
     page.wait_for_load_state("networkidle")
     overview = page.locator("[data-testid='multi-instance-overview']")
-    expect(overview).to_be_visible(timeout=5000)
+    expect(overview).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     instance_grid = page.locator("[data-testid='instance-grid']")
     expect(instance_grid).to_be_visible()
 
@@ -357,13 +357,13 @@ def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
     """Instance selection via ?instance= persists on page refresh."""
     page.goto(base_url + "/apps/multi_app?instance=1")
     page.wait_for_load_state("networkidle")
-    expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Reload
     page.reload()
     page.wait_for_load_state("networkidle")
     # Should still be on instance 1
     expect(page).to_have_url(re.compile(r"instance=1"))
-    expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> None:
@@ -379,7 +379,7 @@ def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> N
     )
     # Instance switcher should show instance 0
     switcher = page.locator("[data-testid='instance-switcher']")
-    expect(switcher).to_be_visible(timeout=5000)
+    expect(switcher).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     expect(switcher).to_contain_text("MultiApp[0]")
 
 
@@ -389,14 +389,14 @@ def test_code_tab_with_line_param(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # Code tab should be active
     code_content = page.locator("[data-testid='code-tab-content']")
-    expect(code_content).to_be_visible(timeout=5000)
+    expect(code_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_code_tab_line_param_persists_on_refresh(page: Page, base_url: str) -> None:
     """Line param on code tab persists after refresh."""
     page.goto(base_url + "/apps/my_app/code?line=15")
     page.wait_for_load_state("networkidle")
-    expect(page.locator("[data-testid='code-tab-content']")).to_be_visible(timeout=5000)
+    expect(page.locator("[data-testid='code-tab-content']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Reload
     page.reload()
     page.wait_for_load_state("networkidle")
@@ -411,12 +411,12 @@ def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) ->
     page.wait_for_load_state("networkidle")
     # Wait for handler detail to load
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Click the "view in code" button
     view_in_code = page.locator("[data-testid='view-in-code-btn']")
     expect(view_in_code).to_be_visible()
     view_in_code.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Should navigate to code tab
     expect(page).to_have_url(re.compile(r"/apps/my_app/code"))
     # URL should contain line= parameter
@@ -431,7 +431,7 @@ def test_clicking_handler_row_produces_new_format_url(page: Page, base_url: str)
     row = page.locator("[data-testid='unified-row-listener-1']")
     expect(row).to_be_visible()
     row.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # URL should use the new path-based format: listener/<id>
     expect(page).to_have_url(re.compile(r"/apps/my_app/handlers/listener/1"))
 
@@ -442,7 +442,7 @@ def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str
     page.wait_for_load_state("networkidle")
     # Click Logs tab
     page.locator("a[role='tab']", has_text="logs").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(page).to_have_url(re.compile(r"/apps/my_app/logs"))
 
 
@@ -456,12 +456,12 @@ def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str
     running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Expand multi_app in sidebar
     expand_btn = page.get_by_label("Expand Multi App", exact=False)
     expect(expand_btn).to_be_visible()
     expand_btn.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Click instance 0 link
     instance_list = page.locator("[data-testid='instance-list']").first
     expect(instance_list).to_be_visible()

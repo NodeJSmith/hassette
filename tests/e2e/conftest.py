@@ -49,7 +49,10 @@ NARROW_DESKTOP_VIEWPORT = {"width": 800, "height": 600}
 DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
 
 ANIMATION_SETTLE_MS = 300
+EXTENDED_SETTLE_MS = 500
 DATA_LOAD_TIMEOUT_MS = 5000
+
+MOCK_LAST_CHANGED = "2024-01-01T00:00:00"
 
 
 @pytest.fixture(scope="session")
@@ -61,36 +64,36 @@ def mock_hassette():
                 "entity_id": "light.kitchen",
                 "state": "on",
                 "attributes": {"brightness": 255, "friendly_name": "Kitchen Light"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "light.bedroom": {
                 "entity_id": "light.bedroom",
                 "state": "off",
                 "attributes": {"brightness": 0, "friendly_name": "Bedroom Light"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "sensor.temperature": {
                 "entity_id": "sensor.temperature",
                 "state": "22.5",
                 "attributes": {"unit_of_measurement": "°C", "friendly_name": "Temperature"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "switch.fan": {
                 "entity_id": "switch.fan",
                 "state": "on",
                 "attributes": {"friendly_name": "Fan"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "binary_sensor.door": {
                 "entity_id": "binary_sensor.door",
                 "state": "off",
                 "attributes": {"device_class": "door", "friendly_name": "Front Door"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
         },
         manifests=build_manifests(),

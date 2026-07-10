@@ -7,6 +7,8 @@ import pytest
 
 from hassette.exceptions import TelemetryUnavailableError
 
+DB_LOCKED_MSG = "database is locked"
+
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
@@ -17,7 +19,7 @@ class TestDbErrorGuards:
     async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on app_health returns 503 with zero-value response."""
         mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 503
@@ -28,7 +30,7 @@ class TestDbErrorGuards:
     async def test_app_listeners_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on app_listeners returns 503 with empty list."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/app/my_app/listeners")
         assert response.status_code == 503
@@ -38,7 +40,7 @@ class TestDbErrorGuards:
     async def test_app_jobs_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on app_jobs returns 503 with empty list."""
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/app/my_app/jobs")
         assert response.status_code == 503
@@ -48,7 +50,7 @@ class TestDbErrorGuards:
     async def test_app_activity_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on app_activity returns 503 with empty list."""
         mock_hassette.telemetry_query_service.get_app_recent_activity = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/app/my_app/activity")
         assert response.status_code == 503
@@ -60,7 +62,7 @@ class TestDbErrorGuards:
     ) -> None:
         """TelemetryUnavailableError on listener executions returns 503 with empty list."""
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/listener/1/executions")
         assert response.status_code == 503
@@ -70,7 +72,7 @@ class TestDbErrorGuards:
     async def test_job_executions_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError on job executions returns 503 with empty list."""
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/job/1/executions")
         assert response.status_code == 503
@@ -106,7 +108,7 @@ class TestStatusDropCounters:
     ) -> None:
         """When DB is degraded, dropped counters default to 0 (safe fallback)."""
         mock_hassette.telemetry_query_service.check_health = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 503
@@ -199,7 +201,7 @@ class TestAppHealthDbErrorFallback:
     async def test_sqlite_error_triggers_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """TelemetryUnavailableError (wrapping sqlite3.Error) on get_app_health_aggregates returns 503."""
         mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 503
@@ -218,7 +220,7 @@ class TestDashboardAppGridDbErrorFallback:
         The endpoint still returns 200 with manifests having zero health data.
         """
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/dashboard/app-grid")
         assert response.status_code == 200
@@ -262,7 +264,7 @@ class TestDashboardAppGridDbErrorFallback:
     ) -> None:
         """When summaries dict is empty after DB error, error_rate_from_summary returns 0.0."""
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
+            side_effect=TelemetryUnavailableError(DB_LOCKED_MSG)
         )
         response = await client.get("/api/telemetry/dashboard/app-grid")
         assert response.status_code == 200

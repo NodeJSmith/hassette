@@ -25,7 +25,14 @@ from hassette.test_utils.web_helpers import (
     make_manifest_response,
 )
 from hassette.web.models import AppInstanceResponse, AppManifestListResponse
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import (
+    SINCE_EPOCH,
+    CLIClientFactory,
+    GetSpy,
+    capture_json_stdout,
+    capture_stderr,
+    capture_stdout,
+)
 
 # cmd_app (bare — list all apps)
 
@@ -265,7 +272,7 @@ class TestCmdAppActivity:
         )
         spy = GetSpy(client)
 
-        since_epoch = 1_700_000_000.0
+        since_epoch = SINCE_EPOCH
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),

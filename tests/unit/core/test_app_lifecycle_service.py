@@ -511,68 +511,57 @@ class TestStartApps:
 
 
 class TestShouldAutostart:
-    def test_returns_true_when_manifest_autostart_true(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    @pytest.mark.parametrize(
+        ("autostart", "manifest_exists", "expected"),
+        [
+            (True, True, True),
+            (False, True, False),
+            (None, False, False),
+        ],
+        ids=["autostart_true", "autostart_false", "manifest_missing"],
+    )
+    def test_should_autostart(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        autostart: bool | None,
+        manifest_exists: bool,
+        expected: bool,
     ) -> None:
-        """Returns True when manifest exists and autostart=True."""
-        manifest = MagicMock()
-        manifest.autostart = True
-        mock_registry.get_manifest = Mock(return_value=manifest)
+        if manifest_exists:
+            manifest = MagicMock()
+            manifest.autostart = autostart
+            mock_registry.get_manifest = Mock(return_value=manifest)
+        else:
+            mock_registry.get_manifest = Mock(return_value=None)
 
-        assert lifecycle_service.should_autostart("app_a") is True
-
-    def test_returns_false_when_manifest_autostart_false(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False when manifest exists and autostart=False."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-
-        assert lifecycle_service.should_autostart("app_a") is False
-
-    def test_returns_false_when_manifest_missing(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False when manifest does not exist."""
-        mock_registry.get_manifest = Mock(return_value=None)
-
-        assert lifecycle_service.should_autostart("unknown_app") is False
+        assert lifecycle_service.should_autostart("app_a") is expected
 
 
 class TestShouldAutoReconcile:
-    def test_returns_true_when_app_running(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    @pytest.mark.parametrize(
+        ("autostart", "is_running", "expected"),
+        [
+            (False, True, True),
+            (True, False, True),
+            (False, False, False),
+        ],
+        ids=["running_overrides_autostart", "autostart_true", "not_running_no_autostart"],
+    )
+    def test_should_auto_reconcile(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        autostart: bool,
+        is_running: bool,
+        expected: bool,
     ) -> None:
-        """Returns True for a running app regardless of autostart."""
         manifest = MagicMock()
-        manifest.autostart = False
+        manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        mock_registry.apps = {"app_a": {0: MagicMock()}} if is_running else {}
 
-        assert lifecycle_service.should_auto_reconcile("app_a") is True
-
-    def test_returns_true_when_app_not_running_but_autostart_true(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns True for a non-running app when autostart=True."""
-        manifest = MagicMock()
-        manifest.autostart = True
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
-
-        assert lifecycle_service.should_auto_reconcile("app_a") is True
-
-    def test_returns_false_when_app_not_running_and_autostart_false(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False for a non-running app when autostart=False."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
-
-        assert lifecycle_service.should_auto_reconcile("app_a") is False
+        assert lifecycle_service.should_auto_reconcile("app_a") is expected
 
 
 class TestApplyChangesGating:

@@ -12,7 +12,14 @@ from hassette.cli.commands.listener import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_execution, make_listener_with_summary
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import (
+    SINCE_EPOCH,
+    CLIClientFactory,
+    GetSpy,
+    capture_json_stdout,
+    capture_stderr,
+    capture_stdout,
+)
 
 # cmd_listener (bare — list all listeners)
 
@@ -199,7 +206,7 @@ class TestCmdListenerDetail:
         )
         spy = GetSpy(client)
 
-        since_epoch = 1_700_000_000.0
+        since_epoch = SINCE_EPOCH
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),

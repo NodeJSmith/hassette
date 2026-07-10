@@ -50,12 +50,21 @@ def test_converted_method_is_plain_def(method_name: str) -> None:
 # Awaiting returns expected values; no warnings emitted
 
 
-async def test_await_call_service_returns_none() -> None:
-    """Awaiting call_service() with no return_response returns None, no warning."""
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda a: a.call_service("light", "turn_on"), id="call_service"),
+        pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
+        pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
+        pytest.param(lambda a: a.toggle_service("switch.fan"), id="toggle_service"),
+    ],
+)
+async def test_await_returns_none(call) -> None:
+    """Awaiting methods that return None emits no warning."""
     api = make_api()
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        result = await api.call_service("light", "turn_on")
+        result = await call(api)
     assert result is None
 
 
@@ -91,80 +100,24 @@ async def test_await_set_state_returns_dict() -> None:
     assert isinstance(result, dict)
 
 
-async def test_await_turn_on_returns_none() -> None:
-    """Awaiting turn_on() (delegate) returns None, no warning."""
-    api = make_api()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        result = await api.turn_on("light.kitchen")
-    assert result is None
-
-
-async def test_await_turn_off_returns_none() -> None:
-    """Awaiting turn_off() (delegate) returns None, no warning."""
-    api = make_api()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        result = await api.turn_off("light.kitchen")
-    assert result is None
-
-
-async def test_await_toggle_service_returns_none() -> None:
-    """Awaiting toggle_service() (delegate) returns None, no warning."""
-    api = make_api()
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        result = await api.toggle_service("switch.fan")
-    assert result is None
-
-
 # Returned handle is a RegistrationHandle before awaiting
 
 
-def test_call_service_returns_registration_handle() -> None:
-    """Api.call_service() returns a RegistrationHandle before it is awaited."""
+_API_METHODS = [
+    pytest.param(lambda a: a.call_service("light", "turn_on"), id="call_service"),
+    pytest.param(lambda a: a.fire_event("custom_event"), id="fire_event"),
+    pytest.param(lambda a: a.set_state("light.test", "on"), id="set_state"),
+    pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
+    pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
+    pytest.param(lambda a: a.toggle_service("switch.fan"), id="toggle_service"),
+]
+
+
+@pytest.mark.parametrize("call", _API_METHODS)
+def test_returns_registration_handle(call) -> None:
+    """Api methods return a RegistrationHandle before awaiting."""
     api = make_api()
-    handle = api.call_service("light", "turn_on")
-    assert isinstance(handle, RegistrationHandle)
-    handle.close()
-
-
-def test_fire_event_returns_registration_handle() -> None:
-    """Api.fire_event() returns a RegistrationHandle before it is awaited."""
-    api = make_api()
-    handle = api.fire_event("custom_event")
-    assert isinstance(handle, RegistrationHandle)
-    handle.close()
-
-
-def test_set_state_returns_registration_handle() -> None:
-    """Api.set_state() returns a RegistrationHandle before it is awaited."""
-    api = make_api()
-    handle = api.set_state("light.test", "on")
-    assert isinstance(handle, RegistrationHandle)
-    handle.close()
-
-
-def test_turn_on_returns_registration_handle() -> None:
-    """Api.turn_on() returns a RegistrationHandle before it is awaited."""
-    api = make_api()
-    handle = api.turn_on("light.kitchen")
-    assert isinstance(handle, RegistrationHandle)
-    handle.close()
-
-
-def test_turn_off_returns_registration_handle() -> None:
-    """Api.turn_off() returns a RegistrationHandle before it is awaited."""
-    api = make_api()
-    handle = api.turn_off("light.kitchen")
-    assert isinstance(handle, RegistrationHandle)
-    handle.close()
-
-
-def test_toggle_service_returns_registration_handle() -> None:
-    """Api.toggle_service() returns a RegistrationHandle before it is awaited."""
-    api = make_api()
-    handle = api.toggle_service("switch.fan")
+    handle = call(api)
     assert isinstance(handle, RegistrationHandle)
     handle.close()
 
@@ -172,55 +125,11 @@ def test_toggle_service_returns_registration_handle() -> None:
 # Forgotten await on a primary AND a delegate emits HassetteForgottenAwaitWarning
 
 
-def test_forgotten_await_on_call_service_warns() -> None:
-    """Dropping un-awaited Api.call_service() handle emits HassetteForgottenAwaitWarning."""
+@pytest.mark.parametrize("call", _API_METHODS)
+def test_forgotten_await_warns(call) -> None:
+    """Dropping un-awaited Api handle emits HassetteForgottenAwaitWarning."""
     api = make_api()
     with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.call_service("light", "turn_on")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_fire_event_warns() -> None:
-    """Dropping un-awaited Api.fire_event() handle emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.fire_event("custom_event")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_set_state_warns() -> None:
-    """Dropping un-awaited Api.set_state() handle emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.set_state("light.test", "on")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_turn_on_warns() -> None:
-    """Dropping un-awaited delegate Api.turn_on() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.turn_on("light.kitchen")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_turn_off_warns() -> None:
-    """Dropping un-awaited delegate Api.turn_off() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.turn_off("light.kitchen")
-        del _
-        gc.collect()
-
-
-def test_forgotten_await_on_toggle_service_warns() -> None:
-    """Dropping un-awaited delegate Api.toggle_service() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    with pytest.warns(HassetteForgottenAwaitWarning):
-        _ = api.toggle_service("switch.fan")
+        _ = call(api)
         del _
         gc.collect()

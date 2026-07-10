@@ -5,6 +5,8 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -127,7 +129,7 @@ def test_palette_keyboard_navigation(page: Page, base_url: str) -> None:
     open_palette(page)
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
     # Wait for options to render before pressing ArrowDown
-    palette.locator("[role='option']").first.wait_for(timeout=5000)
+    palette.locator("[role='option']").first.wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
     page.keyboard.press("ArrowDown")
     # First result should now be active (aria-selected=true)
     active = palette.locator("[role='option'][aria-selected='true']")
@@ -140,7 +142,7 @@ def test_palette_navigates_to_app_on_select(page: Page, base_url: str) -> None:
     open_palette(page)
     search = page.locator("input[aria-label='Search command palette']")
     search.fill("My App")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     app_result = page.locator("[role='option']", has_text="My App").first
     expect(app_result).to_be_visible()
     app_result.click()

@@ -4,18 +4,21 @@ from unittest.mock import patch
 
 from hassette.core.service_watcher import RestartBudget
 
+DEFAULT_INTENSITY = 5
+DEFAULT_PERIOD = 300.0
+
 
 class TestRestartBudgetEmpty:
     def test_budget_empty_not_exhausted(self) -> None:
         """New budget with no restarts returns is_exhausted() == False."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         assert budget.is_exhausted() is False
 
 
 class TestRestartBudgetExhaustion:
     def test_budget_exhausted_at_intensity(self) -> None:
         """Record intensity restarts, verify is_exhausted() == True."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             for _ in range(5):
                 budget.record_restart()
@@ -24,7 +27,7 @@ class TestRestartBudgetExhaustion:
 
     def test_budget_not_exhausted_below_intensity(self) -> None:
         """Record intensity - 1 restarts, verify is_exhausted() == False."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             for _ in range(4):
                 budget.record_restart()
@@ -35,7 +38,7 @@ class TestRestartBudgetExhaustion:
 class TestRestartBudgetEviction:
     def test_budget_evicts_expired_timestamps(self) -> None:
         """Record restarts, advance time past window, verify old entries evicted."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             for _ in range(5):
                 budget.record_restart()
@@ -50,7 +53,7 @@ class TestRestartBudgetEviction:
         A timestamp at exactly (now - period) should be evicted since the condition
         is strictly > (not >=). A timestamp just inside the window should be kept.
         """
-        budget = RestartBudget(intensity=1, period_seconds=300.0)
+        budget = RestartBudget(intensity=1, period_seconds=DEFAULT_PERIOD)
         # Record at t=0
         with patch("time.monotonic", return_value=0.0):
             budget.record_restart()
@@ -62,7 +65,7 @@ class TestRestartBudgetEviction:
 
     def test_budget_mixed_expired_and_current(self) -> None:
         """Some timestamps expired, some current — verify only current count."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         # Record 3 restarts in the past (will expire)
         with patch("time.monotonic", return_value=0.0):
             for _ in range(3):
@@ -82,7 +85,7 @@ class TestRestartBudgetEviction:
 class TestRestartBudgetCurrentAttempts:
     def test_current_attempts_counts_active_timestamps(self) -> None:
         """current_attempts() returns the number of restarts within the active window."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             budget.record_restart()
             budget.record_restart()
@@ -91,7 +94,7 @@ class TestRestartBudgetCurrentAttempts:
 
     def test_current_attempts_evicts_expired(self) -> None:
         """current_attempts() excludes timestamps that have fallen outside the window."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             budget.record_restart()
             budget.record_restart()
@@ -105,7 +108,7 @@ class TestRestartBudgetCurrentAttempts:
 class TestRestartBudgetReset:
     def test_budget_reset_clears_all(self) -> None:
         """Record restarts, call reset(), verify is_exhausted() == False."""
-        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        budget = RestartBudget(intensity=DEFAULT_INTENSITY, period_seconds=DEFAULT_PERIOD)
         with patch("time.monotonic", return_value=0.0):
             for _ in range(5):
                 budget.record_restart()

@@ -7,6 +7,7 @@ master/detail layout, action buttons, code tab, config tab.
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS, EXTENDED_SETTLE_MS
 from tests.e2e.mock_fixtures import (
     JOB_MY_APP_1_TOTAL_EXECUTIONS,
     JOB_MY_APP_2_TOTAL_EXECUTIONS,
@@ -85,7 +86,7 @@ def test_handler_row_shows_modifier_chips(page: Page, base_url: str) -> None:
     row = page.locator("[data-testid='unified-row-listener-1']")
     expect(row).to_be_visible()
     row.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Modifier chips visible in detail pane
     modifier_chips = page.locator("[data-testid='modifier-chips']")
     expect(modifier_chips).to_be_visible()
@@ -122,7 +123,7 @@ def test_clicking_handler_row_shows_detail_pane(page: Page, base_url: str) -> No
     row.click()
     # Detail pane shows invocations for listener 1
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_clicking_job_row_shows_detail_pane(page: Page, base_url: str) -> None:
@@ -133,7 +134,7 @@ def test_clicking_job_row_shows_detail_pane(page: Page, base_url: str) -> None:
     expect(job_row).to_be_visible()
     job_row.click()
     detail = page.locator("[data-testid='job-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_detail_pane_shows_invocation_history(page: Page, base_url: str) -> None:
@@ -142,7 +143,7 @@ def test_detail_pane_shows_invocation_history(page: Page, base_url: str) -> None
     row = page.locator("[data-testid='unified-row-listener-1']")
     row.click()
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Should show invocation stats and history from seed data
     expect(detail).to_contain_text("Successful")
     expect(detail).to_contain_text("invocations")
@@ -170,10 +171,10 @@ def test_code_tab_renders_source(page: Page, base_url: str) -> None:
     code_tab_btn = page.locator("[role='tab']", has_text="Code")
     expect(code_tab_btn).to_be_visible()
     code_tab_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Code tab content should be visible
     code_content = page.locator("[data-testid='code-tab-content']")
-    expect(code_content).to_be_visible(timeout=5000)
+    expect(code_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Filename shown in header
     expect(code_content).to_contain_text("my_app.py")
 
@@ -184,10 +185,10 @@ def test_code_tab_nosource_shows_not_found(page: Page, base_url: str) -> None:
     code_tab_btn = page.locator("[role='tab']", has_text="Code")
     expect(code_tab_btn).to_be_visible()
     code_tab_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     # Should show error, not content
     error_display = page.locator("[data-testid='code-tab-error']")
-    expect(error_display).to_be_visible(timeout=5000)
+    expect(error_display).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     expect(error_display).to_contain_text("not found")
 
 
@@ -198,7 +199,7 @@ def test_config_tab_renders(page: Page, base_url: str) -> None:
     expect(config_tab_btn).to_be_visible()
     config_tab_btn.click()
     config_content = page.locator("[data-testid='config-values-table']")
-    expect(config_content).to_be_visible(timeout=5000)
+    expect(config_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_config_tab_shows_config_source(page: Page, base_url: str) -> None:
@@ -207,7 +208,7 @@ def test_config_tab_shows_config_source(page: Page, base_url: str) -> None:
     config_tab_btn = page.locator("[role='tab']", has_text="Config")
     config_tab_btn.click()
     config_content = page.locator("#tabpanel-config")
-    expect(config_content).to_be_visible(timeout=5000)
+    expect(config_content).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     expect(config_content).to_contain_text("hassette.toml → apps.my_app.config")
 
 
@@ -215,7 +216,7 @@ def test_app_detail_header_shows_filename(page: Page, base_url: str) -> None:
     """App detail header subtitle shows the app source filename."""
     page.goto(base_url + "/apps/my_app")
     subtitle = page.locator("[data-testid='app-subtitle-meta']")
-    expect(subtitle).to_be_visible(timeout=5000)
+    expect(subtitle).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     expect(subtitle).to_contain_text("my_app.py")
 
 
@@ -225,12 +226,12 @@ def test_app_detail_logs_tab(page: Page, base_url: str) -> None:
     logs_tab_btn = page.locator("[role='tab']", has_text="Logs")
     expect(logs_tab_btn).to_be_visible()
     logs_tab_btn.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(EXTENDED_SETTLE_MS)
     logs_section = page.locator("[data-testid='logs-section']")
     expect(logs_section).to_be_visible()
     # App-specific log messages should be present
     entries_badge = page.locator("text=/\\d+ entries/")
-    expect(entries_badge).to_be_visible(timeout=5000)
+    expect(entries_badge).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     body = page.locator("body")
     expect(body).to_contain_text("MyApp initialized")
     # Core-only messages should NOT appear (filtered by app_key)

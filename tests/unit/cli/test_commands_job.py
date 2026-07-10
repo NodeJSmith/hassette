@@ -12,7 +12,14 @@ from hassette.cli.commands.job import (
 )
 from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_execution, make_job_summary
-from tests.unit.cli.conftest import CLIClientFactory, GetSpy, capture_json_stdout, capture_stderr, capture_stdout
+from tests.unit.cli.conftest import (
+    SINCE_EPOCH,
+    CLIClientFactory,
+    GetSpy,
+    capture_json_stdout,
+    capture_stderr,
+    capture_stdout,
+)
 
 # cmd_job (bare — list all jobs)
 
@@ -201,7 +208,7 @@ class TestCmdJobDetail:
         )
         spy = GetSpy(client)
 
-        since_epoch = 1_700_000_000.0
+        since_epoch = SINCE_EPOCH
         with (
             patch.object(client, "get", side_effect=spy),
             capture_stdout(),

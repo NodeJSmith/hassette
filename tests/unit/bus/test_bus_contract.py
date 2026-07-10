@@ -161,20 +161,6 @@ class TestRouterSyncContract:
                 "Async Router methods reintroduce deferred routing and ordering bugs."
             )
 
-    def test_router_mutation_methods_are_plain_def(self) -> None:
-        """Router mutation methods are plain def."""
-        router = Router()
-        for name in self.ROUTER_MUTATION_METHODS:
-            method = getattr(router, name)
-            assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (mutation method)"
-
-    def test_router_query_methods_are_plain_def(self) -> None:
-        """Router query methods are plain def."""
-        router = Router()
-        for name in self.ROUTER_QUERY_METHODS:
-            method = getattr(router, name)
-            assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (query method)"
-
     def test_router_has_no_lock_attribute(self) -> None:
         """Router instance has no lock attribute."""
         router = Router()

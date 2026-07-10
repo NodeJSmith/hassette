@@ -6,6 +6,8 @@ import time
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -70,7 +72,7 @@ def test_handler_row_clickable_without_ws(page: Page, base_url: str) -> None:
 
     # Detail pane should show invocation history
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str) -> None:
