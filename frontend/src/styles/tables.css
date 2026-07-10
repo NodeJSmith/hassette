@@ -23,13 +23,13 @@
   letter-spacing: var(--tr-label);
   color: var(--ink-3);
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: var(--sp-px) solid var(--line-1);
   white-space: nowrap;
 }
 
 .ht-table td {
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: var(--sp-px) solid var(--line-1);
   vertical-align: top;
   font-size: var(--fs-small);
 }
@@ -108,6 +108,6 @@
 .ht-table-card-scroll {
   overflow: auto;
   max-height: var(--table-scroll-height, calc(100vh - 310px));
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
 }

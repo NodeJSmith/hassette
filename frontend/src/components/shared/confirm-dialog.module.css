@@ -16,7 +16,7 @@
   transform: translate(-50%, -50%);
   z-index: calc(var(--z-dialog) + 1);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
   padding: var(--sp-6);

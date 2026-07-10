@@ -1,0 +1,7 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-10);
+  padding: var(--sp-6);
+  max-width: 960px;
+}

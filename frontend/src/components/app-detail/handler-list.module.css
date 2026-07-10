@@ -1,7 +1,7 @@
 /* Handler list — component-scoped styles */
 
 .itemList {
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   box-shadow: var(--shadow-2);
   border-radius: var(--r-md);
   overflow: hidden;

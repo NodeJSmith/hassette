@@ -1,0 +1,90 @@
+.spacingList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.spacingRow {
+  display: grid;
+  grid-template-columns: 100px 40px 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.spacingValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.spacingBarTrack {
+  height: var(--sp-2);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.spacingBar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-sm);
+  min-width: var(--sp-px);
+}
+
+.radiiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: var(--sp-4);
+}
+
+.radiusItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.radiusBox {
+  width: var(--sp-9);
+  height: var(--sp-9);
+  background: var(--accent-soft);
+  border: var(--sp-px) solid var(--accent-border);
+}
+
+.radiusLabel {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  color: var(--ink-1);
+}
+
+.shadowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-7);
+  padding: var(--sp-6) var(--sp-4);
+  background: var(--bg-sunken);
+  border-radius: var(--r-lg);
+}
+
+.shadowItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.shadowBox {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  background: var(--bg-surface);
+  border-radius: var(--r-md);
+}
+
+.shadowLabel {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  color: var(--ink-1);
+}

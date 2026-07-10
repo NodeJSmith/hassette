@@ -18,7 +18,7 @@
   flex-direction: column;
   gap: var(--sp-3);
   padding-top: var(--sp-6);
-  border-top: 1px solid var(--line-1);
+  border-top: var(--sp-px) solid var(--line-1);
 }
 
 .section:first-child {
@@ -48,7 +48,7 @@
   gap: var(--sp-2);
   padding: var(--sp-3);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
 }
 

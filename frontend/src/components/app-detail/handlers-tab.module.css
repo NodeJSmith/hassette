@@ -25,7 +25,7 @@
   overflow-y: auto;
   max-height: var(--master-max-height);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
 }
 

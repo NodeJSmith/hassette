@@ -20,7 +20,7 @@
   flex-direction: column;
   align-items: flex-start;
   padding: var(--sp-4) 0 var(--sp-2);
-  border-bottom: 1px solid var(--line-2);
+  border-bottom: var(--sp-px) solid var(--line-2);
   flex-shrink: 0;
 }
 
@@ -52,7 +52,7 @@
   justify-content: space-between;
   margin: var(--sp-2) var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   background: var(--bg-sunken);
   color: var(--ink-3);
@@ -112,7 +112,7 @@
 /* — App search ————————————————————————————————————————— */
 .searchWrap {
   padding: var(--sp-2) var(--sp-3);
-  border-top: 1px solid var(--line-2);
+  border-top: var(--sp-px) solid var(--line-2);
   margin-top: var(--sp-1);
 }
 
@@ -123,7 +123,7 @@
   font-size: var(--fs-small);
   color: var(--ink-1);
   background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   outline: none;
   transition:
@@ -359,7 +359,7 @@
 }
 
 .groupHeader:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-px);
 }
 
@@ -387,7 +387,7 @@
   font-size: var(--fs-micro);
   color: var(--ink-4);
   background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   padding: 0 var(--sp-1);
   line-height: var(--lh-relaxed);

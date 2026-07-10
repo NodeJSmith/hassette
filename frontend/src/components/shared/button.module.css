@@ -12,15 +12,15 @@
   font-size: var(--fs-small);
   font-weight: var(--fw-medium);
   padding: var(--btn-pad-y) var(--btn-pad-x);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   background: var(--bg-surface);
   color: var(--ink-1);
   cursor: pointer;
   transition:
-    background var(--t-fast),
-    border-color var(--t-fast),
-    color var(--t-fast);
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
   text-decoration: none;
   line-height: var(--lh-small);
 }

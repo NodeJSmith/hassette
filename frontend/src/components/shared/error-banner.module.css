@@ -1,6 +1,6 @@
 .banner {
   background: var(--err-bg);
-  border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
+  border: var(--sp-px) solid color-mix(in srgb, var(--err) 30%, transparent);
   border-radius: var(--r-md);
   padding: var(--sp-3) var(--sp-4);
   margin-bottom: var(--sp-4);

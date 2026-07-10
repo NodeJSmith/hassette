@@ -15,6 +15,7 @@ import { createQueryClient } from "./lib/query-client";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
 import { ConfigPage } from "./pages/config";
+import { DesignPage } from "./pages/design";
 import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
@@ -148,6 +149,7 @@ export function App() {
                   <Route path="/diagnostics" component={DiagnosticsPage} />
                   <Route path="/logs" component={LogsPage} />
                   <Route path="/config" component={ConfigPage} />
+                  <Route path="/design" component={DesignPage} />
                   <Route component={NotFoundPage} />
                 </Switch>
               </ErrorBoundary>

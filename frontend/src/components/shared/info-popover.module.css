@@ -25,7 +25,7 @@
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 
@@ -43,8 +43,8 @@
   color: var(--ink-2);
   font-family: var(--font-body);
   font-size: var(--fs-micro);
-  line-height: 1.45;
-  border: 1px solid var(--line-strong);
+  line-height: var(--lh-small);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-3);
 }
