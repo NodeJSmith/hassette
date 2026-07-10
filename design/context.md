@@ -177,7 +177,7 @@ These document the current implemented token direction. Do not treat this sectio
 - `--sz-search-min` 160px — minimum width for search inputs.
 - `--sz-touch` 44px, `--sz-icon-sm` 14px.
 
-### Component Specifications
+### Component Padding & Gap
 
 Component-local custom properties for em-based padding and gap values. These scale with font-size and are prefixed per component to avoid collisions (CSS Modules scopes class selectors, not custom property names).
 
