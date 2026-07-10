@@ -30,8 +30,8 @@ uv run pytest tests/integration/test_api.py
 # Run a specific test
 uv run pytest tests/integration/test_api.py::test_function_name -v
 
-# Type checking
-uv run pyright
+# Lint + type check (all pre-commit hooks)
+prek -a
 
 # Serve documentation locally
 uv run mkdocs serve
@@ -220,7 +220,7 @@ After a UI change that alters a view documented with a screenshot, regenerate th
 
 ## Pre-Ship Verification for Core Changes
 
-When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`ruff`, `pyright`), and the schema-freshness check.
+When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — the system and e2e suites are the real safety net: unit and integration tests mock the very boundaries where these regressions hide. **CI runs both on every push/PR** — `nox -s system_with_coverage` (`.github/workflows/tests.yml`) and `nox -s e2e` (`.github/workflows/e2e-tests.yml`) — so you do **not** need to run them locally before pushing. The local dev gate for a core change is the cheaper set: the unit/integration suite, lint (`prek -a` — runs ruff, pyright, and all other pre-commit hooks), and the schema-freshness check.
 
 Run the heavy suites locally only when you want a faster signal on a core change you're actively debugging:
 
@@ -348,7 +348,7 @@ Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with backgr
 - Line length: 120 characters
 - Type hints everywhere
 - Google-style docstrings
-- Ruff for linting/formatting, Pyright for type checking
+- Ruff for linting/formatting, Pyright for type checking — run all checks at once with `prek -a`
 - Do NOT use `from __future__ import annotations`
 - Do NOT use blanket `# type: ignore` comments — suppress specific Pyright rules inline with `# pyright: ignore[reportXxx]` instead
 
