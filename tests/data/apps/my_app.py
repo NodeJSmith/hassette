@@ -22,12 +22,12 @@ class MyApp(App[MyAppUserConfig]):
             return
 
         self.logger.info("MyApp is initializing")
-        self.bus.on_attribute_change(
+        await self.bus.on_attribute_change(
             "light.office",
             A.get_attr_new("rgb_color"),
             handler=self.handle_color_change,
         )
-        self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
+        await self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
         await self.scheduler.run_in(self.api.get_states, 1)
         await self.scheduler.run_every(
             self.scheduled_job_example, seconds=10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
