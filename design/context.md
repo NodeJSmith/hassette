@@ -177,6 +177,16 @@ These document the current implemented token direction. Do not treat this sectio
 - `--sz-search-min` 160px — minimum width for search inputs.
 - `--sz-touch` 44px, `--sz-icon-sm` 14px.
 
+### Component Padding & Gap
+
+Component-local custom properties for em-based padding and gap values. These scale with font-size and are prefixed per component to avoid collisions (CSS Modules scopes class selectors, not custom property names).
+
+- **Button** (`button.module.css`): `--btn-pad-y` 0.4em (sm 0.25em, xs 0.15em), `--btn-pad-x` 0.85em (sm 0.6em, xs 0.45em), `--btn-gap` 0.35em.
+- **Badge** (`badge.module.css`): `--badge-pad-y` 0.15em (xs 0.05em, sm 0.1em, md 0.2em), `--badge-pad-x` 0.55em (xs 0.4em, sm 0.45em, md 0.65em), `--badge-gap` 0.25em.
+- **Inline Code** (`typography.css`): `--code-pad-y` 0.1em, `--code-pad-x` 0.35em.
+
+**Guidance**: These are em-based so they scale with the component's font-size across size variants. They are not global tokens — they live on the component's base selector and size variants override them via cascade.
+
 ### Effects
 
 - `--blur-overlay` 2px — backdrop blur for overlays (command palette, confirm dialog).

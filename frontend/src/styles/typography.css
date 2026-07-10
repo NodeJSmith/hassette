@@ -58,9 +58,12 @@ kbd {
 }
 
 code {
+  --code-pad-y: 0.1em;
+  --code-pad-x: 0.35em;
+
   background: var(--code-bg);
   color: var(--ink-1);
-  padding: 0.1em 0.35em;
+  padding: var(--code-pad-y) var(--code-pad-x);
   border-radius: var(--r-sm);
 }
 
