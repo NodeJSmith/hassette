@@ -6,9 +6,9 @@ Internal project design artifacts. Not published to readthedocs — that lives i
 
 ```
 design/
+├── context.md             Design system reference (tokens, components, patterns)
 ├── adrs/                  Architecture Decision Records
 ├── audits/                Diagnostic snapshots (health, security, dependencies)
-├── interface-design/      Design system (tokens, layout, component specs)
 └── research/              Feasibility analysis and implementation planning
 ```
 
@@ -20,9 +20,9 @@ Architecture Decision Records — one file per significant decision. Created whe
 
 ADRs record: context, decision, consequences, and alternatives considered. They are append-only — superseded decisions get a `Superseded by: ADR-NNN` status, not deleted.
 
-### `interface-design/`
+### `context.md`
 
-Design system specification for the web UI. Tokens (colors, spacing, typography), component patterns, and layout rules. Referenced by frontend code and UI-related issues.
+Design system reference for the web UI. Brand context, design tokens, component specifications, status system, layout patterns, and do's/don'ts. Read by all i-* design skills as the canonical design context. Canonical source of truth for design decisions — token values live in `frontend/src/tokens.css`, component implementations in `frontend/src/components/shared/`.
 
 ### `audits/`
 
