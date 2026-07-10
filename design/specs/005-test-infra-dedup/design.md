@@ -327,7 +327,7 @@ No tests to remove.
 - **modify** `tests/unit/bus/conftest.py` — add docstring to `hassette_with_bus` override, use shared `make_mock_parent`
 - **modify** `tests/unit/scheduler/conftest.py` — delete `noop` (moved), use shared `make_mock_parent` in `make_scheduler`
 - **modify** `.pre-commit-config.yaml` — add `check_test_factories.py` hook
-- **modify** ~36 unique test files — replace local factory definitions with imports from shared factories, update import paths for moved/renamed functions (deduplicated: some files need multiple factories replaced; includes 7 `noop` import-path updates in `tests/unit/scheduler/`, 5 files with local `noop()` reimplementations, `test_sync_executor_service_wiring.py` for the `make_test_config` rename, and `test_forgotten_await_completeness.py` for the `make_mock_parent` import)
+- **modify** ~43 unique test files — replace local factory definitions with imports from shared factories, update import paths for moved/renamed functions (deduplicated: some files need multiple factories replaced; includes 7 `noop` import-path updates in `tests/unit/scheduler/`, 5 files with local `noop()` reimplementations, `test_sync_executor_service_wiring.py` for the `make_test_config` rename, and `test_forgotten_await_completeness.py` for the `make_mock_parent` import)
 - **delete** `tests/data/events/device_tracker_event.json`
 - **delete** 13 test app files in `tests/data/apps/` (already done)
 
@@ -339,7 +339,7 @@ No tests to remove.
 
 ### Blast Radius
 
-Factory consolidation touches ~36 unique test files but each change is mechanical (delete local `def`, add `from hassette.test_utils.factories import ...`). No production code is modified. The linter and rule file are additive. Risk is low.
+Factory consolidation touches ~43 unique test files but each change is mechanical (delete local `def`, add `from hassette.test_utils.factories import ...`). No production code is modified. The linter and rule file are additive. Risk is low.
 
 ## Open Questions
 

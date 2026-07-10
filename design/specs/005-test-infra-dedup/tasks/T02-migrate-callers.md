@@ -3,7 +3,7 @@ task_id: "T02"
 title: "Migrate all local factory callers to shared imports"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#7", "FR#12", "FR#13", "FR#15", "AC#1", "AC#2", "AC#3", "AC#10"]
+implements: ["FR#7", "FR#12", "FR#13", "FR#15", "AC#1", "AC#2", "AC#3"]
 ---
 
 ## Summary
@@ -106,7 +106,7 @@ Add `# factory-local: <reason>` annotations to pre-existing local definitions th
 
 **FR#15 — make_manifest autostart:**
 
-Add `autostart: bool = True` parameter to `make_manifest()` in `src/hassette/test_utils/web_helpers.py`. Pass it through to `AppManifestInfo(autostart=autostart, ...)`. Delete the local `make_manifest` duplicate in `tests/unit/web/test_mappers.py:144` and replace with import from `hassette.test_utils.web_helpers`.
+Add `autostart: bool = True` parameter to `make_manifest()` in `src/hassette/test_utils/web_helpers.py`. Pass it through to `AppManifestInfo(autostart=autostart, ...)`. Delete the local `make_manifest` duplicate in `tests/unit/web/test_mappers.py:144` and replace with import from `hassette.test_utils.web_helpers`. **Critical:** the local `make_manifest` has signature `(app_key, status, instances=None, autostart=True)` while the shared version has a different positional order (`app_key, class_name, display_name, filename, enabled, auto_loaded, status, ...`). All 8 call sites in `test_mappers.py` pass `status` as the second positional arg (e.g., `make_manifest("app_a", "stopped")`). Convert every call to use keyword arguments: `make_manifest("app_a", status="stopped")` — otherwise `status` silently maps to `class_name` and tests pass with wrong data.
 
 ## Focus
 - This is a large task (~36 files). Work through each migration group methodically. Run `uv run pytest <file> -x` after each group to catch breakage early.
@@ -117,11 +117,13 @@ Add `autostart: bool = True` parameter to `make_manifest()` in `src/hassette/tes
 - For exempted local factories, add `# factory-local: <reason>` on the `def` line.
 
 ## Verify
-- [ ] FR#7: All subsumed local definitions deleted, replaced with shared factory imports
+- [ ] FR#7: `grep -rn "def make_recording_api\b" tests/` returns zero results (3 local definitions replaced)
+- [ ] FR#7: `grep -rn "def make_hassette_event\b" tests/` returns zero results (2 local definitions replaced)
+- [ ] FR#7: `grep -rn "def make_mock_parent\b" tests/` returns zero results (2 local definitions replaced; inline constructions replaced with factory calls)
+- [ ] FR#7: `grep -rn "def make_invoke_handler_cmd\b" tests/` returns zero results (1 local definition replaced)
 - [ ] FR#12: `noop` moved to `helpers.py` (async version), all 21 reimplementations + 7 import sites migrated
 - [ ] FR#13: `make_test_config` renamed to `make_sync_executor_config` in conftest and all callers
 - [ ] FR#15: `make_manifest()` in `web_helpers.py` accepts `autostart` param, local duplicate in `test_mappers.py` deleted
 - [ ] AC#1: `grep -rn "def make_job\b" tests/` returns exactly 2 results
 - [ ] AC#2: `grep -rn "def make_event\b" tests/` returns zero for the 4 functionally-identical definitions; legitimately-different variants remain with `# factory-local:` annotations
 - [ ] AC#3: `grep -rn "def make_executor\b" tests/` returns exactly 4 results (2 real CommandExecutor + 2 ExecutionMarker-based exempt)
-- [ ] AC#10: `uv run nox -s dev` passes with zero regressions

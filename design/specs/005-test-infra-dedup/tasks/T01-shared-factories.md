@@ -16,8 +16,11 @@ Add the 6 new shared factory functions to `src/hassette/test_utils/factories.py`
 - read: `src/hassette/test_utils/config.py`
 - read: `src/hassette/scheduler/triggers.py`
 - read: `src/hassette/types/enums.py`
-- read: `src/hassette/bus/event.py`
-- read: `src/hassette/types/payloads.py`
+- read: `src/hassette/events/base.py`
+- read: `src/hassette/conversion/__init__.py`
+- read: `src/hassette/core/state_proxy.py`
+- read: `src/hassette/test_utils/mock_hassette.py`
+- read: `src/hassette/test_utils/recording_api.py`
 - read: `tests/unit/test_recording_api.py`
 - read: `tests/unit/test_recording_api_helpers.py`
 - read: `tests/unit/test_recording_sync_facade.py`
@@ -27,15 +30,15 @@ Add 6 factory functions to `src/hassette/test_utils/factories.py`, following the
 
 **Factories to add:**
 
-1. `make_scheduled_job(**kw) -> ScheduledJob` — keyword-only args: `job` (default `lambda: None`), `name` (`"test_job"`), `owner_id` (`"test_owner"`), `next_run` (`date_utils.now()`), `trigger`, `group`, `jitter`, `timeout`, `timeout_disabled`, `error_handler`, `mode`, `db_id`, `predicate`. Returns a real `ScheduledJob`. Import `ScheduledJob` from `hassette.scheduler.scheduled_job` and trigger types from `hassette.scheduler.triggers`.
+1. `make_scheduled_job(**kw) -> ScheduledJob` — keyword-only args: `job` (default `lambda: None`), `name` (`"test_job"`), `owner_id` (`"test_owner"`), `next_run` (`date_utils.now()`), `trigger`, `group`, `jitter`, `timeout`, `timeout_disabled`, `error_handler`, `mode`, `db_id`, `predicate`. Returns a real `ScheduledJob`. Import `ScheduledJob` from `hassette.scheduler.classes` and trigger types from `hassette.scheduler.triggers`.
 
 2. `make_mock_executor() -> MagicMock` — no args. Returns `MagicMock()` with `execute = AsyncMock()`.
 
-3. `make_mock_event() -> MagicMock` — no args. Returns `MagicMock(spec=Event)`. Import `Event` from `hassette.bus.event`.
+3. `make_mock_event() -> MagicMock` — no args. Returns `MagicMock(spec=Event)`. Import `Event` from `hassette.events.base`.
 
-4. `make_recording_api(states=None) -> RecordingApi` — returns a `RecordingApi` wired to `make_mock_hassette(sealed=False)` with `state_registry = STATE_REGISTRY` and an `AsyncMock(spec=StateProxy)` whose `.states` is `states or {}` and `.is_ready` returns `True`. Import `RecordingApi` from `hassette.test_utils.recording_api`, `make_mock_hassette` from `hassette.test_utils.mocks`, `STATE_REGISTRY` from `hassette.models.registry`, `StateProxy` from `hassette.state_manager.state_proxy`.
+4. `make_recording_api(states=None) -> RecordingApi` — returns a `RecordingApi` wired to `make_mock_hassette(sealed=False)` with `state_registry = STATE_REGISTRY` and an `AsyncMock(spec=StateProxy)` whose `.states` is `states or {}` and `.is_ready` returns `True`. Import `RecordingApi` from `hassette.test_utils.recording_api`, `make_mock_hassette` from `hassette.test_utils.mock_hassette`, `STATE_REGISTRY` from `hassette.conversion`, `StateProxy` from `hassette.core.state_proxy`.
 
-5. `make_hassette_event(topic="hassette.ready", data=None) -> Event` — returns `Event(topic=topic, payload=HassettePayload(data=data))`. Import `HassettePayload` from `hassette.types.payloads`.
+5. `make_hassette_event(topic="hassette.ready", data=None) -> Event` — returns `Event(topic=topic, payload=HassettePayload(data=data))`. Import `HassettePayload` from `hassette.events.base`.
 
 6. `make_mock_parent(*, app_key="test_app", index=0, unique_name="test_app.0", source_tier="app", class_name="TestApp", app_config=None) -> MagicMock` — returns a `MagicMock` with all 6 attributes set. The canonical definition to match is `tests/unit/conftest.py:85`.
 

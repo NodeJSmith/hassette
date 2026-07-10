@@ -2,12 +2,12 @@
 task_id: "T03"
 title: "Delete dead code and fix misplaced fixtures"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T02"]
 implements: ["FR#8", "FR#9", "FR#10", "FR#11", "FR#14", "FR#20", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---
 
 ## Summary
-Remove dead exports, dead test data files, and dead asyncio markers. Move 3 misplaced fixtures to their correct directory. Add a docstring to the intentional `hassette_with_bus` override. Depends on T01 because both modify the `__init__.py` and `_internal/__init__.py` export chain (T01 adds factory exports, this task removes dead exports).
+Remove dead exports, dead test data files, and dead asyncio markers. Move 3 misplaced fixtures to their correct directory. Add a docstring to the intentional `hassette_with_bus` override. Depends on T01 and T02 because all three modify shared files: `__init__.py`/`_internal/__init__.py` (export chain), `helpers.py`, `web_helpers.py`, and `bus/conftest.py`.
 
 ## Target Files
 - modify: `src/hassette/test_utils/helpers.py`

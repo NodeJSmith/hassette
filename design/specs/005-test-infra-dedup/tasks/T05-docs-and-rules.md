@@ -3,7 +3,7 @@ task_id: "T05"
 title: "Add test-conventions rule, TESTING.md updates, and test CLAUDE.md files"
 status: "planned"
 depends_on: ["T01", "T02", "T03"]
-implements: ["FR#16", "FR#17", "FR#19", "AC#8", "AC#11"]
+implements: ["FR#16", "FR#17", "FR#19", "AC#8", "AC#10", "AC#11"]
 ---
 
 ## Summary
@@ -89,4 +89,5 @@ Update `tests/TESTING.md`:
 - [ ] FR#17: CLAUDE.md files exist in all 5 directories, each under 20 lines, listing actual fixtures from their conftest.py
 - [ ] FR#19: TESTING.md contains naming convention section, "before writing a factory" checklist, updated factory inventory, no references to deleted items
 - [ ] AC#8: `.claude/rules/test-conventions.md` names at least 10 most-used test_utils symbols with import paths
+- [ ] AC#10: `uv run nox -s dev` passes with zero regressions (final gate after all tasks complete)
 - [ ] AC#11: TESTING.md contains the naming convention section and factory checklist
