@@ -52,15 +52,6 @@ def hassette_harness(
 
 
 @pytest.fixture(scope="module")
-async def hassette_with_nothing(
-    hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
-    test_config: "HassetteConfig",
-) -> "AsyncIterator[HassetteHarness]":
-    async with hassette_harness(test_config) as harness:
-        yield harness
-
-
-@pytest.fixture(scope="module")
 async def hassette_with_sync_executor(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",

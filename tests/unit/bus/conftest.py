@@ -23,7 +23,13 @@ async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
 ) -> "typing.AsyncIterator[Hassette]":
-    """Function-scoped bus harness for isolation between tests."""
+    """Variant of test_utils.fixtures.hassette_with_bus scoped to function instead of module.
+
+    Bus unit tests mutate listener state per-test (e.g. `bus.parent`, direct
+    `add_listener` patching in `mock_add_listener`), so each test needs its own
+    harness instead of sharing one across the module. Yields the raw `Hassette`
+    instance rather than the `HassetteHarness` wrapper for direct access to `_bus`.
+    """
     async with hassette_harness(test_config).with_bus() as harness:
         yield cast("Hassette", harness.hassette)
 

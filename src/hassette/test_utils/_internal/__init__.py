@@ -32,7 +32,6 @@ from hassette.test_utils.helpers import (
     create_call_service_event,
     create_state_change_event,
     emit_file_change_event,
-    emit_service_event,
     make_full_state_change_event,
     make_light_state_dict,
     make_sensor_state_dict,
@@ -49,10 +48,8 @@ from hassette.test_utils.test_server import SimpleTestServer
 from hassette.test_utils.web_helpers import (
     make_full_snapshot,
     make_job,
-    make_listener_metric,
     make_manifest,
     make_real_job,
-    setup_registry,
 )
 from hassette.test_utils.web_mocks import (
     create_hassette_stub,
@@ -71,7 +68,6 @@ __all__ = [
     "create_state_change_event",
     "create_test_fastapi_app",
     "emit_file_change_event",
-    "emit_service_event",
     "hassette_harness",
     "hassette_with_app_handler",
     "hassette_with_bus",
@@ -84,7 +80,6 @@ __all__ = [
     "make_hassette_event",
     "make_job",
     "make_light_state_dict",
-    "make_listener_metric",
     "make_manifest",
     "make_mock_event",
     "make_mock_executor",
@@ -99,7 +94,6 @@ __all__ = [
     "make_switch_state_dict",
     "preserve_config",
     "run_hassette_startup_tasks",
-    "setup_registry",
     "wait_for",
     "wire_up_app_running_listener",
     "wire_up_app_state_listener",

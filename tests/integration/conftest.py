@@ -9,15 +9,12 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from httpx2 import ASGITransport, AsyncClient
 
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.scheduler.classes import ScheduledJob
 from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.web_mocks import create_mock_runtime_query_service
-from hassette.web.app import create_fastapi_app
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -43,7 +40,6 @@ async def hassette_instance(test_config: HassetteConfig):
 
 _HARNESS_FIXTURES = frozenset(
     {
-        "hassette_with_nothing",
         "hassette_with_sync_executor",
         "hassette_with_bus",
         "hassette_with_scheduler",
@@ -67,26 +63,6 @@ async def cleanup_harness(request: pytest.FixtureRequest) -> None:
     for name in _HARNESS_FIXTURES & set(request.fixturenames):
         harness: HassetteHarness = request.getfixturevalue(name)
         await harness.reset()
-
-
-@pytest.fixture
-def runtime_query_service(mock_hassette):
-    """Create a RuntimeQueryService with mocked Hassette."""
-    return create_mock_runtime_query_service(mock_hassette)
-
-
-@pytest.fixture
-def app(mock_hassette, runtime_query_service):  # noqa: ARG001
-    """Create a FastAPI app with mocked dependencies."""
-    return create_fastapi_app(mock_hassette)
-
-
-@pytest.fixture
-async def client(app):
-    """Create an httpx2 AsyncClient for testing."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
 
 
 @pytest.fixture

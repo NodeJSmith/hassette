@@ -21,7 +21,6 @@ from ._internal import create_hassette_stub as create_hassette_stub
 from ._internal import create_mock_runtime_query_service as create_mock_runtime_query_service
 from ._internal import create_test_fastapi_app as create_test_fastapi_app
 from ._internal import emit_file_change_event as emit_file_change_event
-from ._internal import emit_service_event as emit_service_event
 from ._internal import hassette_harness as hassette_harness
 from ._internal import hassette_with_app_handler as hassette_with_app_handler
 from ._internal import hassette_with_bus as hassette_with_bus
@@ -33,7 +32,6 @@ from ._internal import make_full_snapshot as make_full_snapshot
 from ._internal import make_full_state_change_event as make_full_state_change_event
 from ._internal import make_hassette_event as make_hassette_event
 from ._internal import make_job as make_job
-from ._internal import make_listener_metric as make_listener_metric
 from ._internal import make_manifest as make_manifest
 from ._internal import make_mock_event as make_mock_event
 from ._internal import make_mock_executor as make_mock_executor
@@ -45,7 +43,6 @@ from ._internal import make_service_failed_event as make_service_failed_event
 from ._internal import make_service_running_event as make_service_running_event
 from ._internal import preserve_config as preserve_config
 from ._internal import run_hassette_startup_tasks as run_hassette_startup_tasks
-from ._internal import setup_registry as setup_registry
 from ._internal import wait_for as wait_for
 from ._internal import wire_up_app_running_listener as wire_up_app_running_listener
 from ._internal import wire_up_app_state_listener as wire_up_app_state_listener

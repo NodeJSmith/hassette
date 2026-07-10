@@ -116,8 +116,8 @@ async def cleanup_harness(request: pytest.FixtureRequest) -> None:
         await harness.reset()
 ```
 
-`_HARNESS_FIXTURES` covers the 8 module-scoped harness fixtures:
-`hassette_with_nothing`, `hassette_with_sync_executor`, `hassette_with_bus`,
+`_HARNESS_FIXTURES` covers the 7 module-scoped harness fixtures:
+`hassette_with_sync_executor`, `hassette_with_bus`,
 `hassette_with_scheduler`, `hassette_with_file_watcher`,
 `hassette_with_state_proxy`, `hassette_with_state_registry`,
 `hassette_with_app_handler`.
@@ -172,23 +172,18 @@ Builds an `AppManifestInfo` with sensible defaults.
 
 Builds an `AppFullSnapshot` from a list of manifests with auto-computed status counts.
 
-### `make_listener_metric(listener_id, owner, topic, handler_method, ...)` — `test_utils/web_helpers.py`
-
-Builds a mock listener metric with `.to_dict()` and direct attribute access.
-
 ### `make_job(**kwargs)` — `test_utils/web_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
-
-### `setup_registry(hassette, manifests)` — `test_utils/web_helpers.py`
-
-Configures the mock registry to return a proper `AppFullSnapshot`.
 
 ## Shared Integration Fixtures
 
 `tests/integration/conftest.py` provides:
 
 - **`cleanup_harness`** — single autouse fixture that resets all active module-scoped harness components before each test by calling `harness.reset()` on each matching fixture
+
+`tests/integration/web_api/conftest.py` provides:
+
 - **`runtime_query_service`** — shared across integration web test files; each file defines its own `mock_hassette`
 - **`app`** — FastAPI application instance
 - **`client`** — httpx2 `AsyncClient`

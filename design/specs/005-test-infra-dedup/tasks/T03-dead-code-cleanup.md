@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Delete dead code and fix misplaced fixtures"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#8", "FR#9", "FR#10", "FR#11", "FR#14", "FR#20", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---
