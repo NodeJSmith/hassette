@@ -1,12 +1,16 @@
 /* Badge — status indicators, size variants, semantic colors */
 
 .badge {
+  --badge-pad-y: 0.15em;
+  --badge-pad-x: 0.55em;
+  --badge-gap: 0.25em;
+
   display: inline-flex;
   align-items: center;
-  gap: 0.25em;
+  gap: var(--badge-gap);
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
-  padding: 0.15em 0.55em;
+  padding: var(--badge-pad-y) var(--badge-pad-x);
   border-radius: var(--r-pill);
   line-height: var(--lh-relaxed);
   white-space: nowrap;
@@ -14,19 +18,25 @@
 }
 
 .xs {
+  --badge-pad-y: 0.05em;
+  --badge-pad-x: 0.4em;
+
   font-size: var(--fs-xs);
-  padding: 0.05em 0.4em;
   line-height: var(--lh-micro);
 }
 
 .sm {
+  --badge-pad-y: 0.1em;
+  --badge-pad-x: 0.45em;
+
   font-size: var(--fs-micro);
-  padding: 0.1em 0.45em;
 }
 
 .md {
+  --badge-pad-y: 0.2em;
+  --badge-pad-x: 0.65em;
+
   font-size: var(--fs-small);
-  padding: 0.2em 0.65em;
 }
 
 /* Semantic badge variants */
