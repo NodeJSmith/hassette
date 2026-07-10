@@ -10,42 +10,9 @@ from hassette.resources.base import Resource
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
-from hassette.test_utils.factories import make_mock_parent, make_scheduled_job
+from hassette.test_utils.factories import make_mock_parent, make_scheduled_job, make_scheduler
 from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
-
-
-def make_scheduler(removal_callback_supported: bool = True) -> Scheduler:
-    """Create a minimal Scheduler instance with mocked internals.
-
-    Uses a unique per-call subclass so that property overrides for owner_id and
-    parent do NOT mutate the shared Scheduler class — which would break parallel
-    test workers that create real Scheduler instances concurrently.
-    """
-    # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
-    mock_parent = make_mock_parent()
-    _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
-    _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
-    _TestScheduler.parent = property(lambda _self: mock_parent)  # pyright: ignore[reportAttributeAccessIssue]
-
-    scheduler = _TestScheduler.__new__(_TestScheduler)
-    mock_service = Mock()
-    if removal_callback_supported:
-        mock_service.register_removal_callback = Mock()
-    else:
-        del mock_service.register_removal_callback
-    # dequeue_job must set job._dequeued = True (mirrors real SchedulerService behavior)
-    mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
-
-    # add_job is awaited inline — must be an AsyncMock; sets db_id=1 on the job
-    async def _add_job(job):
-        job.mark_registered(1)
-
-    mock_service.add_job = AsyncMock(side_effect=_add_job)
-    scheduler.scheduler_service = mock_service
-    scheduler._jobs_by_name = {}
-    scheduler._jobs_by_group = {}
-    return scheduler
 
 
 class TestScheduleEntryPoint:

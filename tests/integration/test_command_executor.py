@@ -12,10 +12,10 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.test_utils.factories import make_job_registration, make_listener_registration
+from hassette.test_utils.factories import make_job_registration, make_listener_registration, make_mock_listener
 from hassette.utils.execution import ExecutionResult
 
-from .conftest import make_mock_job, make_mock_listener
+from .conftest import make_mock_job
 
 
 @pytest.fixture
@@ -261,7 +261,7 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     async def slow_handler(_event):
         await asyncio.sleep(10)
 
-    listener = make_mock_listener()
+    listener = make_mock_listener(listener_id=2)
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 

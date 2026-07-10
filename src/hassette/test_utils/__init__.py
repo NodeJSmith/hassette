@@ -35,10 +35,12 @@ from ._internal import make_job as make_job
 from ._internal import make_manifest as make_manifest
 from ._internal import make_mock_event as make_mock_event
 from ._internal import make_mock_executor as make_mock_executor
+from ._internal import make_mock_listener as make_mock_listener
 from ._internal import make_mock_parent as make_mock_parent
 from ._internal import make_real_job as make_real_job
 from ._internal import make_recording_api as make_recording_api
 from ._internal import make_scheduled_job as make_scheduled_job
+from ._internal import make_scheduler as make_scheduler
 from ._internal import make_service_failed_event as make_service_failed_event
 from ._internal import make_service_running_event as make_service_running_event
 from ._internal import preserve_config as preserve_config

@@ -1,60 +1,9 @@
 """Tests for Scheduler job name uniqueness validation."""
 
-from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, Mock
-
 import pytest
 
-from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Cron, Every
-from hassette.test_utils.factories import make_scheduled_job
-
-if TYPE_CHECKING:
-    from hassette.scheduler.classes import ScheduledJob
-
-
-def make_scheduler(*, wire_dequeue: bool = False) -> Scheduler:
-    """Create a minimal Scheduler instance with mocked internals.
-
-    Uses a unique per-call subclass so that property overrides for owner_id do
-    NOT mutate the shared Scheduler class — which would break parallel test
-    workers that create real Scheduler instances concurrently.
-
-    Args:
-        wire_dequeue: If True, configure scheduler_service.dequeue_job to mimic
-            real behavior (set _dequeued=True and fire _on_job_removed callback).
-            Required for tests that exercise cancel_job paths.
-    """
-    # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
-    _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
-    _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
-
-    scheduler = _TestScheduler.__new__(_TestScheduler)
-    scheduler.scheduler_service = Mock()
-    scheduler._jobs_by_name = {}
-    scheduler._jobs_by_group = {}
-    scheduler._error_handler = None
-    scheduler.logger = Mock()
-
-    # add_job is now awaited inline — must be AsyncMock; sets db_id=1 on the job
-    async def _add_job(job: "ScheduledJob") -> None:
-        job.mark_registered(1)
-
-    scheduler.scheduler_service.add_job = AsyncMock(side_effect=_add_job)
-
-    # Base behavior: always set _dequeued=True (matches test_scheduler_resource.py)
-    scheduler.scheduler_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
-
-    if wire_dequeue:
-
-        def _mock_dequeue(job: "ScheduledJob") -> bool:
-            job._dequeued = True
-            scheduler._on_job_removed(job)
-            return True
-
-        scheduler.scheduler_service.dequeue_job.side_effect = _mock_dequeue
-
-    return scheduler
+from hassette.test_utils.factories import make_scheduled_job, make_scheduler
 
 
 class TestJobNameUniqueness:

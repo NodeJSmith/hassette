@@ -115,16 +115,6 @@ async def initialized_db(db_hassette: AsyncMock) -> AsyncIterator[tuple[Database
         await db_service.on_shutdown()
 
 
-def make_mock_listener(*, error_handler=None) -> MagicMock:
-    """Return a mock Listener whose invoke() is an awaitable coroutine."""
-    listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.invoker.invoke = AsyncMock()
-    listener.error_handler = error_handler
-    listener.invoker.error_handler = error_handler
-    return listener
-
-
 def make_mock_job(
     *,
     owner_id: str = "test_owner",

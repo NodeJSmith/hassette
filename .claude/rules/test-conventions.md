@@ -25,6 +25,8 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_invoke_handler_cmd(**kw)` — `MagicMock(spec=InvokeHandler)`
 - `make_scheduled_job(**kw)` — real `ScheduledJob`, for unit/scheduler tests
 - `make_mock_executor()` — `MagicMock` with `execute = AsyncMock()`
+- `make_mock_listener(**kw)` — `MagicMock` stand-in for a `Listener` (invoke wiring, identity fields, registration fields)
+- `make_scheduler(**kw)` — real `Scheduler` via dynamic subclass, mocked service; params: `wire_dequeue`, `source_tier`, `app_key`
 - `make_mock_event()` — `MagicMock(spec=Event)`
 - `make_recording_api(states=None)` — `RecordingApi` wired to a mock hassette + state proxy
 - `make_hassette_event(topic=..., data=...)` — `Event` carrying a `HassettePayload`

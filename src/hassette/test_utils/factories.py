@@ -5,7 +5,7 @@ a sensible default; callers pass only the fields they care about.
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 from whenever import ZonedDateTime
 
@@ -16,6 +16,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.state_proxy import StateProxy
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.recording_api import RecordingApi
@@ -170,6 +171,62 @@ def make_scheduled_job(
     )
 
 
+def make_scheduler(
+    *,
+    wire_dequeue: bool = False,
+    source_tier: SourceTier = "app",
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    owner_id: str = "test_owner",
+) -> Scheduler:
+    """Create a Scheduler with mocked internals for unit testing.
+
+    Uses a dynamic subclass per call so property overrides don't mutate the
+    shared Scheduler class (safe for parallel test workers). wire_dequeue=True
+    makes dequeue_job also fire _on_job_removed (needed for cancel_job paths).
+    """
+    mock_parent = make_mock_parent(
+        app_key=app_key,
+        source_tier=source_tier,
+        index=0,
+    )
+
+    _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
+    _TestScheduler.owner_id = property(lambda _self: owner_id)  # pyright: ignore[reportAttributeAccessIssue]
+    _TestScheduler.parent = property(lambda _self: mock_parent)  # pyright: ignore[reportAttributeAccessIssue]
+
+    scheduler = _TestScheduler.__new__(_TestScheduler)
+
+    mock_service = Mock()
+    mock_service.register_removal_callback = Mock()
+    mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
+
+    if wire_dequeue:
+
+        def _mock_dequeue(job: ScheduledJob) -> bool:
+            job._dequeued = True
+            scheduler._on_job_removed(job)
+            return True
+
+        mock_service.dequeue_job.side_effect = _mock_dequeue
+
+    async def _add_job(job: ScheduledJob) -> None:
+        job.mark_registered(1)
+
+    mock_service.add_job = AsyncMock(side_effect=_add_job)
+    scheduler.scheduler_service = mock_service
+    scheduler._jobs_by_name = {}
+    scheduler._jobs_by_group = {}
+    scheduler._error_handler = None
+    scheduler._unique_name = f"test_scheduler_{app_key}"
+    scheduler.logger = Mock()
+
+    hassette_mock = MagicMock()
+    hassette_mock.config.logging.scheduler_service = "INFO"
+    scheduler.hassette = hassette_mock
+
+    return scheduler
+
+
 def make_mock_executor() -> MagicMock:
     """Build a MagicMock stand-in for a CommandExecutor with an awaitable execute()."""
     executor = MagicMock()
@@ -221,6 +278,44 @@ def make_hass_event(
         context=context,
     )
     return Event(topic=f"hass.{event_type}", payload=payload)
+
+
+def make_mock_listener(
+    *,
+    error_handler: Any = None,
+    listener_id: int = 1,
+    db_id: int | None = None,
+    owner_id: str = "test_owner",
+    app_key: str = "my_app",
+    instance_index: int = 1,
+    topic: str = "hass.event.test",
+    handler_name: str = "MyApp.on_event",
+) -> MagicMock:
+    """Build a MagicMock stand-in for a Listener with configurable attributes.
+
+    Covers command-executor tests (invoke wiring), dispatch tests (db_id routing),
+    and registration tests (identity fields).
+    """
+    listener = MagicMock()
+    listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
+    listener.error_handler = error_handler
+    listener.invoker.error_handler = error_handler
+    listener.listener_id = listener_id
+    listener.db_id = db_id
+    listener.owner_id = owner_id
+    listener.app_key = app_key
+    listener.instance_index = instance_index
+    listener.topic = topic
+    listener.handler_name = handler_name
+    listener.debounce = None
+    listener.throttle = None
+    listener.rate_limiter = None
+    listener.once = False
+    listener.priority = 0
+    listener.predicate = None
+    listener.duration_config = None
+    return listener
 
 
 def make_mock_parent(

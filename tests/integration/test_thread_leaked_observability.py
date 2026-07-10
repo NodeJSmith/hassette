@@ -21,10 +21,8 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.test_utils.factories import make_listener_registration
+from hassette.test_utils.factories import make_listener_registration, make_mock_listener
 from hassette.test_utils.mock_hassette import make_mock_hassette
-
-from .conftest import make_mock_listener
 
 # Shared fixtures
 

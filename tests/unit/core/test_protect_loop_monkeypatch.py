@@ -37,44 +37,10 @@ from hassette.core.command_executor import ExecutionMarker
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 
+from .conftest import make_blocking_io_hassette, make_marker_executor
+
 _REAL_SLEEP = time.__dict__["sleep"]  # stash before any test mutates time.sleep
 _REAL_OPEN = builtins.__dict__["open"]
-
-
-def make_hassette(
-    *,
-    dev_mode: bool = True,
-    deep_detection_enabled: bool | None = None,
-    allow_deep_detection_in_prod: bool = False,
-    behavior: BlockingIOBehavior | None = None,
-) -> MagicMock:
-    """Minimal mock Hassette for guard tests."""
-    cfg = MagicMock()
-    cfg.dev_mode = dev_mode
-    cfg.blocking_io.deep_detection_enabled = deep_detection_enabled
-    cfg.blocking_io.allow_deep_detection_in_prod = allow_deep_detection_in_prod
-    cfg.blocking_io.behavior = behavior
-    h = MagicMock()
-    h.config = cfg
-    # Resolve owner as hassette itself when no app is live.
-    h.app_config.blocking_io_behavior = None
-    h.hassette.config.blocking_io.behavior = behavior
-    h.app_handler.get.return_value = None
-    return h
-
-
-def make_executor(  # factory-local: ExecutionMarker-based mock, not execute=AsyncMock() pattern
-    *, app_key: str | None = "test_app", instance_index: int | None = 0
-) -> MagicMock:
-    executor = MagicMock()
-    executor.current_execution = ExecutionMarker(
-        app_key=app_key,
-        instance_name=None,
-        execution_id="exec-t04",
-        started_at=time.monotonic(),
-        instance_index=instance_index,
-    )
-    return executor
 
 
 @pytest.fixture(autouse=True)
@@ -97,8 +63,8 @@ def ensure_uninstall() -> Iterator[None]:
 class TestEnablementMatrix:
     def test_dev_mode_installs(self) -> None:
         """dev_mode=True → Tier 2 installs."""
-        h = make_hassette(dev_mode=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=True)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is True
         assert is_installed()
@@ -106,8 +72,8 @@ class TestEnablementMatrix:
 
     def test_prod_default_does_not_install(self) -> None:
         """Production without flag → NOT patched."""
-        h = make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is False
         assert not is_installed()
@@ -121,8 +87,8 @@ class TestEnablementMatrix:
         must set deep_detection_enabled=True explicitly; the prod gate then gates on
         allow_deep_detection_in_prod.
         """
-        h = make_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is True
         assert is_installed()
@@ -130,8 +96,8 @@ class TestEnablementMatrix:
 
     def test_explicit_disabled_overrides_dev_mode(self) -> None:
         """deep_detection_enabled=False overrides dev_mode=True."""
-        h = make_hassette(dev_mode=True, deep_detection_enabled=False)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=True, deep_detection_enabled=False)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is False
         assert not is_installed()
@@ -146,16 +112,16 @@ class TestEnablementMatrix:
             if dev_mode: return True       # False → continue
             return allow_deep_detection_in_prod  # False → NOT installed
         """
-        h = make_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=False)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=False)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is False
         assert not is_installed()
 
     def test_explicit_enabled_prod_with_allow_flag(self) -> None:
         """deep_detection_enabled=True + prod + allow flag → installed."""
-        h = make_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True)
+        ex = make_marker_executor()
         result = install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert result is True
         assert is_installed()
@@ -164,8 +130,8 @@ class TestEnablementMatrix:
 class TestIdempotencyAndLeak:
     def test_double_install_is_noop(self) -> None:
         """Second install without uninstall is a no-op (returns False)."""
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         tid = threading.get_ident()
         first = install(h, loop_thread_id=tid, executor=ex)
         second = install(h, loop_thread_id=tid, executor=ex)
@@ -179,8 +145,8 @@ class TestIdempotencyAndLeak:
 
     def test_uninstall_restores_time_sleep(self) -> None:
         """After uninstall, time.sleep is the original."""
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert time.sleep is not _REAL_SLEEP
         uninstall()
@@ -188,8 +154,8 @@ class TestIdempotencyAndLeak:
 
     def test_uninstall_restores_builtins_open(self) -> None:
         """After uninstall, builtins.open is the original."""
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert builtins.open is not _REAL_OPEN
         uninstall()
@@ -208,8 +174,8 @@ class TestIdempotencyAndLeak:
             "socket.recv": socket.socket.recv,
             "socket.send": socket.socket.send,
         }
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
         uninstall()
         assert time.sleep is originals["time.sleep"]
@@ -224,8 +190,8 @@ class TestIdempotencyAndLeak:
 
     def test_reinstall_after_uninstall_works(self) -> None:
         """After uninstall, a re-install succeeds and patches primitives again."""
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         tid = threading.get_ident()
         install(h, loop_thread_id=tid, executor=ex)
         uninstall()
@@ -241,9 +207,9 @@ class TestIdempotencyAndLeak:
         it would disable call-site interception for the still-running owner. Passing the caller
         to uninstall() makes it no-op when the caller is not the owner.
         """
-        owner = make_hassette()
-        other = make_hassette()
-        ex = make_executor()
+        owner = make_blocking_io_hassette()
+        other = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(owner, loop_thread_id=threading.get_ident(), executor=ex)
 
         # Non-owner uninstall is refused — patches stay live for the owner.
@@ -259,8 +225,8 @@ class TestIdempotencyAndLeak:
     def test_is_installed_reflects_state(self) -> None:
         """is_installed() tracks install/uninstall state correctly."""
         assert not is_installed()
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
         assert is_installed()
         uninstall()
@@ -271,8 +237,8 @@ class TestOffLoopGate:
     def test_time_sleep_off_loop_thread_passes_through(self) -> None:
         """time.sleep called from a worker thread is not flagged."""
         fake_loop_thread_id = threading.get_ident() + 9999  # different from current thread
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=fake_loop_thread_id, executor=ex)
 
         warning_fired = False
@@ -296,8 +262,8 @@ class TestOffLoopGate:
     def test_loop_thread_call_fires_warning(self) -> None:
         """time.sleep on the loop thread (our thread) triggers warning."""
         tid = threading.get_ident()
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         with warnings.catch_warnings(record=True) as caught:
@@ -313,8 +279,8 @@ class TestPrimitiveWarnBehavior:
     def test_time_sleep_loop_thread_warns(self) -> None:
         """time.sleep on loop thread emits HassetteBlockingIOWarning (WARN behavior)."""
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
-        ex = make_executor()
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         with warnings.catch_warnings(record=True) as caught:
@@ -329,8 +295,8 @@ class TestPrimitiveWarnBehavior:
     def test_open_loop_thread_warns(self, tmp_path: Path) -> None:
         """builtins.open on loop thread emits HassetteBlockingIOWarning (WARN behavior)."""
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
-        ex = make_executor()
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         target = tmp_path / "test.txt"
@@ -348,8 +314,8 @@ class TestPrimitiveWarnBehavior:
     def test_ignore_behavior_suppresses_warning(self) -> None:
         """IGNORE behavior → no warning, original is still called."""
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.IGNORE)
-        ex = make_executor()
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.IGNORE)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         # Wire h.hassette.config.blocking_io.behavior so resolver reads IGNORE.
@@ -373,8 +339,8 @@ class TestRaiseBeforeSleep:
         (well under the 0.05s we'd pass to sleep if it ran).
         """
         tid = threading.get_ident()
-        h = make_hassette(dev_mode=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=True)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         # Use a large nominal duration so "did the real sleep run?" has a wide, load-proof margin:
@@ -398,8 +364,8 @@ class TestRaiseBeforeSleep:
         so an intercepting raise skipped the row entirely.
         """
         tid = threading.get_ident()
-        h = make_hassette(dev_mode=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=True)
+        ex = make_marker_executor()
         ex.record_blocking_event = MagicMock()
         install(h, loop_thread_id=tid, executor=ex)
 
@@ -412,8 +378,8 @@ class TestRaiseBeforeSleep:
 
     def test_prod_without_flag_no_patch(self) -> None:
         """Production default → time.sleep is NOT patched at all."""
-        h = make_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=False, allow_deep_detection_in_prod=False)
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
 
         # Confirm not installed — primitive is unchanged.
@@ -438,8 +404,8 @@ class TestRaiseBeforeSleep:
         workers. This test sets NO local filter — it relies on the suite default — so it fails (the
         open() raises) without the ``default::HassetteBlockingIOWarning`` exception in pyproject.
         """
-        h = make_hassette(dev_mode=True)
-        ex = make_executor()
+        h = make_blocking_io_hassette(dev_mode=True)
+        ex = make_marker_executor()
         install(h, loop_thread_id=threading.get_ident(), executor=ex)
         try:
             # builtins.open is patched and we are on the loop thread — exactly what coverage /
@@ -461,8 +427,8 @@ class TestReentrancyGuard:
         per-thread re-entrancy guard makes the inner open pass straight through.
         """
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
-        ex = make_executor()
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         src_file = tmp_path / "src.py"
@@ -488,8 +454,8 @@ class TestReentrancyGuard:
     def test_reentrant_call_passes_through_without_warning(self) -> None:
         """While the guard is active (mid-detection), a patched call passes through unflagged."""
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
-        ex = make_executor()
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         guard_mod._in_wrapper.active = True
@@ -552,8 +518,8 @@ class TestMonkeypatchEvent:
     def test_event_populated_on_warning(self) -> None:
         """The warning message includes the primitive name and app key."""
         tid = threading.get_ident()
-        h = make_hassette()
-        ex = make_executor(app_key="my_cool_app")
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor(app_key="my_cool_app")
         install(h, loop_thread_id=tid, executor=ex)
 
         with warnings.catch_warnings(record=True) as caught:
@@ -569,8 +535,8 @@ class TestMonkeypatchEvent:
     def test_unknown_app_uses_framework_label(self) -> None:
         """When marker has no app_key, the warning labels it <framework>."""
         tid = threading.get_ident()
-        h = make_hassette()
-        ex = make_executor(app_key=None)
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor(app_key=None)
         install(h, loop_thread_id=tid, executor=ex)
 
         with warnings.catch_warnings(record=True) as caught:
@@ -594,7 +560,7 @@ class TestTier2TaskIdentityAttribution:
     async def test_same_task_call_is_attributed(self) -> None:
         """A call from the task that bound the marker is attributed to its app, reason=attributed."""
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
         ex = MagicMock()
         ex.record_blocking_event = MagicMock()
         task = asyncio.current_task()
@@ -626,7 +592,7 @@ class TestTier2TaskIdentityAttribution:
         inline in the blocker's own call chain).
         """
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
         ex = MagicMock()
         ex.record_blocking_event = MagicMock()
         ex.current_execution = ExecutionMarker(
@@ -658,7 +624,7 @@ class TestTier2TaskIdentityAttribution:
         call. The innocent app must not be blamed — the row records NULL with reason='displaced'.
         """
         tid = threading.get_ident()
-        h = make_hassette(behavior=BlockingIOBehavior.WARN)
+        h = make_blocking_io_hassette(behavior=BlockingIOBehavior.WARN)
         ex = MagicMock()
         ex.record_blocking_event = MagicMock()
         # task_id of a DIFFERENT task than the one running this test — id() is never negative,
@@ -691,8 +657,8 @@ class TestSocketMethodPatch:
     def test_socket_connect_on_loop_thread_warns(self) -> None:
         """socket.socket.connect on loop thread triggers warning."""
         tid = threading.get_ident()
-        h = make_hassette()
-        ex = make_executor()
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor()
         install(h, loop_thread_id=tid, executor=ex)
 
         assert guard_mod._originals.get("socket.socket.connect") is not None
