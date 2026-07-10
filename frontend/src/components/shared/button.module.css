@@ -1,24 +1,28 @@
 /* Button — base, sizes, variants */
 
 .btn {
+  --btn-pad-y: 0.4em;
+  --btn-pad-x: 0.85em;
+  --btn-gap: 0.35em;
+
   display: inline-flex;
   align-items: center;
-  gap: 0.35em;
+  gap: var(--btn-gap);
   font-family: var(--font-body);
   font-size: var(--fs-small);
   font-weight: var(--fw-medium);
-  padding: 0.4em 0.85em;
-  border: 1px solid var(--line-strong);
+  padding: var(--btn-pad-y) var(--btn-pad-x);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   background: var(--bg-surface);
   color: var(--ink-1);
   cursor: pointer;
   transition:
-    background var(--t-fast),
-    border-color var(--t-fast),
-    color var(--t-fast);
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
   text-decoration: none;
-  line-height: 1.5;
+  line-height: var(--lh-small);
 }
 
 .btn:hover {
@@ -28,13 +32,17 @@
 }
 
 .sm {
+  --btn-pad-y: 0.25em;
+  --btn-pad-x: 0.6em;
+
   font-size: var(--fs-micro);
-  padding: 0.25em 0.6em;
 }
 
 .xs {
+  --btn-pad-y: 0.15em;
+  --btn-pad-x: 0.45em;
+
   font-size: var(--fs-micro);
-  padding: 0.15em 0.45em;
 }
 
 /* Icon-only button — square, centered icon, no text */

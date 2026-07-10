@@ -1,7 +1,7 @@
 .row {
   cursor: pointer;
   outline: none;
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--ease);
 }
 
 .row:hover,
@@ -89,7 +89,7 @@
 .messageText {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-md);
-  line-height: 1.5;
+  line-height: var(--lh-small);
   max-height: 1.5em;
   overflow: clip;
   text-overflow: ellipsis;

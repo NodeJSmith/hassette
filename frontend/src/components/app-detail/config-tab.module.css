@@ -43,11 +43,11 @@
 .instanceHeading {
   margin: 0 0 var(--sp-3);
   padding-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--line-strong);
+  border-bottom: var(--sp-px) solid var(--line-strong);
   font-family: var(--font-body);
   font-size: var(--fs-small);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tr-label-mid);
   text-transform: uppercase;
   color: var(--ink-2);
 }
@@ -74,7 +74,7 @@
   margin-top: var(--sp-2);
   padding: var(--sp-3);
   background: var(--bg-sunken);
-  border: 1px dashed var(--line-1);
+  border: var(--sp-px) dashed var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);

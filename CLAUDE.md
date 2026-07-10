@@ -317,7 +317,7 @@ Internal design documents live in `design/`, not in `docs/` (which is the readth
 
 - **`design/adrs/`** — Architecture Decision Records. One per significant technical decision. Numbered sequentially (`001-short-name.md`). Created when a direction is chosen, not while still exploring.
 - **`design/audits/`** — Design and architecture audits, reviews, and post-hoc evaluations of existing decisions or implementations.
-- **`design/interface-design/`** — Design system specification (tokens, layout, component patterns) for the web UI.
+- **`design/context.md`** — Design system reference: brand context, design tokens, component specifications, status system, layout patterns, and do's/don'ts. Read by all i-* design skills as the canonical design context.
 - **`design/research/`** — Feasibility analysis and implementation planning. Organized as `YYYY-MM-DD-topic-name/` subfolders containing a main `research.md` brief and optional prereq breakdowns.
 
 See `design/README.md` for the full guide on what goes where.

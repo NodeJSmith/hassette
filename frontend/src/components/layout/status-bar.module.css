@@ -40,7 +40,7 @@
   justify-content: center;
   width: var(--sp-7);
   height: var(--sp-7);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   background: transparent;
   color: var(--ink-3);
@@ -75,7 +75,7 @@
   align-items: center;
   padding: var(--sp-2) var(--sp-7);
   background: var(--bg-chrome);
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: var(--sp-px) solid var(--line-1);
   gap: var(--sp-3);
   flex-shrink: 0;
 }
@@ -100,7 +100,7 @@
   justify-content: center;
   width: var(--sz-touch);
   height: var(--sz-touch);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   background: transparent;
   color: var(--ink-2);

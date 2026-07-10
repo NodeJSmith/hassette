@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(var(--blur-overlay));
 }
 
 .dialog {
@@ -16,12 +16,12 @@
   transform: translate(-50%, -50%);
   z-index: calc(var(--z-dialog) + 1);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
   padding: var(--sp-6);
-  min-width: 320px;
-  max-width: 480px;
+  min-width: var(--sz-dialog-min);
+  max-width: var(--sz-dialog-max);
   width: calc(100% - var(--sp-8));
 }
 

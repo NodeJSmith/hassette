@@ -25,8 +25,8 @@
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--border-med) solid var(--accent);
+  outline-offset: var(--sp-0);
 }
 
 /* position:fixed is required: info-popover.tsx positions this with floating-ui's
@@ -35,7 +35,7 @@
 .pop {
   position: fixed;
   z-index: var(--z-tooltip);
-  max-width: 280px;
+  max-width: var(--sz-popover-max);
   max-height: 60vh;
   overflow: auto;
   padding: var(--sp-2) var(--sp-3);
@@ -43,8 +43,8 @@
   color: var(--ink-2);
   font-family: var(--font-body);
   font-size: var(--fs-micro);
-  line-height: 1.45;
-  border: 1px solid var(--line-strong);
+  line-height: var(--lh-small);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-3);
 }

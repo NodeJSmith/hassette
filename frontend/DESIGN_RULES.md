@@ -4,6 +4,8 @@ Concrete visual rules for hassette's web UI. Claude reads this when making front
 
 These rules codify what's already working and fix what's inconsistent. They reference the existing token system in `src/styles/tokens.css`. Every rule uses specific tokens or values — no subjective judgment required.
 
+For the token catalog, component specifications, and status system reference, see `design/context.md`.
+
 ## Typography Hierarchy
 
 The UI uses two font families: Newsreader (serif, display) and Geist (sans, body). The rule is: **Newsreader is for page identity only. Geist does everything else.**

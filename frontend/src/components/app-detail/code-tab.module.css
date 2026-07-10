@@ -1,7 +1,7 @@
 /* Code tab — component-scoped styles */
 
 .codeTab {
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--bg-surface);
@@ -12,7 +12,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--line-1);
+  border-bottom: var(--sp-px) solid var(--line-1);
   background: var(--bg-sunken);
   gap: var(--sp-3);
   flex-wrap: wrap;
@@ -35,9 +35,9 @@
   font-size: var(--fs-micro);
   color: var(--ink-4);
   font-family: var(--font-mono);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
-  padding: 1px var(--sp-2);
+  padding: var(--sp-px) var(--sp-2);
 }
 
 .body {
@@ -52,7 +52,7 @@
   background-color: var(--bg-page) !important;
   border-radius: 0;
   font-size: var(--fs-small);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
 }
 
 :global([data-theme="dark"]) .body :global(.shiki) {
@@ -87,7 +87,7 @@
   padding: 0 var(--sp-3);
   user-select: none;
   flex-shrink: 0;
-  border-right: 1px solid var(--line-1);
+  border-right: var(--sp-px) solid var(--line-1);
   margin-right: var(--sp-3);
 }
 

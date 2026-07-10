@@ -3,7 +3,7 @@
   grid-template-columns: repeat(var(--stats-cols, 7), 1fr);
   gap: 0;
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   overflow: hidden;
@@ -30,7 +30,7 @@
   font-family: var(--font-body);
   font-size: var(--fs-stat);
   font-weight: var(--fw-medium);
-  line-height: 1.1;
+  line-height: var(--lh-h1);
   color: var(--ink-1);
 }
 
@@ -61,6 +61,6 @@
   }
 
   .cell:nth-child(n + 4) {
-    border-top: 1px solid var(--line-2);
+    border-top: var(--sp-px) solid var(--line-2);
   }
 }

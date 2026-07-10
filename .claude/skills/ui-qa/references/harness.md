@@ -66,7 +66,7 @@ Feed analysis subagents these sources rather than letting them invent design opi
 |--------|-----------------|
 | `frontend/DESIGN_RULES.md` | Responsive rules, table behavior, density, hierarchy |
 | `frontend/src/tokens.css` | All design tokens — anything not derived from these is a finding |
-| `design/interface-design/` | Design system specification |
+| `design/context.md` | Design system reference: tokens, component specs, status system, layout patterns |
 
 ## Verification battery (after any fix)
 

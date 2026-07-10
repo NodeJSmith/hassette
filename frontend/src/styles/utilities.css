@@ -83,7 +83,7 @@
   font-size: var(--fs-micro);
   overflow-x: auto;
   white-space: pre;
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
 }
 
 /* — Detail Label ——————————————————————————————————————— */
@@ -103,7 +103,7 @@
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-md);
   font-size: var(--fs-small);
-  border: 1px solid transparent;
+  border: var(--sp-px) solid transparent;
 }
 
 .ht-alert--danger {
@@ -144,7 +144,7 @@
   padding: var(--sp-2) var(--sp-4);
   background: var(--bg-surface);
   color: var(--ink-1);
-  border: 2px solid var(--accent);
+  border: var(--border-med) solid var(--accent);
   border-radius: var(--r-md);
   font-family: var(--font-body);
   font-size: var(--fs-body);
@@ -155,12 +155,12 @@
   font-family: var(--font-body);
   font-size: var(--fs-mono-sm);
   padding: var(--sp-1h) var(--sp-2);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   background: var(--input-bg);
   color: var(--ink-1);
   outline: none;
-  min-width: 160px;
+  min-width: var(--sz-search-min);
   align-self: flex-end;
 }
 

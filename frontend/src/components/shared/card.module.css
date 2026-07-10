@@ -2,7 +2,7 @@
 
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   padding: var(--sp-5);
   box-shadow: var(--shadow-2);
@@ -25,7 +25,7 @@
    separate base class alongside it. */
 .error {
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   padding: var(--sp-6);
   text-align: center;

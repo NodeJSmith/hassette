@@ -20,7 +20,7 @@
   display: flex;
   gap: 0;
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   overflow: hidden;
 }
@@ -35,8 +35,8 @@
   color: var(--ink-3);
   cursor: pointer;
   transition:
-    color var(--t-fast),
-    background var(--t-fast);
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
   white-space: nowrap;
   text-decoration: none;
   display: inline-block;
@@ -48,7 +48,7 @@
 }
 
 .tabBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
   border-radius: var(--r-sm);
 }
@@ -84,14 +84,14 @@
   gap: var(--sp-2);
   padding: var(--sp-4);
   background: var(--bg-surface);
-  border: 1px solid var(--line-strong);
+  border: var(--sp-px) solid var(--line-strong);
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
   box-shadow: var(--shadow-2);
   transition:
-    border-color var(--t-fast),
-    box-shadow var(--t-fast);
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
   font-family: inherit;
   font-size: var(--fs-small);
   color: var(--ink-1);
@@ -102,7 +102,7 @@
 }
 
 .instanceCard:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 
@@ -151,15 +151,15 @@
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   background: none;
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--ink-2);
   cursor: pointer;
   transition:
-    color var(--t-fast),
-    background var(--t-fast);
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
   white-space: nowrap;
 }
 
@@ -177,7 +177,7 @@
 }
 
 .instanceSwitcherBtn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 

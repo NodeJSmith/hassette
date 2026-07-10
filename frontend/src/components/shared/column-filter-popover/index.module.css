@@ -2,12 +2,12 @@
   position: fixed;
   z-index: var(--z-drawer);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   padding: var(--sp-2);
-  min-width: 200px;
-  max-width: 280px;
+  min-width: var(--sz-popover-min);
+  max-width: var(--sz-popover-max);
   max-height: 60vh;
   overflow: hidden auto;
 }
@@ -19,7 +19,7 @@
   font-family: var(--font-body);
   font-size: var(--fs-small);
   padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-sm);
   background: var(--input-bg);
   color: var(--ink-1);
@@ -46,7 +46,7 @@
   padding: var(--sp-0) var(--sp-2);
   border-radius: var(--r-sm);
   color: var(--ink-3);
-  transition: all var(--t-fast);
+  transition: all var(--t-fast) var(--ease);
 }
 
 .tierBtn:hover {
@@ -61,6 +61,6 @@
 }
 
 .tierBtn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--border-med) solid var(--accent);
+  outline-offset: var(--sp-0);
 }

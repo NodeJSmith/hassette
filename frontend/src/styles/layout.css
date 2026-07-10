@@ -1,9 +1,9 @@
 /* Layout — grid, main content area, sections, pages, level bars, drawer */
 
-/* — Layout grid (240px sidebar + 1fr main) ————————————— */
+/* — Layout grid (sidebar + 1fr main) —————————————————— */
 .ht-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: var(--sz-sidebar) 1fr;
   min-height: 100vh;
   min-height: 100dvh;
   position: relative;
@@ -85,7 +85,7 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 240px;
+  width: var(--sz-sidebar);
   z-index: var(--z-drawer);
   background: var(--bg-surface);
   overflow-y: auto;

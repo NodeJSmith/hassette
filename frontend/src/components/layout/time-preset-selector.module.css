@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-0);
-  border: 1px solid var(--line-1);
+  border: var(--sp-px) solid var(--line-1);
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--bg-surface);
@@ -13,11 +13,11 @@
   font-family: var(--font-body);
   font-size: var(--fs-micro);
   font-weight: var(--fw-medium);
-  line-height: 1.6;
+  line-height: var(--lh-relaxed);
   color: var(--ink-3);
   background: transparent;
   border: none;
-  border-right: 1px solid var(--line-2);
+  border-right: var(--sp-px) solid var(--line-2);
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease),
@@ -44,7 +44,7 @@
   font-size: var(--fs-micro);
   color: var(--ink-4);
   font-family: var(--font-mono);
-  border-left: 1px solid var(--line-2);
+  border-left: var(--sp-px) solid var(--line-2);
 }
 
 .select {

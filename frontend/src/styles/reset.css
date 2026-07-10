@@ -58,7 +58,7 @@ table {
 /* — Global Focus Indicator ————————————————————————————— */
 /* Zero specificity via :where() — component-level overrides win cleanly */
 :where(:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: var(--border-med) solid var(--accent);
   outline-offset: var(--sp-0);
 }
 

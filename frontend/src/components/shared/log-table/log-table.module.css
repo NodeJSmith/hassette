@@ -1,6 +1,6 @@
 /* CSS Grid layout: table area + drawer as siblings */
 .wrapper {
-  --drawer-width: 400px;
+  --drawer-width: var(--sz-drawer);
   display: grid;
   grid-template-columns: 1fr;
   transition: grid-template-columns var(--t-med) var(--ease);

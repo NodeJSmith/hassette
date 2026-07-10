@@ -13,7 +13,7 @@
   color: var(--warn);
   padding: var(--sp-0) var(--sp-2);
   border-radius: var(--r-sm);
-  transition: background var(--t-fast);
+  transition: background var(--t-fast) var(--ease);
 }
 
 .pausedBtn:hover {
@@ -21,6 +21,6 @@
 }
 
 .pausedBtn:focus-visible {
-  outline: 2px solid var(--warn);
-  outline-offset: 2px;
+  outline: var(--border-med) solid var(--warn);
+  outline-offset: var(--sp-0);
 }
