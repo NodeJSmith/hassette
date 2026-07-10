@@ -1,14 +1,16 @@
 {
     "include": [
         "src",
-        "examples"
+        "examples",
+        "scripts",
+        "codegen",
+        "tools"
     ],
     "ignore": [
         "**/node_modules",
         "**/__pycache__",
         "**/.venv",
-        "**/tests",
-        "**/tools"
+        "**/tests"
     ],
     "venvPath": ".",
     "venv": ".venv",

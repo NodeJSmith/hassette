@@ -125,7 +125,7 @@ def main() -> int:
         print("  RIGHT:  .appItem:global(.is-active) { ... }")
         print()
 
-        current_file = None
+        current_file: Path | None = None
         for file_path, lineno, _modifier, line_text in all_violations:
             rel = file_path.relative_to(REPO_ROOT)
             if file_path != current_file:
