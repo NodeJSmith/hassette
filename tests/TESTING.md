@@ -14,27 +14,27 @@ async with HassetteHarness(config).with_state_proxy() as harness:
 
 ### Available components
 
-| Method                   | Component                            | Auto-pulls           |
-| ------------------------ | ------------------------------------ | -------------------- |
-| `.with_bus()`            | Event bus + BusService               | —                    |
-| `.with_scheduler()`      | SchedulerService + Scheduler         | —                    |
-| `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                    |
+| Method                   | Component                            | Auto-pulls                        |
+| ------------------------ | ------------------------------------ | --------------------------------- |
+| `.with_bus()`            | Event bus + BusService               | —                                 |
+| `.with_scheduler()`      | SchedulerService + Scheduler         | —                                 |
+| `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                                 |
 | `.with_state_proxy()`    | StateProxy                           | `bus`, `scheduler`                |
-| `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                    |
-| `.with_file_watcher()`   | FileWatcherService                   | —                    |
+| `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                                 |
+| `.with_file_watcher()`   | FileWatcherService                   | —                                 |
 | `.with_app_handler()`    | AppHandler                           | `bus`, `scheduler`, `state_proxy` |
 
 ## Choosing a Mock Strategy
 
 Two parallel systems exist for different testing needs:
 
-| Scenario                                         | Tool                              | Why                                              |
-| ------------------------------------------------ | --------------------------------- | ------------------------------------------------ |
-| Bus routing, scheduler firing, state propagation | `HassetteHarness`                 | Wires real components — catches integration bugs |
-| Unit tests needing a hassette mock with real config | `make_mock_hassette()`         | Real Pydantic validation, sealed by default, no drift |
-| HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()`          | MagicMock stub — fast, no real services needed   |
-| RuntimeQueryService + event buffer               | `create_mock_runtime_query_service()` | Bypasses `__init__`, wires to the stub       |
-| FastAPI app from a stub                          | `create_test_fastapi_app()`       | Thin wrapper with optional log handler patch     |
+| Scenario                                            | Tool                                  | Why                                                  |
+| --------------------------------------------------- | ------------------------------------- | ---------------------------------------------------- |
+| Bus routing, scheduler firing, state propagation    | `HassetteHarness`                     | Wires real components — catches integration bugs     |
+| Unit tests needing a hassette mock with real config | `make_mock_hassette()`                | Real Pydantic validation, sealed by default, no drift |
+| HTTP endpoints, HTML responses, WebSocket frames    | `create_hassette_stub()`              | MagicMock stub — fast, no real services needed       |
+| RuntimeQueryService + event buffer                  | `create_mock_runtime_query_service()` | Bypasses `__init__`, wires to the stub               |
+| FastAPI app from a stub                             | `create_test_fastapi_app()`           | Thin wrapper with optional log handler patch         |
 
 ### `HassetteHarness` — real components
 

@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 RECURRING_TRIGGER = Every(seconds=60)
 """Shared recurring-job trigger fixture — most tests here don't care about the interval value."""
 
+TRIGGER_URL = "/api/scheduler/jobs/{job_id}/trigger"
+
 
 def make_scheduled_job(  # factory-local: wraps make_real_job with guard_running for trigger tests
     *,
@@ -44,7 +46,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        response = await client.post("/api/scheduler/jobs/1/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=1))
 
         assert response.status_code == 202
         data = response.json()
@@ -59,7 +61,7 @@ class TestTriggerJobEndpoint:
             side_effect=ValueError("Job is not currently triggerable")
         )
 
-        response = await client.post("/api/scheduler/jobs/999/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=999))
 
         assert response.status_code == 409
         assert "not currently triggerable" in response.json()["detail"]
@@ -80,7 +82,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(mode=mode, trigger=RECURRING_TRIGGER, guard_running=True)
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        response = await client.post("/api/scheduler/jobs/1/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=1))
 
         assert response.status_code == expected_status
         if expected_status == 409:
@@ -97,7 +99,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(trigger=After(seconds=30))
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        response = await client.post("/api/scheduler/jobs/1/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=1))
 
         assert response.status_code == 202
         mock_hassette.scheduler_service.dequeue_job.assert_called_once_with(job)
@@ -110,7 +112,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(trigger=None)
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        response = await client.post("/api/scheduler/jobs/1/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=1))
 
         assert response.status_code == 202
         mock_hassette.scheduler_service.dequeue_job.assert_called_once_with(job)
@@ -120,7 +122,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        response = await client.post("/api/scheduler/jobs/1/trigger")
+        response = await client.post(TRIGGER_URL.format(job_id=1))
 
         assert response.status_code == 202
         mock_hassette.scheduler_service.dequeue_job.assert_not_called()
@@ -130,7 +132,7 @@ class TestTriggerJobEndpoint:
         job = make_scheduled_job(trigger=RECURRING_TRIGGER)
         mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
 
-        await client.post("/api/scheduler/jobs/1/trigger")
+        await client.post(TRIGGER_URL.format(job_id=1))
 
         mock_hassette.scheduler_service.run_job_with_guard.assert_called_once_with(job, trigger_mode="manual")
         mock_hassette.scheduler_service.task_bucket.spawn.assert_called_once()

@@ -53,6 +53,7 @@ SHARED_FACTORIES = {
     "make_mock_parent": "hassette.test_utils.factories",
     "make_invoke_handler_cmd": "hassette.test_utils.factories",
     "make_manifest": "hassette.test_utils.web_helpers",
+    "async_noop": "hassette.test_utils.helpers",
     "noop": "hassette.test_utils.helpers",
 }
 

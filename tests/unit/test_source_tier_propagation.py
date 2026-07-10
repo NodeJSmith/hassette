@@ -20,6 +20,7 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
 from hassette.test_utils.factories import make_mock_parent
+from hassette.test_utils.helpers import noop
 from hassette.types.enums import ExecutionMode
 
 if typing.TYPE_CHECKING:
@@ -155,19 +156,15 @@ def make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     return scheduler
 
 
-async def job_fn() -> None:
-    pass
-
-
 class TestSchedulerSourceTierPropagation:
     async def test_framework_scheduler_creates_framework_job(self) -> None:
         """Scheduler.schedule() with a framework parent sets source_tier='framework'."""
         scheduler = make_scheduler_with_parent("framework")
-        job = await scheduler.schedule(job_fn, After(seconds=10))
+        job = await scheduler.schedule(noop, After(seconds=10))
         assert job.source_tier == "framework"
 
     async def test_app_scheduler_creates_app_job(self) -> None:
         """Scheduler.schedule() with an app parent sets source_tier='app'."""
         scheduler = make_scheduler_with_parent("app")
-        job = await scheduler.schedule(job_fn, After(seconds=10))
+        job = await scheduler.schedule(noop, After(seconds=10))
         assert job.source_tier == "app"

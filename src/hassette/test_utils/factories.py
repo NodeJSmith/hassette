@@ -209,7 +209,7 @@ def make_mock_parent(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
     index: int = 0,
-    unique_name: str = f"{DEFAULT_TEST_APP_KEY}.0",
+    unique_name: str | None = None,
     source_tier: SourceTier = "app",
     class_name: str = "TestApp",
     app_config: Any | None = None,
@@ -223,7 +223,7 @@ def make_mock_parent(
     parent = MagicMock()
     parent.app_key = app_key
     parent.index = index
-    parent.unique_name = unique_name
+    parent.unique_name = unique_name if unique_name is not None else f"{app_key}.{index}"
     parent.source_tier = source_tier
     parent.class_name = class_name
     parent.app_config = app_config

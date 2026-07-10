@@ -37,9 +37,9 @@ async def hassette_with_bus(
 @pytest.fixture
 def bus(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource with a mock parent that has an app_key."""
-    b = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
-    b.parent = make_mock_parent(app_key="test_app", index=0, unique_name="test_app.0", source_tier="app")
-    return b  # pyright: ignore[reportReturnType]
+    bus = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
+    bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app")
+    return bus  # pyright: ignore[reportReturnType]
 
 
 @contextlib.contextmanager

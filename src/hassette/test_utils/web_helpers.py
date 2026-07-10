@@ -12,6 +12,7 @@ These build manifest and snapshot objects used by both e2e and integration web t
 """
 
 import re
+from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Literal
 
@@ -46,6 +47,17 @@ from hassette.web.models import (
 
 SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
 
+_STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
+
+
+def _tally_statuses(manifests: Sequence) -> dict[str, int]:
+    """Count manifests by status. Works with any object that has a ``.status`` attribute."""
+    counts: dict[str, int] = {k: 0 for k in _STATUS_KEYS}
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return counts
+
 
 def make_full_snapshot(
     manifests: list[AppManifestInfo] | None = None,
@@ -53,10 +65,7 @@ def make_full_snapshot(
 ) -> AppFullSnapshot:
     """Build an AppFullSnapshot from a list of manifests."""
     manifests = manifests or []
-    counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
+    counts = _tally_statuses(manifests)
     return AppFullSnapshot(
         manifests=manifests,
         only_app=only_app,
@@ -128,10 +137,7 @@ def make_manifest_list_response(
 ) -> AppManifestListResponse:
     """Build an AppManifestListResponse from a list of manifests."""
     manifests = manifests or []
-    counts: dict[ManifestStatus, int] = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
-    for m in manifests:
-        if m.status in counts:
-            counts[m.status] += 1
+    counts = _tally_statuses(manifests)
     return AppManifestListResponse(
         manifests=manifests,
         total=len(manifests),

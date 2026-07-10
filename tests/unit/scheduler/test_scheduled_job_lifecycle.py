@@ -20,6 +20,8 @@ from hassette.test_utils.helpers import noop
 from hassette.types.enums import ExecutionMode
 from hassette.utils.date_utils import now
 
+from .conftest import TZ
+
 
 def make_job_with_args(*, args: Any = (), kwargs: dict | None = None, **overrides) -> ScheduledJob:
     """Build a real ScheduledJob with args/kwargs pass-through.
@@ -157,7 +159,7 @@ class TestSetNextRun:
     def test_set_next_run_rounds_to_second(self) -> None:
         """set_next_run() rounds the given time to the nearest second for next_run and fire_at."""
         job = make_scheduled_job()
-        precise_time = ZonedDateTime(2025, 8, 18, 7, 0, 30, nanosecond=500_000_000, tz="America/Chicago")
+        precise_time = ZonedDateTime(2025, 8, 18, 7, 0, 30, nanosecond=500_000_000, tz=TZ)
 
         job.set_next_run(precise_time)
 
@@ -168,7 +170,7 @@ class TestSetNextRun:
     def test_set_next_run_updates_sort_index(self) -> None:
         """set_next_run() updates sort_index to (rounded_timestamp_nanos, id(self))."""
         job = make_scheduled_job()
-        new_time = ZonedDateTime(2030, 1, 1, 0, 0, 0, tz="America/Chicago")
+        new_time = ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=TZ)
 
         job.set_next_run(new_time)
 
@@ -177,10 +179,10 @@ class TestSetNextRun:
 
     def test_set_next_run_changes_ordering(self) -> None:
         """Updating next_run via set_next_run changes the job's heap ordering position."""
-        job = make_scheduled_job(next_run=ZonedDateTime(2025, 1, 1, tz="America/Chicago"))
+        job = make_scheduled_job(next_run=ZonedDateTime(2025, 1, 1, tz=TZ))
         earlier_sort_index = job.sort_index
 
-        job.set_next_run(ZonedDateTime(2020, 1, 1, tz="America/Chicago"))
+        job.set_next_run(ZonedDateTime(2020, 1, 1, tz=TZ))
 
         assert job.sort_index < earlier_sort_index
 

@@ -8,6 +8,8 @@ from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runt
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
+_SEED_TIMESTAMP = "2024-01-01T00:00:00"
+
 
 @pytest.fixture
 def mock_hassette():
@@ -26,15 +28,15 @@ def mock_hassette():
                 "entity_id": "light.kitchen",
                 "state": "on",
                 "attributes": {"brightness": 255},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": _SEED_TIMESTAMP,
+                "last_updated": _SEED_TIMESTAMP,
             },
             "sensor.temp": {
                 "entity_id": "sensor.temp",
                 "state": "21.5",
                 "attributes": {"unit_of_measurement": "°C"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": _SEED_TIMESTAMP,
+                "last_updated": _SEED_TIMESTAMP,
             },
         },
         old_snapshot=AppStatusSnapshot(running=[instance], failed=[]),

@@ -30,6 +30,7 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every as _Every
 from hassette.test_utils.factories import make_mock_parent
+from hassette.test_utils.helpers import noop
 from hassette.utils.date_utils import now
 from tests.unit.conftest import make_api
 
@@ -456,22 +457,18 @@ def _make_scheduler() -> Scheduler:
     return sched
 
 
-async def _sched_noop() -> None:
-    pass
-
-
 def _sched_call(method_name: str):
     """Return a callable that invokes scheduler.<method_name> with minimal valid args."""
     _every = _Every(hours=1)
     _calls = {
-        "schedule": lambda s: s.schedule(_sched_noop, _every, name="n"),
-        "run_in": lambda s: s.run_in(_sched_noop, 30, name="n"),
-        "run_once": lambda s: s.run_once(_sched_noop, at="23:59", name="n"),
-        "run_every": lambda s: s.run_every(_sched_noop, minutes=5, name="n"),
-        "run_minutely": lambda s: s.run_minutely(_sched_noop, minutes=5, name="n"),
-        "run_hourly": lambda s: s.run_hourly(_sched_noop, hours=1, name="n"),
-        "run_daily": lambda s: s.run_daily(_sched_noop, at="08:00", name="n"),
-        "run_cron": lambda s: s.run_cron(_sched_noop, "0 9 * * 1-5", name="n"),
+        "schedule": lambda s: s.schedule(noop, _every, name="n"),
+        "run_in": lambda s: s.run_in(noop, 30, name="n"),
+        "run_once": lambda s: s.run_once(noop, at="23:59", name="n"),
+        "run_every": lambda s: s.run_every(noop, minutes=5, name="n"),
+        "run_minutely": lambda s: s.run_minutely(noop, minutes=5, name="n"),
+        "run_hourly": lambda s: s.run_hourly(noop, hours=1, name="n"),
+        "run_daily": lambda s: s.run_daily(noop, at="08:00", name="n"),
+        "run_cron": lambda s: s.run_cron(noop, "0 9 * * 1-5", name="n"),
     }
     return _calls[method_name]
 
@@ -549,7 +546,7 @@ def test_bus_add_listener_warns_on_forgotten_await() -> None:
 def test_scheduler_add_job_warns_on_forgotten_await() -> None:
     """Dropping an un-awaited Scheduler.add_job() handle emits HassetteForgottenAwaitWarning."""
     sched = _make_scheduler()
-    job = ScheduledJob(owner_id="test_app.0", next_run=now(), job=_sched_noop, name="completeness_add_job")
+    job = ScheduledJob(owner_id="test_app.0", next_run=now(), job=noop, name="completeness_add_job")
     with pytest.warns(HassetteForgottenAwaitWarning):
         _ = sched.add_job(job)
         del _

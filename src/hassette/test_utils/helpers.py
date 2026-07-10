@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import tomli_w
 
-import hassette.utils.date_utils as _date_utils
+import hassette.utils.date_utils as date_utils
 from hassette.bus.listeners import (
     DurationConfig,
     HandlerInvoker,
@@ -42,8 +42,12 @@ if TYPE_CHECKING:
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "last_reported", "context"})
 
 
-async def noop() -> None:
-    pass
+def noop() -> None:
+    """Sync no-op — default handler for create_listener() and scheduler job tests."""
+
+
+async def async_noop() -> None:
+    """Async no-op — call it to get a coroutine object (e.g. bucket.spawn(async_noop()))."""
 
 
 def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
@@ -63,7 +67,7 @@ def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
             "event_type": event_type,
             "data": data,
             "origin": "LOCAL",
-            "time_fired": _date_utils.now().format_iso(),
+            "time_fired": date_utils.now().format_iso(),
             "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
         },
     }
@@ -165,7 +169,7 @@ def make_state_dict(
     Returns:
         Dictionary matching Home Assistant state format
     """
-    now = _date_utils.now().format_iso()
+    now = date_utils.now().format_iso()
     result = {
         "entity_id": entity_id,
         "state": state,
@@ -487,7 +491,7 @@ def make_task_bucket() -> MagicMock:
 
 
 def create_listener(
-    handler: "HandlerType | None" = None,
+    handler: "HandlerType" = noop,
     *,
     topic: str = "state_changed.light.test",
     owner_id: str = "test_owner",
@@ -519,7 +523,7 @@ def create_listener(
     """Test factory: build a Listener from simple kwargs.
 
     Constructs sub-structs internally and delegates to Listener.create().
-    Default handler is an async no-op (`noop`); default task_bucket is a MagicMock.
+    Default handler is a sync no-op (`noop`); default task_bucket is a MagicMock.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -527,8 +531,6 @@ def create_listener(
     if immediate and not entity_id:
         raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
-    if handler is None:
-        handler = noop
     if task_bucket is None:
         task_bucket = make_task_bucket()
 
