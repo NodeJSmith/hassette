@@ -20,8 +20,8 @@
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
   padding: var(--sp-6);
-  min-width: 320px;
-  max-width: 480px;
+  min-width: var(--sz-dialog-min);
+  max-width: var(--sz-dialog-max);
   width: calc(100% - var(--sp-8));
 }
 

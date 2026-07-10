@@ -176,6 +176,13 @@ These document the current implemented token direction. Do not treat this sectio
 - `--sz-sidebar` 240px — sidebar width, used in layout grid and mobile drawer.
 - `--sz-search-min` 160px — minimum width for search inputs.
 - `--sz-touch` 44px, `--sz-icon-sm` 14px.
+- `--sz-popover-min` 200px — minimum width for popovers (column filter, mobile filter panel).
+- `--sz-popover-max` 280px — maximum width for popovers (column filter, info popover).
+- `--sz-content-narrow` 320px — maximum width for narrow centered content (empty state body text).
+- `--sz-dialog-min` 320px — minimum width for dialogs (confirm dialog).
+- `--sz-dialog-max` 480px — maximum width for dialogs (confirm dialog).
+- `--sz-drawer` 400px — log detail drawer width (grid column + fixed panel).
+- `--sz-palette` 620px — command palette width (clamped to 90vw on small screens).
 
 ### Component Padding & Gap
 

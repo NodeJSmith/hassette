@@ -15,7 +15,7 @@
   top: 15vh;
   left: 50%;
   transform: translateX(-50%);
-  width: min(620px, 90%);
+  width: min(var(--sz-palette), 90%);
   max-height: 70vh;
   display: flex;
   flex-direction: column;

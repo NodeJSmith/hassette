@@ -6,8 +6,8 @@
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   padding: var(--sp-2);
-  min-width: 200px;
-  max-width: 280px;
+  min-width: var(--sz-popover-min);
+  max-width: var(--sz-popover-max);
   max-height: 60vh;
   overflow: hidden auto;
 }
