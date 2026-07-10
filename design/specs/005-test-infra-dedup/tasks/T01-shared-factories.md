@@ -18,6 +18,9 @@ Add the 6 new shared factory functions to `src/hassette/test_utils/factories.py`
 - read: `src/hassette/types/enums.py`
 - read: `src/hassette/bus/event.py`
 - read: `src/hassette/types/payloads.py`
+- read: `tests/unit/test_recording_api.py`
+- read: `tests/unit/test_recording_api_helpers.py`
+- read: `tests/unit/test_recording_sync_facade.py`
 
 ## Prompt
 Add 6 factory functions to `src/hassette/test_utils/factories.py`, following the existing keyword-only style with sensible defaults. See `context.md` → Convention Examples for the exact pattern.
@@ -34,7 +37,7 @@ Add 6 factory functions to `src/hassette/test_utils/factories.py`, following the
 
 5. `make_hassette_event(topic="hassette.ready", data=None) -> Event` — returns `Event(topic=topic, payload=HassettePayload(data=data))`. Import `HassettePayload` from `hassette.types.payloads`.
 
-6. `make_mock_parent(*, app_key="test_app", index=0, unique_name="test_app_0", source_tier="app", class_name="TestApp", app_config=None) -> MagicMock` — returns a `MagicMock` with all 6 attributes set. The canonical definition to match is `tests/unit/conftest.py:85`.
+6. `make_mock_parent(*, app_key="test_app", index=0, unique_name="test_app.0", source_tier="app", class_name="TestApp", app_config=None) -> MagicMock` — returns a `MagicMock` with all 6 attributes set. The canonical definition to match is `tests/unit/conftest.py:85`.
 
 **Export wiring:**
 - Add all 6 to `src/hassette/test_utils/_internal/__init__.py` re-exports (import from `..factories`)

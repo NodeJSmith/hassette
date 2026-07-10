@@ -2,12 +2,12 @@
 task_id: "T03"
 title: "Delete dead code and fix misplaced fixtures"
 status: "planned"
-depends_on: []
+depends_on: ["T01"]
 implements: ["FR#8", "FR#9", "FR#10", "FR#11", "FR#14", "FR#20", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---
 
 ## Summary
-Remove dead exports, dead test data files, and dead asyncio markers. Move 3 misplaced fixtures to their correct directory. Add a docstring to the intentional `hassette_with_bus` override. This task is independent of T01/T02 — it touches different files and can run in parallel.
+Remove dead exports, dead test data files, and dead asyncio markers. Move 3 misplaced fixtures to their correct directory. Add a docstring to the intentional `hassette_with_bus` override. Depends on T01 because both modify the `__init__.py` and `_internal/__init__.py` export chain (T01 adds factory exports, this task removes dead exports).
 
 ## Target Files
 - modify: `src/hassette/test_utils/helpers.py`
@@ -30,7 +30,7 @@ Already deleted on this branch (committed in `a51b37b0`). Verify AC#4 holds.
 1. Delete `emit_service_event()` from `src/hassette/test_utils/helpers.py` (line 408-410). Remove its re-export from `_internal/__init__.py` and `__init__.py`.
 2. Delete `make_listener_metric()` from `src/hassette/test_utils/web_helpers.py` (line 146). Remove its re-export from `_internal/__init__.py` and `__init__.py`.
 3. Delete `setup_registry()` from `src/hassette/test_utils/web_helpers.py` (line 194). Remove its re-export from `_internal/__init__.py` and `__init__.py`.
-4. Delete `hassette_with_nothing` fixture from `src/hassette/test_utils/fixtures.py` (lines 54-60). Remove its re-export from `_internal/__init__.py` and `__init__.py` (it's in `__all__`).
+4. Delete `hassette_with_nothing` fixture from `src/hassette/test_utils/fixtures.py` (lines 54-60). Note: this fixture is NOT in `__all__` or re-exported via `_internal/__init__.py` — it's registered only via `pytest_plugins = ["hassette.test_utils.fixtures"]` in `tests/conftest.py:47`, so deleting the function from `fixtures.py` is sufficient.
 5. Remove `"hassette_with_nothing"` string from the `_HARNESS_FIXTURES` frozenset in `tests/integration/conftest.py:46`.
 6. Remove the `hassette_with_nothing` reference from `tests/TESTING.md:119-123` and update the harness fixture count from "8 module-scoped" to "7 module-scoped".
 
@@ -51,7 +51,7 @@ Add a docstring to the `hassette_with_bus` override in `tests/unit/bus/conftest.
 Delete `tests/data/events/device_tracker_event.json` (wrong format, zero references).
 
 ## Focus
-- When deleting from `__init__.py`, check whether the symbol is in `__all__` (Tier 1) or just a re-export (Tier 2). `hassette_with_nothing` is in `__all__` — remove it from there. The others (`emit_service_event`, `make_listener_metric`, `setup_registry`) are Tier 2 re-exports.
+- When deleting from `__init__.py`, check whether the symbol is in `__all__` (Tier 1) or just a re-export (Tier 2). `emit_service_event`, `make_listener_metric`, and `setup_registry` are Tier 2 re-exports — remove them from `_internal/__init__.py` and `__init__.py`. `hassette_with_nothing` is NOT in either file — it's registered via `pytest_plugins` in `tests/conftest.py`.
 - The `_HARNESS_FIXTURES` frozenset at `tests/integration/conftest.py:46` is used by `cleanup_harness` autouse fixture. After removing `"hassette_with_nothing"`, verify the frozenset still matches the actual fixture list.
 - For the fixture move (FR#11), copy the fixture functions including their `@pytest.fixture` decorators and type annotations.
 

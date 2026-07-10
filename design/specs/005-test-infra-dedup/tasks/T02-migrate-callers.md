@@ -52,6 +52,12 @@ Delete all local factory definitions that are subsumed by T01's shared factories
 - modify: `tests/integration/test_scheduler_mode.py`
 - modify: `tests/integration/database/test_database_service.py`
 - modify: `tests/integration/bus/test_execution_modes.py`
+- modify: `tests/integration/test_app_factory_lifecycle.py`
+- modify: `tests/unit/test_config_classes.py`
+- modify: `tests/unit/core/test_app_registry.py`
+- modify: `tests/unit/core/test_app_change_detector.py`
+- modify: `tests/integration/test_sync_facades.py`
+- modify: `tests/integration/web_api/test_trigger_job.py`
 
 ## Prompt
 This is a large mechanical migration. For each factory consolidation, follow this pattern:
@@ -86,6 +92,18 @@ Replace the sync `def noop() -> None: pass` at `src/hassette/test_utils/helpers.
 
 Rename `make_test_config` to `make_sync_executor_config` at `tests/unit/conftest.py:47`. Update the import in `tests/unit/test_sync_executor_service_wiring.py:33` and all 3 call sites (lines 188, 216, 228). Update the internal call in `make_sync_executor_hassette()` at `tests/unit/conftest.py:58`.
 
+**Linter exemption annotations:**
+
+Add `# factory-local: <reason>` annotations to pre-existing local definitions that legitimately shadow shared factory names but are NOT subsumed:
+
+- `tests/integration/test_app_factory_lifecycle.py:53` — `def make_manifest(...)` returns `AppManifest` (config-layer model), not `AppManifestInfo`. Add `# factory-local: returns AppManifest, not AppManifestInfo`
+- `tests/unit/test_config_classes.py:14` — `def make_manifest(**overrides)` returns `AppManifest`. Add `# factory-local: returns AppManifest, not AppManifestInfo`
+- `tests/unit/core/test_app_registry.py:510` — `def make_manifest(self, ...)` class method returning `SimpleNamespace`. Add `# factory-local: returns SimpleNamespace for registry tests`
+- `tests/unit/core/test_app_change_detector.py:102` — `def make_manifest(self)` fixture factory returning `Callable`. Add `# factory-local: fixture factory returning Callable`
+- `tests/integration/test_sync_facades.py:73` — `def noop(event)` sync handler taking `RawStateChangeEvent`. Add `# factory-local: sync handler with event param for facade tests`
+- `tests/integration/test_sync_facades.py:84` — `def noop()` sync no-arg handler. Add `# factory-local: sync no-arg handler for facade tests`
+- `tests/integration/web_api/test_trigger_job.py:20` — `def make_scheduled_job(...)` wraps `make_real_job()` with `guard_running` option. Add `# factory-local: wraps make_real_job with guard_running for trigger tests`
+
 **FR#15 — make_manifest autostart:**
 
 Add `autostart: bool = True` parameter to `make_manifest()` in `src/hassette/test_utils/web_helpers.py`. Pass it through to `AppManifestInfo(autostart=autostart, ...)`. Delete the local `make_manifest` duplicate in `tests/unit/web/test_mappers.py:144` and replace with import from `hassette.test_utils.web_helpers`.
@@ -95,6 +113,7 @@ Add `autostart: bool = True` parameter to `make_manifest()` in `src/hassette/tes
 - For `noop` in `test_scheduler_mode.py`, the 17 nested copies are each inside a test method. Replace them all with a single `from hassette.test_utils.helpers import noop` import at the top of the file.
 - `make_mock_parent` inline replacements: match the keyword args each call site was setting. Some set only `app_key`/`index`/`source_tier`/`class_name` — the shared factory's defaults for `unique_name` and `app_config` are harmless extras.
 - `test_source_tier_propagation.py` has a unique field pattern (includes `unique_name`, omits `class_name`) — pass `class_name` explicitly or accept the default.
+- `test_execution_modes.py:521` dynamically copies field values from `original_parent` (the live harness parent) rather than using hardcoded literals like other inline sites. When replacing with `make_mock_parent()`, pass `source_tier="framework"` explicitly — the other fields' defaults are acceptable since no test assertion reads them.
 - For exempted local factories, add `# factory-local: <reason>` on the `def` line.
 
 ## Verify
