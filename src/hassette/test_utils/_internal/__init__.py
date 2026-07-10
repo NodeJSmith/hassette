@@ -7,6 +7,14 @@ This package exists solely to provide backward-compatible re-exports so that
 hassette's own internal tests continue to work after the public API restructure.
 """
 
+from hassette.test_utils.factories import (
+    make_hassette_event,
+    make_mock_event,
+    make_mock_executor,
+    make_mock_parent,
+    make_recording_api,
+    make_scheduled_job,
+)
 from hassette.test_utils.fixtures import (
     build_harness,
     hassette_harness,
@@ -73,11 +81,17 @@ __all__ = [
     "hassette_with_state_proxy",
     "make_full_snapshot",
     "make_full_state_change_event",
+    "make_hassette_event",
     "make_job",
     "make_light_state_dict",
     "make_listener_metric",
     "make_manifest",
+    "make_mock_event",
+    "make_mock_executor",
+    "make_mock_parent",
     "make_real_job",
+    "make_recording_api",
+    "make_scheduled_job",
     "make_sensor_state_dict",
     "make_service_failed_event",
     "make_service_running_event",
