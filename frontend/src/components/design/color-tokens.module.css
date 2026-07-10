@@ -1,0 +1,24 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--sp-3);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.swatchColor {
+  height: var(--sp-9);
+  border-radius: var(--r-md);
+  border: var(--sp-px) solid var(--line-1);
+}
+
+.swatchName {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  color: var(--ink-1);
+}
