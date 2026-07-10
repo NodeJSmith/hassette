@@ -11,7 +11,6 @@ from typing import Any, assert_never
 
 import aiosqlite
 
-from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.telemetry_models import AppHealthSummary
 from hassette.types.types import QuerySourceTier, is_framework_key
 
@@ -19,10 +18,6 @@ from hassette.types.types import QuerySourceTier, is_framework_key
 # Named once here so both the execute() chokepoint and the get_all_app_summaries bypass
 # (which runs a manual BEGIN DEFERRED transaction) catch the identical set.
 STORAGE_ERRORS = (sqlite3.Error, OSError, ValueError, TimeoutError)
-
-# DEFAULT_QUERY_LIMIT and DEFAULT_SPARKLINE_BUCKETS moved to hassette.schemas.query_constants;
-# re-imported above so internal callers (registration_queries, execution_queries, query_service)
-# still resolve via helpers without change.
 
 DEFAULT_SESSION_LIST_LIMIT = 20
 """Default number of recent sessions returned by get_session_list."""
@@ -40,15 +35,13 @@ DEFAULT_EXECUTION_LOG_LIMIT = 500
 __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
-    "DEFAULT_QUERY_LIMIT",
     "DEFAULT_SESSION_LIST_LIMIT",
-    "DEFAULT_SPARKLINE_BUCKETS",
     "STORAGE_ERRORS",
     "AppHealthAggregates",
-    "_build_app_summaries",
-    "_row_to_dict",
-    "_since_clause",
-    "_source_tier_clause",
+    "build_app_summaries",
+    "row_to_dict",
+    "since_clause",
+    "source_tier_clause",
 ]
 
 
@@ -71,12 +64,12 @@ class AppHealthAggregates:
     last_activity_ts: float | None
 
 
-def _row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
+def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert an aiosqlite Row to a plain dict."""
     return dict(zip(row.keys(), tuple(row), strict=False))
 
 
-def _source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, dict[str, str]]:
+def source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, dict[str, str]]:
     """Return a (fragment, params) tuple for source_tier filtering.
 
     When ``source_tier`` is ``'all'``, returns ``("", {})`` (no filter).
@@ -96,7 +89,7 @@ def _source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, 
             assert_never(unreachable)
 
 
-def _since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[str, float]]:
+def since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[str, float]]:
     """Return a (fragment, params) tuple for timestamp lower-bound filtering.
 
     When ``since`` is not None, returns a parameterised ``AND`` fragment that
@@ -113,7 +106,7 @@ def _since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[st
     return (f"AND {timestamp_col} >= :since", {"since": since})
 
 
-def _build_app_summaries(
+def build_app_summaries(
     *,
     listener_reg_rows: Iterable[aiosqlite.Row],
     listener_act_rows: Iterable[aiosqlite.Row],
@@ -127,7 +120,7 @@ def _build_app_summaries(
     """
 
     def _index(rows: Iterable[aiosqlite.Row]) -> dict[str, dict[str, Any]]:
-        dicts = [_row_to_dict(r) for r in rows]
+        dicts = [row_to_dict(r) for r in rows]
         return {d["app_key"]: d for d in dicts}
 
     listener_reg = _index(listener_reg_rows)

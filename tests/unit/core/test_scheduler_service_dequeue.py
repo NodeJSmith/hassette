@@ -9,7 +9,6 @@ Tests verify:
 - dequeue_job is synchronous (no yield point)
 """
 
-import asyncio
 import inspect
 from unittest.mock import MagicMock
 
@@ -18,6 +17,8 @@ from fair_async_rlock import FairAsyncRLock
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
+
+from .conftest import make_scheduler_service
 
 
 def make_job(owner_id: str = "test_owner") -> ScheduledJob:
@@ -30,31 +31,16 @@ def make_job(owner_id: str = "test_owner") -> ScheduledJob:
     )
 
 
-def make_scheduler_service() -> SchedulerService:
-    """Create a SchedulerService with a real _ScheduledJobQueue."""
-    svc = SchedulerService.__new__(SchedulerService)
-    svc.hassette = MagicMock()
-    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-    svc._removal_callbacks = {}
-    svc.logger = MagicMock()
-    svc._wakeup_event = asyncio.Event()
+def make_dequeue_service() -> SchedulerService:
+    """SchedulerService with a real _ScheduledJobQueue for heap-operation tests."""
+    svc = make_scheduler_service()
 
-    # Real job queue so we can test actual heap state
+    # Override the mock job queue with a real one so we can test actual heap state
     queue = _ScheduledJobQueue.__new__(_ScheduledJobQueue)
     queue._lock = FairAsyncRLock()
     queue._queue = HeapQueue()
     queue.logger = MagicMock()
     svc._job_queue = queue
-
-    # task_bucket is needed by dequeue_job (spawns guard release) and run_job_with_guard.
-    # spawn() receives a coroutine; close it immediately to avoid unawaited-coroutine warnings.
-    def _spawn(coro, **_kwargs):
-        if hasattr(coro, "close"):
-            coro.close()
-        return MagicMock()
-
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.spawn = _spawn
 
     return svc
 
@@ -109,7 +95,7 @@ class TestRemoveItemSync:
 class TestDequeueJobRemovesFromHeap:
     async def test_dequeue_job_removes_from_heap(self) -> None:
         """dequeue_job removes the job from the queue."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job()
         svc._job_queue._queue.push(job)
 
@@ -120,7 +106,7 @@ class TestDequeueJobRemovesFromHeap:
 
     async def test_dequeue_job_returns_false_when_not_in_heap(self) -> None:
         """dequeue_job returns False when job is not in the heap (idempotent no-op)."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job()
         # Do NOT push job
 
@@ -132,7 +118,7 @@ class TestDequeueJobRemovesFromHeap:
 class TestDequeueJobRemovalCallbacks:
     async def test_dequeue_job_fires_removal_callbacks_when_removed(self) -> None:
         """dequeue_job fires removal callback when job was in the heap."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job(owner_id="owner_a")
         svc._job_queue._queue.push(job)
 
@@ -148,7 +134,7 @@ class TestDequeueJobRemovalCallbacks:
 
         This prevents dict leaks when the serve loop already popped the job.
         """
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job(owner_id="owner_b")
         # Do NOT push — simulate job already popped by serve loop
 
@@ -163,7 +149,7 @@ class TestDequeueJobRemovalCallbacks:
 class TestDequeueJobKick:
     async def test_dequeue_job_calls_kick_only_when_removed(self) -> None:
         """kick() is called only when the job was in the heap and removed."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         kick_calls = []
 
         def _spy_kick():
@@ -204,7 +190,7 @@ class TestDispatchRaceGuard:
 
     async def test_dispatch_skips_dequeued_job(self) -> None:
         """dispatch_and_log returns immediately when job._dequeued is True."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job()
 
         # Simulate the race: job was popped from heap, then cancelled
@@ -226,7 +212,7 @@ class TestDispatchRaceGuard:
 
     async def test_dispatch_runs_non_dequeued_job(self) -> None:
         """dispatch_and_log proceeds normally when job._dequeued is False."""
-        svc = make_scheduler_service()
+        svc = make_dequeue_service()
         job = make_job()
         job._dequeued = False
 

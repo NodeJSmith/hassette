@@ -150,7 +150,8 @@ class TestBuildRecordTriggerMode:
     @pytest.mark.parametrize(("trigger_mode", "expected"), [("manual", "manual"), (None, None)])
     def test_build_record_propagates_trigger_mode(self, trigger_mode: str | None, expected: str | None) -> None:
         """build_record reads cmd.trigger_mode onto ExecutionRecord.trigger_mode, including the
-        None default for regular scheduled fires."""
+        None default for regular scheduled fires.
+        """
         executor = make_executor()
         cmd = make_cmd_execute_job(source_tier="app", trigger_mode=trigger_mode)
         cmd.job = MagicMock()

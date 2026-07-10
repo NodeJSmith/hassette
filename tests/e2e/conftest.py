@@ -49,7 +49,10 @@ NARROW_DESKTOP_VIEWPORT = {"width": 800, "height": 600}
 DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
 
 ANIMATION_SETTLE_MS = 300
+EXTENDED_SETTLE_MS = 500
 DATA_LOAD_TIMEOUT_MS = 5000
+
+MOCK_LAST_CHANGED = "2024-01-01T00:00:00"
 
 
 @pytest.fixture(scope="session")
@@ -61,36 +64,36 @@ def mock_hassette():
                 "entity_id": "light.kitchen",
                 "state": "on",
                 "attributes": {"brightness": 255, "friendly_name": "Kitchen Light"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "light.bedroom": {
                 "entity_id": "light.bedroom",
                 "state": "off",
                 "attributes": {"brightness": 0, "friendly_name": "Bedroom Light"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "sensor.temperature": {
                 "entity_id": "sensor.temperature",
                 "state": "22.5",
                 "attributes": {"unit_of_measurement": "°C", "friendly_name": "Temperature"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "switch.fan": {
                 "entity_id": "switch.fan",
                 "state": "on",
                 "attributes": {"friendly_name": "Fan"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
             "binary_sensor.door": {
                 "entity_id": "binary_sensor.door",
                 "state": "off",
                 "attributes": {"device_class": "door", "friendly_name": "Front Door"},
-                "last_changed": "2024-01-01T00:00:00",
-                "last_updated": "2024-01-01T00:00:00",
+                "last_changed": MOCK_LAST_CHANGED,
+                "last_updated": MOCK_LAST_CHANGED,
             },
         },
         manifests=build_manifests(),
@@ -109,7 +112,7 @@ def mock_hassette():
     wire_error_telemetry(hassette, app_tier_errors, framework_tier_errors)
 
     framework_summary, default_summary = build_global_summaries()
-    wire_global_summary(hassette, framework_summary, default_summary)
+    wire_global_summary(hassette, framework_summary, default_summary, framework_tier_errors)
 
     # Owner resolution wiring.
     wire_owner_resolution(hassette)
@@ -169,8 +172,8 @@ def log_handler():
     return handler
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-SPA_INDEX = _REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
 @pytest.fixture(scope="session")
@@ -178,7 +181,7 @@ def ensure_spa_built():
     """Build the frontend SPA if the build output is missing."""
     if SPA_INDEX.exists():
         return
-    frontend_dir = _REPO_ROOT / "frontend"
+    frontend_dir = REPO_ROOT / "frontend"
     if not (frontend_dir / "package.json").exists():
         pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
     if not shutil.which("npm"):
@@ -209,7 +212,7 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
         execution_id: str | None = None,
         source_tier: str | None = None,
     ) -> list[dict]:
-        entries: list[LogEntry] = handler.get_buffer_snapshot()
+        entries: list[LogEntry] = list(handler.buffer)
         result = [e.to_dict() for e in entries]
         if since is not None:
             result = [r for r in result if r["timestamp"] >= since]
@@ -230,7 +233,6 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
 @pytest.fixture(scope="session")
 def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
-
     mock_hassette.telemetry_query_service.get_log_records = make_log_records_from_buffer(log_handler)
 
     # Wire log_handler as the capture_handler on the mock logging_service so
@@ -315,7 +317,6 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
 
 
-# ── WebSocket-enabled server fixtures ─────────────────────────────────
 #
 # Two server configurations serve different testing needs:
 #

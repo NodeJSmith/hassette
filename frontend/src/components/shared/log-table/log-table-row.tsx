@@ -4,7 +4,7 @@ import { useMemo } from "preact/hooks";
 import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
-import { formatTimestamp } from "../../../utils/format";
+import { formatTimestamp, truncateId } from "../../../utils/format";
 import { onActivateKeyDown } from "../../../utils/keyboard";
 import { AppLink } from "../app-link";
 import { LEVEL_ABBREV, levelClass } from "./constants";
@@ -67,13 +67,9 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       )}
       {isColumnVisible("execution") && (
         <td class={styles.mono}>
-          {entry.execution_id ? (
-            <span class={styles.muted} title={entry.execution_id}>
-              {entry.execution_id.slice(0, 8)}&hellip;
-            </span>
-          ) : (
-            <span class={styles.muted}>&mdash;</span>
-          )}
+          <span class={styles.muted} title={entry.execution_id ?? undefined}>
+            {truncateId(entry.execution_id)}
+          </span>
         </td>
       )}
       {isColumnVisible("function") && (

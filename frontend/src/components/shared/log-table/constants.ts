@@ -19,7 +19,9 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
   { value: "framework", label: "Framework" },
 ] as const;
 
-export const LEVEL_INDEX: Record<string, number> = {
+type Level = (typeof LEVELS)[number];
+
+export const LEVEL_INDEX: Record<Level, number> = {
   DEBUG: 0,
   INFO: 1,
   WARNING: 2,
@@ -27,7 +29,7 @@ export const LEVEL_INDEX: Record<string, number> = {
   CRITICAL: 4,
 };
 
-export const LEVEL_ABBREV: Record<string, string> = {
+export const LEVEL_ABBREV: Record<Level, string> = {
   DEBUG: "D",
   INFO: "I",
   WARNING: "W",
@@ -50,10 +52,8 @@ export const COLUMNS: ColumnDef[] = [
     label: "Level",
     shortLabel: "Lvl",
     sortKey: "level",
-    filterable: true,
     width: "70px",
     mobileWidth: "32px",
-    mono: true,
     ariaLabel: "Log level",
   },
   {
@@ -61,67 +61,53 @@ export const COLUMNS: ColumnDef[] = [
     label: "Timestamp",
     shortLabel: "When",
     sortKey: "timestamp",
-    filterable: false,
     width: "140px",
     mobileWidth: "72px",
-    mono: true,
     ariaLabel: "Timestamp",
   },
   {
     id: "app",
     label: "App",
     sortKey: "app",
-    filterable: true,
     width: "130px",
     mobileWidth: "80px",
-    mono: false,
     ariaLabel: "Application",
   },
   {
     id: "instance",
     label: "Instance",
-    filterable: false,
     width: "110px",
     mobileWidth: "80px",
-    mono: true,
     ariaLabel: "Instance name",
   },
   {
     id: "execution",
     label: "Execution",
-    filterable: false,
     width: "90px",
     mobileWidth: "70px",
-    mono: true,
     ariaLabel: "Execution ID",
   },
   {
     id: "function",
     label: "Function",
     sortKey: "function",
-    filterable: true,
     width: "150px",
     mobileWidth: "90px",
-    mono: true,
     ariaLabel: "Function name",
   },
   {
     id: "module",
     label: "Module",
-    filterable: false,
     width: "120px",
     mobileWidth: "80px",
-    mono: true,
     ariaLabel: "Module and line",
   },
   {
     id: "message",
     label: "Message",
     sortKey: "message",
-    filterable: false,
     width: "",
     mobileWidth: "",
-    mono: true,
     ariaLabel: "Log message",
   },
 ];

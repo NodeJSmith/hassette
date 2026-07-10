@@ -102,8 +102,8 @@ class FailedMessageError(HassetteError):
                 "vacation_mode",
                 UpdateInputBooleanParams(initial=False),
             )
-        except FailedMessageError as e:
-            if e.code == "not_found":
+        except FailedMessageError as exc:
+            if exc.code == "not_found":
                 # Helper was deleted between list and update — recreate it
                 ...
 
@@ -147,7 +147,7 @@ class UndefinedUserConfigError(TypeError, HassetteError):
 
 
 class EntityNotFoundError(ValueError, HassetteError):
-    """Custom error for handling 404 in the Api"""
+    """Custom error for handling 404 in the Api."""
 
 
 class ResourceNotReadyError(HassetteError):
@@ -371,8 +371,8 @@ class RegistryValidationError(HassetteError):
 
     def __init__(self, issues: list[Any]) -> None:
         self.issues = issues
-        error_count = sum(1 for i in issues if getattr(i, "severity", None) == "error")
-        warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
+        error_count = sum(1 for i in issues if i.severity == "error")
+        warning_count = sum(1 for i in issues if i.severity == "warning")
         total = len(issues)
         summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
         summary_lines.extend(

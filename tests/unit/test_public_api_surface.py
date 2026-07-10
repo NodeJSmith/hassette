@@ -49,7 +49,7 @@ def test_tier2_not_in_all() -> None:
 
 
 def test_star_import_only_tier1() -> None:
-    """from hassette.test_utils import * brings only Tier 1 symbols into namespace."""
+    """From hassette.test_utils import * brings only Tier 1 symbols into namespace."""
     # Create a fresh module to simulate star import
     fresh = types.ModuleType("_star_test")
     exec("from hassette.test_utils import *", fresh.__dict__)

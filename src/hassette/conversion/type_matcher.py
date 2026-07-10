@@ -101,25 +101,25 @@ class TypeMatcher:
 
 
 @register_type_matcher(list, set, frozenset)
-def match_homogeneous_iterable(m: TypeMatcher, value: Any, tp: Any) -> bool:
+def match_homogeneous_iterable(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
     args = get_args(tp)
     if not args:
         return True
     (elem_tp,) = args
-    return all(m.matches(v, elem_tp) for v in value)
+    return all(matcher.matches(v, elem_tp) for v in value)
 
 
 @register_type_matcher(dict)
-def match_dict(m: TypeMatcher, value: Any, tp: Any) -> bool:
+def match_dict(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
     args = get_args(tp)
     if len(args) != 2:
         return True
     key_tp, val_tp = args
-    return all(m.matches(k, key_tp) and m.matches(v, val_tp) for k, v in value.items())
+    return all(matcher.matches(k, key_tp) and matcher.matches(v, val_tp) for k, v in value.items())
 
 
 @register_type_matcher(tuple)
-def match_tuple(m: TypeMatcher, value: Any, tp: Any) -> bool:
+def match_tuple(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
     args = get_args(tp)
     if not args:
         return True
@@ -127,13 +127,13 @@ def match_tuple(m: TypeMatcher, value: Any, tp: Any) -> bool:
     # tuple[T, ...]
     if len(args) == 2 and args[1] is Ellipsis:
         elem_tp = args[0]
-        return all(m.matches(v, elem_tp) for v in value)
+        return all(matcher.matches(v, elem_tp) for v in value)
 
     # tuple[T1, T2, ...]
     if len(value) != len(args):
         return False
 
-    return all(m.matches(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))
+    return all(matcher.matches(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))
 
 
 TYPE_MATCHER = TypeMatcher()

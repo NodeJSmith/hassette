@@ -173,15 +173,15 @@ class Service(Resource):
                 return
             with suppress(Exception):
                 await self.handle_stop()
-        except FatalError as e:
-            self.logger.error("Serve() task failed with fatal error: %s %s", type(e).__name__, e)
+        except FatalError as exc:
+            self.logger.error("Serve() task failed with fatal error: %s %s", type(exc).__name__, exc)
             # Crash/failure path
-            await self.handle_crash(e)
+            await self.handle_crash(exc)
 
-        except Exception as e:
-            self.logger.error("Serve() task failed: %s %s", type(e).__name__, e)
+        except Exception as exc:
+            self.logger.error("Serve() task failed: %s %s", type(exc).__name__, exc)
             # Crash/failure path
-            await self.handle_failed(e)
+            await self.handle_failed(exc)
 
     def is_running(self) -> bool:
         return self._serve_task is not None and not self._serve_task.done()

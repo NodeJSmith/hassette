@@ -44,80 +44,46 @@ class TestAllServicesDeclareRestartSpec:
 
 
 class TestRestartTypes:
-    def test_sync_executor_service_permanent(self) -> None:
-        """SyncExecutorService must use PERMANENT restart type."""
-        assert SyncExecutorService.restart_spec.restart_type is RestartType.PERMANENT
-
-    def test_bus_service_permanent(self) -> None:
-        """BusService must use PERMANENT restart type."""
-        assert BusService.restart_spec.restart_type is RestartType.PERMANENT
-
-    def test_scheduler_service_permanent(self) -> None:
-        """SchedulerService must use PERMANENT restart type."""
-        assert SchedulerService.restart_spec.restart_type is RestartType.PERMANENT
-
-    def test_websocket_service_transient(self) -> None:
-        """WebsocketService must use TRANSIENT restart type."""
-        assert WebsocketService.restart_spec.restart_type is RestartType.TRANSIENT
-
-    def test_database_service_transient(self) -> None:
-        """DatabaseService must use TRANSIENT restart type."""
-        assert DatabaseService.restart_spec.restart_type is RestartType.TRANSIENT
-
-    def test_web_api_service_transient(self) -> None:
-        """WebApiService must use TRANSIENT restart type."""
-        assert WebApiService.restart_spec.restart_type is RestartType.TRANSIENT
-
-    def test_command_executor_transient(self) -> None:
-        """CommandExecutor must use TRANSIENT restart type."""
-        assert CommandExecutor.restart_spec.restart_type is RestartType.TRANSIENT
-
-    def test_file_watcher_temporary(self) -> None:
-        """FileWatcherService must use TEMPORARY restart type."""
-        assert FileWatcherService.restart_spec.restart_type is RestartType.TEMPORARY
-
-    def test_web_ui_watcher_temporary(self) -> None:
-        """WebUiWatcherService must use TEMPORARY restart type."""
-        assert WebUiWatcherService.restart_spec.restart_type is RestartType.TEMPORARY
+    @pytest.mark.parametrize(
+        ("svc_cls", "expected_type"),
+        [
+            (SyncExecutorService, RestartType.PERMANENT),
+            (BusService, RestartType.PERMANENT),
+            (SchedulerService, RestartType.PERMANENT),
+            (WebsocketService, RestartType.TRANSIENT),
+            (DatabaseService, RestartType.TRANSIENT),
+            (WebApiService, RestartType.TRANSIENT),
+            (CommandExecutor, RestartType.TRANSIENT),
+            (FileWatcherService, RestartType.TEMPORARY),
+            (WebUiWatcherService, RestartType.TEMPORARY),
+        ],
+        ids=lambda c: c.__name__ if isinstance(c, type) else str(c),
+    )
+    def test_restart_type(self, svc_cls: type, expected_type: RestartType) -> None:
+        assert svc_cls.restart_spec.restart_type is expected_type
 
 
 class TestBudgetValues:
-    def test_bus_service_budget(self) -> None:
-        assert BusService.restart_spec.budget_intensity == 2
-        assert BusService.restart_spec.budget_period_seconds == 30
-
-    def test_scheduler_service_budget(self) -> None:
-        assert SchedulerService.restart_spec.budget_intensity == 2
-        assert SchedulerService.restart_spec.budget_period_seconds == 30
-
-    def test_sync_executor_service_budget(self) -> None:
-        assert SyncExecutorService.restart_spec.budget_intensity == 2
-        assert SyncExecutorService.restart_spec.budget_period_seconds == 30
-
-    def test_websocket_service_budget(self) -> None:
-        assert WebsocketService.restart_spec.budget_intensity == 5
-        assert WebsocketService.restart_spec.budget_period_seconds == 300
-        assert WebsocketService.restart_spec.startup_timeout_seconds == 60
-
-    def test_database_service_budget(self) -> None:
-        assert DatabaseService.restart_spec.budget_intensity == 3
-        assert DatabaseService.restart_spec.budget_period_seconds == 120
-
-    def test_web_api_service_budget(self) -> None:
-        assert WebApiService.restart_spec.budget_intensity == 3
-        assert WebApiService.restart_spec.budget_period_seconds == 60
-
-    def test_command_executor_budget(self) -> None:
-        assert CommandExecutor.restart_spec.budget_intensity == 3
-        assert CommandExecutor.restart_spec.budget_period_seconds == 120
-
-    def test_file_watcher_budget(self) -> None:
-        assert FileWatcherService.restart_spec.budget_intensity == 3
-        assert FileWatcherService.restart_spec.budget_period_seconds == 60
-
-    def test_web_ui_watcher_budget(self) -> None:
-        assert WebUiWatcherService.restart_spec.budget_intensity == 3
-        assert WebUiWatcherService.restart_spec.budget_period_seconds == 60
+    @pytest.mark.parametrize(
+        ("svc_cls", "intensity", "period", "startup_timeout"),
+        [
+            (BusService, 2, 30, None),
+            (SchedulerService, 2, 30, None),
+            (SyncExecutorService, 2, 30, None),
+            (WebsocketService, 5, 300, 60),
+            (DatabaseService, 3, 120, None),
+            (WebApiService, 3, 60, None),
+            (CommandExecutor, 3, 120, None),
+            (FileWatcherService, 3, 60, None),
+            (WebUiWatcherService, 3, 60, None),
+        ],
+        ids=lambda c: c.__name__ if isinstance(c, type) else str(c),
+    )
+    def test_budget(self, svc_cls: type, intensity: int, period: int, startup_timeout: int | None) -> None:
+        assert svc_cls.restart_spec.budget_intensity == intensity
+        assert svc_cls.restart_spec.budget_period_seconds == period
+        if startup_timeout is not None:
+            assert svc_cls.restart_spec.startup_timeout_seconds == startup_timeout
 
 
 class TestDatabaseServiceFatalErrors:

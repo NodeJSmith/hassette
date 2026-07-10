@@ -45,3 +45,10 @@ class RestartSpec:
 
     max_cooldown_cycles: int = 0
     """Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD. 0 = infinite."""
+
+
+CORE_PERMANENT_RESTART = RestartSpec(
+    restart_type=RestartType.PERMANENT,
+    budget_intensity=2,
+    budget_period_seconds=30,
+)

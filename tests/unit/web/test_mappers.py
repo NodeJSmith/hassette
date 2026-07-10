@@ -378,7 +378,6 @@ def make_listener_summary(**overrides) -> ListenerSummary:
 
 def test_to_listener_with_summary_passes_through_last_error_traceback():
     """last_error_traceback from ListenerSummary passes through to ListenerWithSummary."""
-
     traceback_text = "Traceback (most recent call last):\n  File test.py, line 1\nValueError: oops"
     summary = make_listener_summary(
         last_error_type="ValueError",
@@ -393,7 +392,6 @@ def test_to_listener_with_summary_passes_through_last_error_traceback():
 
 def test_to_listener_with_summary_none_traceback_when_no_error():
     """last_error_traceback is None when ListenerSummary has no error."""
-
     summary = make_listener_summary()
 
     result = to_listener_with_summary(summary)
@@ -402,7 +400,7 @@ def test_to_listener_with_summary_none_traceback_when_no_error():
 
 
 def test_to_listener_with_summary_mode_passthrough():
-    """mode passes through from the DB summary to the response model."""
+    """Mode passes through from the DB summary to the response model."""
     summary = make_listener_summary(mode="queued")
 
     result = to_listener_with_summary(summary)
@@ -457,7 +455,7 @@ def test_to_listener_with_summary_backpressure_dropped_flows_into_backpressure_d
 
 
 def test_to_listener_with_summary_backpressure_passthrough():
-    """backpressure policy passes through from the DB summary to the response model."""
+    """Backpressure policy passes through from the DB summary to the response model."""
     summary = make_listener_summary(backpressure="drop_newest")
 
     result = to_listener_with_summary(summary)
@@ -466,7 +464,7 @@ def test_to_listener_with_summary_backpressure_passthrough():
 
 
 def test_to_listener_with_summary_backpressure_defaults_to_block():
-    """backpressure defaults to 'block' when ListenerSummary has no override."""
+    """Backpressure defaults to 'block' when ListenerSummary has no override."""
     summary = make_listener_summary()
 
     result = to_listener_with_summary(summary)
@@ -476,7 +474,6 @@ def test_to_listener_with_summary_backpressure_defaults_to_block():
 
 def test_to_listener_with_summary_min_max_none_passthrough():
     """min_duration_ms and max_duration_ms pass through as None (no invocations)."""
-
     summary = make_listener_summary(min_duration_ms=None, max_duration_ms=None)
 
     result = to_listener_with_summary(summary)
@@ -487,7 +484,6 @@ def test_to_listener_with_summary_min_max_none_passthrough():
 
 def test_to_listener_with_summary_min_max_numeric_passthrough():
     """min_duration_ms and max_duration_ms pass through as numeric values."""
-
     summary = make_listener_summary(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
 
     result = to_listener_with_summary(summary)

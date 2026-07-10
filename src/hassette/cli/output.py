@@ -20,7 +20,6 @@ from typing import Any
 
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
-from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
@@ -317,19 +316,6 @@ def _render_detail_panel(
 
     panel = Panel(table, title=title, expand=False)
     stdout_console.print(panel)
-
-
-def render_raw(
-    data: dict[str, Any] | list[Any],
-    json_mode: bool,
-) -> None:
-    """Render an untyped dict or list as JSON or tree."""
-    if json_mode:
-        sys.stdout.write(json.dumps(data, indent=2) + "\n")
-        sys.stdout.flush()
-        return
-
-    stdout_console.print(JSON(json.dumps(data, indent=2)))
 
 
 def _build_table(columns: list[Column], is_terminal: bool) -> Table:

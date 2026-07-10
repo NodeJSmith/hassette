@@ -84,6 +84,7 @@ def make_executor(queue_max: int = 10) -> CommandExecutor:
     hassette.config.database.telemetry_write_queue_max = queue_max
     hassette.config.logging.command_executor = "DEBUG"
     hassette.session_id = 42
+    hassette.try_session_id.return_value = 42
     hassette.database_service = MagicMock()
     hassette.database_service.submit = AsyncMock(return_value=None)
     # Resource base class needs these
@@ -106,6 +107,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor.repository.persist_batch = MagicMock()
     executor.hassette = MagicMock()
     executor.hassette.session_id = 42
+    executor.hassette.try_session_id.return_value = 42
     executor.hassette.config.database.telemetry_write_queue_max = queue_max
     executor.hassette.database_service = MagicMock()
     executor.hassette.database_service.submit = AsyncMock(return_value=None)
@@ -653,7 +655,8 @@ async def test_serve_loops_without_blocking_when_queue_empty():
 
 async def test_serve_timer_drains_items_added_during_drain():
     """Items put back into the queue during drain_and_persist (e.g. deferred retries) are
-    picked up on the next loop iteration, not lost."""
+    picked up on the next loop iteration, not lost.
+    """
     executor = init_executor()
 
     # First item to seed the initial drain

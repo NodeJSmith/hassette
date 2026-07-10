@@ -143,7 +143,7 @@ class TestUnknownUnavailableNormalization:
         assert state.is_unavailable is True
 
     def test_numeric_domain_unknown_yields_none_with_flag(self) -> None:
-        """unknown is set to None before numeric coercion — never tries to coerce "unknown" as a number."""
+        """Unknown is set to None before numeric coercion — never tries to coerce "unknown" as a number."""
         raw = make_state_dict("number.brightness", "unknown")
         state = NumberState.model_validate(raw)
         assert state.value is None

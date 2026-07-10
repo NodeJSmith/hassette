@@ -33,47 +33,47 @@ def mock_event(data: str = "test") -> MockEvent:
 class TestListenerInvoke:
     """Test Listener.invoke() — dependency injection and handler invocation."""
 
-    async def test_sync_handler_with_event(self, bucket_fixture: TaskBucket):
+    async def test_sync_handler_with_event(self, bucket: TaskBucket):
         """Test sync handler that expects an event."""
         calls = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
-    async def test_async_handler_with_event(self, bucket_fixture: TaskBucket):
+    async def test_async_handler_with_event(self, bucket: TaskBucket):
         """Test async handler that expects an event."""
         calls = []
 
         async def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
-    async def test_sync_handler_no_event(self, bucket_fixture: TaskBucket):
+    async def test_sync_handler_no_event(self, bucket: TaskBucket):
         """Test sync handler that doesn't expect an event."""
         calls = []
 
         def handler():
             calls.append("called")
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
-    async def test_async_handler_no_event(self, bucket_fixture: TaskBucket):
+    async def test_async_handler_no_event(self, bucket: TaskBucket):
         """Test async handler that doesn't expect an event."""
         calls = []
 
         async def handler():
             calls.append("called")
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
@@ -81,7 +81,7 @@ class TestListenerInvoke:
 class TestDebounceLogic:
     """Test debounce functionality via RateLimiter directly."""
 
-    async def test_debounce_delays_execution(self, bucket_fixture: TaskBucket):
+    async def test_debounce_delays_execution(self, bucket: TaskBucket):
         """Test that debounce delays execution until quiet period."""
         calls: list[str] = []
 
@@ -91,7 +91,7 @@ class TestDebounceLogic:
 
             return handler
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.1)
+        limiter = RateLimiter(bucket, debounce=0.1)
 
         await limiter.call(make_handler("first"))
         await limiter.call(make_handler("second"))
@@ -102,14 +102,14 @@ class TestDebounceLogic:
 
         await wait_for(lambda: calls == ["third"], desc="debounce fired")
 
-    async def test_debounce_with_no_args(self, bucket_fixture: TaskBucket):
+    async def test_debounce_with_no_args(self, bucket: TaskBucket):
         """Test debounce with a no-arg handler."""
         calls: list[str] = []
 
         async def handler():
             calls.append("called")
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.1)
+        limiter = RateLimiter(bucket, debounce=0.1)
 
         await limiter.call(handler)
         await limiter.call(handler)
@@ -117,7 +117,7 @@ class TestDebounceLogic:
 
         await wait_for(lambda: calls == ["called"], desc="debounce fired")
 
-    async def test_debounce_cancels_previous_calls(self, bucket_fixture: TaskBucket):
+    async def test_debounce_cancels_previous_calls(self, bucket: TaskBucket):
         """Test that new debounce calls cancel previous pending calls."""
         calls: list[str] = []
 
@@ -127,7 +127,7 @@ class TestDebounceLogic:
 
             return handler
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.2)
+        limiter = RateLimiter(bucket, debounce=0.2)
 
         await limiter.call(make_handler("first"))
         # timing: mid-debounce assertion — must be within the 0.2s window
@@ -146,7 +146,7 @@ class TestDebounceLogic:
         # done_callback is scheduled via call_soon, so it may not have run yet
         await wait_for(lambda: limiter._debounce_task is None, desc="debounce task reference cleared")
 
-    async def test_debounce_handler_cancelled_error_propagates(self, bucket_fixture: TaskBucket):
+    async def test_debounce_handler_cancelled_error_propagates(self, bucket: TaskBucket):
         """CancelledError during handler execution must propagate (not be suppressed).
 
         Debounce reset (cancel during sleep) should be silent, but handler cancellation
@@ -156,7 +156,7 @@ class TestDebounceLogic:
         async def handler_that_gets_cancelled():
             raise asyncio.CancelledError()
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.01)
+        limiter = RateLimiter(bucket, debounce=0.01)
         await limiter.call(handler_that_gets_cancelled)
 
         # Capture task reference before done_callback clears it
@@ -169,7 +169,7 @@ class TestDebounceLogic:
         assert task.done()
         assert task.cancelled(), "Handler CancelledError should propagate, not be suppressed"
 
-    async def test_debounce_reset_cancellation_is_silent(self, bucket_fixture: TaskBucket):
+    async def test_debounce_reset_cancellation_is_silent(self, bucket: TaskBucket):
         """CancelledError from debounce reset (new event superseding old) should be silent."""
         calls: list[str] = []
 
@@ -179,7 +179,7 @@ class TestDebounceLogic:
 
             return handler
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.1)
+        limiter = RateLimiter(bucket, debounce=0.1)
 
         # First call starts debounce
         await limiter.call(make_handler("first"))
@@ -199,14 +199,14 @@ class TestDebounceLogic:
 class TestRateLimiterCancel:
     """Test RateLimiter.cancel() for cleanup on listener removal."""
 
-    async def test_cancel_pending_debounce(self, bucket_fixture: TaskBucket):
+    async def test_cancel_pending_debounce(self, bucket: TaskBucket):
         """Cancelling a pending debounce prevents the handler from firing."""
         calls: list[str] = []
 
         async def handler():
             calls.append("fired")
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.5)
+        limiter = RateLimiter(bucket, debounce=0.5)
         await limiter.call(handler)
         assert limiter._debounce_task is not None
 
@@ -217,19 +217,19 @@ class TestRateLimiterCancel:
         await asyncio.sleep(0.6)
         assert calls == [], "Handler should not fire after cancel"
 
-    async def test_cancel_when_no_task(self, bucket_fixture: TaskBucket):
+    async def test_cancel_when_no_task(self, bucket: TaskBucket):
         """Cancelling with no pending task should not raise."""
-        limiter = RateLimiter(bucket_fixture, debounce=0.1)
+        limiter = RateLimiter(bucket, debounce=0.1)
         limiter.cancel()  # Should not raise
 
-    async def test_cancel_after_task_completed(self, bucket_fixture: TaskBucket):
+    async def test_cancel_after_task_completed(self, bucket: TaskBucket):
         """Cancelling after the task has already completed should not raise."""
         calls: list[str] = []
 
         async def handler():
             calls.append("fired")
 
-        limiter = RateLimiter(bucket_fixture, debounce=0.01)
+        limiter = RateLimiter(bucket, debounce=0.01)
         await limiter.call(handler)
         await wait_for(lambda: calls == ["fired"], desc="debounce fired")
 
@@ -239,7 +239,7 @@ class TestRateLimiterCancel:
 class TestThrottleLogic:
     """Test throttle functionality via RateLimiter directly."""
 
-    async def test_throttle_limits_execution_frequency(self, bucket_fixture: TaskBucket):
+    async def test_throttle_limits_execution_frequency(self, bucket: TaskBucket):
         """Test that throttle limits how often handler is called."""
         calls: list[str] = []
 
@@ -249,7 +249,7 @@ class TestThrottleLogic:
 
             return handler
 
-        limiter = RateLimiter(bucket_fixture, throttle=0.1)
+        limiter = RateLimiter(bucket, throttle=0.1)
 
         await limiter.call(make_handler("first"))
         assert calls == ["first"], "First call should be executed immediately"
@@ -264,7 +264,7 @@ class TestThrottleLogic:
         await limiter.call(make_handler("fourth"))
         assert calls == ["first", "fourth"], "Fourth call should execute after throttle period"
 
-    async def test_throttle_with_no_args(self, bucket_fixture: TaskBucket):
+    async def test_throttle_with_no_args(self, bucket: TaskBucket):
         """Test throttle with a no-arg handler."""
         calls: list[str] = []
         label = "called"
@@ -272,7 +272,7 @@ class TestThrottleLogic:
         async def handler():
             calls.append(label)
 
-        limiter = RateLimiter(bucket_fixture, throttle=0.1)
+        limiter = RateLimiter(bucket, throttle=0.1)
 
         await limiter.call(handler)
         assert calls == ["called"]
@@ -288,7 +288,7 @@ class TestThrottleLogic:
         await limiter.call(handler)
         assert calls == ["called", "called after throttle"]
 
-    async def test_throttle_tracks_time_correctly(self, bucket_fixture: TaskBucket):
+    async def test_throttle_tracks_time_correctly(self, bucket: TaskBucket):
         """Test that throttle timing works correctly using mocked time."""
         calls: list[str] = []
 
@@ -300,7 +300,7 @@ class TestThrottleLogic:
 
         with patch("hassette.bus.rate_limiter.time.monotonic") as mock_time:
             mock_time.return_value = 1000.0
-            limiter = RateLimiter(bucket_fixture, throttle=0.05)
+            limiter = RateLimiter(bucket, throttle=0.05)
 
             await limiter.call(make_handler("1"))
             assert calls == ["1"]
@@ -313,7 +313,7 @@ class TestThrottleLogic:
             await limiter.call(make_handler("3"))
             assert calls == ["1", "3"]
 
-    async def test_throttle_does_not_block_during_handler(self, bucket_fixture: TaskBucket):
+    async def test_throttle_does_not_block_during_handler(self, bucket: TaskBucket):
         """A second throttled call within the window must not block on the first handler."""
         handler_started = asyncio.Event()
         handler_release = asyncio.Event()
@@ -322,7 +322,7 @@ class TestThrottleLogic:
             handler_started.set()
             await handler_release.wait()
 
-        limiter = RateLimiter(bucket_fixture, throttle=5.0)
+        limiter = RateLimiter(bucket, throttle=5.0)
 
         task1 = asyncio.create_task(limiter.call(slow_handler))
         await handler_started.wait()
@@ -338,7 +338,7 @@ class TestThrottleLogic:
 class TestListenerIntegration:
     """Test Listener integration with rate limiting."""
 
-    async def test_listener_with_debounce(self, bucket_fixture: TaskBucket):
+    async def test_listener_with_debounce(self, bucket: TaskBucket):
         """Test Listener with debounce via rate limiter (as BusService._dispatch would)."""
         calls: list[str] = []
 
@@ -347,7 +347,7 @@ class TestListenerIntegration:
 
         listener = create_listener(
             handler,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="test_topic",
             debounce=0.1,
@@ -372,7 +372,7 @@ class TestListenerIntegration:
 
         await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
-    async def test_listener_with_throttle(self, bucket_fixture: TaskBucket):
+    async def test_listener_with_throttle(self, bucket: TaskBucket):
         """Test Listener with throttle via rate limiter (as BusService._dispatch would)."""
         calls: list[str] = []
 
@@ -381,7 +381,7 @@ class TestListenerIntegration:
 
         listener = create_listener(
             handler,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="test_topic",
             throttle=0.1,
@@ -408,14 +408,14 @@ class TestListenerIntegration:
         await rl.call(make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 
-    async def test_listener_without_rate_limiting(self, bucket_fixture: TaskBucket):
+    async def test_listener_without_rate_limiting(self, bucket: TaskBucket):
         """Test Listener without debounce or throttle."""
         calls = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="test_topic")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="test_topic")
 
         # All calls should execute immediately
         await listener.invoker.invoke(mock_event("1"))
@@ -424,7 +424,7 @@ class TestListenerIntegration:
 
         assert calls == ["1", "2", "3"], "All calls should be executed immediately"
 
-    async def test_cannot_specify_both_debounce_and_throttle(self, bucket_fixture: TaskBucket):
+    async def test_cannot_specify_both_debounce_and_throttle(self, bucket: TaskBucket):
         """Test that specifying both debounce and throttle raises an error."""
 
         def handler(event):
@@ -433,7 +433,7 @@ class TestListenerIntegration:
         with pytest.raises(ValueError, match="Cannot specify both 'debounce' and 'throttle'"):
             create_listener(
                 handler,
-                task_bucket=bucket_fixture,
+                task_bucket=bucket,
                 owner_id="test",
                 topic="test_topic",
                 debounce=0.1,
@@ -444,14 +444,14 @@ class TestListenerIntegration:
 class TestListenerDispatchAndCancel:
     """Test Listener.dispatch() and Listener.cancel() — the public rate limiting API."""
 
-    async def test_dispatch_without_rate_limiter_calls_invoke_fn_directly(self, bucket_fixture: TaskBucket):
+    async def test_dispatch_without_rate_limiter_calls_invoke_fn_directly(self, bucket: TaskBucket):
         """dispatch() with no rate limiter calls the invoke function immediately."""
         calls = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
 
         async def invoke_fn():
             await listener.invoker.invoke(mock_event("direct"))
@@ -459,14 +459,14 @@ class TestListenerDispatchAndCancel:
         await listener.invoker.dispatch(invoke_fn)
         assert calls == ["direct"]
 
-    async def test_dispatch_with_debounce_coalesces(self, bucket_fixture: TaskBucket):
+    async def test_dispatch_with_debounce_coalesces(self, bucket: TaskBucket):
         """dispatch() with debounce coalesces rapid calls — only last fires."""
         calls: list[str] = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", debounce=0.1)
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", debounce=0.1)
 
         for i in range(3):
 
@@ -477,14 +477,14 @@ class TestListenerDispatchAndCancel:
 
         await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
-    async def test_dispatch_with_throttle_drops_extras(self, bucket_fixture: TaskBucket):
+    async def test_dispatch_with_throttle_drops_extras(self, bucket: TaskBucket):
         """dispatch() with throttle allows first call, drops subsequent within window."""
         calls: list[str] = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", throttle=5.0)
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", throttle=5.0)
 
         for i in range(3):
 
@@ -495,14 +495,14 @@ class TestListenerDispatchAndCancel:
 
         assert calls == ["1"], "Only the first call should execute"
 
-    async def test_dispatch_once_fires_only_once(self, bucket_fixture: TaskBucket):
+    async def test_dispatch_once_fires_only_once(self, bucket: TaskBucket):
         """dispatch() on a once=True listener fires the handler exactly once, even without BusService."""
         calls: list[str] = []
 
         def handler(event: MockEvent):
             calls.append(event.data)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", once=True)
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", once=True)
 
         for i in range(3):
 
@@ -513,11 +513,11 @@ class TestListenerDispatchAndCancel:
 
         assert calls == ["1"], "Once-listener should fire exactly once via dispatch()"
 
-    async def test_cancel_with_rate_limiter_delegates(self, bucket_fixture: TaskBucket):
+    async def test_cancel_with_rate_limiter_delegates(self, bucket: TaskBucket):
         """cancel() delegates to the rate limiter's cancel."""
         listener = create_listener(
             lambda _e: None,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="t",
             debounce=0.5,
@@ -528,17 +528,17 @@ class TestListenerDispatchAndCancel:
         listener.cancel()
         assert listener.invoker.rate_limiter._cancelled
 
-    async def test_cancel_without_rate_limiter_is_noop(self, bucket_fixture: TaskBucket):
+    async def test_cancel_without_rate_limiter_is_noop(self, bucket: TaskBucket):
         """cancel() on a listener without rate limiter does not raise."""
-        listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(lambda _e: None, task_bucket=bucket, owner_id="test", topic="t")
         assert listener.invoker.rate_limiter is None
         listener.cancel()  # should not raise
 
-    async def test_cancel_is_idempotent(self, bucket_fixture: TaskBucket):
+    async def test_cancel_is_idempotent(self, bucket: TaskBucket):
         """Calling cancel() twice does not raise."""
         listener = create_listener(
             lambda _e: None,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="t",
             throttle=1.0,
@@ -550,7 +550,7 @@ class TestListenerDispatchAndCancel:
 class TestDependencyValidationErrors:
     """Test that listeners properly handle dependency resolution errors."""
 
-    async def test_required_state_with_none_raises_error(self, bucket_fixture: TaskBucket):
+    async def test_required_state_with_none_raises_error(self, bucket: TaskBucket):
         """Test that using StateNew with None value raises DependencyResolutionError."""
         old_state = make_state_dict(entity_id="test.entity", state="off")
         state_change_event = make_full_state_change_event("test.entity", old_state, None)
@@ -560,14 +560,14 @@ class TestDependencyValidationErrors:
         def handler(new_state: D.StateNew[states.BaseState]):
             calls.append(new_state)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
 
         with pytest.raises(DependencyResolutionError):
             await listener.invoker.invoke(state_change_event)
 
         assert len(calls) == 0
 
-    async def test_maybe_state_with_none_succeeds(self, bucket_fixture: TaskBucket):
+    async def test_maybe_state_with_none_succeeds(self, bucket: TaskBucket):
         """Test that using MaybeStateNew with None value succeeds."""
         old_state = make_state_dict(entity_id="test.entity", state="off")
         state_change_event = make_full_state_change_event("test.entity", old_state, None)
@@ -577,13 +577,13 @@ class TestDependencyValidationErrors:
         def handler(new_state: D.MaybeStateNew[states.BaseState]):
             calls.append(new_state)
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(state_change_event)
 
         assert len(calls) == 1
         assert calls[0] is None
 
-    async def test_mixed_maybe_and_required_all_succeed(self, bucket_fixture: TaskBucket):
+    async def test_mixed_maybe_and_required_all_succeed(self, bucket: TaskBucket):
         """Test handler with both Maybe and required deps when all resolve."""
         old_state = make_state_dict(entity_id="test.entity", state="off")
         new_state = make_state_dict(entity_id="test.entity", state="on")
@@ -598,7 +598,7 @@ class TestDependencyValidationErrors:
         ):
             results.append((new_state, old_state, entity_id))
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
         await listener.invoker.invoke(state_change_event)
 
         assert len(results) == 1
@@ -607,7 +607,7 @@ class TestDependencyValidationErrors:
         assert old is not None
         assert eid == "test.entity"
 
-    async def test_multiple_required_deps_first_fails(self, bucket_fixture: TaskBucket):
+    async def test_multiple_required_deps_first_fails(self, bucket: TaskBucket):
         """Test that if first required dep fails, handler is not called."""
         old_dict = make_light_state_dict("light.test", "on", brightness=100)
         event = make_full_state_change_event("light.test", old_dict, None)
@@ -617,7 +617,7 @@ class TestDependencyValidationErrors:
         def handler(new_state: D.StateNew[states.BaseState], entity_id: D.EntityId):
             calls.append((new_state, entity_id))
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
 
         with pytest.raises(DependencyResolutionError):
             await listener.invoker.invoke(event)
@@ -628,7 +628,7 @@ class TestDependencyValidationErrors:
 class TestListenerAppKeyAndInstanceIndex:
     """Test app_key and instance_index fields on Listener."""
 
-    async def test_listener_has_app_key_and_instance_index(self, bucket_fixture: TaskBucket) -> None:
+    async def test_listener_has_app_key_and_instance_index(self, bucket: TaskBucket) -> None:
         """Create a Listener via Listener.create() with explicit app_key and instance_index."""
 
         def handler(event: MockEvent) -> None:
@@ -636,7 +636,7 @@ class TestListenerAppKeyAndInstanceIndex:
 
         listener = create_listener(
             handler,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="MyApp.MyApp.0",
             topic="test_topic",
             app_key="my_app",
@@ -647,13 +647,13 @@ class TestListenerAppKeyAndInstanceIndex:
         assert listener.identity.instance_index == 1
         assert listener.identity.owner_id == "MyApp.MyApp.0"
 
-    async def test_listener_defaults_empty_app_key(self, bucket_fixture: TaskBucket) -> None:
+    async def test_listener_defaults_empty_app_key(self, bucket: TaskBucket) -> None:
         """Create a Listener without app_key, verify it defaults to empty string."""
 
         def handler(event: MockEvent) -> None:
             pass
 
-        listener = create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="test_topic")
+        listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="test_topic")
 
         assert listener.identity.app_key == ""
         assert listener.identity.instance_index == 0
@@ -662,54 +662,54 @@ class TestListenerAppKeyAndInstanceIndex:
 class TestOnceWithRateLimitingProhibited:
     """once=True combined with debounce or throttle is semantically contradictory and must raise."""
 
-    async def test_once_with_debounce_raises_value_error(self, bucket_fixture: TaskBucket):
+    async def test_once_with_debounce_raises_value_error(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"once.*debounce.*throttle"):
             create_listener(
                 handler,
-                task_bucket=bucket_fixture,
+                task_bucket=bucket,
                 owner_id="test",
                 topic="test_topic",
                 once=True,
                 debounce=1.0,
             )
 
-    async def test_once_with_throttle_raises_value_error(self, bucket_fixture: TaskBucket):
+    async def test_once_with_throttle_raises_value_error(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"once.*debounce.*throttle"):
             create_listener(
                 handler,
-                task_bucket=bucket_fixture,
+                task_bucket=bucket,
                 owner_id="test",
                 topic="test_topic",
                 once=True,
                 throttle=1.0,
             )
 
-    async def test_once_without_rate_limiting_is_allowed(self, bucket_fixture: TaskBucket):
+    async def test_once_without_rate_limiting_is_allowed(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         listener = create_listener(
             handler,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="test_topic",
             once=True,
         )
         assert listener.options.once is True
 
-    async def test_rate_limiting_without_once_is_allowed(self, bucket_fixture: TaskBucket):
+    async def test_rate_limiting_without_once_is_allowed(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         listener = create_listener(
             handler,
-            task_bucket=bucket_fixture,
+            task_bucket=bucket,
             owner_id="test",
             topic="test_topic",
             debounce=1.0,
@@ -720,50 +720,49 @@ class TestOnceWithRateLimitingProhibited:
 class TestRateLimitValueValidation:
     """debounce and throttle must be positive floats -- zero and negative are rejected."""
 
-    async def test_debounce_zero_raises(self, bucket_fixture: TaskBucket):
+    async def test_debounce_zero_raises(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"debounce.*positive"):
-            create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", debounce=0.0)
+            create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", debounce=0.0)
 
-    async def test_throttle_zero_raises(self, bucket_fixture: TaskBucket):
+    async def test_throttle_zero_raises(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"throttle.*positive"):
-            create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", throttle=0.0)
+            create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", throttle=0.0)
 
-    async def test_debounce_negative_raises(self, bucket_fixture: TaskBucket):
+    async def test_debounce_negative_raises(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"debounce.*positive"):
-            create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", debounce=-1.0)
+            create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", debounce=-1.0)
 
-    async def test_throttle_negative_raises(self, bucket_fixture: TaskBucket):
+    async def test_throttle_negative_raises(self, bucket: TaskBucket):
         async def handler(event):
             pass
 
         with pytest.raises(ValueError, match=r"throttle.*positive"):
-            create_listener(handler, task_bucket=bucket_fixture, owner_id="test", topic="t", throttle=-1.0)
+            create_listener(handler, task_bucket=bucket, owner_id="test", topic="t", throttle=-1.0)
 
 
 class TestMarkRegistered:
     """Test Listener.mark_registered() — one-time db_id assignment."""
 
-    async def test_mark_registered_sets_db_id(self, bucket_fixture: TaskBucket) -> None:
+    async def test_mark_registered_sets_db_id(self, bucket: TaskBucket) -> None:
         """mark_registered() sets db_id on first call."""
-        listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(lambda _e: None, task_bucket=bucket, owner_id="test", topic="t")
         assert listener.db_id is None
 
         listener.mark_registered(42)
         assert listener.db_id == 42
 
-    async def test_mark_registered_warns_on_double_call(self, bucket_fixture: TaskBucket) -> None:
+    async def test_mark_registered_warns_on_double_call(self, bucket: TaskBucket) -> None:
         """mark_registered() keeps the original db_id when called a second time."""
-
-        listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t")
+        listener = create_listener(lambda _e: None, task_bucket=bucket, owner_id="test", topic="t")
         listener.mark_registered(42)
         listener.mark_registered(99)
 
@@ -773,9 +772,9 @@ class TestMarkRegistered:
 class TestMarkFired:
     """Test Listener.mark_fired() — once-guard flag."""
 
-    async def test_mark_fired_sets_fired(self, bucket_fixture: TaskBucket) -> None:
+    async def test_mark_fired_sets_fired(self, bucket: TaskBucket) -> None:
         """mark_fired() sets the internal _fired flag."""
-        listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t", once=True)
+        listener = create_listener(lambda _e: None, task_bucket=bucket, owner_id="test", topic="t", once=True)
         assert listener.invoker.fired is False
 
         listener.invoker.mark_fired()

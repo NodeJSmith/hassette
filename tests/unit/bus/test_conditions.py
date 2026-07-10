@@ -54,16 +54,6 @@ def test_endswith_condition_comprehensive() -> None:
     assert condition(123) is False  # Non-string
 
 
-def test_endswith_condition() -> None:
-    """Test EndsWith condition matcher."""
-    condition = EndsWith(".kitchen")
-
-    assert condition("light.kitchen") is True
-    assert condition("sensor.kitchen") is True
-    assert condition("light.living") is False
-    assert condition(123) is False  # Non-string
-
-
 def test_startswith_condition_comprehensive() -> None:
     """Test StartsWith condition with various input types."""
     condition = StartsWith("test_")
@@ -74,16 +64,6 @@ def test_startswith_condition_comprehensive() -> None:
     assert condition("test_") is True  # Exact match
     assert condition("test") is False
     assert condition("") is False
-    assert condition(123) is False  # Non-string
-
-
-def test_startswith_condition() -> None:
-    """Test StartsWith condition matcher."""
-    condition = StartsWith("light.")
-
-    assert condition("light.kitchen") is True
-    assert condition("light.living") is True
-    assert condition("sensor.temp") is False
     assert condition(123) is False  # Non-string
 
 
@@ -98,17 +78,6 @@ def test_present_condition_comprehensive() -> None:
     assert condition(None) is True
     assert condition([]) is True
     assert condition({}) is True
-    assert condition(MISSING_VALUE) is False
-
-
-def test_present_condition() -> None:
-    """Test Present condition matcher."""
-    condition = Present()
-
-    assert condition("any_value") is True
-    assert condition(0) is True
-    assert condition(False) is True
-    assert condition(None) is True
     assert condition(MISSING_VALUE) is False
 
 
@@ -147,19 +116,8 @@ def test_regex_condition() -> None:
     assert condition(123) is False  # Non-string
 
 
-def test_contains_condition() -> None:
-    """Test Contains condition matcher."""
-    condition = Contains("kitchen")
-
-    assert condition("light.kitchen") is True
-    assert condition("sensor.kitchen_temp") is True
-    assert condition("light.living") is False
-    assert condition(123) is False  # Non-string
-
-
 def test_comparison_condition() -> None:
     """Test Comparison condition matcher."""
-
     greater_than = Comparison("gt", 10)
     less_than = Comparison("lt", 20)
     equal_to = Comparison("eq", 15)
@@ -218,89 +176,38 @@ def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: s
     assert Comparison(op, threshold)(value) is expected
 
 
-def test_condition_summarize_glob() -> None:
-    assert Glob("light.*").summarize() == "matches light.*"
-
-
-def test_condition_summarize_starts_with() -> None:
-    assert StartsWith("light.").summarize() == "starts with light."
-
-
-def test_condition_summarize_ends_with() -> None:
-    assert EndsWith(".kitchen").summarize() == "ends with .kitchen"
-
-
-def test_condition_summarize_contains() -> None:
-    assert Contains("kitchen").summarize() == "contains kitchen"
-
-
-def test_condition_summarize_regex() -> None:
-    assert Regex(r"light\..*kitchen").summarize() == r"matches /light\..*kitchen/"
-
-
-def test_condition_summarize_present() -> None:
-    assert Present().summarize() == "present"
-
-
-def test_condition_summarize_missing() -> None:
-    assert Missing().summarize() == "missing"
-
-
-def test_condition_summarize_is_in() -> None:
-    assert IsIn(["a", "b", "c"]).summarize() == "in [a, b, c]"
-
-
-def test_condition_summarize_is_in_truncates() -> None:
-    assert IsIn(["a", "b", "c", "d"]).summarize() == "in [a, b, c, …]"
-
-
-def test_condition_summarize_not_in() -> None:
-    assert NotIn(["x", "y"]).summarize() == "not in [x, y]"
-
-
-def test_condition_summarize_intersects() -> None:
-    assert Intersects(["a", "b"]).summarize() == "intersects [a, b]"
-
-
-def test_condition_summarize_not_intersects() -> None:
-    assert NotIntersects(["a", "b"]).summarize() == "does not intersect [a, b]"
-
-
-def test_condition_summarize_is_or_contains() -> None:
-    assert IsOrContains("light.kitchen").summarize() == "is or contains light.kitchen"
-
-
-def test_condition_summarize_is_none() -> None:
-    assert IsNone().summarize() == "is none"
-
-
-def test_condition_summarize_is_not_none() -> None:
-    assert IsNotNone().summarize() == "is not none"
-
-
-def test_condition_summarize_comparison() -> None:
-    assert Comparison(">", 50).summarize() == "> 50"
-
-
-def test_condition_summarize_comparison_eq() -> None:
-    assert Comparison("==", "on").summarize() == "== on"
-
-
-def test_condition_summarize_comparison_aliased_ops() -> None:
-    assert Comparison("gt", 50).summarize() == "> 50"
-    assert Comparison("lt", 10).summarize() == "< 10"
-    assert Comparison("ge", 100).summarize() == ">= 100"
-    assert Comparison("le", 0).summarize() == "<= 0"
-    assert Comparison("eq", "on").summarize() == "== on"
-    assert Comparison("ne", "off").summarize() == "!= off"
-
-
-def test_condition_summarize_increased() -> None:
-    assert Increased().summarize() == "increased"
-
-
-def test_condition_summarize_decreased() -> None:
-    assert Decreased().summarize() == "decreased"
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    [
+        pytest.param(Glob("light.*"), "matches light.*", id="glob"),
+        pytest.param(StartsWith("light."), "starts with light.", id="starts_with"),
+        pytest.param(EndsWith(".kitchen"), "ends with .kitchen", id="ends_with"),
+        pytest.param(Contains("kitchen"), "contains kitchen", id="contains"),
+        pytest.param(Regex(r"light\..*kitchen"), r"matches /light\..*kitchen/", id="regex"),
+        pytest.param(Present(), "present", id="present"),
+        pytest.param(Missing(), "missing", id="missing"),
+        pytest.param(IsIn(["a", "b", "c"]), "in [a, b, c]", id="is_in"),
+        pytest.param(IsIn(["a", "b", "c", "d"]), "in [a, b, c, …]", id="is_in_truncated"),
+        pytest.param(NotIn(["x", "y"]), "not in [x, y]", id="not_in"),
+        pytest.param(Intersects(["a", "b"]), "intersects [a, b]", id="intersects"),
+        pytest.param(NotIntersects(["a", "b"]), "does not intersect [a, b]", id="not_intersects"),
+        pytest.param(IsOrContains("light.kitchen"), "is or contains light.kitchen", id="is_or_contains"),
+        pytest.param(IsNone(), "is none", id="is_none"),
+        pytest.param(IsNotNone(), "is not none", id="is_not_none"),
+        pytest.param(Comparison(">", 50), "> 50", id="gt_symbol"),
+        pytest.param(Comparison("==", "on"), "== on", id="eq_symbol"),
+        pytest.param(Comparison("gt", 50), "> 50", id="gt_alias"),
+        pytest.param(Comparison("lt", 10), "< 10", id="lt_alias"),
+        pytest.param(Comparison("ge", 100), ">= 100", id="ge_alias"),
+        pytest.param(Comparison("le", 0), "<= 0", id="le_alias"),
+        pytest.param(Comparison("eq", "on"), "== on", id="eq_alias"),
+        pytest.param(Comparison("ne", "off"), "!= off", id="ne_alias"),
+        pytest.param(Increased(), "increased", id="increased"),
+        pytest.param(Decreased(), "decreased", id="decreased"),
+    ],
+)
+def test_condition_summarize(condition: object, expected: str) -> None:
+    assert condition.summarize() == expected  # pyright: ignore[reportAttributeAccessIssue]
 
 
 @pytest.mark.parametrize(

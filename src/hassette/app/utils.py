@@ -62,7 +62,6 @@ def validate_app(cls: type["App"]) -> type[AppConfig]:
     Raises:
         InvalidInheritanceError: If the inheritance order is incorrect.
     """
-
     LOGGER.debug("Initializing subclass %s", cls.__name__)
 
     validate_init_method(cls)

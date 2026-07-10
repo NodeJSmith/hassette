@@ -22,8 +22,6 @@ from hassette.web.models import (
     SystemStatusResponse,
 )
 
-# ExecutionStatus — Execution.status
-
 
 class TestExecutionStatus:
     def test_rejects_bogus_status(self) -> None:
@@ -83,9 +81,6 @@ class TestExecutionStatus:
         data = obj.model_dump()
         assert data["status"] == "success"
         assert isinstance(data["status"], str)
-
-
-# ManifestStatus — AppManifestResponse.status
 
 
 class TestManifestStatus:
@@ -159,9 +154,6 @@ class TestManifestStatus:
         assert obj.autostart is False
 
 
-# ResourceStatus — AppInstanceResponse.status
-
-
 class TestResourceStatus:
     def test_accepts_all_nine_resource_status_values(self) -> None:
         for value in ResourceStatus:
@@ -209,9 +201,6 @@ class TestResourceStatus:
             assert obj.status == value
 
 
-# HealthStatus — AppHealthResponse.health_status
-
-
 class TestHealthStatus:
     def test_rejects_unknown(self) -> None:
         with pytest.raises(ValidationError):
@@ -256,9 +245,6 @@ class TestHealthStatus:
             )
 
 
-# ErrorRateClass — AppHealthResponse.error_rate_class
-
-
 class TestErrorRateClass:
     def test_rejects_ok(self) -> None:
         with pytest.raises(ValidationError):
@@ -301,9 +287,6 @@ class TestErrorRateClass:
                 error_rate=0.0,
                 error_rate_class="ok",
             )
-
-
-# ListenerKind — ListenerWithSummary.listener_kind
 
 
 class TestListenerKind:
@@ -351,9 +334,6 @@ class TestListenerKind:
             cancelled=0,
         )
         assert obj.listener_kind == "event"
-
-
-# LOG_LEVEL_TYPE — LogRecord.level and LogEntryResponse.level
 
 
 class TestLogLevelType:
@@ -433,12 +413,9 @@ class TestLogLevelType:
             assert obj.level == level
 
 
-# ExecutionStatus on WebSocket payload models
-
-
 class TestWebSocketPayloadStatus:
     def test_execution_completed_data_rejects_bogus_kind(self) -> None:
-        """kind must be 'handler' or 'job'."""
+        """Kind must be 'handler' or 'job'."""
         with pytest.raises(ValidationError):
             ExecutionCompletedData(
                 kind="unknown",  # pyright: ignore[reportArgumentType]
@@ -475,9 +452,6 @@ class TestWebSocketPayloadStatus:
         assert obj.job_id == 7
         assert obj.listener_id is None
         assert obj.error_type == "TimeoutError"
-
-
-# SystemHealthStatus — SystemStatusResponse.status
 
 
 class TestSystemHealthStatus:

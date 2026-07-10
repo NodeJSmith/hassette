@@ -20,35 +20,14 @@ interface BaseProps {
   children: ComponentChildren;
 }
 
-interface ManualProps extends BaseProps {
-  active: boolean;
-  direction: "asc" | "desc";
-  onClick: () => void;
-  sortKey?: never;
-  sort?: never;
-  onSort?: never;
+// Sort fields are all-or-nothing in practice (either fully managed, or omitted
+// entirely for a filter-only or plain-label header), but that isn't worth
+// enforcing at the type level — they're simply optional together.
+interface SortProps<K extends string = string> extends BaseProps {
+  sortKey?: K;
+  sort?: SortState<K>;
+  onSort?: (s: SortState<K>) => void;
 }
-
-interface ManagedProps<K extends string> extends BaseProps {
-  sortKey: K;
-  sort: SortState<K>;
-  onSort: (s: SortState<K>) => void;
-  active?: never;
-  direction?: never;
-  onClick?: never;
-}
-
-// Neither-sort variant: no sort props at all
-interface NoSortProps extends BaseProps {
-  sortKey?: never;
-  sort?: never;
-  onSort?: never;
-  active?: never;
-  direction?: never;
-  onClick?: never;
-}
-
-type SortProps<K extends string = string> = ManualProps | ManagedProps<K> | NoSortProps;
 
 // Filter axis — orthogonal, optional, independent of sort
 interface WithFilter {
@@ -74,28 +53,19 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Determine sort axis
-  const hasSortKey = "sortKey" in props && props.sortKey !== undefined;
-  const hasManualSort = !hasSortKey && "onClick" in props && (props as ManualProps).onClick !== undefined;
+  const hasSortProps = props.sortKey !== undefined && props.sort !== undefined && props.onSort !== undefined;
 
   let active = false;
   let direction: "asc" | "desc" = "asc";
   let sortClickHandler: (() => void) | undefined;
 
-  if (hasSortKey) {
-    const managed = props as ManagedProps<K>;
-    active = managed.sort.key === managed.sortKey;
-    direction = active ? managed.sort.dir : "asc";
-    const key = managed.sortKey;
-    const onSort = managed.onSort;
-    sortClickHandler = () => onSort({ key, dir: active && managed.sort.dir === "asc" ? "desc" : "asc" });
-  } else if (hasManualSort) {
-    const manual = props as ManualProps;
-    active = manual.active;
-    direction = manual.direction;
-    sortClickHandler = manual.onClick;
+  if (hasSortProps) {
+    const { sortKey, sort, onSort } = props as Required<Pick<SortProps<K>, "sortKey" | "sort" | "onSort">>;
+    active = sort.key === sortKey;
+    direction = active ? sort.dir : "asc";
+    sortClickHandler = () => onSort({ key: sortKey, dir: active && sort.dir === "asc" ? "desc" : "asc" });
   }
 
-  const hasSortProps = hasSortKey || hasManualSort;
   const hasFilter = props.filterContent !== undefined && props.filterContent !== null;
 
   const arrow = active ? (direction === "asc" ? " ↑" : " ↓") : "";

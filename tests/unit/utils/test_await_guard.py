@@ -445,7 +445,8 @@ def _fake_stack_frames():
 
 def test_source_capture_limit_applied_after_skip(monkeypatch):
     """The limit bounds frames AFTER skipping our own frame, so internal frames cannot
-    consume the window when the limit still has room for the user frame."""
+    consume the window when the limit still has room for the user frame.
+    """
     monkeypatch.setattr(inspect, "stack", lambda *_args, **_kw: _fake_stack_frames())
 
     # 3 frames remain after the own-frame skip: [bus, await_guard, user].

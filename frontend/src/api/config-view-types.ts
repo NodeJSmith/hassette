@@ -28,6 +28,4 @@ export interface UiHints {
   group_label?: string;
   order?: number;
   widget?: string;
-  /** Reserved for future tiering fast-follow — unset on all fields, ignored by the renderer. */
-  tier?: "common" | "advanced";
 }

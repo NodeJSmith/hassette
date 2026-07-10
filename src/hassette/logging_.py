@@ -20,7 +20,6 @@ import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
 
-MAX_SNAPSHOT_RETRIES = 5
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
 if TYPE_CHECKING:
@@ -75,6 +74,12 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     }
 
 
+def _format_exc_info(record: logging.LogRecord) -> str | None:
+    if record.exc_info:
+        return "".join(traceback.format_exception(*record.exc_info))
+    return None
+
+
 class LogCaptureHandler(logging.Handler):
     """Captures log records into a bounded deque and broadcasts to WS clients."""
 
@@ -95,19 +100,6 @@ class LogCaptureHandler(logging.Handler):
     def buffer(self) -> deque[LogEntry]:
         return self._buffer
 
-    def get_buffer_snapshot(self) -> list[LogEntry]:
-        """Return a thread-safe snapshot of the buffer.
-
-        The underlying deque can be mutated by emit() from worker threads,
-        so iterating it directly risks RuntimeError. This retries on mutation.
-        """
-        for _ in range(MAX_SNAPSHOT_RETRIES):
-            try:
-                return list(self._buffer)
-            except RuntimeError:
-                continue
-        return []
-
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
@@ -122,7 +114,7 @@ class LogCaptureHandler(logging.Handler):
             func_name=record.funcName or "",
             lineno=record.lineno,
             message=record.getMessage(),
-            exc_info="".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
+            exc_info=_format_exc_info(record),
             **attrs,
         )
         self._buffer.append(entry)
@@ -282,7 +274,7 @@ class LogPersistenceHandler(logging.Handler):
             "func_name": record.funcName or "",
             "lineno": record.lineno,
             "message": record.getMessage(),
-            "exc_info": "".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
+            "exc_info": _format_exc_info(record),
             **_extract_correlation_attrs(record),
         }
 

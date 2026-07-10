@@ -83,18 +83,6 @@ class Router:
             else:
                 self.owners.pop(owner, None)
 
-    def remove_listener(self, listener: "Listener") -> None:
-        """Remove a specific listener from the router.
-
-        Args:
-            listener: The listener to remove.
-        """
-
-        def pred(x: "Listener") -> bool:
-            return x.listener_id == listener.listener_id
-
-        self.remove_route(listener.topic, pred)
-
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
         """Remove a listener by its ID.
 
@@ -103,10 +91,10 @@ class Router:
             listener_id: The ID of the listener to remove.
         """
 
-        def pred(x: "Listener") -> bool:
-            return x.listener_id == listener_id
+        def matches_listener(candidate: "Listener") -> bool:
+            return candidate.listener_id == listener_id
 
-        self.remove_route(topic, pred)
+        self.remove_route(topic, matches_listener)
 
     def get_topic_listeners(self, topic: str) -> list["Listener"]:
         """Get all listeners that match the given topic.

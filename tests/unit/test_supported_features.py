@@ -46,9 +46,6 @@ class TestAttributesBaseHasFeature:
         assert attrs.has_feature(1) is False
 
 
-# ── Light ──────────────────────────────────────────────────────────────
-
-
 class TestLightSupportedFeatures:
     @pytest.mark.parametrize(
         ("feature_value", "property_name"),
@@ -88,9 +85,6 @@ class TestLightSupportedFeatures:
         assert attrs.supports_effect is False
         assert attrs.supports_flash is False
         assert attrs.supports_transition is False
-
-
-# ── Climate ────────────────────────────────────────────────────────────
 
 
 class TestClimateSupportedFeatures:
@@ -148,9 +142,6 @@ class TestClimateSupportedFeatures:
         assert attrs.supports_swing_horizontal_mode is False
 
 
-# ── Cover ──────────────────────────────────────────────────────────────
-
-
 class TestCoverSupportedFeatures:
     @pytest.mark.parametrize(
         ("feature_value", "property_name"),
@@ -201,9 +192,6 @@ class TestCoverSupportedFeatures:
         assert attrs.supports_set_tilt_position is False
 
 
-# ── Fan ────────────────────────────────────────────────────────────────
-
-
 class TestFanSupportedFeatures:
     @pytest.mark.parametrize(
         ("feature_value", "property_name"),
@@ -248,9 +236,6 @@ class TestFanSupportedFeatures:
         attrs = FanAttributes(supported_features=None)
         assert attrs.supports_set_speed is False
         assert attrs.supports_turn_on is False
-
-
-# ── Media Player ───────────────────────────────────────────────────────
 
 
 class TestMediaPlayerSupportedFeatures:
@@ -338,9 +323,6 @@ class TestMediaPlayerSupportedFeatures:
         assert attrs.supports_search_media is False
 
 
-# ── Vacuum ─────────────────────────────────────────────────────────────
-
-
 class TestVacuumSupportedFeatures:
     @pytest.mark.parametrize(
         ("feature_value", "property_name"),
@@ -391,9 +373,6 @@ class TestVacuumSupportedFeatures:
         attrs = VacuumAttributes(supported_features=None)
         assert attrs.supports_start is False
         assert attrs.supports_clean_area is False
-
-
-# ── Lock ──────────────────────────────────────────────────────────────
 
 
 class TestLockSupportedFeatures:

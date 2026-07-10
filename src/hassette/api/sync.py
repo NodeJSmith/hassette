@@ -76,12 +76,10 @@ class ApiSyncFacade(Resource):
 
     def ws_send_and_wait(self, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response."""
-
         return self.task_bucket.run_sync(self._api.ws_send_and_wait(**data))
 
     def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
-
         return self.task_bucket.run_sync(self._api.ws_send_json(**data))
 
     def rest_request(
@@ -103,8 +101,8 @@ class ApiSyncFacade(Resource):
             suppress_error_message: Whether to suppress error messages.
 
         Returns:
-            The response from the API."""
-
+            The response from the API.
+        """
         return self.task_bucket.run_sync(
             self._api.rest_request(method, url, params, data, suppress_error_message, **kwargs)
         )
@@ -118,8 +116,8 @@ class ApiSyncFacade(Resource):
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            The response from the API."""
-
+            The response from the API.
+        """
         return self.task_bucket.run_sync(self._api.get_rest_request(url, params, **kwargs))
 
     def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
@@ -131,8 +129,8 @@ class ApiSyncFacade(Resource):
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            The response from the API."""
-
+            The response from the API.
+        """
         return self.task_bucket.run_sync(self._api.post_rest_request(url, data, **kwargs))
 
     def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
@@ -143,16 +141,16 @@ class ApiSyncFacade(Resource):
             kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
-            The response from the API."""
-
+            The response from the API.
+        """
         return self.task_bucket.run_sync(self._api.delete_rest_request(url, **kwargs))
 
     def get_states_raw(self) -> list["HassStateDict"]:
         """Get all entities in Home Assistant as raw dictionaries.
 
         Returns:
-            A list of states as dictionaries."""
-
+            A list of states as dictionaries.
+        """
         return self.task_bucket.run_sync(self._api.get_states_raw())
 
     def get_states(self) -> list["BaseState"]:
@@ -162,32 +160,32 @@ class ApiSyncFacade(Resource):
         state class for a domain, the generic BaseState is used.
 
         Returns:
-            A list of states, converted to their appropriate state types."""
-
+            A list of states, converted to their appropriate state types.
+        """
         return self.task_bucket.run_sync(self._api.get_states())
 
     def get_config(self) -> dict[str, Any]:
         """Get the Home Assistant configuration.
 
         Returns:
-            The configuration data."""
-
+            The configuration data.
+        """
         return self.task_bucket.run_sync(self._api.get_config())
 
     def get_services(self) -> dict[str, Any]:
         """Get the available services in Home Assistant.
 
         Returns:
-            The services data."""
-
+            The services data.
+        """
         return self.task_bucket.run_sync(self._api.get_services())
 
     def get_panels(self) -> dict[str, Any]:
         """Get the available panels in Home Assistant.
 
         Returns:
-            The panels data."""
-
+            The panels data.
+        """
         return self.task_bucket.run_sync(self._api.get_panels())
 
     def fire_event(self, event_type: str, event_data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -198,8 +196,8 @@ class ApiSyncFacade(Resource):
             event_data: Additional data to include with the event.
 
         Returns:
-            The response from Home Assistant."""
-
+            The response from Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.fire_event(event_type, event_data))
 
     def call_service(
@@ -220,8 +218,8 @@ class ApiSyncFacade(Resource):
             **data: Additional data to send with the service call.
 
         Returns:
-            ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None."""
-
+            ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
+        """
         return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
     def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
@@ -232,8 +230,8 @@ class ApiSyncFacade(Resource):
             domain: The domain to use for the service call (default: ``"homeassistant"``).
                 This calls the generic ``homeassistant.turn_on`` service, which is deprecated
                 in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``."""
-
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+        """
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
     def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
@@ -244,8 +242,8 @@ class ApiSyncFacade(Resource):
             domain: The domain to use for the service call (default: ``"homeassistant"``).
                 This calls the generic ``homeassistant.turn_off`` service, which is deprecated
                 in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``."""
-
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+        """
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
 
     def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
@@ -256,8 +254,8 @@ class ApiSyncFacade(Resource):
             domain: The domain to use for the service call (default: ``"homeassistant"``).
                 This calls the generic ``homeassistant.toggle`` service, which is deprecated
                 in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``."""
-
+                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+        """
         return self.task_bucket.run_sync(self._api.toggle_service(entity_id, domain))
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
@@ -267,8 +265,8 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to get the state for.
 
         Returns:
-            The state of the entity as raw data."""
-
+            The state of the entity as raw data.
+        """
         return self.task_bucket.run_sync(self._api.get_state_raw(entity_id))
 
     def entity_exists(self, entity_id: str) -> bool:
@@ -278,8 +276,8 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to check.
 
         Returns:
-            True if the entity exists, False otherwise."""
-
+            True if the entity exists, False otherwise.
+        """
         return self.task_bucket.run_sync(self._api.entity_exists(entity_id))
 
     def get_entity(self, entity_id: str, model: type["EntityT"]) -> "EntityT":
@@ -290,8 +288,8 @@ class ApiSyncFacade(Resource):
             model: The model class to use for the entity.
 
         Returns:
-            The entity object."""
-
+            The entity object.
+        """
         return self.task_bucket.run_sync(self._api.get_entity(entity_id, model))
 
     def get_entity_or_none(self, entity_id: str, model: type["EntityT"]) -> "EntityT | None":
@@ -302,8 +300,8 @@ class ApiSyncFacade(Resource):
             model: The model class to use for the entity.
 
         Returns:
-            The entity object, or None if it does not exist."""
-
+            The entity object, or None if it does not exist.
+        """
         return self.task_bucket.run_sync(self._api.get_entity_or_none(entity_id, model))
 
     def get_state(self, entity_id: str) -> "BaseState":
@@ -313,8 +311,8 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to get the state for.
 
         Returns:
-            The state of the entity converted to the specified model type."""
-
+            The state of the entity converted to the specified model type.
+        """
         return self.task_bucket.run_sync(self._api.get_state(entity_id))
 
     def get_state_or_none(self, entity_id: str) -> "BaseState | None":
@@ -324,8 +322,8 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to get the state for.
 
         Returns:
-            The state of the entity converted to the specified model type, or None if it does not exist."""
-
+            The state of the entity converted to the specified model type, or None if it does not exist.
+        """
         return self.task_bucket.run_sync(self._api.get_state_or_none(entity_id))
 
     def get_state_value(self, entity_id: str) -> Any:
@@ -340,8 +338,8 @@ class ApiSyncFacade(Resource):
         Note:
             While most default methods in this library work with state objects for
             strong typing, this method is designed to return the raw state value,
-            as it is likely overkill to convert it to a state object for simple state value retrieval."""
-
+            as it is likely overkill to convert it to a state object for simple state value retrieval.
+        """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
     def get_state_value_typed(self, entity_id: str) -> "Any":
@@ -362,8 +360,8 @@ class ApiSyncFacade(Resource):
         Warning:
             For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,
             as we cannot be sure of the actual type without additional context. For these cases, you are responsible
-            for converting the string to the desired type."""
-
+            for converting the string to the desired type.
+        """
         return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
 
     def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
@@ -374,8 +372,8 @@ class ApiSyncFacade(Resource):
             attribute: The name of the attribute to retrieve. Can be a dot-separated path for nested attributes.
 
         Returns:
-            The value of the specified attribute, or MISSING_VALUE sentinel if the attribute does not exist."""
-
+            The value of the specified attribute, or MISSING_VALUE sentinel if the attribute does not exist.
+        """
         return self.task_bucket.run_sync(self._api.get_attribute(entity_id, attribute))
 
     def get_history(
@@ -398,8 +396,8 @@ class ApiSyncFacade(Resource):
             no_attributes: Whether to exclude attributes from the response.
 
         Returns:
-            A list of history entries for the specified entity."""
-
+            A list of history entries for the specified entity.
+        """
         return self.task_bucket.run_sync(
             self._api.get_history(
                 entity_id, start_time, end_time, significant_changes_only, minimal_response, no_attributes
@@ -426,8 +424,8 @@ class ApiSyncFacade(Resource):
             no_attributes: Whether to exclude attributes from the response.
 
         Returns:
-            A dictionary mapping entity IDs to their respective history entries."""
-
+            A dictionary mapping entity IDs to their respective history entries.
+        """
         return self.task_bucket.run_sync(
             self._api.get_histories(
                 entity_ids, start_time, end_time, significant_changes_only, minimal_response, no_attributes
@@ -448,8 +446,8 @@ class ApiSyncFacade(Resource):
             end_time: The end time for the logbook range.
 
         Returns:
-            A list of logbook entries for the specified entity."""
-
+            A list of logbook entries for the specified entity.
+        """
         return self.task_bucket.run_sync(self._api.get_logbook(entity_id, start_time, end_time))
 
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
@@ -461,8 +459,8 @@ class ApiSyncFacade(Resource):
             attributes: Additional attributes to set for the entity.
 
         Returns:
-            The response from Home Assistant after setting the state."""
-
+            The response from Home Assistant after setting the state.
+        """
         return self.task_bucket.run_sync(self._api.set_state(entity_id, state, attributes))
 
     def get_camera_image(
@@ -475,13 +473,12 @@ class ApiSyncFacade(Resource):
             timestamp: The timestamp for the image. If None, the latest image is returned.
 
         Returns:
-            The camera image data."""
-
+            The camera image data.
+        """
         return self.task_bucket.run_sync(self._api.get_camera_image(entity_id, timestamp))
 
     def get_calendars(self) -> list[dict[str, Any]]:
         """Get the list of calendars."""
-
         return self.task_bucket.run_sync(self._api.get_calendars())
 
     def get_calendar_events(
@@ -498,8 +495,8 @@ class ApiSyncFacade(Resource):
             end_time: The end time for the event range.
 
         Returns:
-            A list of calendar events."""
-
+            A list of calendar events.
+        """
         return self.task_bucket.run_sync(self._api.get_calendar_events(calendar_id, start_time, end_time))
 
     def render_template(self, template: str, variables: dict[str, Any] | None = None) -> str:
@@ -510,8 +507,8 @@ class ApiSyncFacade(Resource):
             variables: Variables to use in the template.
 
         Returns:
-            The rendered template result."""
-
+            The rendered template result.
+        """
         return self.task_bucket.run_sync(self._api.render_template(template, variables))
 
     def delete_entity(self, entity_id: str) -> None:
@@ -521,16 +518,16 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to delete.
 
         Raises:
-            RuntimeError: If the deletion fails."""
-
+            RuntimeError: If the deletion fails.
+        """
         return self.task_bucket.run_sync(self._api.delete_entity(entity_id))
 
     def list_input_booleans(self) -> list[InputBooleanRecord]:
         """List all stored input_boolean helpers.
 
         Returns:
-            List of InputBooleanRecord instances representing stored configs."""
-
+            List of InputBooleanRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_booleans())
 
     def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
@@ -540,8 +537,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_boolean(params))
 
     def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
@@ -552,24 +549,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_boolean(helper_id, params))
 
     def delete_input_boolean(self, helper_id: str) -> None:
         """Delete an input_boolean helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_boolean(helper_id))
 
     def list_input_numbers(self) -> list[InputNumberRecord]:
         """List all stored input_number helpers.
 
         Returns:
-            List of InputNumberRecord instances representing stored configs."""
-
+            List of InputNumberRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_numbers())
 
     def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
@@ -579,8 +576,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_number(params))
 
     def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
@@ -591,24 +588,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_number(helper_id, params))
 
     def delete_input_number(self, helper_id: str) -> None:
         """Delete an input_number helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_number(helper_id))
 
     def list_input_texts(self) -> list[InputTextRecord]:
         """List all stored input_text helpers.
 
         Returns:
-            List of InputTextRecord instances representing stored configs."""
-
+            List of InputTextRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_texts())
 
     def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
@@ -618,8 +615,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_text(params))
 
     def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
@@ -630,24 +627,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_text(helper_id, params))
 
     def delete_input_text(self, helper_id: str) -> None:
         """Delete an input_text helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_text(helper_id))
 
     def list_input_selects(self) -> list[InputSelectRecord]:
         """List all stored input_select helpers.
 
         Returns:
-            List of InputSelectRecord instances representing stored configs."""
-
+            List of InputSelectRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_selects())
 
     def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
@@ -657,8 +654,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_select(params))
 
     def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
@@ -669,24 +666,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_select(helper_id, params))
 
     def delete_input_select(self, helper_id: str) -> None:
         """Delete an input_select helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_select(helper_id))
 
     def list_input_datetimes(self) -> list[InputDatetimeRecord]:
         """List all stored input_datetime helpers.
 
         Returns:
-            List of InputDatetimeRecord instances representing stored configs."""
-
+            List of InputDatetimeRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_datetimes())
 
     def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
@@ -696,8 +693,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_datetime(params))
 
     def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
@@ -708,24 +705,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_datetime(helper_id, params))
 
     def delete_input_datetime(self, helper_id: str) -> None:
         """Delete an input_datetime helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_datetime(helper_id))
 
     def list_input_buttons(self) -> list[InputButtonRecord]:
         """List all stored input_button helpers.
 
         Returns:
-            List of InputButtonRecord instances representing stored configs."""
-
+            List of InputButtonRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_input_buttons())
 
     def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
@@ -735,8 +732,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_input_button(params))
 
     def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
@@ -747,24 +744,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_input_button(helper_id, params))
 
     def delete_input_button(self, helper_id: str) -> None:
         """Delete an input_button helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_input_button(helper_id))
 
     def list_counters(self) -> list[CounterRecord]:
         """List all stored counter helpers.
 
         Returns:
-            List of CounterRecord instances representing stored configs."""
-
+            List of CounterRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_counters())
 
     def create_counter(self, params: CreateCounterParams) -> CounterRecord:
@@ -774,8 +771,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_counter(params))
 
     def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
@@ -786,24 +783,24 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_counter(helper_id, params))
 
     def delete_counter(self, helper_id: str) -> None:
         """Delete a counter helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_counter(helper_id))
 
     def list_timers(self) -> list[TimerRecord]:
         """List all stored timer helpers.
 
         Returns:
-            List of TimerRecord instances representing stored configs."""
-
+            List of TimerRecord instances representing stored configs.
+        """
         return self.task_bucket.run_sync(self._api.list_timers())
 
     def create_timer(self, params: CreateTimerParams) -> TimerRecord:
@@ -813,8 +810,8 @@ class ApiSyncFacade(Resource):
             params: Parameters for the new helper.
 
         Returns:
-            The stored record returned by Home Assistant."""
-
+            The stored record returned by Home Assistant.
+        """
         return self.task_bucket.run_sync(self._api.create_timer(params))
 
     def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
@@ -825,38 +822,38 @@ class ApiSyncFacade(Resource):
             params: Fields to update (unset fields are left unchanged).
 
         Returns:
-            The updated stored record."""
-
+            The updated stored record.
+        """
         return self.task_bucket.run_sync(self._api.update_timer(helper_id, params))
 
     def delete_timer(self, helper_id: str) -> None:
         """Delete a timer helper.
 
         Args:
-            helper_id: The ID of the helper to delete."""
-
+            helper_id: The ID of the helper to delete.
+        """
         return self.task_bucket.run_sync(self._api.delete_timer(helper_id))
 
     def increment_counter(self, entity_id: str) -> None:
         """Increment a counter entity's current value (live state, not stored config).
 
         Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
-
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
+        """
         return self.task_bucket.run_sync(self._api.increment_counter(entity_id))
 
     def decrement_counter(self, entity_id: str) -> None:
         """Decrement a counter entity's current value (live state, not stored config).
 
         Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
-
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
+        """
         return self.task_bucket.run_sync(self._api.decrement_counter(entity_id))
 
     def reset_counter(self, entity_id: str) -> None:
         """Reset a counter entity's value to its configured initial (live state, not stored config).
 
         Args:
-            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``)."""
-
+            entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
+        """
         return self.task_bucket.run_sync(self._api.reset_counter(entity_id))

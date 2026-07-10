@@ -14,16 +14,10 @@ from hassette.resources.base import FinalMeta, Resource
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
-from .conftest import HangingChild, ShutdownCounter
+from .conftest import HangingChild, ShutdownCounter, SimpleParent
 
 # Pre-register so FinalMeta allows the shutdown() override on this test helper
 FinalMeta.LOADED_CLASSES.add("tests.unit.resources.lifecycle.test_total_timeout.TotalTimeoutRoot")
-
-
-class StubResource(Resource):
-    """Simple resource for testing total timeout descendants."""
-
-    pass
 
 
 class TotalTimeoutRoot(Resource):
@@ -111,7 +105,7 @@ async def test_total_timeout_force_patches_all_descendants():
 
     root = TotalTimeoutRoot(hassette)
     hanging = root.add_child(HangingChild)
-    grandchild = hanging.add_child(StubResource)
+    grandchild = hanging.add_child(SimpleParent)
 
     await root.initialize()
     await hanging.initialize()

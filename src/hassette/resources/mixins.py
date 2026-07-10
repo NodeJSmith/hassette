@@ -1,7 +1,7 @@
 import asyncio
-import logging
 import traceback
 import typing
+from logging import Logger, getLogger
 from typing import Any, Protocol
 
 from hassette.events import HassetteServiceEvent
@@ -9,7 +9,7 @@ from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
 from hassette.types.types import CoroLikeT
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 # Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
@@ -95,7 +95,7 @@ class _HassetteP(Protocol):
 if typing.TYPE_CHECKING:
 
     class _LifecycleHostP(Protocol):
-        logger: logging.Logger
+        logger: Logger
         hassette: _HassetteP
         role: Any
         class_name: str

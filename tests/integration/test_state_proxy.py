@@ -96,7 +96,6 @@ class TestStateProxyInit:
 
     async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy raises exception if API fails during initial sync."""
-
         hassette = hassette_with_state_proxy
 
         with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
@@ -144,7 +143,6 @@ class TestStateProxyGetState:
 
     async def test_returns_state_when_ready_and_exists(self, state_proxy: "StateProxy") -> None:
         """get_state returns state when proxy is ready and entity exists."""
-
         # Add a state to the cache manually
         light_dict = make_light_state_dict("light.test", "on", brightness=200)
         state_proxy.states["light.test"] = light_dict
@@ -210,7 +208,6 @@ class TestStateProxyGetState:
 
     async def test_lockfree_read_access(self, state_proxy: "StateProxy") -> None:
         """get_state does not acquire lock (lock-free read)."""
-
         # Add state
         light_dict = make_light_state_dict("light.test", "on")
         state_proxy.states["light.test"] = light_dict
@@ -303,7 +300,7 @@ class TestStateProxyStateChanged:
         assert "light.test" not in proxy.states
 
     async def test_handles_multiple_domain_types(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        """on_state_changed stores all entities as BaseState"""
+        """on_state_changed stores all entities as BaseState."""
         hassette = hassette_with_state_proxy
         proxy = hassette.state_proxy
 
@@ -370,7 +367,6 @@ class TestStateProxyWebsocketListeners:
 
     async def test_retains_cache_on_disconnect(self, state_proxy: "StateProxy") -> None:
         """on_disconnect retains the stale state cache."""
-
         # Add some states
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
         state_proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
@@ -385,7 +381,6 @@ class TestStateProxyWebsocketListeners:
 
     async def test_marks_not_ready_on_disconnect(self, state_proxy: "StateProxy") -> None:
         """on_disconnect marks proxy as not ready."""
-
         orig_state = state_proxy.is_ready()
 
         if not orig_state:
@@ -400,7 +395,6 @@ class TestStateProxyWebsocketListeners:
 
     async def test_subscription_count_stable_on_disconnect(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_disconnect retains cache and does not add new subscriptions (they're already registered)."""
-
         proxy = hassette_with_state_proxy.state_proxy
 
         listeners = proxy.bus.get_listeners()
@@ -770,7 +764,6 @@ class TestStateProxyShutdown:
 
     async def test_clears_cache_on_shutdown(self, state_proxy: "StateProxy") -> None:
         """Shutdown clears the state cache."""
-
         # Add states
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
 
@@ -780,7 +773,6 @@ class TestStateProxyShutdown:
 
     async def test_marks_not_ready_on_shutdown(self, state_proxy: "StateProxy") -> None:
         """Shutdown marks proxy as not ready."""
-
         orig_state = state_proxy.is_ready()
         if not orig_state:
             state_proxy.mark_ready(reason="Test setup")

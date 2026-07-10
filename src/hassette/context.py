@@ -34,11 +34,11 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
 
     Raises RuntimeError if a different Hassette instance is already set.
     """
-    curr_inst = HASSETTE_INSTANCE.get(None)
-    if curr_inst is hassette:
+    current_instance = HASSETTE_INSTANCE.get(None)
+    if current_instance is hassette:
         return None  # already set to the same instance
 
-    if curr_inst is not None:
+    if current_instance is not None:
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
         raise RuntimeError(f"Hassette instance is already set. {extra_msg}".rstrip())
 
@@ -51,8 +51,8 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
             where = f"{info.filename}:{info.lineno} in {info.function}"
         else:
             where = "<unknown location>"
-    except Exception as e:
-        LOGGER.warning("Failed to capture set location for Hassette instance: %s", e)
+    except Exception as exc:
+        LOGGER.warning("Failed to capture set location for Hassette instance: %s", exc)
         where = "<unknown location>"
 
     HASSETTE_SET_LOCATION.set(where)
@@ -71,8 +71,8 @@ def get_hassette() -> "Hassette":
     try:
         inst = HASSETTE_INSTANCE.get()
         return inst
-    except LookupError as e:
-        raise HassetteNotInitializedError("No Hassette instance found in context.") from e
+    except LookupError as exc:
+        raise HassetteNotInitializedError("No Hassette instance found in context.") from exc
 
 
 def get_hassette_config() -> "HassetteConfig":

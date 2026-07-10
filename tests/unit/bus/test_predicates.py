@@ -144,17 +144,6 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
     assert attr_to(event) is True
 
 
-def test_from_to_predicates_match_state_values() -> None:
-    """Test that StateFrom and StateTo predicates correctly match old and new state values."""
-    event = create_state_change_event(entity_id="light.office", old_value="off", new_value="on")
-
-    from_pred = P.StateFrom("off")
-    to_pred = P.StateTo("on")
-
-    assert from_pred(event) is True
-    assert to_pred(event) is True
-
-
 # Change detection predicates
 def test_state_did_change_detects_transitions() -> None:
     """Test that StateDidChange predicate detects when state values change."""
@@ -215,26 +204,6 @@ def test_attr_did_change_returns_true_when_old_state_none() -> None:
 
 
 # Entity/Domain/Service matching predicates
-def test_entity_matches_supports_globs() -> None:
-    """Test that EntityMatches predicate supports glob pattern matching."""
-    predicate = P.EntityMatches("sensor.*")
-    event = create_state_change_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
-    assert predicate(event) is True
-
-
-def test_entity_matches_exact_match() -> None:
-    """Test that EntityMatches predicate supports exact entity ID matching."""
-    predicate = P.EntityMatches("sensor.kitchen")
-
-    # Exact match
-    event = create_state_change_event(entity_id="sensor.kitchen", old_value=None, new_value=None)
-    assert predicate(event) is True
-
-    # No match
-    event = create_state_change_event(entity_id="sensor.living", old_value=None, new_value=None)
-    assert predicate(event) is False
-
-
 def test_entity_matches_glob_patterns() -> None:
     """Test EntityMatches with various glob patterns."""
     event = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")

@@ -70,76 +70,76 @@ def test_default_blocking_io_behavior_is_warn() -> None:
 
 def test_resolve_default_when_both_none() -> None:
     """With no per-app and no global config set, resolve returns WARN."""
-    _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=None))
-    _hass = types.SimpleNamespace(config=_cfg)
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=None))
+    mock_hassette = types.SimpleNamespace(config=cfg)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.WARN
 
 
 def test_resolve_per_app_wins_over_global() -> None:
     """Per-app blocking_io_behavior overrides global config."""
-    _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.WARN))
-    _hass = types.SimpleNamespace(config=_cfg)
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.WARN))
+    mock_hassette = types.SimpleNamespace(config=cfg)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=BlockingIOBehavior.IGNORE)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.IGNORE  # per-app wins
 
 
 def test_resolve_global_wins_when_per_app_none() -> None:
     """Global blocking_io.behavior is used when per-app is None."""
-    _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
-    _hass = types.SimpleNamespace(config=_cfg)
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
+    mock_hassette = types.SimpleNamespace(config=cfg)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.ERROR  # global wins when per-app is None
 
 
 def test_resolve_per_app_ignore_suppresses_global_error() -> None:
     """Per-app IGNORE overrides a global ERROR setting."""
-    _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
-    _hass = types.SimpleNamespace(config=_cfg)
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior=BlockingIOBehavior.ERROR))
+    mock_hassette = types.SimpleNamespace(config=cfg)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=BlockingIOBehavior.IGNORE)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.IGNORE
 
 
 def test_resolve_string_values_coerce() -> None:
     """String enum values coerce correctly during resolution."""
-    _cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior="error"))
-    _hass = types.SimpleNamespace(config=_cfg)
+    cfg = types.SimpleNamespace(blocking_io=types.SimpleNamespace(behavior="error"))
+    mock_hassette = types.SimpleNamespace(config=cfg)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.ERROR
 
 
 def test_resolve_missing_app_config_falls_back_to_default() -> None:
     """Missing app_config attribute falls back to hardcoded WARN default."""
 
-    class _MockOwner:
+    class MockOwner:
         pass  # no app_config, no hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.WARN
 
 
@@ -171,14 +171,14 @@ def test_app_config_blocking_io_behavior_accepts_string() -> None:
 def test_app_config_blocking_io_behavior_ignore_resolves(tmp_path: Path) -> None:
     """Setting blocking_io_behavior='ignore' on AppConfig resolves to IGNORE."""
     app_config = AppConfig(blocking_io_behavior=BlockingIOBehavior.IGNORE)
-    _hass = types.SimpleNamespace(config=make_test_config(data_dir=tmp_path))
+    mock_hassette = types.SimpleNamespace(config=make_test_config(data_dir=tmp_path))
 
-    class _MockOwner:
+    class MockOwner:
         pass
 
-    owner = _MockOwner()
+    owner = MockOwner()
     owner.app_config = app_config  # pyright: ignore[reportAttributeAccessIssue]
-    owner.hassette = _hass  # pyright: ignore[reportAttributeAccessIssue]
+    owner.hassette = mock_hassette  # pyright: ignore[reportAttributeAccessIssue]
 
     result = resolve_blocking_io_behavior(owner)
     assert result is BlockingIOBehavior.IGNORE
@@ -219,11 +219,11 @@ def test_resolve_uses_global_blocking_io_config(tmp_path: Path) -> None:
     """resolve_blocking_io_behavior reads global HassetteConfig.blocking_io.behavior."""
     config = make_test_config(data_dir=tmp_path)
     config.blocking_io.behavior = BlockingIOBehavior.ERROR
-    _hass = types.SimpleNamespace(config=config)
+    mock_hassette = types.SimpleNamespace(config=config)
 
-    class _MockOwner:
+    class MockOwner:
         app_config = types.SimpleNamespace(blocking_io_behavior=None)
-        hassette = _hass
+        hassette = mock_hassette
 
-    result = resolve_blocking_io_behavior(_MockOwner())
+    result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.ERROR

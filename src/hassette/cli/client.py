@@ -66,8 +66,6 @@ class HassetteCLIClient:
     def close(self) -> None:
         self._client.close()
 
-    # Core request method
-
     @overload
     def get(
         self, path: str, model: type[dict], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
@@ -130,8 +128,6 @@ class HassetteCLIClient:
             if is_tolerated_503:
                 self._handle_http_error(response)
             raise
-
-    # App routing & instance resolution
 
     def get_with_app_routing(
         self,
@@ -211,8 +207,6 @@ class HassetteCLIClient:
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
         raise AssertionError("unreachable")
 
-    # Error helpers
-
     def _handle_http_error(self, response: httpx.Response) -> NoReturn:
         """Print HTTP error and exit with code 1."""
         try:
@@ -245,9 +239,6 @@ class HassetteCLIClient:
         else:
             cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
         sys.exit(1)
-
-
-# Internal helpers
 
 
 def make_client(ctx: CLIContext) -> HassetteCLIClient:

@@ -21,8 +21,6 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import WatchdogEvent
 
-# Fixtures
-
 
 @pytest.fixture
 async def executor(
@@ -41,9 +39,6 @@ async def executor(
         yield exc
     finally:
         await exc.on_shutdown()
-
-
-# Helpers
 
 
 def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 250.0) -> WatchdogEvent:
@@ -94,9 +89,6 @@ async def _fetch_blocking_events(db_svc: DatabaseService) -> list[dict]:
     cursor = await db_svc.db.execute("SELECT * FROM blocking_events ORDER BY id")
     rows = await cursor.fetchall()
     return [dict(row) for row in rows]
-
-
-# Tier 1 (watchdog) persistence — exactly one row, correct columns
 
 
 class TestTier1Persistence:
@@ -178,9 +170,6 @@ class TestTier1Persistence:
         assert rows[0]["source_location"] is None
 
 
-# Tier 2 (monkeypatch) persistence — exactly one row, correct columns
-
-
 class TestTier2Persistence:
     async def test_monkeypatch_event_inserts_one_row(
         self,
@@ -224,9 +213,6 @@ class TestTier2Persistence:
         assert len(rows) == 2
         tiers = {r["tier"] for r in rows}
         assert tiers == {"watchdog", "monkeypatch"}
-
-
-# Unresolved owner → source_tier='framework', not dropped
 
 
 class TestUnresolvedOwnerPersistence:

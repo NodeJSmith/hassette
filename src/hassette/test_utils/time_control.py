@@ -5,9 +5,9 @@ and supporting helpers extracted from ``app_harness.py``.
 """
 
 import contextlib
-import logging
 import threading
 from contextlib import AsyncExitStack
+from logging import getLogger
 from typing import TYPE_CHECKING, ClassVar
 from unittest.mock import patch
 
@@ -16,7 +16,7 @@ from whenever import Instant, ZonedDateTime
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 # Process-local lock for freeze_time within this Python interpreter. Guards
 # against overlapping freeze_time calls from multiple threads, and also from

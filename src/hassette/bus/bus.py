@@ -1,5 +1,4 @@
-"""
-Event bus for subscribing to Home Assistant and Hassette events with powerful filtering.
+"""Event bus for subscribing to Home Assistant and Hassette events with powerful filtering.
 
 The Bus provides a clean interface for listening to state changes, service calls, and other events
 from Home Assistant. Each app gets its own Bus instance that automatically manages subscriptions
@@ -93,7 +92,7 @@ import logging
 import typing
 from collections.abc import Coroutine, Mapping
 from functools import partial
-from typing import Any, Literal, Unpack
+from typing import Any, Unpack
 
 from typing_extensions import Sentinel
 
@@ -105,7 +104,7 @@ from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredErro
 from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
@@ -122,6 +121,11 @@ if typing.TYPE_CHECKING:
     from hassette.core.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
+
+
+def _require_name(name: str | None, handler: "HandlerType", topic: str) -> None:
+    if name is None:
+        raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
 
 
 class Bus(Resource):
@@ -223,7 +227,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
         """Add a pre-built listener to the bus.
 
@@ -265,7 +269,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Listener | None":
         """Resolve a potential registration collision using the if_exists policy.
 
@@ -327,7 +331,7 @@ class Bus(Resource):
         self,
         listener: "Listener",
         *,
-        if_exists: Literal["error", "skip", "replace"],
+        if_exists: IfExistsPolicy,
     ) -> Subscription:
         """Resolve a collision then register the listener, returning its Subscription.
 
@@ -430,7 +434,7 @@ class Bus(Resource):
         *,
         topic: str,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
         debounce: float | None = None,
@@ -441,7 +445,7 @@ class Bus(Resource):
         backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -490,8 +494,7 @@ class Bus(Resource):
             ValueError: If ``if_exists="skip"`` and a listener with the same ``(name, topic)``
                 exists but with a different configuration (the message lists the changed fields).
         """
-        if name is None:
-            raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
+        _require_name(name, handler, topic)
         # Eager capture in the public def — user frame is live here (not inside the async body).
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _on_internal (populates ListenerIdentity.source_location / registration_source on the DB record).
@@ -527,7 +530,7 @@ class Bus(Resource):
         *,
         topic: str,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
         debounce: float | None = None,
@@ -538,7 +541,7 @@ class Bus(Resource):
         backpressure: "BackpressurePolicy | str | None" = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip", "replace"] = "error",
+        if_exists: IfExistsPolicy = "error",
         duration_config: "DurationConfig | None" = None,
         source_location: str = "",
         registration_source: str | None = None,
@@ -587,8 +590,7 @@ class Bus(Resource):
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)
 
-        if name is None:
-            raise ListenerNameRequiredError(handler_method=handler_name, topic=topic)
+        _require_name(name, handler, topic)
 
         # Resolve instance_name once at registration so the executor hot path reads it off the
         # command instead of traversing app_handler per execution.
@@ -660,7 +662,7 @@ class Bus(Resource):
         topic: str,
         handler: "HandlerType",
         preds: list["Predicate"],
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         log_params: Mapping[str, Any] | None = None,
         immediate: bool = False,
@@ -750,7 +752,7 @@ class Bus(Resource):
         changed: bool | ComparisonCondition = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
@@ -806,11 +808,7 @@ class Bus(Resource):
                 (the default).
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-            )
+        _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}")
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -861,7 +859,7 @@ class Bus(Resource):
         changed: bool | ComparisonCondition = True,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
@@ -909,12 +907,7 @@ class Bus(Resource):
                 registered and ``if_exists="error"`` (the default).
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
-        if name is None:
-            # [{attr}] suffix distinguishes this error from on_state_change's (same wire topic).
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]",
-            )
+        _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]")
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -1015,11 +1008,7 @@ class Bus(Resource):
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
                 registered and ``if_exists="error"`` (the default).
         """
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=str(Topic.HASS_EVENT_CALL_SERVICE),
-            )
+        _require_name(name, handler, str(Topic.HASS_EVENT_CALL_SERVICE))
         preds: list[Predicate] = []
         if domain is not None:
             preds.append(P.DomainMatches(domain))
@@ -1056,7 +1045,7 @@ class Bus(Resource):
         component: str | None = None,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -1078,11 +1067,7 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=str(Topic.HASS_EVENT_COMPONENT_LOADED),
-            )
+        _require_name(name, handler, str(Topic.HASS_EVENT_COMPONENT_LOADED))
         preds: list[Predicate] = []
 
         if component is not None:
@@ -1116,7 +1101,7 @@ class Bus(Resource):
         service: str | None = None,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -1139,11 +1124,7 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=str(Topic.HASS_EVENT_SERVICE_REGISTERED),
-            )
+        _require_name(name, handler, str(Topic.HASS_EVENT_SERVICE_REGISTERED))
         preds: list[Predicate] = []
 
         if domain is not None:
@@ -1177,7 +1158,7 @@ class Bus(Resource):
     def on_homeassistant_restart(
         self,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1203,7 +1184,7 @@ class Bus(Resource):
     def on_homeassistant_start(
         self,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1229,7 +1210,7 @@ class Bus(Resource):
     def on_homeassistant_stop(
         self,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1257,7 +1238,7 @@ class Bus(Resource):
         status: ResourceStatus | None = None,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -1282,11 +1263,7 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
-            )
+        _require_name(name, handler, str(Topic.HASSETTE_EVENT_SERVICE_STATUS))
         preds: list[Predicate] = []
 
         if status is not None:
@@ -1318,7 +1295,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1348,7 +1325,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1375,7 +1352,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1402,7 +1379,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1434,7 +1411,7 @@ class Bus(Resource):
         self,
         *,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1468,7 +1445,7 @@ class Bus(Resource):
         handler: "HandlerType",
         app_key: str | None = None,
         status: ResourceStatus | None = None,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -1491,11 +1468,7 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        if name is None:
-            raise ListenerNameRequiredError(
-                handler_method=callable_name(handler),
-                topic=str(Topic.HASSETTE_EVENT_APP_STATE_CHANGED),
-            )
+        _require_name(name, handler, str(Topic.HASSETTE_EVENT_APP_STATE_CHANGED))
         preds: list[Predicate] = []
 
         if app_key is not None:
@@ -1531,7 +1504,7 @@ class Bus(Resource):
         *,
         handler: "HandlerType",
         app_key: str | None = None,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],
@@ -1566,7 +1539,7 @@ class Bus(Resource):
         *,
         handler: "HandlerType",
         app_key: str | None = None,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         name: str | None = None,
         **opts: Unpack[Options],

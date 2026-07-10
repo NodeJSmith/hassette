@@ -1,8 +1,4 @@
 # pyright: reportInvalidTypeForm=none
-
-# disabling reportInvalidTypeForm - i know this is invalid, but it works best for the dynamic
-# nature of the tests
-
 """Tests for Maybe/Required annotations and custom dependency injection extractors."""
 
 from typing import Annotated

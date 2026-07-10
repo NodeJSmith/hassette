@@ -183,8 +183,8 @@ class TestCrossThreadSpawnTimeout:
             nonlocal error
             try:
                 bucket.spawn(noop(), name="doomed-task")
-            except RuntimeError as e:
-                error = e
+            except RuntimeError as exc:
+                error = exc
 
         with patch.object(CfFuture, "result", side_effect=CfTimeout("timed out")):
             t = threading.Thread(target=try_spawn)

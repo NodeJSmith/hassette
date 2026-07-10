@@ -48,27 +48,27 @@ describe("useMediaQuery", () => {
 
   it("returns true when below breakpoint", async () => {
     currentMatches = true;
-    const { useMediaQuery } = await import("./use-media-query");
+    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
 
-    const { result } = renderHook(() => useMediaQuery(768));
+    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
 
     expect(result.current).toBe(true);
   });
 
   it("returns false when above breakpoint", async () => {
     currentMatches = false;
-    const { useMediaQuery } = await import("./use-media-query");
+    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
 
-    const { result } = renderHook(() => useMediaQuery(768));
+    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
 
     expect(result.current).toBe(false);
   });
 
   it("responds to change event", async () => {
     currentMatches = false;
-    const { useMediaQuery } = await import("./use-media-query");
+    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
 
-    const { result } = renderHook(() => useMediaQuery(768));
+    const { result } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
     expect(result.current).toBe(false);
 
     act(() => {
@@ -82,9 +82,9 @@ describe("useMediaQuery", () => {
 
   it("cleans up listener on unmount", async () => {
     currentMatches = false;
-    const { useMediaQuery } = await import("./use-media-query");
+    const { useMediaQuery, BREAKPOINT_MOBILE } = await import("./use-media-query");
 
-    const { unmount } = renderHook(() => useMediaQuery(768));
+    const { unmount } = renderHook(() => useMediaQuery(BREAKPOINT_MOBILE));
     unmount();
 
     expect(removeSpy).toHaveBeenCalledWith("change", expect.any(Function));

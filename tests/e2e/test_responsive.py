@@ -17,11 +17,6 @@ from tests.e2e.conftest import (
 pytestmark = pytest.mark.e2e
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Off-canvas drawer visibility (mobile nav)
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile viewport."""
     page.set_viewport_size(MOBILE_VIEWPORT)
@@ -73,11 +68,6 @@ def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
     expect(hamburger).not_to_be_visible()
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Apps list: card layout on mobile, table on desktop
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_apps_card_layout_at_375px(page: Page, base_url: str) -> None:
     """Mobile viewport shows the apps table with columns 3+ hidden."""
     page.set_viewport_size(MOBILE_VIEWPORT)
@@ -101,11 +91,6 @@ def test_apps_table_layout_at_1024px(page: Page, base_url: str) -> None:
     expect(third_header).to_be_visible()
 
 
-# ──────────────────────────────────────────────────────────────────────
-# KPI strip ordering at mobile
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
     """Stats strip first cell shows 'total' on the apps page at mobile width."""
     page.set_viewport_size(MOBILE_VIEWPORT)
@@ -114,11 +99,6 @@ def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
     expect(stats_strip).to_be_visible()
     first_label = stats_strip.locator("[data-testid='stats-strip-label']").first
     expect(first_label).to_have_text("total")
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Touch targets
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_touch_targets_44px(page: Page, base_url: str) -> None:
@@ -141,11 +121,6 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     assert box["height"] >= 44, f"Hamburger height {box['height']}px < 44px"
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Breakpoint boundary
-# ──────────────────────────────────────────────────────────────────────
-
-
 def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     """At exactly 768px, columns 3+ are hidden (max-width: 768px triggers)."""
     page.set_viewport_size(MOBILE_BOUNDARY_VIEWPORT)
@@ -155,11 +130,6 @@ def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     expect(table).to_be_visible()
     third_header = table.locator("th:nth-child(3)")
     expect(third_header).not_to_be_visible()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Log table app tag on mobile
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
@@ -179,11 +149,6 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     # Log entries should still be visible despite missing App column
     rows = page.locator("[data-testid='log-table'] tbody tr")
     assert rows.count() > 0, "Expected at least one log row on mobile"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Mobile table layout — no horizontal scroll
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> None:
@@ -237,11 +202,6 @@ def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> N
 
     page_scrollable = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
     assert not page_scrollable, "Page is horizontally scrollable — apps table is breaking out of viewport"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Handler detail drill-down on narrow viewport
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_handler_detail_accessible_on_narrow_viewport(page: Page, base_url: str) -> None:

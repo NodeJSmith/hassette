@@ -211,7 +211,7 @@ class TestJobSummary:
         assert model.total_duration_ms == 75.0
 
     def test_job_summary_mode_default(self) -> None:
-        """mode defaults to 'single' when not supplied."""
+        """Mode defaults to 'single' when not supplied."""
         data = {
             "job_id": 6,
             "app_key": "test_app",
@@ -264,7 +264,7 @@ class TestJobSummary:
         assert model.dropped_count == 1
 
     def test_job_summary_skipped_field_present(self) -> None:
-        """skipped field surfaces predicate-skip execution counts; defaults to 0."""
+        """Skipped field surfaces predicate-skip execution counts; defaults to 0."""
         assert "skipped" in JobSummary.model_fields
         assert JobSummary.model_fields["skipped"].default == 0
 
@@ -295,7 +295,7 @@ class TestJobSummary:
         assert model.human_description == "is_home"
 
     def test_job_summary_invariant_with_skipped(self) -> None:
-        """successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
+        """Successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
         data = {
             "job_id": 9,
             "app_key": "test_app",

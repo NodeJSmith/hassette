@@ -3,7 +3,9 @@
 from unittest.mock import Mock
 
 from hassette.resources.base import Resource
+from hassette.test_utils import wait_for
 from hassette.test_utils.mock_hassette import make_mock_hassette
+from hassette.types.enums import ResourceStatus
 
 
 class ConcreteResource(Resource):
@@ -11,6 +13,10 @@ class ConcreteResource(Resource):
 
     async def on_initialize(self) -> None:
         pass
+
+
+async def wait_for_running(resource: Resource, timeout: float = 3.0) -> None:
+    await wait_for(lambda: resource.status == ResourceStatus.RUNNING, desc="service RUNNING", timeout=timeout)
 
 
 def build_hassette(**overrides):

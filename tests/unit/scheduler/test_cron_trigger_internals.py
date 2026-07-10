@@ -60,7 +60,8 @@ class TestCronTriggerRunTimes:
     def test_first_run_time_with_future_start_anchors_to_start(self) -> None:
         """When start is in the future relative to current_time, the search anchors to start
         and returns the first cron-grid tick strictly after it — not current_time, and not
-        necessarily start itself when start isn't exactly on the grid."""
+        necessarily start itself when start isn't exactly on the grid.
+        """
         start = zdt(2025, 8, 20, 8, 0, 0)  # not on the "0 9 * * *" grid
         trigger = CronTrigger("0 9 * * *", start=start)
         current_time = zdt(2025, 8, 18, 7, 0, 0)

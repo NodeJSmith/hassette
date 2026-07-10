@@ -20,6 +20,13 @@ from hassette.utils.hass_utils import extract_domain
 
 MAX_RETRY_ATTEMPTS = 5
 
+_retry_on_not_ready = retry(
+    retry=retry_if_exception_type(ResourceNotReadyError),
+    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential_jitter(),
+    reraise=True,
+)
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
@@ -71,8 +78,8 @@ class StateProxy(Resource):
 
             self.mark_ready(reason="Initial state sync complete")
 
-        except Exception as e:
-            self.logger.exception("Failed to perform initial state sync: %s", e)
+        except Exception as exc:
+            self.logger.exception("Failed to perform initial state sync: %s", exc)
             raise
 
     async def subscribe_to_events(self) -> None:
@@ -127,12 +134,7 @@ class StateProxy(Resource):
         """
         return sum(1 for _ in self.yield_domain_states(domain))
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current state for an entity.
 
@@ -146,16 +148,18 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-
         # Lock-free read is safe because dict assignment is atomic in CPython
         # and we replace whole objects rather than mutating them
 
         return self.get_state_once(entity_id)
 
-    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        # Stale reads allowed when cache is populated; only raise during cold start
+    def _check_ready(self) -> None:
         if not self.is_ready() and not self.states:
             raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+
+    def get_state_once(self, entity_id: str) -> "HassStateDict | None":
+        # Stale reads allowed when cache is populated; only raise during cold start
+        self._check_ready()
 
         return self.states.get(entity_id)
 
@@ -172,15 +176,9 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-
         return {eid: state for eid, state in self.yield_domain_states(domain)}
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all states for a specific domain.
 
@@ -199,8 +197,7 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready() and not self.states:
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+        self._check_ready()
 
         def iter_states() -> Generator[tuple[str, "HassStateDict"], Any, None]:
             # Snapshot to avoid RuntimeError if load_cache() mutates the dict mid-iteration
@@ -213,12 +210,7 @@ class StateProxy(Resource):
 
         return iter_states()
 
-    @retry(
-        retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-        wait=wait_exponential_jitter(),
-        reraise=True,
-    )
+    @_retry_on_not_ready
     def __contains__(self, entity_id: str) -> bool:
         """Check if a specific entity ID exists in the state proxy.
 
@@ -232,8 +224,7 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-        if not self.is_ready() and not self.states:
-            raise ResourceNotReadyError(f"StateProxy is not ready (reason: {self._ready_reason}).")
+        self._check_ready()
         return entity_id in self.states
 
     async def on_state_change(self, event: RawStateChangeEvent) -> None:
@@ -321,15 +312,15 @@ class StateProxy(Resource):
             try:
                 await self.load_cache()
                 load_cache_succeeded = True
-            except Exception as e:
-                self.logger.exception("Failed to resync states after HA restart: %s", e)
+            except Exception as exc:
+                self.logger.exception("Failed to resync states after HA restart: %s", exc)
 
             subscribe_succeeded = False
             try:
                 await self.subscribe_to_events()
                 subscribe_succeeded = True
-            except Exception as e:
-                self.logger.exception("Failed to subscribe to events after reconnect: %s", e)
+            except Exception as exc:
+                self.logger.exception("Failed to subscribe to events after reconnect: %s", exc)
 
             if load_cache_succeeded and subscribe_succeeded:
                 self.mark_ready(reason="Connected")

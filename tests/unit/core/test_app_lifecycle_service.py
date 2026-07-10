@@ -10,6 +10,8 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
+from .conftest import make_mock_app_instance
+
 
 class TestAppLifecycleServiceInit:
     def test_stores_registry_reference(
@@ -114,26 +116,8 @@ class TestInitializeInstances:
 
     async def test_multiple_instances(self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock) -> None:
         """Initializes all provided instances."""
-        app1 = AsyncMock()
-        app1.app_config = MagicMock(instance_name="instance_0")
-        app1.initialize = AsyncMock()
-        app1.mark_ready = Mock()
-        app1.bus = MagicMock()
-        app1.bus.get_listeners = Mock(return_value=[])
-        app1.bus.owner_id = "TestApp.instance_0"
-        app1.scheduler = MagicMock()
-        app1.scheduler.get_job_db_ids = Mock(return_value=[])
-
-        app2 = AsyncMock()
-        app2.app_config = MagicMock(instance_name="instance_1")
-        app2.initialize = AsyncMock()
-        app2.mark_ready = Mock()
-        app2.bus = MagicMock()
-        app2.bus.get_listeners = Mock(return_value=[])
-        app2.bus.owner_id = "TestApp.instance_1"
-        app2.scheduler = MagicMock()
-        app2.scheduler.get_job_db_ids = Mock(return_value=[])
-
+        app1 = make_mock_app_instance(instance_name="instance_0", class_name="TestApp")
+        app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
         instances = {0: app1, 1: app2}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -184,25 +168,10 @@ class TestInitializeInstances:
         self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock, mock_registry: MagicMock
     ) -> None:
         """Initializes remaining instances after one fails."""
-        app1 = AsyncMock()
-        app1.app_config = MagicMock(instance_name="instance_0")
+        app1 = make_mock_app_instance(instance_name="instance_0", class_name="TestApp")
         app1.initialize = AsyncMock(side_effect=ValueError("Failed"))
-        app1.status = ResourceStatus.NOT_STARTED
-        app1.bus = MagicMock()
-        app1.bus.get_listeners = Mock(return_value=[])
-        app1.bus.owner_id = "TestApp.instance_0"
-        app1.scheduler = MagicMock()
-        app1.scheduler.get_job_db_ids = Mock(return_value=[])
 
-        app2 = AsyncMock()
-        app2.app_config = MagicMock(instance_name="instance_1")
-        app2.initialize = AsyncMock()
-        app2.mark_ready = Mock()
-        app2.bus = MagicMock()
-        app2.bus.get_listeners = Mock(return_value=[])
-        app2.bus.owner_id = "TestApp.instance_1"
-        app2.scheduler = MagicMock()
-        app2.scheduler.get_job_db_ids = Mock(return_value=[])
+        app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
 
         instances = {0: app1, 1: app2}
 
@@ -542,68 +511,57 @@ class TestStartApps:
 
 
 class TestShouldAutostart:
-    def test_returns_true_when_manifest_autostart_true(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    @pytest.mark.parametrize(
+        ("autostart", "manifest_exists", "expected"),
+        [
+            (True, True, True),
+            (False, True, False),
+            (None, False, False),
+        ],
+        ids=["autostart_true", "autostart_false", "manifest_missing"],
+    )
+    def test_should_autostart(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        autostart: bool | None,
+        manifest_exists: bool,
+        expected: bool,
     ) -> None:
-        """Returns True when manifest exists and autostart=True."""
-        manifest = MagicMock()
-        manifest.autostart = True
-        mock_registry.get_manifest = Mock(return_value=manifest)
+        if manifest_exists:
+            manifest = MagicMock()
+            manifest.autostart = autostart
+            mock_registry.get_manifest = Mock(return_value=manifest)
+        else:
+            mock_registry.get_manifest = Mock(return_value=None)
 
-        assert lifecycle_service.should_autostart("app_a") is True
-
-    def test_returns_false_when_manifest_autostart_false(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False when manifest exists and autostart=False."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-
-        assert lifecycle_service.should_autostart("app_a") is False
-
-    def test_returns_false_when_manifest_missing(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False when manifest does not exist."""
-        mock_registry.get_manifest = Mock(return_value=None)
-
-        assert lifecycle_service.should_autostart("unknown_app") is False
+        assert lifecycle_service.should_autostart("app_a") is expected
 
 
 class TestShouldAutoReconcile:
-    def test_returns_true_when_app_running(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    @pytest.mark.parametrize(
+        ("autostart", "is_running", "expected"),
+        [
+            (False, True, True),
+            (True, False, True),
+            (False, False, False),
+        ],
+        ids=["running_overrides_autostart", "autostart_true", "not_running_no_autostart"],
+    )
+    def test_should_auto_reconcile(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        autostart: bool,
+        is_running: bool,
+        expected: bool,
     ) -> None:
-        """Returns True for a running app regardless of autostart."""
         manifest = MagicMock()
-        manifest.autostart = False
+        manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        mock_registry.apps = {"app_a": {0: MagicMock()}} if is_running else {}
 
-        assert lifecycle_service.should_auto_reconcile("app_a") is True
-
-    def test_returns_true_when_app_not_running_but_autostart_true(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns True for a non-running app when autostart=True."""
-        manifest = MagicMock()
-        manifest.autostart = True
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
-
-        assert lifecycle_service.should_auto_reconcile("app_a") is True
-
-    def test_returns_false_when_app_not_running_and_autostart_false(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Returns False for a non-running app when autostart=False."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
-
-        assert lifecycle_service.should_auto_reconcile("app_a") is False
+        assert lifecycle_service.should_auto_reconcile("app_a") is expected
 
 
 class TestApplyChangesGating:

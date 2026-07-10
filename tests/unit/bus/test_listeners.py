@@ -33,80 +33,40 @@ class TestListenerConfigMatches:
         b = create_listener(handler=fn)
         assert a.diff_fields(b) == []
 
-    def test_different_handler_not_matching(self) -> None:
-        """Different handlers → config_matches=False, 'handler' in diff_fields."""
-        a = create_listener(handler=fn)
-        b = create_listener(handler=fn_other)
+    @pytest.mark.parametrize(
+        ("field", "kwargs_a", "kwargs_b"),
+        [
+            ("handler", {"handler": fn}, {"handler": fn_other}),
+            ("predicate", {"handler": fn, "where": StateTo("on")}, {"handler": fn, "where": StateTo("off")}),
+            ("once", {"handler": fn, "once": False}, {"handler": fn, "once": True}),
+            ("mode", {"handler": fn, "mode": "single"}, {"handler": fn, "mode": "queued"}),
+            ("debounce", {"handler": fn, "debounce": 1.0}, {"handler": fn, "debounce": 2.0}),
+            ("throttle", {"handler": fn, "throttle": 1.0}, {"handler": fn, "throttle": 2.0}),
+            ("timeout", {"handler": fn, "timeout": 5.0}, {"handler": fn, "timeout": 10.0}),
+            ("timeout_disabled", {"handler": fn, "timeout_disabled": False}, {"handler": fn, "timeout_disabled": True}),
+            ("priority", {"handler": fn, "priority": 0}, {"handler": fn, "priority": 5}),
+            ("kwargs", {"handler": fn, "kwargs": {"key": "a"}}, {"handler": fn, "kwargs": {"key": "b"}}),
+        ],
+        ids=[
+            "handler",
+            "predicate",
+            "once",
+            "mode",
+            "debounce",
+            "throttle",
+            "timeout",
+            "timeout_disabled",
+            "priority",
+            "kwargs",
+        ],
+    )
+    def test_different_field_not_matching(self, field: str, kwargs_a: dict, kwargs_b: dict) -> None:
+        a = create_listener(**kwargs_a)
+        b = create_listener(**kwargs_b)
         assert a.config_matches(b) is False
-        assert "handler" in a.diff_fields(b)
-
-    def test_different_predicate_not_matching(self) -> None:
-        """Different predicates → config_matches=False, 'predicate' in diff_fields."""
-        pred_a = StateTo("on")
-        pred_b = StateTo("off")
-        a = create_listener(handler=fn, where=pred_a)
-        b = create_listener(handler=fn, where=pred_b)
-        assert a.config_matches(b) is False
-        assert "predicate" in a.diff_fields(b)
-
-    def test_different_once_not_matching(self) -> None:
-        """Different once → 'once' in diff_fields."""
-        a = create_listener(handler=fn, once=False)
-        b = create_listener(handler=fn, once=True)
-        assert a.config_matches(b) is False
-        assert "once" in a.diff_fields(b)
-
-    def test_different_mode_not_matching(self) -> None:
-        """A mode-only change → config_matches=False, 'mode' in diff_fields."""
-        a = create_listener(handler=fn, mode="single")
-        b = create_listener(handler=fn, mode="queued")
-        assert a.config_matches(b) is False
-        assert "mode" in a.diff_fields(b)
-
-    def test_different_debounce_not_matching(self) -> None:
-        """Different debounce → 'debounce' in diff_fields."""
-        a = create_listener(handler=fn, debounce=1.0)
-        b = create_listener(handler=fn, debounce=2.0)
-        assert a.config_matches(b) is False
-        assert "debounce" in a.diff_fields(b)
-
-    def test_different_throttle_not_matching(self) -> None:
-        """Different throttle → 'throttle' in diff_fields."""
-        a = create_listener(handler=fn, throttle=1.0)
-        b = create_listener(handler=fn, throttle=2.0)
-        assert a.config_matches(b) is False
-        assert "throttle" in a.diff_fields(b)
-
-    def test_different_timeout_not_matching(self) -> None:
-        """Different timeout → 'timeout' in diff_fields."""
-        a = create_listener(handler=fn, timeout=5.0)
-        b = create_listener(handler=fn, timeout=10.0)
-        assert a.config_matches(b) is False
-        assert "timeout" in a.diff_fields(b)
-
-    def test_different_timeout_disabled_not_matching(self) -> None:
-        """Different timeout_disabled → 'timeout_disabled' in diff_fields."""
-        a = create_listener(handler=fn, timeout_disabled=False)
-        b = create_listener(handler=fn, timeout_disabled=True)
-        assert a.config_matches(b) is False
-        assert "timeout_disabled" in a.diff_fields(b)
-
-    def test_different_priority_not_matching(self) -> None:
-        """Different priority → config_matches=False, 'priority' in diff_fields."""
-        a = create_listener(handler=fn, priority=0)
-        b = create_listener(handler=fn, priority=5)
-        assert a.config_matches(b) is False
-        assert "priority" in a.diff_fields(b)
-
-    def test_different_kwargs_not_matching(self) -> None:
-        """Different kwargs → 'kwargs' in diff_fields."""
-        a = create_listener(handler=fn, kwargs={"key": "a"})
-        b = create_listener(handler=fn, kwargs={"key": "b"})
-        assert a.config_matches(b) is False
-        assert "kwargs" in a.diff_fields(b)
+        assert field in a.diff_fields(b)
 
     def test_different_error_handler_not_matching(self) -> None:
-        """Different error_handler (by identity) → 'error_handler' in diff_fields."""
         eh_a = AsyncMock()
         eh_b = AsyncMock()
         a = create_listener(handler=fn, error_handler=eh_a)
@@ -231,12 +191,12 @@ class TestListenerDurationValidation:
             create_listener(topic="test.topic", duration=-1.0, entity_id="light.test")
 
     def test_validate_duration_conflicts_with_debounce(self) -> None:
-        """duration + debounce raises ValueError."""
+        """Duration + debounce raises ValueError."""
         with pytest.raises(ValueError, match="duration"):
             create_listener(topic="test.topic", duration=5.0, debounce=1.0, entity_id="light.test")
 
     def test_validate_duration_conflicts_with_throttle(self) -> None:
-        """duration + throttle raises ValueError."""
+        """Duration + throttle raises ValueError."""
         with pytest.raises(ValueError, match="duration"):
             create_listener(topic="test.topic", duration=5.0, throttle=1.0, entity_id="light.test")
 

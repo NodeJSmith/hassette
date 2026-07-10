@@ -5,7 +5,7 @@ machinery extracted from ``app_harness.py``.
 """
 
 import asyncio
-import logging
+from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
@@ -24,7 +24,7 @@ from hassette.test_utils.helpers import (
     create_state_change_event,
 )
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 DEFAULT_SIMULATE_TIMEOUT = 2.0
 
 

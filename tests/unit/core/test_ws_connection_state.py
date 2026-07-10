@@ -37,20 +37,20 @@ class TestInitialState:
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
 
-class TestConnectedPropertyMirrorsState:
-    async def test_connected_true_only_for_connected_state(self, websocket_service: WebsocketService) -> None:
-        """connected returns True only when connection_state == CONNECTED."""
+class TestIsConnectedPropertyMirrorsState:
+    async def test_is_connected_true_only_for_connected_state(self, websocket_service: WebsocketService) -> None:
+        """is_connected returns True only when connection_state == CONNECTED."""
         # DISCONNECTED → not connected
         websocket_service._connection_state = ConnectionState.DISCONNECTED
-        assert websocket_service.connected is False
+        assert websocket_service.is_connected is False
 
         # CONNECTING → not connected
         websocket_service._connection_state = ConnectionState.CONNECTING
-        assert websocket_service.connected is False
+        assert websocket_service.is_connected is False
 
         # CONNECTED → connected
         websocket_service._connection_state = ConnectionState.CONNECTED
-        assert websocket_service.connected is True
+        assert websocket_service.is_connected is True
 
 
 class TestValidTransitionTable:

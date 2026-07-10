@@ -137,7 +137,7 @@ class TestTrackExecution:
 
 class TestExecutionResultExc:
     async def test_execution_result_exc_populated_on_exception(self) -> None:
-        """exc is set to the raised exception in the except Exception branch."""
+        """Exc is set to the raised exception in the except Exception branch."""
         exc = ValueError("fail")
 
         with pytest.raises(ValueError, match="fail"):
@@ -147,14 +147,14 @@ class TestExecutionResultExc:
         assert result.exc is exc
 
     async def test_execution_result_exc_none_on_success(self) -> None:
-        """exc is None when execution completes successfully."""
+        """Exc is None when execution completes successfully."""
         async with track_execution() as result:
             pass
 
         assert result.exc is None
 
     async def test_execution_result_exc_none_on_cancelled(self) -> None:
-        """exc is None when execution is cancelled — CancelledError is not an Exception."""
+        """Exc is None when execution is cancelled — CancelledError is not an Exception."""
         with pytest.raises(asyncio.CancelledError):
             async with track_execution() as result:
                 raise asyncio.CancelledError()
@@ -162,7 +162,7 @@ class TestExecutionResultExc:
         assert result.exc is None
 
     async def test_execution_result_exc_populated_on_timeout(self) -> None:
-        """exc is populated when execution times out — TimeoutError is captured for error handlers."""
+        """Exc is populated when execution times out — TimeoutError is captured for error handlers."""
         with pytest.raises(TimeoutError):
             async with track_execution() as result:
                 raise TimeoutError("timed out")

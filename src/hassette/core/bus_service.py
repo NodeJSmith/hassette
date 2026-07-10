@@ -24,10 +24,10 @@ from hassette.events import Event, HassPayload
 from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
-from hassette.resources.restart import RestartSpec
+from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import BackpressurePolicy, RestartType, Topic
+from hassette.types.enums import BackpressurePolicy, Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -57,11 +57,7 @@ class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService, SyncExecutorService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.PERMANENT,
-        budget_intensity=2,
-        budget_period_seconds=30,
-    )
+    restart_spec = CORE_PERMANENT_RESTART
 
     stream: "MemoryObjectReceiveStream[Event[Any]]"
     """Stream to receive events from."""
@@ -372,7 +368,6 @@ class BusService(Service):
 
     async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
-
         if self._event_filter.should_skip(base_topic, event):
             return
 
@@ -554,10 +549,7 @@ class BusService(Service):
             exc: The exception the predicate raised.
             start_ts: Unix timestamp when predicate evaluation began.
         """
-        try:
-            session_id: int | None = self.hassette.session_id
-        except RuntimeError:
-            session_id = None
+        session_id = self.hassette.try_session_id()
 
         traceback_str = "".join(traceback.format_exception(exc))
         execution_id = str(uuid_utils.uuid7())
@@ -678,7 +670,6 @@ class BusService(Service):
 
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
-
         async with self.stream:
             self.mark_ready(reason="Stream opened")
             async for event in self.stream:
@@ -694,8 +685,8 @@ class BusService(Service):
                     break
                 try:
                     await self.dispatch(str(event.topic), event)
-                except Exception as e:
-                    self.logger.exception("Error processing event: %s", e)
+                except Exception as exc:
+                    self.logger.exception("Error processing event: %s", exc)
 
 
 def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:

@@ -49,63 +49,15 @@ def run_generator_check(target: str) -> subprocess.CompletedProcess[str]:
         )
 
 
-def test_generator_check_mode_exits_zero() -> None:
-    """Generator --target recording --check exits 0 when sync_facade.py is current.
-
-    Fails when ``src/hassette/test_utils/sync_facade.py`` has drifted from its
-    sources (``recording_api.py``, ``api.py``, or ``codegen/src/hassette_codegen/sync_facade/``).
-    On failure the captured stderr describes what changed.
-    """
-    result = run_generator_check("recording")
+# The "api" target also guards against ruff-pipeline divergence (discovered via a prior isort gap).
+@pytest.mark.parametrize("target", ["recording", "api", "bus", "scheduler"])
+def test_generator_check_mode_exits_zero(target: str) -> None:
+    """Generator --target <target> --check exits 0 when the generated file is current."""
+    result = run_generator_check(target)
     assert result.returncode == 0, (
-        "Generator --target recording --check exited non-zero — sync_facade.py has drifted.\n"
+        f"Generator --target {target} --check exited non-zero — generated file has drifted.\n"
         "Re-run locally to update it:\n"
-        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target recording\n\n"
-        f"--- stderr ---\n{result.stderr}\n"
-        f"--- stdout ---\n{result.stdout}"
-    )
-
-
-def test_generator_check_mode_api_exits_zero() -> None:
-    """Generator --target api --check exits 0 when sync.py is current.
-
-    Smoke-tests the existing api-generation path through --check mode. Acts
-    as a regression guard against any future change to ``run_ruff()``,
-    ``_format_via_ruff()``, or the api-generation pipeline that would cause
-    --check to spuriously fail on a current ``src/hassette/api/sync.py``
-    (e.g., adding a byte-affecting ruff step on the write path without also
-    adding it to the check path, the way the prior isort gap was
-    discovered).
-    """
-    result = run_generator_check("api")
-    assert result.returncode == 0, (
-        "Generator --target api --check exited non-zero — sync.py has drifted.\n"
-        "Re-run locally to update it:\n"
-        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target api\n\n"
-        f"--- stderr ---\n{result.stderr}\n"
-        f"--- stdout ---\n{result.stdout}"
-    )
-
-
-def test_generator_check_mode_bus_exits_zero() -> None:
-    """Generator --target bus --check exits 0 when bus/sync.py is current."""
-    result = run_generator_check("bus")
-    assert result.returncode == 0, (
-        "Generator --target bus --check exited non-zero — bus/sync.py has drifted.\n"
-        "Re-run locally to update it:\n"
-        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target bus\n\n"
-        f"--- stderr ---\n{result.stderr}\n"
-        f"--- stdout ---\n{result.stdout}"
-    )
-
-
-def test_generator_check_mode_scheduler_exits_zero() -> None:
-    """Generator --target scheduler --check exits 0 when scheduler/sync.py is current."""
-    result = run_generator_check("scheduler")
-    assert result.returncode == 0, (
-        "Generator --target scheduler --check exited non-zero — scheduler/sync.py has drifted.\n"
-        "Re-run locally to update it:\n"
-        "  uv run python codegen/src/hassette_codegen/sync_facade/ --target scheduler\n\n"
+        f"  uv run python codegen/src/hassette_codegen/sync_facade/ --target {target}\n\n"
         f"--- stderr ---\n{result.stderr}\n"
         f"--- stdout ---\n{result.stdout}"
     )

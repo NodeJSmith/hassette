@@ -5,10 +5,6 @@ import { createJob, createListener } from "../test/factories";
 import type { HandlerSortKey, UnifiedRow } from "./handler-rows";
 import { compareHandlerRows, jobToRow, listenerToRow } from "./handler-rows";
 
-// ---------------------------------------------------------------------------
-// listenerToRow
-// ---------------------------------------------------------------------------
-
 describe("listenerToRow", () => {
   it("sets kind to listener", () => {
     const row = listenerToRow(createListener());
@@ -80,10 +76,6 @@ describe("listenerToRow", () => {
     expect(row.next_run_ts).toBeNull();
   });
 });
-
-// ---------------------------------------------------------------------------
-// jobToRow
-// ---------------------------------------------------------------------------
 
 describe("jobToRow", () => {
   it("sets kind to job", () => {
@@ -167,10 +159,6 @@ describe("jobToRow", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// compareHandlerRows — helpers
-// ---------------------------------------------------------------------------
-
 function asc(key: HandlerSortKey): SortState<HandlerSortKey> {
   return { key, dir: "asc" };
 }
@@ -197,10 +185,6 @@ function row(overrides: Partial<UnifiedRow>): UnifiedRow {
     ...overrides,
   };
 }
-
-// ---------------------------------------------------------------------------
-// compareHandlerRows — sort key tests
-// ---------------------------------------------------------------------------
 
 describe("compareHandlerRows — kind", () => {
   it("asc: job sorts before listener (j < l lexically)", () => {

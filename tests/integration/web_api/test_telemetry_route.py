@@ -110,7 +110,7 @@ class TestAppJobsModeAndLiveCounts:
     """mode and suppressed/dropped counts surface correctly from the live heap."""
 
     async def test_mode_from_db_flows_through_to_response(self, client, mock_hassette) -> None:
-        """mode from DB row appears in the API response."""
+        """Mode from DB row appears in the API response."""
         db_summary = make_job_summary(job_id=10, job_name="queued_job", handler_method="MyApp.on_run")
         # Simulate DB row having mode='queued' via model_copy
         db_summary = db_summary.model_copy(update={"mode": ExecutionMode.QUEUED})

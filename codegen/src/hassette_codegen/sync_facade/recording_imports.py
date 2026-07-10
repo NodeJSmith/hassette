@@ -200,6 +200,7 @@ def collect_annotation_symbols(func: ast.AsyncFunctionDef | ast.FunctionDef) -> 
         Tuple of (runtime_symbols, string_ref_symbols):
         - runtime_symbols: Names used in non-quoted annotations (need direct imports).
         - string_ref_symbols: Names inside quoted string annotations (need TYPE_CHECKING imports).
+
     """
     runtime_symbols: set[str] = set()
     string_ref_symbols: set[str] = set()

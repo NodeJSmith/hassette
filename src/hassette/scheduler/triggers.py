@@ -4,7 +4,7 @@ Each trigger encapsulates a scheduling strategy (fixed delay, wall-clock time,
 cron expression, etc.) and exposes a uniform interface via TriggerProtocol.
 """
 
-import logging
+from logging import getLogger
 from typing import Literal
 
 from whenever import TimeDelta, ZonedDateTime
@@ -13,7 +13,7 @@ import hassette.utils.date_utils as date_utils
 
 from .classes import CronTrigger
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
@@ -318,8 +318,8 @@ class Cron:
         self._expression = expression
         try:
             self._cron = CronTrigger(expression)
-        except ValueError as e:
-            raise ValueError(f"Invalid cron expression: {expression!r}") from e
+        except ValueError as exc:
+            raise ValueError(f"Invalid cron expression: {expression!r}") from exc
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return the first cron-grid-aligned run time at or after current_time."""

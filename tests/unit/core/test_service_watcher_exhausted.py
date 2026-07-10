@@ -15,7 +15,7 @@ from hassette.resources.service import Service
 from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType
 
-from .conftest import _DummyService, _TempService, build_watcher_hassette, make_watcher
+from .conftest import DummyService, TempService, build_watcher_hassette, make_watcher
 
 
 def make_failed_payload(service: Service) -> ServiceStatusPayload:
@@ -36,7 +36,7 @@ def make_failed_payload(service: Service) -> ServiceStatusPayload:
 async def test_exhausted_cooling_sets_status_on_instance():
     """TRANSIENT service: handle_exhaustion sets EXHAUSTED_COOLING on the service instance."""
     hassette = build_watcher_hassette()
-    service = _DummyService(hassette)
+    service = DummyService(hassette)
     service._status = ResourceStatus.FAILED
     hassette.children = [service]
 
@@ -74,7 +74,7 @@ async def test_exhausted_cooling_sets_status_on_instance():
 async def test_exhausted_dead_sets_status_on_instance():
     """TEMPORARY service: handle_exhaustion sets EXHAUSTED_DEAD on the service instance."""
     hassette = build_watcher_hassette()
-    service = _TempService(hassette)
+    service = TempService(hassette)
     service._status = ResourceStatus.FAILED
     hassette.children = [service]
 
@@ -98,7 +98,7 @@ async def test_exhausted_dead_sets_status_on_instance():
 async def test_cooldown_exceeded_sets_exhausted_dead():
     """cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when max_cooldown_cycles exceeded."""
     hassette = build_watcher_hassette()
-    service = _DummyService(hassette)
+    service = DummyService(hassette)
     service._status = ResourceStatus.EXHAUSTED_COOLING
     hassette.children = [service]
 

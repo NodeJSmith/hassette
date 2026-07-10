@@ -403,15 +403,11 @@ Any assertion that verifies a value that comes from seed data (telemetry counts,
 **Wrong** (breaks silently when seed data changes):
 ```python
 expect(counts).to_contain_text("30 inv")
-expect(kpi_strip).to_contain_text("9 / 61 invocations")
-expect(error_items).to_have_count(5)
 ```
 
 **Right** (self-updating, single source of truth):
 ```python
-expect(counts).to_contain_text(f"{APP_TIER_MY_APP_TOTAL_INVOCATIONS} inv")
-expect(kpi_strip).to_contain_text(f"{GLOBAL_TOTAL_FAILURES} / {GLOBAL_COMBINED_TOTAL} invocations")
-expect(error_items).to_have_count(ERRORS_COMBINED_COUNT)
+expect(counts).to_contain_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} inv")
 ```
 
 ### Constant naming
@@ -420,14 +416,10 @@ Module-level constants in `mock_fixtures.py` use tier-qualified names:
 
 | Prefix | Source |
 |---|---|
-| `APP_TIER_` | `build_app_health_summaries()` |
-| `GLOBAL_` | `build_global_summaries()` |
-| `ERRORS_` | `build_error_records()` |
 | `LISTENER_` | `build_listener_telemetry()` |
 | `JOB_` | `build_job_telemetry()` |
-| `FRAMEWORK_TIER_` | `wire_global_summary()` error count side-effects |
 
-All constants reference builder output objects — never hand-written literals.
+All constants reference builder output objects — never hand-written literals. Add new constants only when an E2E test needs them — speculatively deriving every possible value creates dead code.
 
 ### Computation-verifying tests
 
@@ -435,14 +427,7 @@ For tests that verify a formula (not just a displayed value), import the backend
 
 ```python
 from hassette.web.telemetry_helpers import compute_error_rate
-from tests.e2e.mock_fixtures import GLOBAL_TOTAL_INVOCATIONS, GLOBAL_TOTAL_EXECUTIONS, ...
-
-rate = compute_error_rate(
-    total_invocations=GLOBAL_TOTAL_INVOCATIONS,
-    total_executions=GLOBAL_TOTAL_EXECUTIONS,
-    handler_errors=GLOBAL_HANDLER_ERRORS,
-    job_errors=GLOBAL_JOB_ERRORS,
-)
+from tests.e2e.mock_fixtures import LISTENER_MY_APP_1_TOTAL_INVOCATIONS, ...
 ```
 
 ### What does NOT need constants

@@ -1,6 +1,6 @@
 import itertools
 import typing
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
@@ -16,7 +16,7 @@ from hassette.execution_mode import (
     run_through_guard,
 )
 from hassette.types.enums import BackpressurePolicy, ExecutionMode
-from hassette.types.types import SourceTier
+from hassette.types.types import SourceTier, WhereClause
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
@@ -577,7 +577,7 @@ class Listener:
         identity: ListenerIdentity,
         options: ListenerOptions,
         invoker: HandlerInvoker,
-        where: "Predicate | Sequence[Predicate] | None" = None,
+        where: WhereClause = None,
         duration_config: DurationConfig | None = None,
         logger: Logger = LOGGER,
     ) -> "Listener":

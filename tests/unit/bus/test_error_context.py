@@ -46,7 +46,7 @@ class TestBusErrorContextConstruction:
             ctx.topic = "other_topic"  # pyright: ignore[reportGeneralIssues]
 
     def test_bus_error_context_traceback_always_populated(self) -> None:
-        """traceback is always a non-empty string, regardless of exception type."""
+        """Traceback is always a non-empty string, regardless of exception type."""
         for exc_type in [ValueError, RuntimeError, KeyError, SystemExit]:
             exc = exc_type("test")
             tb = "Traceback (most recent call last):\n  ...\nValueError: test\n"
@@ -64,7 +64,7 @@ class TestBusErrorContextConstruction:
             assert len(ctx.traceback) > 0, f"traceback empty for {exc_type}"
 
     def test_bus_error_context_traceback_typed_str_not_optional(self) -> None:
-        """traceback field is typed str, not str | None — must be set to a string value."""
+        """Traceback field is typed str, not str | None — must be set to a string value."""
         fields = {f.name: f for f in dataclasses.fields(BusErrorContext)}
         assert "traceback" in fields
         # The field type should be str, not str | None

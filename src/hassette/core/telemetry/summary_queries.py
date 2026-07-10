@@ -10,10 +10,10 @@ from hassette.core.telemetry.helpers import (
     DEFAULT_SESSION_LIST_LIMIT,
     STORAGE_ERRORS,
     AppHealthAggregates,
-    _build_app_summaries,
-    _row_to_dict,
-    _since_clause,
-    _source_tier_clause,
+    build_app_summaries,
+    row_to_dict,
+    since_clause,
+    source_tier_clause,
 )
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.telemetry_models import AppHealthSummary, SessionRecord
@@ -59,8 +59,8 @@ class SummaryQueriesMixin:
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter by source tier.
         """
-        tier_e_clause, tier_params = _source_tier_clause(source_tier, "e")
-        since_clause, since_params = _since_clause(since, "e.execution_start_ts")
+        tier_e_clause, tier_params = source_tier_clause(source_tier, "e")
+        since_sql, since_params = since_clause(since, "e.execution_start_ts")
 
         params: dict[str, Any] = {
             "app_key": app_key,
@@ -94,7 +94,7 @@ class SummaryQueriesMixin:
                      AND sj.cancelled_at IS NULL)
                 )
                 {tier_e_clause}
-                {since_clause}
+                {since_sql}
             )
             SELECT * FROM agg
         """
@@ -114,7 +114,7 @@ class SummaryQueriesMixin:
                 last_activity_ts=None,
             )
 
-        d = _row_to_dict(row)
+        d = row_to_dict(row)
         return AppHealthAggregates(
             total_invocations=d["total_invocations"] or 0,
             handler_errors=d["handler_errors"] or 0,
@@ -157,12 +157,12 @@ class SummaryQueriesMixin:
 
         # Each call binds the same param keys (:source_tier / :since) regardless of alias,
         # so only the first params dict is kept; the rest are discarded as _.
-        tier_e_handler_clause, tier_params = _source_tier_clause(source_tier, "e_h")
-        tier_e_job_clause, _ = _source_tier_clause(source_tier, "e_j")
-        tier_l_clause, _ = _source_tier_clause(source_tier, "l")
-        tier_sj_clause, _ = _source_tier_clause(source_tier, "sj")
-        since_h_clause, since_params = _since_clause(since, "e_h.execution_start_ts")
-        since_j_clause, _ = _since_clause(since, "e_j.execution_start_ts")
+        tier_e_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
+        tier_e_job_clause, _ = source_tier_clause(source_tier, "e_j")
+        tier_l_clause, _ = source_tier_clause(source_tier, "l")
+        tier_sj_clause, _ = source_tier_clause(source_tier, "sj")
+        since_h_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+        since_j_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
         # Count distinct handler/job identities across all instances, not listener rows.
         # Each instance of a multi-instance app registers its own rows under the same
@@ -232,7 +232,7 @@ class SummaryQueriesMixin:
         except STORAGE_ERRORS as exc:
             raise TelemetryUnavailableError(str(exc)) from exc
 
-        return _build_app_summaries(
+        return build_app_summaries(
             listener_reg_rows=listener_reg_rows,
             listener_act_rows=listener_act_rows,
             job_reg_rows=job_reg_rows,
@@ -265,7 +265,7 @@ class SummaryQueriesMixin:
         """
         async with self.execute(query, {"limit": limit}) as cursor:
             rows = await cursor.fetchall()
-        return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
+        return [SessionRecord.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_log_records(
         self,
@@ -307,7 +307,7 @@ class SummaryQueriesMixin:
         query = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC, seq DESC LIMIT :limit"
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [_row_to_dict(row) for row in rows]
+        return [row_to_dict(row) for row in rows]
 
     async def get_log_records_by_execution(
         self,
@@ -320,4 +320,4 @@ class SummaryQueriesMixin:
         async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
             rows = list(await cursor.fetchall())
         truncated = len(rows) > limit
-        return [_row_to_dict(row) for row in rows[:limit]], truncated
+        return [row_to_dict(row) for row in rows[:limit]], truncated

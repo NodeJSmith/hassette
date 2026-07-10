@@ -28,34 +28,7 @@ from hassette.core.scheduler_service import HeapQueue, SchedulerService, _Schedu
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
 
-
-def make_scheduler_service() -> SchedulerService:
-    """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
-    svc = SchedulerService.__new__(SchedulerService)
-    svc.hassette = MagicMock()
-    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-    svc._removal_callbacks = {}
-    svc.logger = MagicMock()
-
-    # Minimal job queue mock
-    svc._job_queue = MagicMock()
-    svc._job_queue.add = AsyncMock(return_value=None)
-    svc._job_queue.remove_job = AsyncMock(return_value=True)
-
-    # kick() is called after enqueue/remove
-    svc._wakeup_event = asyncio.Event()
-
-    # task_bucket needed by dequeue_job and run_job_with_guard.
-    # spawn() receives a coroutine; close it immediately to avoid unawaited-coroutine warnings.
-    def _spawn(coro, **_kwargs):
-        if hasattr(coro, "close"):
-            coro.close()
-        return MagicMock()
-
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.spawn = _spawn
-
-    return svc
+from .conftest import make_scheduler_service
 
 
 def make_job(
@@ -86,11 +59,6 @@ def make_interval_trigger(*, next_returns=None, next_raises=None):
     else:
         trig.next_run_time.return_value = next_returns
     return trig
-
-
-def frozen_now() -> ZonedDateTime:
-    """Return a stable ZonedDateTime for use in monkeypatching."""
-    return ZonedDateTime(2025, 1, 15, 12, 0, 0, tz="UTC")
 
 
 class TestRescheduleNoneRemovesJob:

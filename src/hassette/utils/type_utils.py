@@ -31,7 +31,6 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     """Normalize a type annotation to something usable in isinstance()."""
-
     # Unwrap type aliases (`type Foo = ...`)
     value = getattr(tp, "__value__", None)
     if value is not None:
@@ -89,31 +88,6 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
     return tp
 
 
-def is_optional_type(tp: type) -> bool:
-    """Return True if the annotation is Optional[...] (i.e. contains None)."""
-    origin = get_origin(tp)
-    args = get_args(tp)
-
-    if origin is None:
-        return False
-
-    return type(None) in args
-
-
-def get_optional_type_arg(tp: type) -> type:
-    """If the annotation is Optional[T], return T; else raise ValueError."""
-    if not is_optional_type(tp):
-        raise ValueError(f"Type {tp} is not Optional[...]")
-
-    args = get_args(tp)
-    non_none_args = [arg for arg in args if arg is not type(None)]
-
-    if len(non_none_args) != 1:
-        raise ValueError(f"Optional type {tp} does not have exactly one non-None argument")
-
-    return non_none_args[0]
-
-
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
     signature = inspect.signature(call)
     globalns = getattr(call, "__globals__", {})
@@ -157,8 +131,7 @@ def is_optional(tp: Any) -> bool:
 
 
 def normalize_constructible(tp: Any) -> Any:
-    """
-    If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
+    """If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
     list[int] / dict[str,int] when possible. Otherwise return tp unchanged.
     """
     origin = get_origin(tp)
@@ -244,8 +217,8 @@ def make_union(types: set[Any]) -> Any:
             flat.update(get_args(t))
         else:
             # Handle both A|B and typing.Union[...] via get_origin
-            o = get_origin(t)
-            if o is UnionType:
+            origin = get_origin(t)
+            if origin is UnionType:
                 flat.update(get_args(t))
             else:
                 flat.add(t)
@@ -253,13 +226,13 @@ def make_union(types: set[Any]) -> Any:
     # Also flatten typing.Union if any slipped in
     really_flat: set[Any] = set()
     for t in flat:
-        o = get_origin(t)
-        if o is None:
+        origin = get_origin(t)
+        if origin is None:
             really_flat.add(t)
         else:
             # PEP604 unions report origin types.UnionType in 3.10+ via get_origin?
             # But typing.Union reports origin typing.Union.
-            if str(o).endswith("typing.Union"):
+            if str(origin).endswith("typing.Union"):
                 really_flat.update(get_args(t))
             else:
                 really_flat.add(t)

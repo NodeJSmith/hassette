@@ -192,7 +192,6 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     @classmethod
     def validate_app_config(cls, v: Any, validation_info: ValidationInfo) -> Any:
         """Set instance name if not set in config."""
-
         if not v:
             return v
 

@@ -12,8 +12,8 @@ Verifies:
 - Service subclasses inherit propagation
 """
 
-from hassette.test_utils import make_mock_hassette, wait_for
-from hassette.types.enums import ResourceStatus
+from hassette.test_utils import make_mock_hassette
+from tests.unit.resources.conftest import wait_for_running
 
 from .conftest import (
     ErrorChild,
@@ -247,7 +247,7 @@ async def test_service_inherits_shutdown_propagation():
     await child_a.initialize()
     await child_b.initialize()
 
-    await wait_for(lambda: parent_svc.status == ResourceStatus.RUNNING, desc="parent service RUNNING")
+    await wait_for_running(parent_svc)
 
     await parent_svc.shutdown()
 

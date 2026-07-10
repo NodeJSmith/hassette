@@ -7,10 +7,10 @@ Verifies:
 
 import pytest
 
-from hassette.test_utils import make_mock_hassette, wait_for
+from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
-from .conftest import ConcreteResource
+from .conftest import ConcreteResource, wait_for_running
 
 
 class TrackedResource(ConcreteResource):
@@ -45,7 +45,7 @@ class TestRestart:
         resource = TrackedResource(hassette=hassette)
 
         await resource.initialize()
-        await wait_for(lambda: resource.status == ResourceStatus.RUNNING, desc="initial RUNNING")
+        await wait_for_running(resource)
         assert resource.init_count == 1
         assert resource.shutdown_count == 0
 

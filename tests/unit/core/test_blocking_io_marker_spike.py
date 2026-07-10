@@ -107,7 +107,8 @@ def test_marker_read_during_block_names_blocker_not_next_execution() -> None:
 @pytest.mark.asyncio(loop_scope="function")
 async def test_spike_daemon_attributes_block_heartbeat_cannot() -> None:
     """With a real time.sleep freezing the loop, the daemon thread (B) names the blocker and the
-    in-loop heartbeat (A) cannot — it is starved during the freeze."""
+    in-loop heartbeat (A) cannot — it is starved during the freeze.
+    """
     executor = make_executor()
     loop = asyncio.get_running_loop()
 

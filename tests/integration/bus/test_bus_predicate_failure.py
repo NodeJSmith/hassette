@@ -27,7 +27,7 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
 
     executor.enqueue_record.reset_mock()
 
-    def bad_predicate(_ev: object) -> bool:
+    def bad_predicate(_event: object) -> bool:
         raise ZeroDivisionError("boom")
 
     async def handler(_event: Event) -> None:
@@ -58,7 +58,7 @@ async def test_predicate_failure_invokes_per_listener_error_handler(hassette_wit
     executor.invoke_error_handler.reset_mock()
     executor.enqueue_record.reset_mock()
 
-    def bad_predicate(_ev: object) -> bool:
+    def bad_predicate(_event: object) -> bool:
         raise ValueError("pred failed")
 
     async def handler(_event: Event) -> None:
@@ -99,7 +99,7 @@ async def test_predicate_failure_invokes_app_level_error_handler(hassette_with_b
 
     executor.invoke_error_handler.reset_mock()
 
-    def bad_predicate(_ev: object) -> bool:
+    def bad_predicate(_event: object) -> bool:
         raise RuntimeError("app level test")
 
     async def handler(_event: Event) -> None:
@@ -132,7 +132,7 @@ async def test_predicate_failure_does_not_crash_sibling_listeners(hassette_with_
 
     sibling_ran = asyncio.Event()
 
-    def bad_predicate(_ev: object) -> bool:
+    def bad_predicate(_event: object) -> bool:
         raise TypeError("broken predicate")
 
     async def bad_handler(_event: Event) -> None:
@@ -160,7 +160,7 @@ async def test_predicate_failure_no_error_handler_still_records(hassette_with_bu
     executor.enqueue_record.reset_mock()
     executor.invoke_error_handler.reset_mock()
 
-    def bad_predicate(_ev: object) -> bool:
+    def bad_predicate(_event: object) -> bool:
         raise KeyError("no handler")
 
     async def handler(_event: Event) -> None:
@@ -196,7 +196,7 @@ async def test_glob_listener_predicate_failure_recorded_once(hassette_with_bus: 
 
     call_count = 0
 
-    def counting_bad_predicate(_ev: object) -> bool:
+    def counting_bad_predicate(_event: object) -> bool:
         nonlocal call_count
         call_count += 1
         raise ValueError("glob boom")

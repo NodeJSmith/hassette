@@ -105,10 +105,10 @@ export function HandlersPage() {
 
   const sorted = [...filtered].sort((a, b) => compareHandlerRows(a, b, sort));
 
-  function onSort(s: SortState<HandlerSortKey>) {
+  function handleSort(newSort: SortState<HandlerSortKey>) {
     qp.set({
-      sort: s.key === "app" ? null : s.key,
-      dir: s.dir === "asc" ? null : s.dir,
+      sort: newSort.key === "app" ? null : newSort.key,
+      dir: newSort.dir === "asc" ? null : newSort.dir,
     });
   }
 
@@ -219,12 +219,12 @@ export function HandlersPage() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="kind" ariaLabel="type">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="kind" ariaLabel="type">
                       type
                     </SortHeader>
                     <SortHeader
                       sort={sort}
-                      onSort={onSort}
+                      onSort={handleSort}
                       sortKey="app"
                       ariaLabel="app"
                       filterContent={columnFilters.app.content}
@@ -232,31 +232,31 @@ export function HandlersPage() {
                     >
                       app
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="name">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="name">
                       name
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="trigger">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="trigger">
                       trigger
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="runs">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
                       runs
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="failed">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="failed">
                       failed
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="timed_out">
                       timed out
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="cancelled">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="cancelled">
                       cancelled
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="error_rate">
                       error rate
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="avg_duration">
                       avg
                     </SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="next_run">
+                    <SortHeader sort={sort} onSort={handleSort} sortKey="next_run">
                       next run
                     </SortHeader>
                   </tr>

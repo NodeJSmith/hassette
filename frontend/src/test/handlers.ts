@@ -1,17 +1,18 @@
 /**
- * Default MSW request handlers for all Hassette API endpoints.
+ * Default MSW request handlers for all Hassette API endpoints, plus shared
+ * override helpers for common per-test patterns (e.g. `withManifests`).
  *
- * Each handler returns a minimal, realistic response shape that satisfies the
- * generated TypeScript types. Tests that need different data should use
- * `server.use(http.get(...))` to override individual handlers for that test.
+ * Each default handler returns a minimal, realistic response shape that satisfies
+ * the generated TypeScript types. Tests that need different data should use
+ * `server.use(http.get(...))` to override individual handlers for that test,
+ * or use one of the shared override helpers below.
  */
 
 import { http, HttpResponse } from "msw";
+import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
 import { createSystemConfig } from "./factories";
-
-// ---- Type aliases (keep in sync with endpoints.ts) ----
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -28,7 +29,23 @@ type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 
-// ---- Default handlers ----
+/** Installs an MSW handler returning the given manifests for the duration of the test. */
+export function withManifests(manifests: components["schemas"]["AppManifestResponse"][], server: SetupServer) {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json<ManifestListResponse>({
+        total: manifests.length,
+        running: manifests.filter((m) => m.status === "running").length,
+        failed: manifests.filter((m) => m.status === "failed").length,
+        stopped: 0,
+        disabled: 0,
+        blocked: 0,
+        manifests,
+        only_app: null,
+      }),
+    ),
+  );
+}
 
 export const handlers = [
   // GET /api/apps/manifests

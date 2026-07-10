@@ -50,8 +50,8 @@ class AnnotationConverter:
             for arm in get_args(tp):
                 try:
                     return self.convert(value, arm)
-                except Exception as e:
-                    last_err = e
+                except Exception as exc:
+                    last_err = exc
             raise UnableToConvertValueError(f"Unable to convert {value!r} to {tp!r}") from last_err
 
         # Literal: match exact allowed values (conversion generally not meaningful)
@@ -95,7 +95,7 @@ def register_container_converter(*origins: Any):
 
 
 @register_container_converter(list, set, frozenset)
-def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
     origin = get_origin(tp)
     args = get_args(tp)
 
@@ -112,19 +112,19 @@ def convert_homogeneous_iterable(c: "AnnotationConverter", value: Any, tp: Any) 
 
     # Strict: only accept the matching concrete container at runtime
     if origin is list:
-        return [c.convert(v, elem_tp) for v in value]
+        return [converter.convert(v, elem_tp) for v in value]
 
     if origin is set:
-        return {c.convert(v, elem_tp) for v in value}
+        return {converter.convert(v, elem_tp) for v in value}
 
     if origin is frozenset:
-        return frozenset(c.convert(v, elem_tp) for v in value)
+        return frozenset(converter.convert(v, elem_tp) for v in value)
 
     raise UnableToConvertValueError(f"Unsupported iterable origin: {origin!r}")
 
 
 @register_container_converter(dict)
-def convert_dict(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
     if not isinstance(value, dict):
         try:
             value = dict(value)
@@ -133,11 +133,11 @@ def convert_dict(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
     args = get_args(tp)
     key_tp, val_tp = args if len(args) == 2 else (Any, Any)
-    return {c.convert(k, key_tp): c.convert(v, val_tp) for k, v in value.items()}
+    return {converter.convert(k, key_tp): converter.convert(v, val_tp) for k, v in value.items()}
 
 
 @register_container_converter(tuple)
-def convert_tuple(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
     if not isinstance(value, tuple):
         try:
             value = tuple(value)
@@ -150,20 +150,20 @@ def convert_tuple(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
     if len(args) == 2 and args[1] is Ellipsis:
         elem_tp = args[0]
-        return tuple(c.convert(v, elem_tp) for v in value)
+        return tuple(converter.convert(v, elem_tp) for v in value)
 
     if len(args) != len(value):
         if len(args) == 1 and len(set(type(v) for v in value)) == 1:
             # Special case: single-type tuple passed as tuple[T] instead of tuple[T, ...]
             elem_tp = args[0]
-            return tuple(c.convert(v, elem_tp) for v in value)
+            return tuple(converter.convert(v, elem_tp) for v in value)
         raise UnableToConvertValueError(f"Tuple length mismatch: {len(value)} vs {len(args)}")
 
-    return tuple(c.convert(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))
+    return tuple(converter.convert(v, elem_tp) for v, elem_tp in zip(value, args, strict=True))
 
 
 @register_container_converter(TypedStateChangeEvent)
-def convert_typed_state_change_event(c: "AnnotationConverter", value: Any, tp: Any) -> Any:
+def convert_typed_state_change_event(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
     # tp is TypedStateChangeEvent[StateT] (already normalized/constructible)
     if not isinstance(value, RawStateChangeEvent):
         raise UnableToConvertValueError(
@@ -177,8 +177,8 @@ def convert_typed_state_change_event(c: "AnnotationConverter", value: Any, tp: A
     # This automatically handles dict->BaseState and Optional states, etc.
     data = value.payload.data
     entity_id = data.entity_id
-    old_state_obj = None if data.old_state is None else c.convert(data.old_state, state_tp)
-    new_state_obj = None if data.new_state is None else c.convert(data.new_state, state_tp)
+    old_state_obj = None if data.old_state is None else converter.convert(data.old_state, state_tp)
+    new_state_obj = None if data.new_state is None else converter.convert(data.new_state, state_tp)
 
     data = TypedStateChangePayload(entity_id=entity_id, old_state=old_state_obj, new_state=new_state_obj)
     return TypedStateChangeEvent(

@@ -25,7 +25,7 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.telemetry_models import ActivityFeedEntry, Execution, JobSummary
-from hassette.test_utils.config import DEFAULT_TEST_APP_KEY
+from hassette.test_utils.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import ExecutionStatus, SchedulerPredicate
 from hassette.web.models import (
@@ -46,7 +46,7 @@ from hassette.web.models import (
     TelemetryStatusResponse,
 )
 
-SYNTHETIC_TIMESTAMP = 1_700_000_000.0
+SYNTHETIC_TIMESTAMP = TEST_EPOCH_B
 
 
 def make_full_snapshot(

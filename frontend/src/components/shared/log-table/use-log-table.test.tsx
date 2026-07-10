@@ -7,20 +7,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState } from "../../../state/create-app-state";
+import { createLogEntry } from "../../../test/factories";
 import { RENDER_CAP } from "./constants";
 import type { FilterState } from "./types";
 import { useLogTable } from "./use-log-table";
 
-// ---------------------------------------------------------------------------
-// Module mocks
 //
 // vi.mock() calls are hoisted by Vitest to run before all other module-level
 // code, but the factory *body* executes at import time — after module-scope
 // variable declarations have been evaluated. The inner hook functions run at
 // call time (inside renderHook), so they safely read the `mock*` variables
 // declared below. We use object getter syntax so each property is read lazily
-// at call time rather than captured once at factory evaluation.
-// ---------------------------------------------------------------------------
 
 vi.mock("./use-log-data", () => ({
   useLogData: () => ({
@@ -94,12 +91,8 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/", vi.fn()],
 }));
 
-// ---------------------------------------------------------------------------
-// Shared mutable signals — initialized at module scope, reset per test.
 // The mock factories above close over these bindings via getter functions;
 // because getters are evaluated at call time (not at factory evaluation time),
-// the signals are guaranteed to be initialized before any test reads them.
-// ---------------------------------------------------------------------------
 
 const mockFilterState = signal<FilterState>({
   level: "INFO",
@@ -125,10 +118,6 @@ const mockSetSort = vi.fn();
 const mockResetSort = vi.fn();
 const mockResetFilters = vi.fn();
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function createWrapper() {
   const state = createAppState();
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -140,19 +129,8 @@ function renderUseLogTable(params: Parameters<typeof useLogTable>[0] = {}) {
   return renderHook(() => useLogTable(params), { wrapper: createWrapper() });
 }
 
-function makeEntry(seq: number): LogEntry {
-  return {
-    seq,
-    timestamp: 1000 + seq,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "f",
-    lineno: 1,
-    message: `msg-${seq}`,
-    exc_info: null,
-    app_key: null,
-    source_tier: "app",
-  };
+function makeEntry(seq: number) {
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, source_tier: "app" });
 }
 
 function setFiltered(entries: LogEntry[], total = entries.length): void {
@@ -174,10 +152,6 @@ beforeEach(() => {
   mockLoading.value = false;
   vi.clearAllMocks();
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("useLogTable — columnFilters", () => {
   it("always includes 'level' filter", () => {

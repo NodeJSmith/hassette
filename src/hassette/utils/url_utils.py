@@ -24,7 +24,6 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
         IPV6NotSupportedError: If base_url contains an IPv6 address.
         SchemeRequiredInBaseUrlError: If base_url does not include a scheme.
     """
-
     if not config.base_url:
         raise BaseUrlRequiredError(f"base_url must be set in the configuration, got: {config.base_url}")
 

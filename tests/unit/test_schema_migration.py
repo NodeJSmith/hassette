@@ -53,7 +53,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_executions_has_kind_column(self, tmp_path: Path) -> None:
-        """executions table has kind column."""
+        """Executions table has kind column."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -66,7 +66,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_executions_has_is_di_failure(self, tmp_path: Path) -> None:
-        """executions table has is_di_failure column."""
+        """Executions table has is_di_failure column."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -79,7 +79,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_check_constraints_reject_invalid_status(self, tmp_path: Path) -> None:
-        """executions with invalid status raises IntegrityError."""
+        """Executions with invalid status raises IntegrityError."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -102,7 +102,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_check_constraints_accept_skipped_status(self, tmp_path: Path) -> None:
-        """executions with status='skipped' is accepted by the CHECK constraint (added in 009.sql)."""
+        """Executions with status='skipped' is accepted by the CHECK constraint (added in 009.sql)."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -127,7 +127,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
-        """executions with negative duration_ms raises IntegrityError."""
+        """Executions with negative duration_ms raises IntegrityError."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -150,7 +150,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_nullable_listener_id_allows_null(self, tmp_path: Path) -> None:
-        """executions must allow NULL listener_id when job_id is set."""
+        """Executions must allow NULL listener_id when job_id is set."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -177,7 +177,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_sessions_drop_counters_default_to_zero(self, tmp_path: Path) -> None:
-        """sessions table defaults drop counters to 0."""
+        """Sessions table defaults drop counters to 0."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 
@@ -194,7 +194,7 @@ class TestFreshMigration:
             conn.close()
 
     def test_sessions_has_no_dropped_no_session_column(self, tmp_path: Path) -> None:
-        """sessions table does NOT have dropped_no_session (removed in new schema)."""
+        """Sessions table does NOT have dropped_no_session (removed in new schema)."""
         db_path = tmp_path / "test.db"
         run_migrations(db_path)
 

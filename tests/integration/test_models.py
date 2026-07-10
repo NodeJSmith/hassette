@@ -56,8 +56,7 @@ def test_all_domains_registered(
     hassette_with_state_proxy: "HassetteHarness", all_models: dict[str, type[states.BaseState]]
 ):
     """Test that all state models are registered in the state registry."""
-
-    registered_domains = [x.domain for x in STATE_REGISTRY._registry]
+    registered_domains = [x.domain for x in STATE_REGISTRY.registry]
     missing_domains = []
 
     for model_cls in all_models.values():
@@ -86,8 +85,7 @@ def test_all_domains_registered(
 
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
-
-    registered_classes = [v for v in STATE_REGISTRY._registry.values()]
+    registered_classes = [v for v in STATE_REGISTRY.registry.values()]
     missing_classes = []
 
     for model_cls in all_models.values():
@@ -112,7 +110,6 @@ def test_registry_can_convert_all_domains(
     all_models: dict[str, type[states.BaseState]],
 ):
     """Test that the registry can look up classes for all known domains."""
-
     for model_cls in all_models.values():
         model_cls = cast("type[states.BaseState]", model_cls)
 
@@ -148,8 +145,8 @@ def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[di
             converted = STATE_REGISTRY.try_convert_state(state_dict)
             if type(converted) is not state_cls:
                 failures.append(f"{entity_id}: converted to {type(converted).__name__}, expected {state_cls.__name__}")
-        except Exception as e:
-            failures.append(f"{entity_id}: {e}")
+        except Exception as exc:
+            failures.append(f"{entity_id}: {exc}")
 
     assert not failures, (
         f"{len(failures)} fixture entities failed to parse as their registered state class:\n" + "\n".join(failures)

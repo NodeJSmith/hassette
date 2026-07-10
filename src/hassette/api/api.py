@@ -1,5 +1,4 @@
-"""
-API interface for interacting with Home Assistant's REST and WebSocket APIs.
+"""API interface for interacting with Home Assistant's REST and WebSocket APIs.
 
 The Api provides both async and sync methods for all Home Assistant interactions including
 state management, service calls, event firing, and data retrieval. Automatically handles
@@ -249,17 +248,17 @@ async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) 
     """
     try:
         return await api.ws_send_and_wait(type=f"{domain}/{operation}", **data)
-    except FailedMessageError as e:
+    except FailedMessageError as exc:
         # Include only field names in the error message — values may contain
         # sensitive data (e.g., `input_text.initial` on a password-mode helper)
         # that would leak into application logs. Full payload is preserved on
         # `original_data` for debugging contexts that need it.
         field_names = sorted(data.keys())
         raise FailedMessageError(
-            f"{domain}/{operation} failed (fields: {field_names}): {e}",
-            code=e.code,
-            original_data=e.original_data,
-        ) from e
+            f"{domain}/{operation} failed (fields: {field_names}): {exc}",
+            code=exc.code,
+            original_data=exc.original_data,
+        ) from exc
 
 
 class Api(Resource):
@@ -617,7 +616,6 @@ class Api(Resource):
         Returns:
             The state of the entity as raw data.
         """
-
         url = f"states/{entity_id}"
         response = await self.get_rest_request(url)
         return await response.json()
@@ -631,7 +629,6 @@ class Api(Resource):
         Returns:
             True if the entity exists, False otherwise.
         """
-
         try:
             url = f"states/{entity_id}"
             response = await self.rest_request("GET", url, suppress_error_message=True)
@@ -681,7 +678,6 @@ class Api(Resource):
         Returns:
             The state of the entity converted to the specified model type.
         """
-
         raw = await self.get_state_raw(entity_id)
         return self.hassette.state_registry.try_convert_state(raw, entity_id)
 
@@ -713,7 +709,6 @@ class Api(Resource):
             strong typing, this method is designed to return the raw state value,
             as it is likely overkill to convert it to a state object for simple state value retrieval.
         """
-
         entity = await self.get_state_raw(entity_id)
         state = entity.get("state")
         return state
@@ -756,7 +751,6 @@ class Api(Resource):
         Returns:
             The value of the specified attribute, or MISSING_VALUE sentinel if the attribute does not exist.
         """
-
         entity = await self.get_state(entity_id)
         return get_path(attribute)(entity.attributes)
 
@@ -862,7 +856,6 @@ class Api(Resource):
         Returns:
             A list of logbook entries for the specified entity.
         """
-
         url = f"logbook/{format_time_param(start_time)}"
         params = {"entity": entity_id, "end_time": end_time}
 
@@ -941,7 +934,6 @@ class Api(Resource):
         Returns:
             The camera image data.
         """
-
         url = f"camera_proxy/{entity_id}"
         params = {}
         if timestamp:
@@ -953,7 +945,6 @@ class Api(Resource):
 
     async def get_calendars(self) -> list[dict[str, Any]]:
         """Get the list of calendars."""
-
         url = "calendars"
         response = await self.get_rest_request(url)
         return await response.json()
@@ -974,7 +965,6 @@ class Api(Resource):
         Returns:
             A list of calendar events.
         """
-
         url = f"calendars/{calendar_id}/events"
         params = {"start": start_time, "end": end_time}
 
@@ -995,7 +985,6 @@ class Api(Resource):
         Returns:
             The rendered template result.
         """
-
         url = "template"
         data = {"template": template, "variables": variables or {}}
 
@@ -1011,7 +1000,6 @@ class Api(Resource):
         Raises:
             RuntimeError: If the deletion fails.
         """
-
         url = f"states/{entity_id}"
 
         response = await self.rest_request("DELETE", url)

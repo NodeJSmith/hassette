@@ -98,14 +98,14 @@ class TestScheduleEntryPoint:
         assert expected_min <= job.next_run <= expected_max
 
     async def test_schedule_group_tracked(self) -> None:
-        """schedule with group= adds job to _jobs_by_group."""
+        """Schedule with group= adds job to _jobs_by_group."""
         scheduler = make_scheduler()
         job = await scheduler.schedule(noop, Daily(at="07:00"), group="morning")
         assert "morning" in scheduler._jobs_by_group
         assert job in scheduler._jobs_by_group["morning"]
 
     async def test_schedule_no_group_not_in_jobs_by_group(self) -> None:
-        """schedule without group= does not add to _jobs_by_group."""
+        """Schedule without group= does not add to _jobs_by_group."""
         scheduler = make_scheduler()
         await scheduler.schedule(noop, Every(seconds=30))
         assert scheduler._jobs_by_group == {}

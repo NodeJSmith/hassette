@@ -61,7 +61,8 @@ def find_frontend_source_files() -> list[Path]:
 
 def build_tsx_corpus(tsx_files: list[Path]) -> str:
     """Concatenate all source for substring search. Short class names (e.g. "page") may match
-    inside comments or identifiers — accepted trade-off for a grep-style linter."""
+    inside comments or identifiers — accepted trade-off for a grep-style linter.
+    """
     parts = []
     for f in tsx_files:
         with contextlib.suppress(OSError):

@@ -27,9 +27,10 @@ from hassette.schemas.telemetry_models import (
 from hassette.test_utils.web_helpers import make_job, make_manifest
 from hassette.types.enums import ResourceStatus
 
-# ──────────────────────────────────────────────────────────────────────
-# Manifest builders
-# ──────────────────────────────────────────────────────────────────────
+TS_BASE = 1_704_067_200.0
+TS_RECENT = 1_704_067_100.0
+TS_OLDER = 1_704_067_050.0
+TS_OLDEST = 1_704_067_000.0
 
 
 def build_manifests() -> list[AppManifestInfo]:
@@ -202,11 +203,6 @@ def build_scheduler_jobs() -> list[SimpleNamespace]:
     ]
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Telemetry seed data builders
-# ──────────────────────────────────────────────────────────────────────
-
-
 def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
     """Build per-app listener summaries for e2e tests."""
     telemetry_listeners_my_app = [
@@ -234,7 +230,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=2.0,
             min_duration_ms=1.0,
             max_duration_ms=5.0,
-            last_invoked_at=1704067200.0,
+            last_invoked_at=TS_BASE,
             last_error_type="ValueError",
             last_error_message="Bad state value",
         ),
@@ -261,7 +257,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=2.0,
             min_duration_ms=1.0,
             max_duration_ms=5.0,
-            last_invoked_at=1704067100.0,
+            last_invoked_at=TS_RECENT,
             last_error_type=None,
             last_error_message=None,
         ),
@@ -291,7 +287,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=5.0,
             min_duration_ms=2.0,
             max_duration_ms=10.0,
-            last_invoked_at=1704067050.0,
+            last_invoked_at=TS_OLDER,
             last_error_type="RuntimeError",
             last_error_message="Lock service timed out",
         ),
@@ -321,7 +317,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             avg_duration_ms=1.0,
             min_duration_ms=1.0,
             max_duration_ms=1.0,
-            last_invoked_at=1704067000.0,
+            last_invoked_at=TS_OLDEST,
             last_error_type=None,
             last_error_message=None,
         ),
@@ -350,7 +346,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=15,
             successful=14,
             failed=1,
-            last_executed_at=1704067200.0,
+            last_executed_at=TS_BASE,
             total_duration_ms=52.5,
             avg_duration_ms=3.5,
         ),
@@ -368,7 +364,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=5,
             successful=5,
             failed=0,
-            last_executed_at=1704067100.0,
+            last_executed_at=TS_RECENT,
             total_duration_ms=60.0,
             avg_duration_ms=12.0,
         ),
@@ -388,7 +384,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=8,
             successful=3,
             failed=5,
-            last_executed_at=1704067050.0,
+            last_executed_at=TS_OLDER,
             total_duration_ms=64.0,
             avg_duration_ms=8.0,
         ),
@@ -409,7 +405,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             total_executions=2,
             successful=2,
             failed=0,
-            last_executed_at=1704067000.0,
+            last_executed_at=TS_OLDEST,
             total_duration_ms=2.0,
             avg_duration_ms=1.0,
         ),
@@ -432,7 +428,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="handler",
             listener_id=1,
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=2.5,
             status="success",
             error_type=None,
@@ -442,7 +438,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="handler",
             listener_id=1,
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=3.1,
             status="error",
             error_type="ValueError",
@@ -455,7 +451,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="job",
             job_id=7,
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=3.0,
             status="success",
             error_type=None,
@@ -464,7 +460,7 @@ def build_executions() -> list[Execution]:
         Execution(
             kind="job",
             job_id=7,
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=4.2,
             status="error",
             error_type="TimeoutError",
@@ -478,7 +474,7 @@ def build_session_list() -> list[SessionRecord]:
     return [
         SessionRecord(
             id=1,
-            started_at=1704067200.0,
+            started_at=TS_BASE,
             stopped_at=None,
             status="running",
             error_type=None,
@@ -518,7 +514,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=42,
             handler_method="on_light_change",
             topic="state_changed.light.kitchen",
-            execution_start_ts=1704067100.0,
+            execution_start_ts=TS_RECENT,
             duration_ms=3.1,
             source_tier="app",
             error_type="ValueError",
@@ -529,7 +525,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             job_id=7,
             handler_method="check_lights",
             job_name="check_lights",
-            execution_start_ts=1704067000.0,
+            execution_start_ts=TS_OLDEST,
             duration_ms=4.2,
             source_tier="app",
             error_type="TimeoutError",
@@ -540,7 +536,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=43,
             handler_method="on_door_open",
             topic="state_changed.binary_sensor.door",
-            execution_start_ts=1704067050.0,
+            execution_start_ts=TS_OLDER,
             duration_ms=10.0,
             source_tier="app",
             error_type="RuntimeError",
@@ -552,7 +548,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=None,
             handler_method=None,
             topic=None,
-            execution_start_ts=1704067000.5,
+            execution_start_ts=TS_OLDEST + 0.5,
             duration_ms=1.0,
             source_tier="app",
             error_type="RuntimeError",
@@ -565,7 +561,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             listener_id=999,
             handler_method="on_state_change_dispatch",
             topic="state_changed",
-            execution_start_ts=1704067200.0,
+            execution_start_ts=TS_BASE,
             duration_ms=1.5,
             source_tier="framework",
             error_type="DispatchError",
@@ -614,11 +610,6 @@ def build_global_summaries() -> tuple[GlobalSummary, GlobalSummary]:
         ),
     )
     return framework_global_summary, default_global_summary
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Telemetry wiring helpers
-# ──────────────────────────────────────────────────────────────────────
 
 
 def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummary]]) -> None:
@@ -688,7 +679,7 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
             total_executions=20,
             total_job_errors=1,
             avg_duration_ms=2.0,
-            last_activity_ts=1704067200.0,
+            last_activity_ts=TS_BASE,
         ),
         "broken_app": AppHealthSummary(
             handler_count=1,
@@ -698,7 +689,7 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
             total_executions=8,
             total_job_errors=5,
             avg_duration_ms=5.0,
-            last_activity_ts=1704067050.0,
+            last_activity_ts=TS_OLDER,
         ),
     }
 
@@ -736,6 +727,7 @@ def wire_global_summary(
     hassette,
     framework_global_summary: GlobalSummary,
     default_global_summary: GlobalSummary,
+    framework_tier_errors: list[HandlerErrorRecord] | None = None,
 ) -> None:
     """Wire global summary and error count side effects onto the mock telemetry query service."""
 
@@ -748,9 +740,15 @@ def wire_global_summary(
         side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
     )
 
+    fw_errors = framework_tier_errors or []
+    framework_error_counts = (
+        sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
+        sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
+    )
+
     def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
         if source_tier == "framework":
-            return FRAMEWORK_ERROR_COUNTS
+            return framework_error_counts
         return (3, 6)
 
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
@@ -832,72 +830,16 @@ def wire_config(hassette) -> None:
     )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Module-level computed constants for E2E assertions
-#
-# All constants are derived from the builder functions above — never
-# hand-written literals.  Use these in E2E test assertions so that
-# changing a seed value here automatically updates the tests.
-#
-# Naming convention: <TIER>_<ENTITY>_<FIELD>
-#   APP_TIER_   — per-app health summaries (build_app_health_summaries)
-#   GLOBAL_     — all-tier global summary (build_global_summaries)
-#   ERRORS_     — error feed counts (build_error_records)
-#   LISTENER_   — per-listener telemetry (build_listener_telemetry)
-#   JOB_        — per-job telemetry (build_job_telemetry)
-# ──────────────────────────────────────────────────────────────────────
-
-# ── App-tier health summaries ──────────────────────────────────────────
-
-_app_health = build_app_health_summaries()
-
-APP_TIER_MY_APP_TOTAL_INVOCATIONS: int = _app_health["my_app"].total_invocations
-APP_TIER_MY_APP_TOTAL_EXECUTIONS: int = _app_health["my_app"].total_executions
-APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS: int = _app_health["broken_app"].total_invocations
-APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS: int = _app_health["broken_app"].total_executions
-
-# ── Global summary (default = app + framework combined denominator) ────
-
-_framework_global_summary, _default_global_summary = build_global_summaries()
-
-GLOBAL_TOTAL_INVOCATIONS: int = _default_global_summary.listeners.total_invocations
-GLOBAL_TOTAL_EXECUTIONS: int = _default_global_summary.jobs.total_executions
-GLOBAL_HANDLER_ERRORS: int = (
-    _default_global_summary.listeners.total_errors + _default_global_summary.listeners.total_timed_out
-)
-GLOBAL_JOB_ERRORS: int = _default_global_summary.jobs.total_errors + _default_global_summary.jobs.total_timed_out
-GLOBAL_TOTAL_FAILURES: int = GLOBAL_HANDLER_ERRORS + GLOBAL_JOB_ERRORS
-GLOBAL_COMBINED_TOTAL: int = GLOBAL_TOTAL_INVOCATIONS + GLOBAL_TOTAL_EXECUTIONS
-
-# ── Error feed counts ──────────────────────────────────────────────────
-
-_app_tier_errors, _framework_tier_errors = build_error_records()
-
-ERRORS_APP_TIER_COUNT: int = len(_app_tier_errors)
-ERRORS_FRAMEWORK_TIER_COUNT: int = len(_framework_tier_errors)
-ERRORS_COMBINED_COUNT: int = ERRORS_APP_TIER_COUNT + ERRORS_FRAMEWORK_TIER_COUNT
-
-# Framework error counts derived from builder output — used by
-# wire_global_summary to mock get_error_counts(source_tier="framework").
-FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (
-    sum(1 for e in _framework_tier_errors if isinstance(e, HandlerErrorRecord)),
-    sum(1 for e in _framework_tier_errors if isinstance(e, JobErrorRecord)),
-)
-FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = FRAMEWORK_ERROR_COUNTS[0]
-FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = FRAMEWORK_ERROR_COUNTS[1]
-
-# ── Per-listener telemetry for my_app ─────────────────────────────────
+# Derived constants for E2E test assertions — computed from the builder
+# functions above so that changing a seed value automatically updates tests.
 
 _listeners = build_listener_telemetry()
 
 LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
 LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
-LISTENER_MY_APP_1_SOURCE_LOCATION: str = _listeners["my_app"][0].source_location
 
-# ── Per-job telemetry for my_app ───────────────────────────────────────
 
 _jobs = build_job_telemetry()
 
 JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs["my_app"][0].total_executions
 JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs["my_app"][1].total_executions
-JOB_MY_APP_1_SOURCE_LOCATION: str = _jobs["my_app"][0].source_location

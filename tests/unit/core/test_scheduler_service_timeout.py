@@ -1,40 +1,12 @@
 """Tests for SchedulerService.run_job() effective timeout resolution."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
-from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.classes import ScheduledJob
 
-
-def make_scheduler_service(*, config_timeout: float | None = 600.0) -> SchedulerService:
-    """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
-    svc = SchedulerService.__new__(SchedulerService)
-    svc.hassette = MagicMock()
-    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
-    svc.hassette.config.scheduler.job_timeout_seconds = config_timeout
-    svc._removal_callbacks = {}
-    svc.logger = MagicMock()
-
-    # Minimal job queue mock
-    svc._job_queue = MagicMock()
-    svc._job_queue.add = AsyncMock(return_value=None)
-    svc._job_queue.remove_job = AsyncMock(return_value=True)
-
-    # kick() is called after enqueue/remove
-    svc._wakeup_event = asyncio.Event()
-
-    # Mock the task_bucket for make_async_adapter
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    # Mock the executor
-    svc._executor = MagicMock()
-    svc._executor.execute = AsyncMock()
-
-    return svc
+from .conftest import make_scheduler_service
 
 
 def make_job(

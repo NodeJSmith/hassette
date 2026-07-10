@@ -13,6 +13,8 @@ from hassette.schemas.telemetry_models import (
     ListenerSummary,
 )
 
+MOCK_TS = 1_234_567_890.0
+
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
@@ -29,7 +31,7 @@ class TestTelemetryAppHealth:
                 job_errors=0,
                 job_timed_out=0,
                 job_avg_duration_ms=0.0,
-                last_activity_ts=1234567890.0,
+                last_activity_ts=MOCK_TS,
             )
         )
 
@@ -57,7 +59,7 @@ class TestTelemetryAppHealth:
                 job_errors=3,
                 job_timed_out=2,
                 job_avg_duration_ms=10.0,
-                last_activity_ts=1234567890.0,
+                last_activity_ts=MOCK_TS,
             )
         )
 
@@ -110,7 +112,7 @@ class TestTelemetryListeners:
                     avg_duration_ms=50.0,
                     min_duration_ms=10.0,
                     max_duration_ms=200.0,
-                    last_invoked_at=1234567890.0,
+                    last_invoked_at=MOCK_TS,
                     last_error_type=None,
                     last_error_message=None,
                 )
@@ -152,7 +154,7 @@ class TestTelemetryListeners:
                     avg_duration_ms=10.0,
                     min_duration_ms=10.0,
                     max_duration_ms=10.0,
-                    last_invoked_at=1234567890.0,
+                    last_invoked_at=MOCK_TS,
                     last_error_type=None,
                     last_error_message=None,
                 )
@@ -239,7 +241,7 @@ class TestTelemetryExecutions:
                 Execution(
                     kind="handler",
                     listener_id=1,
-                    execution_start_ts=1234567890.0,
+                    execution_start_ts=MOCK_TS,
                     duration_ms=42.5,
                     status="success",
                     error_type=None,
@@ -276,7 +278,7 @@ class TestTelemetryExecutions:
                 Execution(
                     kind="handler",
                     listener_id=1,
-                    execution_start_ts=1234567890.0,
+                    execution_start_ts=MOCK_TS,
                     duration_ms=42.5,
                     status="success",
                     error_type=None,
@@ -299,7 +301,7 @@ class TestTelemetryExecutions:
                 Execution(
                     kind="job",
                     job_id=1,
-                    execution_start_ts=1234567890.0,
+                    execution_start_ts=MOCK_TS,
                     duration_ms=100.0,
                     status="success",
                     error_type=None,

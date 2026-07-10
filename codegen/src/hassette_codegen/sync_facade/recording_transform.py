@@ -65,6 +65,7 @@ def _check_no_async_peer_calls(
         method_name: Name of the method being body-copied (for error messages).
         body_nodes: Rewritten body statement list.
         async_method_names: Set of async method names on RecordingApi.
+
     """
     for stmt in body_nodes:
         for node in ast.walk(stmt):
@@ -114,6 +115,7 @@ def gen_recording_method(
 
     Returns:
         Tuple of (generated_source_string, rewritten_body_nodes).
+
     """
     # Clone via deep copy to avoid mutating the parsed AST
     func_copy = copy.deepcopy(func)
@@ -181,6 +183,7 @@ def gen_recording_stub(func: ast.AsyncFunctionDef | ast.FunctionDef) -> str:
         The generated method source string. Unlike ``gen_recording_method``,
         no rewritten body nodes are returned — stubs do not contribute body
         statements that the import-derivation pass needs to inspect.
+
     """
     name = func.name
     returns = format_return_annotation(func)

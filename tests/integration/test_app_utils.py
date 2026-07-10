@@ -8,7 +8,6 @@ from hassette.utils.app_utils import _module_name_for
 
 def test_module_name_for_with_invalid_path(tmp_path: Path):
     """Test _module_name_for with an invalid path."""
-
     app_file = tmp_path / "non_existent.py"
 
     with pytest.raises(FileNotFoundError):
@@ -17,7 +16,6 @@ def test_module_name_for_with_invalid_path(tmp_path: Path):
 
 def test_module_name_for_with_directory_path(tmp_path: Path):
     """Test _module_name_for with a directory path."""
-
     app_dir = tmp_path / "app_dir"
     app_dir.mkdir()
 
@@ -27,7 +25,6 @@ def test_module_name_for_with_directory_path(tmp_path: Path):
 
 def test_module_name_for_with_no_parent(tmp_path: Path):
     """Test _module_name_for when there is no parent package."""
-
     app_file = tmp_path / "test.py"
     app_file.write_text(
         dedent("""
@@ -43,7 +40,6 @@ def test_module_name_for_with_no_parent(tmp_path: Path):
 
 def test_module_name_for_with_parent(tmp_path: Path):
     """Test _module_name_for when there is a parent package."""
-
     app_path = tmp_path / "apps"
     app_path.mkdir()
     app_file = app_path / "test.py"

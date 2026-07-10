@@ -32,8 +32,6 @@ from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
 from tests.unit.conftest import make_service, make_sync_executor_hassette, make_test_config
 
-# Class-level structure tests (no event loop needed)
-
 
 class TestSyncExecutorServiceClassAttrs:
     def test_depends_on_is_empty(self) -> None:
@@ -64,9 +62,6 @@ class TestSyncExecutorServiceClassAttrs:
 
 # SyncExecutorService's restart_spec is covered by the parametrized tests in
 # test_service_restart_specs.py (ALL_SERVICES now includes it) — no duplicate here.
-
-
-# Executor construction (no event loop needed)
 
 
 class TestExecutorConstruction:
@@ -138,9 +133,6 @@ class TestExecutorConstruction:
         svc.executor.shutdown(join_threads_or_timeout=False)
 
 
-# Dependency graph validation
-
-
 class TestDependencyGraph:
     def test_graph_is_acyclic_with_sync_executor(self) -> None:
         """Adding SyncExecutorService keeps the dependency graph acyclic."""
@@ -191,37 +183,33 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
     # monkeypatch auto-restores both ContextVars after the test.
 
 
+@pytest.fixture
+def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
+    config = make_test_config()
+    h = Hassette(config)
+    h.wire_services()
+    yield h  # pyright: ignore[reportReturnType]
+    if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
+        h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
+
+
 class TestWireServicesRegistration:
     """Tests that call wire_services().
 
     Each test uses the isolated_hassette_context fixture to avoid ContextVar bleed.
     """
 
-    def test_sync_executor_service_registered_after_wire_services(self, isolated_hassette_context: object) -> None:
+    def test_sync_executor_service_registered_after_wire_services(self, wired_hassette: Hassette) -> None:
         """After wire_services(), _sync_executor_service is populated."""
-        config = make_test_config()
-        h = Hassette(config)
-        try:
-            h.wire_services()
-            assert h._sync_executor_service is not None
-            assert isinstance(h._sync_executor_service, SyncExecutorService)
-        finally:
-            if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
-                h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
+        assert wired_hassette._sync_executor_service is not None
+        assert isinstance(wired_hassette._sync_executor_service, SyncExecutorService)
 
     @pytest.mark.anyio
-    async def test_sync_executor_property_returns_executor(self, isolated_hassette_context: object) -> None:
+    async def test_sync_executor_property_returns_executor(self, wired_hassette: Hassette) -> None:
         """hassette.sync_executor returns the InterruptibleThreadPoolExecutor after initialization."""
-        config = make_test_config()
-        h = Hassette(config)
-        try:
-            h.wire_services()
-            await h._sync_executor_service.on_initialize()
-            executor = h.sync_executor
-            assert isinstance(executor, InterruptibleThreadPoolExecutor)
-        finally:
-            if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
-                h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
+        await wired_hassette._sync_executor_service.on_initialize()
+        executor = wired_hassette.sync_executor
+        assert isinstance(executor, InterruptibleThreadPoolExecutor)
 
     def test_sync_executor_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor raises RuntimeError when wire_services() hasn't been called."""
@@ -230,17 +218,10 @@ class TestWireServicesRegistration:
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor
 
-    def test_sync_executor_service_property_returns_service(self, isolated_hassette_context: object) -> None:
+    def test_sync_executor_service_property_returns_service(self, wired_hassette: Hassette) -> None:
         """hassette.sync_executor_service returns the SyncExecutorService instance."""
-        config = make_test_config()
-        h = Hassette(config)
-        try:
-            h.wire_services()
-            svc = h.sync_executor_service
-            assert isinstance(svc, SyncExecutorService)
-        finally:
-            if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
-                h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
+        svc = wired_hassette.sync_executor_service
+        assert isinstance(svc, SyncExecutorService)
 
     def test_sync_executor_service_property_raises_before_wire_services(self) -> None:
         """hassette.sync_executor_service raises RuntimeError before wire_services()."""
@@ -249,19 +230,11 @@ class TestWireServicesRegistration:
         with pytest.raises(RuntimeError, match="wire_services"):
             _ = h.sync_executor_service
 
-    def test_wire_services_graph_validates_without_error(self, isolated_hassette_context: object) -> None:
+    def test_wire_services_graph_validates_without_error(self, wired_hassette: Hassette) -> None:
         """wire_services() completes without ValueError from the dependency graph validator."""
-        config = make_test_config()
-        h = Hassette(config)
-        try:
-            # Should not raise — SyncExecutorService is a leaf, graph stays acyclic.
-            h.wire_services()
-        finally:
-            if h._sync_executor_service is not None and hasattr(h._sync_executor_service, "executor"):
-                h._sync_executor_service.executor.shutdown(join_threads_or_timeout=False)
-
-
-# Shutdown regression: AppSync hook submits work during shutdown
+        # Should not raise — SyncExecutorService is a leaf, graph stays acyclic.
+        # wire_services() already called by the fixture; reaching here means no ValueError.
+        assert wired_hassette._sync_executor_service is not None
 
 
 class TestShutdownOrderingRegression:

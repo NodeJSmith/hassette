@@ -1,5 +1,4 @@
-"""
-Predicates combine accessors and conditions to form reusable boolean functions.
+"""Predicates combine accessors and conditions to form reusable boolean functions.
 
 A predicate takes a ``source`` callable that extracts a value from an event, and a ``condition`` that
 tests the extracted value. The condition may be a literal value, a callable, or a more complex condition object.
@@ -53,6 +52,7 @@ from boltons.iterutils import is_collection
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.types import ChangeType, ComparisonCondition, EventT
+from hassette.types.types import WhereClause
 from hassette.utils.func_utils import callable_stable_name as callable_name
 from hassette.utils.func_utils import is_async_callable
 from hassette.utils.glob_utils import is_glob
@@ -480,7 +480,7 @@ class ServiceMatches:
 class ServiceDataWhere:
     """Predicate that applies a mapping of service_data conditions to a CallServiceEvent.
 
-    Examples
+    Examples:
     --------
     Exact matches only
 
@@ -540,7 +540,7 @@ class ServiceDataWhere:
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
         """Ergonomic constructor for literal kwargs.
 
-        Example
+        Example:
         -------
         >>> ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
         """
@@ -630,7 +630,7 @@ def _reject_async_predicate(pred: Any) -> None:
         raise TypeError(f"Bus predicates must be synchronous; got async callable {pred!r}")
 
 
-def normalize_where(where: "Predicate | Sequence[Predicate] | None") -> "Predicate | None":
+def normalize_where(where: WhereClause) -> "Predicate | None":
     """Normalize a 'where' clause into a single Predicate, or None.
 
     Rejects async callables (including inside collections) at registration time.

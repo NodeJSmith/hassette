@@ -1,15 +1,15 @@
 """E2E tests for WebSocket infrastructure: connection indicator and SPA
-rendering stability when WS is unavailable, and the WS uptime-scoped fetch path."""
+rendering stability when WS is unavailable, and the WS uptime-scoped fetch path.
+"""
 
 import time
 
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS
+
 pytestmark = pytest.mark.e2e
-
-
-# ── Connection indicator ─────────────────────────────────────────────
 
 
 def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
@@ -35,9 +35,6 @@ def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
     expect(status_bar).to_contain_text("onnect")
 
 
-# ── SPA renders all pages without WS ─────────────────────────────────
-
-
 def test_apps_page_renders_without_ws(page: Page, base_url: str) -> None:
     """Apps page renders from REST API without WS."""
     page.goto(base_url + "/apps")
@@ -60,9 +57,6 @@ def test_app_detail_renders_without_ws(page: Page, base_url: str) -> None:
     expect(health_grid).to_be_visible()
 
 
-# ── Expand state stability ────────────────────────────────────────────
-
-
 def test_handler_row_clickable_without_ws(page: Page, base_url: str) -> None:
     """Click a handler row and verify the detail pane loads.
 
@@ -79,10 +73,7 @@ def test_handler_row_clickable_without_ws(page: Page, base_url: str) -> None:
 
     # Detail pane should show invocation history
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
-
-
-# ── WebSocket uptime path ─────────────────────────────────────────────
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str) -> None:
@@ -134,9 +125,6 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
     # None of the requests should include session_id
     session_id_requests = [u for u in api_requests if "session_id" in u]
     assert session_id_requests == [], f"Unexpected session_id in telemetry requests: {session_id_requests}"
-
-
-# ── execution_completed WS message ───────────────────────────────────────
 
 
 def test_execution_completed_ws_message_triggers_activity_refetch(page: Page, live_server_ws_inject) -> None:

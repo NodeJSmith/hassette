@@ -20,35 +20,35 @@ from hassette.types.enums import ResourceRole
 from .conftest import build_hassette
 
 
-class _DepA(Resource):
+class DepA(Resource):
     async def on_initialize(self) -> None:
         pass
 
 
-class _DepB(Resource):
+class DepB(Resource):
     async def on_initialize(self) -> None:
         pass
 
 
-class _MultiDep(_DepA, _DepB):
+class MultiDep(DepA, DepB):
     """A single concrete type that is-a both declared dependency types."""
 
     async def on_initialize(self) -> None:
         pass
 
 
-class _AppLikeResource(Resource):
+class AppLikeResource(Resource):
     """Resource with role=APP and a non-empty depends_on — the unsupported combination."""
 
     role: ClassVar[ResourceRole] = ResourceRole.APP
-    depends_on: ClassVar[list[type[Resource]]] = [_DepA]
+    depends_on: ClassVar[list[type[Resource]]] = [DepA]
 
     async def on_initialize(self) -> None:
         pass
 
 
-class _ResourceWithDepAB(Resource):
-    depends_on: ClassVar[list[type[Resource]]] = [_DepA, _DepB]
+class ResourceWithDepAB(Resource):
+    depends_on: ClassVar[list[type[Resource]]] = [DepA, DepB]
 
     async def on_initialize(self) -> None:
         pass
@@ -57,7 +57,7 @@ class _ResourceWithDepAB(Resource):
 async def test_app_role_with_depends_on_raises_runtime_error() -> None:
     """App-level depends_on is not yet supported — raises with an actionable message."""
     hassette = build_hassette()
-    resource = _AppLikeResource(hassette=hassette)
+    resource = AppLikeResource(hassette=hassette)
 
     with pytest.raises(RuntimeError, match="App-level depends_on is not yet supported"):
         await resource._auto_wait_dependencies()
@@ -66,13 +66,13 @@ async def test_app_role_with_depends_on_raises_runtime_error() -> None:
 async def test_single_instance_satisfying_multiple_dep_types_is_deduped() -> None:
     """A dep instance matching two declared dep types is only passed to wait_for_ready once."""
     hassette = build_hassette()
-    shared = _MultiDep(hassette=hassette)
+    shared = MultiDep(hassette=hassette)
     hassette.children = [shared]
     hassette.wait_for_ready = AsyncMock(return_value=True)
 
-    resource = _ResourceWithDepAB(hassette=hassette)
+    resource = ResourceWithDepAB(hassette=hassette)
     await resource._auto_wait_dependencies()
 
-    # _DepA and _DepB both match `shared` (isinstance is true for both), but it must
+    # DepA and DepB both match `shared` (isinstance is true for both), but it must
     # appear exactly once in the list passed to wait_for_ready.
     hassette.wait_for_ready.assert_called_once_with([shared])

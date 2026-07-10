@@ -122,7 +122,7 @@ class TestDatabaseConfig:
             DatabaseConfig(size_failsafe_max_iterations=0)
 
     def test_custom_path(self):
-        """path accepts a Path value."""
+        """Path accepts a Path value."""
         cfg = DatabaseConfig(path=Path("/tmp/test.db"))
         assert cfg.path == Path("/tmp/test.db")
 
@@ -362,13 +362,12 @@ class TestAppsConfig:
 
     def test_remove_incomplete_apps(self):
         """Apps missing required keys are removed with a warning."""
-
         cfg = AppsConfig(apps={"incomplete": {"filename": "foo.py"}})
 
         assert "incomplete" not in cfg.apps
 
     def test_directory_default_is_cwd_apps(self):
-        """directory defaults to cwd/apps."""
+        """Directory defaults to cwd/apps."""
         cfg = AppsConfig()
         assert cfg.directory == Path.cwd() / "apps"
 
@@ -456,7 +455,7 @@ class TestHassetteConfigNested:
     def isolated_config_cls(self):
         """Return an isolated HassetteConfig subclass (no TOML, no env, no CLI)."""
 
-        class _IsolatedConfig(HassetteConfig):
+        class IsolatedConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": None,
@@ -470,7 +469,7 @@ class TestHassetteConfigNested:
             def model_post_init(self, *args):
                 pass
 
-        return _IsolatedConfig
+        return IsolatedConfig
 
     def test_database_path_default(self, isolated_config_cls):
         """config.database.path returns None by default."""
@@ -529,14 +528,14 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class _TomlConfig(HassetteConfig):
+        class TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": str(toml),
                 "env_file": None,
             }
 
-        config = _TomlConfig()
+        config = TomlConfig()
         assert config.database.retention_days == 14
         # Other database defaults are preserved
         assert config.database.max_size_mb == 500
@@ -550,14 +549,14 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class _TomlConfig(HassetteConfig):
+        class TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": str(toml),
                 "env_file": None,
             }
 
-        config = _TomlConfig()
+        config = TomlConfig()
         assert config.websocket.heartbeat_interval_seconds == 60
 
     def test_empty_nested_toml_section_produces_defaults(self, tmp_path):
@@ -568,14 +567,14 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class _TomlConfig(HassetteConfig):
+        class TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": str(toml),
                 "env_file": None,
             }
 
-        config = _TomlConfig()
+        config = TomlConfig()
         assert config.database.retention_days == 7
         assert config.database.max_size_mb == 500
 
@@ -587,7 +586,7 @@ class TestEnvVarPartialUpdate:
         """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
         monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
 
-        class _EnvConfig2(HassetteConfig):
+        class EnvDatabaseConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": None,
@@ -597,7 +596,7 @@ class TestEnvVarPartialUpdate:
             token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
-        config = _EnvConfig2()
+        config = EnvDatabaseConfig()
         assert config.database.retention_days == 14
         # Other database defaults are preserved
         assert config.database.max_size_mb == 500
@@ -607,7 +606,7 @@ class TestEnvVarPartialUpdate:
         """HASSETTE__LOGGING__LOG_LEVEL=DEBUG sets only logging.log_level."""
         monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
 
-        class _EnvConfig(HassetteConfig):
+        class EnvLoggingConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": None,
@@ -617,7 +616,7 @@ class TestEnvVarPartialUpdate:
             token: SecretStr = SecretStr(TEST_TOKEN)
             run_app_precheck: bool = False
 
-        config = _EnvConfig()
+        config = EnvLoggingConfig()
         assert config.logging.log_level == "DEBUG"
 
 
@@ -627,7 +626,7 @@ class TestCrossModelValidation:
     def test_log_retention_exceeds_db_retention_raises(self):
         """log_retention_days > retention_days raises ValidationError referencing both paths."""
 
-        class _ValidationConfig(HassetteConfig):
+        class ValidationConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,
                 "toml_file": None,
@@ -638,7 +637,7 @@ class TestCrossModelValidation:
             run_app_precheck: bool = False
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:
-            _ValidationConfig(
+            ValidationConfig(
                 database={"retention_days": 3},
                 logging={"log_retention_days": 5},
             )

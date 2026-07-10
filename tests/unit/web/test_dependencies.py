@@ -48,7 +48,8 @@ class TestDbDegradesTo:
     )
     def test_does_not_suppress_non_domain_exception(self, exc: Exception) -> None:
         """Only TelemetryUnavailableError is caught; everything else (including raw storage
-        errors, which are translated at the service boundary) propagates unchanged."""
+        errors, which are translated at the service boundary) propagates unchanged.
+        """
         resp = FakeResponse()
         with pytest.raises(type(exc)), db_degrades_to(resp):
             raise exc

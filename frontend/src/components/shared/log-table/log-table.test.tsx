@@ -1,23 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
+import { createLogEntry } from "../../../test/factories";
 import { levelClass, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";
 
-function entry(overrides: Partial<LogEntry>): LogEntry {
-  return {
-    seq: 1,
-    timestamp: 1000,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "fn",
-    lineno: 1,
-    message: "msg",
-    exc_info: null,
-    app_key: "app",
-    ...overrides,
-  } as LogEntry;
+function entry(overrides: Partial<LogEntry>) {
+  return createLogEntry({ app_key: "app", ...overrides });
 }
 
 describe("sortEntries", () => {

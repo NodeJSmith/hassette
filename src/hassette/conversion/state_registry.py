@@ -46,7 +46,7 @@ class StateRegistry:
     """
 
     @property
-    def _registry(self) -> "dict[StateKey, type[BaseState]]":
+    def registry(self) -> "dict[StateKey, type[BaseState]]":
         """Read accessor over the catalog leaf dict — for validation.py and other readers."""
         return _STATE_CATALOG
 
@@ -173,7 +173,6 @@ class StateRegistry:
         Raises:
             UnableToConvertStateError: If conversion fails for any reason.
         """
-
         class_name = state_class.__name__
         truncated_data = repr(data)
         if len(truncated_data) > STATE_REPR_MAX_LENGTH:
@@ -181,7 +180,7 @@ class StateRegistry:
 
         try:
             return convert_state_dict_to_model(data, state_class)
-        except Exception as e:
+        except Exception as exc:
             tb = get_short_traceback()
 
             LOGGER.error(
@@ -190,10 +189,10 @@ class StateRegistry:
                 domain,
                 class_name,
                 truncated_data,
-                e,
+                exc,
                 tb,
             )
-            raise UnableToConvertStateError(entity_id, state_class) from e
+            raise UnableToConvertStateError(entity_id, state_class) from exc
 
     def __contains__(self, model: "type[BaseState]") -> bool:
         """Check if the registry contains a state class for the given model."""

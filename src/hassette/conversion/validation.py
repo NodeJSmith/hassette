@@ -80,7 +80,7 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
     issues: list[RegistryValidationIssue] = []
     registry_name = "STATE_REGISTRY"
 
-    entries = dict(state_registry._registry)
+    entries = dict(state_registry.registry)
 
     if not entries:
         issues.append(

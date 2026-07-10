@@ -15,6 +15,15 @@ import { useGroupOpen } from "./use-group-open";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
+// Up/down accordion chevron — distinct from IconChevron (right/down disclosure pattern).
+function SidebarChevron({ open, class: className }: { open: boolean; class?: string }) {
+  return (
+    <svg class={className} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+      <polyline points={open ? "2,8 6,4 10,8" : "2,4 6,8 10,4"} fill="none" stroke="currentColor" stroke-width="1.5" />
+    </svg>
+  );
+}
+
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 const SHORTCUT_HINT = IS_MAC ? "⌘K" : "Ctrl+K";
 
@@ -68,14 +77,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
             data-testid="app-expand"
             onClick={() => setExpanded(!expanded)}
           >
-            <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-              <polyline
-                points={expanded ? "2,8 6,4 10,8" : "2,4 6,8 10,4"}
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              />
-            </svg>
+            <SidebarChevron open={expanded} />
           </button>
         )}
       </div>
@@ -125,14 +127,7 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
       aria-expanded={isOpen}
       onClick={onToggle}
     >
-      <svg class={styles.groupChevron} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-        <polyline
-          points={isOpen ? "2,8 6,4 10,8" : "2,4 6,8 10,4"}
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-        />
-      </svg>
+      <SidebarChevron open={isOpen} class={styles.groupChevron} />
       <StatusShape kind={def.tone} size={7} />
       <span class={styles.groupLabel}>{def.label}</span>
       <span class={styles.groupCount}>{count}</span>
@@ -187,7 +182,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
 
   return (
     <aside class={styles.sidebar} data-testid="sidebar">
-      {/* Wordmark */}
       <div class={styles.sidebarBrand}>
         <Link href="/apps" class={styles.brandLink} aria-label="Hassette home">
           <span class={styles.wordmark}>hassette</span>
@@ -199,7 +193,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         )}
       </div>
 
-      {/* Cmd-K trigger */}
       <button
         type="button"
         class={styles.cmdkey}
@@ -211,7 +204,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         <kbd class={styles.cmdkeyHint}>{SHORTCUT_HINT}</kbd>
       </button>
 
-      {/* Top-level navigation */}
       <nav aria-label="Main navigation">
         <ul class={styles.navList}>
           {NAV_ITEMS.map((item) => {
@@ -232,15 +224,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </ul>
       </nav>
 
-      {/* App section */}
       <div class={styles.appNav} data-testid="app-nav">
-        {/* APPS section header */}
         <div class={styles.sectionHeader}>
           <span class={styles.sectionLabel}>APPS</span>
           <span class={styles.sectionCount}>{isFiltering ? `${filteredCount}/${totalCount}` : totalCount}</span>
         </div>
 
-        {/* Search */}
         <div class={styles.searchWrap}>
           <input
             type="search"
@@ -252,7 +241,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           />
         </div>
 
-        {/* Status groups */}
         {manifestsLoading && <Spinner />}
         {!manifestsLoading && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
         {GROUP_DEFS.map((def) => {

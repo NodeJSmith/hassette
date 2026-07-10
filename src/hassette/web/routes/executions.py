@@ -1,7 +1,7 @@
 """Execution log endpoint."""
 
-import logging
 import time
+from logging import getLogger
 from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 
 def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:

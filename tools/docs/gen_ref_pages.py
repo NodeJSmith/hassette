@@ -76,7 +76,7 @@ def format_title(part: str) -> str:
 
 
 def main() -> None:
-    nav = mkdocs_gen_files.Nav()
+    nav = mkdocs_gen_files.Nav()  # pyright: ignore[reportPrivateImportUsage]
 
     ref_disk_dir = ROOT / "docs" / VIRTUAL_REF_ROOT
     if ref_disk_dir.exists():
@@ -110,7 +110,7 @@ def main() -> None:
     )
     with mkdocs_gen_files.open(VIRTUAL_REF_ROOT / "index.md", "w") as index_file:
         index_file.write(index_content)
-    nav[["Overview"]] = "index.md"
+    nav[("Overview",)] = "index.md"
 
     for path in sorted(SRC_DIR.rglob("*.py")):
         module_parts = path.relative_to(SRC_DIR).with_suffix("").parts
@@ -141,7 +141,7 @@ def main() -> None:
 
         nav_parts = parts[1:] if parts[0] == "hassette" and len(parts) > 1 else parts
         nav_entry = [format_title(part) for part in nav_parts]
-        nav[nav_entry] = doc_path.as_posix()
+        nav[tuple(nav_entry)] = doc_path.as_posix()
 
         if DEBUG:
             print(f"[gen-ref] writing {full_doc_path} for {module_path}")

@@ -139,7 +139,6 @@ class TestRouterSyncContract:
     ROUTER_MUTATION_METHODS: typing.ClassVar[list[str]] = [
         "add_route",
         "remove_route",
-        "remove_listener",
         "remove_listener_by_id",
         "clear_owner",
     ]
@@ -150,7 +149,7 @@ class TestRouterSyncContract:
     ]
 
     def test_all_router_methods_are_plain_def(self) -> None:
-        """All 7 Router mutation and query methods are plain def, not async def."""
+        """All 6 Router mutation and query methods are plain def, not async def."""
         router = Router()
         all_method_names = self.ROUTER_MUTATION_METHODS + self.ROUTER_QUERY_METHODS
 
@@ -160,20 +159,6 @@ class TestRouterSyncContract:
                 f"Router.{name} must be a plain def, not async def. "
                 "Async Router methods reintroduce deferred routing and ordering bugs."
             )
-
-    def test_router_mutation_methods_are_plain_def(self) -> None:
-        """Router mutation methods are plain def."""
-        router = Router()
-        for name in self.ROUTER_MUTATION_METHODS:
-            method = getattr(router, name)
-            assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (mutation method)"
-
-    def test_router_query_methods_are_plain_def(self) -> None:
-        """Router query methods are plain def."""
-        router = Router()
-        for name in self.ROUTER_QUERY_METHODS:
-            method = getattr(router, name)
-            assert not inspect.iscoroutinefunction(method), f"Router.{name} must be plain def (query method)"
 
     def test_router_has_no_lock_attribute(self) -> None:
         """Router instance has no lock attribute."""

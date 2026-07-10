@@ -128,7 +128,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def get_states(self) -> list[BaseState]:
         """Return typed states for all seeded entities."""
-
         items = list(self._parent._state_proxy.states.items())
         return [self._parent._convert_state(raw, eid) for eid, raw in items]
 
@@ -143,7 +142,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def fire_event(self, event_type: str, event_data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Record a fire_event call. Returns an empty dict stub."""
-
         self._parent.calls.append(
             ApiCall(
                 method="fire_event",
@@ -162,7 +160,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         **data: Any,
     ) -> ServiceResponse | None:
         """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
-
         self._parent.calls.append(
             ApiCall(
                 method="call_service",
@@ -182,7 +179,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
-
         entity_id = str(entity_id)
         self._parent.calls.append(
             ApiCall(method="turn_on", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain, **data})
@@ -190,7 +186,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
         """Record a turn_off call directly under its own method name."""
-
         entity_id = str(entity_id)
         self._parent.calls.append(
             ApiCall(method="turn_off", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
@@ -198,7 +193,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
         """Record a toggle_service call directly under its own method name."""
-
         entity_id = str(entity_id)
         self._parent.calls.append(
             ApiCall(method="toggle_service", args=(entity_id,), kwargs={"entity_id": entity_id, "domain": domain})
@@ -209,7 +203,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
-
         return entity_id in self._parent._state_proxy.states
 
     def get_entity(self, entity_id: str, model: type[BaseEntity]) -> BaseEntity:
@@ -222,8 +215,8 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Raises:
             TypeError: If ``model`` is not a ``BaseEntity`` subclass.
-            EntityNotFoundError: If ``entity_id`` is not seeded."""
-
+            EntityNotFoundError: If ``entity_id`` is not seeded.
+        """
         if not issubclass(model, BaseEntity):
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         raw = self._parent._get_raw_state(entity_id)
@@ -235,8 +228,8 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
         by the ``RecordingSyncFacade`` generator. Matches the real
-        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics."""
-
+        ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
+        """
         if not issubclass(model, BaseEntity):
             raise TypeError(f"Model {model!r} is not a valid BaseEntity subclass")
         try:
@@ -247,7 +240,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def get_state(self, entity_id: str) -> BaseState:
         """Return the typed state for entity_id. Raises EntityNotFoundError if not seeded."""
-
         raw = self._parent._get_raw_state(entity_id)
         return self._parent._convert_state(raw, entity_id)
 
@@ -256,8 +248,8 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Inlines the logic from :meth:`get_state` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``RecordingSyncFacade`` generator."""
-
+        by the ``RecordingSyncFacade`` generator.
+        """
         try:
             raw = self._parent._get_raw_state(entity_id)
         except EntityNotFoundError:
@@ -305,7 +297,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
         """Record a set_state call. Returns an empty dict stub."""
-
         entity_id = str(entity_id)
         self._parent.calls.append(
             ApiCall(
@@ -340,19 +331,16 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def list_input_booleans(self) -> list[InputBooleanRecord]:
         """Return all seeded input_boolean helpers. Delegates to _list_helper."""
-
         return cast("list[InputBooleanRecord]", self._parent._list_helper(InputBooleanRecord))
 
     def create_input_boolean(self, params: CreateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast(
             "InputBooleanRecord", self._parent._create_helper(InputBooleanRecord, "create_input_boolean", params)
         )
 
     def update_input_boolean(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputBooleanRecord",
             self._parent._update_helper(InputBooleanRecord, "update_input_boolean", helper_id, params),
@@ -360,22 +348,18 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_input_boolean(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputBooleanRecord, "delete_input_boolean", helper_id)
 
     def list_input_numbers(self) -> list[InputNumberRecord]:
         """Return all seeded input_number helpers. Delegates to _list_helper."""
-
         return cast("list[InputNumberRecord]", self._parent._list_helper(InputNumberRecord))
 
     def create_input_number(self, params: CreateInputNumberParams) -> InputNumberRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("InputNumberRecord", self._parent._create_helper(InputNumberRecord, "create_input_number", params))
 
     def update_input_number(self, helper_id: str, params: UpdateInputNumberParams) -> InputNumberRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputNumberRecord",
             self._parent._update_helper(InputNumberRecord, "update_input_number", helper_id, params),
@@ -383,29 +367,24 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_input_number(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputNumberRecord, "delete_input_number", helper_id)
 
     def list_input_texts(self) -> list[InputTextRecord]:
         """Return all seeded input_text helpers. Delegates to _list_helper."""
-
         return cast("list[InputTextRecord]", self._parent._list_helper(InputTextRecord))
 
     def create_input_text(self, params: CreateInputTextParams) -> InputTextRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("InputTextRecord", self._parent._create_helper(InputTextRecord, "create_input_text", params))
 
     def update_input_text(self, helper_id: str, params: UpdateInputTextParams) -> InputTextRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputTextRecord", self._parent._update_helper(InputTextRecord, "update_input_text", helper_id, params)
         )
 
     def delete_input_text(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputTextRecord, "delete_input_text", helper_id)
 
     def list_input_selects(self) -> list[InputSelectRecord]:
@@ -413,18 +392,16 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Delegates to _list_helper. Uses ``model_copy(deep=True)`` because
         ``InputSelectRecord.options`` is a ``list[str]`` — the ``deep_copy=True``
-        flag in ``RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased."""
-
+        flag in ``RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased.
+        """
         return cast("list[InputSelectRecord]", self._parent._list_helper(InputSelectRecord))
 
     def create_input_select(self, params: CreateInputSelectParams) -> InputSelectRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("InputSelectRecord", self._parent._create_helper(InputSelectRecord, "create_input_select", params))
 
     def update_input_select(self, helper_id: str, params: UpdateInputSelectParams) -> InputSelectRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputSelectRecord",
             self._parent._update_helper(InputSelectRecord, "update_input_select", helper_id, params),
@@ -432,24 +409,20 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_input_select(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputSelectRecord, "delete_input_select", helper_id)
 
     def list_input_datetimes(self) -> list[InputDatetimeRecord]:
         """Return all seeded input_datetime helpers. Delegates to _list_helper."""
-
         return cast("list[InputDatetimeRecord]", self._parent._list_helper(InputDatetimeRecord))
 
     def create_input_datetime(self, params: CreateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast(
             "InputDatetimeRecord", self._parent._create_helper(InputDatetimeRecord, "create_input_datetime", params)
         )
 
     def update_input_datetime(self, helper_id: str, params: UpdateInputDatetimeParams) -> InputDatetimeRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputDatetimeRecord",
             self._parent._update_helper(InputDatetimeRecord, "update_input_datetime", helper_id, params),
@@ -457,22 +430,18 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_input_datetime(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputDatetimeRecord, "delete_input_datetime", helper_id)
 
     def list_input_buttons(self) -> list[InputButtonRecord]:
         """Return all seeded input_button helpers. Delegates to _list_helper."""
-
         return cast("list[InputButtonRecord]", self._parent._list_helper(InputButtonRecord))
 
     def create_input_button(self, params: CreateInputButtonParams) -> InputButtonRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("InputButtonRecord", self._parent._create_helper(InputButtonRecord, "create_input_button", params))
 
     def update_input_button(self, helper_id: str, params: UpdateInputButtonParams) -> InputButtonRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast(
             "InputButtonRecord",
             self._parent._update_helper(InputButtonRecord, "update_input_button", helper_id, params),
@@ -480,64 +449,52 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
     def delete_input_button(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(InputButtonRecord, "delete_input_button", helper_id)
 
     def list_counters(self) -> list[CounterRecord]:
         """Return all seeded counter helpers. Delegates to _list_helper."""
-
         return cast("list[CounterRecord]", self._parent._list_helper(CounterRecord))
 
     def create_counter(self, params: CreateCounterParams) -> CounterRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("CounterRecord", self._parent._create_helper(CounterRecord, "create_counter", params))
 
     def update_counter(self, helper_id: str, params: UpdateCounterParams) -> CounterRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast("CounterRecord", self._parent._update_helper(CounterRecord, "update_counter", helper_id, params))
 
     def delete_counter(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(CounterRecord, "delete_counter", helper_id)
 
     def list_timers(self) -> list[TimerRecord]:
         """Return all seeded timer helpers. Delegates to _list_helper."""
-
         return cast("list[TimerRecord]", self._parent._list_helper(TimerRecord))
 
     def create_timer(self, params: CreateTimerParams) -> TimerRecord:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper."""
-
         return cast("TimerRecord", self._parent._create_helper(TimerRecord, "create_timer", params))
 
     def update_timer(self, helper_id: str, params: UpdateTimerParams) -> TimerRecord:
         """Record the call and mutate the seeded record. Delegates to _update_helper."""
-
         return cast("TimerRecord", self._parent._update_helper(TimerRecord, "update_timer", helper_id, params))
 
     def delete_timer(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-
         self._parent._delete_helper(TimerRecord, "delete_timer", helper_id)
 
     def increment_counter(self, entity_id: str) -> None:
         """Record an increment_counter call directly (not via call_service)."""
-
         self._parent.calls.append(
             ApiCall(method="increment_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
         )
 
     def decrement_counter(self, entity_id: str) -> None:
         """Record a decrement_counter call directly (not via call_service)."""
-
         self._parent.calls.append(
             ApiCall(method="decrement_counter", args=(entity_id,), kwargs={"entity_id": entity_id})
         )
 
     def reset_counter(self, entity_id: str) -> None:
         """Record a reset_counter call directly (not via call_service)."""
-
         self._parent.calls.append(ApiCall(method="reset_counter", args=(entity_id,), kwargs={"entity_id": entity_id}))

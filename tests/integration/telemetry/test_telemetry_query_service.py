@@ -31,12 +31,14 @@ class TestGetListenerSummary:
         """2 listeners, 3 invocations (2 success, 1 error) — correct aggregates."""
         db_svc, session_id = db
 
-        l1 = await insert_listener(db_svc, handler_method="on_a")
-        _l2 = await insert_listener(db_svc, handler_method="on_b")
+        listener_id_1 = await insert_listener(db_svc, handler_method="on_a")
+        _listener_id_2 = await insert_listener(db_svc, handler_method="on_b")
 
-        await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=10.0)
-        await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=20.0)
-        await insert_invocation(db_svc, l1, session_id, status="error", duration_ms=5.0, error_type="ValueError")
+        await insert_invocation(db_svc, listener_id_1, session_id, status="success", duration_ms=10.0)
+        await insert_invocation(db_svc, listener_id_1, session_id, status="success", duration_ms=20.0)
+        await insert_invocation(
+            db_svc, listener_id_1, session_id, status="error", duration_ms=5.0, error_type="ValueError"
+        )
 
         rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 2
@@ -221,19 +223,19 @@ class TestGetJobSummary:
         """2 jobs, mixed results — correct aggregate totals."""
         db_svc, session_id = db
 
-        j1 = await insert_job(db_svc, job_name="job_a")
-        j2 = await insert_job(db_svc, job_name="job_b")
+        job_id_1 = await insert_job(db_svc, job_name="job_a")
+        job_id_2 = await insert_job(db_svc, job_name="job_b")
 
-        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
-        await insert_execution(db_svc, j1, session_id, status="error", duration_ms=50.0)
-        await insert_execution(db_svc, j2, session_id, status="success", duration_ms=200.0)
+        await insert_execution(db_svc, job_id_1, session_id, status="success", duration_ms=100.0)
+        await insert_execution(db_svc, job_id_1, session_id, status="error", duration_ms=50.0)
+        await insert_execution(db_svc, job_id_2, session_id, status="success", duration_ms=200.0)
 
         rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 2
 
         assert all(isinstance(r, JobSummary) for r in rows)
         row1 = next(r for r in rows if r.job_name == "job_a")
-        assert row1.job_id == j1
+        assert row1.job_id == job_id_1
         assert row1.app_key == "test_app"
         assert row1.instance_index == 0
         assert row1.total_executions == 2
@@ -242,7 +244,7 @@ class TestGetJobSummary:
         assert row1.avg_duration_ms == pytest.approx(75.0)
 
         row2 = next(r for r in rows if r.job_name == "job_b")
-        assert row2.job_id == j2
+        assert row2.job_id == job_id_2
         assert row2.total_executions == 1
         assert row2.successful == 1
         assert row2.failed == 0

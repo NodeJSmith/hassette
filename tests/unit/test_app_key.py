@@ -33,7 +33,8 @@ class TestAppKey:
     def test_app_key_ignores_shared_class_manifest(self) -> None:
         """Two app keys sharing one App subclass keep their own app_key, even
         after the shared app_manifest ClassVar is overwritten — and the status
-        event carries each instance's own key."""
+        event carries each instance's own key.
+        """
         hassette = make_mock_hassette(sealed=False)
 
         app_a = App(

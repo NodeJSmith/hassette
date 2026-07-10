@@ -58,10 +58,6 @@ function renderOverviewTab({
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Error Spotlight
-// ──────────────────────────────────────────────────────────────────────────────
-
 describe("OverviewTab — Error Spotlight", () => {
   it("is absent when no listeners or jobs are failing", () => {
     const { queryByTestId } = renderOverviewTab({
@@ -217,10 +213,6 @@ describe("OverviewTab — Error Spotlight", () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Handler Health Grid
-// ──────────────────────────────────────────────────────────────────────────────
-
 describe("OverviewTab — Handler Health Grid", () => {
   it("renders the health grid section", () => {
     const { getByTestId } = renderOverviewTab();
@@ -350,10 +342,6 @@ describe("OverviewTab — Handler Health Grid", () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Recent Activity Section
-// ──────────────────────────────────────────────────────────────────────────────
-
 describe("OverviewTab — Recent Activity", () => {
   it("renders activity data from the endpoint", async () => {
     const entries: ActivityFeedEntry[] = [
@@ -478,10 +466,6 @@ describe("OverviewTab — Recent Activity", () => {
   });
 });
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Recent Logs Section
-// ──────────────────────────────────────────────────────────────────────────────
-
 describe("OverviewTab — Recent Logs", () => {
   it("renders recent log entries for the app", async () => {
     const logs = [
@@ -510,10 +494,6 @@ describe("OverviewTab — Recent Logs", () => {
     });
   });
 });
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Real-Time Updates
-// ──────────────────────────────────────────────────────────────────────────────
 
 describe("OverviewTab — Real-time refetch", () => {
   function setupActivityCounter() {

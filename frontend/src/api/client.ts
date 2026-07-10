@@ -38,18 +38,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+function apiWrite<T>(method: "POST" | "PUT", path: string, body?: unknown): Promise<T> {
   return apiFetch<T>(path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
-export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  return apiFetch<T>(path, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
+export const apiPost = <T>(path: string, body?: unknown) => apiWrite<T>("POST", path, body);
+export const apiPut = <T>(path: string, body?: unknown) => apiWrite<T>("PUT", path, body);

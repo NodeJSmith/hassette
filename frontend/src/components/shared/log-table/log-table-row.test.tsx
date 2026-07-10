@@ -24,10 +24,6 @@ vi.mock("wouter", () => ({
 import { formatTimestamp } from "../../../utils/format";
 import { LogTableRow } from "./log-table-row";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
   const defaults = {
     entry: createLogEntry(),
@@ -45,10 +41,6 @@ function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
     </table>,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("LogTableRow", () => {
   describe("row element", () => {

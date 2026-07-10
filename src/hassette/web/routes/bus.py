@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import SOURCE_TIER_PARAM, HassetteDep, TelemetryDep, db_degrades_to
+from hassette.web.dependencies import INSTANCE_INDEX_PARAM, SOURCE_TIER_PARAM, HassetteDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import ListenerWithSummary
 
@@ -18,10 +18,7 @@ async def get_listener_metrics(
     hassette: HassetteDep,
     response: Response,
     app_key: Annotated[str | None, Query()] = None,
-    instance_index: Annotated[
-        int,
-        Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."),
-    ] = 0,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:

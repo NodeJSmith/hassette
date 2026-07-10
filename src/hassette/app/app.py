@@ -1,5 +1,5 @@
-import logging
 import typing
+from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
 from whenever import ZonedDateTime
@@ -20,7 +20,7 @@ from .app_config import AppConfig
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = getLogger(__name__)
 
 AppT = TypeVar("AppT", bound="App")
 
@@ -70,7 +70,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     """Config class to use for instances of the created app. Configuration from hassette.toml or
     other sources will be validated by this class."""
 
-    logger: logging.Logger
+    logger: Logger
     """Logger for the instance."""
 
     api: "Api"

@@ -45,7 +45,8 @@ def test_single_node_no_deps():
 
 def test_linear_chain():
     """A → B → C: C has no deps, A depends on B which depends on C.
-    Expected init order: C before B before A."""
+    Expected init order: C before B before A.
+    """
 
     class Root(StubBase):
         depends_on: ClassVar[list] = []
@@ -66,7 +67,8 @@ def test_linear_chain():
 
 def test_diamond():
     """Diamond: D depends on B and C, both depend on A.
-    Expected: A before B and C, B and C before D."""
+    Expected: A before B and C, B and C before D.
+    """
     result = topological_sort([A, B, C, D])
     assert A in result
     assert B in result
@@ -145,7 +147,8 @@ def test_disconnected_with_dep_chain():
 
 def test_stable_ordering():
     """Nodes at the same depth (no ordering constraint between them) appear
-    in the same relative order as the input list."""
+    in the same relative order as the input list.
+    """
 
     class R1(StubBase):
         depends_on: ClassVar[list] = []
@@ -171,7 +174,8 @@ def test_stable_ordering():
 
 def test_deps_not_in_input_are_excluded():
     """Dependencies not in the input list are NOT auto-included in the output.
-    The function only sorts what it is given."""
+    The function only sorts what it is given.
+    """
 
     class External(StubBase):
         depends_on: ClassVar[list] = []

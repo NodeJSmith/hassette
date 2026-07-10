@@ -12,7 +12,6 @@ import hmac
 import json
 from pathlib import Path
 
-# ── Deterministic IDs (never change these) ──────────────────────────────────
 USER_ID = "00000000000000000000000000000001"
 CREDENTIAL_ID = "00000000000000000000000000000002"
 TOKEN_ID = "00000000000000000000000000000003"

@@ -108,7 +108,7 @@ async def test_bus_sync_emit_delivers_event(hassette_with_bus: "HassetteHarness"
 
 
 async def test_bus_emit_no_subscribers(hassette_with_bus: "HassetteHarness") -> None:
-    """emit with no subscribers completes without error."""
+    """Emit with no subscribers completes without error."""
     bus = hassette_with_bus.bus
     await bus.emit("test.no_subscribers", BroadcastPayload(value="dropped", count=0))
 

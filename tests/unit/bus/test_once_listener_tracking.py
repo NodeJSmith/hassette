@@ -64,7 +64,7 @@ async def test_once_if_exists_replace_works(bus: "Bus") -> None:
 # once-fire releases the key (new registration succeeds)
 
 
-def _get_bus_removal_callback(bus: "Bus"):
+def get_bus_removal_callback(bus: "Bus"):
     """Get the removal callback registered by this bus, regardless of owner_id key.
 
     The bus fixture replaces bus.parent after __init__, so bus.owner_id changes.
@@ -114,7 +114,7 @@ async def test_once_key_released_after_fire(bus: "Bus") -> None:
         # Simulate BusService removing the listener (once-fire path) via the callback
         listener = bus._registered_listeners[key]
         # Invoke the removal callback directly to simulate what BusService.remove_listener does
-        callback = _get_bus_removal_callback(bus)
+        callback = get_bus_removal_callback(bus)
         assert callback is not None, "Bus must register a removal callback on BusService"
         callback(listener)
 
@@ -169,7 +169,7 @@ async def test_once_fire_spawns_mark_listener_cancelled(bus: "Bus") -> None:
         listener = bus._registered_listeners[key]
 
         # Invoke the removal callback (simulates BusService.remove_listener for once-fire)
-        callback = _get_bus_removal_callback(bus)
+        callback = get_bus_removal_callback(bus)
         assert callback is not None, "Bus must register a removal callback on BusService"
         callback(listener)
 
@@ -213,7 +213,7 @@ async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
         listener = bus._registered_listeners.get(key)
         assert listener is not None
 
-        callback = _get_bus_removal_callback(bus)
+        callback = get_bus_removal_callback(bus)
         assert callback is not None, "Bus must register a removal callback on BusService"
         # Should not crash even with no db_id
         callback(listener)
@@ -230,13 +230,13 @@ async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
 async def test_shutdown_deregisters_removal_callback(bus: "Bus") -> None:
     """Bus.on_shutdown deregisters the removal callback from BusService."""
     # The bus should have registered its callback in __init__
-    callback_before = _get_bus_removal_callback(bus)
+    callback_before = get_bus_removal_callback(bus)
     assert callback_before is not None, "Bus must register a removal callback on BusService in __init__"
 
     # Trigger shutdown
     await bus.on_shutdown()
 
-    callback_after = _get_bus_removal_callback(bus)
+    callback_after = get_bus_removal_callback(bus)
     assert callback_after is None, "Bus must deregister its removal callback on shutdown"
 
 
@@ -267,7 +267,7 @@ async def test_callback_no_op_when_key_already_gone(bus: "Bus") -> None:
     bus.bus_service.task_bucket.spawn = spawn_spy
 
     # Invoke the old callback with the listener — must not raise
-    callback = _get_bus_removal_callback(bus)
+    callback = get_bus_removal_callback(bus)
     assert callback is not None
     try:
         # This must be a no-op: no crash, and no cancelled_at spawn for an already-gone key.

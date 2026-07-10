@@ -131,6 +131,7 @@ async def initialized_db(db_hassette: AsyncMock) -> AsyncIterator[tuple[Database
         session_id = cursor.lastrowid
         assert session_id is not None
         db_hassette.session_id = session_id
+        db_hassette.try_session_id.return_value = session_id
         await db_service.db.commit()
         db_hassette.database_service = db_service
         yield db_service, session_id

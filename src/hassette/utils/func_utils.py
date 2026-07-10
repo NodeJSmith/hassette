@@ -21,7 +21,6 @@ def is_async_callable(fn: Callable[..., object] | Any) -> bool:
     - Callable instances with an async __call__ method
     - Functions decorated with @wraps that preserve the async nature
     """
-
     # plain async def foo(...)
     if inspect.iscoroutinefunction(fn):
         return True
@@ -121,7 +120,6 @@ def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     Returns:
         The short name of the callable.
     """
-
     full_name = callable_name(fn)
     if num_parts <= 0:
         return full_name

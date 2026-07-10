@@ -6,13 +6,9 @@ config validation, and state preservation.
 
 import asyncio
 from typing import TYPE_CHECKING, Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-from unittest.mock import AsyncMock, patch
 
 from hassette import D, context
 from hassette.app.app import App
@@ -24,6 +20,9 @@ from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarnes
 from hassette.test_utils.harness import wait_for
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Class names don't start with "Test" to avoid pytest collection warnings.
 

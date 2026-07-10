@@ -152,7 +152,7 @@ class TestAppManifestAutostart:
         assert manifest.autostart is False
 
     def test_autostart_false_in_model_dump(self) -> None:
-        """autostart appears in model_dump output."""
+        """Autostart appears in model_dump output."""
         manifest = make_manifest(autostart=False)
         result = manifest.model_dump()
         assert result["autostart"] is False

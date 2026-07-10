@@ -1,6 +1,4 @@
 import asyncio
-from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
 
@@ -12,9 +10,6 @@ from hassette.scheduler.triggers import Every
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
 from hassette.utils.date_utils import now
-from hassette.web.utils import ONE_SHOT_TRIGGER_TYPE, resolve_trigger
-
-TZ = ZoneInfo("America/Chicago")
 
 
 async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:
@@ -428,16 +423,6 @@ async def test_once_job_removed_from_group_after_exhaustion() -> None:
         )
         # The recurring job should still be in the group (it re-enqueues after firing)
         assert any(j.name == "recurring_in_group" for j in group_after), "Recurring job should remain in group"
-
-
-def test_resolve_trigger_none_job() -> None:
-    """resolve_trigger returns ('one-shot', None) for a job with trigger=None.
-
-    The 'one-shot' label distinguishes no-trigger jobs from cron/interval jobs in the UI.
-    """
-    job = SimpleNamespace(trigger=None)
-    result = resolve_trigger(job)  # pyright: ignore[reportArgumentType]
-    assert result == (ONE_SHOT_TRIGGER_TYPE, None), f"Expected ('{ONE_SHOT_TRIGGER_TYPE}', None), got {result}"
 
 
 async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: HassetteHarness) -> None:

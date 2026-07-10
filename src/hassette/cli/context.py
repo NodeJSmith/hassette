@@ -16,8 +16,6 @@ class CLIContext:
 
     json_mode: bool = False
     debug_mode: bool = False
-    env_file_override: str | None = None
-    config_file_override: str | None = None
 
 
 CLIContextParam = Annotated[CLIContext, Parameter(parse=False)]

@@ -54,7 +54,7 @@ def test_job_summary_repeat_field_removed() -> None:
 
 
 def test_job_summary_group_can_be_set() -> None:
-    """group field accepts non-None string values."""
+    """Group field accepts non-None string values."""
     summary = JobSummary(
         job_id=2,
         app_key="my_app",
@@ -81,13 +81,13 @@ def test_job_summary_group_can_be_set() -> None:
 
 
 def test_job_summary_cancelled_field_present() -> None:
-    """cancelled field surfaces cancelled execution counts; defaults to 0."""
+    """Cancelled field surfaces cancelled execution counts; defaults to 0."""
     assert "cancelled" in JobSummary.model_fields
     assert JobSummary.model_fields["cancelled"].default == 0
 
 
 def test_job_summary_skipped_field_present() -> None:
-    """skipped field surfaces predicate-skip execution counts; defaults to 0."""
+    """Skipped field surfaces predicate-skip execution counts; defaults to 0."""
     assert "skipped" in JobSummary.model_fields
     assert JobSummary.model_fields["skipped"].default == 0
 
@@ -101,7 +101,7 @@ def test_job_summary_predicate_description_fields_present() -> None:
 
 
 def test_job_summary_invariant_with_skipped() -> None:
-    """successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
+    """Successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
     summary = JobSummary(
         job_id=10,
         app_key="my_app",

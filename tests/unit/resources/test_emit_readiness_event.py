@@ -32,10 +32,8 @@ class TestEmitReadinessEvent:
 
         await resource._emit_readiness_event()
 
-        # hassette.send_event should have been called
         assert hassette.send_event.called
 
-        # Extract the event payload from the call
         call_args = hassette.send_event.call_args
         event = call_args[0][0]
         payload: ServiceStatusPayload = event.payload.data
@@ -56,7 +54,6 @@ class TestEmitReadinessEvent:
 
         await resource.handle_running()
 
-        # Event should have been sent
         assert hassette.send_event.called
         call_args = hassette.send_event.call_args
         event = call_args[0][0]

@@ -17,6 +17,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.event_filter import EventFilter
+from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.resources.restart import RestartSpec
@@ -24,9 +25,9 @@ from hassette.resources.service import Service
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceStatus, RestartType
 
-# Minimal DDL for log_records tests — intentionally omits many real columns.
+# Minimal DDL for telemetry tests — intentionally omits many real columns.
 # See test_database_service_migrations.py for the canonical schema contract.
-LOG_RECORDS_TEST_DDL = """
+TELEMETRY_TEST_DDL = """
 CREATE TABLE log_records (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     seq             INTEGER NOT NULL,
@@ -131,6 +132,7 @@ def mock_hassette() -> AsyncMock:
     hassette.scheduler_service = MagicMock()
     hassette.scheduler_service.remove_jobs_by_owner = MagicMock(side_effect=lambda _owner: asyncio.sleep(0))
     hassette.session_id = 1
+    hassette.try_session_id.return_value = 1
     return hassette
 
 
@@ -180,24 +182,27 @@ def mock_manifest() -> MagicMock:
     return manifest
 
 
-@pytest.fixture
-def mock_app_instance() -> AsyncMock:
-    """Create a mock App instance."""
+def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: str = "MockApp") -> AsyncMock:
+    """Create a mock App instance with bus/scheduler stubs."""
     app = AsyncMock()
-    app.app_config = MagicMock()
-    app.app_config.instance_name = "test_instance"
+    app.app_config = MagicMock(instance_name=instance_name)
     app.status = ResourceStatus.NOT_STARTED
-    app.class_name = "MockApp"
+    app.class_name = class_name
     app.initialize = AsyncMock()
     app.shutdown = AsyncMock()
     app.mark_ready = Mock()
     app.logger = Mock()
     app.bus = MagicMock()
     app.bus.get_listeners = Mock(return_value=[])
-    app.bus.owner_id = "MockApp.test_instance"
+    app.bus.owner_id = f"{class_name}.{instance_name}"
     app.scheduler = MagicMock()
     app.scheduler.get_job_db_ids = Mock(return_value=[])
     return app
+
+
+@pytest.fixture
+def mock_app_instance() -> AsyncMock:
+    return make_mock_app_instance()
 
 
 @pytest.fixture
@@ -224,6 +229,7 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     hassette.config.lifecycle.error_handler_timeout_seconds = error_handler_timeout
     hassette.database_service = MagicMock()
     hassette.session_id = 42
+    hassette.try_session_id.return_value = 42
     executor = CommandExecutor.__new__(CommandExecutor)
     executor._write_queue = asyncio.Queue(maxsize=1000)
     executor._dropped_overflow = 0
@@ -252,7 +258,7 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     return executor
 
 
-class _DummyService(Service):
+class DummyService(Service):
     """Minimal concrete Service for watcher-level tests."""
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TRANSIENT)
@@ -264,7 +270,7 @@ class _DummyService(Service):
             raise
 
 
-class _TempService(Service):
+class TempService(Service):
     """TEMPORARY restart type service for EXHAUSTED_DEAD tests."""
 
     restart_spec: RestartSpec = RestartSpec(restart_type=RestartType.TEMPORARY)
@@ -356,6 +362,41 @@ def make_bus_service(*, config_timeout: float | None = 600.0, max_concurrent_dis
     svc._dispatch_idle_event.set()
     svc._dispatch_semaphore = asyncio.Semaphore(max_concurrent_dispatches)
     svc._last_saturation_warn_ts = 0.0
+    return svc
+
+
+def make_scheduler_service(
+    *,
+    config_timeout: float | None = 600.0,
+    behind_schedule_threshold: float = 60,
+) -> SchedulerService:
+    """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
+    svc = SchedulerService.__new__(SchedulerService)
+    svc.hassette = MagicMock()
+    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = behind_schedule_threshold
+    svc.hassette.config.scheduler.job_timeout_seconds = config_timeout
+    svc._removal_callbacks = {}
+    svc.logger = MagicMock()
+    svc._wakeup_event = asyncio.Event()
+
+    svc._job_queue = MagicMock()
+    svc._job_queue.add = AsyncMock(return_value=None)
+    svc._job_queue.remove_job = AsyncMock(return_value=True)
+
+    svc._executor = MagicMock()
+    svc._executor.execute = AsyncMock()
+
+    svc.task_bucket = MagicMock()
+    svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+
+    # Close coroutines immediately to avoid "coroutine was never awaited" warnings
+    def _spawn(coro, **_kwargs):
+        if hasattr(coro, "close"):
+            coro.close()
+        return MagicMock()
+
+    svc.task_bucket.spawn = _spawn
+
     return svc
 
 

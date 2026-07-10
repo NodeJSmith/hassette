@@ -173,8 +173,8 @@ class TaskBucket(Resource):
                     with ctx.use_task_bucket(self):
                         task = asyncio.create_task(coro, name=name)
                     result.set_result(task)
-                except Exception as e:
-                    result.set_exception(e)
+                except Exception as exc:
+                    result.set_exception(exc)
 
             self.hassette.loop.call_soon_threadsafe(_create)
             try:
@@ -238,13 +238,13 @@ class TaskBucket(Resource):
         # submissions stop (fully-starved pool); this check catches the rising-load
         # signal on each new submission.
         try:
-            svc = self.hassette.sync_executor_service
+            executor_service = self.hassette.sync_executor_service
         except RuntimeError:
             # The property raises RuntimeError until wire_services() wires the service
             # (early startup, or unit tests that never construct it).
-            svc = None
-        if svc is not None:
-            svc.track_submission(cast("asyncio.Future[Any]", future))
+            executor_service = None
+        if executor_service is not None:
+            executor_service.track_submission(cast("asyncio.Future[Any]", future))
 
         return future
 
@@ -258,8 +258,7 @@ class TaskBucket(Resource):
     def make_async_adapter(self, fn: Callable[P, R]) -> Callable[P, Awaitable[R]]: ...
 
     def make_async_adapter(self, fn: Callable[P, R] | Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
-        """
-        Normalize a callable (sync or async) into an async callable with the same signature.
+        """Normalize a callable (sync or async) into an async callable with the same signature.
 
         - If `fn` is async: await it.
         - If `fn` is sync: run it in Hassette's thread pool executor via TaskBucket.run_in_thread.
@@ -295,7 +294,6 @@ class TaskBucket(Resource):
         Returns:
             The result of the function call.
         """
-
         if timeout_seconds is None:
             timeout_seconds = self.hassette.config.lifecycle.run_sync_timeout_seconds
 
@@ -338,8 +336,8 @@ class TaskBucket(Resource):
         def _call() -> None:
             try:
                 fut.set_result(fn(*args, **kwargs))
-            except Exception as e:
-                fut.set_exception(e)
+            except Exception as exc:
+                fut.set_exception(exc)
 
         self.hassette.loop.call_soon_threadsafe(_call)
         return await fut
@@ -411,7 +409,6 @@ def make_task_factory(
         to the task factory. We pop ``name`` and apply it after construction so the
         auto-naming fallback still works for callers that don't pass one.
         """
-
         # note: ensure we pass loop=loop here, to handle cases where we're calling this from something like
         # anyio's to_thread.run_sync
         # note: ignore any comments by AI tools about loop being deprecated/removed, because it's not

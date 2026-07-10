@@ -385,7 +385,7 @@ class TestAutoDetectApps:
 class TestValidateApps:
     """Test the validate_apps function."""
 
-    def _make_config(
+    def make_config(
         self,
         tmp_path: Path,
         *,
@@ -404,7 +404,7 @@ class TestValidateApps:
         """Test that validate_apps sets app_dir for apps that don't have it."""
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             directory=app_dir,
             apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp"}},
@@ -427,7 +427,7 @@ class TestValidateApps:
         app_dir.mkdir(parents=True, exist_ok=True)
         custom_dir = Path("/custom/location")
 
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             directory=app_dir,
             apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp", "app_dir": custom_dir}},
@@ -446,7 +446,7 @@ class TestValidateApps:
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             directory=app_dir,
             apps={
@@ -502,7 +502,7 @@ class TestValidateApps:
         }
         mock_autodetect.return_value = {"auto.AutoApp": mock_app_dict}
 
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             autodetect=True,
             directory=app_dir,
@@ -548,7 +548,7 @@ class TestValidateApps:
         }
         mock_autodetect.return_value = {"my_app": mock_app_dict}
 
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             autodetect=True,
             directory=app_dir,
@@ -585,7 +585,7 @@ class TestValidateApps:
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        config = self._make_config(
+        config = self.make_config(
             tmp_path,
             directory=app_dir,
             apps={

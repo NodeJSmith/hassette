@@ -5,6 +5,8 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import ANIMATION_SETTLE_MS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -31,7 +33,7 @@ def test_apps_list_status_filter_pills(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     open_status_filter(page)
     page.locator("[data-testid='filter-running']").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
 
@@ -41,13 +43,13 @@ def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     open_status_filter(page)
     page.locator("[data-testid='filter-running']").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
     # Re-open popover to select "all"
     open_status_filter(page)
     page.locator("[data-testid='filter-all']").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
 
 
@@ -67,7 +69,7 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
     expect(expand_btn).to_be_visible()
 
     expand_btn.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
 
     expect(page.locator("text=MultiApp[0]")).to_be_visible()
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
@@ -83,7 +85,7 @@ def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
     running_pill = page.locator("[data-testid='filter-running']")
     expect(running_pill).to_have_attribute("aria-pressed", "false")
     running_pill.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Re-open popover to check updated state
     open_status_filter(page)
     running_pill = page.locator("[data-testid='filter-running']")

@@ -33,7 +33,8 @@ class TestAppManifest:
 
     def test_app_manifest_ignores_shared_class_attr(self, tmp_path: Path) -> None:
         """Two instances sharing one App subclass keep their own manifest, even
-        after a clobbering class-level attribute is written for the last section."""
+        after a clobbering class-level attribute is written for the last section.
+        """
         hassette = make_mock_hassette(sealed=False)
         manifest_a = create_app_manifest("a", app_dir=tmp_path)
         manifest_b = create_app_manifest("b", app_dir=tmp_path)

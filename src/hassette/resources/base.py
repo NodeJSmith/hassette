@@ -1,10 +1,9 @@
 import asyncio
-import logging as _logging
 import typing
 import uuid
 from contextlib import suppress
 from functools import cached_property
-from logging import INFO, Logger, getLogger
+from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
 from diskcache import Cache
@@ -70,14 +69,14 @@ class FinalMeta(type):
                 raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)
 
 
-class _ResourceContextFilter(_logging.Filter):
+class _ResourceContextFilter(Filter):
     """Stamps source_tier on every LogRecord so downstream handlers and structlog processors can read it."""
 
     def __init__(self, source_tier: str) -> None:
         super().__init__()
         self.source_tier = source_tier
 
-    def filter(self, record: _logging.LogRecord) -> bool:
+    def filter(self, record: LogRecord) -> bool:
         record.source_tier = self.source_tier  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
@@ -203,12 +202,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         try:
             self.logger.setLevel(self.config_log_level)
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError) as exc:
             self.logger.error(
                 "Invalid log level %r for %s; falling back to INFO: %s",
                 self.config_log_level,
                 self.unique_name,
-                e,
+                exc,
             )
             self.logger.setLevel(INFO)
 
@@ -334,14 +333,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 with suppress(Exception):
                     await self.handle_failed(asyncio.CancelledError())
                 raise
-            except Exception as e:
+            except Exception as exc:
                 if continue_on_error:
-                    self.logger.error("Error during shutdown: %s %s", type(e).__name__, e)
+                    self.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
                     with suppress(Exception):
-                        await self.handle_failed(e)
+                        await self.handle_failed(exc)
                 else:
                     with suppress(Exception):
-                        await self.handle_failed(e)
+                        await self.handle_failed(exc)
                     raise
 
     def _ordered_children_for_shutdown(self) -> list["Resource"]:
@@ -379,18 +378,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         seen: set[int] = set()
         deps: list[Resource] = []
         for dep_type in self.depends_on:
-            matches = [c for c in self.hassette.children if isinstance(c, dep_type)]
+            matches = [child for child in self.hassette.children if isinstance(child, dep_type)]
             if not matches:
                 raise RuntimeError(
                     f"{self.class_name} declares depends_on=[{dep_type.__name__}] "
                     f"but no matching child found in Hassette"
                 )
-            for m in matches:
-                if id(m) not in seen:
-                    seen.add(id(m))
-                    deps.append(m)
+            for match in matches:
+                if id(match) not in seen:
+                    seen.add(id(match))
+                    deps.append(match)
 
-        dep_names = ", ".join(d.class_name for d in deps)
+        dep_names = ", ".join(dep.class_name for dep in deps)
         self.logger.info("Waiting for dependencies: [%s]", dep_names)
 
         ready = await self.hassette.wait_for_ready(deps)
@@ -398,7 +397,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             if self.hassette.shutdown_event.is_set():
                 self.mark_not_ready("shutdown during dependency wait")
                 return
-            status_report = ", ".join(f"{d.class_name}({d.status.value})" for d in deps)
+            status_report = ", ".join(f"{dep.class_name}({dep.status.value})" for dep in deps)
             raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
 
         self.logger.debug("Dependencies satisfied: [%s]", dep_names)
@@ -458,8 +457,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 await self.cleanup()
         except TimeoutError:
             self.logger.warning("cleanup() timed out after %ss for %s", timeout, self.unique_name)
-        except Exception as e:
-            self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
+        except Exception as exc:
+            self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
 
         children_clean = await self._shutdown_children()
 
@@ -480,8 +479,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if not self.hassette.event_streams_closed:
             try:
                 await self.handle_stop()
-            except Exception as e:
-                self.logger.exception("Error during stopping %s %s", type(e).__name__, e)
+            except Exception as exc:
+                self.logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
         else:
             self.logger.debug("Skipping STOPPED event as event streams are closed")
 
@@ -637,5 +636,5 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._cache is not None:
             try:
                 self.cache.close()
-            except Exception as e:
-                self.logger.exception("Error closing cache: %s %s", type(e).__name__, e)
+            except Exception as exc:
+                self.logger.exception("Error closing cache: %s %s", type(exc).__name__, exc)

@@ -63,7 +63,6 @@ async def test_restart_cancellation_persists_cancelled_row(
     ``status='cancelled'`` record; this test proves such a record persists to the ``executions``
     table — no new mechanism, the existing cancellation row path.
     """
-
     db_service, session_id = initialized_db
 
     listener_id = await executor.register_listener(make_listener_registration())
@@ -286,7 +285,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in executions after drain."""
-
     db_service, session_id = initialized_db
 
     # First register a listener to get a valid listener_id FK
@@ -321,7 +319,6 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
 
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """flush_queue() persists remaining records before returning."""
-
     db_service, session_id = initialized_db
 
     reg = make_listener_registration()
@@ -388,14 +385,10 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
 
 
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
-    """build_record() reads session_id from self.hassette.session_id directly.
-
-    _safe_session_id() was removed; session_id is now always read directly.
-    The phased startup contract guarantees a valid session_id exists before any
-    handler can fire, so RuntimeError from session_id is a programming error.
-    """
+    """build_record() reads session_id via try_session_id() and embeds it in the record."""
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     db_hassette.session_id = 99
+    db_hassette.try_session_id.return_value = 99
 
     listener = make_mock_listener()
 
@@ -443,14 +436,14 @@ async def test_persist_batch_drops_presession_records(
         status="success",
     )
 
-    # Patch session_id to raise RuntimeError so the "session not ready" path is triggered
-    executor.hassette.session_id = PropertyMock(side_effect=RuntimeError("no session"))
-    type(executor.hassette).session_id = PropertyMock(side_effect=RuntimeError("no session"))
+    # Patch try_session_id to return None so the "session not ready" path is triggered
+    executor.hassette.try_session_id = MagicMock(return_value=None)
 
     await executor.persist_batch([valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
     type(executor.hassette).session_id = PropertyMock(return_value=session_id)
+    executor.hassette.try_session_id = MagicMock(return_value=session_id)
 
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",

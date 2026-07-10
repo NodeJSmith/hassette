@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing
 from contextlib import suppress
-from typing import Any, ParamSpec, TypeVar, final
+from typing import Any, final
 
 from dotenv import load_dotenv
 
@@ -49,9 +49,6 @@ from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
-
-P = ParamSpec("P")
-R = TypeVar("R")
 
 
 def _service_not_wired_error(service: str) -> RuntimeError:
@@ -259,6 +256,13 @@ class Hassette(Resource):
         if self._session_manager is None:
             raise _service_not_wired_error("SessionManager")
         return self._session_manager.session_id
+
+    def try_session_id(self) -> int | None:
+        """Return the current session ID, or None if no session exists yet."""
+        try:
+            return self.session_id
+        except RuntimeError:
+            return None
 
     @property
     def ws_url(self) -> str:
@@ -471,7 +475,6 @@ class Hassette(Resource):
     @classmethod
     def get_instance(cls) -> "Hassette":
         """Get the current instance of Hassette."""
-
         return context.get_hassette()
 
     async def send_event(self, event: "Event[Any]") -> None:
@@ -645,8 +648,8 @@ class Hassette(Resource):
             await self.shutdown_event.wait()
         except asyncio.CancelledError:  # noqa: ASYNC103 — top-level run loop; converts cancellation to graceful shutdown
             self.logger.debug("Hassette run loop cancelled")
-        except Exception as e:
-            self.logger.error("Error in Hassette run loop: %s", e)
+        except Exception as exc:
+            self.logger.error("Error in Hassette run loop: %s", exc)
         finally:
             await self.shutdown()
 

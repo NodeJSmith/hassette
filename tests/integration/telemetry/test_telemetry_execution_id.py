@@ -113,11 +113,11 @@ class TestHandlerInvocationExecutionId:
         synchronous registration a listener is always persisted before it is routable, so this path
         does not occur in practice — but the repository must drop rather than corrupt on a stale FK.
         """
-        db_svc, _session_id = db
+        db_svc, session_id = db
         nonexistent_listener_id = 99999
         record = make_inv_record(
             nonexistent_listener_id,
-            _session_id,
+            session_id,
             execution_id="abc-123",
             trigger_context_id="ctx-456",
             trigger_origin="REMOTE",

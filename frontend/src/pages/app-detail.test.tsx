@@ -545,8 +545,6 @@ describe("AppDetailPage", () => {
     expect(capturedSelectedHandler).toBeNull();
   });
 
-  // ── Multi-instance parent page tab tests ──
-
   function setupMultiInstanceParent() {
     const manifest = createManifest({
       instance_count: 2,

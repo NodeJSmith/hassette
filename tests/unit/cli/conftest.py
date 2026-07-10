@@ -1,6 +1,7 @@
 """Shared CLI test fixtures for CLI client and command tests."""
 
 import json
+from collections.abc import Generator
 from contextlib import contextmanager
 from io import StringIO
 from typing import Any
@@ -13,6 +14,39 @@ from rich.console import Console
 import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
+
+SINCE_EPOCH = 1_700_000_000.0
+
+
+class GetSpy:
+    """Wraps ``client.get`` to record paths and params for assertion.
+
+    Pass as ``side_effect`` to ``patch.object(client, "get", side_effect=spy)``.
+    """
+
+    def __init__(self, client: HassetteCLIClient) -> None:
+        self.paths: list[str] = []
+        self.calls: list[dict[str, Any]] = []
+        self._original = client.get
+
+    def __call__(
+        self,
+        path: str,
+        model: type[object],
+        params: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> object:
+        self.paths.append(path)
+        self.calls.append({"path": path, "params": params})
+        return self._original(path, model, params=params, **kwargs)
+
+
+@contextmanager
+def capture_json_stdout() -> Generator[list[str], None, None]:
+    """Capture raw ``sys.stdout.write`` calls (used by JSON-mode commands)."""
+    captured: list[str] = []
+    with patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)):
+        yield captured
 
 
 @contextmanager
@@ -63,16 +97,13 @@ class MockTransportBuilder:
 
     def __init__(self) -> None:
         self._routes: list[tuple[str, str, int, Any]] = []
-        self._default_status = 200
-        self._default_body: Any = {}
 
-    def add(self, method: str, path_fragment: str, status: int, body: Any) -> "MockTransportBuilder":
+    def add(self, method: str, path_fragment: str, status: int, body: Any) -> None:
         """Register a mock response for requests whose URL contains ``path_fragment``.
 
         The first matching route wins.
         """
         self._routes.append((method.upper(), path_fragment, status, body))
-        return self
 
     def build(self) -> httpx.MockTransport:
         routes = list(self._routes)
@@ -111,23 +142,18 @@ class CLIClientFactory:
         self,
         routes: list[tuple[str, str, int, Any]],
         json_mode: bool = False,
-    ) -> tuple[HassetteCLIClient, MockTransportBuilder]:
+    ) -> HassetteCLIClient:
         """Build a client pre-wired with route responses.
 
         Args:
             routes: List of ``(method, path_fragment, status, body)`` tuples.
             json_mode: Whether the client operates in JSON mode.
-
-        Returns:
-            A ``(client, builder)`` pair. The builder can be inspected for
-            what routes were registered.
         """
         builder = MockTransportBuilder()
         for method, path_fragment, status, body in routes:
             builder.add(method, path_fragment, status, body)
         transport = builder.build()
-        client = self.build(transport, json_mode=json_mode)
-        return client, builder
+        return self.build(transport, json_mode=json_mode)
 
 
 @pytest.fixture
@@ -137,15 +163,9 @@ def cli_client_factory() -> CLIClientFactory:
     Example usage in a command test::
 
         def test_status_command(cli_client_factory):
-            client, _ = cli_client_factory.build_with_routes([
+            client = cli_client_factory.build_with_routes([
                 ("GET", "/api/health", 200, {"status": "ok", ...}),
             ])
             # call command with client
     """
     return CLIClientFactory()
-
-
-@pytest.fixture
-def mock_transport_builder() -> MockTransportBuilder:
-    """Provide a fresh MockTransportBuilder for registering mock routes."""
-    return MockTransportBuilder()

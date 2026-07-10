@@ -1,5 +1,4 @@
-"""
-Accessors are combined with predicates and annotations to easily and cleanly extract values from events. Instead of
+"""Accessors are combined with predicates and annotations to easily and cleanly extract values from events. Instead of
 writing a lambda like ``lambda e: e.payload.data.old_state_value``, you can use the accessor ``get_state_value_old``
 or use ``get_path("payload.data.old_state_value")`` for a more generic solution.
 
@@ -65,17 +64,17 @@ DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
 def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
     """Return a callable that extracts a nested value, returning MISSING_VALUE on failure."""
 
-    def _inner(obj):
+    def extract_path(obj):
         try:
             return glom(obj, path)
         except PathAccessError:
             # no logging for regular PathAccessError; just return MISSING_VALUE
             return MISSING_VALUE
-        except Exception as e:
-            LOGGER.error("Error accessing path %r: %s - %s", path, type(e).__name__, e)
+        except Exception as exc:
+            LOGGER.error("Error accessing path %r: %s - %s", path, type(exc).__name__, exc)
             return MISSING_VALUE
 
-    return _inner
+    return extract_path
 
 
 def get_state_value_old(event: "RawStateChangeEvent") -> Any | FalseySentinel:
@@ -132,7 +131,6 @@ def get_attr_new(name: str) -> Callable[["RawStateChangeEvent"], Any]:
 
 def get_attr_old_new(name: str) -> Callable[["RawStateChangeEvent"], tuple[Any, Any]]:
     """Get a specific attribute from the old and new state in a RawStateChangeEvent."""
-
     old_getter = get_attr_old(name)
     new_getter = get_attr_new(name)
 
@@ -170,7 +168,6 @@ def get_attrs_old_new(
     names: list[str],
 ) -> Callable[["RawStateChangeEvent"], tuple[dict[str, Any], dict[str, Any]]]:
     """Get specific attributes from the old and new state in a RawStateChangeEvent."""
-
     old_getter = get_attrs_old(names)
     new_getter = get_attrs_new(names)
 
@@ -211,9 +208,9 @@ def get_all_attrs_old_new(
 
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
-    result = cast("str", get_path("payload.data.domain")(event))
-    if result is not MISSING_VALUE:
-        return result
+    domain = cast("str", get_path("payload.data.domain")(event))
+    if domain is not MISSING_VALUE:
+        return domain
 
     if isinstance(event, RawStateChangeEvent):
         return event.payload.domain or MISSING_VALUE
@@ -227,9 +224,9 @@ def get_domain(event: "HassEvent") -> str | FalseySentinel:
 
 def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
     """Get the entity_id from the event payload."""
-    result = cast("str", get_path("payload.data.entity_id")(event))
-    if result is not MISSING_VALUE:
-        return result
+    entity_id = cast("str", get_path("payload.data.entity_id")(event))
+    if entity_id is not MISSING_VALUE:
+        return entity_id
 
     if isinstance(event, CallServiceEvent):
         return event.payload.data.service_data.get("entity_id", MISSING_VALUE)
@@ -281,7 +278,6 @@ def _recursive_get_differences(
     old_dict: dict[str, Any], new_dict: dict[str, Any], exclude: Sequence[str] = DEFAULT_EXCLUDE
 ) -> dict[str, Any]:
     """Simple recursive diff between two dicts, returning a dict of changed keys to (old_value, new_value)."""
-
     changed_dict = {}
     for key in set(old_dict.keys()).union(new_dict.keys()):
         if key in exclude:
@@ -315,7 +311,7 @@ def get_service_data(event: "CallServiceEvent") -> dict[str, Any] | FalseySentin
 def get_service_data_key(key: str) -> "Callable[[CallServiceEvent], Any]":
     """Return an accessor that extracts a specific key from service_data.
 
-    Examples
+    Examples:
     --------
     Basic equality against a literal
 

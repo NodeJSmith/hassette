@@ -2,7 +2,8 @@
 
 from typing import TYPE_CHECKING, Any
 
-from hassette.core.telemetry.helpers import DEFAULT_QUERY_LIMIT, _row_to_dict, _since_clause, _source_tier_clause
+from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
+from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT
 from hassette.schemas.telemetry_models import JobSummary, ListenerSummary, SlowHandlerRecord
 from hassette.types.types import QuerySourceTier
 
@@ -40,9 +41,9 @@ class RegistrationQueriesMixin:
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter listeners by source tier.
         """
-        tier_clause, tier_params = _source_tier_clause(source_tier, "l")
-        since_join_clause, since_params = _since_clause(since, "e.execution_start_ts")
-        since_err_clause, _ = _since_clause(since, "e_err.execution_start_ts")
+        tier_clause, tier_params = source_tier_clause(source_tier, "l")
+        since_join_clause, since_params = since_clause(since, "e.execution_start_ts")
+        since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
 
         join_condition = f"e.listener_id = l.id {since_join_clause}"
 
@@ -112,7 +113,7 @@ class RegistrationQueriesMixin:
         """
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [ListenerSummary.model_validate(_row_to_dict(row)) for row in rows]
+        return [ListenerSummary.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_job_summary(
         self,
@@ -134,9 +135,9 @@ class RegistrationQueriesMixin:
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter jobs by source tier.
         """
-        tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
-        since_join_clause, since_params = _since_clause(since, "e.execution_start_ts")
-        since_err_clause, _ = _since_clause(since, "e_err.execution_start_ts")
+        tier_clause, tier_params = source_tier_clause(source_tier, "sj")
+        since_join_clause, since_params = since_clause(since, "e.execution_start_ts")
+        since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
 
         join_condition = f"e.job_id = sj.id {since_join_clause}"
 
@@ -206,7 +207,7 @@ class RegistrationQueriesMixin:
         """
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
+        return [JobSummary.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_slow_handlers(
         self,
@@ -224,7 +225,7 @@ class RegistrationQueriesMixin:
             limit: Maximum number of records to return.
             source_tier: Filter by ``source_tier`` on executions.
         """
-        tier_clause, tier_params = _source_tier_clause(source_tier, "e")
+        tier_clause, tier_params = source_tier_clause(source_tier, "e")
         query = f"""
             SELECT
                 l.app_key,
@@ -243,4 +244,4 @@ class RegistrationQueriesMixin:
         """
         async with self.execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params}) as cursor:
             rows = await cursor.fetchall()
-        return [SlowHandlerRecord.model_validate(_row_to_dict(row)) for row in rows]
+        return [SlowHandlerRecord.model_validate(row_to_dict(row)) for row in rows]

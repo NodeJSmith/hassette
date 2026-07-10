@@ -85,8 +85,6 @@ def test_seed_helper_rejects_unknown_type():
         _ = RECORD_TYPE_TO_DOMAIN[type(unknown)]  # pyright: ignore[reportArgumentType]
 
 
-# Actually test seed_helper via AppTestHarness — but to keep unit tests simple,
-# test the ValueError path by calling the dict directly
 async def test_seed_helper_type_map_covers_all_imports():
     """Smoke-test that RECORD_TYPE_TO_DOMAIN has all 8 expected record types."""
     expected = {

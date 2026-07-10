@@ -31,13 +31,9 @@ interface MobileCardProps {
   footer?: preact.ComponentChildren;
 }
 
-function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: MobileCardProps) {
+function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid": testId }: MobileCardProps) {
   return (
-    <a
-      href={href}
-      class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)}
-      data-testid={rest["data-testid"]}
-    >
+    <a href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={testId}>
       <div class={styles.mobileCardHeader}>
         <span class="ht-text-mono ht-text-sm">{appKey}</span>
         <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>

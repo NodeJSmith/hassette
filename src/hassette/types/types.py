@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from datetime import time
 from enum import StrEnum
@@ -43,6 +43,9 @@ LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
+
+IfExistsPolicy = Literal["error", "skip", "replace"]
+"""Collision policy for listener/job registration when a matching name already exists."""
 
 BlockingAttributionReason = Literal["attributed", "framework", "displaced"]
 """Why a blocking event's ``app_key`` is what it is. All non-``"attributed"`` reasons have a NULL
@@ -143,6 +146,10 @@ class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
     def __call__(self, value: EventT, /) -> bool: ...
+
+
+WhereClause: TypeAlias = "Predicate | Sequence[Predicate] | None"
+"""Type alias for the ``where=`` parameter on bus/scheduler subscription methods."""
 
 
 SchedulerPredicate = Callable[..., bool]

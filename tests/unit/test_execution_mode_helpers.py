@@ -55,7 +55,7 @@ class TestRunWithStallWatch:
         assert completed
 
     async def test_warn_not_called_on_fast_invocation(self) -> None:
-        """warn is not called when invoke completes before the threshold."""
+        """Warn is not called when invoke completes before the threshold."""
         warn = MagicMock()
 
         async def invoke() -> None:
@@ -284,7 +284,7 @@ class TestRunThroughGuard:
         assert len(pending_done) == 0
 
     async def test_spawn_called_with_keyword_name(self) -> None:
-        """spawn is called with name as a keyword argument."""
+        """Spawn is called with name as a keyword argument."""
         guard = ExecutionModeGuard(ExecutionMode.SINGLE)
         spawn_calls: list[dict] = []
 

@@ -51,7 +51,6 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
         An entity used after the context that created it is torn down (a different thread,
         a reset ContextVar, app shutdown) raises ``RuntimeError``.
         """
-
         inst = context.HASSETTE_INSTANCE.get(None)
         if inst is None:
             raise RuntimeError("Hassette instance not set in context")

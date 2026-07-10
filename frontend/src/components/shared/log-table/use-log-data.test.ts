@@ -20,10 +20,6 @@ vi.mock("sonner", () => ({
 // Import after mock so the spy reference is captured.
 const { toast } = await import("sonner");
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function createWrapper(state: AppState) {
   const client = createTestQueryClient();
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -59,10 +55,6 @@ async function waitForLoaded(result: { current: { loading: boolean } }): Promise
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("useLogData", () => {
   describe("loading state", () => {

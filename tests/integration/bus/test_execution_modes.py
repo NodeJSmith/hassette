@@ -60,7 +60,7 @@ async def fire(harness: "HassetteHarness", old: str, new: str) -> None:
 async def test_single_runs_once_and_suppresses_refire(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """single yields exactly one execution on a double-fire; the second is suppressed."""
+    """Single yields exactly one execution on a double-fire; the second is suppressed."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -90,7 +90,7 @@ async def test_single_runs_once_and_suppresses_refire(
 async def test_restart_cancels_first_and_runs_second(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """restart cancels the running invocation and runs the new one; the bucket does not error."""
+    """Restart cancels the running invocation and runs the new one; the bucket does not error."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -127,7 +127,7 @@ async def test_restart_cancels_first_and_runs_second(
 async def test_queued_runs_all_in_order(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """queued executes N triggers in arrival order after the first completes."""
+    """Queued executes N triggers in arrival order after the first completes."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
 
@@ -210,7 +210,7 @@ async def test_await_dispatch_idle_blocks_until_queued_handlers_run(
 async def test_queued_cap_drops_newest(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """queued at cap drops the newest trigger, runs the rest, and counts the drop."""
+    """Queued at cap drops the newest trigger, runs the rest, and counts the drop."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "v0")
 
@@ -233,12 +233,12 @@ async def test_queued_cap_drops_newest(
     await first_started.wait()
 
     # Fill the queue to its cap, then one more that must be dropped (newest-dropped).
-    prev = "running"
+    previous = "running"
     for i in range(DEFAULT_QUEUE_DEPTH):
-        nxt = f"q{i}"
-        await fire(harness, prev, nxt)
-        prev = nxt
-    await fire(harness, prev, "overflow")  # at cap -> dropped
+        next_val = f"q{i}"
+        await fire(harness, previous, next_val)
+        previous = next_val
+    await fire(harness, previous, "overflow")  # at cap -> dropped
 
     assert sub.listener.invoker.guard.dropped == 1
 
@@ -329,7 +329,7 @@ async def test_live_execution_counts_omits_retired_listener(
 async def test_parallel_runs_concurrently(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """parallel runs M triggers concurrently with no overlap guard."""
+    """Parallel runs M triggers concurrently with no overlap guard."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
@@ -417,7 +417,7 @@ async def test_cancelling_queued_listener_releases_pending(
 async def test_debounce_with_single_composes(
     bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
 ) -> None:
-    """debounce + mode='single' compose: debounce governs starts, single governs overlap of starts."""
+    """Debounce + mode='single' compose: debounce governs starts, single governs overlap of starts."""
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 

@@ -21,7 +21,6 @@ from hassette.cli.output import (
     fmt_duration_s,
     fmt_relative_time,
     render_detail,
-    render_raw,
     render_table,
 )
 from tests.unit.cli.conftest import capture_human
@@ -491,46 +490,6 @@ class TestRenderDetailHumanMode:
         assert "—" in stdout
 
 
-# render_raw — JSON mode
-
-
-class TestRenderRawJsonMode:
-    def test_dict_serialized_to_json(self, capsys: pytest.CaptureFixture[str]) -> None:
-        data = {"light": {"turn_on": {"description": "Turn on light"}}}
-        render_raw(data, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed == data
-
-    def test_list_serialized_to_json(self, capsys: pytest.CaptureFixture[str]) -> None:
-        data = [{"name": "a"}, {"name": "b"}]
-        render_raw(data, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed == data
-
-    def test_nothing_on_stderr_json_mode(self, capsys: pytest.CaptureFixture[str]) -> None:
-        render_raw({"key": "val"}, json_mode=True)
-        captured = capsys.readouterr()
-        assert captured.err == ""
-
-
-# render_raw — human mode
-
-
-class TestRenderRawHumanMode:
-    def test_dict_output_on_stdout(self) -> None:
-        data = {"key": "value"}
-        stdout, _stderr = capture_human(render_raw, data, json_mode=False)
-        assert len(stdout) > 0
-
-    def test_dict_content_visible(self) -> None:
-        data = {"service": "light.turn_on"}
-        stdout, _stderr = capture_human(render_raw, data, json_mode=False)
-        assert "service" in stdout
-        assert "light.turn_on" in stdout
-
-
 # stdout cleanliness contract
 
 
@@ -553,14 +512,6 @@ class TestStdoutCleanliness:
         parsed = json.loads(captured.out.strip())
         assert isinstance(parsed, dict)
 
-    def test_json_raw_stdout_is_valid_json_only(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Stdout in JSON mode for raw must be exactly one valid JSON document."""
-        data = {"a": 1, "b": 2}
-        render_raw(data, json_mode=True)
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out.strip())
-        assert parsed == data
-
     def test_human_table_nothing_on_stderr_for_non_empty(self) -> None:
         """For non-empty tables, no diagnostics on stderr."""
         items = [SimpleItem(name="a", count=1)]
@@ -580,7 +531,6 @@ class TestArchitecturalConstraint:
         """
         assert callable(render_table)
         assert callable(render_detail)
-        assert callable(render_raw)
 
     def test_column_dataclass_is_public_interface(self) -> None:
         """Column is the public column definition type for commands."""
