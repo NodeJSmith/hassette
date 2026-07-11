@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Migrate test_core.py to public properties"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "FR#8", "AC#1", "AC#4"]
 ---
