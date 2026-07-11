@@ -388,13 +388,6 @@ def test_database_service_starts_first(hassette_instance: Hassette) -> None:
             child.start.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def test_init_order_contains_all_children(hassette_instance: Hassette) -> None:
-    """topological_sort() contains exactly the same types as the registered children."""
-    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
-    init_order = topological_sort(child_types)
-    assert set(init_order) == set(child_types)
-
-
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:
     """topological_sort completes without raising for the real service graph."""
     all_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))

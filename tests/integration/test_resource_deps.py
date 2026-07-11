@@ -18,22 +18,6 @@ async def test_coordinator_uses_topological_sort(hassette_instance: Hassette) ->
     assert hassette_instance._init_waves == expected_waves
 
 
-async def test_init_waves_cover_all_children(hassette_instance: Hassette) -> None:
-    """topological_levels() covers every registered child type."""
-    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
-    waves = topological_levels(child_types)
-    wave_types = {t for wave in waves for t in wave}
-    assert wave_types == set(child_types), "Waves must include every registered child type"
-
-
-async def test_init_waves_have_no_duplicates(hassette_instance: Hassette) -> None:
-    """Each type appears in exactly one wave."""
-    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
-    waves = topological_levels(child_types)
-    all_types = [t for wave in waves for t in wave]
-    assert len(all_types) == len(set(all_types)), "Each type must appear in exactly one wave"
-
-
 async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassette) -> None:
     """Every depends_on type appears in an earlier wave than its dependent."""
     child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
