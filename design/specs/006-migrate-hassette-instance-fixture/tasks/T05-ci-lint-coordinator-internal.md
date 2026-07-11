@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add CI lint enforcing coordinator-internal annotations"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#8", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7"]
 ---
