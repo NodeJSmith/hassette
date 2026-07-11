@@ -10,7 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from check_coordinator_internal import IN_SCOPE_FILES, check_file
+from check_coordinator_internal import check_file, discover_files
 
 # Each case: (id, source, expected violations as [(lineno, attr), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
@@ -97,7 +97,7 @@ def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expect
     assert check_file(write_sample(source)) == expected
 
 
-@pytest.mark.parametrize("path", IN_SCOPE_FILES, ids=lambda p: p.name)
+@pytest.mark.parametrize("path", discover_files(), ids=lambda p: p.name)
 def test_real_in_scope_files_pass(path: Path) -> None:
     """The guard must stay green on the actual repo files it polices."""
     assert check_file(path) == []
