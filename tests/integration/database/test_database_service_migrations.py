@@ -1,8 +1,11 @@
 """Integration tests for the PRAGMA user_version migration runner and schema correctness."""
 
+import asyncio
 import sqlite3
 from pathlib import Path
+from unittest.mock import MagicMock
 
+from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 
 EXPECTED_TABLES = {
@@ -200,6 +203,43 @@ def test_auto_vacuum_set_on_fresh_db(tmp_path: Path) -> None:
         conn.close()
 
     assert mode == 2, f"Expected auto_vacuum = 2 (INCREMENTAL), got {mode}"
+
+
+def test_handle_schema_version_then_migrate_preserves_data(tmp_path: Path) -> None:
+    """Full upgrade path: handle_schema_version + run_migrations preserves existing rows."""
+    db_path = tmp_path / "test.db"
+    run_migrations(db_path, target=5)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+        conn.execute(
+            "INSERT INTO listeners "
+            "(app_key, instance_index, name, handler_method, topic, source_location) "
+            "VALUES ('my_app', 0, 'kitchen_light', 'on_change', 'light.kitchen', 'app.py:10')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    svc = DatabaseService.__new__(DatabaseService)
+    svc.logger = MagicMock()
+    asyncio.run(svc.handle_schema_version(db_path))
+
+    run_migrations(db_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        assert version == 9, f"Expected schema version 9 after upgrade, got {version}"
+
+        session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        assert session_count == 1, "Session row lost during upgrade"
+
+        listener = conn.execute("SELECT name, app_key FROM listeners WHERE name = 'kitchen_light'").fetchone()
+        assert listener == ("kitchen_light", "my_app"), "Listener row lost during upgrade"
+    finally:
+        conn.close()
 
 
 def test_no_alembic_version_table(tmp_path: Path) -> None:

@@ -358,8 +358,8 @@ class TestFreshMigration:
 
 
 class TestDbVersionMismatch:
-    def test_db_version_mismatch_recreates(self, tmp_path: Path) -> None:
-        """When DB version != expected head, DatabaseService deletes and recreates the DB."""
+    def test_version_zero_deletes_db(self, tmp_path: Path) -> None:
+        """When DB version is 0 (pre-PRAGMA era), DatabaseService deletes and recreates the DB."""
         db_path = tmp_path / "test.db"
         db_path.touch()  # Simulate existing DB file
 
@@ -387,6 +387,34 @@ class TestDbVersionMismatch:
             asyncio.run(svc.handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
             assert not db_path.exists()
+
+
+class TestSchemaUpgradePreservesData:
+    def test_existing_db_not_deleted_when_behind_head(self, tmp_path: Path) -> None:
+        """When 0 < current_version < expected_head, handle_schema_version preserves the DB file and data."""
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path, target=5)
+
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            conn.commit()
+        finally:
+            conn.close()
+
+        svc = DatabaseService.__new__(DatabaseService)
+        svc.logger = MagicMock()
+
+        asyncio.run(svc.handle_schema_version(db_path))
+
+        assert db_path.exists(), "Database file was deleted despite having valid schema version > 0"
+
+        conn = sqlite3.connect(db_path)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        finally:
+            conn.close()
+        assert count == 1, "Session data was lost during schema version check"
 
 
 class TestHassetteConfigTelemetryQueueMax:
