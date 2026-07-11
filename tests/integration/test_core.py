@@ -197,8 +197,7 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
     hassette_instance.session_manager.create_session.assert_awaited_once()
     hassette_instance.shutdown.assert_awaited()
-    # coordinator-internal: _loop is set by run_forever() itself, no public setter/reader for the raw slot
-    assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
+    assert hassette_instance.loop is asyncio.get_running_loop()
     assert hassette_instance.loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
 
