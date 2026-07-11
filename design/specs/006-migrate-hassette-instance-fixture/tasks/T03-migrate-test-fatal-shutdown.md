@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate test_fatal_shutdown.py to public properties"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "FR#8", "AC#1", "AC#4"]
 ---
