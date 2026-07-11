@@ -63,10 +63,7 @@ async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassett
 
 ### In `tests/integration/test_core.py`:
 
-Add import:
-```python
-from hassette.utils.service_utils import topological_sort
-```
+Verify that `topological_sort` is already imported (line 33: `from hassette.utils.service_utils import topological_sort, validate_dependency_graph`). No new import needed.
 
 Refactor **`test_init_order_contains_all_children`** (line ~392-396):
 ```python
