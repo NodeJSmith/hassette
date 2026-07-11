@@ -58,7 +58,7 @@ Mirror `Bus.add_listener()`'s guard at `bus.py:256`.
    - Test `SchedulerNameRequiredError` raised when `add_job()` called with `job.name == ""`
    - A few representative tests that positional `name`, `group`, `jitter`, `timeout`, `timeout_disabled` raise `TypeError`
 
-9. **Bulk test update**: Add `name="test_xyz"` (descriptive, derived from test context) to all ~115 scheduler test call sites that currently omit `name=`. Use grep to find them: `grep -rn 'scheduler\.\(schedule\|run_in\|run_once\|run_every\|run_daily\|run_cron\|run_minutely\|run_hourly\)(' tests/ | grep -v 'name='`
+9. **Bulk test update**: Add `name="test_xyz"` (descriptive, derived from test context) to scheduler test call sites that currently omit `name=`. The grep `grep -rn 'scheduler\.\(schedule\|run_in\|run_once\|run_every\|run_daily\|run_cron\|run_minutely\|run_hourly\)(' tests/ | grep -v 'name='` gives ~115 hits, but many are false positives from multi-line calls where `name=` appears on a following line. For each hit, read the full call (may span multiple lines) before editing — only add `name=` to calls that genuinely omit it. The actual count is closer to ~96.
 
 ## Focus
 The `*` currently sits at different positions depending on the method:

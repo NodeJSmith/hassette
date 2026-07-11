@@ -44,7 +44,9 @@ Create the AST-based regression prevention linter that enforces `*` placement an
 - modify: `docs/pages/core-concepts/bus/snippets/filtering_combined_and.py`
 - modify: `docs/pages/core-concepts/bus/snippets/handlers_service_extract.py`
 - modify: `examples/cover_scheduler.py`
+- create: `tests/unit/tools/test_check_registration_signatures.py`
 - read: `tools/check_lazy_imports.py` (linter pattern to follow)
+- read: `tests/unit/tools/test_check_lazy_imports.py` (test pattern to follow)
 
 ## Prompt
 **1. Create `tools/check_registration_signatures.py`:**
@@ -60,16 +62,24 @@ Follow the `tools/check_lazy_imports.py` AST-based pattern exactly:
 
 **2. Wire into `.pre-commit-config.yaml`:**
 
-Add a new hook entry near the existing `check_*` hooks:
+Add a new hook entry near the existing `check_*` hooks. Follow the repo convention — use kebab-case id and `language: system` (matching `check-lazy-imports`, `check-missing-attribute`, etc.):
 ```yaml
-  - id: check_registration_signatures
+  - id: check-registration-signatures
     name: Check registration method signatures
     entry: ./tools/check_registration_signatures.py
-    language: python
+    language: system
     files: ^src/hassette/(bus/bus|scheduler/scheduler)\.py$
     stages: [pre-commit, pre-push]
     pass_filenames: false
 ```
+
+**2b. Add linter tests:**
+
+Create `tests/unit/tools/test_check_registration_signatures.py` following the pattern of `tests/unit/tools/test_check_lazy_imports.py`. Test with sample inputs:
+- Valid signatures (method with `*` before `name`, no default) → exit 0
+- Invalid: `name` before `*` → exit 1
+- Invalid: `name` with a default value → exit 1
+- Methods without `name` parameter (e.g., `on_error`) → should not be flagged
 
 **3. Update ALL doc snippets and examples:**
 

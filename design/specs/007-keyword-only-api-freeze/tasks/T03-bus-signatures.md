@@ -48,7 +48,7 @@ The parameter type is `on_error: "BusErrorHandlerType | None" = None`. Check exi
   - `on_websocket_connected` → verify `on_error` fires via `on()`
   - `on_app_running` → verify `on_error` fires via `on_app_state_changed`
 
-**7. Bulk test update**: Add `name="test_xyz"` to all ~77 bus test call sites that currently omit `name=`. Use grep: `grep -rn 'bus\.\(on_state_change\|on_attribute_change\|on_call_service\|on_homeassistant\|on_component_loaded\|on_service_registered\|on_hassette_service\|on_websocket\|on_app_state\|on_app_running\|on_app_stopping\|on\b\)(' tests/ | grep -v 'name='`
+**7. Bulk test update**: Add `name="test_xyz"` to bus test call sites that currently omit `name=`. The grep `grep -rn 'bus\.\(on_state_change\|on_attribute_change\|on_call_service\|on_homeassistant\|on_component_loaded\|on_service_registered\|on_hassette_service\|on_websocket\|on_app_state\|on_app_running\|on_app_stopping\|on\b\)(' tests/ | grep -v 'name='` gives ~94 hits, but many are false positives from multi-line calls where `name=` appears on a following line. For each hit, read the full call (may span multiple lines) before editing — only add `name=` to calls that genuinely omit it. The actual count is closer to ~41.
 
 ## Focus
 The `_require_name` function/method in bus.py handles the name validation. Find it and update the condition. The existing `ListenerNameRequiredError` message includes a code example — verify the example still makes sense after the type change.

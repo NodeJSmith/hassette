@@ -34,6 +34,8 @@ After regeneration, verify the generated files have:
 
 Do NOT change `remote.py` — those mirror HA's service schema.
 
+Also update the docstrings on all three `cleanup` methods to reflect the `float` type (if they mention `int`).
+
 **3. Run the full test suite** — `uv run nox -s dev` to verify all core code changes from T01-T04 work together.
 
 ## Focus
