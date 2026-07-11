@@ -20,6 +20,23 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
+async def cleanup_hassette_streams(instance: Hassette) -> None:
+    """Close event streams and the bus service's cloned receive stream.
+
+    Both underlying close operations are idempotent, so no pre-check is needed —
+    suppress(Exception) alone handles the not-yet-wired and already-closed cases.
+
+    Lives here rather than on `Hassette` or in `test_utils/helpers.py` because it
+    reaches into private attributes (`_event_stream_service`, `_bus_service`) — a
+    live-instance hazard that belongs in repo-local test infrastructure, not the
+    installed package.
+    """
+    with suppress(Exception):
+        await instance._event_stream_service.close_streams()  # pyright: ignore[reportOptionalMemberAccess]
+    with suppress(Exception):
+        await instance._bus_service.stream.aclose()  # pyright: ignore[reportOptionalMemberAccess]
+
+
 @pytest.fixture
 async def hassette_instance(test_config: HassetteConfig):
     """Provide a fresh Hassette instance and restore context afterwards."""
@@ -29,13 +46,7 @@ async def hassette_instance(test_config: HassetteConfig):
     try:
         yield instance
     finally:
-        with suppress(Exception):
-            if not instance._event_stream_service.event_streams_closed:
-                await instance._event_stream_service.close_streams()
-
-        with suppress(Exception):
-            if not instance._bus_service.stream._closed:
-                await instance._bus_service.stream.aclose()
+        await cleanup_hassette_streams(instance)
 
 
 _HARNESS_FIXTURES = frozenset(
