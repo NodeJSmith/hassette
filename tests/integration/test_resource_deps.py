@@ -5,7 +5,17 @@ from typing import ClassVar
 
 from hassette import Hassette
 from hassette.resources.base import Resource
-from hassette.utils.service_utils import topological_levels
+from hassette.utils.service_utils import topological_levels, topological_sort
+
+
+async def test_coordinator_uses_topological_sort(hassette_instance: Hassette) -> None:
+    """Coordinator's stored init_order and init_waves match the pure-function output."""
+    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
+    expected_order = topological_sort(child_types)
+    expected_waves = topological_levels(child_types)
+    # coordinator-internal: pins that the coordinator actually calls these functions
+    assert hassette_instance._init_order == expected_order
+    assert hassette_instance._init_waves == expected_waves
 
 
 async def test_init_waves_cover_all_children(hassette_instance: Hassette) -> None:
