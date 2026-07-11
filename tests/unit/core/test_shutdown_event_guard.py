@@ -1,26 +1,9 @@
 """Tests for send_event guard when event streams are closed."""
 
-from contextlib import suppress
 from types import SimpleNamespace
 
 from hassette.core.core import Hassette
-
-
-async def cleanup_hassette_streams(instance: Hassette) -> None:
-    """Close event streams and the bus service's cloned receive stream.
-
-    Both underlying close operations are idempotent, so no pre-check is needed —
-    suppress(Exception) alone handles the not-yet-wired and already-closed cases.
-
-    Local copy: reaches into private attributes, a live-instance hazard that
-    belongs in test infrastructure, not the installed package. Canonical copy
-    lives in tests/integration/conftest.py — unit/integration test trees don't
-    cross-import, so this is a deliberate duplicate. Keep both in sync.
-    """
-    with suppress(Exception):
-        await instance._event_stream_service.close_streams()  # pyright: ignore[reportOptionalMemberAccess]
-    with suppress(Exception):
-        await instance._bus_service.stream.aclose()  # pyright: ignore[reportOptionalMemberAccess]
+from hassette.test_utils.helpers import cleanup_hassette_streams
 
 
 class TestSendEventAfterStreamsClosed:

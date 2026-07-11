@@ -3,7 +3,6 @@
 import shutil
 import time
 from collections.abc import AsyncIterator, Callable
-from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
@@ -14,28 +13,11 @@ from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.types.enums import ExecutionMode
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
-
-
-async def cleanup_hassette_streams(instance: Hassette) -> None:
-    """Close event streams and the bus service's cloned receive stream.
-
-    Both underlying close operations are idempotent, so no pre-check is needed —
-    suppress(Exception) alone handles the not-yet-wired and already-closed cases.
-
-    Lives here rather than on `Hassette` or in `test_utils/helpers.py` because it
-    reaches into private attributes (`_event_stream_service`, `_bus_service`) — a
-    live-instance hazard that belongs in repo-local test infrastructure, not the
-    installed package. A local copy exists in tests/unit/core/test_shutdown_event_guard.py
-    (unit/integration test trees don't cross-import) — keep both in sync.
-    """
-    with suppress(Exception):
-        await instance._event_stream_service.close_streams()  # pyright: ignore[reportOptionalMemberAccess]
-    with suppress(Exception):
-        await instance._bus_service.stream.aclose()  # pyright: ignore[reportOptionalMemberAccess]
 
 
 @pytest.fixture
