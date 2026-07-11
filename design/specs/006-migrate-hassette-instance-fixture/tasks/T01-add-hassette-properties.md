@@ -3,7 +3,7 @@ task_id: "T01"
 title: "Add 3 public properties and stream cleanup helper"
 status: "planned"
 depends_on: []
-implements: ["FR#1", "FR#2", "FR#3", "FR#7"]
+implements: ["FR#1", "FR#2", "FR#3", "FR#7", "AC#3"]
 ---
 
 ## Summary
@@ -57,3 +57,4 @@ async def cleanup_hassette_streams(instance: Hassette) -> None:
 - [ ] FR#2: `Hassette().event_stream_service` raises `RuntimeError` before `wire_services()`; returns `EventStreamService` after
 - [ ] FR#3: `Hassette().bus` raises `RuntimeError` before `wire_services()`; returns `Bus` after
 - [ ] FR#7: `hassette_instance` fixture teardown calls `cleanup_hassette_streams()` — no inline private-attr access in the fixture's `finally:` block
+- [ ] AC#3: The `hassette_instance` fixture body contains no inline private-attribute access (all consolidated into the helper)

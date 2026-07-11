@@ -38,14 +38,14 @@ After creating the script and wiring the hook, run the full verification:
 3. Run the new script directly to verify it passes with the annotations from T02/T03
 
 ## Focus
-- `check_internal_patches.py` uses `tokenize` to find comments on a statement's physical lines (lines 60-80). This avoids false positives from annotation text inside string literals. Replicate this approach.
+- `check_internal_patches.py` uses `extract_comments` from `tools/lint_helpers.py` for tokenize-based comment matching (the `is_exempt` function at ~line 245). This avoids false positives from annotation text inside string literals. Replicate this approach.
 - The receiver-name heuristic in `check_internal_patches.py` (lines 27-30) prevents false positives from other objects that happen to have `_`-prefixed attributes. Use the same heuristic with `hassette_instance` and derived locals.
 - The existing lint CI step in `.github/workflows/lint.yml:113` uses `run: uv run python tools/check_internal_patches.py`. Match this pattern for the new script.
 - This script should be executable (`chmod +x`).
 
 ## Verify
 - [ ] FR#8: Script detects unannotated private-attr access and fails; annotated accesses pass
-- [ ] AC#3: Fixture teardown in conftest.py passes the lint (cleanup helper consolidates private access, fixture itself has none inline)
+- [ ] AC#3: Fixture teardown in conftest.py has no inline private-attr access (verified by T01; conftest.py is not in the lint's scan scope — the lint covers the 3 test files only)
 - [ ] AC#4: All `# coordinator-internal` annotations in T02/T03 are recognized by the lint
 - [ ] AC#5: `uv run nox -s dev` passes — all 34 tests still pass with no behavior change
 - [ ] AC#6: `prek -a` passes — lint + type check clean

@@ -19,11 +19,11 @@ In `tests/integration/test_core.py`, perform these changes:
 
 Replace the per-service isinstance assertions and expected_children list with a `children`-based pattern. The test should:
 - Get `child_types = {type(c) for c in hassette_instance.children}`
-- Assert that all expected service types are present in `child_types` using a single set-comparison assertion
-- Assert that each child is also in `hassette_instance.children` (membership check)
+- Build the expected set of all types registered by `wire_services()`
+- Assert strict equality: `assert child_types == expected_types` (not a subset check — this ensures no types are missing AND no unexpected types are added)
 - Keep the `hassette_instance.api is not None` assertion (uses public property)
 
-The expected types are: `EventStreamService`, `DatabaseService`, `LoggingService`, `SessionManager`, `CommandExecutor`, `BusService`, `ServiceWatcher`, `WebsocketService`, `FileWatcherService`, `AppHandler`, `SchedulerService`, `ApiResource`, `RuntimeQueryService`, `TelemetryQueryService`, `WebApiService`, `WebUiWatcherService`, `Bus`, `Scheduler`, `StateManager`, `Api`. Import any types not already imported.
+The expected types set must include ALL 22 types registered by `wire_services()` (`core.py:183-216`): `SyncExecutorService`, `EventStreamService`, `DatabaseService`, `LoggingService`, `CommandExecutor`, `BusService`, `SchedulerService`, `SessionManager`, `ServiceWatcher`, `WebsocketService`, `FileWatcherService`, `WebUiWatcherService`, `AppHandler`, `ApiResource`, `StateProxy`, `RuntimeQueryService`, `TelemetryQueryService`, `WebApiService`, `Bus`, `Scheduler`, `StateManager`, `Api`. Import any types not already imported (`SyncExecutorService`, `StateProxy`, `SessionManager`, `WebUiWatcherService` may need adding).
 
 ### 2. Replace private-attr reads with public properties
 
