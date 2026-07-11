@@ -2,6 +2,7 @@ import asyncio
 import json
 import textwrap
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from logging import Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -20,6 +21,7 @@ from hassette.bus.listeners import (
 )
 from hassette.config.classes import AppManifest
 from hassette.conversion import STATE_REGISTRY
+from hassette.core.core import Hassette
 from hassette.events import (
     CallServiceEvent,
     ComponentLoadedEvent,
@@ -37,7 +39,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette.bus.bus import Bus
-    from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict, HassStateDict
     from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
@@ -619,3 +620,15 @@ def create_listener(
         duration_config=duration_config,
         logger=logger or getLogger("test"),
     )
+
+
+async def cleanup_hassette_streams(instance: Hassette) -> None:
+    """Close event streams and the bus service's cloned receive stream.
+
+    Both underlying close operations are idempotent, so no pre-check is needed —
+    suppress(Exception) alone handles the not-yet-wired and already-closed cases.
+    """
+    with suppress(Exception):
+        await instance.event_stream_service.close_streams()
+    with suppress(Exception):
+        await instance.bus_service.stream.aclose()

@@ -377,6 +377,9 @@ class TestWiredAccessorsReturnBackingAttribute:
         assert h.type_registry is h._type_registry
         assert h.app_handler is h._app_handler
         assert h.api_service is h._api_service
+        assert h.session_manager is h._session_manager
+        assert h.event_stream_service is h._event_stream_service
+        assert h.bus is h._bus
 
 
 class TestTryStateProxy:

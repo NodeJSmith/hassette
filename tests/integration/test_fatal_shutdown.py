@@ -25,79 +25,79 @@ class TestRunForeverFatalOnCrash:
 
     async def test_run_forever_raises_fatal_error_when_reason_set(self, hassette_instance: Hassette):
         """When _fatal_shutdown_reason is set before shutdown completes, run_forever() raises FatalError."""
-        hassette_instance._database_service.start = Mock()
+        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-        hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette_instance._session_manager.create_session = AsyncMock()
-        hassette_instance._session_manager.cleanup_stale_once_listeners = AsyncMock()
+        hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette_instance.session_manager.create_session = AsyncMock()
+        hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
         hassette_instance.shutdown = AsyncMock()
 
         for child in hassette_instance.children:
-            if child is not hassette_instance._database_service:
+            if child is not hassette_instance.database_service:
                 child.start = Mock()
 
         # Set fatal reason then trigger shutdown — simulates what shutdown_if_crashed does
         def trigger_fatal_shutdown(*_args, **_kwargs):
-            hassette_instance._fatal_shutdown_reason = "BusService crashed: RuntimeError"
+            hassette_instance.record_fatal_reason("BusService crashed: RuntimeError")
             hassette_instance.shutdown_event.set()
 
-        hassette_instance._session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
+        hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
         with pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
     async def test_run_forever_returns_normally_on_clean_shutdown(self, hassette_instance: Hassette):
         """When no fatal reason is set, run_forever() returns normally (exit 0 path)."""
-        hassette_instance._database_service.start = Mock()
+        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-        hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette_instance._session_manager.create_session = AsyncMock()
-        hassette_instance._session_manager.cleanup_stale_once_listeners = AsyncMock()
+        hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette_instance.session_manager.create_session = AsyncMock()
+        hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
         hassette_instance.shutdown = AsyncMock()
 
         for child in hassette_instance.children:
-            if child is not hassette_instance._database_service:
+            if child is not hassette_instance.database_service:
                 child.start = Mock()
 
         def trigger_clean_shutdown(*_args, **_kwargs):
             # No fatal reason — clean operator shutdown
             hassette_instance.shutdown_event.set()
 
-        hassette_instance._session_manager.cleanup_stale_once_listeners.side_effect = trigger_clean_shutdown
+        hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_clean_shutdown
 
         # Must return normally, not raise
         await hassette_instance.run_forever()
-        assert hassette_instance._fatal_shutdown_reason is None
+        assert hassette_instance.fatal_shutdown_reason is None
 
     async def test_run_forever_raises_fatal_on_session_init_failure(self, hassette_instance: Hassette):
         """Startup failure in session init branch raises FatalError."""
-        hassette_instance._database_service.start = Mock()
+        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
         hassette_instance.shutdown = AsyncMock()
-        hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
-        hassette_instance._session_manager.create_session = AsyncMock()
+        hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
+        hassette_instance.session_manager.create_session = AsyncMock()
 
         with pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
-        assert hassette_instance._fatal_shutdown_reason is not None
+        assert hassette_instance.fatal_shutdown_reason is not None
 
     async def test_run_forever_raises_fatal_on_resource_startup_failure(self, hassette_instance: Hassette):
         """Startup failure (resources not ready) branch raises FatalError."""
-        hassette_instance._database_service.start = Mock()
+        hassette_instance.database_service.start = Mock()
         for child in hassette_instance.children:
-            if child is not hassette_instance._database_service:
+            if child is not hassette_instance.database_service:
                 child.start = Mock()
         # DB wait succeeds, wave wait fails
         hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
         hassette_instance.shutdown = AsyncMock()
-        hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette_instance._session_manager.create_session = AsyncMock()
+        hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette_instance.session_manager.create_session = AsyncMock()
 
         with pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
-        assert hassette_instance._fatal_shutdown_reason is not None
+        assert hassette_instance.fatal_shutdown_reason is not None
 
 
 class TestSessionTelemetryOrdering:
@@ -112,17 +112,17 @@ class TestSessionTelemetryOrdering:
         """
         finalize_calls: list[str] = []
 
-        hassette_instance._database_service.start = Mock()
+        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-        hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette_instance._session_manager.create_session = AsyncMock()
-        hassette_instance._session_manager.cleanup_stale_once_listeners = AsyncMock()
-        hassette_instance._session_manager.finalize_session = AsyncMock(
+        hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette_instance.session_manager.create_session = AsyncMock()
+        hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
+        hassette_instance.session_manager.finalize_session = AsyncMock(
             side_effect=lambda **_kw: finalize_calls.append("finalized")
         )
 
         for child in hassette_instance.children:
-            if child is not hassette_instance._database_service:
+            if child is not hassette_instance.database_service:
                 child.start = Mock()
 
         original_shutdown = hassette_instance.shutdown
@@ -133,10 +133,10 @@ class TestSessionTelemetryOrdering:
         hassette_instance.shutdown = tracking_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         def trigger_fatal_shutdown(*_args, **_kwargs):
-            hassette_instance._fatal_shutdown_reason = "BusService crashed"
+            hassette_instance.record_fatal_reason("BusService crashed")
             hassette_instance.shutdown_event.set()
 
-        hassette_instance._session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
+        hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
         with pytest.raises(FatalError):
             await hassette_instance.run_forever()
@@ -156,47 +156,47 @@ class TestFinalizePersistsFatalFailure:
 
     async def test_finalize_writes_failure_when_fatal_reason_set(self, hassette_instance: Hassette):
         """With a fatal reason set and no _session_error, finalize writes SESSION_STATUS_FAILURE."""
-        sm = hassette_instance._session_manager
-        sm._session_id = 7
-        sm._session_error = False  # the async CRASHED handler did NOT win the race
-        hassette_instance._fatal_shutdown_reason = "Service 'BusService' restart budget exhausted (PERMANENT)"
+        sm = hassette_instance.session_manager
+        sm._session_id = 7  # coordinator-internal
+        sm._session_error = False  # coordinator-internal — the async CRASHED handler did NOT win the race
+        hassette_instance.record_fatal_reason("Service 'BusService' restart budget exhausted (PERMANENT)")
 
-        sm._database_service = Mock()
-        sm._database_service.db = AsyncMock()
-        sm._database_service.is_db_ready = True
+        sm._database_service = Mock()  # coordinator-internal
+        sm._database_service.db = AsyncMock()  # coordinator-internal
+        sm._database_service.is_db_ready = True  # coordinator-internal
 
         async def run_submitted(coro: typing.Any) -> None:
             await coro
 
-        sm._database_service.submit = run_submitted
+        sm._database_service.submit = run_submitted  # coordinator-internal
 
         await sm.finalize_session()
 
         # The finalize UPDATE must set status = 'failure', carrying the fatal reason as error_message.
-        execute_calls = sm._database_service.db.execute.await_args_list
+        execute_calls = sm._database_service.db.execute.await_args_list  # coordinator-internal
         assert execute_calls, "finalize should have issued an UPDATE"
         params = execute_calls[-1].args[1]
         assert SESSION_STATUS_FAILURE in params, f"finalize must persist a failure status, got params {params!r}"
-        assert hassette_instance._fatal_shutdown_reason in params
+        assert hassette_instance.fatal_shutdown_reason in params
 
     async def test_finalize_writes_success_when_no_fatal_reason(self, hassette_instance: Hassette):
         """A clean shutdown (no fatal reason, no _session_error) still finalizes as 'success'."""
-        sm = hassette_instance._session_manager
-        sm._session_id = 8
-        sm._session_error = False
-        hassette_instance._fatal_shutdown_reason = None
+        sm = hassette_instance.session_manager
+        sm._session_id = 8  # coordinator-internal
+        sm._session_error = False  # coordinator-internal
+        hassette_instance._fatal_shutdown_reason = None  # coordinator-internal — no public reset method exists
 
-        sm._database_service = Mock()
-        sm._database_service.db = AsyncMock()
-        sm._database_service.is_db_ready = True
+        sm._database_service = Mock()  # coordinator-internal
+        sm._database_service.db = AsyncMock()  # coordinator-internal
+        sm._database_service.is_db_ready = True  # coordinator-internal
 
         async def run_submitted(coro: typing.Any) -> None:
             await coro
 
-        sm._database_service.submit = run_submitted
+        sm._database_service.submit = run_submitted  # coordinator-internal
 
         await sm.finalize_session()
 
-        params = sm._database_service.db.execute.await_args_list[-1].args[1]
+        params = sm._database_service.db.execute.await_args_list[-1].args[1]  # coordinator-internal
         assert SESSION_STATUS_SUCCESS in params
         assert SESSION_STATUS_FAILURE not in params

@@ -69,13 +69,6 @@ repos:
         files: ^frontend/src/
         pass_filenames: false
 
-      - id: check-css-refs
-        name: Check undefined CSS refs in TSX
-        language: system
-        entry: uv run python tools/frontend/check_undefined_css_refs.py
-        types_or: [ts, tsx, css]
-        files: ^frontend/src/
-        pass_filenames: false
 
       # regenerate sync.py
       # language: system + uv run so the hook uses the same PEP 723 script metadata
@@ -161,8 +154,7 @@ repos:
         language: system
         entry: ./tools/check_for_missing_attribute.py
         pass_filenames: false
-        stages:
-          - pre-push
+        stages: [pre-commit, pre-push]
 
       - id: check-lazy-imports
         name: Ban lazy imports (use '# lazy-import:' to defend circular-import cases)
@@ -197,6 +189,65 @@ repos:
         language: system
         entry: ./tools/check_test_factories.py
         files: ^tests/.*\.py$
+        stages: [pre-commit, pre-push]
+
+      - id: check-internal-patches
+        name: Check un-annotated MUT patches in core tests
+        language: system
+        entry: ./tools/check_internal_patches.py
+        pass_filenames: false
+        files: ^tests/.*\.py$
+        stages: [pre-commit, pre-push]
+
+      - id: check-coordinator-internal
+        name: Check un-annotated coordinator-internal accesses in tests
+        language: system
+        entry: ./tools/check_coordinator_internal.py
+        pass_filenames: false
+        files: ^tests/.*\.py$
+        stages: [pre-commit, pre-push]
+
+      - id: check-breakpoint-drift
+        name: Check JS/CSS breakpoint constants match
+        language: system
+        entry: ./tools/frontend/check_breakpoint_drift.py
+        pass_filenames: false
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        stages: [pre-commit, pre-push]
+
+      - id: check-css-module-globals
+        name: Check CSS module :global() escaping
+        language: system
+        entry: ./tools/frontend/check_css_module_globals.py
+        pass_filenames: false
+        files: ^frontend/src/.*\.module\.css$
+        stages: [pre-commit, pre-push]
+
+      - id: check-dead-global-css
+        name: Check for unused global CSS selectors
+        language: system
+        entry: ./tools/frontend/check_dead_global_css.py
+        pass_filenames: false
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        stages: [pre-commit, pre-push]
+
+      - id: check-global-css-allowlist
+        name: Check global CSS allowlist
+        language: system
+        entry: ./tools/frontend/check_global_css_allowlist.py
+        pass_filenames: false
+        files: ^frontend/src/(global|styles/).*\.css$
+        stages: [pre-commit, pre-push]
+
+      - id: check-undefined-css-refs
+        name: Check for undefined ht-* class refs in TSX
+        language: system
+        entry: ./tools/frontend/check_undefined_css_refs.py
+        pass_filenames: false
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
         stages: [pre-commit, pre-push]
 
   - repo: https://github.com/RobertCraigie/pyright-python

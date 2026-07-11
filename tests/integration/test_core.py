@@ -11,24 +11,31 @@ import pytest
 import hassette.core.block_io_guard as block_io_guard
 import hassette.core.core as core_module
 from hassette import Hassette
+from hassette.api import Api
 from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
+from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
+from hassette.core.session_manager import SessionManager
+from hassette.core.state_proxy import StateProxy
+from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
+from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
 from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
+from hassette.state_manager import StateManager
 from hassette.test_utils import wait_for
 from hassette.utils.service_utils import topological_sort, validate_dependency_graph
 
@@ -42,53 +49,42 @@ def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
 
 
 def test_constructor_registers_background_services(hassette_instance: Hassette) -> None:
-    """Constructor wires up expected services and resources."""
-    assert isinstance(hassette_instance._database_service, DatabaseService)
-    assert isinstance(hassette_instance._logging_service, LoggingService)
-    assert isinstance(hassette_instance._command_executor, CommandExecutor)
-    assert isinstance(hassette_instance._bus_service, BusService)
-    assert isinstance(hassette_instance._service_watcher, ServiceWatcher)
-    assert isinstance(hassette_instance._websocket_service, WebsocketService)
-    assert isinstance(hassette_instance._file_watcher, FileWatcherService)
-    assert isinstance(hassette_instance._app_handler, AppHandler)
-    assert isinstance(hassette_instance._scheduler_service, SchedulerService)
-    assert isinstance(hassette_instance._api_service, ApiResource)
-    assert isinstance(hassette_instance._runtime_query_service, RuntimeQueryService)
-    assert isinstance(hassette_instance._telemetry_query_service, TelemetryQueryService)
-    assert isinstance(hassette_instance._web_api_service, WebApiService)
-    assert isinstance(hassette_instance._bus, Bus)
-    assert isinstance(hassette_instance._scheduler, Scheduler)
-    assert hassette_instance.api is not None
+    """Constructor wires up exactly the expected set of background services and resources."""
+    child_types = {type(c) for c in hassette_instance.children}
 
-    expected_children = [
-        hassette_instance._event_stream_service,
-        hassette_instance._database_service,
-        hassette_instance._logging_service,
-        hassette_instance._session_manager,
-        hassette_instance._command_executor,
-        hassette_instance._bus_service,
-        hassette_instance._service_watcher,
-        hassette_instance._websocket_service,
-        hassette_instance._file_watcher,
-        hassette_instance._app_handler,
-        hassette_instance._scheduler_service,
-        hassette_instance._api_service,
-        hassette_instance._runtime_query_service,
-        hassette_instance._telemetry_query_service,
-        hassette_instance._web_api_service,
-        hassette_instance._web_ui_watcher,
-        hassette_instance._bus,
-        hassette_instance._scheduler,
-        hassette_instance.api,
-    ]
-    for child in expected_children:
-        assert child in hassette_instance.children
+    expected_types = {
+        SyncExecutorService,
+        EventStreamService,
+        DatabaseService,
+        LoggingService,
+        CommandExecutor,
+        BusService,
+        SchedulerService,
+        SessionManager,
+        ServiceWatcher,
+        WebsocketService,
+        FileWatcherService,
+        WebUiWatcherService,
+        AppHandler,
+        ApiResource,
+        StateProxy,
+        RuntimeQueryService,
+        TelemetryQueryService,
+        WebApiService,
+        Bus,
+        Scheduler,
+        StateManager,
+        Api,
+    }
+
+    assert child_types == expected_types
+    assert hassette_instance.api is not None
 
 
 async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) -> None:
     """event_streams_closed mirrors the underlying stream lifecycle."""
     assert hassette_instance.event_streams_closed is False, "Streams should start open"
-    await hassette_instance._event_stream_service.close_streams()
+    await hassette_instance.event_stream_service.close_streams()
     await asyncio.sleep(0)  # allow state to propagate
     assert hassette_instance.event_streams_closed is True, "Streams should close after aclose"
 
@@ -102,13 +98,14 @@ def test_loop_property_raises_when_not_started(hassette_instance: Hassette) -> N
 async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -> None:
     """Loop property returns the configured loop once set."""
     running_loop = asyncio.get_running_loop()
-    hassette_instance._loop = running_loop
+    hassette_instance._loop = running_loop  # coordinator-internal
     assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
 
 
 def test_apps_property_forwards_to_handler(hassette_instance: Hassette) -> None:
     """Apps property proxies to the app handler."""
-    hassette_instance._app_handler = SimpleNamespace(apps={"demo": []})  # pyright: ignore[reportAttributeAccessIssue]
+    app_handler = SimpleNamespace(apps={"demo": []})
+    hassette_instance._app_handler = app_handler  # pyright: ignore[reportAttributeAccessIssue]  # coordinator-internal
     assert hassette_instance.apps == {"demo": []}, "apps property should forward to handler"
 
 
@@ -116,7 +113,7 @@ def test_get_app_forwards_to_handler(hassette_instance: Hassette) -> None:
     """get_app delegates to the handler's get method."""
     handler = SimpleNamespace()
     handler.get = Mock(return_value="app-instance")
-    hassette_instance._app_handler = handler  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance._app_handler = handler  # pyright: ignore[reportAttributeAccessIssue]  # coordinator-internal
 
     retrieved = hassette_instance.get_app("demo", index=2)
 
@@ -129,7 +126,7 @@ async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
     payload = SimpleNamespace(topic="topic.demo", value=123)
     await hassette_instance.send_event(cast("Event", payload))
 
-    received_event = await hassette_instance._event_stream_service.receive_stream.receive()
+    received_event = await hassette_instance.event_stream_service.receive_stream.receive()
     assert received_event is payload, "send_event should push the event object"
     assert received_event.topic == "topic.demo", "event should carry its topic"
 
@@ -169,17 +166,17 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     db_start = Mock()
     other_starts: list[Mock] = []
 
-    hassette_instance._database_service.start = db_start  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start = db_start  # pyright: ignore[reportAttributeAccessIssue]
     for child in hassette_instance.children:
-        if child is not hassette_instance._database_service:
+        if child is not hassette_instance.database_service:
             m = Mock()
             other_starts.append(m)
             child.start = m  # pyright: ignore[reportAttributeAccessIssue]
 
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-    hassette_instance._session_manager.create_session = AsyncMock()
+    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+    hassette_instance.session_manager.create_session = AsyncMock()
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
@@ -197,40 +194,40 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
         [hassette_instance.database_service], timeout=hassette_instance.config.lifecycle.startup_timeout_seconds
     )
     # Session created between phase 1 and phase 2
-    hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance._session_manager.create_session.assert_awaited_once()
+    hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance.session_manager.create_session.assert_awaited_once()
     hassette_instance.shutdown.assert_awaited()
-    assert hassette_instance._loop is asyncio.get_running_loop(), f"Event loop does not match {hassette_instance._loop}"
-    assert hassette_instance._loop_thread_id == threading.get_ident(), "Thread ID does not match"
+    assert hassette_instance.loop is asyncio.get_running_loop()
+    assert hassette_instance.loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when session initialization raises."""
-    hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
-    hassette_instance._session_manager.create_session = AsyncMock()
+    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
+    hassette_instance.session_manager.create_session = AsyncMock()
 
     with pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
-    hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance._session_manager.create_session.assert_not_awaited()
+    hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
+    hassette_instance.session_manager.create_session.assert_not_awaited()
     hassette_instance.shutdown.assert_awaited()
 
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
-    hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     for child in hassette_instance.children:
-        if child is not hassette_instance._database_service:
+        if child is not hassette_instance.database_service:
             child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     # DB wait succeeds (True), all-children wait fails (False)
     hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
-    hassette_instance._session_manager.create_session = AsyncMock()
+    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
+    hassette_instance.session_manager.create_session = AsyncMock()
 
     with pytest.raises(FatalError):
         await hassette_instance.run_forever()
@@ -251,7 +248,9 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
     # dev_mode=True forces Tier 2 to install, so the teardown assertions below are non-vacuous.
     hassette_instance.config.dev_mode = True
     hassette_instance.config.blocking_io.deep_detection_enabled = True
-    hassette_instance._database_service.start = Mock(side_effect=RuntimeError("db start broke"))  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+        side_effect=RuntimeError("db start broke"),
+    )
 
     real_install = core_module.install_block_io_guard
     try:
@@ -265,6 +264,7 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
         # shutdown() path (not mocked) tore both detectors back down.
         install_spy.assert_called_once()
         assert not block_io_guard.is_installed(), "Tier 2 guard leaked after startup failure"
+        # coordinator-internal: no public accessor for the watchdog slot
         assert hassette_instance._loop_watchdog is None, "Loop watchdog leaked after startup failure"
     finally:
         # Safety net: never let a failed assertion leak process-global patches into other tests.
@@ -277,13 +277,13 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
     Logging cleanup (shutdown_logging) is NOT performed here — it is handled
     by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
     """
-    hassette_instance._bus.remove_all_listeners = Mock()
-    hassette_instance._session_manager.finalize_session = AsyncMock()
+    hassette_instance.bus.remove_all_listeners = Mock()
+    hassette_instance.session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
-    hassette_instance._bus.remove_all_listeners.assert_called_once()
-    hassette_instance._session_manager.finalize_session.assert_awaited_once()
+    hassette_instance.bus.remove_all_listeners.assert_called_once()
+    hassette_instance.session_manager.finalize_session.assert_awaited_once()
 
 
 async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
@@ -292,13 +292,13 @@ async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hasset
     Logging cleanup (shutdown_logging) is NOT performed here — it is handled
     by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
     """
-    hassette_instance._bus.remove_all_listeners = Mock(side_effect=RuntimeError("bus error"))
-    hassette_instance._session_manager.finalize_session = AsyncMock()
+    hassette_instance.bus.remove_all_listeners = Mock(side_effect=RuntimeError("bus error"))
+    hassette_instance.session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
-    hassette_instance._bus.remove_all_listeners.assert_called_once()
-    hassette_instance._session_manager.finalize_session.assert_awaited_once()
+    hassette_instance.bus.remove_all_listeners.assert_called_once()
+    hassette_instance.session_manager.finalize_session.assert_awaited_once()
 
 
 def test_before_shutdown_contains_no_logging_cleanup() -> None:
@@ -321,9 +321,9 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
     Verifies that concurrent crash recording and session finalization don't
     interleave — the lock forces one to complete before the other starts.
     """
-    sm = hassette_instance._session_manager
-    sm._session_id = 42
-    sm._session_error = False
+    sm = hassette_instance.session_manager
+    sm._session_id = 42  # coordinator-internal
+    sm._session_error = False  # coordinator-internal
 
     call_order: list[str] = []
     crash_holding_lock = asyncio.Event()
@@ -331,14 +331,14 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
 
     async def slow_crash(_event: typing.Any) -> None:
         """Simulate crash handler that holds the lock while doing slow work."""
-        async with sm._session_lock:
+        async with sm._session_lock:  # coordinator-internal
             call_order.append("crash_acquired")
             crash_holding_lock.set()
             await crash_may_release.wait()  # hold lock until test says release
             call_order.append("crash_released")
 
-    sm._database_service = Mock()
-    sm._database_service.db = AsyncMock()
+    sm._database_service = Mock()  # coordinator-internal
+    sm._database_service.db = AsyncMock()  # coordinator-internal
 
     submit_calls: list[str] = []
 
@@ -347,7 +347,7 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
         submit_calls.append("submit")
         await coro
 
-    sm._database_service.submit = tracking_submit
+    sm._database_service.submit = tracking_submit  # coordinator-internal
 
     crash_event = Mock()
 
@@ -381,19 +381,12 @@ def test_database_service_starts_first(hassette_instance: Hassette) -> None:
         child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
     # Simulate phase 1: only the database service starts
-    hassette_instance._database_service.start()
+    hassette_instance.database_service.start()
 
-    hassette_instance._database_service.start.assert_called_once()  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start.assert_called_once()  # pyright: ignore[reportAttributeAccessIssue]
     for child in hassette_instance.children:
-        if child is not hassette_instance._database_service:
+        if child is not hassette_instance.database_service:
             child.start.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue]
-
-
-def test_init_order_contains_all_children(hassette_instance: Hassette) -> None:
-    """_init_order contains exactly the same types as the registered children."""
-    child_types = set(type(c) for c in hassette_instance.children)
-    init_order_types = set(hassette_instance._init_order)
-    assert init_order_types == child_types
 
 
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:

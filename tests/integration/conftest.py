@@ -3,7 +3,6 @@
 import shutil
 import time
 from collections.abc import AsyncIterator, Callable
-from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
@@ -14,6 +13,7 @@ from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.helpers import cleanup_hassette_streams
 from hassette.types.enums import ExecutionMode
 
 if TYPE_CHECKING:
@@ -29,13 +29,7 @@ async def hassette_instance(test_config: HassetteConfig):
     try:
         yield instance
     finally:
-        with suppress(Exception):
-            if not instance._event_stream_service.event_streams_closed:
-                await instance._event_stream_service.close_streams()
-
-        with suppress(Exception):
-            if not instance._bus_service.stream._closed:
-                await instance._bus_service.stream.aclose()
+        await cleanup_hassette_streams(instance)
 
 
 _HARNESS_FIXTURES = frozenset(

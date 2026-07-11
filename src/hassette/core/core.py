@@ -253,9 +253,7 @@ class Hassette(Resource):
         Raises:
             RuntimeError: If no session has been created.
         """
-        if self._session_manager is None:
-            raise _service_not_wired_error("SessionManager")
-        return self._session_manager.session_id
+        return self.session_manager.session_id
 
     def try_session_id(self) -> int | None:
         """Return the current session ID, or None if no session exists yet."""
@@ -263,6 +261,13 @@ class Hassette(Resource):
             return self.session_id
         except RuntimeError:
             return None
+
+    @property
+    def session_manager(self) -> SessionManager:
+        """SessionManager instance for session lifecycle management."""
+        if self._session_manager is None:
+            raise _service_not_wired_error("SessionManager")
+        return self._session_manager
 
     @property
     def ws_url(self) -> str:
@@ -280,6 +285,13 @@ class Hassette(Resource):
         if self._event_stream_service is None:
             return True
         return self._event_stream_service.event_streams_closed
+
+    @property
+    def event_stream_service(self) -> EventStreamService:
+        """EventStreamService instance for internal event stream lifecycle."""
+        if self._event_stream_service is None:
+            raise _service_not_wired_error("EventStreamService")
+        return self._event_stream_service
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -394,6 +406,13 @@ class Hassette(Resource):
         if self._bus_service is None:
             raise _service_not_wired_error("BusService")
         return self._bus_service
+
+    @property
+    def bus(self) -> Bus:
+        """Bus instance for internal event pub/sub."""
+        if self._bus is None:
+            raise _service_not_wired_error("Bus")
+        return self._bus
 
     @property
     def state_proxy(self) -> StateProxy:
@@ -646,7 +665,7 @@ class Hassette(Resource):
 
         try:
             await self.shutdown_event.wait()
-        except asyncio.CancelledError:  # noqa: ASYNC103 — top-level run loop; converts cancellation to graceful shutdown
+        except asyncio.CancelledError:  # noqa: ASYNC103 — top-level; cancellation → graceful shutdown
             self.logger.debug("Hassette run loop cancelled")
         except Exception as exc:
             self.logger.error("Error in Hassette run loop: %s", exc)

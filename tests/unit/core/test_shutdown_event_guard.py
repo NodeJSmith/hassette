@@ -1,17 +1,9 @@
 """Tests for send_event guard when event streams are closed."""
 
-from contextlib import suppress
 from types import SimpleNamespace
 
 from hassette.core.core import Hassette
-
-
-async def cleanup_hassette(h: Hassette) -> None:
-    """Close BusService's cloned stream and event streams to prevent ResourceWarning."""
-    if h._bus_service is not None:
-        await h._bus_service.stream.aclose()
-    if h._event_stream_service is not None:
-        await h._event_stream_service.close_streams()
+from hassette.test_utils.helpers import cleanup_hassette_streams
 
 
 class TestSendEventAfterStreamsClosed:
@@ -30,8 +22,7 @@ class TestSendEventAfterStreamsClosed:
 
             await h.send_event(SimpleNamespace(topic="test.guard"))  # pyright: ignore[reportArgumentType]
         finally:
-            with suppress(Exception):
-                await cleanup_hassette(h)
+            await cleanup_hassette_streams(h)
 
     async def test_send_event_works_before_streams_closed(self, test_config) -> None:
         """send_event() must still work normally when streams are open."""
@@ -42,4 +33,4 @@ class TestSendEventAfterStreamsClosed:
             assert h.event_streams_closed is False
             await h.send_event(SimpleNamespace(topic="test.guard"))  # pyright: ignore[reportArgumentType]
         finally:
-            await cleanup_hassette(h)
+            await cleanup_hassette_streams(h)

@@ -5,25 +5,24 @@ from typing import ClassVar
 
 from hassette import Hassette
 from hassette.resources.base import Resource
+from hassette.utils.service_utils import topological_levels, topological_sort
 
 
-async def test_init_waves_cover_all_children(hassette_instance: Hassette) -> None:
-    """_init_waves contains exactly the same types as the registered children."""
-    wave_types = {t for wave in hassette_instance._init_waves for t in wave}
-    child_types = {type(c) for c in hassette_instance.children}
-    assert wave_types == child_types, "Waves must include every registered child type"
-
-
-async def test_init_waves_have_no_duplicates(hassette_instance: Hassette) -> None:
-    """Each type appears in exactly one wave."""
-    all_types = [t for wave in hassette_instance._init_waves for t in wave]
-    assert len(all_types) == len(set(all_types)), "Each type must appear in exactly one wave"
+async def test_coordinator_uses_topological_sort(hassette_instance: Hassette) -> None:
+    """Coordinator's stored init_order and init_waves match the pure-function output."""
+    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
+    expected_order = topological_sort(child_types)
+    expected_waves = topological_levels(child_types)
+    assert hassette_instance._init_order == expected_order  # coordinator-internal: pins wiring
+    assert hassette_instance._init_waves == expected_waves  # coordinator-internal: pins wiring
 
 
 async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassette) -> None:
     """Every depends_on type appears in an earlier wave than its dependent."""
-    type_set = {t for wave in hassette_instance._init_waves for t in wave}
-    wave_index = {t: i for i, wave in enumerate(hassette_instance._init_waves) for t in wave}
+    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
+    waves = topological_levels(child_types)
+    type_set = {t for wave in waves for t in wave}
+    wave_index = {t: i for i, wave in enumerate(waves) for t in wave}
 
     for t in type_set:
         for dep in t.depends_on:

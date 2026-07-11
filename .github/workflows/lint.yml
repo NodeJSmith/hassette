@@ -112,6 +112,9 @@ jobs:
             - name: Check internal MUT patches in core tests
               run: uv run python tools/check_internal_patches.py
 
+            - name: Check coordinator-internal annotations in core tests
+              run: uv run python tools/check_coordinator_internal.py
+
     frontend:
         needs: changes
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'

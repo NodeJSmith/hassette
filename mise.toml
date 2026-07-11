@@ -28,3 +28,10 @@ depends = ["npm:install"]
 description = "Type-check JS files with TypeScript"
 run = "npx tsc --noEmit -p src/hassette/web/static/js/jsconfig.json"
 depends = ["npm:install"]
+
+[tasks."worktree:setup"]
+description = "Set up a new worktree (Python venv + frontend node_modules)"
+run = """
+uv sync
+cd frontend && npm install
+"""

@@ -150,6 +150,22 @@ Do **not** use `pytest --cov` for backend coverage — it under-reports by 15-40
 
 Both backend and frontend enforce an 80% floor — backend via `fail_under` in `pyproject.toml`, frontend via `thresholds` in `vitest.config.ts`. Codecov's `target: auto` additionally catches per-PR regressions.
 
+### Comparing coverage between branch and main
+
+Don't run full coverage suites locally to compare — download the `coverage-xml` artifact from CI instead:
+
+```bash
+# Find the CI run IDs
+gh run list --branch 1285 --workflow tests.yml --status success --limit 1 --json databaseId -q '.[0].databaseId'
+gh run list --branch main --workflow tests.yml --status success --limit 1 --json databaseId -q '.[0].databaseId'
+
+# Download both
+gh run download <branch-run-id> -n coverage-xml -D /tmp/branch-cov
+gh run download <main-run-id> -n coverage-xml -D /tmp/main-cov
+```
+
+Then diff the two `coverage.xml` files (standard Cobertura format) to find which files gained or lost hits.
+
 ## Test Infrastructure
 
 Two mock strategies serve different testing needs. See `tests/TESTING.md` for the full guide, decision table, and code examples.
