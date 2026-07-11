@@ -14,11 +14,7 @@ from whenever import Instant
 
 from hassette.cli import app
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
-from tests.unit.cli.conftest import NOW_EPOCH
-
-
-def _fixed_now() -> float:
-    return NOW_EPOCH
+from tests.unit.cli.conftest import NOW_EPOCH, fixed_now
 
 
 class TestSubcommandRouting:
@@ -58,7 +54,7 @@ class TestSinceConverterWiring:
         ],
     )
     def test_relative_since_through_dispatch(self, argv: list[str], expected_seconds_ago: int) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             _cmd, bound, _ = app.parse_args(argv)
 
         since = bound.arguments["since"]
@@ -79,7 +75,7 @@ class TestSinceConverterWiring:
 
 class TestFlagCombinations:
     def test_listener_app_since_limit(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             _cmd, bound, _ = app.parse_args(["listener", "--app", "my-app", "--since", "1h", "--limit", "50"])
 
         assert bound.arguments["app"] == "my-app"
@@ -93,7 +89,7 @@ class TestFlagCombinations:
         assert bound.arguments["source_tier"] == "framework"
 
     def test_app_health_instance_since(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             _cmd, bound, _ = app.parse_args(["app", "health", "test-app", "--instance", "office", "--since", "7d"])
 
         assert bound.arguments["instance"] == "office"

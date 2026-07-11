@@ -253,9 +253,7 @@ class Hassette(Resource):
         Raises:
             RuntimeError: If no session has been created.
         """
-        if self._session_manager is None:
-            raise _service_not_wired_error("SessionManager")
-        return self._session_manager.session_id
+        return self.session_manager.session_id
 
     def try_session_id(self) -> int | None:
         """Return the current session ID, or None if no session exists yet."""
@@ -667,7 +665,7 @@ class Hassette(Resource):
 
         try:
             await self.shutdown_event.wait()
-        except asyncio.CancelledError:  # noqa: ASYNC103 — top-level run loop; converts cancellation to graceful shutdown
+        except asyncio.CancelledError:  # noqa: ASYNC103 — top-level; cancellation → graceful shutdown
             self.logger.debug("Hassette run loop cancelled")
         except Exception as exc:
             self.logger.error("Error in Hassette run loop: %s", exc)

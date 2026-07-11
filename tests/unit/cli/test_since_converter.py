@@ -6,38 +6,35 @@ import pytest
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.types import convert_since
-from tests.unit.cli.conftest import NOW_EPOCH
-
-
-def _fixed_now() -> float:
-    return NOW_EPOCH
+from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+from tests.unit.cli.conftest import NOW_EPOCH, fixed_now
 
 
 class TestRelativeDurations:
     def test_seconds(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             result = convert_since("30s")
         assert result == pytest.approx(NOW_EPOCH - 30, abs=1)
 
     def test_minutes(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             result = convert_since("30m")
-        assert result == pytest.approx(NOW_EPOCH - 30 * 60, abs=1)
+        assert result == pytest.approx(NOW_EPOCH - 30 * SECONDS_PER_MINUTE, abs=1)
 
     def test_hours(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             result = convert_since("1h")
-        assert result == pytest.approx(NOW_EPOCH - 3600, abs=1)
+        assert result == pytest.approx(NOW_EPOCH - SECONDS_PER_HOUR, abs=1)
 
     def test_days(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             result = convert_since("7d")
-        assert result == pytest.approx(NOW_EPOCH - 7 * 86400, abs=1)
+        assert result == pytest.approx(NOW_EPOCH - 7 * SECONDS_PER_DAY, abs=1)
 
     def test_weeks(self) -> None:
-        with patch("hassette.cli.types.now_epoch", _fixed_now):
+        with patch("hassette.cli.types.now_epoch", fixed_now):
             result = convert_since("2w")
-        assert result == pytest.approx(NOW_EPOCH - 14 * 86400, abs=1)
+        assert result == pytest.approx(NOW_EPOCH - 14 * SECONDS_PER_DAY, abs=1)
 
 
 class TestISO8601WithTimezone:

@@ -19,6 +19,10 @@ SINCE_EPOCH = 1_700_000_000.0
 NOW_EPOCH = 1_748_000_000.0
 
 
+def fixed_now() -> float:
+    return NOW_EPOCH
+
+
 class GetSpy:
     """Wraps ``client.get`` to record paths and params for assertion.
 

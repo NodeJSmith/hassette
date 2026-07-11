@@ -249,7 +249,9 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
     # dev_mode=True forces Tier 2 to install, so the teardown assertions below are non-vacuous.
     hassette_instance.config.dev_mode = True
     hassette_instance.config.blocking_io.deep_detection_enabled = True
-    hassette_instance.database_service.start = Mock(side_effect=RuntimeError("db start broke"))  # pyright: ignore[reportAttributeAccessIssue]
+    hassette_instance.database_service.start = Mock(  # pyright: ignore[reportAttributeAccessIssue]
+        side_effect=RuntimeError("db start broke"),
+    )
 
     real_install = core_module.install_block_io_guard
     try:
