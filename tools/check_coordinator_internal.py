@@ -1,24 +1,14 @@
 #!/usr/bin/env python3
-"""CI guard: detect un-annotated coordinator-internal accesses in migrated integration tests.
+"""Lint guard: detect un-annotated coordinator-internal accesses in integration tests.
 
 Companion to ``tools/check_internal_patches.py`` — same AST + tokenize-comment pattern,
-applied to a structurally different problem. Spec 006 (``migrate-hassette-instance-fixture``)
-migrated ``test_core.py``, ``test_fatal_shutdown.py``, and ``test_resource_deps.py`` off
-private-attribute access on ``hassette_instance`` in favor of public properties. A small set
-of sites have no public equivalent (state-machine internals, ``SessionManager`` internal
-fields) and remain as private access, annotated ``# coordinator-internal`` to mark them as a
-deliberate, reviewed exception rather than undetected drift.
+applied to a structurally different problem. When integration tests access private attributes
+on ``hassette_instance`` (or aliases like ``sm = hassette_instance.session_manager``), each
+site must carry a ``# coordinator-internal`` annotation marking it as a deliberate, reviewed
+exception rather than undetected drift toward coupling on framework internals.
 
-Scope: three test files.
-
-    * ``tests/integration/test_core.py``
-    * ``tests/integration/test_fatal_shutdown.py``
-    * ``tests/integration/test_resource_deps.py``
-
-``tests/integration/conftest.py`` is DELIBERATELY OUT OF SCOPE — its
-``cleanup_hassette_streams()`` helper accesses ``instance._event_stream_service`` and
-``instance._bus_service`` directly by design; it is test infrastructure that owns the
-teardown, not a test asserting behavior against the coordinator.
+Scope: all ``*.py`` files under ``tests/``, excluding ``conftest.py`` files
+(test infrastructure that owns teardown, not tests asserting behavior).
 
 Detection is AST-based:
 
@@ -54,17 +44,15 @@ from pathlib import Path
 
 from lint_helpers import REPO_ROOT, extract_comments, run_check
 
-IN_SCOPE_FILES: list[Path] = [
-    REPO_ROOT / "tests" / "integration" / "test_core.py",
-    REPO_ROOT / "tests" / "integration" / "test_fatal_shutdown.py",
-    REPO_ROOT / "tests" / "integration" / "test_resource_deps.py",
-]
+TESTS_DIR = REPO_ROOT / "tests"
 
-# The Hassette fixture instance. Every local alias of its ``session_manager`` property is
-# added to this set on a per-module basis by AliasCollector before the access scan runs.
 BASE_RECEIVER = "hassette_instance"
 
 ANNOTATION = "# coordinator-internal"
+
+
+def discover_files() -> list[Path]:
+    return sorted(p for p in TESTS_DIR.rglob("*.py") if p.name != "conftest.py")
 
 
 class AliasCollector(ast.NodeVisitor):
@@ -139,17 +127,16 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
 
 def main() -> int:
+    files = discover_files()
     return run_check(
-        IN_SCOPE_FILES,
+        files,
         REPO_ROOT,
         check_file,
         summary="un-annotated coordinator-internal access(es) found",
-        ok=f"no un-annotated coordinator-internal accesses found across {len(IN_SCOPE_FILES)} in-scope test files.",
+        ok=f"no un-annotated coordinator-internal accesses found across {len(files)} test files.",
         footer=(
             f"Each site must carry a `{ANNOTATION}` comment, either trailing on the same\n"
-            "line as the access or on the comment-only line immediately preceding it.\n"
-            "See design/specs/006-migrate-hassette-instance-fixture/design.md for the\n"
-            "private-attribute-access requirements this check enforces."
+            "line as the access or on the comment-only line immediately preceding it."
         ),
     )
 
