@@ -55,8 +55,52 @@ class ListenerNameRequiredError(HassetteError):
         )
 ```
 
+### Registration method with correct `*` placement — `Bus.on()`
+
+**Source:** `src/hassette/bus/bus.py:432-450`
+
+```python
+def on(
+    self,
+    *,
+    topic: str,
+    handler: "HandlerType",
+    where: WhereClause = None,
+    kwargs: Mapping[str, Any] | None = None,
+    once: bool = False,
+    debounce: float | None = None,
+    throttle: float | None = None,
+    timeout: float | None = None,
+    timeout_disabled: bool = False,
+    mode: "ExecutionMode | str | None" = None,
+    backpressure: "BackpressurePolicy | str | None" = None,
+    name: str | None = None,
+    on_error: "BusErrorHandlerType | None" = None,
+    if_exists: IfExistsPolicy = "error",
+) -> "Coroutine[Any, Any, Subscription]":
+```
+
+DON'T: Place `*` after behavioral parameters like the scheduler currently does — it defeats keyword-only enforcement for the params that matter most (`name`, `group`).
+
 ### Linter script pattern
 
-**Source:** `tools/check_lazy_imports.py`
+**Source:** `tools/check_lazy_imports.py:1-28`
 
 AST-based, runs on `src/` files, wired into `.pre-commit-config.yaml` with `stages: [pre-commit, pre-push]`. Uses `ast.parse` + visitor pattern. Exit code 0 on clean, 1 with specific file:line references on violations.
+
+### Delegate method delegation — `BusSyncFacade.on_homeassistant_restart`
+
+**Source:** `src/hassette/bus/sync.py:447-454`
+
+```python
+def on_homeassistant_restart(
+    self, handler: "HandlerType", where: WhereClause = None,
+    kwargs: Mapping[str, Any] | None = None, name: str | None = None,
+    **opts: Unpack[Options],
+) -> Subscription:
+    return self.task_bucket.run_sync(
+        self._bus.on_homeassistant_restart(handler, where, kwargs, name, **opts)
+    )
+```
+
+DON'T: Pass args positionally to the async method when the async method uses keyword-only params. After this change, delegation must use keyword args.

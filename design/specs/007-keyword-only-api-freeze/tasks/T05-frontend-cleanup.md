@@ -51,6 +51,8 @@ Install frontend dependencies first if in a worktree: `cd frontend && npm instal
 
 The `nameAutoHint` prop is optional (`?:`) so removing it won't break any callers — `job-detail.tsx` is the only place that passes it.
 
+This task removes a small UI element (the `ⓘ` hint badge). Per `.claude/rules/design-completeness.md`, the PR needs either a Screenshots section or the `no-visual-change` label — use `no-visual-change` since this is a removal with no visual replacement.
+
 After removing `name_auto` from `JobSummary` (T01) and regenerating types, any remaining TypeScript references to `name_auto` will fail the build — use that as a verification step.
 
 ## Verify
