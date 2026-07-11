@@ -1,7 +1,7 @@
 # Design: Migrate hassette_instance fixture to public API
 
 **Date:** 2026-07-10
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
