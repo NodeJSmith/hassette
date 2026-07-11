@@ -12,10 +12,10 @@ async def cleanup_hassette_streams(instance: Hassette) -> None:
     Both underlying close operations are idempotent, so no pre-check is needed —
     suppress(Exception) alone handles the not-yet-wired and already-closed cases.
 
-    Local copy (not shared): reaches into private attributes, a live-instance
-    hazard that belongs in test infrastructure, not the installed package. Not
-    imported from `tests/integration/conftest.py` — `tests/unit` and
-    `tests/integration` don't cross-import fixtures/helpers from each other.
+    Local copy: reaches into private attributes, a live-instance hazard that
+    belongs in test infrastructure, not the installed package. Canonical copy
+    lives in tests/integration/conftest.py — unit/integration test trees don't
+    cross-import, so this is a deliberate duplicate. Keep both in sync.
     """
     with suppress(Exception):
         await instance._event_stream_service.close_streams()  # pyright: ignore[reportOptionalMemberAccess]

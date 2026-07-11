@@ -29,7 +29,8 @@ async def cleanup_hassette_streams(instance: Hassette) -> None:
     Lives here rather than on `Hassette` or in `test_utils/helpers.py` because it
     reaches into private attributes (`_event_stream_service`, `_bus_service`) — a
     live-instance hazard that belongs in repo-local test infrastructure, not the
-    installed package.
+    installed package. A local copy exists in tests/unit/core/test_shutdown_event_guard.py
+    (unit/integration test trees don't cross-import) — keep both in sync.
     """
     with suppress(Exception):
         await instance._event_stream_service.close_streams()  # pyright: ignore[reportOptionalMemberAccess]
