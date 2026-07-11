@@ -458,8 +458,10 @@ class DatabaseService(Service):
 
         If the DB file does not exist yet, does nothing (migrations will create it).
         If the DB version matches the expected head, does nothing.
-        If the DB version is older than head, logs a WARNING and deletes the DB file
-        so that migrations recreate it cleanly.
+        If the DB version is behind head (0 < current < head), does nothing —
+        run_migrations() will apply pending migrations incrementally, preserving data.
+        If the DB version is 0 on an existing file (pre-PRAGMA-era or fresh DB with
+        no migrations applied), deletes the file so migrations recreate it cleanly.
         If the DB version is *ahead* of head (newer DB on older binary), logs an ERROR
         and raises SchemaVersionError — auto-delete is refused in this case.
 
@@ -479,15 +481,7 @@ class DatabaseService(Service):
         if current_version == expected_head:
             return
 
-        if current_version == 0:
-            # PRAGMA user_version = 0 on an existing file means either a fresh DB
-            # (no migrations applied) or a pre-PRAGMA-era Alembic-managed DB.
-            # Treat as stale schema needing recreation.
-            self.logger.warning(
-                "Database has no schema version (expected %d) — recreating database (no production data to preserve).",
-                expected_head,
-            )
-        elif current_version > expected_head:
+        if current_version > expected_head:
             self.logger.error(
                 "Database schema version %d is ahead of the code's expected head %d. "
                 "This usually means a newer binary created this database. "
@@ -499,23 +493,28 @@ class DatabaseService(Service):
                 f"Database schema version {current_version} is ahead of expected head "
                 f"{expected_head}. Cannot start safely."
             )
-        else:
-            self.logger.warning(
-                "Database schema version mismatch (current=%d, expected=%d) — "
-                "recreating database (no production data to preserve).",
+
+        if current_version > 0:
+            self.logger.info(
+                "Database schema version %d is behind head %d — pending migrations will be applied.",
                 current_version,
                 expected_head,
             )
+            return
 
-        try:
-            db_path.unlink(missing_ok=True)
-            # Also remove WAL and SHM side-car files if present
-            for suffix in ("-wal", "-shm"):
-                Path(str(db_path) + suffix).unlink(missing_ok=True)
-        except PermissionError as exc:
-            raise RuntimeError(
-                f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
-            ) from exc
+        if current_version == 0:
+            self.logger.warning(
+                "Database has no schema version (expected %d) — recreating database (no production data to preserve).",
+                expected_head,
+            )
+            try:
+                db_path.unlink(missing_ok=True)
+                for suffix in ("-wal", "-shm"):
+                    Path(str(db_path) + suffix).unlink(missing_ok=True)
+            except PermissionError as exc:
+                raise RuntimeError(
+                    f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
+                ) from exc
 
     def run_migrations(self) -> None:
         """Run PRAGMA user_version migrations to the latest version (synchronous, called via to_thread).
