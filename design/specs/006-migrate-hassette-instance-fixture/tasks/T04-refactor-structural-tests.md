@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Refactor structural invariant tests to pure functions"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#5", "FR#6", "AC#2"]
 ---

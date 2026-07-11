@@ -389,10 +389,10 @@ def test_database_service_starts_first(hassette_instance: Hassette) -> None:
 
 
 def test_init_order_contains_all_children(hassette_instance: Hassette) -> None:
-    """_init_order contains exactly the same types as the registered children."""
-    child_types = set(type(c) for c in hassette_instance.children)
-    init_order_types = set(hassette_instance._init_order)
-    assert init_order_types == child_types
+    """topological_sort() contains exactly the same types as the registered children."""
+    child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
+    init_order = topological_sort(child_types)
+    assert set(init_order) == set(child_types)
 
 
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:
