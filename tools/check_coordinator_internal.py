@@ -52,9 +52,7 @@ import ast
 import sys
 from pathlib import Path
 
-from lint_helpers import extract_comments
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from lint_helpers import REPO_ROOT, extract_comments, run_check
 
 IN_SCOPE_FILES: list[Path] = [
     REPO_ROOT / "tests" / "integration" / "test_core.py",
@@ -141,28 +139,19 @@ def check_file(path: Path) -> list[tuple[int, str]]:
 
 
 def main() -> int:
-    all_violations: list[tuple[Path, int, str]] = []
-
-    for path in IN_SCOPE_FILES:
-        rel = path.relative_to(REPO_ROOT)
-        for lineno, attr in check_file(path):
-            all_violations.append((rel, lineno, attr))
-
-    if all_violations:
-        print(f"ERROR: {len(all_violations)} un-annotated coordinator-internal access(es) found:")
-        print()
-        for rel, lineno, attr in all_violations:
-            print(f"  {rel}:{lineno} — {attr}")
-        print()
-        print(f"Each site must carry a `{ANNOTATION}` comment, either trailing on the same")
-        print("line as the access or on the comment-only line immediately preceding it.")
-        print("See design/specs/006-migrate-hassette-instance-fixture/design.md for the")
-        print("private-attribute-access requirements this check enforces.")
-        return 1
-
-    total_files = len(IN_SCOPE_FILES)
-    print(f"OK: no un-annotated coordinator-internal accesses found across {total_files} in-scope test files.")
-    return 0
+    return run_check(
+        IN_SCOPE_FILES,
+        REPO_ROOT,
+        check_file,
+        summary="un-annotated coordinator-internal access(es) found",
+        ok=f"no un-annotated coordinator-internal accesses found across {len(IN_SCOPE_FILES)} in-scope test files.",
+        footer=(
+            f"Each site must carry a `{ANNOTATION}` comment, either trailing on the same\n"
+            "line as the access or on the comment-only line immediately preceding it.\n"
+            "See design/specs/006-migrate-hassette-instance-fixture/design.md for the\n"
+            "private-attribute-access requirements this check enforces."
+        ),
+    )
 
 
 if __name__ == "__main__":
