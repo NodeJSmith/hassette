@@ -13,9 +13,8 @@ async def test_coordinator_uses_topological_sort(hassette_instance: Hassette) ->
     child_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
     expected_order = topological_sort(child_types)
     expected_waves = topological_levels(child_types)
-    # coordinator-internal: pins that the coordinator actually calls these functions
-    assert hassette_instance._init_order == expected_order
-    assert hassette_instance._init_waves == expected_waves
+    assert hassette_instance._init_order == expected_order  # coordinator-internal: pins wiring
+    assert hassette_instance._init_waves == expected_waves  # coordinator-internal: pins wiring
 
 
 async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassette) -> None:
