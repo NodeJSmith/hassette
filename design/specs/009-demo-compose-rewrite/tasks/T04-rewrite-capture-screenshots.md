@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Rewrite capture_screenshots.py to use DemoStack directly"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#9", "AC#3"]
 ---

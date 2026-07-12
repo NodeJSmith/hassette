@@ -5,19 +5,19 @@ Usage:
     uv run python scripts/capture_screenshots.py
 
 Requirements:
-    - Docker must be running (used by the demo environment for the HA container)
+    - Docker must be running (used by the demo stack for HA + hassette + Vite)
     - Playwright and Chromium must be installed:
           uv run playwright install --with-deps chromium
     - shot-scraper must be installed (dev dependency):
           uv sync --group dev
 
 Flow:
-    1. Start the demo environment (HA + hassette + Vite)
-    2. Wait for all services to be ready (up to 180 seconds)
+    1. Delete stale demo DB files
+    2. Start the demo stack (HA + hassette + Vite) via DemoStack
     3. Poll until demo_stimulator has generated error data (up to 90 seconds)
     4. Resolve {port} placeholders and inject animation-disabling CSS
     5. Run shot-scraper to capture all screenshots
-    6. Tear down the demo environment
+    6. Tear down the demo stack
 
 Output:
     All docs/_static/web_ui_*.png files defined in docs/screenshots.yml.
@@ -29,29 +29,22 @@ Adding a new screenshot:
 """
 
 import argparse
-import atexit
 import contextlib
 import json
-import os
-import queue
-import signal
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
 
 import yaml
+from demo_stack import DemoStack
 
-DEMO_READY_TIMEOUT_SECONDS = 180
 ERROR_DATA_TIMEOUT_SECONDS = 90
 ERROR_DATA_POLL_INTERVAL_SECONDS = 2
 HTTP_SOCKET_TIMEOUT_SECONDS = 5
-PROC_WAIT_TIMEOUT_SECONDS = 10
 
 ANIMATION_DISABLE_JS = (
     "const s=document.createElement('style');"
@@ -62,74 +55,9 @@ ANIMATION_DISABLE_JS = (
     "document.head.appendChild(s);"
 )
 
-_demo_proc: "subprocess.Popen[bytes] | None" = None
-_tmp_manifest: str | None = None
-_torn_down = False
 
-
-def teardown() -> None:
-    """Kill the demo process and remove the temp manifest. Idempotent."""
-    global _torn_down
-    if _torn_down:
-        return
-    _torn_down = True
-
-    if _demo_proc is not None:
-        try:
-            if sys.platform == "win32":
-                _demo_proc.terminate()
-            else:
-                os.killpg(_demo_proc.pid, signal.SIGTERM)
-            _demo_proc.wait(timeout=PROC_WAIT_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            with contextlib.suppress(Exception):
-                if sys.platform == "win32":
-                    _demo_proc.kill()
-                else:
-                    os.killpg(_demo_proc.pid, signal.SIGKILL)
-            with contextlib.suppress(Exception):
-                _demo_proc.wait(timeout=PROC_WAIT_TIMEOUT_SECONDS)
-        except (ProcessLookupError, OSError):
-            pass
-
-    if _tmp_manifest is not None:
-        with contextlib.suppress(Exception):
-            Path(_tmp_manifest).unlink(missing_ok=True)
-
-
-def _signal_handler(_signum: int, _frame: object) -> None:
-    teardown()
-    sys.exit(0)
-
-
-def main() -> None:
-    global _demo_proc, _tmp_manifest
-
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--only",
-        help="Comma-separated substrings to match against output filenames. "
-        "Only matching entries are captured. Example: --only column_picker,sidebar",
-    )
-    args = parser.parse_args()
-
-    atexit.register(teardown)
-    signal.signal(signal.SIGINT, _signal_handler)
-    signal.signal(signal.SIGTERM, _signal_handler)
-
-    repo_root = Path(__file__).resolve().parent.parent
-
-    manifest_path = repo_root / "docs" / "screenshots.yml"
-    with manifest_path.open() as f:
-        entries = yaml.safe_load(f)
-
-    if not isinstance(entries, list) or not entries:
-        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr, flush=True)
-        sys.exit(1)
-
+def _clean_stale_demo_db(repo_root: Path) -> None:
+    """Delete leftover demo DB files from a previous run so telemetry starts fresh."""
     demo_db = repo_root / ".demo-data" / "hassette.db"
     deleted_files: list[str] = []
     for suffix in ("", "-shm", "-wal"):
@@ -140,99 +68,19 @@ def main() -> None:
     if deleted_files:
         print(f"Cleaned stale demo DB files: {', '.join(deleted_files)}", flush=True)
 
-    demo_script = repo_root / "scripts" / "hassette_demo.py"
-    print("Starting demo environment...", flush=True)
-    _demo_proc = subprocess.Popen(
-        ["uv", "run", "python", str(demo_script)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-        cwd=str(repo_root),
-    )
 
-    demo_output: dict[str, str] = {}
-    deadline = time.monotonic() + DEMO_READY_TIMEOUT_SECONDS
-    demo_ready = False
+def _wait_for_error_data(hassette_port: int) -> None:
+    """Poll until demo_stimulator has produced at least one failed job.
 
-    if _demo_proc.stdout is None:
-        print("ERROR: Demo process has no stdout pipe", file=sys.stderr, flush=True)
-        sys.exit(1)
-
-    line_queue: queue.Queue[bytes | None] = queue.Queue()
-
-    def reader(pipe, out_queue):
-        for raw in pipe:
-            out_queue.put(raw)
-        out_queue.put(None)
-
-    threading.Thread(target=reader, args=(_demo_proc.stdout, line_queue), daemon=True).start()
-
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            print(
-                "\nERROR: Demo environment did not become ready within "
-                f"{DEMO_READY_TIMEOUT_SECONDS}s.\n"
-                "Things to check:\n"
-                "  - Is Docker running? (docker info)\n"
-                "  - Port conflict? (check demo output above)\n"
-                "  - Try running the demo manually: uv run python scripts/hassette_demo.py",
-                file=sys.stderr,
-                flush=True,
-            )
-            sys.exit(1)
-
-        try:
-            raw_line = line_queue.get(timeout=min(remaining, 1.0))
-        except queue.Empty:
-            continue
-
-        if raw_line is None:
-            break
-
-        line = raw_line.decode(errors="replace").rstrip()
-        print(f"  [demo] {line}", flush=True)
-
-        if line.startswith("DEMO_ERROR="):
-            error_msg = line[len("DEMO_ERROR=") :]
-            print(f"\nERROR: Demo environment failed to start: {error_msg}", file=sys.stderr, flush=True)
-            sys.exit(1)
-
-        if line == "DEMO_READY=true":
-            demo_ready = True
-            break
-
-        if "=" in line:
-            key, _, value = line.partition("=")
-            demo_output[key] = value
-
-    if not demo_ready:
-        print(
-            "\nERROR: Demo process exited unexpectedly before signalling readiness.",
-            file=sys.stderr,
-            flush=True,
-        )
-        sys.exit(1)
-
-    frontend_url = demo_output.get("DEMO_FRONTEND_URL", "")
-    hassette_url = demo_output.get("DEMO_HASSETTE_URL", "")
-
-    if not frontend_url or not hassette_url:
-        print(f"ERROR: Missing URL from demo output. Got: {demo_output}", file=sys.stderr, flush=True)
-        sys.exit(1)
-
-    parsed_port = urlparse(frontend_url).port
-    if parsed_port is None:
-        print(f"ERROR: Could not extract port from DEMO_FRONTEND_URL: {frontend_url}", file=sys.stderr, flush=True)
-        sys.exit(1)
-    port = str(parsed_port)
-
+    Soft failure: prints a warning and returns instead of exiting, since
+    error-state screenshots being empty is not fatal to the whole run.
+    """
     print("Waiting for demo_stimulator error data...", flush=True)
-    jobs_url = f"{hassette_url}/api/telemetry/app/demo_stimulator/jobs"
-    error_data_deadline = time.monotonic() + ERROR_DATA_TIMEOUT_SECONDS
+    jobs_url = f"http://localhost:{hassette_port}/api/telemetry/app/demo_stimulator/jobs"
+    deadline = time.monotonic() + ERROR_DATA_TIMEOUT_SECONDS
     error_data_ready = False
 
-    while time.monotonic() < error_data_deadline:
+    while time.monotonic() < deadline:
         try:
             req = urllib.request.Request(jobs_url)
             with urllib.request.urlopen(req, timeout=HTTP_SOCKET_TIMEOUT_SECONDS) as resp:
@@ -255,14 +103,9 @@ def main() -> None:
             flush=True,
         )
 
-    if args.only:
-        filters = [f.strip() for f in args.only.split(",")]
-        entries = [e for e in entries if any(f in e.get("output", "") for f in filters)]
-        if not entries:
-            print(f"ERROR: --only {args.only!r} matched no manifest entries", file=sys.stderr, flush=True)
-            sys.exit(1)
-        print(f"Filtered to {len(entries)} entries matching --only {args.only!r}", flush=True)
 
+def _resolve_manifest(entries: list[object], port: str) -> list[dict[str, object]]:
+    """Replace {port} placeholders and prepend the animation-disabling JS."""
     resolved: list[dict[str, object]] = []
     for i, entry in enumerate(entries):
         if not isinstance(entry, dict):
@@ -277,23 +120,66 @@ def main() -> None:
         existing_js = e.get("javascript") or ""
         e["javascript"] = ANIMATION_DISABLE_JS + str(existing_js)
         resolved.append(e)
+    return resolved
 
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".yml",
-        delete=False,
-        prefix="hassette-screenshots-",
-    ) as f:
-        _tmp_manifest = f.name
-        yaml.dump(resolved, f, default_flow_style=False, allow_unicode=True)
 
-    print(f"\nRunning shot-scraper ({len(resolved)} screenshots)...", flush=True)
-    shot_result = subprocess.run(
-        ["uv", "run", "shot-scraper", "multi", _tmp_manifest],
-        cwd=str(repo_root),
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument(
+        "--only",
+        help="Comma-separated substrings to match against output filenames. "
+        "Only matching entries are captured. Example: --only column_picker,sidebar",
+    )
+    args = parser.parse_args()
 
-    teardown()
+    repo_root = Path(__file__).resolve().parent.parent
+
+    manifest_path = repo_root / "docs" / "screenshots.yml"
+    with manifest_path.open() as f:
+        entries = yaml.safe_load(f)
+
+    if not isinstance(entries, list) or not entries:
+        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr, flush=True)
+        sys.exit(1)
+
+    _clean_stale_demo_db(repo_root)
+
+    print("Starting demo stack...", flush=True)
+    with DemoStack() as demo:
+        _wait_for_error_data(demo.hassette_port)
+
+        if args.only:
+            filters = [f.strip() for f in args.only.split(",")]
+            entries = [e for e in entries if any(f in e.get("output", "") for f in filters)]
+            if not entries:
+                print(f"ERROR: --only {args.only!r} matched no manifest entries", file=sys.stderr, flush=True)
+                sys.exit(1)
+            print(f"Filtered to {len(entries)} entries matching --only {args.only!r}", flush=True)
+
+        resolved = _resolve_manifest(entries, str(demo.vite_port))
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".yml",
+            delete=False,
+            prefix="hassette-screenshots-",
+        ) as tmp_manifest:
+            yaml.dump(resolved, tmp_manifest, default_flow_style=False, allow_unicode=True)
+            tmp_manifest_path = tmp_manifest.name
+
+        try:
+            print(f"\nRunning shot-scraper ({len(resolved)} screenshots)...", flush=True)
+            shot_result = subprocess.run(
+                ["uv", "run", "shot-scraper", "multi", tmp_manifest_path],
+                cwd=str(repo_root),
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                Path(tmp_manifest_path).unlink(missing_ok=True)
+
     sys.exit(shot_result.returncode)
 
 
