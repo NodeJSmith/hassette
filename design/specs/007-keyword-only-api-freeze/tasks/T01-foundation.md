@@ -59,7 +59,7 @@ The migration file numbering: 009.sql is the latest. Name the new file `010.sql`
 
 `scheduler_service.py:298` is the only production write path for `ScheduledJobRegistration` — confirmed by grep. Missing this line breaks every job registration.
 
-The `handle_schema_version()` bug (#1297) means this migration triggers full DB recreation in practice. The migration SQL is still correct — it's what incremental migration will run once #1297 is fixed.
+`handle_schema_version()` now applies migrations incrementally and preserves existing data (fixed in #1298), so this migration is a safe one-way column drop with no data transformation needed.
 
 ## Verify
 - [ ] FR#5: `ScheduledJob.__post_init__` no longer generates a name from callable+trigger when `name` is empty

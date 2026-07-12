@@ -18,7 +18,7 @@ None.
 - Do NOT hand-edit `src/hassette/scheduler/sync.py` or `src/hassette/bus/sync.py` — they are codegen output. Run the codegen tool to regenerate.
 - Do NOT change `remote.py` timeout types — they mirror HA's schema.
 - Runtime name checks must fire before any async work — synchronous guards at method entry.
-- The `handle_schema_version()` bug means migration 010 triggers full DB recreation in practice (tracked in #1297). The migration is still correct — it's what incremental migration will apply once #1297 is fixed.
+- `handle_schema_version()` now applies migrations incrementally and preserves existing data (fixed in #1298), so migration 010 is a safe one-way column drop.
 - Bus runtime check changes from `name is None` to `not name` — this is new behavior (empty strings now rejected).
 
 ## Design Doc References

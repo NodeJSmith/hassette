@@ -54,7 +54,7 @@ No user-facing task flows — this is an internal API signature tightening. The 
 
 - **Empty string passed as name:** Both Bus and Scheduler runtime checks treat empty string the same as omission — raise the appropriate `NameRequiredError`. This is a belt for dynamic callers who bypass Pyright.
 - **Internal framework call sites:** `StateProxy.on_initialize` calls `self.scheduler.run_every(self.load_cache, ...)` without `name=`. This must be updated to pass an explicit name.
-- **Existing DB rows with `name_auto=True`:** Currently moot — `handle_schema_version()` recreates the entire DB on any schema version bump (pre-existing bug, tracked separately as a prerequisite). Once incremental migrations work, the column drop is safe: old jobs keep their derived name string, only the metadata flag disappears.
+- **Existing DB rows with `name_auto=True`:** `handle_schema_version()` now applies migrations incrementally and preserves existing data (fixed in #1298). The column drop is safe: old jobs keep their derived name string, only the metadata flag disappears.
 - **Sync facade delegation after `*` moves:** Both `BusSyncFacade` and `SchedulerSyncFacade` currently pass args positionally to their async counterparts. After moving `*`, all positional delegation calls become `TypeError`. `BusSyncFacade.on_homeassistant_*` passes `(handler, where, kwargs, name, **opts)` positionally. `SchedulerSyncFacade` passes `(func, trigger, name, group, jitter, timeout, timeout_disabled, ...)` positionally on all 8 methods. Both must switch to keyword args in their delegation calls.
 
 ## Acceptance Criteria
@@ -146,7 +146,7 @@ No specific implementation preferences — follow codebase conventions. The exce
 
 ## Migration
 
-New migration `010.sql` drops the `name_auto` column from `scheduled_jobs`. Note: `handle_schema_version()` currently recreates the entire DB on any schema version bump (pre-existing bug, tracked separately). Once that bug is fixed to apply migrations incrementally, this migration is a safe one-way column drop with no data transformation needed. Until then, the practical effect is DB recreation on upgrade — the same behavior as every prior migration.
+New migration `010.sql` drops the `name_auto` column from `scheduled_jobs`. `handle_schema_version()` applies migrations incrementally and preserves existing data (fixed in #1298), so this migration is a safe one-way column drop with no data transformation needed.
 
 ## Convention Examples
 
