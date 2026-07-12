@@ -1,7 +1,7 @@
 # Design: Lock down Bus and Scheduler registration signatures for v1.0
 
 **Date:** 2026-07-11
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
