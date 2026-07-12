@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add registration signature linter, update docs and examples"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#12", "AC#10", "AC#11"]
 ---

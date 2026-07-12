@@ -17,6 +17,7 @@ class TimeoutOverrideApp(App[AppConfig]):
         await self.scheduler.run_every(
             self.rebuild_cache,
             minutes=15,
+            name="rebuild_cache",
             timeout_disabled=True,
         )
         # --8<-- [end:overrides]

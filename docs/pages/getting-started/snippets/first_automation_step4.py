@@ -11,7 +11,9 @@ class MyApp(App[MyAppConfig]):
         await self.bus.on_state_change(
             "sun.*", handler=self.on_sun_change, name="sun_change"
         )
-        await self.scheduler.run_minutely(self.log_heartbeat)
+        await self.scheduler.run_minutely(
+            self.log_heartbeat, name="log_heartbeat"
+        )
 
     async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
         self.logger.info("Sun changed: %s", new_state.value)

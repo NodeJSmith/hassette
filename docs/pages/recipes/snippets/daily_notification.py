@@ -21,6 +21,7 @@ class DailyNotificationApp(App[DailyNotificationConfig]):
         await self.scheduler.run_daily(
             self.send_notification,
             at=self.app_config.notify_time,
+            name="send_notification",
         )
         self.logger.info(
             "Daily notification scheduled at %s via notify.%s",

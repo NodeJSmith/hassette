@@ -37,7 +37,9 @@ class SolarPollTrigger:
 class SolarApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:trigger_usage]
-        await self.scheduler.schedule(self.check_sun_elevation, SolarPollTrigger(check_every=30))
+        await self.scheduler.schedule(
+            self.check_sun_elevation, SolarPollTrigger(check_every=30), name="solar_poll"
+        )
         # --8<-- [end:trigger_usage]
 
     async def check_sun_elevation(self) -> None: ...

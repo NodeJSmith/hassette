@@ -12,7 +12,9 @@ class DailyNotificationApp(App[DailyConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:cron_parse]
         h, m = self.app_config.notify_time.split(":")
-        await self.scheduler.run_cron(self.send_notification, f"{m} {h} * * 1-5")
+        await self.scheduler.run_cron(
+            self.send_notification, f"{m} {h} * * 1-5", name="send_notification"
+        )
         # --8<-- [end:cron_parse]
 
     # --8<-- [start:send_notification]

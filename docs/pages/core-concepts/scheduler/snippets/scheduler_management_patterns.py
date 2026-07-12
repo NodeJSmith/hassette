@@ -6,7 +6,9 @@ class ManagementPatternApp(App[AppConfig]):
     my_job: ScheduledJob | None
 
     async def on_initialize(self) -> None:
-        self.my_job = await self.scheduler.run_every(self.check_sensors, minutes=5, group="morning")
+        self.my_job = await self.scheduler.run_every(
+            self.check_sensors, minutes=5, name="check_sensors", group="morning"
+        )
 
     # --8<-- [start:cancel_group]
     async def cancel_morning_jobs(self) -> None:
