@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Remove nameAutoHint from frontend and regenerate types"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "AC#8"]
 ---
