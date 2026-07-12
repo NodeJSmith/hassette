@@ -1,7 +1,7 @@
 # Design: Compose-Native Demo Stack
 
 **Date:** 2026-07-12
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-12-demo-compose/research.md
 
