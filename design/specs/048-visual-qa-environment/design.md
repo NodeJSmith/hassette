@@ -169,6 +169,11 @@ DEMO_FRONTEND_URL=http://localhost:{vite_port}
 DEMO_READY=true
 ```
 
+> **Superseded (spec 009):** the dynamic-port allocation and stdout `DEMO_*=` protocol
+> described in this section were replaced by fixed default ports (HA `18123`, hassette
+> `18126`, Vite `15173`, overridable via `DEMO_HA_PORT`/`DEMO_HASSETTE_PORT`/`DEMO_VITE_PORT`)
+> and human-readable print statements. See `design/specs/009-demo-compose-rewrite/design.md`.
+
 ### Mise file-based tasks
 
 A file-based mise task at `.mise/tasks/demo` wraps the orchestrator script as the primary entry point (`mise run demo`). No nox session — mise auto-discovers the executable.
@@ -177,7 +182,7 @@ A file-based mise task at `.mise/tasks/demo` wraps the orchestrator script as th
 
 A bash script at `.mise/tasks/demo-verify` that:
 1. Starts the demo environment by invoking the orchestrator as a subprocess
-2. Waits for the `DEMO_READY=true` signal
+2. Polls the fixed hassette URL's `/api/health` until it responds (superseded by spec 009 — see note above; originally waited for the `DEMO_READY=true` signal)
 3. Polls `GET /api/apps` on the hassette backend until all 7 app instances have status `running`
 4. Verifies listeners are registered (framework wiring)
 5. Tears down the environment

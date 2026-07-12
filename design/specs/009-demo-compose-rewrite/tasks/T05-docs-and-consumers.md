@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Update documentation and consumer scripts for fixed-port demo"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["AC#7"]
 ---
