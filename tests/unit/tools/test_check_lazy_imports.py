@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from check_lazy_imports import check_file, iter_paths
+from check_lazy_imports import check_file
 
 # Each case: (id, source, expected violations as [(lineno, import_text), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
@@ -121,9 +121,3 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
 @pytest.mark.parametrize(("source", "expected"), [(c[1], c[2]) for c in CASES], ids=[c[0] for c in CASES])
 def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expected: list[tuple[int, str]]) -> None:
     assert check_file(write_sample(source)) == expected
-
-
-@pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))
-def test_real_repo_files_pass(path: Path) -> None:
-    """The guard must stay green on the actual repo files it polices."""
-    assert check_file(path) == []

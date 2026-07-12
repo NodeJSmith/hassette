@@ -138,6 +138,19 @@ def mock_hassette() -> AsyncMock:
     return hassette
 
 
+def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:
+    """Configure a mock AppRegistry's app-lookup methods from an apps-shaped dict.
+
+    Mirrors the real AppRegistry's `__contains__`, `app_keys()`, and
+    `get_apps_by_key()` behavior so lifecycle-service code exercising those
+    methods sees consistent state.
+    """
+    registry.__contains__ = Mock(side_effect=lambda key: key in apps)
+    registry.app_keys = Mock(side_effect=lambda: list(apps.keys()))
+    registry.get_apps_by_key = Mock(side_effect=lambda key: apps.get(key, {}).copy())
+    registry.get = Mock(side_effect=lambda key, index=0: apps.get(key, {}).get(index))
+
+
 @pytest.fixture
 def mock_registry() -> MagicMock:
     """Create a mock AppRegistry instance."""
@@ -146,12 +159,11 @@ def mock_registry() -> MagicMock:
     registry.all_apps = Mock(return_value=[])
     registry.clear_all = Mock()
     registry.get_manifest = Mock(return_value=None)
-    registry.get_apps_by_key = Mock(return_value={})
     registry.register_app = Mock()
     registry.unregister_app = Mock(return_value=None)
     registry.set_manifests = Mock()
     registry.set_only_app = Mock()
-    registry.apps = {}
+    set_registry_apps(registry, {})
     registry.manifests = {}
     registry.enabled_manifests = {}
     registry.active_manifests = {}

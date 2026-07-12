@@ -9,6 +9,7 @@
 
 ## Shared helpers (module-level functions, not fixtures)
 
+- `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_apps_by_key()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
 - `make_mock_cmd_listener(**kw)` — `MagicMock` Listener for `CommandExecutor` tests (side_effect, error_handler)
 - `make_execute_job_cmd(**kw)` — `MagicMock` spec'd to `ExecuteJob` for executor tests

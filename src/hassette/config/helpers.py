@@ -114,7 +114,6 @@ def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> 
 
 
 def get_log_level() -> LOG_LEVEL_TYPE:
-    # HASSETTE__LOG_LEVEL is also in LEGACY_KEY_MIGRATION (config/legacy.py) — keep both in sync
     log_level = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
     return coerce_log_level(log_level, "INFO")
 

@@ -472,11 +472,6 @@ class Hassette(Resource):
             raise _service_not_wired_error("TypeRegistry")
         return self._type_registry
 
-    @property
-    def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
-        """Get the currently loaded apps."""
-        return self.app_handler.apps
-
     def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.
 

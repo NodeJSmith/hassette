@@ -384,7 +384,6 @@ class TestServiceInfoResponseExtension:
             uptime_seconds=60.0,
             entity_count=5,
             app_count=2,
-            services_running=["WebSocketService"],
             services=[
                 ServiceInfo(
                     name="WebSocketService",

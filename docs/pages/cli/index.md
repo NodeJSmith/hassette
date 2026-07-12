@@ -14,14 +14,14 @@ $ hassette status
 │  uptime_seconds       17s                                 │
 │  entity_count         103                                 │
 │  app_count            3                                   │
-│  services_running     EventStreamService, WebApiService,  │
-│                       BusService, SchedulerService        │
+│  services             EventStreamService, BusService,     │
+│                       SchedulerService, WebApiService      │
 │  version              0.32.0                              │
 │  boot_issues          —                                   │
 ╰───────────────────────────────────────────────────────────╯
 ```
 
-`hassette status` shows connection state, uptime, and app count. `websocket_connected` shows whether Hassette has a live connection to Home Assistant — when `false`, no events fire. `services_running` lists Hassette's internal services. `boot_issues` lists any apps that failed to initialize; check `hassette log --app <key>` for the error.
+`hassette status` shows connection state, uptime, and app count. `websocket_connected` shows whether Hassette has a live connection to Home Assistant — when `false`, no events fire. `services` lists internal services currently running. `boot_issues` lists any apps that failed to initialize; check `hassette log --app <key>` for the error.
 
 ```console
 $ hassette app

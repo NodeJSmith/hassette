@@ -74,9 +74,6 @@ class SystemStatus(BaseModel):
     app_count: int
     """Number of running app instances."""
 
-    services_running: list[str]
-    """Names of internal services currently in RUNNING state (deprecated — use services)."""
-
     services: list[ServiceInfo] = Field(default_factory=list)
     """Structured info for all tracked services."""
 

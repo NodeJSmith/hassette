@@ -25,9 +25,6 @@ HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadat
 log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
 # APP_DIR drives pre-launch requirements scanning (fd search roots, section 2 below).
-# The HASSETTE__APP_DIR fallback here is independent of the Python-level legacy env var
-# migration in config.py — both are needed (shell for pre-launch, Python for runtime).
-# See also: src/hassette/config/legacy.py LEGACY_KEY_MIGRATION
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
 APP_DIR="${HASSETTE__APPS__DIRECTORY:-${HASSETTE__APP_DIR:-/apps}}"
 PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
@@ -42,14 +39,6 @@ if [ -z "$FD_BIN" ] && [ "${INSTALL_DEPS}" = "1" ]; then
     echo "WARNING: fd (fdfind) not found — HASSETTE__INSTALL_DEPS=1 will not work."
 elif [ -z "$FD_BIN" ]; then
     echo "NOTE: fd (fdfind) not found — if you enable HASSETTE__INSTALL_DEPS=1 later, it will require fd."
-fi
-
-# Deprecation warning for removed env var
-if [ -n "${HASSETTE__ALLOW_UNLOCKED_PROJECT:-}" ]; then
-    echo "WARNING: HASSETTE__ALLOW_UNLOCKED_PROJECT is deprecated and has no effect."
-    echo "         Migration options:"
-    echo "           1. Run 'uv lock' locally, commit uv.lock, and mount your project."
-    echo "           2. Use HASSETTE__INSTALL_DEPS=1 with a requirements.txt file."
 fi
 
 # ── helper: run a uv command with timeout and friendly error messages ─────────

@@ -57,9 +57,8 @@ $ hassette status --json
   "uptime_seconds": 45.15,
   "entity_count": 103,
   "app_count": 3,
-  "services_running": [
-    "EventStreamService",
-    "DatabaseService",
+  "services": [
+    {"name": "EventStreamService", "status": "running", "role": "service", ...},
     ...
   ],
   "version": "0.32.0",

@@ -247,14 +247,13 @@ def make_system_status(**overrides) -> SystemStatus:
         "uptime_seconds": 123.4,
         "entity_count": 42,
         "app_count": 3,
-        "services_running": ["service_a", "service_b"],
     }
     defaults.update(overrides)
     return SystemStatus(**defaults)
 
 
 def test_system_status_response_from_preserves_all_fields():
-    """All 6 fields including services_running are preserved."""
+    """All fields are preserved."""
     domain = make_system_status()
 
     result = system_status_response_from(domain)
@@ -265,7 +264,6 @@ def test_system_status_response_from_preserves_all_fields():
     assert result.uptime_seconds == 123.4
     assert result.entity_count == 42
     assert result.app_count == 3
-    assert result.services_running == ["service_a", "service_b"]
 
 
 def test_system_status_response_from_uptime_zero():
@@ -284,15 +282,6 @@ def test_system_status_response_from_degraded_status():
     result = system_status_response_from(domain)
 
     assert result.status == "degraded"
-
-
-def test_system_status_response_from_empty_services():
-    """Empty services_running list passes through."""
-    domain = make_system_status(services_running=[])
-
-    result = system_status_response_from(domain)
-
-    assert result.services_running == []
 
 
 def test_connected_payload_from_uses_system_status_fields():

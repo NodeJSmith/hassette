@@ -102,6 +102,13 @@ class AppRegistry:
         """Set the only_app filter."""
         self._only_app = app_key
 
+    def __contains__(self, app_key: str) -> bool:
+        return app_key in self._apps
+
+    def app_keys(self) -> list[str]:
+        """Get all app keys with at least one running instance."""
+        return list(self._apps.keys())
+
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance."""
         return self._apps.get(app_key, {}).get(index)
@@ -235,11 +242,6 @@ class AppRegistry:
             error_message=error_message,
             error_traceback=error_traceback,
         )
-
-    @property
-    def apps(self) -> dict[str, dict[int, "App[AppConfig]"]]:
-        """Direct access to apps dict (for backwards compatibility)."""
-        return self._apps
 
     @property
     def only_app(self) -> str | None:

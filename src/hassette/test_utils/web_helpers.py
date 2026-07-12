@@ -251,7 +251,6 @@ def make_system_status_response(
     entity_count: int = 120,
     app_count: int = 3,
     version: str = "0.1.0",
-    services_running: list[str] | None = None,
 ) -> SystemStatusResponse:
     """Build a SystemStatusResponse with sensible defaults."""
     return SystemStatusResponse(
@@ -261,7 +260,6 @@ def make_system_status_response(
         entity_count=entity_count,
         app_count=app_count,
         version=version,
-        services_running=services_running or ["websocket", "db"],
     )
 
 

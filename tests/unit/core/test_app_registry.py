@@ -63,8 +63,8 @@ class TestAppRegistry:
         """Test registering an app."""
         registry.register_app("my_app", 0, mock_app)
 
-        assert "my_app" in registry.apps
-        assert registry.apps["my_app"][0] is mock_app
+        assert "my_app" in registry
+        assert registry.get("my_app", 0) is mock_app
 
     def test_register_multiple_instances(self, registry: AppRegistry) -> None:
         """Test registering multiple instances of the same app."""
@@ -74,9 +74,9 @@ class TestAppRegistry:
         registry.register_app("my_app", 0, app1)
         registry.register_app("my_app", 1, app2)
 
-        assert len(registry.apps["my_app"]) == 2
-        assert registry.apps["my_app"][0] is app1
-        assert registry.apps["my_app"][1] is app2
+        assert len(registry.get_apps_by_key("my_app")) == 2
+        assert registry.get("my_app", 0) is app1
+        assert registry.get("my_app", 1) is app2
 
     def test_unregister_app_all_instances(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test unregistering all instances of an app."""
@@ -87,7 +87,7 @@ class TestAppRegistry:
 
         assert removed is not None
         assert len(removed) == 2
-        assert "my_app" not in registry.apps
+        assert "my_app" not in registry
 
     def test_unregister_app_single_instance(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test unregistering a single instance."""
@@ -99,8 +99,8 @@ class TestAppRegistry:
         removed = registry.unregister_app("my_app", index=0)
 
         assert removed == {0: app1}
-        assert 0 not in registry.apps["my_app"]
-        assert 1 in registry.apps["my_app"]
+        assert registry.get("my_app", 0) is None
+        assert registry.get("my_app", 1) is app2
 
     def test_unregister_nonexistent_app(self, registry: AppRegistry) -> None:
         """Test unregistering an app that doesn't exist."""
@@ -209,7 +209,7 @@ class TestAppRegistry:
         assert result == {0: app1, 1: app2}
         # Verify it's a copy
         result[99] = MagicMock()
-        assert 99 not in registry.apps["my_app"]
+        assert registry.get("my_app", 99) is None
 
     def test_get_snapshot_empty(self, registry: AppRegistry) -> None:
         """Test snapshot with no apps."""
@@ -277,7 +277,7 @@ class TestAppRegistry:
 
         registry.clear_all()
 
-        assert len(registry.apps) == 0
+        assert len(registry.app_keys()) == 0
         assert registry.get_snapshot().failed_count == 0
 
     def test_set_manifests(self, registry: AppRegistry, mock_manifest: MagicMock) -> None:
@@ -351,7 +351,7 @@ class TestBlockedApps:
 
         registry.clear_all()
 
-        assert len(registry.apps) == 0
+        assert len(registry.app_keys()) == 0
         assert registry.get_snapshot().failed_count == 0
         assert len(registry._blocked_apps) == 0
 

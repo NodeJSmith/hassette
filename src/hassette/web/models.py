@@ -73,8 +73,7 @@ class SystemStatusResponse(BaseModel):
     uptime_seconds: Annotated[float, CliFormat("uptime")]
     entity_count: int
     app_count: int
-    services_running: list[str]
-    services: list[ServiceInfoResponse] = Field(default_factory=list)
+    services: Annotated[list[ServiceInfoResponse], CliFormat("services")] = Field(default_factory=list)
     version: str = ""
     boot_issues: list[BootIssueResponse] = Field(default_factory=list)
     log_records_dropped: int = 0

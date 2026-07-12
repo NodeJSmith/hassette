@@ -10,7 +10,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
-from .conftest import make_mock_app_instance
+from .conftest import make_mock_app_instance, set_registry_apps
 
 
 class TestAppLifecycleServiceInit:
@@ -420,7 +420,7 @@ class TestShutdownAll:
         app2 = AsyncMock()
         app2.status = ResourceStatus.RUNNING
 
-        mock_registry.apps = {"app1": {0: app1}, "app2": {0: app2}}
+        set_registry_apps(mock_registry, {"app1": {0: app1}, "app2": {0: app2}})
 
         await lifecycle_service.shutdown_all()
 
@@ -429,7 +429,7 @@ class TestShutdownAll:
 
     async def test_clears_registry(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls registry.clear_all() after shutdown."""
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
 
         await lifecycle_service.shutdown_all()
 
@@ -559,7 +559,7 @@ class TestShouldAutoReconcile:
         manifest = MagicMock()
         manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {"app_a": {0: MagicMock()}} if is_running else {}
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if is_running else {})
 
         assert lifecycle_service.should_auto_reconcile("app_a") is expected
 
@@ -572,7 +572,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
         lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -592,7 +592,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = True
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
         lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -612,7 +612,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
         lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -632,7 +632,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
         lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -652,7 +652,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {"app_a": {0: MagicMock()}}
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
         lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -672,7 +672,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
         lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(
@@ -692,7 +692,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
         lifecycle_service.stop_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
 
         changes = ChangeSet(

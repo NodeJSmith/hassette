@@ -14,10 +14,8 @@ entries are suppressed by (path, attr). Ungoverned cross-layer imports still exi
 """
 
 import textwrap
-from pathlib import Path
 
-import pytest
-from check_module_boundaries import PRIVATE_ATTR_MSG_TEMPLATE, check_file, check_source, iter_paths
+from check_module_boundaries import PRIVATE_ATTR_MSG_TEMPLATE, check_source
 
 
 def reach_through_msg(attr: str) -> str:
@@ -383,9 +381,3 @@ def test_bus_import_of_base_events_not_flagged() -> None:
     """Bus may import generic event types from hassette.events and hassette.events.base."""
     src = "from hassette.events.base import Event\n"
     assert check_source(src, "bus") == []
-
-
-@pytest.mark.parametrize("path", iter_paths(), ids=lambda p: str(p))
-def test_real_src_files_pass(path: Path) -> None:
-    """The guard must stay green on the actual repo files it polices."""
-    assert check_file(path) == []

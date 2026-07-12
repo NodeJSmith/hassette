@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from hassette.task_bucket import TaskBucket
 
 
-CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time"]
+CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time", "services"]
 
 
 @dataclass(frozen=True)

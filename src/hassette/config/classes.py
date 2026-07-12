@@ -21,13 +21,6 @@ DEFAULT_PATH = Path()
 
 LOGGER = getLogger(__name__)
 
-APPS_CONFIG_RESERVED_KEYS = {"autodetect", "extend_exclude_dirs", "exclude_dirs", "manifests", "apps", "directory"}
-
-
-def _has_app_definitions(apps_dict: dict[str, Any]) -> bool:
-    """Check for app-definition subtables (sub-dicts not in AppsConfig's reserved fields)."""
-    return any(isinstance(v, dict) for k, v in apps_dict.items() if k not in APPS_CONFIG_RESERVED_KEYS)
-
 
 class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
     def __init__(self, settings_cls: type[BaseSettings], toml_file: PathType | None = DEFAULT_PATH):
@@ -51,19 +44,6 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
                     "the [hassette] value will be used",
                     key,
                 )
-
-        if (
-            "apps" in overlapping
-            and isinstance(self.toml_data["apps"], dict)
-            and isinstance(hassette_values["apps"], dict)
-            and _has_app_definitions(self.toml_data["apps"])
-        ):
-            warn(
-                "Top-level [apps.*] keys and [hassette.apps.*] keys coexist in the same TOML file. "
-                "Top-level [apps.*] is deprecated — move all app definitions under [hassette.apps.*].",
-                DeprecationWarning,
-                stacklevel=1,
-            )
 
         self.toml_data = dict(merge({}, self.toml_data, hassette_values))
 

@@ -119,7 +119,6 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,
-        services_running=status.services_running,
         services=services,
         version=status.version,
         boot_issues=boot_issues,
