@@ -39,7 +39,7 @@ $ hassette status
 │  uptime_seconds       16.57                                  │
 │  entity_count         103                                    │
 │  app_count            3                                      │
-│  services_running     ["EventStreamService", ...]            │
+│  services             EventStreamService, BusService, ...    │
 │  version              0.32.0                                 │
 │  boot_issues          []                                     │
 ╰──────────────────────────────────────────────────────────────╯

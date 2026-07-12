@@ -17,6 +17,8 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.types import Topic
 
+from .conftest import set_registry_apps
+
 
 class TestBootstrapAppsSuccessLogging:
     async def test_emits_load_completed_when_apps_running(
@@ -155,7 +157,7 @@ class TestHandleChangeEventBranches:
         )
         # branch-isolation: reconcile_blocked_apps forced to return unblocked apps
         lifecycle_service.reconcile_blocked_apps = Mock(return_value={"unblocked_app"})
-        mock_registry.apps = {}
+        set_registry_apps(mock_registry, {})
 
         applied: list[ChangeSet] = []
 

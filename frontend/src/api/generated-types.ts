@@ -1390,8 +1390,6 @@ export interface components {
             entity_count: number;
             /** App Count */
             app_count: number;
-            /** Services Running */
-            services_running: string[];
             /** Services */
             services?: components["schemas"]["ServiceInfoResponse"][];
             /**

@@ -1,4 +1,3 @@
-import os
 from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
@@ -20,7 +19,6 @@ from hassette.config.helpers import (
     filter_paths_to_unique_existing,
     get_dev_mode,
 )
-from hassette.config.legacy import LEGACY_KEY_MIGRATION
 from hassette.config.models import (
     AppsConfig,
     BlockingIODetectionConfig,
@@ -303,13 +301,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     def model_post_init(self, *args: Any) -> None:
         """Set default values for any unset fields after initialization."""
-        # Snapshot which group fields were set by actual user sources (init kwargs, env vars, TOML)
-        # BEFORE the defaults loop runs — setattr in the defaults loop updates model_fields_set,
-        # which would incorrectly block legacy migrations for defaulted fields.
-        pre_migration_fields: dict[str, set[str]] = {
-            name: set(getattr(self, name).model_fields_set) for name in NESTED_GROUPS
-        }
-
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
         defaults = get_defaults_dict(dev=self.dev_mode)
 
@@ -342,73 +333,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                     sub_value,
                 )
                 setattr(group_obj, sub_field, sub_value)
-
-        legacy_extra_values: dict[str, object] = {}
-        if self.model_extra:
-            if "app" in self.model_extra:
-                LOGGER.warning(
-                    "Detected legacy [hassette.app] section — this key is ignored. "
-                    "Rename to [hassette.apps] and move app definitions from "
-                    "[hassette.app.apps.<name>] to [hassette.apps.<name>]. "
-                    "Environment variables: HASSETTE__APP__* -> HASSETTE__APPS__*."
-                )
-
-            legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
-            if legacy_hits:
-                legacy_extra_values = {k: self.model_extra[k] for k in legacy_hits}
-                self.apply_legacy_migrations(legacy_hits, pre_migration_fields)
-
-        self.apply_legacy_env_vars(pre_migration_fields, legacy_extra_values)
-
-    def apply_legacy_migrations(self, legacy_hits: dict[str, str], pre_migration_fields: dict[str, set[str]]) -> None:
-        migrations: dict[str, dict[str, object]] = {}
-        for old_key, dot_path in legacy_hits.items():
-            group_name, sub_field = dot_path.split(".", 1)
-            if sub_field in pre_migration_fields.get(group_name, set()):
-                continue
-            LOGGER.warning(
-                "Migrating legacy config key %r → %s (source: config file). "
-                "Update your configuration to use HASSETTE__%s instead.",
-                old_key,
-                dot_path,
-                dot_path.replace(".", "__").upper(),
-            )
-            migrations.setdefault(group_name, {})[sub_field] = self.model_extra[old_key]  # pyright: ignore[reportOptionalSubscript]
-        self.apply_group_updates(migrations)
-
-    def apply_legacy_env_vars(
-        self, pre_migration_fields: dict[str, set[str]], legacy_extra_values: dict[str, object]
-    ) -> None:
-        env_prefix = self.model_config.get("env_prefix", "").upper()
-        migrations: dict[str, dict[str, object]] = {}
-        for old_key, dot_path in LEGACY_KEY_MIGRATION.items():
-            env_var = f"{env_prefix}{old_key.upper()}"
-            raw_value = os.environ.get(env_var)
-            if not raw_value:  # None = not set, "" = empty (matches env_ignore_empty)
-                continue
-            # Skip if apply_legacy_migrations already handled this key with the same value
-            # (both came from the same env var via pydantic-settings model_extra). When the
-            # values differ, env should override TOML — that's the priority fix.
-            if old_key in legacy_extra_values and str(legacy_extra_values[old_key]) == raw_value:
-                continue
-            group_name, sub_field = dot_path.split(".", 1)
-            if sub_field in pre_migration_fields.get(group_name, set()):
-                continue
-            LOGGER.warning(
-                "Migrating legacy env var %s → %s. Update your configuration to use HASSETTE__%s instead.",
-                env_var,
-                dot_path,
-                dot_path.replace(".", "__").upper(),
-            )
-            migrations.setdefault(group_name, {})[sub_field] = raw_value
-        self.apply_group_updates(migrations)
-
-    def apply_group_updates(self, migrations: dict[str, dict[str, object]]) -> None:
-        for group_name, updates in migrations.items():
-            group_obj = getattr(self, group_name)
-            group_data = group_obj.model_dump()
-            group_data.update(updates)
-            setattr(self, group_name, type(group_obj).model_validate(group_data))
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":

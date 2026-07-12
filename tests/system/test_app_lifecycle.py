@@ -27,20 +27,20 @@ def enable_autodetect(config: HassetteConfig, app_dir: Path) -> HassetteConfig:
 
 def find_app(hassette, class_name: str):
     """Find an app instance by class name, with a clear error if missing."""
-    apps = hassette.app_handler.apps
-    key = next((k for k in apps if class_name in k), None)
-    assert key is not None, f"{class_name} not found in app_handler.apps: {list(apps)}"
-    return key, apps[key][0]
+    keys = hassette.app_handler.registry.app_keys()
+    key = next((k for k in keys if class_name in k), None)
+    assert key is not None, f"{class_name} not found in app_handler registry: {keys}"
+    return key, hassette.app_handler.get(key, 0)
 
 
 async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
-    """An app loaded from disk appears in app_handler.apps with RUNNING status after startup."""
+    """An app loaded from disk appears in the registry with RUNNING status after startup."""
     config = make_system_config(ha_container, tmp_path)
     config = enable_autodetect(config, system_app_dir)
 
     async with startup_context(config) as hassette:
         trivial_key, app_instance = find_app(hassette, "TrivialApp")
-        assert len(hassette.app_handler.apps[trivial_key]) >= 1
+        assert len(hassette.app_handler.registry.get_apps_by_key(trivial_key)) >= 1
         assert app_instance.status == ResourceStatus.RUNNING
 
 

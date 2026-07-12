@@ -15,7 +15,6 @@ class TestVersionInHealth:
                 uptime_seconds=10.0,
                 entity_count=5,
                 app_count=1,
-                services_running=[],
                 version="0.99.0",
                 boot_issues=[],
             )
@@ -35,7 +34,6 @@ class TestVersionInHealth:
                 uptime_seconds=5.0,
                 entity_count=0,
                 app_count=0,
-                services_running=[],
                 version="1.0.0",
                 boot_issues=[
                     BootIssue(severity="warn", label="App blocked", detail="my_app: import error"),
@@ -61,7 +59,6 @@ class TestVersionInHealth:
                 uptime_seconds=1.0,
                 entity_count=0,
                 app_count=0,
-                services_running=[],
             )
         )
         response = await client.get("/api/health")

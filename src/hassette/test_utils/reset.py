@@ -88,7 +88,7 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
         app_handler: The AppHandler instance to reset.
         original_manifests: The post-bootstrap manifest snapshot to restore from.
     """
-    for app_key in list(app_handler.registry.apps):
+    for app_key in app_handler.registry.app_keys():
         await app_handler.stop_app(app_key)
 
     # Clear test-owned listeners before re-bootstrap so they don't fire

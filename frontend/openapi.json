@@ -3464,13 +3464,6 @@
             "type": "integer",
             "title": "App Count"
           },
-          "services_running": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Services Running"
-          },
           "services": {
             "items": {
               "$ref": "#/components/schemas/ServiceInfoResponse"
@@ -3502,8 +3495,7 @@
           "websocket_connected",
           "uptime_seconds",
           "entity_count",
-          "app_count",
-          "services_running"
+          "app_count"
         ],
         "title": "SystemStatusResponse"
       },

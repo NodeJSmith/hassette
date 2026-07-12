@@ -26,7 +26,6 @@ from hassette.schemas.domain_models import (
     SystemStatus,
 )
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
@@ -279,8 +278,6 @@ class RuntimeQueryService(Resource):
             )
             for child in self.hassette.children
         ]
-        services_running = [s.name for s in services if s.status == ResourceStatus.RUNNING.value]
-
         if ws_connected:
             status = "ok"
         elif ws.has_ever_connected:
@@ -296,7 +293,6 @@ class RuntimeQueryService(Resource):
             uptime_seconds=uptime,
             entity_count=entity_count,
             app_count=app_count,
-            services_running=services_running,
             services=services,
             boot_issues=boot_issues,
             log_records_dropped=self.hassette.get_log_records_dropped(),

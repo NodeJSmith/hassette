@@ -266,8 +266,8 @@ class AppLifecycleService(Resource):
         """Shutdown all registered apps."""
         self.logger.debug("Shutting down all apps")
 
-        for instances in self.registry.apps.values():
-            await self.shutdown_instances(instances)
+        for app_key in self.registry.app_keys():
+            await self.shutdown_instances(self.registry.get_apps_by_key(app_key))
 
         self.registry.clear_all()
 
@@ -384,7 +384,7 @@ class AppLifecycleService(Resource):
 
     def should_auto_reconcile(self, app_key: str) -> bool:
         """Already-running apps are always reconciled; dormant apps only if autostart."""
-        return app_key in self.registry.apps or self.should_autostart(app_key)
+        return app_key in self.registry or self.should_autostart(app_key)
 
     async def start_apps(self, apps: set[str] | None = None) -> None:
         """Create initialization tasks for apps.
@@ -460,7 +460,7 @@ class AppLifecycleService(Resource):
 
         # Reconcile blocked apps — start any that were unblocked
         unblocked = self.reconcile_blocked_apps()
-        to_start = unblocked - set(self.registry.apps.keys()) - changes.new_apps - changes.reimport_apps
+        to_start = unblocked - set(self.registry.app_keys()) - changes.new_apps - changes.reimport_apps
         if to_start:
             self.logger.debug("Starting previously-blocked apps: %s", to_start)
             changes = ChangeSet(

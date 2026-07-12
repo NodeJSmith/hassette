@@ -275,7 +275,6 @@ class TestSystemStatus:
         assert isinstance(status, SystemStatus)
         assert status.entity_count == 2
         assert status.app_count == 1
-        assert isinstance(status.services_running, list)
 
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_ready() returns False.

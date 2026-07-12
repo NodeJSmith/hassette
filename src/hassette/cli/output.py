@@ -139,11 +139,17 @@ def fmt_uptime(value: Any) -> str:
     return f"{h}h {m}m {s}s"
 
 
+def fmt_services(services: list[dict[str, Any]]) -> str:
+    running = [s["name"] for s in services if s.get("status") == "running"]
+    return ", ".join(running) if running else "—"
+
+
 CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "duration_ms": fmt_duration_ms,
     "duration_s": fmt_duration_s,
     "uptime": fmt_uptime,
     "relative_time": fmt_relative_time,
+    "services": fmt_services,
 }
 
 

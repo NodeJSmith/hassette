@@ -641,46 +641,6 @@ def test_docker_project_constraint_conflict(docker_project_dir: Path):
 @pytest.mark.integration
 @pytest.mark.docker
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
-def test_docker_deprecated_allow_unlocked_project_warns():
-    """Test that setting ALLOW_UNLOCKED_PROJECT logs a deprecation warning."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-
-        apps_dir = tmp_path / "apps"
-        apps_dir.mkdir()
-
-        result = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "-v",
-                f"{apps_dir}:/apps:ro",
-                "-e",
-                "HASSETTE__APPS__DIRECTORY=/apps",
-                "-e",
-                "HASSETTE__ALLOW_UNLOCKED_PROJECT=1",
-                "-e",
-                "HASSETTE__TOKEN=test_token",
-                "-e",
-                "HASSETTE__BASE_URL=http://test",
-                DOCKER_IMAGE,
-                "--version",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-
-        output = result.stderr + result.stdout
-        assert result.returncode == 0, f"Deprecation warning should not crash. Output:\n{output}"
-        assert "ALLOW_UNLOCKED_PROJECT" in output, f"Expected deprecation warning. Output:\n{output}"
-        assert "deprecated" in output.lower(), f"Expected 'deprecated' in warning. Output:\n{output}"
-
-
-@pytest.mark.integration
-@pytest.mark.docker
-@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed")
 def test_docker_no_project_no_deps_starts_clean():
     """Test that a container with no project and INSTALL_DEPS unset starts cleanly."""
     with tempfile.TemporaryDirectory() as tmpdir:

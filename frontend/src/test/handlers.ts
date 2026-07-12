@@ -212,7 +212,6 @@ export const handlers = [
       uptime_seconds: 120,
       entity_count: 10,
       app_count: 2,
-      services_running: ["bus", "scheduler"],
       services: [],
       version: "1.0.0",
       boot_issues: [],

@@ -102,13 +102,6 @@ async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -
     assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
 
 
-def test_apps_property_forwards_to_handler(hassette_instance: Hassette) -> None:
-    """Apps property proxies to the app handler."""
-    app_handler = SimpleNamespace(apps={"demo": []})
-    hassette_instance._app_handler = app_handler  # pyright: ignore[reportAttributeAccessIssue]  # coordinator-internal
-    assert hassette_instance.apps == {"demo": []}, "apps property should forward to handler"
-
-
 def test_get_app_forwards_to_handler(hassette_instance: Hassette) -> None:
     """get_app delegates to the handler's get method."""
     handler = SimpleNamespace()

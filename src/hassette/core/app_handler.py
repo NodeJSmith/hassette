@@ -65,11 +65,6 @@ class AppHandler(Resource):
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
         self.lifecycle.set_apps_configs(hassette.config.apps.manifests)
 
-    @property
-    def apps(self) -> dict[str, dict[int, "App[AppConfig]"]]:
-        """Running apps - delegates to registry."""
-        return self.registry.apps
-
     def get_status_snapshot(self) -> AppStatusSnapshot:
         """Get immutable snapshot of all app states for web UI."""
         return self.registry.get_snapshot()

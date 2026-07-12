@@ -463,7 +463,6 @@ class TestSystemHealthStatus:
                 uptime_seconds=0.0,
                 entity_count=0,
                 app_count=0,
-                services_running=[],
             )
 
     def test_accepts_all_three_values(self) -> None:
@@ -474,6 +473,5 @@ class TestSystemHealthStatus:
                 uptime_seconds=0.0,
                 entity_count=0,
                 app_count=0,
-                services_running=[],
             )
             assert obj.status == value

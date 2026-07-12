@@ -30,13 +30,13 @@ class TestApps:
 
     async def test_apps_are_working(self) -> None:
         """Test actual WebSocket calls against running HA instance."""
-        assert self.app_handler.apps, "There should be at least one app group"
-        assert "my_app" in self.app_handler.apps, "my_app should be one of the app groups"
-        assert "my_app_sync" in self.app_handler.apps, "my_app_sync should be one of the app groups"
-        assert "disabled_app" not in self.app_handler.apps, "disabled_app should remain disabled"
+        assert self.app_handler.registry.app_keys(), "There should be at least one app group"
+        assert "my_app" in self.app_handler.registry, "my_app should be one of the app groups"
+        assert "my_app_sync" in self.app_handler.registry, "my_app_sync should be one of the app groups"
+        assert "disabled_app" not in self.app_handler.registry, "disabled_app should remain disabled"
 
         # test that an app that only has config values but no class_name/filename is ignored
-        assert "myfakeapp" not in self.app_handler.apps, "myfakeapp should not be one of the app groups"
+        assert "myfakeapp" not in self.app_handler.registry, "myfakeapp should not be one of the app groups"
 
     def test_get_app_instance(self) -> None:
         """Test getting a specific app instance."""
@@ -59,7 +59,7 @@ class TestApps:
 
     async def test_handle_changes_does_not_lose_apps(self) -> None:
         """Verify that calling handle_changes() without config modifications preserves all running apps."""
-        orig_apps = set(self.app_handler.apps.keys())
+        orig_apps = set(self.app_handler.registry.app_keys())
 
         event = asyncio.Event()
         results = []
@@ -91,12 +91,12 @@ class TestApps:
             await asyncio.wait_for(event.wait(), timeout=0.2)
         assert not results, f"No events should have been fired, but got: {results}"
 
-        new_apps = set(self.app_handler.apps.keys())
+        new_apps = set(self.app_handler.registry.app_keys())
         assert orig_apps == new_apps, "No apps should be lost during handle_changes"
 
     async def test_handle_changes_disables_app(self) -> None:
         """Verify that editing hassette.toml to disable an app stops the running instance."""
-        assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
+        assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
         assert self.app_handler.registry.manifests["my_app"].enabled is True, (
             "Precondition: my_app config shows enabled"
         )
@@ -127,12 +127,12 @@ class TestApps:
             await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
-            assert "my_app" not in self.app_handler.apps, "my_app should stop after being disabled"
-            assert "my_app_sync" in self.app_handler.apps, "Other enabled apps should continue running"
+            assert "my_app" not in self.app_handler.registry, "my_app should stop after being disabled"
+            assert "my_app_sync" in self.app_handler.registry, "Other enabled apps should continue running"
 
     async def test_handle_changes_enables_app(self) -> None:
         """Verify that editing hassette.toml to enable a disabled app starts the instance."""
-        assert "disabled_app" not in self.app_handler.apps, "Precondition: disabled_app starts disabled"
+        assert "disabled_app" not in self.app_handler.registry, "Precondition: disabled_app starts disabled"
         assert self.app_handler.registry.manifests["disabled_app"].enabled is False, (
             "Precondition: disabled_app config shows disabled"
         )
@@ -172,12 +172,12 @@ class TestApps:
             await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
-            assert "disabled_app" in self.app_handler.apps, "disabled_app should start after being enabled"
-            assert "my_app" in self.app_handler.apps, "Other enabled apps should continue running"
+            assert "disabled_app" in self.app_handler.registry, "disabled_app should start after being enabled"
+            assert "my_app" in self.app_handler.registry, "Other enabled apps should continue running"
 
     async def test_config_changes_are_reflected_after_reload(self) -> None:
         """Verify that editing hassette.toml to change an app's config reloads the instance."""
-        assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
+        assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
         my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
         assert my_app_instance is not None, "Precondition: my_app instance should exist"
@@ -195,21 +195,21 @@ class TestApps:
         await self.app_handler.apply_changes(change_set)
         await wait_for(
             lambda: (
-                "my_app" in self.app_handler.apps
+                "my_app" in self.app_handler.registry
                 and self.app_handler.get("my_app", 0) is not None
                 and typing.cast("MyApp", self.app_handler.get("my_app", 0)).app_config.test_entity == "light.office"
             ),
             desc="app reload completed with updated config",
         )
 
-        assert "my_app" in self.app_handler.apps, "my_app should still be running after reload"
+        assert "my_app" in self.app_handler.registry, "my_app should still be running after reload"
         my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
         assert my_app_instance is not None, "my_app instance should still exist after reload"
         assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
 
     async def test_app_with_instance_name(self) -> None:
         """Test that an app with a specific instance_name in config starts correctly."""
-        assert "my_app" in self.app_handler.apps, "Precondition: my_app starts enabled"
+        assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
         my_app_instance = self.app_handler.get("my_app", 0)
         assert my_app_instance is not None, "my_app instance should exist"
@@ -219,7 +219,7 @@ class TestApps:
 
     async def test_app_without_instance_name(self) -> None:
         """Test that an app without a specific instance_name in config starts with default naming."""
-        assert "my_app_sync" in self.app_handler.apps, "Precondition: my_app_sync starts enabled"
+        assert "my_app_sync" in self.app_handler.registry, "Precondition: my_app_sync starts enabled"
 
         expected_name = "MyAppSync.0"
 
@@ -232,13 +232,13 @@ class TestApps:
 
     async def test_autostart_false_app_absent_after_bootstrap(self) -> None:
         """After bootstrap, an enabled+autostart=false app has no running instances."""
-        assert "no_autostart_app" not in self.app_handler.apps, (
+        assert "no_autostart_app" not in self.app_handler.registry, (
             "no_autostart_app should not be running after bootstrap (autostart=false)"
         )
 
     def test_autostart_false_app_status_is_stopped(self) -> None:
         """autostart=false app reports status=stopped and autostart=False in snapshot."""
-        assert "no_autostart_app" not in self.app_handler.apps, (
+        assert "no_autostart_app" not in self.app_handler.registry, (
             "Precondition: no_autostart_app must not be running for status to read 'stopped'"
         )
         snapshot = self.app_handler.registry.get_full_snapshot()
@@ -249,17 +249,17 @@ class TestApps:
 
     async def test_start_app_starts_autostart_false_app(self) -> None:
         """start_app() explicitly starts an autostart=false app."""
-        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+        assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
         await self.app_handler.lifecycle.start_app("no_autostart_app")
 
-        assert "no_autostart_app" in self.app_handler.apps, (
+        assert "no_autostart_app" in self.app_handler.registry, (
             "no_autostart_app should be running after explicit start_app() call"
         )
 
     async def test_new_app_changeset_does_not_start_autostart_false_app(self) -> None:
         """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
-        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+        assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
         event = asyncio.Event()
 
@@ -295,14 +295,14 @@ class TestApps:
             await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
-            assert "no_autostart_app" not in self.app_handler.apps, (
+            assert "no_autostart_app" not in self.app_handler.registry, (
                 "no_autostart_app should remain unstarted after reload with new_apps (autostart=false)"
             )
 
     async def test_unrelated_reload_leaves_manually_started_autostart_false_app_running(self) -> None:
         """A reload that changes an unrelated app leaves an already-running autostart=false app running."""
         await self.app_handler.lifecycle.start_app("no_autostart_app")
-        assert "no_autostart_app" in self.app_handler.apps, "Precondition: no_autostart_app is manually running"
+        assert "no_autostart_app" in self.app_handler.registry, "Precondition: no_autostart_app is manually running"
 
         event = asyncio.Event()
 
@@ -339,13 +339,13 @@ class TestApps:
             await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
-            assert "no_autostart_app" in self.app_handler.apps, (
+            assert "no_autostart_app" in self.app_handler.registry, (
                 "no_autostart_app should still be running after an unrelated reload"
             )
 
     async def test_reload_of_not_running_autostart_false_app_leaves_it_unstarted(self) -> None:
         """A reload with reload_apps containing an autostart=false app that is not running leaves it unstarted."""
-        assert "no_autostart_app" not in self.app_handler.apps, "Precondition: not running"
+        assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
         event = asyncio.Event()
 
@@ -382,14 +382,14 @@ class TestApps:
             await self.app_handler.lifecycle.handle_change_event()
             await asyncio.wait_for(event.wait(), timeout=1)
 
-            assert "no_autostart_app" not in self.app_handler.apps, (
+            assert "no_autostart_app" not in self.app_handler.registry, (
                 "no_autostart_app should remain unstarted after config change reload (autostart=false, not running)"
             )
 
     async def test_reload_of_running_autostart_false_app_leaves_it_running(self) -> None:
         """A reload of a running autostart=false app that had config changes reloads and keeps it running."""
         await self.app_handler.lifecycle.start_app("no_autostart_app")
-        assert "no_autostart_app" in self.app_handler.apps, "Precondition: no_autostart_app is running"
+        assert "no_autostart_app" in self.app_handler.registry, "Precondition: no_autostart_app is running"
 
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
@@ -404,22 +404,22 @@ class TestApps:
 
         await self.app_handler.apply_changes(change_set)
         await wait_for(
-            lambda: "no_autostart_app" in self.app_handler.apps,
+            lambda: "no_autostart_app" in self.app_handler.registry,
             desc="no_autostart_app still running after reload",
         )
 
-        assert "no_autostart_app" in self.app_handler.apps, (
+        assert "no_autostart_app" in self.app_handler.registry, (
             "no_autostart_app should still be running after reload of its config"
         )
 
     async def test_autostart_true_apps_start_at_boot(self) -> None:
         """Apps without an autostart key (default True) still start at boot."""
-        assert "my_app" in self.app_handler.apps, "my_app (no autostart key) should start at boot"
-        assert "my_app_sync" in self.app_handler.apps, "my_app_sync (no autostart key) should start at boot"
+        assert "my_app" in self.app_handler.registry, "my_app (no autostart key) should start at boot"
+        assert "my_app_sync" in self.app_handler.registry, "my_app_sync (no autostart key) should start at boot"
 
     def test_disabled_app_absent_and_disabled_status(self) -> None:
-        """disabled_app is absent from registry.apps and reports disabled status."""
-        assert "disabled_app" not in self.app_handler.apps, "disabled_app should remain absent"
+        """disabled_app is absent from the registry and reports disabled status."""
+        assert "disabled_app" not in self.app_handler.registry, "disabled_app should remain absent"
         snapshot = self.app_handler.registry.get_full_snapshot()
         manifest_info = next((m for m in snapshot.manifests if m.app_key == "disabled_app"), None)
         assert manifest_info is not None, "disabled_app should appear in snapshot"
