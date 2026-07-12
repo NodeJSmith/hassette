@@ -25,6 +25,7 @@ from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+from hassette.types.enums import ResourceStatus
 from hassette.types.types import CliFormat
 
 stdout_console = Console(file=sys.stdout, highlight=False)
@@ -140,7 +141,7 @@ def fmt_uptime(value: Any) -> str:
 
 
 def fmt_services(services: list[dict[str, Any]]) -> str:
-    running = [s["name"] for s in services if s.get("status") == "running"]
+    running = [s["name"] for s in services if s.get("status") == ResourceStatus.RUNNING.value]
     return ", ".join(running) if running else "—"
 
 
