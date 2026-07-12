@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Rewrite hassette_demo.py as thin DemoStack wrapper"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#10", "AC#1", "AC#2", "AC#4", "AC#5", "AC#6"]
 ---
