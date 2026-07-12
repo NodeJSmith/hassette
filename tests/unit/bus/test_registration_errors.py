@@ -1,10 +1,11 @@
 """Tests for name= required validation and DuplicateListenerError detection.
 
 Verify criteria:
-- Registering without name= raises ListenerNameRequiredError
+- Registering without name= raises TypeError (no default); name="" raises ListenerNameRequiredError
 - Two handlers with same name+topic raises DuplicateListenerError
 - Error message includes the handler method name and topic
 - Error message names both the duplicate name and the topic
+- Positional handler on a keyword-only-only Shape B delegate raises TypeError
 """
 
 import typing
@@ -31,10 +32,16 @@ async def handler_b(event) -> None:
 # ListenerNameRequiredError
 
 
-async def test_registering_without_name_raises(bus: "Bus") -> None:
-    """Bus.on() without name= raises ListenerNameRequiredError."""
+async def test_registering_without_name_raises_type_error(bus: "Bus") -> None:
+    """Bus.on() omitting name= entirely raises TypeError — name has no default."""
+    with mock_add_listener(bus), pytest.raises(TypeError):
+        await bus.on(topic="test.topic", handler=handler_a)  # pyright: ignore[reportCallIssue]
+
+
+async def test_registering_with_empty_name_raises(bus: "Bus") -> None:
+    """Bus.on() with name="" raises ListenerNameRequiredError (empty string is treated like omission)."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
-        await bus.on(topic="test.topic", handler=handler_a)
+        await bus.on(topic="test.topic", handler=handler_a, name="")
 
 
 async def test_add_listener_without_name_raises(bus: "Bus") -> None:
@@ -56,7 +63,7 @@ async def test_add_listener_without_name_raises(bus: "Bus") -> None:
 async def test_name_required_error_has_handler_and_topic_attrs(bus: "Bus") -> None:
     """ListenerNameRequiredError carries handler_method and topic as instance attrs."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError) as exc_info:
-        await bus.on(topic="test.topic.entity", handler=handler_a)
+        await bus.on(topic="test.topic.entity", handler=handler_a, name="")
 
     err = exc_info.value
     assert hasattr(err, "handler_method"), "ListenerNameRequiredError must have handler_method attr"
@@ -69,17 +76,32 @@ async def test_name_required_error_has_handler_and_topic_attrs(bus: "Bus") -> No
 async def test_name_required_error_message_includes_handler_and_topic(bus: "Bus") -> None:
     """Error message text includes handler name and topic for clear diagnosis."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError) as exc_info:
-        await bus.on(topic="light.kitchen", handler=handler_a)
+        await bus.on(topic="light.kitchen", handler=handler_a, name="")
 
     msg = str(exc_info.value)
     assert "light.kitchen" in msg
     assert "handler_a" in msg
 
 
-async def test_on_state_change_without_name_raises(bus: "Bus") -> None:
-    """on_state_change() without name= also raises ListenerNameRequiredError."""
+async def test_on_state_change_without_name_raises_type_error(bus: "Bus") -> None:
+    """on_state_change() omitting name= entirely raises TypeError — name has no default."""
+    with mock_add_listener(bus), pytest.raises(TypeError):
+        await bus.on_state_change("light.kitchen", handler=handler_a)  # pyright: ignore[reportCallIssue]
+
+
+async def test_on_state_change_with_empty_name_raises(bus: "Bus") -> None:
+    """on_state_change() with name="" raises ListenerNameRequiredError."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
-        await bus.on_state_change("light.kitchen", handler=handler_a)
+        await bus.on_state_change("light.kitchen", handler=handler_a, name="")
+
+
+async def test_on_homeassistant_start_rejects_positional_handler(bus: "Bus") -> None:
+    """on_homeassistant_start(handler, ...) with positional handler raises TypeError.
+
+    All of handler/where/kwargs/name are keyword-only after the `*` separator.
+    """
+    with mock_add_listener(bus), pytest.raises(TypeError):
+        await bus.on_homeassistant_start(handler_a, name="ha_start_positional")  # pyright: ignore[reportCallIssue]
 
 
 async def test_providing_name_does_not_raise(bus: "Bus") -> None:

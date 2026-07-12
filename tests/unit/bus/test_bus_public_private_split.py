@@ -51,6 +51,7 @@ async def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str
         await bus.on(  # pyright: ignore[reportCallIssue]
             topic="test.topic",
             handler=handler,
+            name="rejects_internal_keywords",
             **{forbidden_kwarg: value},
         )
 

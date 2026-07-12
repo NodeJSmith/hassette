@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Lock bus registration signatures, require name, add on_error passthrough"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "FR#3", "FR#9", "AC#1", "AC#3", "AC#5", "AC#6"]
 ---

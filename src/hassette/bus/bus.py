@@ -124,7 +124,7 @@ if typing.TYPE_CHECKING:
 
 
 def _require_name(name: str | None, handler: "HandlerType", topic: str) -> None:
-    if name is None:
+    if not name:
         raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
 
 
@@ -252,7 +252,7 @@ class Bus(Resource):
                 ``if_exists="error"``.
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
-        if listener.identity.name is None:
+        if not listener.identity.name:
             raise ListenerNameRequiredError(handler_method=listener.identity.handler_name, topic=listener.topic)
         # Cheap path: the pre-built Listener already carries identity.source_location /
         # registration_source; only warning attribution needs the location here.
@@ -443,7 +443,7 @@ class Bus(Resource):
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
         backpressure: "BackpressurePolicy | str | None" = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -475,7 +475,8 @@ class Bus(Resource):
                 and records one drop on the listener. When omitted, the effective default is ``block``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
-                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
+                restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
+                empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
             if_exists: Behavior when a listener with the same natural key already exists.
                 ``"error"`` (default) raises ``DuplicateListenerError``. ``"skip"`` returns the
@@ -756,7 +757,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -777,7 +778,8 @@ class Bus(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
-                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
+                restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
+                empty string raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -863,7 +865,7 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -882,7 +884,9 @@ class Bus(Resource):
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
+            name: Required. Stable string identifier. Omitting it entirely raises ``TypeError``
+                (no default value); passing an empty string raises ``ListenerNameRequiredError``
+                at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -968,7 +972,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -983,7 +987,8 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Required. Stable string identifier for this listener. Omitting it raises
+            name: Required. Stable string identifier for this listener. Omitting it entirely
+                raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
@@ -1047,7 +1052,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -1103,7 +1108,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -1157,10 +1162,12 @@ class Bus(Resource):
 
     def on_homeassistant_restart(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant restart events.
@@ -1169,7 +1176,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1178,15 +1188,24 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_call_service (the true primary). See design/071.
         return self.on_call_service(
-            domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            domain="homeassistant",
+            service="restart",
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_homeassistant_start(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant start events.
@@ -1195,7 +1214,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1204,15 +1226,24 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_call_service (the true primary). See design/071.
         return self.on_call_service(
-            domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            domain="homeassistant",
+            service="start",
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_homeassistant_stop(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to Home Assistant stop events.
@@ -1221,7 +1252,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1230,7 +1264,14 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_call_service (the true primary). See design/071.
         return self.on_call_service(
-            domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            domain="homeassistant",
+            service="stop",
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_hassette_service_status(
@@ -1240,7 +1281,7 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -1256,7 +1297,8 @@ class Bus(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
+                default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
@@ -1297,7 +1339,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service failed events.
@@ -1308,8 +1351,10 @@ class Bus(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
+                default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1318,7 +1363,13 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
         return self.on_hassette_service_status(
-            status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            status=ResourceStatus.FAILED,
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_hassette_service_crashed(
@@ -1327,7 +1378,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service crashed events.
@@ -1336,7 +1388,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1345,7 +1400,13 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
         return self.on_hassette_service_status(
-            status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            status=ResourceStatus.CRASHED,
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_hassette_service_started(
@@ -1354,7 +1415,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to hassette service started events.
@@ -1363,7 +1425,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1372,7 +1437,13 @@ class Bus(Resource):
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at on_hassette_service_status (the true primary). See design/071.
         return self.on_hassette_service_status(
-            status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, name=name, **opts
+            status=ResourceStatus.RUNNING,
+            handler=handler,
+            where=where,
+            kwargs=kwargs,
+            name=name,
+            on_error=on_error,
+            **opts,
         )
 
     def on_websocket_connected(
@@ -1381,7 +1452,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to websocket connected events.
@@ -1390,7 +1462,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1404,6 +1479,7 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -1413,7 +1489,8 @@ class Bus(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to websocket disconnected events.
@@ -1422,7 +1499,10 @@ class Bus(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1436,6 +1516,7 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -1447,7 +1528,7 @@ class Bus(Resource):
         status: ResourceStatus | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
@@ -1506,7 +1587,8 @@ class Bus(Resource):
         app_key: str | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to app instances reaching RUNNING status.
@@ -1516,7 +1598,10 @@ class Bus(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1531,6 +1616,7 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -1541,7 +1627,8 @@ class Bus(Resource):
         app_key: str | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to app instances entering STOPPING status.
@@ -1551,7 +1638,10 @@ class Bus(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1566,6 +1656,7 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             name=name,
+            on_error=on_error,
             **opts,
         )
 

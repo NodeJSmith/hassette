@@ -26,8 +26,11 @@ class MyApp(App[MyAppUserConfig]):
             "light.office",
             A.get_attr_new("rgb_color"),
             handler=self.handle_color_change,
+            name="office_light_color_change",
         )
-        await self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
+        await self.bus.on_state_change(
+            "input_button.test", handler=self.handle_event_sync, name="test_button_state_change"
+        )
         await self.scheduler.run_in(self.api.get_states, 1, name="get_states_once")
         await self.scheduler.run_every(
             self.scheduled_job_example,
