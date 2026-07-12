@@ -6,7 +6,7 @@ from hassette.models.states.camera import CameraAttributes
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
-Format = Literal["hls"]
+CameraFormat = Literal["hls"]
 
 
 class CameraEntity(BaseEntity[CameraState, str]):
@@ -82,7 +82,7 @@ class CameraEntity(BaseEntity[CameraState, str]):
         self,
         *,
         media_player: str,
-        format: Format | None = None,
+        format: CameraFormat | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Plays a camera stream on a supported media player.
 
@@ -183,7 +183,7 @@ class CameraEntitySyncFacade(BaseEntitySyncFacade[CameraState, str]):
         self,
         *,
         media_player: str,
-        format: Format | None = None,
+        format: CameraFormat | None = None,
     ) -> None:
         """Plays a camera stream on a supported media player.
 

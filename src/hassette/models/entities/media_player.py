@@ -6,9 +6,9 @@ from hassette.models.states.media_player import MediaPlayerAttributes
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
-Enqueue = Literal["play", "next", "add", "replace"]
+MediaPlayerEnqueue = Literal["play", "next", "add", "replace"]
 
-Repeat = Literal["off", "all", "one"]
+MediaPlayerRepeat = Literal["off", "all", "one"]
 
 
 class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
@@ -193,7 +193,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         media: dict[str, Any],
         announce: bool | None = None,
-        enqueue: Enqueue | None = None,
+        enqueue: MediaPlayerEnqueue | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Starts playing specified media on a media player.
 
@@ -335,7 +335,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
     def repeat_set(
         self,
         *,
-        repeat: Repeat,
+        repeat: MediaPlayerRepeat,
     ) -> Coroutine[Any, Any, None]:
         """Sets the repeat mode of a media player.
 
@@ -528,7 +528,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         media: dict[str, Any],
         announce: bool | None = None,
-        enqueue: Enqueue | None = None,
+        enqueue: MediaPlayerEnqueue | None = None,
     ) -> None:
         """Starts playing specified media on a media player.
 
@@ -656,7 +656,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
     def repeat_set(
         self,
         *,
-        repeat: Repeat,
+        repeat: MediaPlayerRepeat,
     ) -> None:
         """Sets the repeat mode of a media player.
 

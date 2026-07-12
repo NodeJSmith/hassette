@@ -6,7 +6,7 @@ from hassette.models.states.weather import WeatherAttributes
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
-Type = Literal["daily", "hourly", "twice_daily"]
+WeatherType = Literal["daily", "hourly", "twice_daily"]
 
 
 class WeatherEntity(BaseEntity[WeatherState, str]):
@@ -22,7 +22,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
     def get_forecast(
         self,
         *,
-        type: Type,
+        type: WeatherType,
     ) -> Coroutine[Any, Any, None]:
         """Retrieves the forecast from a weather service.
 
@@ -41,7 +41,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
     def get_forecasts(
         self,
         *,
-        type: Type,
+        type: WeatherType,
     ) -> Coroutine[Any, Any, None]:
         """Retrieves the forecasts from one or more weather services.
 
@@ -64,7 +64,7 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
     def get_forecast(
         self,
         *,
-        type: Type,
+        type: WeatherType,
     ) -> None:
         """Retrieves the forecast from a weather service.
 
@@ -81,7 +81,7 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
     def get_forecasts(
         self,
         *,
-        type: Type,
+        type: WeatherType,
     ) -> None:
         """Retrieves the forecasts from one or more weather services.
 

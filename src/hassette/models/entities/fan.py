@@ -6,7 +6,7 @@ from hassette.models.states.fan import FanAttributes
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
-Direction = Literal["forward", "reverse"]
+FanDirection = Literal["forward", "reverse"]
 
 
 class FanEntity(BaseEntity[FanState, str]):
@@ -121,7 +121,7 @@ class FanEntity(BaseEntity[FanState, str]):
     def set_direction(
         self,
         *,
-        direction: Direction,
+        direction: FanDirection,
     ) -> Coroutine[Any, Any, None]:
         """Sets a fan's rotation direction.
 
@@ -269,7 +269,7 @@ class FanEntitySyncFacade(BaseEntitySyncFacade[FanState, str]):
     def set_direction(
         self,
         *,
-        direction: Direction,
+        direction: FanDirection,
     ) -> None:
         """Sets a fan's rotation direction.
 

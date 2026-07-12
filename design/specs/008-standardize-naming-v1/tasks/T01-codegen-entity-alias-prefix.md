@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add domain prefix to entity type aliases via codegen"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "AC#1"]
 ---
