@@ -297,6 +297,7 @@ No new test coverage needed — this is a naming refactor. Existing tests adapte
 - **External user apps**: Any app importing entity type aliases (`Format`, `Direction`, etc.) by name will break. Any app calling `get_state_value_typed()` will break. This is intentional pre-v1.0 breakage.
 - **API consumers**: Any consumer comparing `role` string values (e.g., `== "Core"`) will break after ResourceRole normalizes to lowercase.
 - **Frontend**: Generated types will reflect lowercase role values. Diagnostics page role display is mapping-only today (not rendered as visible text), so no visible UI change.
+- **Logs and fatal-reason text**: `service_watcher.py` interpolates `role` directly into fatal-reason strings and log messages (e.g. `f"{role} '{name}' restart budget exhausted (PERMANENT)"`). These will render with lowercase role text (`"service 'X' crashed"` instead of `"Service 'X' crashed"`). This is not a separate concern — it is the same `.value` casing change described above, and it matches the file's existing convention: `ResourceStatus`, already a lowercase `auto()` enum, flows into the same log statements (e.g. `"%s '%s' transitioned to status '%s' from '%s'"`) with no capitalization compensation. No code change is needed in `service_watcher.py`.
 
 ## Open Questions
 

@@ -443,7 +443,7 @@ class TestServiceInfoResponseExtension:
         assert len(result.services) == 1
         svc_info = result.services[0]
         assert svc_info.name == "WebSocketService"
-        assert svc_info.role == "Service"
+        assert svc_info.role == "service"
 
 
 class TestHealthEndpointServiceInfoFields:

@@ -321,7 +321,7 @@ class TestShutdownIfCrashed:
 
         await watcher.shutdown_if_crashed(event)
 
-        hassette.record_fatal_reason.assert_called_once_with("Service 'SomeService' crashed")
+        hassette.record_fatal_reason.assert_called_once_with("service 'SomeService' crashed")
 
     async def test_reraises_on_unexpected_internal_failure(self) -> None:
         """If record_fatal_reason itself raises, shutdown_if_crashed logs and re-raises."""

@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Normalize ResourceRole values to lowercase via auto()"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#8", "AC#3"]
 ---

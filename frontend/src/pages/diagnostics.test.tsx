@@ -131,7 +131,7 @@ describe("DiagnosticsPage", () => {
         HttpResponse.json(
           makeSystemStatus({
             services: [
-              makeServiceInfo({ name: "db", status: "exhausted_cooling", role: "storage", retry_at: futureRetryAt }),
+              makeServiceInfo({ name: "db", status: "exhausted_cooling", role: "service", retry_at: futureRetryAt }),
             ],
           }),
         ),
@@ -251,7 +251,7 @@ describe("DiagnosticsPage", () => {
         HttpResponse.json(
           makeSystemStatus({
             services: [
-              makeServiceInfo({ name: "db", status: "starting", role: "storage", ready_phase: "migrating schema" }),
+              makeServiceInfo({ name: "db", status: "starting", role: "service", ready_phase: "migrating schema" }),
             ],
           }),
         ),
