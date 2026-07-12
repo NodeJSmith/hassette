@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add compose services and dev Dockerfiles for hassette and vite"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#3", "FR#4", "FR#6", "FR#7", "FR#8"]
 ---
