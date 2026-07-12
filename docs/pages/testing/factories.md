@@ -171,7 +171,6 @@ The mock is sealed by default. Accessing any attribute not wired by the factory 
 **Redirected via `__getattr__`** with a message pointing to `get_state()`:
 
 - `get_state_value()`
-- `get_state_value_typed()`
 - `get_attribute()`
 
 Any other public name not defined on `RecordingApi` also falls through to `__getattr__` and raises `NotImplementedError`.

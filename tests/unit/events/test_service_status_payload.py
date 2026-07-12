@@ -30,12 +30,12 @@ class TestServiceStatusPayloadDefaults:
         assert payload.ready_phase == "connected"
 
 
-class TestFromDataIncludesReadyFields:
-    """Verify HassetteServiceEvent.from_data threads ready/ready_phase fields."""
+class TestFromServiceStatusIncludesReadyFields:
+    """Verify HassetteServiceEvent.from_service_status threads ready/ready_phase fields."""
 
-    def test_from_data_includes_ready_fields(self) -> None:
-        """from_data with ready=True, ready_phase='test' carries both into payload."""
-        event = HassetteServiceEvent.from_data(
+    def test_from_service_status_includes_ready_fields(self) -> None:
+        """from_service_status with ready=True, ready_phase='test' carries both into payload."""
+        event = HassetteServiceEvent.from_service_status(
             resource_name="my_service",
             role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
@@ -45,9 +45,9 @@ class TestFromDataIncludesReadyFields:
         assert event.payload.data.ready is True
         assert event.payload.data.ready_phase == "test"
 
-    def test_from_data_ready_defaults(self) -> None:
-        """from_data without ready params defaults to ready=False, ready_phase=None."""
-        event = HassetteServiceEvent.from_data(
+    def test_from_service_status_ready_defaults(self) -> None:
+        """from_service_status without ready params defaults to ready=False, ready_phase=None."""
+        event = HassetteServiceEvent.from_service_status(
             resource_name="my_service",
             role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,

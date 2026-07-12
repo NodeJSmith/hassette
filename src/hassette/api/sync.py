@@ -342,28 +342,6 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.get_state_value(entity_id))
 
-    def get_state_value_typed(self, entity_id: str) -> "Any":
-        """Get the value of a specific entity's state, converted to the correct type for that state.
-
-        The return type here is Any due to the dynamic nature of this conversion, but the return type
-        at runtime will match the expected value type for the specific state class of the entity.
-
-        Args:
-            entity_id: The ID of the entity to get the state for.
-
-        Returns:
-            The state of the entity converted to the specified model type.
-
-        Raises:
-            TypeError: If the model is not a valid StateType subclass.
-
-        Warning:
-            For states like `SensorState` the value type in Hassette is `str`, even if the sensor represents a number,
-            as we cannot be sure of the actual type without additional context. For these cases, you are responsible
-            for converting the string to the desired type.
-        """
-        return self.task_bucket.run_sync(self._api.get_state_value_typed(entity_id))
-
     def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
         """Get a specific attribute of an entity.
 

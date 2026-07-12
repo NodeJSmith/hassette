@@ -58,8 +58,8 @@ class TestAppKey:
             assert app_a.app_key == "blocking_io_lab"
             assert app_b.app_key == "blocking_io_lab_ignore"
 
-            event_a = HassetteAppStateEvent.from_data(app_a, status=ResourceStatus.STOPPED)
-            event_b = HassetteAppStateEvent.from_data(app_b, status=ResourceStatus.STOPPED)
+            event_a = HassetteAppStateEvent.from_app(app_a, status=ResourceStatus.STOPPED)
+            event_b = HassetteAppStateEvent.from_app(app_b, status=ResourceStatus.STOPPED)
             assert event_a.payload.data.app_key == "blocking_io_lab"
             assert event_b.payload.data.app_key == "blocking_io_lab_ignore"
         finally:

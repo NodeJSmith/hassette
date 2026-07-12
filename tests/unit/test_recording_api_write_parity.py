@@ -28,7 +28,6 @@ KNOWN_READ_METHODS: frozenset[str] = frozenset(
         "get_state_or_none",
         "get_state_raw",
         "get_state_value",
-        "get_state_value_typed",
         "get_attribute",
         "get_states_raw",
         "get_config",

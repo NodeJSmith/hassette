@@ -352,7 +352,7 @@ class LifecycleMixin(_LifecycleHostP):
         ready: bool = False,
         ready_phase: str | None = None,
     ) -> HassetteServiceEvent:
-        return HassetteServiceEvent.from_data(
+        return HassetteServiceEvent.from_service_status(
             resource_name=self.class_name,
             role=self.role,
             status=status,

@@ -189,7 +189,6 @@ class ApiProtocol(Protocol):
     async def entity_exists(self, entity_id: str) -> bool: ...
     async def get_state_or_none(self, entity_id: str) -> BaseState | None: ...
     async def get_state_value(self, entity_id: str) -> Any: ...
-    async def get_state_value_typed(self, entity_id: str) -> Any: ...
     async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel: ...
 
     # Configuration and metadata
@@ -351,7 +350,6 @@ class RecordingApi(Resource):
     _STATE_CONVERSION_METHODS: ClassVar[frozenset[str]] = frozenset(
         {
             "get_state_value",
-            "get_state_value_typed",
             "get_attribute",
         }
     )
@@ -923,7 +921,7 @@ class RecordingApi(Resource):
         Private/dunder attributes fall through to the default AttributeError so that
         Resource internals (e.g. ``_unique_name``) and Python machinery work correctly.
 
-        State-conversion methods (get_state_value, get_state_value_typed, get_attribute)
+        State-conversion methods (get_state_value, get_attribute)
         get a tailored message directing users to ``await self.api.get_state(entity_id)``.
         All other unimplemented methods get the generic "Seed state" guidance.
         """

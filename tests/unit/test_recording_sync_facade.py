@@ -247,14 +247,6 @@ async def test_sync_get_state_value_raises_not_implemented():
     assert str(exc_info.value) == STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
 
 
-async def test_sync_get_state_value_typed_raises_not_implemented():
-    """sync.get_state_value_typed raises NotImplementedError with tailored message."""
-    api = make_recording_api()
-    with pytest.raises(NotImplementedError) as exc_info:
-        api.sync.get_state_value_typed("sensor.temp")
-    assert str(exc_info.value) == STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed")
-
-
 async def test_sync_get_attribute_raises_not_implemented():
     """sync.get_attribute raises NotImplementedError with tailored message."""
     api = make_recording_api()

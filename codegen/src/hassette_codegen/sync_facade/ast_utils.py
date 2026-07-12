@@ -17,7 +17,13 @@ STUB_MSG_GENERIC = (
     "Seed state via AppTestHarness.set_state() for read methods, "
     "or use a full integration test for methods requiring a live HA connection."
 )
-STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_state_value_typed", "get_attribute"})
+STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_attribute"})
+"""Methods whose ``RecordingApi``/``RecordingSyncFacade`` stub message redirects to ``get_state()``.
+
+Counterpart: ``RecordingApi._STATE_CONVERSION_METHODS`` in
+``src/hassette/test_utils/recording_api.py`` covers the same concept for the
+hand-authored async class. A new state-conversion method on ``Api`` usually
+needs an entry in both."""
 
 # Module-level sets for filtering body-referenced Name nodes during import derivation.
 # Use the `builtins` module directly rather than `__builtins__`, which is a dict when

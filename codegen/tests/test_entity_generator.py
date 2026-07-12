@@ -139,11 +139,11 @@ class TestEntityWrapperGenerator:
         output = generate_entity_wrapper(domain)
         assert output is not None
         # Each Literal set gets its own alias, defined exactly once.
-        assert output.count('Mode = Literal["heat", "cool"]') == 1
-        assert output.count('Mode2 = Literal["low", "high"]') == 1
+        assert output.count('ClimateMode = Literal["heat", "cool"]') == 1
+        assert output.count('ClimateMode2 = Literal["low", "high"]') == 1
         # Both aliases are referenced — the first uses the bare name, the second the suffixed one.
-        assert re.search(r"mode: Mode\b", output)  # \b stops this matching "Mode2"
-        assert "mode: Mode2" in output
+        assert re.search(r"mode: ClimateMode\b", output)  # \b stops this matching "ClimateMode2"
+        assert "mode: ClimateMode2" in output
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(output)
             f.flush()
@@ -183,8 +183,8 @@ class TestEntityWrapperGenerator:
         )
         output = generate_entity_wrapper(domain)
         assert output is not None
-        assert output.count('Mode = Literal["heat", "cool"]') == 1
-        assert "Mode2" not in output
+        assert output.count('ClimateMode = Literal["heat", "cool"]') == 1
+        assert "ClimateMode2" not in output
 
     def test_multiple_selector_wraps_in_list(self) -> None:
         # A selector with multiple: true accepts a list of the base type.
@@ -244,9 +244,9 @@ class TestEntityWrapperGenerator:
         output = generate_entity_wrapper(domain)
         assert output is not None
         # One alias definition, shared by the bare and the list-wrapped usage.
-        assert output.count('Status = Literal["needs_action", "completed"]') == 1
-        assert "status: list[Status] | None" in output
-        assert "status: Status | None" in output
+        assert output.count('TodoStatus = Literal["needs_action", "completed"]') == 1
+        assert "status: list[TodoStatus] | None" in output
+        assert "status: TodoStatus | None" in output
         assert "list[Literal[" not in output  # inner literal is aliased, not inlined
 
     def test_output_compiles(self) -> None:

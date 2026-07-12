@@ -57,6 +57,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     type_aliases: list[tuple[str, str]] = []
     literal_shape_to_alias: dict[str, str] = {}
     used_alias_names: set[str] = set()
+    domain_title = domain_to_title(domain.name)
 
     for service in domain.services:
         params: list[ServiceParam] = []
@@ -80,9 +81,9 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             if literal_shape.startswith("Literal["):
                 alias_name = literal_shape_to_alias.get(literal_shape)
                 if alias_name is None:
-                    base_name = _make_alias_name(param_name)
+                    base_name = _make_alias_name(param_name, domain_title)
                     alias_name = base_name
-                    # Disambiguate collisions with a numeric suffix from 2: Mode, Mode2, Mode3.
+                    # Disambiguate collisions with a numeric suffix from 2: ClimateMode, ClimateMode2, ClimateMode3.
                     suffix = 2
                     while alias_name in used_alias_names:
                         alias_name = f"{base_name}{suffix}"
@@ -116,8 +117,6 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
             )
         )
 
-    domain_title = domain_to_title(domain.name)
-
     return template.render(
         domain=domain.name,
         domain_title=domain_title,
@@ -127,9 +126,10 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     )
 
 
-def _make_alias_name(param_name: str) -> str:
-    """Convert a param name to a PascalCase type alias name."""
-    return param_name.replace("_", " ").title().replace(" ", "")
+def _make_alias_name(param_name: str, domain_title: str) -> str:
+    """Convert a param name to a domain-prefixed PascalCase type alias name."""
+    base = param_name.replace("_", " ").title().replace(" ", "")
+    return f"{domain_title}{base}"
 
 
 def build_method_docstring(summary: str, params: list[ServiceParam]) -> str:

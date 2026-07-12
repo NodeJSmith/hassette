@@ -39,7 +39,7 @@ def test_time_fired_can_be_overridden() -> None:
 
 
 def test_hassette_service_event_has_time_fired() -> None:
-    event = HassetteServiceEvent.from_data(
+    event = HassetteServiceEvent.from_service_status(
         resource_name="test-service",
         role=ResourceRole.SERVICE,
         status=ResourceStatus.RUNNING,
@@ -48,12 +48,12 @@ def test_hassette_service_event_has_time_fired() -> None:
 
 
 def test_hassette_simple_event_has_time_fired() -> None:
-    event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+    event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
     assert isinstance(event.payload.time_fired, whenever.ZonedDateTime)
 
 
 def test_hassette_file_watcher_event_has_time_fired() -> None:
-    event = HassetteFileWatcherEvent.create_event(changed_file_paths={Path("/tmp/foo.py")})
+    event = HassetteFileWatcherEvent.from_paths(changed_file_paths={Path("/tmp/foo.py")})
     assert isinstance(event.payload.time_fired, whenever.ZonedDateTime)
 
 

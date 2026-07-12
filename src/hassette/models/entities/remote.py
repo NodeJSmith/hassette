@@ -6,7 +6,7 @@ from hassette.models.states.remote import RemoteAttributes
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
-CommandType = Literal["ir", "rf"]
+RemoteCommandType = Literal["ir", "rf"]
 
 
 class RemoteEntity(BaseEntity[RemoteState, str]):
@@ -94,7 +94,7 @@ class RemoteEntity(BaseEntity[RemoteState, str]):
         *,
         alternative: bool | None = None,
         command: Any | None = None,
-        command_type: CommandType | None = None,
+        command_type: RemoteCommandType | None = None,
         device: str | None = None,
         timeout: int | None = None,
     ) -> Coroutine[Any, Any, None]:
@@ -215,7 +215,7 @@ class RemoteEntitySyncFacade(BaseEntitySyncFacade[RemoteState, str]):
         *,
         alternative: bool | None = None,
         command: Any | None = None,
-        command_type: CommandType | None = None,
+        command_type: RemoteCommandType | None = None,
         device: str | None = None,
         timeout: int | None = None,
     ) -> None:

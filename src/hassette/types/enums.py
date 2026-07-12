@@ -247,20 +247,20 @@ class ConnectionState(StrEnum):
 class ResourceRole(StrEnum):
     """Enumeration for resource roles."""
 
-    CORE = "Core"
+    CORE = auto()
     """Only used by Hassette directly, as it does not inherit from Resource."""
 
-    BASE = "Base"
+    BASE = auto()
     """The base role for all resources."""
 
-    SERVICE = "Service"
+    SERVICE = auto()
     """A service resource."""
 
-    RESOURCE = "Resource"
+    RESOURCE = auto()
     """A generic resource."""
 
-    APP = "App"
+    APP = auto()
     """An application resource."""
 
-    UNKNOWN = "Unknown"
+    UNKNOWN = auto()
     """An unknown or unclassified resource."""

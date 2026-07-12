@@ -277,7 +277,7 @@ class SimulationMixin:
         """
         harness = self.require_harness()
 
-        event = HassetteServiceEvent.from_data(
+        event = HassetteServiceEvent.from_service_status(
             resource_name=resource_name,
             role=role,
             status=status,
@@ -379,7 +379,7 @@ class SimulationMixin:
         """
         harness = self.require_harness()
 
-        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+        event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
 
@@ -403,7 +403,7 @@ class SimulationMixin:
         """
         harness = self.require_harness()
 
-        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+        event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
 
@@ -441,7 +441,7 @@ class SimulationMixin:
         if app is None:
             raise RuntimeError("AppTestHarness is not active — no app available")
 
-        event = HassetteAppStateEvent.from_data(
+        event = HassetteAppStateEvent.from_app(
             app=app,
             status=status,
             previous_status=previous_status,

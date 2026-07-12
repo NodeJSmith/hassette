@@ -259,9 +259,6 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     def get_state_value(self, entity_id: str) -> Any:
         raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_state_value"))
 
-    def get_state_value_typed(self, entity_id: str) -> "Any":
-        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed"))
-
     def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
         raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_attribute"))
 
