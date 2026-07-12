@@ -440,14 +440,6 @@ describe("HandlersTab", () => {
     expect(chips.textContent).toContain("group: my-group");
   });
 
-  it("job detail: shows auto-generated name hint when name_auto is true", async () => {
-    const job = createJob({ job_id: 41, name_auto: true });
-    const { getByTestId } = renderHandlersTab([], [job], "job/41");
-    await waitFor(() => getByTestId("job-detail-41"));
-    const hint = getByTestId("job-detail-41").querySelector("[aria-label='Auto-generated name']");
-    expect(hint).not.toBeNull();
-  });
-
   it("job detail: shows next-run text when next_run is set", async () => {
     const job = createJob({
       job_id: 42,

@@ -64,7 +64,6 @@ EXPECTED_TABLES = {
         "source_tier",
         "group",
         "cancelled_at",
-        "name_auto",
         "mode",
         "predicate_description",
         "human_description",
@@ -178,7 +177,7 @@ def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
 
 
 def test_user_version_set_after_migration(tmp_path: Path) -> None:
-    """PRAGMA user_version is set to 9 after all migrations run."""
+    """PRAGMA user_version is set to 10 after all migrations run."""
     db_path = tmp_path / "test.db"
     run_migrations(db_path)
 
@@ -188,7 +187,7 @@ def test_user_version_set_after_migration(tmp_path: Path) -> None:
     finally:
         conn.close()
 
-    assert version == 9
+    assert version == 10
 
 
 def test_auto_vacuum_set_on_fresh_db(tmp_path: Path) -> None:
@@ -231,7 +230,7 @@ def test_handle_schema_version_then_migrate_preserves_data(tmp_path: Path) -> No
     conn = sqlite3.connect(db_path)
     try:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert version == 9, f"Expected schema version 9 after upgrade, got {version}"
+        assert version == 10, f"Expected schema version 10 after upgrade, got {version}"
 
         session_count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         assert session_count == 1, "Session row lost during upgrade"

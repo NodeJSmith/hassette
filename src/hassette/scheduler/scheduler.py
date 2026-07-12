@@ -12,35 +12,35 @@ Examples:
     One-time delayed execution::
 
         # Run in 30 seconds
-        await self.scheduler.run_in(self.cleanup_task, 30)
+        await self.scheduler.run_in(self.cleanup_task, 30, name="cleanup_task")
 
         # Run once at 7:00 AM today (or tomorrow if 07:00 has already passed)
-        await self.scheduler.run_once(self.morning_routine, at="07:00")
+        await self.scheduler.run_once(self.morning_routine, at="07:00", name="morning_routine")
 
     Recurring execution::
 
         # Every 5 minutes
-        await self.scheduler.run_every(self.check_sensors, minutes=5)
+        await self.scheduler.run_every(self.check_sensors, minutes=5, name="check_sensors")
 
         # Every hour
-        await self.scheduler.run_hourly(self.log_status)
+        await self.scheduler.run_hourly(self.log_status, name="log_status")
 
         # Every day at 6:30 AM (wall-clock anchored, DST-safe)
-        await self.scheduler.run_daily(self.morning_routine, at="06:30")
+        await self.scheduler.run_daily(self.morning_routine, at="06:30", name="morning_routine")
 
         # Every 5 minutes
-        await self.scheduler.run_minutely(self.quick_check, minutes=5)
+        await self.scheduler.run_minutely(self.quick_check, minutes=5, name="quick_check")
 
     Cron-style scheduling::
 
         # Weekdays at 9 AM
-        await self.scheduler.run_cron(self.workday_routine, "0 9 * * 1-5")
+        await self.scheduler.run_cron(self.workday_routine, "0 9 * * 1-5", name="workday_routine")
 
     Job groups::
 
         # Schedule multiple jobs in a named group for bulk cancellation
-        await self.scheduler.run_daily(self.open_blinds, at="08:00", group="morning")
-        await self.scheduler.run_daily(self.play_music, at="08:05", group="morning")
+        await self.scheduler.run_daily(self.open_blinds, at="08:00", name="open_blinds", group="morning")
+        await self.scheduler.run_daily(self.play_music, at="08:05", name="play_music", group="morning")
 
         # Cancel all jobs in the group
         self.scheduler.cancel_group("morning")
@@ -49,9 +49,11 @@ Examples:
 
         from hassette.scheduler import Every, Daily, Cron
 
-        job = await self.scheduler.schedule(self.my_func, Every(hours=1))
-        job = await self.scheduler.schedule(self.my_func, Daily(at="07:00"), group="morning")
-        job = await self.scheduler.schedule(self.my_func, Cron("0 9 * * 1-5"))
+        job = await self.scheduler.schedule(self.my_func, Every(hours=1), name="my_func")
+        job = await self.scheduler.schedule(
+            self.my_func, Daily(at="07:00"), name="my_func_daily", group="morning"
+        )
+        job = await self.scheduler.schedule(self.my_func, Cron("0 9 * * 1-5"), name="my_func_cron")
 
     Job management::
 
@@ -72,12 +74,13 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
+from hassette.exceptions import SchedulerNameRequiredError
 from hassette.resources.base import Resource
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
-from hassette.utils.func_utils import callable_stable_name, is_async_callable
+from hassette.utils.func_utils import callable_name, callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
@@ -201,12 +204,15 @@ class Scheduler(Resource):
 
         Raises:
             TypeError: If job is not a ScheduledJob.
+            SchedulerNameRequiredError: If ``job.name`` is empty.
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
+        if not job.name:
+            raise SchedulerNameRequiredError(callable_name(job.job), str(job.trigger))
         # Eager capture in the public def — user frame is live here (not inside the async body).
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _add_job (backfills job.source_location / registration_source for telemetry when empty).
@@ -364,12 +370,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         trigger: "TriggerProtocol",
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -389,8 +395,8 @@ class Scheduler(Resource):
             func: The function to run.
             trigger: A trigger object implementing ``TriggerProtocol``. Determines
                 both the first run time and subsequent recurrences.
-            name: Optional name for the job. If empty, an auto-name is derived from
-                the callable and trigger.
+            name: Required stable name for the job. Used for uniqueness validation
+                within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``cancel_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
                 Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
@@ -434,9 +440,13 @@ class Scheduler(Resource):
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
+            SchedulerNameRequiredError: If ``name`` is empty.
             DependencyInjectionError: If a predicate's signature is incompatible with
                 DI (e.g. ``*args`` or positional-only parameters).
         """
+        if not name:
+            raise SchedulerNameRequiredError(callable_name(func), str(trigger))
+
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
 
@@ -505,12 +515,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         delay: float,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -526,7 +536,7 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             delay: The delay in seconds before running the job.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -569,13 +579,13 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         at: str | ZonedDateTime,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -592,7 +602,7 @@ class Scheduler(Resource):
             func: The function to run.
             at: Target time. A ``"HH:MM"`` string (today in system timezone, or
                 tomorrow if already past) or a ``ZonedDateTime``.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -641,12 +651,12 @@ class Scheduler(Resource):
         hours: float = 0,
         minutes: float = 0,
         seconds: float = 0,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -664,7 +674,7 @@ class Scheduler(Resource):
             hours: Interval hours component.
             minutes: Interval minutes component.
             seconds: Interval seconds component.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -707,12 +717,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         minutes: int = 1,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -728,7 +738,7 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             minutes: The minute interval (must be >= 1).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -773,12 +783,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         hours: int = 1,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -794,7 +804,7 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             hours: The hour interval (must be >= 1).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -839,12 +849,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         at: str = "00:00",
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -863,7 +873,7 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             at: Target wall-clock time in ``"HH:MM"`` format (default ``"00:00"``).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -906,12 +916,12 @@ class Scheduler(Resource):
         self,
         func: "JobCallable",
         expression: str,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -931,7 +941,7 @@ class Scheduler(Resource):
         Args:
             func: The function to run.
             expression: A valid 5- or 6-field cron expression.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.

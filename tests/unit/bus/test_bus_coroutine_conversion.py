@@ -8,7 +8,7 @@ Covers:
     - Awaited method returns Subscription; no warning
       (db_id coverage: test_bus_contract.py::test_db_id_set_immediately_after_on_returns)
     - ListenerIdentity.source_location populated after conversion
-    - name=None raises ListenerNameRequiredError at call time, before awaiting
+    - omitted name= raises TypeError at call time; name="" raises ListenerNameRequiredError, before awaiting
 """
 
 import gc
@@ -144,27 +144,77 @@ async def test_source_location_threaded_via_on_state_change(bus: "Bus") -> None:
         assert sub.listener.identity.source_location, "source_location must be non-empty"
 
 
-# Fix 1 — name=None raises ListenerNameRequiredError at call time (not on await)
+# Fix 1 — omitted name= raises TypeError at call time; name="" raises ListenerNameRequiredError
 
 
 @pytest.mark.parametrize(
     "call",
     [
-        pytest.param(lambda bus: bus.on(topic="test.topic", handler=handler), id="on"),
-        pytest.param(lambda bus: bus.on_state_change("light.kitchen", handler=handler), id="on_state_change"),
+        pytest.param(lambda bus: bus.on(topic="test.topic", handler=handler), id="on"),  # pyright: ignore[reportCallIssue]
         pytest.param(
-            lambda bus: bus.on_attribute_change("light.kitchen", "brightness", handler=handler),
+            lambda bus: bus.on_state_change("light.kitchen", handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_state_change",
+        ),
+        pytest.param(
+            lambda bus: bus.on_attribute_change(  # pyright: ignore[reportCallIssue]
+                "light.kitchen", "brightness", handler=handler
+            ),
             id="on_attribute_change",
         ),
-        pytest.param(lambda bus: bus.on_call_service(domain="light", handler=handler), id="on_call_service"),
-        pytest.param(lambda bus: bus.on_component_loaded(handler=handler), id="on_component_loaded"),
-        pytest.param(lambda bus: bus.on_service_registered(handler=handler), id="on_service_registered"),
-        pytest.param(lambda bus: bus.on_hassette_service_status(handler=handler), id="on_hassette_service_status"),
-        pytest.param(lambda bus: bus.on_app_state_changed(handler=handler), id="on_app_state_changed"),
+        pytest.param(
+            lambda bus: bus.on_call_service(domain="light", handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_call_service",
+        ),
+        pytest.param(
+            lambda bus: bus.on_component_loaded(handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_component_loaded",
+        ),
+        pytest.param(
+            lambda bus: bus.on_service_registered(handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_service_registered",
+        ),
+        pytest.param(
+            lambda bus: bus.on_hassette_service_status(handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_hassette_service_status",
+        ),
+        pytest.param(
+            lambda bus: bus.on_app_state_changed(handler=handler),  # pyright: ignore[reportCallIssue]
+            id="on_app_state_changed",
+        ),
     ],
 )
-def test_primary_missing_name_raises_at_call_time(bus: "Bus", call) -> None:
-    """Every Shape A primary without name= raises ListenerNameRequiredError at call time.
+def test_primary_omitted_name_raises_type_error_at_call_time(bus: "Bus", call) -> None:
+    """Every Shape A primary without name= raises TypeError at call time (name has no default).
+
+    The error must be synchronous — no awaiting needed to see it, no handle is
+    constructed, and no HassetteForgottenAwaitWarning leaks.
+    """
+    with mock_add_listener(bus), warnings.catch_warnings():
+        warnings.simplefilter("error", HassetteForgottenAwaitWarning)
+        with pytest.raises(TypeError):
+            call(bus)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda bus: bus.on(topic="test.topic", handler=handler, name=""), id="on"),
+        pytest.param(lambda bus: bus.on_state_change("light.kitchen", handler=handler, name=""), id="on_state_change"),
+        pytest.param(
+            lambda bus: bus.on_attribute_change("light.kitchen", "brightness", handler=handler, name=""),
+            id="on_attribute_change",
+        ),
+        pytest.param(lambda bus: bus.on_call_service(domain="light", handler=handler, name=""), id="on_call_service"),
+        pytest.param(lambda bus: bus.on_component_loaded(handler=handler, name=""), id="on_component_loaded"),
+        pytest.param(lambda bus: bus.on_service_registered(handler=handler, name=""), id="on_service_registered"),
+        pytest.param(
+            lambda bus: bus.on_hassette_service_status(handler=handler, name=""), id="on_hassette_service_status"
+        ),
+        pytest.param(lambda bus: bus.on_app_state_changed(handler=handler, name=""), id="on_app_state_changed"),
+    ],
+)
+def test_primary_empty_name_raises_listener_name_required_at_call_time(bus: "Bus", call) -> None:
+    """Every Shape A primary with name="" raises ListenerNameRequiredError at call time.
 
     The error must be synchronous — no awaiting needed to see it, no handle is
     constructed, and no HassetteForgottenAwaitWarning leaks.

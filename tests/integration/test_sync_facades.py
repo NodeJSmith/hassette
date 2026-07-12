@@ -19,6 +19,7 @@ from hassette import context
 from hassette.app.app import AppSync
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
+from hassette.events.base import Event
 from hassette.models.entities.cover import CoverEntity
 from hassette.models.states import CoverState
 from hassette.test_utils.app_harness import AppTestHarness
@@ -43,6 +44,18 @@ class SyncRegisteringApp(AppSync[SyncFacadeConfig]):
         pass
 
 
+class SyncHomeassistantLifecycleApp(AppSync[SyncFacadeConfig]):
+    """Registers listeners for HA restart/start/stop via self.bus.sync from its sync init hook."""
+
+    def on_initialize_sync(self) -> None:
+        self.bus.sync.on_homeassistant_restart(handler=self.on_ha_event, name="sync_ha_restart")
+        self.bus.sync.on_homeassistant_start(handler=self.on_ha_event, name="sync_ha_start")
+        self.bus.sync.on_homeassistant_stop(handler=self.on_ha_event, name="sync_ha_stop")
+
+    def on_ha_event(self, event: Event) -> None:
+        pass
+
+
 async def test_bus_sync_facade_registers_listener_from_sync_init():
     """A listener registered via self.bus.sync in on_initialize_sync is live with a real db_id."""
     async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
@@ -53,6 +66,19 @@ async def test_bus_sync_facade_registers_listener_from_sync_init():
         db_id = by_name["sync_temp"].db_id
         assert isinstance(db_id, int), f"Listener db_id should be an int after sync registration, got {db_id!r}"
         assert db_id > 0, f"Listener db_id should be a real row id, got {db_id}"
+
+
+async def test_bus_sync_facade_registers_ha_lifecycle_listeners_from_sync_init():
+    """bus.sync.on_homeassistant_restart/start/stop registered from on_initialize_sync are live."""
+    async with AppTestHarness(SyncHomeassistantLifecycleApp, config={}) as harness:
+        listeners = harness.bus.get_listeners()
+        by_name = {listener.identity.name: listener for listener in listeners}
+
+        for name in ("sync_ha_restart", "sync_ha_start", "sync_ha_stop"):
+            assert name in by_name, f"Expected {name!r} listener, got {sorted(by_name)}"
+            db_id = by_name[name].db_id
+            assert isinstance(db_id, int), f"Listener db_id should be an int after sync registration, got {db_id!r}"
+            assert db_id > 0, f"Listener db_id should be a real row id, got {db_id}"
 
 
 async def test_scheduler_sync_facade_schedules_job_from_sync_init():

@@ -193,10 +193,8 @@ class ScheduledJob:
     """When ``True``, timeout enforcement is disabled for this job regardless of the global default."""
 
     name: str = field(default="", compare=False)
-    """Optional name for the job for easier identification."""
-
-    name_auto: bool = field(default=False, compare=False)
-    """Whether the name was auto-generated from the callable and trigger ID."""
+    """Name for the job, used for identification. Required by all public Scheduler entry points
+    (``Scheduler.add_job()`` and ``Scheduler.schedule()`` raise ``SchedulerNameRequiredError`` if empty)."""
 
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
     """Positional arguments to pass to the job callable."""
@@ -293,12 +291,6 @@ class ScheduledJob:
 
         self.guard = ExecutionModeGuard(self.mode)
         self.set_next_run(self.next_run)
-
-        if not self.name:
-            callable_name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
-            trigger_str = self.trigger.trigger_id() if self.trigger is not None else None
-            self.name = f"{callable_name}:{trigger_str}" if self.trigger else callable_name
-            self.name_auto = True
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)

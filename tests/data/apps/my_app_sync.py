@@ -10,7 +10,7 @@ class MyAppUserConfig(AppConfig):
 class MyAppSync(AppSync):
     def on_initialize_sync(self) -> None:
         self.bus.sync.on_state_change("input_button.*", handler=self.handle_event, name="sync_buttons")
-        self.scheduler.sync.run_in(self.test_stuff, 1)
+        self.scheduler.sync.run_in(self.test_stuff, 1, name="test_stuff")
 
         self.office_light_exists = self.api.sync.entity_exists("light.office")
         self.test_button_exists = self.api.sync.entity_exists("input_button.test")

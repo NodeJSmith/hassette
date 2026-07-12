@@ -295,7 +295,6 @@ class SchedulerService(Service):
             registration_source=registration_source,
             source_tier=job.source_tier,
             group=job.group,
-            name_auto=job.name_auto,
             mode=job.mode,
             predicate_description=predicate_description,
             human_description=human_description,

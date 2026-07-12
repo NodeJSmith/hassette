@@ -67,7 +67,7 @@ The remaining four methods cover display and deduplication.
 | `trigger_label` | `()` | `str` | Short label for logs and the web UI. |
 | `trigger_detail` | `()` | `str \| None` | Optional human-readable detail string. |
 | `trigger_db_type` | `()` | `str` | Canonical type string for database storage. Application triggers return `"custom"`. |
-| `trigger_id` | `()` | `str` | Stable identifier for deduplication. [`if_exists="skip"`](methods.md#idempotent-registration) and auto-generated job names both rely on this value. |
+| `trigger_id` | `()` | `str` | Stable identifier for deduplication, used by [`if_exists="skip"`](methods.md#idempotent-registration). |
 
 ## See Also
 

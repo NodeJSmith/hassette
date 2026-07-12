@@ -38,10 +38,16 @@ async def test_name_parameter_propagates_to_listener(bus: "Bus") -> None:
         assert subscription.listener.identity.name == "my_listener"
 
 
-async def test_name_none_raises_error(bus: "Bus") -> None:
-    """Without name=, Bus.on() raises ListenerNameRequiredError."""
+async def test_name_omitted_raises_type_error(bus: "Bus") -> None:
+    """name= has no default — omitting it entirely raises TypeError before any handle is built."""
+    with mock_add_listener(bus), pytest.raises(TypeError):
+        await bus.on(topic="test.topic", handler=handler_a)  # pyright: ignore[reportCallIssue]
+
+
+async def test_name_empty_string_raises_error(bus: "Bus") -> None:
+    """An explicit empty string for name= raises ListenerNameRequiredError (belt for dynamic callers)."""
     with mock_add_listener(bus), pytest.raises(ListenerNameRequiredError):
-        await bus.on(topic="test.topic", handler=handler_a)
+        await bus.on(topic="test.topic", handler=handler_a, name="")
 
 
 async def test_duplicate_natural_key_raises_duplicate_error(bus: "Bus") -> None:

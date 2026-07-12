@@ -26,17 +26,6 @@
   color: var(--ink-1);
 }
 
-.nameAutoHint {
-  display: inline-block;
-  margin-left: var(--sp-1);
-  font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  font-weight: var(--fw-normal);
-  color: var(--ink-4);
-  cursor: help;
-  vertical-align: middle;
-}
-
 .subtitle {
   font-size: var(--fs-small);
   color: var(--ink-3);

@@ -26,7 +26,6 @@ interface Props {
   kindLabel: string;
   statusKind: ChipKind;
   name: string;
-  nameAutoHint?: boolean;
   subtitle?: string | null;
   registrationSource?: string | null;
   chips?: ComponentChildren;
@@ -50,7 +49,6 @@ export function HandlerDetailLayout({
   kindLabel,
   statusKind,
   name,
-  nameAutoHint,
   subtitle,
   registrationSource,
   chips,
@@ -78,18 +76,7 @@ export function HandlerDetailLayout({
             <StatusShape kind={statusKind} size={8} />
             {kindLabel}
           </Chip>
-          <span class={styles.handlerName}>
-            {name}
-            {nameAutoHint && (
-              <span
-                class={styles.nameAutoHint}
-                title={`Auto-generated name. Pass name="..." when scheduling for something descriptive.`}
-                aria-label="Auto-generated name"
-              >
-                ⓘ
-              </span>
-            )}
-          </span>
+          <span class={styles.handlerName}>{name}</span>
           {isFailing && (
             <Badge variant="danger" size="sm" data-testid="handler-status-pill">
               failing

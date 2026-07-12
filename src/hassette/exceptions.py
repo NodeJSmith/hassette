@@ -330,6 +330,26 @@ class ListenerNameRequiredError(HassetteError):
         )
 
 
+class SchedulerNameRequiredError(HassetteError):
+    """Raised at call time when ``name=`` is omitted on a scheduled job.
+
+    Attributes:
+        handler_method: Fully-qualified name of the handler function.
+        trigger_description: Human-readable description of the trigger the job was being scheduled with.
+    """
+
+    def __init__(self, handler_method: str, trigger_description: str) -> None:
+        self.handler_method = handler_method
+        self.trigger_description = trigger_description
+        super().__init__(
+            f"Scheduled job registration requires a name.\n\n"
+            f"  handler: {handler_method}\n"
+            f"  trigger: {trigger_description}\n\n"
+            f"Provide a stable name via the `name=` parameter:\n\n"
+            f'  await self.scheduler.run_in(self.handler, 5, name="my_job")'
+        )
+
+
 class DuplicateListenerError(HassetteError):
     """Raised at call time when a second listener with the same ``(name, topic)`` is
     registered within the same app instance in the same session.

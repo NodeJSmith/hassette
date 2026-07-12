@@ -102,6 +102,7 @@ class StateProxy(Resource):
             self.poll_job = await self.scheduler.run_every(
                 self.load_cache,
                 seconds=self.hassette.config.state_proxy_poll_interval_seconds,
+                name="state_proxy_poll",
                 if_exists="skip",
                 mode="single",
             )

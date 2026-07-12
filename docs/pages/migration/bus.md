@@ -63,7 +63,7 @@ After a once-listener fires, its name+topic key is released. A subsequent regist
 
 ## The `name=` Requirement
 
-Every `self.bus.on_*()` call requires a `name=` argument. Omitting it raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name in log output and the monitoring UI, and to avoid registering the same listener twice after a reload.
+Every `self.bus.on_*()` call requires a `name=` argument. Omitting it entirely raises `TypeError` (no default value); passing an empty string raises [`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError] at call time. Hassette uses this name in log output and the monitoring UI, and to avoid registering the same listener twice after a reload.
 
 === "Missing name (breaks)"
 

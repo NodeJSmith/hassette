@@ -189,8 +189,6 @@ class JobSummary(BaseModel):
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
     jitter: float | None = None
     """Seconds of random jitter offset; sourced from live heap."""
-    name_auto: bool = False
-    """True when the job name was auto-generated from the callable and trigger ID."""
     last_error_message: str | None = None
     """Most recent error message within the query window, or None."""
     last_error_type: str | None = None

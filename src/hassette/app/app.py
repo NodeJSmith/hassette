@@ -149,7 +149,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         return date_utils.now()
 
     @final
-    async def cleanup(self, timeout: int | None = None) -> None:
+    async def cleanup(self, timeout: float | None = None) -> None:
         """Cleanup resources owned by the instance.
 
         This method is called during shutdown to cancel tasks and close caches.

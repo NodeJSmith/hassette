@@ -4,6 +4,7 @@ Covers gaps in the test matrix:
 - duration + on_error (app-level and per-listener)
 - immediate + on_error (app-level and per-listener)
 - immediate + duration + on_error
+- on_error passthrough on the 4 Shape B delegate chains (design 007)
 """
 
 import asyncio
@@ -11,9 +12,13 @@ from typing import TYPE_CHECKING
 
 from whenever import ZonedDateTime
 
+from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.bus.error_context import BusErrorContext
 from hassette.events import RawStateChangeEvent
+from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.test_utils import make_state_dict, wait_for
+from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 
@@ -23,6 +28,24 @@ from .helpers import seed, send_state_change
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
+
+
+class _ErrorPassthroughConfig(AppConfig):
+    """Minimal AppConfig for the on_error passthrough delegate tests below."""
+
+
+async def _record_passthrough_error(
+    hassette: "Hassette", ctx: BusErrorContext, contexts: list[BusErrorContext], ran: asyncio.Event
+) -> None:
+    """Shared on_err body for the passthrough tests below — records the context and signals ran."""
+    contexts.append(ctx)
+    hassette.task_bucket.post_to_loop(ran.set)
+
+
+def _assert_single_passthrough_error(contexts: list[BusErrorContext], exc_type: type[Exception]) -> None:
+    """Shared assertion for the passthrough tests below — exactly one error of the expected type."""
+    assert len(contexts) == 1
+    assert isinstance(contexts[0].exception, exc_type)
 
 
 async def test_duration_app_level_error_handler(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -463,3 +486,100 @@ async def test_immediate_duration_per_listener_error_handler(
     assert len(per_listener_calls) == 1
     assert len(app_level_calls) == 0
     assert isinstance(per_listener_calls[0].exception, TypeError)
+
+
+# on_error passthrough on Shape B delegates (design 007) — each delegate forwards its on_error
+# param to the true primary; these tests prove the forwarding actually reaches the error handler,
+# not just that the parameter exists on the delegate's signature.
+
+
+async def test_on_homeassistant_start_on_error_passthrough() -> None:
+    """on_error passed to on_homeassistant_start fires via the on_call_service primary."""
+    error_contexts: list[BusErrorContext] = []
+    error_ran = asyncio.Event()
+
+    class HaStartErrorApp(App[_ErrorPassthroughConfig]):
+        async def on_initialize(self) -> None:
+            await self.bus.on_homeassistant_start(handler=self.on_start, name="ha_start_error", on_error=self.on_err)
+
+        async def on_start(self) -> None:
+            raise ValueError("ha start handler failed")
+
+        async def on_err(self, ctx: BusErrorContext) -> None:
+            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+
+    async with AppTestHarness(HaStartErrorApp, config={}) as harness:
+        await harness.simulate_homeassistant_start()
+        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+
+    _assert_single_passthrough_error(error_contexts, ValueError)
+
+
+async def test_on_hassette_service_failed_on_error_passthrough() -> None:
+    """on_error passed to on_hassette_service_failed fires via the on_hassette_service_status primary."""
+    error_contexts: list[BusErrorContext] = []
+    error_ran = asyncio.Event()
+
+    class ServiceFailedErrorApp(App[_ErrorPassthroughConfig]):
+        async def on_initialize(self) -> None:
+            await self.bus.on_hassette_service_failed(
+                handler=self.on_failed, name="service_failed_error", on_error=self.on_err
+            )
+
+        async def on_failed(self, event: HassetteServiceEvent) -> None:
+            raise ValueError("service failed handler failed")
+
+        async def on_err(self, ctx: BusErrorContext) -> None:
+            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+
+    async with AppTestHarness(ServiceFailedErrorApp, config={}) as harness:
+        await harness.simulate_hassette_service_failed("SyntheticErrorPassthroughService")
+        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+
+    _assert_single_passthrough_error(error_contexts, ValueError)
+
+
+async def test_on_websocket_connected_on_error_passthrough() -> None:
+    """on_error passed to on_websocket_connected fires via the on() primary."""
+    error_contexts: list[BusErrorContext] = []
+    error_ran = asyncio.Event()
+
+    class WebsocketConnectedErrorApp(App[_ErrorPassthroughConfig]):
+        async def on_initialize(self) -> None:
+            await self.bus.on_websocket_connected(
+                handler=self.on_connected, name="ws_connected_error", on_error=self.on_err
+            )
+
+        async def on_connected(self, event: HassetteSimpleEvent) -> None:
+            raise ValueError("websocket connected handler failed")
+
+        async def on_err(self, ctx: BusErrorContext) -> None:
+            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+
+    async with AppTestHarness(WebsocketConnectedErrorApp, config={}) as harness:
+        await harness.simulate_websocket_connected()
+        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+
+    _assert_single_passthrough_error(error_contexts, ValueError)
+
+
+async def test_on_app_running_on_error_passthrough() -> None:
+    """on_error passed to on_app_running fires via the on_app_state_changed primary."""
+    error_contexts: list[BusErrorContext] = []
+    error_ran = asyncio.Event()
+
+    class AppRunningErrorApp(App[_ErrorPassthroughConfig]):
+        async def on_initialize(self) -> None:
+            await self.bus.on_app_running(handler=self.on_running, name="app_running_error", on_error=self.on_err)
+
+        async def on_running(self, event: HassetteAppStateEvent) -> None:
+            raise ValueError("app running handler failed")
+
+        async def on_err(self, ctx: BusErrorContext) -> None:
+            await _record_passthrough_error(self.hassette, ctx, error_contexts, error_ran)
+
+    async with AppTestHarness(AppRunningErrorApp, config={}) as harness:
+        await harness.simulate_app_running()
+        await asyncio.wait_for(error_ran.wait(), timeout=2.0)
+
+    _assert_single_passthrough_error(error_contexts, ValueError)

@@ -156,6 +156,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit, pre-push]
 
+      - id: check-registration-signatures
+        name: Check registration method signatures
+        entry: ./tools/check_registration_signatures.py
+        language: system
+        files: ^src/hassette/(bus/bus|scheduler/scheduler)\.py$
+        stages: [pre-commit, pre-push]
+        pass_filenames: false
+
       - id: check-lazy-imports
         name: Ban lazy imports (use '# lazy-import:' to defend circular-import cases)
         language: system

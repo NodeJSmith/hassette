@@ -129,11 +129,11 @@ class TestSchedulerSourceTierPropagation:
     async def test_framework_scheduler_creates_framework_job(self) -> None:
         """Scheduler.schedule() with a framework parent sets source_tier='framework'."""
         scheduler = make_scheduler(source_tier="framework", app_key="")
-        job = await scheduler.schedule(noop, After(seconds=10))
+        job = await scheduler.schedule(noop, After(seconds=10), name="framework_scheduler_job")
         assert job.source_tier == "framework"
 
     async def test_app_scheduler_creates_app_job(self) -> None:
         """Scheduler.schedule() with an app parent sets source_tier='app'."""
         scheduler = make_scheduler(source_tier="app")
-        job = await scheduler.schedule(noop, After(seconds=10))
+        job = await scheduler.schedule(noop, After(seconds=10), name="app_scheduler_job")
         assert job.source_tier == "app"

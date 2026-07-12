@@ -126,7 +126,6 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       kindLabel={kindLabel}
       statusKind={jobKind}
       name={job.job_name}
-      nameAutoHint={job.name_auto}
       subtitle={
         [job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null]
           .filter(Boolean)

@@ -344,7 +344,7 @@ class DatabaseService(Service):
         if first_cancel is not None:
             raise first_cancel
 
-    async def cleanup(self, timeout: int | None = None) -> None:
+    async def cleanup(self, timeout: float | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
         await self.close_connections()
         await super().cleanup(timeout)

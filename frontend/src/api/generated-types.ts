@@ -1087,11 +1087,6 @@ export interface components {
             fire_at?: number | null;
             /** Jitter */
             jitter?: number | null;
-            /**
-             * Name Auto
-             * @default false
-             */
-            name_auto: boolean;
             /** Last Error Message */
             last_error_message?: string | null;
             /** Last Error Type */

@@ -6,7 +6,9 @@ class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         self.scheduler.on_error(self.on_job_error)
 
-        await self.scheduler.run_every(self.check_sensors, minutes=5)
+        await self.scheduler.run_every(
+            self.check_sensors, minutes=5, name="check_sensors"
+        )
 
     async def on_job_error(self, ctx: SchedulerErrorContext) -> None:
         self.logger.error(

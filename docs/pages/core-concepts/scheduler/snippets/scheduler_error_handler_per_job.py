@@ -7,6 +7,7 @@ class MyApp(App[AppConfig]):
         await self.scheduler.run_every(
             self.sync_data,
             minutes=10,
+            name="sync_data",
             on_error=self.on_sync_error,
         )
 
