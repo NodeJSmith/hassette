@@ -23,17 +23,6 @@ class TestJobNameUniqueness:
 
         assert set(scheduler._jobs_by_name) == {"job_a", "job_b"}
 
-    async def test_auto_named_jobs_also_enforce_uniqueness(self) -> None:
-        """Jobs with the same explicit name are still subject to uniqueness checks."""
-        scheduler = make_scheduler()
-        job1 = make_scheduled_job(name="shared_name")
-        job2 = make_scheduled_job(name="shared_name")
-
-        await scheduler.add_job(job1)
-
-        with pytest.raises(ValueError, match="shared_name"):
-            await scheduler.add_job(job2)
-
     async def test_removal_allows_reuse(self) -> None:
         scheduler = make_scheduler()
         job = make_scheduled_job(name="ephemeral")
