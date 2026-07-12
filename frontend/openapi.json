@@ -2725,11 +2725,6 @@
             ],
             "title": "Jitter"
           },
-          "name_auto": {
-            "type": "boolean",
-            "title": "Name Auto",
-            "default": false
-          },
           "last_error_message": {
             "anyOf": [
               {

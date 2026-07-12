@@ -177,7 +177,6 @@ class RegistrationQueriesMixin:
                 sj.registration_source,
                 sj.source_tier,
                 sj."group" AS "group",
-                sj.name_auto,
                 sj.mode,
                 sj.predicate_description,
                 sj.human_description,

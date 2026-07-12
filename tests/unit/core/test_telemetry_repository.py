@@ -77,34 +77,6 @@ async def test_register_job_persists_null_group(
     assert row["group"] is None, f"Expected group=None, got {row['group']!r}"
 
 
-async def test_register_job_persists_name_auto_true(
-    telemetry_repo: TelemetryRepository,
-    telemetry_db: aiosqlite.Connection,
-) -> None:
-    """register_job() writes name_auto=1 when the name was auto-generated."""
-    reg = make_job_registration(job_name="run:after:5", name_auto=True)
-    job_id = await telemetry_repo.register_job(reg)
-
-    cursor = await telemetry_db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["name_auto"] == 1
-
-
-async def test_register_job_persists_name_auto_false(
-    telemetry_repo: TelemetryRepository,
-    telemetry_db: aiosqlite.Connection,
-) -> None:
-    """register_job() writes name_auto=0 by default."""
-    reg = make_job_registration()
-    job_id = await telemetry_repo.register_job(reg)
-
-    cursor = await telemetry_db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row["name_auto"] == 0
-
-
 async def test_mark_job_cancelled_sets_cancelled_at(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

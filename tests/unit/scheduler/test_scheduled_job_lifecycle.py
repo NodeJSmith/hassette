@@ -1,6 +1,6 @@
-"""Tests for ScheduledJob lifecycle: construction, naming, cancellation, and diffing.
+"""Tests for ScheduledJob lifecycle: construction, cancellation, and diffing.
 
-Covers __post_init__ (name auto-generation, timeout/timeout_disabled conflict, bool-timeout
+Covers __post_init__ (timeout/timeout_disabled conflict, bool-timeout
 rejection), __hash__, __repr__, cancel(), set_app_error_handler_resolver(), set_next_run(),
 diff_fields(), and the matches()/trigger-None branches not covered by
 test_scheduled_job_timeout.py.
@@ -33,41 +33,6 @@ def make_job_with_args(*, args: Any = (), kwargs: dict | None = None, **override
     defaults: dict = {"owner_id": "test_owner", "next_run": now(), "job": noop}
     defaults.update(overrides)
     return ScheduledJob(args=args, kwargs=kwargs or {}, **defaults)
-
-
-class CallableWithoutName:
-    """A callable object with no __name__ attribute, to exercise the str(self.job) fallback."""
-
-    def __call__(self) -> None:
-        pass
-
-
-class TestNameAutoGeneration:
-    def test_name_auto_generated_with_trigger(self) -> None:
-        """When no name is given and a trigger is set, name is 'callable_name:trigger_id'."""
-        trigger = Every(hours=1)
-        job = make_scheduled_job(job=noop, name="", trigger=trigger)
-        assert job.name == f"noop:{trigger.trigger_id()}"
-        assert job.name_auto is True
-
-    def test_name_auto_generated_without_trigger(self) -> None:
-        """When no name is given and no trigger is set, name is just the callable name."""
-        job = make_scheduled_job(job=noop, name="", trigger=None)
-        assert job.name == "noop"
-        assert job.name_auto is True
-
-    def test_name_auto_generation_uses_str_fallback_for_unnamed_callable(self) -> None:
-        """A callable object without __name__ falls back to str(self.job) for the name."""
-        callable_obj = CallableWithoutName()
-        job = make_scheduled_job(job=callable_obj, name="", trigger=None)
-        assert job.name == str(callable_obj)
-        assert job.name_auto is True
-
-    def test_explicit_name_is_not_overwritten(self) -> None:
-        """An explicitly provided name is kept as-is and name_auto stays False."""
-        job = make_scheduled_job(name="my_explicit_name", trigger=Every(hours=1))
-        assert job.name == "my_explicit_name"
-        assert job.name_auto is False
 
 
 class TestPostInitValidation:

@@ -114,9 +114,6 @@ class ScheduledJobRegistration:
     group: str | None = None
     """Scheduler group name, or None if not assigned to a group."""
 
-    name_auto: bool = False
-    """Whether the job name was auto-generated from the callable and trigger ID."""
-
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE
     """Resolved overlap mode (single/restart/queued/parallel). Persisted to
     the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""

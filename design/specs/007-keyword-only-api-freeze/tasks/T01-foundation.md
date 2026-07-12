@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add SchedulerNameRequiredError, remove name_auto, create migration"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#6", "FR#7", "AC#7"]
 ---
