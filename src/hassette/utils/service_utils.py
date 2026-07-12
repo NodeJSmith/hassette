@@ -49,7 +49,7 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
                 resolved.extend(t for t in types if issubclass(t, d))
         return resolved
 
-    color: dict[type, Color] = {t: Color.WHITE for t in types}
+    color: dict[type, Color] = dict.fromkeys(types, Color.WHITE)
     result: list[type] = []
 
     # Iterative DFS.  Each work item is (node, iterator_over_its_deps).

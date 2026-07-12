@@ -30,6 +30,18 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
+GLOB_CASES = [
+    ("sensor.kitchen", "sensor.kitchen"),
+    ("sensor.*", {"sensor.kitchen", "sensor.living_room"}),
+    ("*.kitchen", {"sensor.kitchen", "light.kitchen"}),
+    ("*kitchen*", {"sensor.kitchen", "light.kitchen"}),
+    ("sensor.kitch?n", "sensor.kitchen"),
+    ("senso?.kit*en", "sensor.kitchen"),
+    ("*", {"sensor.kitchen", "light.living_room", "switch.garage", "light.kitchen", "sensor.living_room"}),
+]
+GLOB_ENTITIES = ["sensor.kitchen", "light.kitchen", "light.living_room", "sensor.living_room", "switch.garage"]
+
+
 @pytest.fixture
 def bus(hassette_with_bus: "HassetteHarness") -> "Bus":
     """Return the Bus resource for the running Hassette harness."""
@@ -296,19 +308,6 @@ async def test_bus_uses_kwargs(hassette_with_bus: "HassetteHarness") -> None:
     assert formatted_messages == ["Value: Test!"], (
         f"Expected handler to receive formatted value, got {formatted_messages}"
     )
-
-
-GLOB_CASES = [
-    ("sensor.kitchen", "sensor.kitchen"),
-    ("sensor.*", {"sensor.kitchen", "sensor.living_room"}),
-    ("*.kitchen", {"sensor.kitchen", "light.kitchen"}),
-    ("*kitchen*", {"sensor.kitchen", "light.kitchen"}),
-    ("sensor.kitch?n", "sensor.kitchen"),
-    ("senso?.kit*en", "sensor.kitchen"),
-    ("*", {"sensor.kitchen", "light.living_room", "switch.garage", "light.kitchen", "sensor.living_room"}),
-]
-
-GLOB_ENTITIES = ["sensor.kitchen", "light.kitchen", "light.living_room", "sensor.living_room", "switch.garage"]
 
 
 async def assert_glob_matching(

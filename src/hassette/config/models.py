@@ -23,6 +23,11 @@ LOGGER = getLogger(__name__)
 APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
+LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
+APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
+DEFAULT_WEB_API_PORT = 8126
+
+
 def validate_positive_or_none(value: Any) -> float | None:
     """Validate that a timeout value is None or a positive number."""
     if value is None:
@@ -33,13 +38,6 @@ def validate_positive_or_none(value: Any) -> float | None:
     if val <= 0:
         raise ValueError("timeout must be None or a positive number")
     return val
-
-
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
-
-APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
-
-DEFAULT_WEB_API_PORT = 8126
 
 
 class DatabaseConfig(ExcludeExtrasMixin, BaseModel):

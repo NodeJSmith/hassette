@@ -16,6 +16,23 @@ from hassette.test_utils import run_hassette_startup_tasks
 from hassette.test_utils.config import TEST_TOKEN
 from hassette.utils import app_utils
 
+# Per-service log level nested attribute names under config.logging.*
+SERVICE_LOG_LEVEL_ATTRS = (
+    "database_service",
+    "bus_service",
+    "scheduler_service",
+    "app_handler",
+    "web_api",
+    "websocket",
+    "service_watcher",
+    "file_watcher",
+    "task_bucket",
+    "command_executor",
+    "apps",
+    "state_proxy",
+    "api",
+)
+
 
 def cleanup_env(*keys: str) -> None:
     for key in keys:
@@ -401,24 +418,6 @@ def clean_log_level_env(monkeypatch):
         if k.startswith("hassette__") and ("log_level" in k or k.startswith("hassette__logging__")):
             monkeypatch.delenv(key, raising=False)
     return
-
-
-# Per-service log level nested attribute names under config.logging.*
-SERVICE_LOG_LEVEL_ATTRS = (
-    "database_service",
-    "bus_service",
-    "scheduler_service",
-    "app_handler",
-    "web_api",
-    "websocket",
-    "service_watcher",
-    "file_watcher",
-    "task_bucket",
-    "command_executor",
-    "apps",
-    "state_proxy",
-    "api",
-)
 
 
 class LogLevelTestConfig(HassetteConfig):

@@ -34,6 +34,26 @@ PYPROJECT_WITH_EXTRAS = textwrap.dedent(
 )
 
 
+PYPROJECT_MULTI_EXTRAS = textwrap.dedent(
+    """\
+    [project]
+    name = "hassette"
+    version = "0.24.0"
+    dependencies = [
+        "httpx[http2,brotli]>=0.25",
+        "tzdata>=2024.1; sys_platform == 'win32'",
+    ]
+    """
+)
+PYPROJECT_NO_DEPS = textwrap.dedent(
+    """\
+    [project]
+    name = "hassette"
+    version = "0.24.0"
+    """
+)
+
+
 def run_generate(tmp_path: Path, pyproject_content: str, hassette_version: str = "0.24.0") -> list[str]:
     """Call generate_lines() with a fake pyproject.toml and mocked importlib.metadata."""
     toml_file = tmp_path / "pyproject.toml"
@@ -113,19 +133,6 @@ def test_no_duplicate_hassette(tmp_path: Path) -> None:
     assert len(hassette_lines) == 1, f"Expected exactly one hassette line, got: {hassette_lines}"
 
 
-PYPROJECT_MULTI_EXTRAS = textwrap.dedent(
-    """\
-    [project]
-    name = "hassette"
-    version = "0.24.0"
-    dependencies = [
-        "httpx[http2,brotli]>=0.25",
-        "tzdata>=2024.1; sys_platform == 'win32'",
-    ]
-    """
-)
-
-
 def test_multiple_comma_separated_extras_stripped(tmp_path: Path) -> None:
     """httpx[http2,brotli]>=0.25 → httpx>=0.25."""
     lines = run_generate(tmp_path, PYPROJECT_MULTI_EXTRAS)
@@ -157,15 +164,6 @@ def test_generate_lines_returns_list_of_strings(tmp_path: Path) -> None:
     lines = run_generate(tmp_path, SIMPLE_PYPROJECT)
     assert isinstance(lines, list)
     assert all(isinstance(line, str) for line in lines)
-
-
-PYPROJECT_NO_DEPS = textwrap.dedent(
-    """\
-    [project]
-    name = "hassette"
-    version = "0.24.0"
-    """
-)
 
 
 def test_missing_dependencies_key_produces_hassette_pin_only(tmp_path: Path) -> None:

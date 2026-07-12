@@ -115,6 +115,10 @@ jobs:
             - name: Check coordinator-internal annotations in core tests
               run: uv run python tools/check_coordinator_internal.py
 
+            - name: Check file sizes (non-blocking)
+              continue-on-error: true
+              run: uv run python tools/check_file_size.py
+
     frontend:
         needs: changes
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
@@ -165,6 +169,9 @@ jobs:
 
             - name: Check dead global CSS (blocking)
               run: uv run python tools/frontend/check_dead_global_css.py
+
+            - name: Check for dead CSS tokens
+              run: uv run python tools/frontend/check_dead_tokens.py
 
             - name: Check undefined CSS refs in TSX (blocking)
               run: uv run python tools/frontend/check_undefined_css_refs.py

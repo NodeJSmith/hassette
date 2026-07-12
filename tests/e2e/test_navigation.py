@@ -10,6 +10,26 @@ from tests.e2e.conftest import ANIMATION_SETTLE_MS, DESKTOP_VIEWPORT, MOBILE_VIE
 pytestmark = pytest.mark.e2e
 
 
+SIDEBAR_LINKS = [
+    ("nav-apps", "/apps", "apps"),
+    ("nav-logs", "/logs", "logs"),
+    ("nav-config", "/config", "config"),
+    ("nav-diagnostics", "/diagnostics", "diagnostics"),
+]
+# Map pages to the active nav item testid
+SIDEBAR_ACTIVE = [
+    ("/apps", "nav-apps"),
+    ("/logs", "nav-logs"),
+    ("/config", "nav-config"),
+    ("/diagnostics", "nav-diagnostics"),
+]
+TITLE_MAP = [
+    ("/apps", "Apps - Hassette"),
+    ("/logs", "Logs - Hassette"),
+    ("/config", "Config - Hassette"),
+]
+
+
 def test_root_redirects_to_apps(page: Page, base_url: str) -> None:
     """/ redirects to /apps."""
     page.goto(base_url + "/")
@@ -25,14 +45,6 @@ def test_logs_page_loads(page: Page, base_url: str) -> None:
 def test_config_page_loads(page: Page, base_url: str) -> None:
     page.goto(base_url + "/config")
     expect(page.locator("body")).to_contain_text("config")
-
-
-SIDEBAR_LINKS = [
-    ("nav-apps", "/apps", "apps"),
-    ("nav-logs", "/logs", "logs"),
-    ("nav-config", "/config", "config"),
-    ("nav-diagnostics", "/diagnostics", "diagnostics"),
-]
 
 
 def test_sidebar_renders_nav_items(page: Page, base_url: str) -> None:
@@ -55,15 +67,6 @@ def test_sidebar_navigation(page: Page, base_url: str, testid: str, expected_pat
     page.locator(f'[data-testid="{testid}"]').click()
     expect(page).to_have_url(re.compile(re.escape(expected_path)))
     expect(page.locator("body")).to_contain_text(expected_content)
-
-
-# Map pages to the active nav item testid
-SIDEBAR_ACTIVE = [
-    ("/apps", "nav-apps"),
-    ("/logs", "nav-logs"),
-    ("/config", "nav-config"),
-    ("/diagnostics", "nav-diagnostics"),
-]
 
 
 @pytest.mark.parametrize(("path", "testid"), SIDEBAR_ACTIVE, ids=[p for p, _ in SIDEBAR_ACTIVE])
@@ -139,13 +142,6 @@ def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
     expect(skip_link).to_have_attribute("href", "#main-content")
     main = page.locator("main#main-content")
     expect(main).to_be_attached()
-
-
-TITLE_MAP = [
-    ("/apps", "Apps - Hassette"),
-    ("/logs", "Logs - Hassette"),
-    ("/config", "Config - Hassette"),
-]
 
 
 @pytest.mark.parametrize(

@@ -103,8 +103,8 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     """
     value = [value] if isinstance(value, str | Path | None) else value
 
-    paths = set(Path(v).resolve() for v in value if v)
-    paths = set(p for p in paths if p.exists())
+    paths = {Path(v).resolve() for v in value if v}
+    paths = {p for p in paths if p.exists()}
 
     return paths
 

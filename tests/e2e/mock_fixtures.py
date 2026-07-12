@@ -835,11 +835,10 @@ def wire_config(hassette) -> None:
 
 _listeners = build_listener_telemetry()
 
-LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
-LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
-
 
 _jobs = build_job_telemetry()
 
+LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
+LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
 JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs["my_app"][0].total_executions
 JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs["my_app"][1].total_executions

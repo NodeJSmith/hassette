@@ -11,14 +11,6 @@ from pathlib import Path
 import pytest
 from check_internal_patches import IN_SCOPE_FILES, check_file
 
-
-def run(tmp_path: Path, content: str) -> list[tuple[int, str]]:
-    """Write content to a temp file and return the guard's violations."""
-    target = tmp_path / "sample_test.py"
-    target.write_text(textwrap.dedent(content))
-    return check_file(target)
-
-
 # Each case: (id, source, expected violations as [(lineno, symbol), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
     (
@@ -122,6 +114,13 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [(1, "load_cache")],
     ),
 ]
+
+
+def run(tmp_path: Path, content: str) -> list[tuple[int, str]]:
+    """Write content to a temp file and return the guard's violations."""
+    target = tmp_path / "sample_test.py"
+    target.write_text(textwrap.dedent(content))
+    return check_file(target)
 
 
 @pytest.mark.parametrize(("source", "expected"), [(c[1], c[2]) for c in CASES], ids=[c[0] for c in CASES])

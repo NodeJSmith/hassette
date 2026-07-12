@@ -63,12 +63,40 @@ INTERNAL_METHODS = frozenset(
 """Public sync methods that are framework-internal plumbing, not user-facing."""
 
 
+# The async sentence opens the body paragraph (preceded by a blank line). Replace with the
+# blank line so the one-line summary stays separated from the body.
+_ASYNC_SENTENCE_AT_PARAGRAPH_START = re.compile(r"\n\nThis method is\s+``async`` and must be awaited\.\s*")
+# The async sentence sits mid-paragraph. Replace with a newline, not a space: the source
+# often breaks a line mid-phrase, so collapsing to a space would join two partial lines
+# into one that exceeds the 120-char limit and fail ruff validation.
+_ASYNC_SENTENCE_MID_PARAGRAPH = re.compile(r"\s*This method is\s+``async`` and must be awaited\.\s*")
+# A phrase mutation, not a sentence removal: rewrite the scheduler's "awaited inline" wording.
+_AWAITED_INLINE_PHRASE = re.compile(r"is awaited inline")
+# Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` is
+# reported per ``forgotten_await_behavior`` (default: warn)." Consume the surrounding blank
+# lines so no extra blank line is left behind; the trailing group handles the last-paragraph case.
+_MUST_BE_AWAITED_FORGOTTEN_AWAIT = re.compile(
+    r"\n\n\s*Must be awaited — a forgotten\s+``await``\s+is reported per\s+"
+    r"``forgotten_await_behavior``\s+\(default: warn\)\."
+    r"(?:\s*\n\n|\s*$)"
+)
+# Bus/Scheduler variant: "Must be awaited. Registration/Scheduling completes …" — strip only
+# the leading "Must be awaited. " so the informative completion sentence is kept (it remains
+# true for sync callers).  The positive lookahead ensures we only strip this prefix when
+# followed immediately by an uppercase continuation word.
+_MUST_BE_AWAITED_PREFIX = re.compile(r"Must be awaited\.\s+(?=[A-Z])")
+# Bus 'on' variant: "...raw topic subscriptions. Must be awaited.\n" — "Must be awaited."
+# is appended to the end of an existing sentence rather than starting a new one.  Replace
+# ". Must be awaited." with "." to leave the host sentence intact.
+_MUST_BE_AWAITED_SENTENCE_SUFFIX = re.compile(r"\. Must be awaited\.")
+
+
 def safe_parse(source: str, filename: str) -> ast.Module:
     """Parse Python source, raising SystemExit with a clean message on SyntaxError."""
     try:
         return ast.parse(source, filename=filename)
-    except SyntaxError as e:
-        raise SystemExit(f"Syntax error in {filename}: {e}") from e
+    except SyntaxError as exc:
+        raise SystemExit(f"Syntax error in {filename}: {exc}") from exc
 
 
 def is_overload(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -154,36 +182,9 @@ def format_signature_and_call(func: ast.FunctionDef | ast.AsyncFunctionDef) -> t
 # the drift gate only detects changes to generated output, not phrasings the regex misses.
 # When adding such wording to Bus/Scheduler/Api, add a matching pattern here.
 
-# The async sentence opens the body paragraph (preceded by a blank line). Replace with the
-# blank line so the one-line summary stays separated from the body.
-_ASYNC_SENTENCE_AT_PARAGRAPH_START = re.compile(r"\n\nThis method is\s+``async`` and must be awaited\.\s*")
-# The async sentence sits mid-paragraph. Replace with a newline, not a space: the source
-# often breaks a line mid-phrase, so collapsing to a space would join two partial lines
-# into one that exceeds the 120-char limit and fail ruff validation.
-_ASYNC_SENTENCE_MID_PARAGRAPH = re.compile(r"\s*This method is\s+``async`` and must be awaited\.\s*")
-# A phrase mutation, not a sentence removal: rewrite the scheduler's "awaited inline" wording.
-_AWAITED_INLINE_PHRASE = re.compile(r"is awaited inline")
 
 # Bus, Scheduler, and Api docstrings each use a distinct "Must be awaited" phrasing.
 # Three distinct patterns are required; order in desync_docstring is load-bearing.
-
-# Api variant: entire standalone paragraph "Must be awaited — a forgotten ``await`` is
-# reported per ``forgotten_await_behavior`` (default: warn)." Consume the surrounding blank
-# lines so no extra blank line is left behind; the trailing group handles the last-paragraph case.
-_MUST_BE_AWAITED_FORGOTTEN_AWAIT = re.compile(
-    r"\n\n\s*Must be awaited — a forgotten\s+``await``\s+is reported per\s+"
-    r"``forgotten_await_behavior``\s+\(default: warn\)\."
-    r"(?:\s*\n\n|\s*$)"
-)
-# Bus/Scheduler variant: "Must be awaited. Registration/Scheduling completes …" — strip only
-# the leading "Must be awaited. " so the informative completion sentence is kept (it remains
-# true for sync callers).  The positive lookahead ensures we only strip this prefix when
-# followed immediately by an uppercase continuation word.
-_MUST_BE_AWAITED_PREFIX = re.compile(r"Must be awaited\.\s+(?=[A-Z])")
-# Bus 'on' variant: "...raw topic subscriptions. Must be awaited.\n" — "Must be awaited."
-# is appended to the end of an existing sentence rather than starting a new one.  Replace
-# ". Must be awaited." with "." to leave the host sentence intact.
-_MUST_BE_AWAITED_SENTENCE_SUFFIX = re.compile(r"\. Must be awaited\.")
 
 
 def desync_docstring(doc: str) -> str:

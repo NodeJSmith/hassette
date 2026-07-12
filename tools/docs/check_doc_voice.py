@@ -32,6 +32,52 @@ MIN_INLINE_CODE_LINES = 2
 # Page classification
 
 
+COPULA_AVOIDANCE = re.compile(r"\b(serves?\s+as|acts?\s+as|functions?\s+as)\b", re.IGNORECASE)
+SIGNIFICANCE_INFLATION = re.compile(
+    r"\b(pivotal|crucial|fundamental|robust|essential|paramount|indispensable)\b", re.IGNORECASE
+)
+DANGLING_ING = re.compile(
+    r"(?:^|\.\s+)(Highlighting|Ensuring|Showcasing|Demonstrating|Providing|Fostering|Reflecting)\s",
+)
+FILLER_HEDGING = re.compile(
+    r"\b(it\s+is\s+important\s+to\s+note\s+that|in\s+order\s+to|due\s+to\s+the\s+fact\s+that"
+    r"|it\s+should\s+be\s+noted\s+that|it\s+is\s+worth\s+noting\s+that)\b",
+    re.IGNORECASE,
+)
+ABSTRACT_VERBS = re.compile(r"\b(utilize[sd]?|leverag(?:e[sd]?|ing)|facilitate[sd]?)\b", re.IGNORECASE)
+SURPRISE_SIGNALS = re.compile(
+    r"\b(you\s+might\s+be\s+surprised|surprisingly|contrary\s+to\s+what\s+you\s+might"
+    r"|you\s+might\s+expect|unexpectedly)\b",
+    re.IGNORECASE,
+)
+TRANSITION_OPENERS = re.compile(
+    r"^(Now\s+that\s+we|Let'?s\s+(?:look|move|turn|explore|dive)"
+    r"|Once\s+you(?:'ve|\s+have)|After\s+(?:you(?:'ve|\s+have)|we(?:'ve|\s+have)))",
+    re.IGNORECASE,
+)
+REASSURANCE = re.compile(
+    r"\b(don'?t\s+worry|no\s+need\s+to\s+worry|it'?s\s+(?:that\s+)?(?:simple|easy)"
+    r"|you'?ll\s+be\s+(?:happy|glad)\s+to\s+know)\b",
+    re.IGNORECASE,
+)
+CHATBOT_PHRASES = re.compile(
+    r"\b(I\s+hope\s+this\s+helps|Let\s+me\s+know\s+if|Of\s+course!|Certainly!|Great\s+question"
+    r"|You'?re\s+absolutely\s+right|Excellent\s+point)\b",
+    re.IGNORECASE,
+)
+WILL_FUTURE = re.compile(r"\bwill\s+(?:be\s+)?(?:run|fire|execute|call|create|return|send|deliver)\b", re.IGNORECASE)
+CAN_BE_USED = re.compile(r"\bcan\s+be\s+used\s+to\b", re.IGNORECASE)
+IS_ABLE_TO = re.compile(r"\bis\s+able\s+to\b", re.IGNORECASE)
+CATEGORY_DEFINITION = re.compile(
+    r"\bis\s+a\s+(?:service|system|mechanism|module|function|class|object|component|utility|tool"
+    r"|framework|library|wrapper|helper|interface|abstraction)\b",
+    re.IGNORECASE,
+)
+YOU_YOUR = re.compile(r"\b(you|your|you'?re|you'?ve|you'?ll|you'?d|yourself)\b", re.IGNORECASE)
+NEGATIVE_PARALLELISM = re.compile(r"\bit'?s\s+not\s+just\b", re.IGNORECASE)
+EM_DASH = re.compile(r"—")
+
+
 def classify_page(rel_path: str) -> str:
     """Classify a doc page by its path relative to docs/pages/.
 
@@ -117,51 +163,6 @@ class AuditResult:
 
 
 # Pattern checks
-
-COPULA_AVOIDANCE = re.compile(r"\b(serves?\s+as|acts?\s+as|functions?\s+as)\b", re.IGNORECASE)
-SIGNIFICANCE_INFLATION = re.compile(
-    r"\b(pivotal|crucial|fundamental|robust|essential|paramount|indispensable)\b", re.IGNORECASE
-)
-DANGLING_ING = re.compile(
-    r"(?:^|\.\s+)(Highlighting|Ensuring|Showcasing|Demonstrating|Providing|Fostering|Reflecting)\s",
-)
-FILLER_HEDGING = re.compile(
-    r"\b(it\s+is\s+important\s+to\s+note\s+that|in\s+order\s+to|due\s+to\s+the\s+fact\s+that"
-    r"|it\s+should\s+be\s+noted\s+that|it\s+is\s+worth\s+noting\s+that)\b",
-    re.IGNORECASE,
-)
-ABSTRACT_VERBS = re.compile(r"\b(utilize[sd]?|leverag(?:e[sd]?|ing)|facilitate[sd]?)\b", re.IGNORECASE)
-SURPRISE_SIGNALS = re.compile(
-    r"\b(you\s+might\s+be\s+surprised|surprisingly|contrary\s+to\s+what\s+you\s+might"
-    r"|you\s+might\s+expect|unexpectedly)\b",
-    re.IGNORECASE,
-)
-TRANSITION_OPENERS = re.compile(
-    r"^(Now\s+that\s+we|Let'?s\s+(?:look|move|turn|explore|dive)"
-    r"|Once\s+you(?:'ve|\s+have)|After\s+(?:you(?:'ve|\s+have)|we(?:'ve|\s+have)))",
-    re.IGNORECASE,
-)
-REASSURANCE = re.compile(
-    r"\b(don'?t\s+worry|no\s+need\s+to\s+worry|it'?s\s+(?:that\s+)?(?:simple|easy)"
-    r"|you'?ll\s+be\s+(?:happy|glad)\s+to\s+know)\b",
-    re.IGNORECASE,
-)
-CHATBOT_PHRASES = re.compile(
-    r"\b(I\s+hope\s+this\s+helps|Let\s+me\s+know\s+if|Of\s+course!|Certainly!|Great\s+question"
-    r"|You'?re\s+absolutely\s+right|Excellent\s+point)\b",
-    re.IGNORECASE,
-)
-WILL_FUTURE = re.compile(r"\bwill\s+(?:be\s+)?(?:run|fire|execute|call|create|return|send|deliver)\b", re.IGNORECASE)
-CAN_BE_USED = re.compile(r"\bcan\s+be\s+used\s+to\b", re.IGNORECASE)
-IS_ABLE_TO = re.compile(r"\bis\s+able\s+to\b", re.IGNORECASE)
-CATEGORY_DEFINITION = re.compile(
-    r"\bis\s+a\s+(?:service|system|mechanism|module|function|class|object|component|utility|tool"
-    r"|framework|library|wrapper|helper|interface|abstraction)\b",
-    re.IGNORECASE,
-)
-YOU_YOUR = re.compile(r"\b(you|your|you'?re|you'?ve|you'?ll|you'?d|yourself)\b", re.IGNORECASE)
-NEGATIVE_PARALLELISM = re.compile(r"\bit'?s\s+not\s+just\b", re.IGNORECASE)
-EM_DASH = re.compile(r"—")
 
 
 def is_prose_line(line: str) -> bool:

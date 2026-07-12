@@ -55,6 +55,10 @@ DATA_LOAD_TIMEOUT_MS = 5000
 MOCK_LAST_CHANGED = "2024-01-01T00:00:00"
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+
+
 @pytest.fixture(scope="session")
 def mock_hassette():
     """Create a session-scoped mock Hassette with rich seed data."""
@@ -170,10 +174,6 @@ def log_handler():
             record.source_tier = "framework"
         handler.emit(record)
     return handler
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
 @pytest.fixture(scope="session")

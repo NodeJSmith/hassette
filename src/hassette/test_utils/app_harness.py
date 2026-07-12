@@ -25,10 +25,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock
 
-if TYPE_CHECKING:
-    from hassette import Hassette
-    from hassette.events import HassStateDict
-
 import pydantic
 from pydantic import BaseModel
 from pydantic_settings.sources import InitSettingsSource
@@ -49,8 +45,19 @@ from hassette.test_utils.simulation import SimulationMixin
 from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
 
+if TYPE_CHECKING:
+    from hassette import Hassette
+    from hassette.events import HassStateDict
+
 LOGGER = getLogger(__name__)
 EPOCH_TIMESTAMP = "1970-01-01T00:00:00+00:00"
+
+
+# Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
+# creating a new subclass per make_hermetic_config call, which would accumulate
+# permanently in __subclasses__() and Pydantic's internal model cache.
+# Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
+HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
 class AppConfigurationError(Exception):
@@ -75,13 +82,6 @@ class AppConfigurationError(Exception):
         msg_detail = first.get("msg", "")
         summary = f"{count} validation error{'s' if count != 1 else ''} — field '{field}': {msg_detail}"
         super().__init__(f"AppConfigurationError for {app_cls.__name__}: {summary}")
-
-
-# Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
-# creating a new subclass per make_hermetic_config call, which would accumulate
-# permanently in __subclasses__() and Pydantic's internal model cache.
-# Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
-HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
 def get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:

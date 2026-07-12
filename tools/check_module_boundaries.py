@@ -65,6 +65,32 @@ SRC = REPO_ROOT / "src" / "hassette"
 SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 
 
+#: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
+#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` is the
+#: test harness, whose whole job is assembling real components from their private slots.
+PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils"})
+#: Reason shown for a private-attr reach-through violation.
+PRIVATE_ATTR_REASON = (
+    "subsystem code must not read private attributes of the Hassette core object; "
+    "use a public property (or add a reasoned PRIVATE_ATTR_ALLOWLIST entry for genuine internals)"
+)
+#: Violation message for a private-attr reach-through; ``{attr}`` is the private name accessed.
+#: The single source of truth shared by ``check_source`` and the test suite, so the two cannot drift.
+PRIVATE_ATTR_MSG_TEMPLATE = f"private-attr-reach-through: accesses hassette.{{attr}} — {PRIVATE_ATTR_REASON}"
+#: (src-relative POSIX path, private attr name) pairs allowed to reach into ``hassette._foo``.
+#: Each is a conscious exception for a genuine framework internal with no guarded public
+#: property to route through. The former service-slot entries (``_loop_thread_id``,
+#: ``_scheduler_service``, ``_bus_service``) were retired in #1092 once Hassette exposed
+#: public accessors for them.
+PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
+    {
+        # Dependency-check bypass — internal coordination hook between Resource and Hassette,
+        # not a service slot, so it has no guarded public property to route through.
+        ("resources/base.py", "_should_skip_dependency_check"),
+    }
+)
+
+
 @dataclass(frozen=True)
 class Rule:
     """A forbidden-import boundary.
@@ -150,35 +176,6 @@ RULES: list[Rule] = [
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
 ]
-
-
-#: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
-#: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``test_utils`` is the
-#: test harness, whose whole job is assembling real components from their private slots.
-PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "test_utils"})
-
-#: Reason shown for a private-attr reach-through violation.
-PRIVATE_ATTR_REASON = (
-    "subsystem code must not read private attributes of the Hassette core object; "
-    "use a public property (or add a reasoned PRIVATE_ATTR_ALLOWLIST entry for genuine internals)"
-)
-
-#: Violation message for a private-attr reach-through; ``{attr}`` is the private name accessed.
-#: The single source of truth shared by ``check_source`` and the test suite, so the two cannot drift.
-PRIVATE_ATTR_MSG_TEMPLATE = f"private-attr-reach-through: accesses hassette.{{attr}} — {PRIVATE_ATTR_REASON}"
-
-#: (src-relative POSIX path, private attr name) pairs allowed to reach into ``hassette._foo``.
-#: Each is a conscious exception for a genuine framework internal with no guarded public
-#: property to route through. The former service-slot entries (``_loop_thread_id``,
-#: ``_scheduler_service``, ``_bus_service``) were retired in #1092 once Hassette exposed
-#: public accessors for them.
-PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
-    {
-        # Dependency-check bypass — internal coordination hook between Resource and Hassette,
-        # not a service slot, so it has no guarded public property to route through.
-        ("resources/base.py", "_should_skip_dependency_check"),
-    }
-)
 
 
 def layer_of(path: Path) -> str:

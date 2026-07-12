@@ -177,7 +177,7 @@ class StateProxy(Resource):
             ResourceNotReadyError: If not ready and cache is empty (cold start).
                 When disconnected but cache is populated, stale data is returned.
         """
-        return {eid: state for eid, state in self.yield_domain_states(domain)}
+        return dict(self.yield_domain_states(domain))
 
     @_retry_on_not_ready
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:

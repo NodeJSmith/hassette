@@ -85,7 +85,7 @@ def test_all_domains_registered(
 
 def test_all_classes_in_registry(all_models: dict[str, type[states.BaseState]]):
     """Test that all state models are included in the state registry."""
-    registered_classes = [v for v in STATE_REGISTRY.registry.values()]
+    registered_classes = list(STATE_REGISTRY.registry.values())
     missing_classes = []
 
     for model_cls in all_models.values():

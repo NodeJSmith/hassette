@@ -26,6 +26,23 @@ if TYPE_CHECKING:
 CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time", "services"]
 
 
+LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+"""Log levels for configuring logging."""
+
+FRAMEWORK_APP_KEY = "__hassette__"
+"""Reserved app_key for framework-internal listeners and jobs.
+
+Referenced in SQL constraints and in Python guards throughout the codebase.
+All non-SQL usages should reference this constant or use ``is_framework_key()``."""
+
+FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
+"""Prefix for component-specific framework keys (e.g. ``'__hassette__.service_watcher'``).
+
+The trailing dot distinguishes the prefix from the bare sentinel so that
+``'__hassette__other'`` is never mistakenly treated as a framework key.
+Use ``is_framework_key()`` rather than comparing against this constant directly."""
+
+
 @dataclass(frozen=True)
 class CliFormat:
     """Annotated metadata marker declaring how a field renders in CLI human mode.
@@ -37,9 +54,6 @@ class CliFormat:
 
     style: CliFormatStyle
 
-
-LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-"""Log levels for configuring logging."""
 
 SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
@@ -73,19 +87,6 @@ class ExecutionStatus(StrEnum):
 
 QuerySourceTier = Literal["app", "framework", "all"]
 """Valid source_tier values for query-side filtering. 'all' disables the filter."""
-
-FRAMEWORK_APP_KEY = "__hassette__"
-"""Reserved app_key for framework-internal listeners and jobs.
-
-Referenced in SQL constraints and in Python guards throughout the codebase.
-All non-SQL usages should reference this constant or use ``is_framework_key()``."""
-
-FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
-"""Prefix for component-specific framework keys (e.g. ``'__hassette__.service_watcher'``).
-
-The trailing dot distinguishes the prefix from the bare sentinel so that
-``'__hassette__other'`` is never mistakenly treated as a framework key.
-Use ``is_framework_key()`` rather than comparing against this constant directly."""
 
 
 def is_framework_key(app_key: str | None) -> bool:

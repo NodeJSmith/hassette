@@ -37,6 +37,9 @@ from .conftest import SimpleParent
 _init_order: list[str] = []
 
 
+LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
+
+
 class InitTrackingChild(Resource):
     """Resource that records its unique_name on initialization."""
 
@@ -242,9 +245,6 @@ def make_leaf(hassette, leaf_type: str) -> Resource:
     if leaf_type == "_ScheduledJobQueue":
         return _ScheduledJobQueue(hassette)
     raise ValueError(f"Unknown leaf type: {leaf_type}")
-
-
-LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
 
 
 @pytest.mark.parametrize("leaf_type", LEAF_TYPES)

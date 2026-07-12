@@ -28,13 +28,6 @@ APP_LIST_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
-    """List all apps (GET /api/apps/manifests)."""
-    client = make_client(ctx)
-    result = client.get("/api/apps/manifests", AppManifestListResponse)
-    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
-
-
 APP_HEALTH_COLUMNS: list[Column] = [
     Column("health_status", "Health", max_width=10),
     Column("error_rate", "Error Rate", max_width=10),
@@ -43,6 +36,23 @@ APP_HEALTH_COLUMNS: list[Column] = [
     Column("job_avg_duration", "Job Avg", max_width=9, formatter=fmt_duration_ms),
     Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
 ]
+APP_ACTIVITY_COLUMNS: list[Column] = [
+    Column("row_id", "ID", max_width=10),
+    Column("kind", "Kind", max_width=8),
+    Column("status", "Status", max_width=10),
+    Column("app_key", "App", max_width=16),
+    Column("handler_name", "Handler", max_width=22),
+    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
+    Column("timestamp", "When", max_width=11, formatter=fmt_relative_time),
+    Column("error_type", "Error", max_width=16),
+]
+
+
+def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
+    """List all apps (GET /api/apps/manifests)."""
+    client = make_client(ctx)
+    result = client.get("/api/apps/manifests", AppManifestListResponse)
+    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
 
 
 def cmd_app_health(
@@ -66,18 +76,6 @@ def cmd_app_health(
 
     result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
     render_detail(result, json_mode=ctx.json_mode)
-
-
-APP_ACTIVITY_COLUMNS: list[Column] = [
-    Column("row_id", "ID", max_width=10),
-    Column("kind", "Kind", max_width=8),
-    Column("status", "Status", max_width=10),
-    Column("app_key", "App", max_width=16),
-    Column("handler_name", "Handler", max_width=22),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("timestamp", "When", max_width=11, formatter=fmt_relative_time),
-    Column("error_type", "Error", max_width=16),
-]
 
 
 def cmd_app_activity(

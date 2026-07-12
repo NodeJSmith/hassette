@@ -11,6 +11,9 @@ from hassette.models.states import BaseState, DeviceTrackerState, LightState, Pe
 from hassette.state_manager.state_manager import DomainStates, StateManager
 from hassette.test_utils import make_light_state_dict, make_mock_hassette, make_state_dict
 
+BAD_TIMESTAMP = "INVALID-TIMESTAMP"
+BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}
+
 
 @pytest.fixture
 def mock_hassette() -> AsyncMock:
@@ -162,10 +165,6 @@ class TestDomainStatesCacheValidation:
         assert first is not second
         assert spy.call_count == 2
         assert ds._cache["light.bedroom"].model is second
-
-
-BAD_TIMESTAMP = "INVALID-TIMESTAMP"
-BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}
 
 
 def make_bad_state_dict(entity_id: str = "light.bad") -> dict:

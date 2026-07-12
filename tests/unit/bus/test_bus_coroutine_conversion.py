@@ -25,6 +25,9 @@ from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import mock_add_listener
 
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_PUBLIC_REGISTRATION_METHODS = sorted(CANONICAL_PROTECTED[Bus])
+
 
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
@@ -36,9 +39,6 @@ async def handler(event: object) -> None:
 
 
 # public registration methods are plain def, not async def
-
-# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
-_PUBLIC_REGISTRATION_METHODS = sorted(CANONICAL_PROTECTED[Bus])
 
 
 @pytest.mark.parametrize("method_name", _PUBLIC_REGISTRATION_METHODS)

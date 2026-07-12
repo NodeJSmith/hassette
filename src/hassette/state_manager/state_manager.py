@@ -150,7 +150,7 @@ class DomainStates(Generic[StateT]):
             which may be expensive for large domains. Consider using the iterator
             returned by `__iter__` for lazy evaluation if performance is a concern.
         """
-        return {entity_id: value for entity_id, value in self}
+        return dict(self)
 
     def __iter__(self) -> typing.Generator[tuple[str, StateT], None, None]:
         """Iterate over all states in this domain."""
