@@ -193,7 +193,8 @@ class ScheduledJob:
     """When ``True``, timeout enforcement is disabled for this job regardless of the global default."""
 
     name: str = field(default="", compare=False)
-    """Optional name for the job for easier identification."""
+    """Name for the job, used for identification. Required by all public Scheduler entry points
+    (``Scheduler.add_job()`` and ``Scheduler.schedule()`` raise ``SchedulerNameRequiredError`` if empty)."""
 
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
     """Positional arguments to pass to the job callable."""

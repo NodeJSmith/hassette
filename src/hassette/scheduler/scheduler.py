@@ -80,7 +80,7 @@ from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 from hassette.utils.await_guard import guard_await
-from hassette.utils.func_utils import callable_stable_name, is_async_callable
+from hassette.utils.func_utils import callable_name, callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
@@ -212,9 +212,7 @@ class Scheduler(Resource):
         if not isinstance(job, ScheduledJob):
             raise TypeError(f"Expected ScheduledJob, got {type(job).__name__}")
         if not job.name:
-            raise SchedulerNameRequiredError(
-                job.job.__name__ if hasattr(job.job, "__name__") else str(job.job), str(job.trigger)
-            )
+            raise SchedulerNameRequiredError(callable_name(job.job), str(job.trigger))
         # Eager capture in the public def — user frame is live here (not inside the async body).
         # Returns a 2-tuple — unpack it. Two destinations: guard_await (warning attribution) AND
         # _add_job (backfills job.source_location / registration_source for telemetry when empty).
@@ -447,7 +445,7 @@ class Scheduler(Resource):
                 DI (e.g. ``*args`` or positional-only parameters).
         """
         if not name:
-            raise SchedulerNameRequiredError(func.__name__ if hasattr(func, "__name__") else str(func), str(trigger))
+            raise SchedulerNameRequiredError(callable_name(func), str(trigger))
 
         if jitter is not None and jitter < 0:
             raise ValueError("jitter must be non-negative")
