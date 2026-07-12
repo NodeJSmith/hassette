@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Regenerate sync facades and widen cleanup timeout types"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#10", "FR#11", "AC#9"]
 ---

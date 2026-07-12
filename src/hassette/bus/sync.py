@@ -98,7 +98,7 @@ class BusSyncFacade(Resource):
         timeout_disabled: bool = False,
         mode: "ExecutionMode | str | None" = None,
         backpressure: "BackpressurePolicy | str | None" = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
     ) -> Subscription:
@@ -130,7 +130,8 @@ class BusSyncFacade(Resource):
                 and records one drop on the listener. When omitted, the effective default is ``block``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
-                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
+                restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
+                empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
             if_exists: Behavior when a listener with the same natural key already exists.
                 ``"error"`` (default) raises ``DuplicateListenerError``. ``"skip"`` returns the
@@ -180,7 +181,7 @@ class BusSyncFacade(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -201,7 +202,8 @@ class BusSyncFacade(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
-                restarts. Omitting it raises ``ListenerNameRequiredError`` at call time.
+                restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
+                empty string raises ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -261,7 +263,7 @@ class BusSyncFacade(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -280,7 +282,9 @@ class BusSyncFacade(Resource):
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Required. Stable string identifier. Omitting it raises ``ListenerNameRequiredError``.
+            name: Required. Stable string identifier. Omitting it entirely raises ``TypeError``
+                (no default value); passing an empty string raises ``ListenerNameRequiredError``
+                at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -330,7 +334,7 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: "Predicate | Sequence[Predicate] | Mapping[str, ChangeType] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -345,7 +349,8 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Required. Stable string identifier for this listener. Omitting it raises
+            name: Required. Stable string identifier for this listener. Omitting it entirely
+                raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
@@ -383,7 +388,7 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -417,7 +422,7 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -446,10 +451,12 @@ class BusSyncFacade(Resource):
 
     def on_homeassistant_restart(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant restart events.
@@ -458,20 +465,29 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.task_bucket.run_sync(self._bus.on_homeassistant_restart(handler, where, kwargs, name, **opts))
+        return self.task_bucket.run_sync(
+            self._bus.on_homeassistant_restart(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
+        )
 
     def on_homeassistant_start(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant start events.
@@ -480,20 +496,29 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.task_bucket.run_sync(self._bus.on_homeassistant_start(handler, where, kwargs, name, **opts))
+        return self.task_bucket.run_sync(
+            self._bus.on_homeassistant_start(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
+        )
 
     def on_homeassistant_stop(
         self,
+        *,
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to Home Assistant stop events.
@@ -502,13 +527,20 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        return self.task_bucket.run_sync(self._bus.on_homeassistant_stop(handler, where, kwargs, name, **opts))
+        return self.task_bucket.run_sync(
+            self._bus.on_homeassistant_stop(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
+        )
 
     def on_hassette_service_status(
         self,
@@ -517,7 +549,7 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -533,7 +565,8 @@ class BusSyncFacade(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
+                default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
@@ -552,7 +585,8 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service failed events.
@@ -563,15 +597,19 @@ class BusSyncFacade(Resource):
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
                 natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it raises ``ListenerNameRequiredError``
+                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
+                default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_hassette_service_failed(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_hassette_service_failed(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_hassette_service_crashed(
@@ -580,7 +618,8 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service crashed events.
@@ -589,14 +628,19 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_hassette_service_crashed(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_hassette_service_crashed(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_hassette_service_started(
@@ -605,7 +649,8 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to hassette service started events.
@@ -614,14 +659,19 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_hassette_service_started(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_hassette_service_started(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_websocket_connected(
@@ -630,7 +680,8 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to websocket connected events.
@@ -639,14 +690,19 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_websocket_connected(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_websocket_connected(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_websocket_disconnected(
@@ -655,7 +711,8 @@ class BusSyncFacade(Resource):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to websocket disconnected events.
@@ -664,14 +721,19 @@ class BusSyncFacade(Resource):
             handler: The function to call when the event matches.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_websocket_disconnected(handler=handler, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_websocket_disconnected(
+                handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_app_state_changed(
@@ -682,7 +744,7 @@ class BusSyncFacade(Resource):
         status: ResourceStatus | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
         on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
@@ -723,7 +785,8 @@ class BusSyncFacade(Resource):
         app_key: str | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instances reaching RUNNING status.
@@ -733,14 +796,19 @@ class BusSyncFacade(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_app_running(handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_app_running(
+                handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_app_stopping(
@@ -750,7 +818,8 @@ class BusSyncFacade(Resource):
         app_key: str | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        name: str | None = None,
+        name: str,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to app instances entering STOPPING status.
@@ -760,14 +829,19 @@ class BusSyncFacade(Resource):
             app_key: Filter events for a specific app key.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
-            name: Stable name for this listener. Required on all DB-registered listeners.
+            name: Required. Stable name for this listener. Omitting it entirely raises
+                ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
         return self.task_bucket.run_sync(
-            self._bus.on_app_stopping(handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, **opts)
+            self._bus.on_app_stopping(
+                handler=handler, app_key=app_key, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
+            )
         )
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:

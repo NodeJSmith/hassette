@@ -74,6 +74,7 @@ class SchedulerSyncFacade(Resource):
 
         Raises:
             TypeError: If job is not a ScheduledJob.
+            SchedulerNameRequiredError: If ``job.name`` is empty.
             ValueError: If a job with the same name already exists and either
                 ``if_exists="error"`` or the existing job's configuration differs.
         """
@@ -83,12 +84,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         trigger: "TriggerProtocol",
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -108,8 +109,8 @@ class SchedulerSyncFacade(Resource):
             func: The function to run.
             trigger: A trigger object implementing ``TriggerProtocol``. Determines
                 both the first run time and subsequent recurrences.
-            name: Optional name for the job. If empty, an auto-name is derived from
-                the callable and trigger.
+            name: Required stable name for the job. Used for uniqueness validation
+                within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``cancel_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
                 Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
@@ -153,6 +154,7 @@ class SchedulerSyncFacade(Resource):
         Raises:
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
+            SchedulerNameRequiredError: If ``name`` is empty.
             DependencyInjectionError: If a predicate's signature is incompatible with
                 DI (e.g. ``*args`` or positional-only parameters).
         """
@@ -160,11 +162,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.schedule(
                 func,
                 trigger,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -178,12 +180,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         delay: float,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -199,7 +201,7 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             delay: The delay in seconds before running the job.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -223,11 +225,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_in(
                 func,
                 delay,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -241,13 +243,13 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         at: str | ZonedDateTime,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -264,7 +266,7 @@ class SchedulerSyncFacade(Resource):
             func: The function to run.
             at: Target time. A ``"HH:MM"`` string (today in system timezone, or
                 tomorrow if already past) or a ``ZonedDateTime``.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -292,12 +294,12 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_once(
                 func,
                 at,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
-                if_past,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
+                if_past=if_past,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -313,12 +315,12 @@ class SchedulerSyncFacade(Resource):
         hours: float = 0,
         minutes: float = 0,
         seconds: float = 0,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -336,7 +338,7 @@ class SchedulerSyncFacade(Resource):
             hours: Interval hours component.
             minutes: Interval minutes component.
             seconds: Interval seconds component.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -362,11 +364,11 @@ class SchedulerSyncFacade(Resource):
                 hours,
                 minutes,
                 seconds,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -380,12 +382,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         minutes: int = 1,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -401,7 +403,7 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             minutes: The minute interval (must be >= 1).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -425,11 +427,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_minutely(
                 func,
                 minutes,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -443,12 +445,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         hours: int = 1,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -464,7 +466,7 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             hours: The hour interval (must be >= 1).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -488,11 +490,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_hourly(
                 func,
                 hours,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -506,12 +508,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         at: str = "00:00",
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -530,7 +532,7 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             at: Target wall-clock time in ``"HH:MM"`` format (default ``"00:00"``).
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -554,11 +556,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_daily(
                 func,
                 at,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,
@@ -572,12 +574,12 @@ class SchedulerSyncFacade(Resource):
         self,
         func: "JobCallable",
         expression: str,
-        name: str = "",
+        *,
+        name: str,
         group: str | None = None,
         jitter: float | None = None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
-        *,
         mode: "ExecutionMode | str | None" = None,
         on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
@@ -597,7 +599,7 @@ class SchedulerSyncFacade(Resource):
         Args:
             func: The function to run.
             expression: A valid 5- or 6-field cron expression.
-            name: Optional name for the job.
+            name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
@@ -624,11 +626,11 @@ class SchedulerSyncFacade(Resource):
             self._scheduler.run_cron(
                 func,
                 expression,
-                name,
-                group,
-                jitter,
-                timeout,
-                timeout_disabled,
+                name=name,
+                group=group,
+                jitter=jitter,
+                timeout=timeout,
+                timeout_disabled=timeout_disabled,
                 mode=mode,
                 on_error=on_error,
                 if_exists=if_exists,

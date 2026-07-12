@@ -618,7 +618,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.shutdown()
         await self.initialize()
 
-    async def cleanup(self, timeout: int | None = None) -> None:
+    async def cleanup(self, timeout: float | None = None) -> None:
         """Cleanup resources owned by the instance.
 
         This method is called during shutdown to ensure that all resources are properly released.
