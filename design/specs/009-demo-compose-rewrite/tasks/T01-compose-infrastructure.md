@@ -3,7 +3,7 @@ task_id: "T01"
 title: "Add compose services and dev Dockerfiles for hassette and vite"
 status: "planned"
 depends_on: []
-implements: ["FR#1", "FR#3", "FR#4", "FR#7", "FR#8"]
+implements: ["FR#1", "FR#3", "FR#4", "FR#6", "FR#7", "FR#8"]
 ---
 
 ## Summary
@@ -81,4 +81,5 @@ Check that the existing HA JWT token in `ha-demo.yml`'s healthcheck matches the 
 - [ ] FR#3: `DEMO_HA_PORT=29123 DEMO_HASSETTE_PORT=29126 DEMO_VITE_PORT=29173 docker compose ... up -d --wait` starts on the overridden ports
 - [ ] FR#4: `docker compose -f scripts/docker/ha-demo.yml ps` shows all three services as healthy
 - [ ] FR#7: With the stack running, editing a `.tsx` file triggers HMR reload in the browser
+- [ ] FR#6: `.demo-data/` bind mount is declared in the compose file for the hassette service
 - [ ] FR#8: All three ports are bound to `127.0.0.1` (verify with `docker compose port` or `ss -tlnp`)

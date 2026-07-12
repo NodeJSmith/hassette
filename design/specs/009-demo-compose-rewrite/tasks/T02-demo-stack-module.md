@@ -3,7 +3,7 @@ task_id: "T02"
 title: "Create DemoStack context manager in scripts/demo_stack.py"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#2", "FR#5", "FR#6"]
+implements: ["FR#2", "FR#5"]
 ---
 
 ## Summary
@@ -13,7 +13,7 @@ Create the shared `DemoStack` context manager that handles the compose lifecycle
 ## Target Files
 
 - create: `scripts/demo_stack.py`
-- read: `scripts/hassette_demo.py` (current fixture copy logic, lines 207-227)
+- read: `scripts/hassette_demo.py` (current fixture copy logic, lines 208-227)
 - read: `tests/system/conftest.py` (fixture ignore list to keep in sync)
 - read: `scripts/docker/ha-demo.yml` (compose file path)
 
@@ -46,7 +46,7 @@ Expose ports as properties: `ha_port`, `hassette_port`, `vite_port`.
 
 ## Focus
 
-- The current fixture ignore list (hassette_demo.py lines 210-225): `.HA_VERSION`, `home-assistant.log*`, `known_devices.yaml`, `blueprints`, `core.area_registry`, `core.device_registry`, `core.entity_registry`, `core.restore_state`, `homeassistant.exposed_entities`, `http`, `http.auth`, `person`, `repairs.issue_registry`, `trace.saved_traces`. Cross-reference `tests/system/conftest.py` to confirm the lists match.
+- The current fixture ignore list (hassette_demo.py lines 210-227): `.HA_VERSION`, `home-assistant.log*`, `known_devices.yaml`, `blueprints`, `core.area_registry`, `core.device_registry`, `core.entity_registry`, `core.restore_state`, `homeassistant.exposed_entities`, `http`, `http.auth`, `person`, `repairs.issue_registry`, `trace.saved_traces`. Cross-reference `tests/system/conftest.py` to confirm the lists match.
 - The compose project name must be `hassette-demo` (fixed). Pass `-p hassette-demo` on every compose command.
 - `--remove-orphans` on compose down handles stale containers from prior runs.
 - `__exit__` must suppress exceptions during teardown (use `contextlib.suppress`) — don't let cleanup failures mask the original error.
@@ -56,4 +56,3 @@ Expose ports as properties: `ha_port`, `hassette_port`, `vite_port`.
 
 - [ ] FR#2: After `DemoStack.__exit__`, `docker ps --filter "label=com.docker.compose.project=hassette-demo"` returns no containers
 - [ ] FR#5: HA fixture config is copied to a fresh tmpdir on each start (verify tmpdir path exists during `__enter__`, is cleaned up after `__exit__`)
-- [ ] FR#6: `.demo-data/` directory exists on the host after a demo run and contains `hassette.db`

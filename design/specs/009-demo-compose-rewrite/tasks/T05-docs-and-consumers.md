@@ -18,7 +18,7 @@ Update all documentation and consumer scripts that reference the demo stack's ol
 - modify: `scripts/README.md`
 - modify: `.mise/tasks/demo-verify`
 - modify: `tools/frontend/ui_qa_capture.py` (docstring only)
-- read: `design/specs/048-visual-qa-environment/design.md` (check for demo protocol references — update if found)
+- modify: `design/specs/048-visual-qa-environment/design.md` (contains `DEMO_*=` protocol references at lines 166-169, 180 — update to fixed ports)
 - read: `design/specs/009-demo-compose-rewrite/design.md` (Documentation Updates section)
 
 ## Prompt
@@ -30,8 +30,8 @@ Update all files that reference the demo stack's old interface.
 - Remove references to the `DEMO_*=` protocol and dynamic ports
 - Document fixed default ports (18123, 18126, 15173) and env-var overrides
 - Note Docker Compose requirement
-- Remove the "Gotchas: Stale app code" note about `DEMO_VITE_HOST`
-- Keep the `.demo-data/` stale telemetry gotcha
+- Remove any mention of `DEMO_VITE_HOST` if present (it may not be in CLAUDE.md — verify before editing)
+- Keep all existing gotchas (stale app code, stale telemetry) — they are unrelated to this change
 
 **.claude/skills/ui-qa/references/harness.md** — Full rewrite:
 - Remove the "Starting" section's stdout protocol parsing instructions
