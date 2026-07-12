@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create DemoStack context manager in scripts/demo_stack.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#5"]
 ---
