@@ -18,6 +18,31 @@ if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
 
 
+LOGGER = getLogger(__name__)
+LOG_LEVELS: dict[str, int] = {
+    "DEBUG": DEBUG,
+    "INFO": INFO,
+    "WARNING": WARNING,
+    "ERROR": ERROR,
+    "CRITICAL": CRITICAL,
+}
+VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
+DEFAULT_LOG_LEVEL = "INFO"
+VALID_SOURCE_TIERS: frozenset[str] = frozenset({"app", "framework"})
+SOURCE_TIER_PARAM = Query(
+    default="app",
+    description="Filter by source tier. 'app' excludes framework internals. "
+    "'framework' returns only internal actors. 'all' returns everything.",
+)
+INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
+    default=0,
+    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
+)
+APP_KEY_PARAM = Path(  # pyright: ignore[reportCallInDefaultInitializer]
+    description="Use `__hassette__` to query framework-internal actor telemetry.",
+)
+
+
 def get_hassette(request: Request) -> "Hassette":
     return request.app.state.hassette
 
@@ -45,8 +70,6 @@ TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
 
-LOGGER = getLogger(__name__)
-
 
 @contextmanager
 def db_degrades_to(response: Response) -> Iterator[None]:
@@ -62,33 +85,3 @@ def db_degrades_to(response: Response) -> Iterator[None]:
     except TelemetryUnavailableError:
         LOGGER.warning("DB query failed; degrading to 503", exc_info=True)
         response.status_code = 503
-
-
-LOG_LEVELS: dict[str, int] = {
-    "DEBUG": DEBUG,
-    "INFO": INFO,
-    "WARNING": WARNING,
-    "ERROR": ERROR,
-    "CRITICAL": CRITICAL,
-}
-
-VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
-
-DEFAULT_LOG_LEVEL = "INFO"
-
-VALID_SOURCE_TIERS: frozenset[str] = frozenset({"app", "framework"})
-
-SOURCE_TIER_PARAM = Query(
-    default="app",
-    description="Filter by source tier. 'app' excludes framework internals. "
-    "'framework' returns only internal actors. 'all' returns everything.",
-)
-
-INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
-    default=0,
-    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-)
-
-APP_KEY_PARAM = Path(  # pyright: ignore[reportCallInDefaultInitializer]
-    description="Use `__hassette__` to query framework-internal actor telemetry.",
-)

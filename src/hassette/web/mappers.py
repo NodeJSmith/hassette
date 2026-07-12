@@ -36,6 +36,11 @@ from hassette.web.models import (
 )
 from hassette.web.telemetry_helpers import format_handler_summary
 
+TOPIC_KIND_MAP: dict[str, ListenerKind] = {
+    Topic.HASS_EVENT_STATE_CHANGED: "state change",
+    Topic.HASS_EVENT_CALL_SERVICE: "service call",
+}
+
 
 def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
     """Convert a single ``AppInstanceInfo`` to ``AppInstanceResponse``.
@@ -146,12 +151,6 @@ def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
         app_count=status.app_count,
         version=status.version,
     )
-
-
-TOPIC_KIND_MAP: dict[str, ListenerKind] = {
-    Topic.HASS_EVENT_STATE_CHANGED: "state change",
-    Topic.HASS_EVENT_CALL_SERVICE: "service call",
-}
 
 
 def listener_kind_from_topic(topic: str) -> ListenerKind:

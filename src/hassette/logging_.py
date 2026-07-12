@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
+_RECORD_FIELDS = ("source_tier", "app_key", "execution_id", "instance_name", "instance_index")
+
+
 @dataclass
 class LogEntry:
     """A single captured log record."""
@@ -300,9 +303,6 @@ def add_execution_id(
     """
     event_dict["execution_id"] = CURRENT_EXECUTION_ID.get(None)
     return event_dict
-
-
-_RECORD_FIELDS = ("source_tier", "app_key", "execution_id", "instance_name", "instance_index")
 
 
 def _extract_record_fields(

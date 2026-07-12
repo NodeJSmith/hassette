@@ -1,5 +1,9 @@
 from typing_extensions import Sentinel
 
+SECONDS_PER_DAY = 86400
+SECONDS_PER_HOUR = 3600
+SECONDS_PER_MINUTE = 60
+
 
 class FalseySentinel(Sentinel):
     """A Sentinel subclass that is Falsey in boolean contexts."""
@@ -16,7 +20,3 @@ NOT_PROVIDED = FalseySentinel("NOT_PROVIDED")
 
 ANY_VALUE = FalseySentinel("ANY_VALUE")
 """Sentinel value to indicate any value is acceptable (used in predicates for presence checks)."""
-
-SECONDS_PER_DAY = 86400
-SECONDS_PER_HOUR = 3600
-SECONDS_PER_MINUTE = 60

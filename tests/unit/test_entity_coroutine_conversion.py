@@ -29,6 +29,10 @@ from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState
 from tests.unit.conftest import make_api, make_light_entity
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
+_MANIFEST = _REPO_ROOT / ".generated-manifest"
+
 
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
@@ -56,10 +60,6 @@ def make_humidifier_entity(api: "Api") -> tuple[HumidifierEntity, "Token[Hassett
 
 
 # Regen check — generated files use def -> Coroutine[...], not async def
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
-_MANIFEST = _REPO_ROOT / ".generated-manifest"
 
 
 def _manifest_entity_files() -> list[str]:

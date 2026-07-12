@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
+TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
+
+
 def get_app(registry: AppRegistry, key: str, index: int = 0) -> "App[AppConfig]":
     app = registry.get(key, index)
     assert app is not None, f"expected app {key!r}[{index}] to be registered"
@@ -28,9 +31,6 @@ def get_failed_by_key(registry: AppRegistry, app_key: str) -> list[AppInstanceIn
     """Get failed app instances for a specific app_key."""
     snapshot = registry.get_snapshot()
     return [info for info in snapshot.failed if info.app_key == app_key]
-
-
-TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
 def clear_class_cache():

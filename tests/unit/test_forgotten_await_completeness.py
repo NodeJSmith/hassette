@@ -208,6 +208,25 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
 # Detection helper (same OR-semantics as the parity tests)
 
 
+# add_listener is handled separately (requires a Listener object).
+# sorted() pins the parametrize order: CANONICAL_PROTECTED[Bus] is a set, and unsorted set
+# iteration order varies with PYTHONHASHSEED across processes. Without the sort, xdist workers
+# collect these cases in different orders and abort with "Different tests were collected between
+# gw0 and gwN" under `-n` (the suite only survived because pytest-randomly syncs the seed).
+_BUS_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener")
+# add_job is handled separately (requires a ScheduledJob object).
+# sorted() for the same cross-process determinism reason as _BUS_METHODS_PARAMETRIZED above.
+_SCHED_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job")
+_API_METHOD_CALLS: dict[str, object] = {
+    "call_service": lambda api: api.call_service("light", "turn_on"),
+    "fire_event": lambda api: api.fire_event("custom_event"),
+    "set_state": lambda api: api.set_state("light.test", "on"),
+    "turn_on": lambda api: api.turn_on("light.kitchen"),
+    "turn_off": lambda api: api.turn_off("light.kitchen"),
+    "toggle_service": lambda api: api.toggle_service("switch.fan"),
+}
+
+
 def _is_detected(cls: type, name: str) -> bool:
     """Return True if ``name`` on ``cls`` satisfies the completeness detection criterion.
 
@@ -425,13 +444,6 @@ def _bus_call(method_name: str):
     return _calls[method_name]
 
 
-# add_listener is handled separately (requires a Listener object).
-# sorted() pins the parametrize order: CANONICAL_PROTECTED[Bus] is a set, and unsorted set
-# iteration order varies with PYTHONHASHSEED across processes. Without the sort, xdist workers
-# collect these cases in different orders and abort with "Different tests were collected between
-# gw0 and gwN" under `-n` (the suite only survived because pytest-randomly syncs the seed).
-_BUS_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Bus] if m != "add_listener")
-
 # Scheduler fixtures
 
 
@@ -472,20 +484,7 @@ def _sched_call(method_name: str):
     return _calls[method_name]
 
 
-# add_job is handled separately (requires a ScheduledJob object).
-# sorted() for the same cross-process determinism reason as _BUS_METHODS_PARAMETRIZED above.
-_SCHED_METHODS_PARAMETRIZED = sorted(m for m in CANONICAL_PROTECTED[Scheduler] if m != "add_job")
-
 # Api fixtures
-
-_API_METHOD_CALLS: dict[str, object] = {
-    "call_service": lambda api: api.call_service("light", "turn_on"),
-    "fire_event": lambda api: api.fire_event("custom_event"),
-    "set_state": lambda api: api.set_state("light.test", "on"),
-    "turn_on": lambda api: api.turn_on("light.kitchen"),
-    "turn_off": lambda api: api.turn_off("light.kitchen"),
-    "toggle_service": lambda api: api.toggle_service("switch.fan"),
-}
 
 
 # Build parametrized cases

@@ -32,8 +32,8 @@ def _run_sync_facade(args: argparse.Namespace) -> int:
     argv = ["--check"] if args.check else []
     try:
         sf_main(argv)
-    except SystemExit as e:
-        return e.code if isinstance(e.code, int) else 1
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
     return 0
 
 

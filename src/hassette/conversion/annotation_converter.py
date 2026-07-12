@@ -153,7 +153,7 @@ def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
         return tuple(converter.convert(v, elem_tp) for v in value)
 
     if len(args) != len(value):
-        if len(args) == 1 and len(set(type(v) for v in value)) == 1:
+        if len(args) == 1 and len({type(v) for v in value}) == 1:
             # Special case: single-type tuple passed as tuple[T] instead of tuple[T, ...]
             elem_tp = args[0]
             return tuple(converter.convert(v, elem_tp) for v in value)

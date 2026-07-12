@@ -22,6 +22,17 @@ from hassette.utils.await_guard import RegistrationHandle
 from tests.unit.conftest import make_api
 from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_CONVERTED_METHODS = sorted(CANONICAL_PROTECTED[Api])
+_API_METHODS = [
+    pytest.param(lambda a: a.call_service("light", "turn_on"), id="call_service"),
+    pytest.param(lambda a: a.fire_event("custom_event"), id="fire_event"),
+    pytest.param(lambda a: a.set_state("light.test", "on"), id="set_state"),
+    pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
+    pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
+    pytest.param(lambda a: a.toggle_service("switch.fan"), id="toggle_service"),
+]
+
 
 @pytest.fixture(autouse=True)
 def drain(drain_forgotten_await_handles: None) -> None:
@@ -29,9 +40,6 @@ def drain(drain_forgotten_await_handles: None) -> None:
 
 
 # Converted public methods are plain def, not async def
-
-# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
-_CONVERTED_METHODS = sorted(CANONICAL_PROTECTED[Api])
 
 
 @pytest.mark.parametrize("method_name", _CONVERTED_METHODS)
@@ -101,16 +109,6 @@ async def test_await_set_state_returns_dict() -> None:
 
 
 # Returned handle is a RegistrationHandle before awaiting
-
-
-_API_METHODS = [
-    pytest.param(lambda a: a.call_service("light", "turn_on"), id="call_service"),
-    pytest.param(lambda a: a.fire_event("custom_event"), id="fire_event"),
-    pytest.param(lambda a: a.set_state("light.test", "on"), id="set_state"),
-    pytest.param(lambda a: a.turn_on("light.kitchen"), id="turn_on"),
-    pytest.param(lambda a: a.turn_off("light.kitchen"), id="turn_off"),
-    pytest.param(lambda a: a.toggle_service("switch.fan"), id="toggle_service"),
-]
 
 
 @pytest.mark.parametrize("call", _API_METHODS)

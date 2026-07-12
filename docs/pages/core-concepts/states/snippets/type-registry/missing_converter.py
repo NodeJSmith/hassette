@@ -10,5 +10,5 @@ class CustomType:
 
 try:
     result = TYPE_REGISTRY.convert("value", CustomType)
-except UnableToConvertValueError as e:
-    print(e)  # "Unable to convert 'value' to <class 'CustomType'>"
+except UnableToConvertValueError as exc:
+    print(exc)  # "Unable to convert 'value' to <class 'CustomType'>"

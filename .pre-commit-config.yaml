@@ -171,6 +171,27 @@ repos:
         files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
         stages: [pre-commit, pre-push]
 
+      - id: check-exception-names
+        name: Enforce 'exc' naming in except handlers
+        language: system
+        entry: ./tools/check_exception_names.py
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
+        stages: [pre-commit, pre-push]
+
+      - id: check-type-checking-position
+        name: Ensure TYPE_CHECKING blocks sit after all regular imports
+        language: system
+        entry: ./tools/check_type_checking_position.py
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
+        stages: [pre-commit, pre-push]
+
+      - id: check-constants-position
+        name: Flag UPPER_CASE constants defined after first class/function
+        language: system
+        entry: ./tools/check_constants_position.py
+        files: ^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$
+        stages: [pre-commit, pre-push]
+
       - id: check-spec-tokens
         name: Ban leaked spec-artifact tokens (AC#/FR#/T##/WP#)
         language: system
@@ -236,6 +257,15 @@ repos:
         name: Check for unused global CSS selectors
         language: system
         entry: ./tools/frontend/check_dead_global_css.py
+        pass_filenames: false
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        stages: [pre-commit, pre-push]
+
+      - id: check-dead-tokens
+        name: Check for unused CSS tokens
+        language: system
+        entry: ./tools/frontend/check_dead_tokens.py
         pass_filenames: false
         types_or: [ts, tsx, css]
         files: ^frontend/src/

@@ -64,8 +64,8 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     await app.initialize()
 
     # Verify bus and scheduler are children that will receive propagated shutdown
-    assert app.bus in [child for child in app.children]
-    assert app.scheduler in [child for child in app.children]
+    assert app.bus in list(app.children)
+    assert app.scheduler in list(app.children)
 
     # Both should be ready after init
     assert app.bus.is_ready()

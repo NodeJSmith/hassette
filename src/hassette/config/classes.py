@@ -80,7 +80,7 @@ class ExcludeExtrasMixin:
         if exclude is None:
             return set(extra_keys)
         if isinstance(exclude, dict):
-            return {**exclude, **{k: True for k in extra_keys}}
+            return {**exclude, **dict.fromkeys(extra_keys, True)}
         return set(exclude) | extra_keys
 
     def model_dump(self, *, exclude: Any | None = None, **kwargs: Any) -> dict[str, Any]:

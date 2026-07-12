@@ -51,6 +51,42 @@ if typing.TYPE_CHECKING:
 # any future re-tuning is a single-site edit.
 
 
+DEPENDENCIES: dict[str, set[str]] = {
+    "sync_executor": set(),
+    "bus": {"sync_executor"},
+    "scheduler": {"sync_executor"},
+    "file_watcher": set(),
+    "api_mock": set(),
+    "app_handler": {"bus", "scheduler", "state_proxy", "sync_executor"},
+    "state_proxy": {"bus", "scheduler"},
+    "state_registry": set(),
+    # service_watcher removed: ServiceWatcher is a real framework service but has no
+    # harness starter — the harness does not instantiate it.  Removing it eliminates
+    # the ghost entry that caused STARTUP_ORDER to include a component with no starter.
+}
+# Maps harness component names to the corresponding real framework service class.
+# Used by the harness consistency test to verify DEPENDENCIES stays in sync with
+# real service depends_on declarations.
+#
+# Omitted entries:
+#   "api_mock"       — harness-specific: wraps ApiResource with URL/header patches and
+#                      a local HTTP mock server; there is no single real class equivalent.
+#   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
+#                      checks would be vacuous.  Omitting avoids false-positive drift.
+#   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
+#                      registry with no depends_on concept.
+#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
+#                      this map without a matching _starters entry created a ghost entry
+#                      that made the structural test impossible to satisfy.
+COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
+    "sync_executor": SyncExecutorService,
+    "bus": BusService,
+    "scheduler": SchedulerService,
+    "app_handler": AppHandler,
+    "state_proxy": StateProxy,
+}
+
+
 class Timeouts:
     """Centralised timeout constants for the test harness.
 
@@ -236,7 +272,7 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
         return []
 
     white, gray, black = 0, 1, 2
-    color: dict[str, int] = {node: white for node in graph}
+    color: dict[str, int] = dict.fromkeys(graph, white)
     result: list[str] = []
 
     for start in graph:
@@ -274,44 +310,8 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     return result
 
 
-DEPENDENCIES: dict[str, set[str]] = {
-    "sync_executor": set(),
-    "bus": {"sync_executor"},
-    "scheduler": {"sync_executor"},
-    "file_watcher": set(),
-    "api_mock": set(),
-    "app_handler": {"bus", "scheduler", "state_proxy", "sync_executor"},
-    "state_proxy": {"bus", "scheduler"},
-    "state_registry": set(),
-    # service_watcher removed: ServiceWatcher is a real framework service but has no
-    # harness starter — the harness does not instantiate it.  Removing it eliminates
-    # the ghost entry that caused STARTUP_ORDER to include a component with no starter.
-}
-
 # Startup order derived from the dependency graph — no manual maintenance required.
 STARTUP_ORDER: list[str] = sort_harness_graph(DEPENDENCIES)
-
-# Maps harness component names to the corresponding real framework service class.
-# Used by the harness consistency test to verify DEPENDENCIES stays in sync with
-# real service depends_on declarations.
-#
-# Omitted entries:
-#   "api_mock"       — harness-specific: wraps ApiResource with URL/header patches and
-#                      a local HTTP mock server; there is no single real class equivalent.
-#   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
-#                      checks would be vacuous.  Omitting avoids false-positive drift.
-#   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
-#                      registry with no depends_on concept.
-#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
-#                      this map without a matching _starters entry created a ghost entry
-#                      that made the structural test impossible to satisfy.
-COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
-    "sync_executor": SyncExecutorService,
-    "bus": BusService,
-    "scheduler": SchedulerService,
-    "app_handler": AppHandler,
-    "state_proxy": StateProxy,
-}
 
 
 class HassetteHarness:

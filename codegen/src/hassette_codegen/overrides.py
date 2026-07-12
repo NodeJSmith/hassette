@@ -7,6 +7,8 @@ from pathlib import Path
 
 from hassette_codegen.extractors.properties import ExtractedProperty
 
+_OVERRIDES_DIR = Path(__file__).resolve().parent / "overrides"
+
 
 @dataclass
 class PropertyOverride:
@@ -26,9 +28,6 @@ class DomainOverride:
     extra_imports: dict[str, list[str]] = field(default_factory=dict)
     param_type_overrides: dict[str, str] = field(default_factory=dict)
     state_base_class: str | None = None
-
-
-_OVERRIDES_DIR = Path(__file__).resolve().parent / "overrides"
 
 
 def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverride]:

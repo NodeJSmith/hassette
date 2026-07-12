@@ -153,5 +153,5 @@ Color = Literal[
 ]
 """Literal type for supported color names."""
 
-COLORS = list(sorted(set(get_args(Color))))
+COLORS = sorted(set(get_args(Color)))
 """List of supported color names."""

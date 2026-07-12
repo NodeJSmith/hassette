@@ -56,7 +56,7 @@ select = [
     "W",      # pycodestyle (warning)
     "F",      # pyflakes
     "UP",     # pyupgrade
-    "C419",   # pylint - convention - unnecessary-comprehension-in-call
+    "C4",     # flake8-comprehensions
     "RET",    # flake8-return
     "SIM",    # flake8-simplify
     "ARG",    # flake8-unused-arguments

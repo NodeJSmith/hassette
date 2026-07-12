@@ -53,6 +53,23 @@ _owner_id: int | None = None
 _in_wrapper = threading.local()
 
 
+_PRIMITIVE_TABLE: list[tuple[str, Any, str]] = [
+    # (primitive_label, target_object, attr_name)
+    ("builtins.open", builtins, "open"),
+    ("time.sleep", time, "sleep"),
+    ("os.listdir", os, "listdir"),
+    ("os.scandir", os, "scandir"),
+    ("os.walk", os, "walk"),
+    ("glob.glob", glob_module, "glob"),
+]
+_SOCKET_METHOD_TABLE: list[tuple[str, str]] = [
+    # (primitive_label, method_name_on_socket.socket)
+    ("socket.socket.connect", "connect"),
+    ("socket.socket.recv", "recv"),
+    ("socket.socket.send", "send"),
+]
+
+
 def resolve_blocking_io_behavior(owner: object) -> BlockingIOBehavior:
     """Resolve the effective ``BlockingIOBehavior`` for the given app owner.
 
@@ -347,23 +364,6 @@ def _emit(event: MonkeypatchEvent) -> None:
 #   - method: (class_obj, attr_name, original_callable)  — wrapper needs self
 #
 # Seeded from HA's block_async_io.py.
-
-_PRIMITIVE_TABLE: list[tuple[str, Any, str]] = [
-    # (primitive_label, target_object, attr_name)
-    ("builtins.open", builtins, "open"),
-    ("time.sleep", time, "sleep"),
-    ("os.listdir", os, "listdir"),
-    ("os.scandir", os, "scandir"),
-    ("os.walk", os, "walk"),
-    ("glob.glob", glob_module, "glob"),
-]
-
-_SOCKET_METHOD_TABLE: list[tuple[str, str]] = [
-    # (primitive_label, method_name_on_socket.socket)
-    ("socket.socket.connect", "connect"),
-    ("socket.socket.recv", "recv"),
-    ("socket.socket.send", "send"),
-]
 
 
 # Install / uninstall (idempotent, reversible, leak-proof)

@@ -9,13 +9,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
-from hassette.types import ResourceRole, ResourceStatus, Topic
-
-if TYPE_CHECKING:
-    from hassette.app.app import App
-    from hassette.core.bus_service import BusService
-    from hassette.test_utils.harness import HassetteHarness
-
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
 from hassette.test_utils.helpers import (
     create_call_service_event,
@@ -23,6 +16,12 @@ from hassette.test_utils.helpers import (
     create_service_registered_event,
     create_state_change_event,
 )
+from hassette.types import ResourceRole, ResourceStatus, Topic
+
+if TYPE_CHECKING:
+    from hassette.app.app import App
+    from hassette.core.bus_service import BusService
+    from hassette.test_utils.harness import HassetteHarness
 
 LOGGER = getLogger(__name__)
 DEFAULT_SIMULATE_TIMEOUT = 2.0

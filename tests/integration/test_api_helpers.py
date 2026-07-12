@@ -45,6 +45,16 @@ from hassette.models.helpers import (
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import Context
 
+IB_RECORD = {"id": "vacation_mode", "name": "Vacation Mode", "initial": False}
+IN_RECORD = {"id": "brightness", "name": "Brightness", "min": 0.0, "max": 100.0}
+IT_RECORD = {"id": "wifi_password", "name": "WiFi Password"}
+IS_RECORD = {"id": "theme", "name": "Theme", "options": ["light", "dark"]}
+IDT_RECORD = {"id": "alarm_time", "name": "Alarm Time", "has_date": False, "has_time": True}
+IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
+CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
+TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
+SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
+
 
 @pytest.fixture
 async def api(hassette_with_mock_api):
@@ -122,9 +132,6 @@ async def test_ws_helper_call_chains_error_with_context():
     assert e.__cause__ is original
 
 
-IB_RECORD = {"id": "vacation_mode", "name": "Vacation Mode", "initial": False}
-
-
 async def test_list_input_booleans(api: Api):
     """list_input_booleans sends correct command and parses response."""
     api.ws_send_and_wait = AsyncMock(return_value=[IB_RECORD])
@@ -183,9 +190,6 @@ async def test_delete_input_boolean(api: Api):
     assert result is None
 
 
-IN_RECORD = {"id": "brightness", "name": "Brightness", "min": 0.0, "max": 100.0}
-
-
 async def test_list_input_numbers(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IN_RECORD])
 
@@ -232,9 +236,6 @@ async def test_delete_input_number(api: Api):
     assert result is None
 
 
-IT_RECORD = {"id": "wifi_password", "name": "WiFi Password"}
-
-
 async def test_list_input_texts(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IT_RECORD])
 
@@ -278,9 +279,6 @@ async def test_delete_input_text(api: Api):
     assert call_kwargs["type"] == "input_text/delete"
     assert call_kwargs["input_text_id"] == "wifi_password"
     assert result is None
-
-
-IS_RECORD = {"id": "theme", "name": "Theme", "options": ["light", "dark"]}
 
 
 async def test_list_input_selects(api: Api):
@@ -330,9 +328,6 @@ async def test_delete_input_select(api: Api):
     assert result is None
 
 
-IDT_RECORD = {"id": "alarm_time", "name": "Alarm Time", "has_date": False, "has_time": True}
-
-
 async def test_list_input_datetimes(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IDT_RECORD])
 
@@ -379,9 +374,6 @@ async def test_delete_input_datetime(api: Api):
     assert result is None
 
 
-IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
-
-
 async def test_list_input_buttons(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[IBT_RECORD])
 
@@ -426,9 +418,6 @@ async def test_delete_input_button(api: Api):
     assert call_kwargs["type"] == "input_button/delete"
     assert call_kwargs["input_button_id"] == "restart_btn"
     assert result is None
-
-
-CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
 
 
 async def test_list_counters(api: Api):
@@ -480,9 +469,6 @@ async def test_delete_counter(api: Api):
     assert result is None
 
 
-TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
-
-
 async def test_list_timers(api: Api):
     api.ws_send_and_wait = AsyncMock(return_value=[TMR_RECORD])
 
@@ -529,9 +515,6 @@ async def test_delete_timer(api: Api):
     assert call_kwargs["type"] == "timer/delete"
     assert call_kwargs["timer_id"] == "cooldown"
     assert result is None
-
-
-SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
 
 
 async def test_increment_counter_calls_service(api: Api):

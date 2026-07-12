@@ -20,18 +20,6 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-@pytest.fixture
-async def hassette_instance(test_config: HassetteConfig):
-    """Provide a fresh Hassette instance and restore context afterwards."""
-    test_config.reload()
-    instance = Hassette(test_config)
-    instance.wire_services()
-    try:
-        yield instance
-    finally:
-        await cleanup_hassette_streams(instance)
-
-
 _HARNESS_FIXTURES = frozenset(
     {
         "hassette_with_sync_executor",
@@ -45,6 +33,18 @@ _HARNESS_FIXTURES = frozenset(
         # hassette_with_app_handler_custom_config excluded: function-scoped, recreated fresh per test.
     }
 )
+
+
+@pytest.fixture
+async def hassette_instance(test_config: HassetteConfig):
+    """Provide a fresh Hassette instance and restore context afterwards."""
+    test_config.reload()
+    instance = Hassette(test_config)
+    instance.wire_services()
+    try:
+        yield instance
+    finally:
+        await cleanup_hassette_streams(instance)
 
 
 @pytest.fixture(autouse=True)

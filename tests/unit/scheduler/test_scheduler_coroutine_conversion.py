@@ -27,6 +27,9 @@ from tests.unit.test_forgotten_await_completeness import CANONICAL_PROTECTED
 
 from .conftest import make_scheduler
 
+# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
+_PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
+
 
 @pytest.fixture(autouse=True)
 def _drain(drain_forgotten_await_handles: None) -> None:
@@ -34,9 +37,6 @@ def _drain(drain_forgotten_await_handles: None) -> None:
 
 
 # Public scheduling methods must be plain def, not async def
-
-# Derived from the canonical single source of truth — see test_forgotten_await_completeness.py.
-_PUBLIC_SCHEDULING_METHODS = sorted(CANONICAL_PROTECTED[Scheduler])
 
 
 @pytest.mark.parametrize("method_name", _PUBLIC_SCHEDULING_METHODS)

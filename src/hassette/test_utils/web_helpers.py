@@ -52,7 +52,7 @@ _STATUS_KEYS = ("running", "failed", "stopped", "disabled", "blocked")
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
     """Count manifests by status."""
-    counts: dict[str, int] = {k: 0 for k in _STATUS_KEYS}
+    counts: dict[str, int] = dict.fromkeys(_STATUS_KEYS, 0)
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1

@@ -62,14 +62,6 @@ FIXED_HEADER_SYMBOLS: set[str] = {"Any", "typing", "TYPE_CHECKING", "RecordingAp
 """Symbols always provided by the fixed module header — excluded from dynamic import derivation."""
 
 
-def _find_class(module: ast.Module, name: str, source_label: str) -> ast.ClassDef:
-    """Find a class by name in a parsed module, raising SystemExit if not found."""
-    for node in module.body:
-        if isinstance(node, ast.ClassDef) and node.name == name:
-            return node
-    raise SystemExit(f"Could not find class `{name}` in {source_label}")
-
-
 # Template for the module header of the generated recording facade file.
 # {imports} is replaced with the dynamically-derived import block.
 # {type_checking_imports} is replaced with the TYPE_CHECKING import block.
@@ -102,6 +94,14 @@ STUB_MSG_GENERIC = (
 )
 
 '''
+
+
+def _find_class(module: ast.Module, name: str, source_label: str) -> ast.ClassDef:
+    """Find a class by name in a parsed module, raising SystemExit if not found."""
+    for node in module.body:
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            return node
+    raise SystemExit(f"Could not find class `{name}` in {source_label}")
 
 
 def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:

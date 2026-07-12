@@ -94,6 +94,9 @@ if typing.TYPE_CHECKING:
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
+_SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
+
+
 class Scheduler(Resource):
     """Scheduler resource for managing scheduled jobs."""
 
@@ -982,9 +985,6 @@ class Scheduler(Resource):
             kwargs=kwargs,
             where=where,
         )
-
-
-_SCHEDULER_MATCHERS = (TypeMatcher(ScheduledJob),)
 
 
 def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker:

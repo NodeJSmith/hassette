@@ -18,6 +18,13 @@ if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
+# The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
+# f-string SQL. Today every caller passes string literals, but an allowlist keeps that
+# interpolation injection-safe if a non-literal value is ever passed in.
+_RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
+_RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
+
+
 def _execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for an executions INSERT.
 
@@ -64,6 +71,7 @@ _EXECUTION_INSERT_COLUMNS = tuple(
         ExecutionRecord(kind="handler", session_id=None, execution_start_ts=0.0, duration_ms=0.0, status="success")
     )
 )
+
 _EXECUTION_INSERT_SQL = (
     f"INSERT INTO executions ({', '.join(_EXECUTION_INSERT_COLUMNS)}) "
     f"VALUES ({', '.join(f':{c}' for c in _EXECUTION_INSERT_COLUMNS)})"
@@ -155,13 +163,6 @@ async def _insert_row_with_fk_fallback(
                 retry_exc,
             )
             return True
-
-
-# The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
-# f-string SQL. Today every caller passes string literals, but an allowlist keeps that
-# interpolation injection-safe if a non-literal value is ever passed in.
-_RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
-_RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
 
 
 def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:

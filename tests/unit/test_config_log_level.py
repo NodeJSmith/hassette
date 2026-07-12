@@ -60,18 +60,6 @@ LOG_LEVEL_OVERRIDES = {
 }
 
 
-def stub_resource(cls: type[Resource]) -> Resource:
-    """Create a Resource instance by calling Resource.__init__ only (skips subclass constructors)."""
-    hassette = make_mock_hassette(
-        sealed=False,
-        logging=LOG_LEVEL_OVERRIDES,
-        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
-    )
-    obj = cls.__new__(cls)
-    Resource.__init__(obj, hassette, parent=hassette)
-    return obj
-
-
 OVERRIDE_CASES = [
     # Dedicated field overrides (Hassette-registered services)
     # Each tuple: (ResourceClass, nested_attr_on_config_logging)
@@ -102,6 +90,19 @@ OVERRIDE_CASES = [
     (Scheduler, "scheduler_service"),
     (ApiSyncFacade, "api"),
 ]
+ALL_OVERRIDE_CLASSES: list[type[Resource]] = [cls for cls, _ in OVERRIDE_CASES] + [App]
+
+
+def stub_resource(cls: type[Resource]) -> Resource:
+    """Create a Resource instance by calling Resource.__init__ only (skips subclass constructors)."""
+    hassette = make_mock_hassette(
+        sealed=False,
+        logging=LOG_LEVEL_OVERRIDES,
+        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
+    )
+    obj = cls.__new__(cls)
+    Resource.__init__(obj, hassette, parent=hassette)
+    return obj
 
 
 @pytest.mark.parametrize(
@@ -132,9 +133,6 @@ def test_api_resource_does_not_return_global_log_level() -> None:
     resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"
     assert resource.config_log_level != resource.hassette.config.logging.log_level
-
-
-ALL_OVERRIDE_CLASSES: list[type[Resource]] = [cls for cls, _ in OVERRIDE_CASES] + [App]
 
 
 @pytest.mark.parametrize("cls", ALL_OVERRIDE_CLASSES, ids=[c.__name__ for c in ALL_OVERRIDE_CLASSES])
