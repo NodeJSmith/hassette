@@ -216,7 +216,7 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
 
     class HungCleanupResource(Resource):
-        async def cleanup(self, timeout: int | None = None) -> None:
+        async def cleanup(self, timeout: float | None = None) -> None:
             await asyncio.Event().wait()  # hang forever
 
     resource = HungCleanupResource(hassette)
