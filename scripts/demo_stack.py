@@ -14,6 +14,7 @@ Example:
 
 import atexit
 import contextlib
+import ctypes
 import os
 import shutil
 import signal
@@ -93,6 +94,12 @@ class DemoStack:
         atexit.register(self._teardown)
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+
+        # uv run spawns Python as a child without forwarding signals.
+        # If the parent (uv) is killed, this ensures the Python process
+        # receives SIGTERM and runs teardown instead of orphaning.
+        with contextlib.suppress(Exception):
+            ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
 
         try:
             shutil.copytree(str(fixture_src), self._tmp_dir, dirs_exist_ok=True, ignore=ignore)

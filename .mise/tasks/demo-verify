@@ -15,8 +15,9 @@ EXPECTED_APPS=7
 
 cleanup() {
     if [[ -n "${DEMO_PID:-}" ]]; then
-        kill -TERM "$DEMO_PID" 2>/dev/null || true
-        timeout 15 tail --pid="$DEMO_PID" -f /dev/null 2>/dev/null || kill -9 "$DEMO_PID" 2>/dev/null || true
+        # Kill the process group (uv + python child), not just the uv PID
+        kill -TERM -- -"$DEMO_PID" 2>/dev/null || kill -TERM "$DEMO_PID" 2>/dev/null || true
+        timeout 15 tail --pid="$DEMO_PID" -f /dev/null 2>/dev/null || kill -9 -- -"$DEMO_PID" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT
