@@ -137,7 +137,9 @@ class TestSchedulerModeViaHarness:
 
     async def test_framework_tier_omitted_mode_resolves_to_parallel(self, hassette_with_scheduler) -> None:
         """Framework-tier schedule with mode=None resolves to ExecutionMode.PARALLEL."""
-        job = await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=3600))
+        job = await hassette_with_scheduler.scheduler.schedule(
+            noop, Every(seconds=3600), name="framework_tier_omitted_mode_resolves_to__schedule"
+        )
         assert job.mode is ExecutionMode.PARALLEL
         hassette_with_scheduler.scheduler.cancel_job(job)
 
@@ -168,7 +170,9 @@ class TestSchedulerModeViaHarness:
     async def test_invalid_string_raises_value_error(self, hassette_with_scheduler) -> None:
         """An invalid mode string raises ValueError naming all valid values."""
         with pytest.raises(ValueError, match="Invalid execution mode") as exc_info:
-            await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=60), mode="bogus")
+            await hassette_with_scheduler.scheduler.schedule(
+                noop, Every(seconds=60), mode="bogus", name="invalid_string_raises_value_error_schedule"
+            )
         msg = str(exc_info.value)
         for valid in ("'single'", "'restart'", "'queued'", "'parallel'"):
             assert valid in msg
@@ -177,7 +181,9 @@ class TestSchedulerModeViaHarness:
         """ValueError is raised before any job is registered."""
         count_before = len(hassette_with_scheduler.scheduler.list_jobs())
         with pytest.raises(ValueError, match="Invalid execution mode"):
-            await hassette_with_scheduler.scheduler.schedule(noop, Every(seconds=60), mode="not_a_mode")
+            await hassette_with_scheduler.scheduler.schedule(
+                noop, Every(seconds=60), mode="not_a_mode", name="invalid_string_raises_before_register_schedule"
+            )
         assert len(hassette_with_scheduler.scheduler.list_jobs()) == count_before
 
     async def test_guard_present_on_scheduled_job(self, hassette_with_scheduler) -> None:
@@ -195,26 +201,34 @@ class TestSchedulerModeViaHarness:
 class TestOneShotModeAcceptance:
     async def test_run_in_accepts_mode_no_error(self, hassette_with_scheduler) -> None:
         """run_in accepts mode= keyword argument without raising."""
-        job = await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode=ExecutionMode.QUEUED)
+        job = await hassette_with_scheduler.scheduler.run_in(
+            noop, delay=3600, mode=ExecutionMode.QUEUED, name="run_in_accepts_mode_no_error_run_in"
+        )
         assert job.mode is ExecutionMode.QUEUED
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_once_accepts_mode_no_error(self, hassette_with_scheduler) -> None:
         """run_once accepts mode= keyword argument without raising."""
-        job = await hassette_with_scheduler.scheduler.run_once(noop, at="23:59", mode=ExecutionMode.RESTART)
+        job = await hassette_with_scheduler.scheduler.run_once(
+            noop, at="23:59", mode=ExecutionMode.RESTART, name="run_once_accepts_mode_no_error_run_once"
+        )
         assert job.mode is ExecutionMode.RESTART
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_in_string_mode_coerced(self, hassette_with_scheduler) -> None:
         """run_in accepts a string mode and coerces it correctly."""
-        job = await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode="parallel")
+        job = await hassette_with_scheduler.scheduler.run_in(
+            noop, delay=3600, mode="parallel", name="run_in_string_mode_coerced_run_in"
+        )
         assert job.mode is ExecutionMode.PARALLEL
         hassette_with_scheduler.scheduler.cancel_job(job)
 
     async def test_run_in_invalid_string_raises(self, hassette_with_scheduler) -> None:
         """run_in with an invalid mode string raises ValueError (delegates to schedule())."""
         with pytest.raises(ValueError, match="Invalid execution mode"):
-            await hassette_with_scheduler.scheduler.run_in(noop, delay=3600, mode="bad_mode")
+            await hassette_with_scheduler.scheduler.run_in(
+                noop, delay=3600, mode="bad_mode", name="run_in_invalid_string_raises_run_in"
+            )
 
     async def test_run_in_mode_stored_on_job(self, hassette_with_scheduler) -> None:
         """A run_in job with mode= stores the resolved mode and a guard on the job object."""

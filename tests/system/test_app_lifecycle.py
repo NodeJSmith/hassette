@@ -104,7 +104,7 @@ from hassette import App
 class SchedulerCheckApp(App):
     async def on_initialize(self) -> None:
         self.fired: list[int] = []
-        await self.scheduler.run_in(self._callback, 1)
+        await self.scheduler.run_in(self._callback, 1, name="scheduler_check_callback")
 
     async def _callback(self) -> None:
         self.fired.append(1)

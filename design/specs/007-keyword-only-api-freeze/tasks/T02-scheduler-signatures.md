@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Lock scheduler registration signatures to keyword-only with required name"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#4", "AC#1", "AC#2", "AC#4"]
 ---

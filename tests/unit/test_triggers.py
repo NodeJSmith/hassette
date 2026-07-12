@@ -23,13 +23,15 @@ def zdt(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second:
 async def test_run_cron_rejects_invalid(hassette_with_scheduler: "HassetteHarness") -> None:
     """run_cron raises ValueError when the cron expression is invalid."""
     with pytest.raises(ValueError, match="Invalid cron expression"):
-        await hassette_with_scheduler.scheduler.run_cron(lambda: None, "not a cron expression at all")
+        await hassette_with_scheduler.scheduler.run_cron(
+            lambda: None, "not a cron expression at all", name="invalid_cron_job"
+        )
 
 
 @pytest.mark.integration
 async def test_run_cron_accepts_valid(hassette_with_scheduler: "HassetteHarness") -> None:
     """Valid cron expressions schedule jobs successfully."""
-    scheduled_job = await hassette_with_scheduler.scheduler.run_cron(lambda: None, "* * * * *")
+    scheduled_job = await hassette_with_scheduler.scheduler.run_cron(lambda: None, "* * * * *", name="valid_cron_job")
     await asyncio.sleep(0)
     scheduled_job.cancel()
 

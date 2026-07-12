@@ -2,8 +2,10 @@
 
 import pytest
 
-from hassette.scheduler.triggers import Every
+from hassette.exceptions import SchedulerNameRequiredError
+from hassette.scheduler.triggers import After, Every
 from hassette.test_utils.factories import make_scheduled_job, make_scheduler
+from hassette.test_utils.helpers import noop
 
 
 class TestJobNameUniqueness:
@@ -174,3 +176,96 @@ class TestIfExistsReplace:
 
         assert "old_group" not in scheduler._jobs_by_group or scheduler._jobs_by_group["old_group"] == set()
         assert new_job in scheduler._jobs_by_group["new_group"]
+
+
+class TestSchedulerNameRequired:
+    """Empty ``name=""`` raises SchedulerNameRequiredError on every registration entry point."""
+
+    async def test_schedule_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.schedule(noop, Every(hours=1), name="")
+
+    async def test_run_in_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_in(noop, 5, name="")
+
+    async def test_run_once_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_once(noop, at="23:59", name="")
+
+    async def test_run_every_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_every(noop, minutes=5, name="")
+
+    async def test_run_minutely_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_minutely(noop, minutes=5, name="")
+
+    async def test_run_hourly_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_hourly(noop, hours=1, name="")
+
+    async def test_run_daily_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_daily(noop, at="07:00", name="")
+
+    async def test_run_cron_empty_name_raises(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.run_cron(noop, "0 9 * * 1-5", name="")
+
+    async def test_add_job_empty_name_raises(self) -> None:
+        """add_job() bypasses schedule() entirely, so it needs its own guard."""
+        scheduler = make_scheduler()
+        job = make_scheduled_job(name="")
+        with pytest.raises(SchedulerNameRequiredError):
+            await scheduler.add_job(job)
+
+
+class TestSchedulerKeywordOnlyParams:
+    """name, group, jitter, timeout, and timeout_disabled are keyword-only on every method."""
+
+    async def test_schedule_positional_name_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.schedule(  # pyright: ignore[reportCallIssue]
+                noop, After(seconds=5), "positional_name"
+            )
+
+    async def test_run_in_positional_name_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.run_in(noop, 5, "positional_name")  # pyright: ignore[reportCallIssue]
+
+    async def test_run_in_positional_group_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.run_in(noop, 5, "n", "grp")  # pyright: ignore[reportCallIssue]
+
+    async def test_run_every_positional_jitter_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.run_every(  # pyright: ignore[reportCallIssue]
+                noop, 1, 0, 0, "n", None, 1.0
+            )
+
+    async def test_run_daily_positional_timeout_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.run_daily(  # pyright: ignore[reportCallIssue]
+                noop, "07:00", "n", None, None, 5.0
+            )
+
+    async def test_run_hourly_positional_timeout_disabled_raises_typeerror(self) -> None:
+        scheduler = make_scheduler()
+        with pytest.raises(TypeError):
+            await scheduler.run_hourly(  # pyright: ignore[reportCallIssue]
+                noop, 1, "n", None, None, None, True
+            )

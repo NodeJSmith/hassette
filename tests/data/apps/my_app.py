@@ -28,9 +28,13 @@ class MyApp(App[MyAppUserConfig]):
             handler=self.handle_color_change,
         )
         await self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
-        await self.scheduler.run_in(self.api.get_states, 1)
+        await self.scheduler.run_in(self.api.get_states, 1, name="get_states_once")
         await self.scheduler.run_every(
-            self.scheduled_job_example, seconds=10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
+            self.scheduled_job_example,
+            seconds=10,
+            name="scheduled_job_example",
+            args=("value1", "value2"),
+            kwargs={"kwarg1": "kwarg_value"},
         )
 
         self.office_light = self.states.light.get("light.office")

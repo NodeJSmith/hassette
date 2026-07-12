@@ -59,14 +59,16 @@ class TestPerJobOnError:
         """on_error= kwarg on schedule() is stored on the ScheduledJob."""
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
-            job = await scheduler.schedule(noop, Every(hours=1), on_error=handler_a)
+            job = await scheduler.schedule(
+                noop, Every(hours=1), on_error=handler_a, name="per_job_on_error_stored_schedule"
+            )
             assert job.error_handler is handler_a
 
     async def test_job_error_handler_default_none(self) -> None:
         """error_handler defaults to None on ScheduledJob when not provided."""
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
-            job = await scheduler.schedule(noop, Every(hours=1))
+            job = await scheduler.schedule(noop, Every(hours=1), name="job_error_handler_default_none_schedule")
             assert job.error_handler is None
 
     async def test_convenience_methods_pass_on_error(self) -> None:
@@ -74,23 +76,37 @@ class TestPerJobOnError:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
 
-            job_run_in = await scheduler.run_in(noop, delay=60, on_error=handler_a)
+            job_run_in = await scheduler.run_in(
+                noop, delay=60, on_error=handler_a, name="convenience_methods_pass_on_error_run_in"
+            )
             assert job_run_in.error_handler is handler_a
 
-            job_run_every = await scheduler.run_every(noop, seconds=30, on_error=handler_a)
+            job_run_every = await scheduler.run_every(
+                noop, seconds=30, on_error=handler_a, name="convenience_methods_pass_on_error_run_every"
+            )
             assert job_run_every.error_handler is handler_a
 
-            job_run_hourly = await scheduler.run_hourly(noop, on_error=handler_a)
+            job_run_hourly = await scheduler.run_hourly(
+                noop, on_error=handler_a, name="convenience_methods_pass_on_error_run_hourly"
+            )
             assert job_run_hourly.error_handler is handler_a
 
-            job_run_minutely = await scheduler.run_minutely(noop, on_error=handler_a)
+            job_run_minutely = await scheduler.run_minutely(
+                noop, on_error=handler_a, name="convenience_methods_pass_on_error_run_minutely"
+            )
             assert job_run_minutely.error_handler is handler_a
 
-            job_run_daily = await scheduler.run_daily(noop, at="00:00", on_error=handler_a)
+            job_run_daily = await scheduler.run_daily(
+                noop, at="00:00", on_error=handler_a, name="convenience_methods_pass_on_error_run_daily"
+            )
             assert job_run_daily.error_handler is handler_a
 
-            job_run_cron = await scheduler.run_cron(noop, "0 * * * *", on_error=handler_a)
+            job_run_cron = await scheduler.run_cron(
+                noop, "0 * * * *", on_error=handler_a, name="convenience_methods_pass_on_error_run_cron"
+            )
             assert job_run_cron.error_handler is handler_a
 
-            job_run_once = await scheduler.run_once(noop, at="23:59", on_error=handler_a)
+            job_run_once = await scheduler.run_once(
+                noop, at="23:59", on_error=handler_a, name="convenience_methods_pass_on_error_run_once"
+            )
             assert job_run_once.error_handler is handler_a

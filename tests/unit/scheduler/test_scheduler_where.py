@@ -267,7 +267,9 @@ class TestScheduleAcceptsWhere:
             def pred() -> bool:
                 return True
 
-            job = await scheduler.schedule(noop, Every(hours=1), where=pred)
+            job = await scheduler.schedule(
+                noop, Every(hours=1), where=pred, name="schedule_stores_zero_arg_predicate_schedule"
+            )
 
             assert job.predicate is pred
             assert job.predicate_invoker is not None
@@ -280,7 +282,9 @@ class TestScheduleAcceptsWhere:
             def pred(_job: ScheduledJob) -> bool:
                 return True
 
-            job = await scheduler.schedule(noop, Every(hours=1), where=pred)
+            job = await scheduler.schedule(
+                noop, Every(hours=1), where=pred, name="schedule_stores_annotated_predicate_with_schedule"
+            )
 
             assert job.predicate is pred
             assert job.predicate_invoker is not None
@@ -290,7 +294,7 @@ class TestScheduleAcceptsWhere:
         with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = make_scheduler()
 
-            job = await scheduler.schedule(noop, Every(hours=1))
+            job = await scheduler.schedule(noop, Every(hours=1), name="schedule_defaults_predicate_to_none_schedule")
 
             assert job.predicate is None
             assert job.predicate_invoker is None
@@ -303,7 +307,9 @@ class TestScheduleAcceptsWhere:
                 return True
 
             with pytest.raises(TypeError, match="synchronous"):
-                await scheduler.schedule(noop, Every(hours=1), where=pred)
+                await scheduler.schedule(
+                    noop, Every(hours=1), where=pred, name="schedule_raises_for_async_predicate_schedule"
+                )
 
 
 class TestConvenienceMethodsForwardWhereToJob:
@@ -316,25 +322,37 @@ class TestConvenienceMethodsForwardWhereToJob:
             def pred() -> bool:
                 return True
 
-            job_run_in = await scheduler.run_in(noop, delay=60, where=pred)
+            job_run_in = await scheduler.run_in(noop, delay=60, where=pred, name="all_seven_conv_methods_where_run_in")
             assert job_run_in.predicate is pred
 
-            job_run_once = await scheduler.run_once(noop, at="23:59", where=pred)
+            job_run_once = await scheduler.run_once(
+                noop, at="23:59", where=pred, name="all_seven_conv_methods_where_run_once"
+            )
             assert job_run_once.predicate is pred
 
-            job_run_every = await scheduler.run_every(noop, seconds=30, where=pred)
+            job_run_every = await scheduler.run_every(
+                noop, seconds=30, where=pred, name="all_seven_conv_methods_where_run_every"
+            )
             assert job_run_every.predicate is pred
 
-            job_run_minutely = await scheduler.run_minutely(noop, where=pred)
+            job_run_minutely = await scheduler.run_minutely(
+                noop, where=pred, name="all_seven_conv_methods_where_run_minutely"
+            )
             assert job_run_minutely.predicate is pred
 
-            job_run_hourly = await scheduler.run_hourly(noop, where=pred)
+            job_run_hourly = await scheduler.run_hourly(
+                noop, where=pred, name="all_seven_conv_methods_where_run_hourly"
+            )
             assert job_run_hourly.predicate is pred
 
-            job_run_daily = await scheduler.run_daily(noop, at="00:00", where=pred)
+            job_run_daily = await scheduler.run_daily(
+                noop, at="00:00", where=pred, name="all_seven_conv_methods_where_run_daily"
+            )
             assert job_run_daily.predicate is pred
 
-            job_run_cron = await scheduler.run_cron(noop, "0 * * * *", where=pred)
+            job_run_cron = await scheduler.run_cron(
+                noop, "0 * * * *", where=pred, name="all_seven_conv_methods_where_run_cron"
+            )
             assert job_run_cron.predicate is pred
 
 
@@ -358,22 +376,36 @@ class TestConvenienceMethodsForwardWhereKwarg:
         assert mock_schedule.call_args.kwargs["where"] is pred
 
     async def test_run_in_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_in(noop, delay=60, where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_in(noop, delay=60, where=pred, name="run_in_forwards_where_run_in")
+        )
 
     async def test_run_once_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_once(noop, at="23:59", where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_once(noop, at="23:59", where=pred, name="run_once_forwards_where_run_once")
+        )
 
     async def test_run_every_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_every(noop, seconds=30, where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_every(noop, seconds=30, where=pred, name="run_every_forwards_where_run_every")
+        )
 
     async def test_run_minutely_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_minutely(noop, where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_minutely(noop, where=pred, name="run_minutely_forwards_where_run_minutely")
+        )
 
     async def test_run_hourly_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_hourly(noop, where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_hourly(noop, where=pred, name="run_hourly_forwards_where_run_hourly")
+        )
 
     async def test_run_daily_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_daily(noop, at="00:00", where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_daily(noop, at="00:00", where=pred, name="run_daily_forwards_where_run_daily")
+        )
 
     async def test_run_cron_forwards_where(self) -> None:
-        await self._assert_forwards_where(lambda s, pred: s.run_cron(noop, "0 * * * *", where=pred))
+        await self._assert_forwards_where(
+            lambda s, pred: s.run_cron(noop, "0 * * * *", where=pred, name="run_cron_forwards_where_run_cron")
+        )

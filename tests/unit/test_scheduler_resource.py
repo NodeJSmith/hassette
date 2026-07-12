@@ -20,7 +20,7 @@ class TestScheduleEntryPoint:
         """schedule(cb, Every(hours=1)) returns a ScheduledJob with the correct trigger."""
         scheduler = make_scheduler()
         trigger = Every(hours=1)
-        job = await scheduler.schedule(noop, trigger)
+        job = await scheduler.schedule(noop, trigger, name="schedule_creates_job_with_trigger_schedule")
         assert isinstance(job, ScheduledJob)
         assert job.trigger is trigger
 
@@ -29,7 +29,7 @@ class TestScheduleEntryPoint:
         scheduler = make_scheduler()
         trigger = Every(hours=1)
         before = now()
-        job = await scheduler.schedule(noop, trigger)
+        job = await scheduler.schedule(noop, trigger, name="schedule_fires_first_run_time_from_trigg_schedule")
         after = now()
         expected_min = trigger.first_run_time(before)
         expected_max = trigger.first_run_time(after)
@@ -38,14 +38,14 @@ class TestScheduleEntryPoint:
     async def test_schedule_group_tracked(self) -> None:
         """Schedule with group= adds job to _jobs_by_group."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Daily(at="07:00"), group="morning")
+        job = await scheduler.schedule(noop, Daily(at="07:00"), group="morning", name="schedule_group_tracked_schedule")
         assert "morning" in scheduler._jobs_by_group
         assert job in scheduler._jobs_by_group["morning"]
 
     async def test_schedule_no_group_not_in_jobs_by_group(self) -> None:
         """Schedule without group= does not add to _jobs_by_group."""
         scheduler = make_scheduler()
-        await scheduler.schedule(noop, Every(seconds=30))
+        await scheduler.schedule(noop, Every(seconds=30), name="schedule_no_group_not_in_jobs_by_group_schedule")
         assert scheduler._jobs_by_group == {}
 
 
@@ -70,7 +70,9 @@ class TestCancelGroup:
     async def test_cancel_group_clears_group_key(self) -> None:
         """After cancellation, the group key is removed from _jobs_by_group via _on_job_removed callback."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Every(hours=1), group="morning")
+        job = await scheduler.schedule(
+            noop, Every(hours=1), group="morning", name="cancel_group_clears_group_key_schedule"
+        )
         assert "morning" in scheduler._jobs_by_group
 
         # Simulate callback-based removal (as fired by scheduler_service.dequeue_job)
@@ -167,7 +169,9 @@ class TestJobsByGroupMaintenance:
     async def test_dequeue_job_removes_from_group(self) -> None:
         """dequeue_job() fires callback which removes the job from _jobs_by_group."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Every(hours=1), group="morning")
+        job = await scheduler.schedule(
+            noop, Every(hours=1), group="morning", name="dequeue_job_removes_from_group_schedule"
+        )
         assert job in scheduler._jobs_by_group["morning"]
         # Simulate callback-based removal (as if scheduler_service called _on_job_removed)
         scheduler._on_job_removed(job)
@@ -193,7 +197,9 @@ class TestJobsByGroupMaintenance:
     async def test_removal_callback_called_on_exhaustion(self) -> None:
         """Simulated SchedulerService exhaustion notification triggers group removal."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, After(seconds=30), group="once_group")
+        job = await scheduler.schedule(
+            noop, After(seconds=30), group="once_group", name="removal_callback_called_on_exhaustion_schedule"
+        )
         assert job in scheduler._jobs_by_group["once_group"]
 
         # Directly invoke the callback as SchedulerService would after a one-shot job fires
@@ -207,114 +213,114 @@ class TestConvenienceWrappers:
     async def test_run_daily_delegates_to_daily_trigger(self) -> None:
         """run_daily(cb, at='07:00') schedules with Daily(at='07:00')."""
         scheduler = make_scheduler()
-        job = await scheduler.run_daily(noop, at="07:00")
+        job = await scheduler.run_daily(noop, at="07:00", name="run_daily_delegates_to_daily_trigger_run_daily")
         assert isinstance(job.trigger, Daily)
         assert job.trigger.trigger_id() == "cron:0 7 * * *"
 
     async def test_run_in_delegates_to_after_trigger(self) -> None:
         """run_in(cb, 30) schedules with After(seconds=30)."""
         scheduler = make_scheduler()
-        job = await scheduler.run_in(noop, 30)
+        job = await scheduler.run_in(noop, 30, name="run_in_delegates_to_after_trigger_run_in")
         assert isinstance(job.trigger, After)
         assert job.trigger._delay.total("seconds") == 30
 
     async def test_run_in_accepts_float_seconds(self) -> None:
         """run_in accepts a float number of seconds."""
         scheduler = make_scheduler()
-        job = await scheduler.run_in(noop, 60.0)
+        job = await scheduler.run_in(noop, 60.0, name="run_in_accepts_float_seconds_run_in")
         assert isinstance(job.trigger, After)
 
     async def test_run_cron_string_form_accepted(self) -> None:
         """run_cron(cb, '0 9 * * 1-5') works with a cron expression string."""
         scheduler = make_scheduler()
-        job = await scheduler.run_cron(noop, "0 9 * * 1-5")
+        job = await scheduler.run_cron(noop, "0 9 * * 1-5", name="run_cron_string_form_accepted_run_cron")
         assert isinstance(job.trigger, Cron)
 
     async def test_run_every_keywords_accepted(self) -> None:
         """run_every(cb, hours=1) works."""
         scheduler = make_scheduler()
-        job = await scheduler.run_every(noop, hours=1)
+        job = await scheduler.run_every(noop, hours=1, name="run_every_keywords_accepted_run_every")
         assert isinstance(job.trigger, Every)
 
     async def test_run_every_minutes_keywords_accepted(self) -> None:
         """run_every(cb, minutes=5) works."""
         scheduler = make_scheduler()
-        job = await scheduler.run_every(noop, minutes=5)
+        job = await scheduler.run_every(noop, minutes=5, name="run_every_minutes_keywords_accepted_run_every")
         assert isinstance(job.trigger, Every)
 
     async def test_run_every_seconds_keywords_accepted(self) -> None:
         """run_every(cb, seconds=30) works."""
         scheduler = make_scheduler()
-        job = await scheduler.run_every(noop, seconds=30)
+        job = await scheduler.run_every(noop, seconds=30, name="run_every_seconds_keywords_accepted_run_every")
         assert isinstance(job.trigger, Every)
 
     async def test_run_minutely_delegates_to_every_trigger(self) -> None:
         """run_minutely(cb, minutes=5) schedules with Every(minutes=5)."""
         scheduler = make_scheduler()
-        job = await scheduler.run_minutely(noop, minutes=5)
+        job = await scheduler.run_minutely(noop, minutes=5, name="run_minutely_delegates_to_every_trigger_run_minutely")
         assert isinstance(job.trigger, Every)
         assert job.trigger.interval_seconds == 300.0
 
     async def test_run_hourly_delegates_to_every_trigger(self) -> None:
         """run_hourly(cb, hours=2) schedules with Every(hours=2)."""
         scheduler = make_scheduler()
-        job = await scheduler.run_hourly(noop, hours=2)
+        job = await scheduler.run_hourly(noop, hours=2, name="run_hourly_delegates_to_every_trigger_run_hourly")
         assert isinstance(job.trigger, Every)
         assert job.trigger.interval_seconds == 7200.0
 
     async def test_run_once_string_form_accepted(self) -> None:
         """run_once(cb, at='23:59') works with str."""
         scheduler = make_scheduler()
-        job = await scheduler.run_once(noop, at="23:59")
+        job = await scheduler.run_once(noop, at="23:59", name="run_once_string_form_accepted_run_once")
         assert isinstance(job.trigger, Once)
 
     async def test_run_once_zoned_datetime_accepted(self) -> None:
         """run_once(cb, at=ZonedDateTime) works with ZonedDateTime."""
         scheduler = make_scheduler()
         future = now().add(hours=1)
-        job = await scheduler.run_once(noop, at=future)
+        job = await scheduler.run_once(noop, at=future, name="run_once_zoned_datetime_accepted_run_once")
         assert isinstance(job.trigger, Once)
 
     async def test_run_in_jitter_forwarded(self) -> None:
         """run_in with jitter=60 creates a job with jitter=60."""
         scheduler = make_scheduler()
-        job = await scheduler.run_in(noop, 30, jitter=60)
+        job = await scheduler.run_in(noop, 30, jitter=60, name="run_in_jitter_forwarded_run_in")
         assert job.jitter == 60
 
     async def test_run_once_jitter_forwarded(self) -> None:
         """run_once with jitter=30 creates a job with jitter=30."""
         scheduler = make_scheduler()
-        job = await scheduler.run_once(noop, at="23:59", jitter=30)
+        job = await scheduler.run_once(noop, at="23:59", jitter=30, name="run_once_jitter_forwarded_run_once")
         assert job.jitter == 30
 
     async def test_run_every_jitter_forwarded(self) -> None:
         """run_every with jitter=10 creates a job with jitter=10."""
         scheduler = make_scheduler()
-        job = await scheduler.run_every(noop, seconds=30, jitter=10)
+        job = await scheduler.run_every(noop, seconds=30, jitter=10, name="run_every_jitter_forwarded_run_every")
         assert job.jitter == 10
 
     async def test_run_minutely_jitter_forwarded(self) -> None:
         """run_minutely with jitter=5 creates a job with jitter=5."""
         scheduler = make_scheduler()
-        job = await scheduler.run_minutely(noop, jitter=5)
+        job = await scheduler.run_minutely(noop, jitter=5, name="run_minutely_jitter_forwarded_run_minutely")
         assert job.jitter == 5
 
     async def test_run_hourly_jitter_forwarded(self) -> None:
         """run_hourly with jitter=120 creates a job with jitter=120."""
         scheduler = make_scheduler()
-        job = await scheduler.run_hourly(noop, jitter=120)
+        job = await scheduler.run_hourly(noop, jitter=120, name="run_hourly_jitter_forwarded_run_hourly")
         assert job.jitter == 120
 
     async def test_run_daily_jitter_forwarded(self) -> None:
         """run_daily with jitter=60 creates a job with jitter=60."""
         scheduler = make_scheduler()
-        job = await scheduler.run_daily(noop, at="07:00", jitter=60)
+        job = await scheduler.run_daily(noop, at="07:00", jitter=60, name="run_daily_jitter_forwarded_run_daily")
         assert job.jitter == 60
 
     async def test_run_cron_jitter_forwarded(self) -> None:
         """run_cron with jitter=15 creates a job with jitter=15."""
         scheduler = make_scheduler()
-        job = await scheduler.run_cron(noop, "0 9 * * 1-5", jitter=15)
+        job = await scheduler.run_cron(noop, "0 9 * * 1-5", jitter=15, name="run_cron_jitter_forwarded_run_cron")
         assert job.jitter == 15
 
     async def test_run_once_if_past_error_raises(self) -> None:
@@ -324,18 +330,20 @@ class TestConvenienceWrappers:
         with patch("hassette.utils.date_utils.now", return_value=fake_now):
             scheduler = make_scheduler()
             with pytest.raises(ValueError, match="constructed after the target time"):
-                await scheduler.run_once(noop, at="00:00", if_past="error")
+                await scheduler.run_once(
+                    noop, at="00:00", if_past="error", name="run_once_if_past_error_raises_run_once"
+                )
 
     async def test_run_daily_group_forwarded(self) -> None:
         """run_daily with group= adds job to _jobs_by_group."""
         scheduler = make_scheduler()
-        job = await scheduler.run_daily(noop, at="06:00", group="morning")
+        job = await scheduler.run_daily(noop, at="06:00", group="morning", name="run_daily_group_forwarded_run_daily")
         assert job in scheduler._jobs_by_group["morning"]
 
     async def test_run_in_group_forwarded(self) -> None:
         """run_in with group= adds job to _jobs_by_group."""
         scheduler = make_scheduler()
-        job = await scheduler.run_in(noop, 30, group="once")
+        job = await scheduler.run_in(noop, 30, group="once", name="run_in_group_forwarded_run_in")
         assert job in scheduler._jobs_by_group["once"]
 
 
@@ -348,7 +356,7 @@ class TestScheduleTypeError:
 
         scheduler = make_scheduler()
         with pytest.raises(TypeError, match="trigger must implement TriggerProtocol"):
-            await scheduler.schedule(noop, NotATrigger())
+            await scheduler.schedule(noop, NotATrigger(), name="schedule_raises_typeerror_for_non_protoc_schedule")
 
 
 class TestCallbackRegistration:
@@ -516,20 +524,20 @@ class TestIdentityPassThrough:
     async def test_job_inherits_parent_app_key(self) -> None:
         """schedule() sets job.app_key from parent.app_key, not Scheduler's own."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Every(hours=1))
+        job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_app_key_schedule")
         assert job.app_key == "test_app"
 
     async def test_job_inherits_parent_source_tier(self) -> None:
         """schedule() sets job.source_tier from parent.source_tier."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Every(hours=1))
+        job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_source_tier_schedule")
         assert job.source_tier == "app"
 
     async def test_job_inherits_parent_instance_index(self) -> None:
         """schedule() sets job.instance_index from parent.index."""
         scheduler = make_scheduler()
         scheduler.parent.index = 5
-        job = await scheduler.schedule(noop, Every(hours=1))
+        job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_instance_index_schedule")
         assert job.instance_index == 5
 
     async def test_framework_scheduler_inherits_framework_tier(self) -> None:
@@ -538,7 +546,7 @@ class TestIdentityPassThrough:
         scheduler.parent.source_tier = "framework"
         scheduler.parent.app_key = "__hassette__.TestComponent"
         scheduler.parent.class_name = "TestComponent"
-        job = await scheduler.schedule(noop, Every(hours=1))
+        job = await scheduler.schedule(noop, Every(hours=1), name="framework_scheduler_inherits_framework_t_schedule")
         assert job.source_tier == "framework"
         assert job.app_key == "__hassette__.TestComponent"
 
@@ -547,7 +555,7 @@ class TestIdentityPassThrough:
         scheduler = make_scheduler()
         scheduler.parent.source_tier = "invalid"
         with pytest.raises(AssertionError, match="Invalid source_tier"):
-            await scheduler.schedule(noop, Every(hours=1))
+            await scheduler.schedule(noop, Every(hours=1), name="source_tier_assertion_rejects_invalid_va_schedule")
 
     def test_scheduler_requires_parent(self) -> None:
         """Scheduler.__init__ raises AssertionError when parent is None."""
@@ -568,7 +576,7 @@ class TestDbIdSetImmediately:
         returning to the caller. No background task, no deferred future to await.
         """
         scheduler = make_scheduler()
-        job = await scheduler.run_in(noop, delay=30)
+        job = await scheduler.run_in(noop, delay=30, name="db_id_set_immediately_after_run_in_return")
 
         assert job.db_id is not None, "db_id must be set immediately on return"
         assert isinstance(job.db_id, int), f"db_id must be int, got {type(job.db_id)}"
@@ -577,7 +585,7 @@ class TestDbIdSetImmediately:
     async def test_db_id_set_immediately_after_schedule_returns(self) -> None:
         """job.db_id is a valid integer immediately after await schedule() returns."""
         scheduler = make_scheduler()
-        job = await scheduler.schedule(noop, Every(hours=1))
+        job = await scheduler.schedule(noop, Every(hours=1), name="db_id_set_immediately_after_schedule_ret_schedule")
 
         assert job.db_id is not None, "db_id must be set immediately on return"
         assert isinstance(job.db_id, int), f"db_id must be int, got {type(job.db_id)}"
