@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Remove get_state_value_typed and update docs"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#9", "FR#10", "AC#4", "AC#5", "AC#6"]
 ---

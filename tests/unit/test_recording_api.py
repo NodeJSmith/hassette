@@ -396,7 +396,7 @@ async def test_call_service_still_records_as_call_service():
 
 
 async def test_getattr_tailored_message_for_state_conversion():
-    """__getattr__ gives tailored message for get_state_value, get_state_value_typed, get_attribute."""
+    """__getattr__ gives tailored message for get_state_value, get_attribute."""
     api = make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         await api.get_state_value("sensor.temp")

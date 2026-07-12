@@ -153,7 +153,6 @@ DOCUMENTED_EXCLUSIONS: dict[type, set[str]] = {
         "get_state_or_none",
         "get_state_raw",
         "get_state_value",
-        "get_state_value_typed",
         "get_states",
         "get_states_raw",
         # Input-helper CRUD — return data; not silent on drop

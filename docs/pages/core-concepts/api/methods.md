@@ -11,7 +11,6 @@
 | Need | Method |
 |---|---|
 | Just the raw state string | `get_state_value` |
-| Typed value without a full state object | `get_state_value_typed` |
 | Typed value, attributes, and timestamps | `get_state` |
 | Domain action methods (`turn_on`, `turn_off`, `toggle`) | `get_entity` |
 | Check whether an entity exists | `get_state_or_none` or `entity_exists` |
@@ -40,7 +39,8 @@ Looks up the entity in the state registry and returns the domain-specific
 `.last_updated`, and `.context`.
 
 The return annotation is `BaseState`, so type checkers see the base type.
-To narrow it, assign through a cast or use `get_state_value_typed()`.
+To narrow it, assign through a cast, or use `get_state().value` when only the
+converted value is needed.
 
 !!! warning "`.value` is typed Python, not the raw HA string"
     For toggle domains (`light`, `switch`, `binary_sensor`), `.value` is `True`/`False`, not `"on"`/`"off"` — `state.value == "on"` is always `False`. `get_state_value()` returns the raw HA string when string comparison is the goal. See [States](../states/index.md#what-a-state-object-contains) for the full conversion rules.
@@ -74,19 +74,6 @@ Returns the raw Home Assistant state payload as an untyped dict (`HassStateDict`
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state_raw.py"
 ```
-
-### `get_state_value_typed(entity_id)`
-
-Equivalent to `(await self.api.get_state(entity_id)).value`. Returns just the
-converted value without attributes or timestamps.
-
-```python
---8<-- "pages/core-concepts/api/snippets/api_get_state_value_typed.py"
-```
-
-!!! note "Return type is `Any`"
-    The domain's Python type is only known at runtime, so the return annotation
-    is `Any`. Cast or assert the type if your type checker needs it narrowed.
 
 ### `get_attribute(entity_id, attribute)`
 
