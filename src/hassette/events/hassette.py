@@ -55,7 +55,7 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
     """Alias for service status events."""
 
     @classmethod
-    def from_data(
+    def from_service_status(
         cls,
         resource_name: str,
         role: ResourceRole,
@@ -87,7 +87,7 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
     """Alias for simple events with empty payload."""
 
     @classmethod
-    def create_event(cls, topic: Topic) -> "HassetteSimpleEvent":
+    def from_topic(cls, topic: Topic) -> "HassetteSimpleEvent":
         payload = HassetteEmptyPayload()
         return cls(
             topic=topic,
@@ -99,7 +99,7 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
     """Alias for file watcher events."""
 
     @classmethod
-    def create_event(cls, *, changed_file_paths: set[Path]) -> "HassetteFileWatcherEvent":
+    def from_paths(cls, *, changed_file_paths: set[Path]) -> "HassetteFileWatcherEvent":
         payload = FileWatcherEventPayload(changed_file_paths=frozenset(changed_file_paths))
         return cls(
             topic=Topic.HASSETTE_EVENT_FILE_WATCHER,
@@ -126,7 +126,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     """Event emitted when an app instance changes state."""
 
     @classmethod
-    def from_data(
+    def from_app(
         cls,
         app: "App",
         status: ResourceStatus,

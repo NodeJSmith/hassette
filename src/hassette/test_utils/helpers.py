@@ -415,7 +415,7 @@ class {class_name}Config(AppConfig):
 
 async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path]) -> None:
     """Emit a synthetic file-watcher event for the given paths."""
-    event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
+    event = HassetteFileWatcherEvent.from_paths(changed_file_paths=changed_paths)
     await hassette.send_event(event)
 
 
@@ -424,7 +424,7 @@ def make_service_failed_event(
     exception: Exception | None = None,
 ) -> HassetteServiceEvent:
     """Create a HassetteServiceEvent with FAILED status for testing."""
-    return HassetteServiceEvent.from_data(
+    return HassetteServiceEvent.from_service_status(
         resource_name=service.class_name,
         role=service.role,
         status=ResourceStatus.FAILED,
@@ -434,7 +434,7 @@ def make_service_failed_event(
 
 def make_service_running_event(service: "Service") -> HassetteServiceEvent:
     """Create a HassetteServiceEvent with RUNNING status for testing."""
-    return HassetteServiceEvent.from_data(
+    return HassetteServiceEvent.from_service_status(
         resource_name=service.class_name,
         role=service.role,
         status=ResourceStatus.RUNNING,

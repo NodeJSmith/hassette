@@ -194,8 +194,8 @@ class TestComponentServiceAppKeyFilters:
 
         matching_app = make_app_stub(app_key="my_app")
         other_app = make_app_stub(app_key="other_app")
-        matching_event = HassetteAppStateEvent.from_data(matching_app, status=ResourceStatus.RUNNING)
-        other_event = HassetteAppStateEvent.from_data(other_app, status=ResourceStatus.RUNNING)
+        matching_event = HassetteAppStateEvent.from_app(matching_app, status=ResourceStatus.RUNNING)
+        other_event = HassetteAppStateEvent.from_app(other_app, status=ResourceStatus.RUNNING)
 
         assert sub.listener.matches(matching_event) is True
         assert sub.listener.matches(other_event) is False

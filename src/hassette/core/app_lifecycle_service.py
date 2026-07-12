@@ -258,7 +258,7 @@ class AppLifecycleService(Resource):
         self.logger.debug("Stopping %d app instances", len(instances))
 
         for idx, inst in instances.items():
-            event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=inst.status)
+            event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(event)
             await self.shutdown_instance(inst, instance_index=idx)
 
@@ -279,7 +279,7 @@ class AppLifecycleService(Resource):
         exception: Exception | BaseException | None = None,
     ) -> None:
         """Emit an app state change event via Hassette's event system."""
-        event = HassetteAppStateEvent.from_data(
+        event = HassetteAppStateEvent.from_app(
             app=app, status=status, previous_status=previous_status, exception=exception
         )
         await self.hassette.send_event(event)
@@ -309,7 +309,7 @@ class AppLifecycleService(Resource):
                 )
 
             await self.hassette.send_event(
-                HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
             )
         except Exception as exc:
             self.logger.exception("Failed to initialize apps")
@@ -343,7 +343,7 @@ class AppLifecycleService(Resource):
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
             for inst in instances.values():
-                event = HassetteAppStateEvent.from_data(app=inst, status=NOT_STARTED)
+                event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
                 await self.hassette.send_event(event)
             await self.initialize_instances(app_key, instances, app_manifest)
 
@@ -479,7 +479,7 @@ class AppLifecycleService(Resource):
         await self.apply_changes(changes)
 
         await self.hassette.send_event(
-            HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
+            HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
         )
 
     async def refresh_config(self) -> tuple[dict[str, "AppManifest"], dict[str, "AppManifest"]]:

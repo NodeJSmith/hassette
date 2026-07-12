@@ -733,11 +733,11 @@ class WebsocketService(Service):
         """
         if not self.is_ready():
             return
-        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+        event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         with suppress(Exception):
             await self.hassette.send_event(event)
 
     async def send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
-        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+        event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await self.hassette.send_event(event)

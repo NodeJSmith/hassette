@@ -354,7 +354,7 @@ class TestServiceStatusMapping:
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
-        event = HassetteServiceEvent.from_data(
+        event = HassetteServiceEvent.from_service_status(
             resource_name="WebsocketService",
             role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
@@ -372,7 +372,7 @@ class TestServiceStatusMapping:
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
-        event = HassetteServiceEvent.from_data(
+        event = HassetteServiceEvent.from_service_status(
             resource_name="SomeService",
             role=ResourceRole.SERVICE,
             status=ResourceStatus.STARTING,

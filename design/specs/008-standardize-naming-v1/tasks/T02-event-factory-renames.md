@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Rename event factory classmethods to descriptive from_* names"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "AC#2"]
 ---
