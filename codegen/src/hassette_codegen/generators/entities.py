@@ -83,7 +83,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
                 if alias_name is None:
                     base_name = _make_alias_name(param_name, domain_title)
                     alias_name = base_name
-                    # Disambiguate collisions with a numeric suffix from 2: Mode, Mode2, Mode3.
+                    # Disambiguate collisions with a numeric suffix from 2: ClimateMode, ClimateMode2, ClimateMode3.
                     suffix = 2
                     while alias_name in used_alias_names:
                         alias_name = f"{base_name}{suffix}"
