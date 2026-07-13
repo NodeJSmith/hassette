@@ -13,6 +13,7 @@ import pytest
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_ws_hassette_stub
 from hassette.types.enums import ConnectionState
 
@@ -148,7 +149,7 @@ class TestValidConnectSequence:
         async def fake_make_connection(_session):
             # Simulate start_recv_and_subscribe setting CONNECTED and marking ready
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
-            websocket_service.mark_ready(reason="test: connected")
+            mark_ready(websocket_service, reason="test: connected")
 
             async def _clean():
                 pass
@@ -192,7 +193,7 @@ class TestReconnectSequence:
                 # First: successful connection, then early drop
                 websocket_service.set_connection_state(ConnectionState.CONNECTED)
                 websocket_service._connected_at = time.monotonic()
-                websocket_service.mark_ready(reason="test: connected")
+                mark_ready(websocket_service, reason="test: connected")
 
                 async def _fail():
                     raise RetryableConnectionClosedError("peer gone")
@@ -201,7 +202,7 @@ class TestReconnectSequence:
 
             # Second: clean exit (reconnect succeeded)
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
-            websocket_service.mark_ready(reason="test: reconnected")
+            mark_ready(websocket_service, reason="test: reconnected")
 
             async def _clean():
                 pass
@@ -249,7 +250,7 @@ class TestMaxRetriesDisconnects:
             nonlocal call_count
             call_count += 1
             websocket_service._connected_at = time.monotonic()
-            websocket_service.mark_ready(reason="test: simulating successful connection")
+            mark_ready(websocket_service, reason="test: simulating successful connection")
 
             async def _fail():
                 raise RetryableConnectionClosedError("dropped")

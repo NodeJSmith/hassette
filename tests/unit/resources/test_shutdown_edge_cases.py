@@ -10,6 +10,7 @@ Verifies:
 
 from unittest.mock import AsyncMock, patch
 
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -126,7 +127,7 @@ class TestEmitReadinessEventSwallowsException:
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
         resource._status = ResourceStatus.RUNNING
-        resource.mark_ready("test reason")
+        mark_ready(resource, "test reason")
 
         # boundary-exempt: collaborator of _emit_readiness_event
         hassette.send_event = AsyncMock(side_effect=RuntimeError("send boom"))

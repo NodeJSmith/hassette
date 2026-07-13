@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Migrate mechanical test call sites"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["AC#5"]
 ---

@@ -28,6 +28,7 @@ from hassette.context import (
 from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, AppConfigurationError, make_hermetic_config
@@ -215,7 +216,7 @@ class TestAppApiFactory:
             """Test double for Api."""
 
             async def on_initialize(self) -> None:
-                self.mark_ready(reason="FakeApi initialized")
+                mark_ready(self, reason="FakeApi initialized")
 
         class _TestApp(App[_TestConfig]):
             app_config_cls = _TestConfig

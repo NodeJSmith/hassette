@@ -16,6 +16,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_service_failed_event, make_service_running_event, preserve_config, wait_for
@@ -266,7 +267,7 @@ async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher
     assert len(budget._timestamps) == 2
 
     # Mark the service ready, then fire RUNNING event — budget should reset
-    dummy_service.mark_ready(reason="test")
+    mark_ready(dummy_service, reason="test")
     await on_running_and_await(watcher, make_service_running_event(dummy_service))
 
     budget.evict_expired()
@@ -572,7 +573,7 @@ async def test_budget_reset_on_recovery_confirmed(get_service_watcher_mock: Serv
     assert len(budget._timestamps) == 2
 
     # Mark the service ready, then fire RUNNING event — budget should reset
-    dummy_service.mark_ready(reason="test")
+    mark_ready(dummy_service, reason="test")
     await on_running_and_await(watcher, make_service_running_event(dummy_service))
 
     budget.evict_expired()
@@ -755,14 +756,15 @@ async def test_restart_exception_caught_no_double_count(get_service_watcher_mock
     event = make_service_failed_event(dummy_service)
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
-    # Make service.restart() raise
-    async def raise_on_restart():
+    # Make restart(service) raise — restart is a module-level function
+    # (hassette.resources.operations), so patch it at the call site
+    # (service_watcher.py) rather than reassigning an instance attribute.
+    async def raise_on_restart(_resource):
         raise RuntimeError("restart blew up")
 
-    dummy_service.restart = raise_on_restart  # pyright: ignore[reportAttributeAccessIssue]
-
     # Should not propagate the exception from restart
-    await restart_and_await(watcher, event)
+    with patch("hassette.core.service_watcher.restart", side_effect=raise_on_restart):
+        await restart_and_await(watcher, event)
 
     budget = watcher._budgets.get(key)
     assert budget is not None

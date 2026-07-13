@@ -23,6 +23,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.exceptions import InvalidLifecycleTransitionError
+from hassette.resources.lifecycle import handle_failed, handle_running
 from hassette.resources.mixins import LifecycleMixin
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
@@ -168,7 +169,7 @@ async def test_same_state_no_transition():
     resource._status = ResourceStatus.RUNNING
     resource._previous_status = ResourceStatus.STARTING
 
-    await resource.handle_running()
+    await handle_running(resource)
 
     assert resource.status == ResourceStatus.RUNNING
     assert resource._previous_status == ResourceStatus.STARTING
@@ -323,6 +324,6 @@ async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStat
     resource._status = terminal
 
     # Must not raise and must not move off the terminal state.
-    await resource.handle_failed(RuntimeError("cannot schedule new futures after shutdown"))
+    await handle_failed(resource, RuntimeError("cannot schedule new futures after shutdown"))
 
     assert resource.status == terminal

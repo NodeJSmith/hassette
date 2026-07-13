@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
+from hassette.resources.lifecycle import handle_running, mark_ready
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -28,7 +29,7 @@ class TestEmitReadinessEvent:
 
         # Set up RUNNING state + readiness
         resource._status = ResourceStatus.RUNNING
-        resource.mark_ready("test reason")
+        mark_ready(resource, "test reason")
 
         await resource._emit_readiness_event()
 
@@ -52,7 +53,7 @@ class TestEmitReadinessEvent:
         resource._previous_status = ResourceStatus.STARTING
         resource._status = ResourceStatus.STARTING
 
-        await resource.handle_running()
+        await handle_running(resource)
 
         assert hassette.send_event.called
         call_args = hassette.send_event.call_args

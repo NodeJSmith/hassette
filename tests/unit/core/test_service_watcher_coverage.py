@@ -15,6 +15,7 @@ from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.test_utils import make_mock_hassette, make_service_failed_event, make_service_running_event, wait_for
 from hassette.types import ResourceStatus, Topic
@@ -365,7 +366,7 @@ class TestOnServiceRunningBudgetNoneBranch:
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
-        dummy.mark_ready(reason="test")
+        mark_ready(dummy, reason="test")
         hassette.children = [dummy]
 
         key = watcher.service_key(dummy.class_name, dummy.role)

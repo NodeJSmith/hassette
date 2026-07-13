@@ -353,7 +353,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
     # The real make_connection calls mark_ready() via start_recv_and_subscribe; mirror that here
-    websocket_service.mark_ready(reason="test: simulating successful connection")
+    lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
     with (
         patch.object(  # boundary-exempt: collaborator of serve()
@@ -373,7 +373,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
 
 async def test_marked_not_ready_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
     """Mark the service not-ready immediately when the recv loop fails."""
-    websocket_service.mark_ready(reason="test: verify ready→not-ready transition")
+    lifecycle_module.mark_ready(websocket_service, reason="test: verify ready→not-ready transition")
     websocket_service.hassette.send_event = AsyncMock()
 
     with (
@@ -579,7 +579,7 @@ async def test_early_drop_retries_and_succeeds(
         make_connection_count += 1
         # Simulate _connected_at being set (within stable window) and mark_ready
         websocket_service._connected_at = time.monotonic()
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
         if call_count <= 2:
 
             async def _fail():
@@ -630,7 +630,7 @@ async def test_early_drop_exhausts_retry_budget(
         nonlocal call_count
         call_count += 1
         websocket_service._connected_at = time.monotonic()
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
         async def _fail():
             raise RetryableConnectionClosedError("dropped")
@@ -665,7 +665,7 @@ async def test_early_drop_exhausts_recovery_timeout(
         nonlocal call_count
         call_count += 1
         websocket_service._connected_at = time.monotonic()
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
         async def _fail():
             raise RetryableConnectionClosedError("dropped")
@@ -703,7 +703,7 @@ async def test_stable_connection_failure_propagates_immediately(
         call_count += 1
         # Set _connected_at to 60 seconds ago — outside any stable window
         websocket_service._connected_at = time.monotonic() - 60.0
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
         async def _fail():
             raise RetryableConnectionClosedError("stable drop")
@@ -733,7 +733,7 @@ async def test_non_retryable_exception_in_stable_window(
         nonlocal call_count
         call_count += 1
         websocket_service._connected_at = time.monotonic()
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
         async def _fail():
             raise RuntimeError("unexpected internal error")
@@ -764,7 +764,7 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
 
         if call_count == 1:
             websocket_service._connected_at = time.monotonic()
-            websocket_service.mark_ready(reason="test: simulating successful connection")
+            lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
             async def _fail():
                 raise RetryableConnectionClosedError("dropped")
@@ -806,7 +806,7 @@ async def test_send_connection_lost_event_idempotent(websocket_service: Websocke
 async def test_send_connection_lost_event_self_suppressing(websocket_service: WebsocketService) -> None:
     """send_connection_lost_event does not propagate bus exceptions."""
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
-    websocket_service.mark_ready(reason="test: make service ready so event fires")
+    lifecycle_module.mark_ready(websocket_service, reason="test: make service ready so event fires")
 
     # Should not raise even though the bus raises
     await websocket_service.send_connection_lost_event()
@@ -839,7 +839,7 @@ async def test_service_status_stays_running_during_early_drop(
         nonlocal call_count
         call_count += 1
         websocket_service._connected_at = time.monotonic()
-        websocket_service.mark_ready(reason="test: simulating successful connection")
+        lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
         if call_count == 1:
 

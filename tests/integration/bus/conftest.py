@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils.harness import HassetteHarness
 
 if TYPE_CHECKING:
@@ -33,7 +34,7 @@ async def bus_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hass
 
     await harness.start()
 
-    harness.state_proxy.mark_ready(reason="bus_harness: mark ready for test")
+    mark_ready(harness.state_proxy, reason="bus_harness: mark ready for test")
 
     hassette = typing.cast("Hassette", harness.hassette)
     bus = harness.bus
