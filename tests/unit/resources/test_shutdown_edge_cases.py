@@ -8,7 +8,7 @@ Verifies:
 - cleanup() closes a present cache, and swallows an exception if close() raises
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
@@ -77,13 +77,12 @@ class TestFinalizeShutdownSwallowsHandleStopException:
         resource = ConcreteResource(hassette=hassette)
         await resource.initialize()
 
-        async def _raising_handle_stop() -> None:
-            raise RuntimeError("handle_stop boom")
-
-        resource.handle_stop = _raising_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
-
-        # Must not raise despite handle_stop() blowing up.
-        await resource._finalize_shutdown()
+        # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (base.py) rather than reassigning an instance
+        # attribute, since _finalize_shutdown() calls the free function directly.
+        with patch("hassette.resources.base.handle_stop", side_effect=RuntimeError("handle_stop boom")):
+            # Must not raise despite handle_stop() blowing up.
+            await resource._finalize_shutdown()
 
         assert resource.shutdown_completed is True
 
@@ -111,16 +110,13 @@ class TestFinalizeShutdownSwallowsHandleStopException:
         await resource.initialize()
         resource._status = ResourceStatus.RUNNING  # handle_stop() would otherwise flip this to STOPPED
 
-        calls: list[str] = []
+        # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (base.py) rather than reassigning an instance
+        # attribute, since _finalize_shutdown() calls the free function directly.
+        with patch("hassette.resources.base.handle_stop") as mock_handle_stop:
+            await resource._finalize_shutdown()
 
-        async def _spy_handle_stop() -> None:
-            calls.append("called")
-
-        resource.handle_stop = _spy_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
-
-        await resource._finalize_shutdown()
-
-        assert calls == [], "handle_stop() must be skipped when event streams are already closed"
+            mock_handle_stop.assert_not_called()
         assert resource.status == ResourceStatus.RUNNING, "status must be untouched by the skipped STOPPED event"
         assert resource.shutdown_completed is True
 

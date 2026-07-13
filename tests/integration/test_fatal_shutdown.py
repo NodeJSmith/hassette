@@ -11,7 +11,7 @@ Project rule: no log-capture tests. Assert on FatalError / return value / DB row
 """
 
 import typing
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -25,16 +25,11 @@ class TestRunForeverFatalOnCrash:
 
     async def test_run_forever_raises_fatal_error_when_reason_set(self, hassette_instance: Hassette):
         """When _fatal_shutdown_reason is set before shutdown completes, run_forever() raises FatalError."""
-        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
         hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
         hassette_instance.session_manager.create_session = AsyncMock()
         hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
         hassette_instance.shutdown = AsyncMock()
-
-        for child in hassette_instance.children:
-            if child is not hassette_instance.database_service:
-                child.start = Mock()
 
         # Set fatal reason then trigger shutdown — simulates what shutdown_if_crashed does
         def trigger_fatal_shutdown(*_args, **_kwargs):
@@ -43,21 +38,18 @@ class TestRunForeverFatalOnCrash:
 
         hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
-        with pytest.raises(FatalError):
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) so real children never spawn.
+        with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
     async def test_run_forever_returns_normally_on_clean_shutdown(self, hassette_instance: Hassette):
         """When no fatal reason is set, run_forever() returns normally (exit 0 path)."""
-        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
         hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
         hassette_instance.session_manager.create_session = AsyncMock()
         hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
         hassette_instance.shutdown = AsyncMock()
-
-        for child in hassette_instance.children:
-            if child is not hassette_instance.database_service:
-                child.start = Mock()
 
         def trigger_clean_shutdown(*_args, **_kwargs):
             # No fatal reason — clean operator shutdown
@@ -65,36 +57,38 @@ class TestRunForeverFatalOnCrash:
 
         hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_clean_shutdown
 
-        # Must return normally, not raise
-        await hassette_instance.run_forever()
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) so real children never spawn.
+        with patch("hassette.core.core.start"):
+            # Must return normally, not raise
+            await hassette_instance.run_forever()
         assert hassette_instance.fatal_shutdown_reason is None
 
     async def test_run_forever_raises_fatal_on_session_init_failure(self, hassette_instance: Hassette):
         """Startup failure in session init branch raises FatalError."""
-        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
         hassette_instance.shutdown = AsyncMock()
         hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
         hassette_instance.session_manager.create_session = AsyncMock()
 
-        with pytest.raises(FatalError):
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) so real children never spawn.
+        with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
         assert hassette_instance.fatal_shutdown_reason is not None
 
     async def test_run_forever_raises_fatal_on_resource_startup_failure(self, hassette_instance: Hassette):
         """Startup failure (resources not ready) branch raises FatalError."""
-        hassette_instance.database_service.start = Mock()
-        for child in hassette_instance.children:
-            if child is not hassette_instance.database_service:
-                child.start = Mock()
         # DB wait succeeds, wave wait fails
         hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
         hassette_instance.shutdown = AsyncMock()
         hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
         hassette_instance.session_manager.create_session = AsyncMock()
 
-        with pytest.raises(FatalError):
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) so real children never spawn.
+        with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
         assert hassette_instance.fatal_shutdown_reason is not None
@@ -112,7 +106,6 @@ class TestSessionTelemetryOrdering:
         """
         finalize_calls: list[str] = []
 
-        hassette_instance.database_service.start = Mock()
         hassette_instance.wait_for_ready = AsyncMock(return_value=True)
         hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
         hassette_instance.session_manager.create_session = AsyncMock()
@@ -120,10 +113,6 @@ class TestSessionTelemetryOrdering:
         hassette_instance.session_manager.finalize_session = AsyncMock(
             side_effect=lambda **_kw: finalize_calls.append("finalized")
         )
-
-        for child in hassette_instance.children:
-            if child is not hassette_instance.database_service:
-                child.start = Mock()
 
         original_shutdown = hassette_instance.shutdown
 
@@ -138,7 +127,9 @@ class TestSessionTelemetryOrdering:
 
         hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
-        with pytest.raises(FatalError):
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) so real children never spawn.
+        with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
         assert finalize_calls == ["finalized"], (

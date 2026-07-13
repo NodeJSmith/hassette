@@ -7,7 +7,7 @@ Project rule: no log-capture tests. Assert on state / FatalError only.
 """
 
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,8 +25,6 @@ class TestShutdownIfCrashedSetsFatalReason:
         hassette = MagicMock()
         hassette.config.logging.service_watcher = "DEBUG"
         hassette.shutdown_event = asyncio.Event()
-        # request_shutdown is a sync call that sets shutdown_event
-        hassette.request_shutdown = MagicMock()
         hassette._fatal_shutdown_reason = None
 
         # record_fatal_reason mirrors the real Hassette method (first reason wins), so the watcher's
@@ -64,25 +62,26 @@ class TestShutdownIfCrashedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
-        await watcher.shutdown_if_crashed(event)
+        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+            await watcher.shutdown_if_crashed(event)
 
-        watcher_hassette.request_shutdown.assert_called_once()
+        mock_request_shutdown.assert_called_once()
 
     async def test_reason_set_before_request_shutdown(self, watcher_hassette):
         """Fatal reason is set BEFORE request_shutdown is called (ordering guarantee)."""
         call_order: list[str] = []
 
-        def track_request_shutdown(_reason=None):
+        def track_request_shutdown(_resource, _reason=None):
             # At call time, reason must already be set
             if watcher_hassette._fatal_shutdown_reason is not None:
                 call_order.append("reason_set_first")
             call_order.append("request_shutdown")
 
-        watcher_hassette.request_shutdown = MagicMock(side_effect=track_request_shutdown)
         watcher = make_watcher(watcher_hassette)
         event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
-        await watcher.shutdown_if_crashed(event)
+        with patch("hassette.core.service_watcher.request_shutdown", side_effect=track_request_shutdown):
+            await watcher.shutdown_if_crashed(event)
 
         assert call_order == ["reason_set_first", "request_shutdown"], (
             f"Expected reason set before request_shutdown, got order: {call_order}"

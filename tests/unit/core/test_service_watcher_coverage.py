@@ -212,7 +212,6 @@ class TestCooldownAndRetry:
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
-        dummy.restart = AsyncMock()  # boundary-exempt: collaborator of cooldown_and_retry
         hassette.children = [dummy]
 
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=5.0, max_cooldown_cycles=0)
@@ -220,26 +219,32 @@ class TestCooldownAndRetry:
 
         hassette.shutdown_event.set()
 
-        await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
+        # restart() is a module-level function (hassette.resources.operations), not a
+        # method — patch it at the call site (service_watcher.py) rather than reassigning
+        # an instance attribute, since cooldown_and_retry() calls the free function directly.
+        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
-        dummy.restart.assert_not_called()
+            mock_restart.assert_not_called()
 
     async def test_restart_exception_after_cooldown_is_caught(self) -> None:
         """A service.restart() failure after cooldown is logged, not propagated."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
-        # branch-isolation: restart forced to raise for cooldown_and_retry error path
-        dummy.restart = AsyncMock(side_effect=RuntimeError("restart blew up"))
         hassette.children = [dummy]
 
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
         key = watcher.service_key(dummy.class_name, dummy.role)
 
-        # Should not raise even though restart() failed.
-        await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
+        # branch-isolation: restart forced to raise for cooldown_and_retry error path
+        with patch(
+            "hassette.core.service_watcher.restart", side_effect=RuntimeError("restart blew up")
+        ) as mock_restart:
+            # Should not raise even though restart() failed.
+            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
-        dummy.restart.assert_awaited_once()
+            mock_restart.assert_awaited_once_with(dummy)
 
     async def test_skips_restart_when_service_gone_after_cooldown(self) -> None:
         """If the service disappears during cooldown, restart is skipped without error."""
@@ -262,9 +267,6 @@ class TestRestartServiceMultipleMatches:
 
         svc_a = DummyService(hassette)
         svc_b = DummyService(hassette)
-        # boundary-exempt: collaborator of restart_service
-        svc_a.restart = AsyncMock()
-        svc_b.restart = AsyncMock()
         hassette.children = [svc_a, svc_b]
 
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, backoff_base_seconds=0, budget_intensity=10)
@@ -272,12 +274,17 @@ class TestRestartServiceMultipleMatches:
 
         event = make_service_failed_event(svc_a)
 
-        await watcher.restart_service(event)
-        key = watcher.service_key(svc_a.class_name, svc_a.role)
-        await wait_for(lambda: key not in watcher._restarting, desc="execute_restart completed")
+        # restart() is a module-level function (hassette.resources.operations), not a
+        # method — patch it at the call site (service_watcher.py) rather than reassigning
+        # instance attributes, since execute_restart() calls the free function directly.
+        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+            await watcher.restart_service(event)
+            key = watcher.service_key(svc_a.class_name, svc_a.role)
+            await wait_for(lambda: key not in watcher._restarting, desc="execute_restart completed")
 
-        svc_a.restart.assert_awaited_once()
-        svc_b.restart.assert_awaited_once()
+            mock_restart.assert_any_await(svc_a)
+            mock_restart.assert_any_await(svc_b)
+            assert mock_restart.await_count == 2
         watcher.logger.warning.assert_called_once()
 
 
@@ -303,7 +310,6 @@ class TestShutdownIfCrashed:
         """When exception_type is falsy, the fatal reason has no ': <type>' suffix."""
         hassette = build_watcher_hassette()
         hassette.record_fatal_reason = Mock()
-        hassette.request_shutdown = Mock()
         watcher = make_watcher(hassette)
 
         payload = ServiceStatusPayload(
@@ -319,7 +325,8 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
-        await watcher.shutdown_if_crashed(event)
+        with patch("hassette.core.service_watcher.request_shutdown"):
+            await watcher.shutdown_if_crashed(event)
 
         hassette.record_fatal_reason.assert_called_once_with("service 'SomeService' crashed")
 
@@ -327,7 +334,6 @@ class TestShutdownIfCrashed:
         """If record_fatal_reason itself raises, shutdown_if_crashed logs and re-raises."""
         hassette = build_watcher_hassette()
         hassette.record_fatal_reason = Mock(side_effect=RuntimeError("state corrupted"))
-        hassette.request_shutdown = Mock()
         watcher = make_watcher(hassette)
 
         payload = ServiceStatusPayload(
@@ -343,11 +349,12 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
-        with pytest.raises(RuntimeError, match="state corrupted"):
-            await watcher.shutdown_if_crashed(event)
+        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+            with pytest.raises(RuntimeError, match="state corrupted"):
+                await watcher.shutdown_if_crashed(event)
 
-        # The failure happened before request_shutdown was reached.
-        hassette.request_shutdown.assert_not_called()
+            # The failure happened before request_shutdown was reached.
+            mock_request_shutdown.assert_not_called()
 
 
 class TestOnServiceRunningBudgetNoneBranch:

@@ -9,6 +9,7 @@ from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError, ClientConnectorError
 
 import hassette.core.websocket_service as websocket_module
+import hassette.resources.lifecycle as lifecycle_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
     ConnectionClosedError,
@@ -457,7 +458,6 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     websocket_service.subscribe_events = AsyncMock(
         return_value=42
     )  # boundary-exempt: collaborator of start_recv_and_subscribe
-    websocket_service.mark_ready = Mock()  # boundary-exempt: collaborator of start_recv_and_subscribe
     # Stub _emit_readiness_event: this test focuses on mark_ready/subscription behavior;
     # readiness event emission is covered by test_websocket_readiness_events.py.
     websocket_service._emit_readiness_event = AsyncMock()  # boundary-exempt: collaborator of start_recv_and_subscribe
@@ -467,14 +467,19 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     # (set by serve() before calling make_connection). Set CONNECTING as the pre-condition.
     websocket_service._connection_state = ConnectionState.CONNECTING
 
-    result = await websocket_service.start_recv_and_subscribe()
+    with patch(
+        "hassette.core.websocket_service.mark_ready"  # boundary-exempt: collaborator of start_recv_and_subscribe
+    ) as mock_mark_ready:
+        result = await websocket_service.start_recv_and_subscribe()
 
     # Close any coroutines captured to suppress ResourceWarning
     for coro in spawned_coros:
         coro.close()
 
     assert result is fake_task
-    websocket_service.mark_ready.assert_called_once()
+    mock_mark_ready.assert_called_once_with(
+        websocket_service, reason="WebSocket connected, authenticated, and subscribed"
+    )
     assert websocket_service._connected_at is not None
     assert websocket_service._subscription_ids == {42}
     # Clean up the task
@@ -848,13 +853,12 @@ async def test_service_status_stays_running_during_early_drop(
 
         return asyncio.create_task(_clean())
 
-    original_mark_not_ready = websocket_service.mark_not_ready
+    original_mark_not_ready = lifecycle_module.mark_not_ready
 
-    def capturing_mark_not_ready(reason: str | None = None) -> None:
-        original_mark_not_ready(reason=reason)
+    def capturing_mark_not_ready(resource, reason: str | None = None) -> None:
+        original_mark_not_ready(resource, reason=reason)
         statuses_during_retry.append((websocket_service.status, websocket_service.is_ready()))
 
-    websocket_service.mark_not_ready = capturing_mark_not_ready  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
     websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
     websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
@@ -866,7 +870,14 @@ async def test_service_status_stays_running_during_early_drop(
     # not a lifecycle operation. handle_running() requires STARTING → RUNNING which needs
     # a full initialize() first; here we just need the status to be RUNNING for the assertion.
     websocket_service._status = ResourceStatus.RUNNING
-    await websocket_service.serve()
+
+    # mark_not_ready is a module-level function (hassette.resources.lifecycle), not a
+    # method — patch it at the call site (websocket_service.py) rather than reassigning
+    # an instance attribute, since serve() calls the free function directly.
+    with patch(
+        "hassette.core.websocket_service.mark_not_ready", side_effect=capturing_mark_not_ready
+    ):  # boundary-exempt: collaborator of serve()
+        await websocket_service.serve()
 
     assert len(statuses_during_retry) >= 1
     status, ready = statuses_during_retry[0]

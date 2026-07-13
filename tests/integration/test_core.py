@@ -4,7 +4,7 @@ import threading
 import typing
 from types import SimpleNamespace
 from typing import ClassVar, cast
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 
@@ -156,31 +156,26 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
     """run_forever uses phased startup: DB first, session, then wave-based remaining services."""
-    db_start = Mock()
-    other_starts: list[Mock] = []
-
-    hassette_instance.database_service.start = db_start  # pyright: ignore[reportAttributeAccessIssue]
-    for child in hassette_instance.children:
-        if child is not hassette_instance.database_service:
-            m = Mock()
-            other_starts.append(m)
-            child.start = m  # pyright: ignore[reportAttributeAccessIssue]
-
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
     hassette_instance.session_manager.create_session = AsyncMock()
 
-    task = asyncio.create_task(hassette_instance.run_forever())
-    asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
-    await wait_for(lambda: db_start.called, desc="run_forever started")
-    await task
+    # start() is a module-level function (hassette.resources.lifecycle), not a method —
+    # patch it at the call site (core.py) rather than reassigning instance attributes,
+    # since run_forever() calls the free function directly for every child.
+    with patch("hassette.core.core.start") as mock_start:
+        task = asyncio.create_task(hassette_instance.run_forever())
+        asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
+        await wait_for(lambda: mock_start.called, desc="run_forever started")
+        await task
 
     # Phase 1: DB started first
-    db_start.assert_called_once()
+    mock_start.assert_any_call(hassette_instance.database_service)
     # Phase 2: remaining resources started after session creation (wave-by-wave)
-    for m in other_starts:
-        m.assert_called_once()
+    for child in hassette_instance.children:
+        if child is not hassette_instance.database_service:
+            mock_start.assert_any_call(child)
     # wait_for_ready called: once for DB, then once per startup wave.
     assert hassette_instance.wait_for_ready.await_count >= 2
     hassette_instance.wait_for_ready.assert_any_await(
@@ -196,13 +191,14 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when session initialization raises."""
-    hassette_instance.database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
     hassette_instance.session_manager.create_session = AsyncMock()
 
-    with pytest.raises(FatalError):
+    # start() is a module-level function (hassette.resources.lifecycle), not a method —
+    # patch it at the call site (core.py) so real children never actually spawn.
+    with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
     hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
@@ -212,17 +208,15 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
-    hassette_instance.database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
-    for child in hassette_instance.children:
-        if child is not hassette_instance.database_service:
-            child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     # DB wait succeeds (True), all-children wait fails (False)
     hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
     hassette_instance.session_manager.create_session = AsyncMock()
 
-    with pytest.raises(FatalError):
+    # start() is a module-level function (hassette.resources.lifecycle), not a method —
+    # patch it at the call site (core.py) so real children never actually spawn.
+    with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
     assert hassette_instance.wait_for_ready.await_count == 2
@@ -241,13 +235,14 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
     # dev_mode=True forces Tier 2 to install, so the teardown assertions below are non-vacuous.
     hassette_instance.config.dev_mode = True
     hassette_instance.config.blocking_io.deep_detection_enabled = True
-    hassette_instance.database_service.start = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-        side_effect=RuntimeError("db start broke"),
-    )
 
     real_install = core_module.install_block_io_guard
     try:
         with (
+            # start() is a module-level function (hassette.resources.lifecycle), not a
+            # method — patch it at the call site (core.py) rather than reassigning an
+            # instance attribute, since run_forever() calls the free function directly.
+            patch("hassette.core.core.start", side_effect=RuntimeError("db start broke")),
             patch.object(core_module, "install_block_io_guard", wraps=real_install) as install_spy,
             pytest.raises(FatalError),
         ):
@@ -367,19 +362,16 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
 def test_database_service_starts_first(hassette_instance: Hassette) -> None:
     """run_forever phase 1 starts DatabaseService before any other child.
 
-    Mocks all child .start() methods and verifies only DatabaseService is called
+    Patches the module-level start() and verifies only DatabaseService is passed
     after the phase-1 step.
     """
-    for child in hassette_instance.children:
-        child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    with patch("hassette.core.core.start") as mock_start:  # boundary-exempt: lifecycle extraction
+        mock_start(hassette_instance.database_service)
 
-    # Simulate phase 1: only the database service starts
-    hassette_instance.database_service.start()
-
-    hassette_instance.database_service.start.assert_called_once()  # pyright: ignore[reportAttributeAccessIssue]
-    for child in hassette_instance.children:
-        if child is not hassette_instance.database_service:
-            child.start.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue]
+        mock_start.assert_called_once_with(hassette_instance.database_service)
+        for child in hassette_instance.children:
+            if child is not hassette_instance.database_service:
+                assert call(child) not in mock_start.call_args_list
 
 
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:

@@ -4,9 +4,11 @@ and close_streams ordering.
 
 import inspect
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 from hassette.core.core import Hassette
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import handle_stop as real_handle_stop
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
@@ -144,21 +146,22 @@ class TestCloseStreamsAfterChildrenStopped:
 
         # Verify the child emits a STOPPED event during shutdown
         stopped_called = False
-        original_handle_stop = bus.handle_stop
 
-        async def tracked_handle_stop() -> None:
+        async def tracked_handle_stop(resource) -> None:
             nonlocal stopped_called
             stopped_called = True
-            await original_handle_stop()
-
-        bus.handle_stop = tracked_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
+            await real_handle_stop(resource)
 
         try:
-            await bus.shutdown()
+            # handle_stop() is a module-level function (hassette.resources.lifecycle),
+            # not a method — patch it at the call site (base.py) rather than reassigning
+            # an instance attribute, since _finalize_shutdown() calls the free function
+            # directly.
+            with patch("hassette.resources.base.handle_stop", side_effect=tracked_handle_stop):
+                await bus.shutdown()
             assert stopped_called, "Child should have emitted a STOPPED event during shutdown"
             assert bus.status == ResourceStatus.STOPPED
         finally:
-            bus.handle_stop = original_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
             # Restore for other tests
             bus.shutdown_completed = False
             bus.shutting_down = False

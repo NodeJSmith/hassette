@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate spy-by-reassignment test patterns"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#7", "AC#7"]
 ---

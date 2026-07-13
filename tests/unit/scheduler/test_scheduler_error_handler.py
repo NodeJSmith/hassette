@@ -1,6 +1,6 @@
 """Tests for Scheduler error handler registration."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
@@ -29,15 +29,16 @@ class TestSchedulerOnErrorMethod:
     async def test_on_error_reset_on_initialize(self) -> None:
         """_error_handler is reset to None when on_initialize() is called."""
         scheduler = make_scheduler()
-        # Stub mark_ready to avoid requiring full Resource infrastructure
-        scheduler.mark_ready = MagicMock()
         scheduler.on_error(handler_a)
         assert scheduler._error_handler is handler_a
 
-        # Simulate hot-reload: on_initialize resets state
-        await scheduler.on_initialize()
+        # Stub mark_ready to avoid requiring full Resource infrastructure
+        with patch("hassette.scheduler.scheduler.mark_ready") as mock_mark_ready:
+            # Simulate hot-reload: on_initialize resets state
+            await scheduler.on_initialize()
 
         assert scheduler._error_handler is None
+        mock_mark_ready.assert_called_once_with(scheduler, reason="Scheduler initialized")
 
     def test_on_error_replaces_previous(self) -> None:
         """A second call to on_error() replaces the previous handler."""
