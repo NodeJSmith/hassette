@@ -7,44 +7,40 @@ SCRIPT="$REPO_ROOT/scripts/hassette_demo.py"
 TIMEOUT=120
 POLL_TIMEOUT=30
 
+HASSETTE_PORT="${DEMO_HASSETTE_PORT:-18126}"
+HASSETTE_URL="http://localhost:$HASSETTE_PORT"
+
 # Expected app instance count — derived from hassette.toml config sections
 EXPECTED_APPS=7
 
 cleanup() {
     if [[ -n "${DEMO_PID:-}" ]]; then
-        kill -TERM "$DEMO_PID" 2>/dev/null || true
-        timeout 15 tail --pid="$DEMO_PID" -f /dev/null 2>/dev/null || kill -9 "$DEMO_PID" 2>/dev/null || true
+        # Kill the process group (uv + python child), not just the uv PID
+        kill -TERM -- -"$DEMO_PID" 2>/dev/null || kill -TERM "$DEMO_PID" 2>/dev/null || true
+        timeout 15 tail --pid="$DEMO_PID" -f /dev/null 2>/dev/null || kill -9 -- -"$DEMO_PID" 2>/dev/null || true
     fi
-    rm -f "${FIFO:-}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Start the orchestrator in the background, capture its output
-FIFO=$(mktemp -u)
-mkfifo "$FIFO"
-uv run python "$SCRIPT" > "$FIFO" 2>/dev/null &
+# Start the orchestrator in the background
+uv run python "$SCRIPT" &
 DEMO_PID=$!
 
-# Read structured output until DEMO_READY=true
-declare -A DEMO_VARS
+# Poll the configured hassette URL until it reports healthy
 DEADLINE=$((SECONDS + TIMEOUT))
-while IFS='=' read -r key value; do
-    DEMO_VARS["$key"]="$value"
-    [[ "$key" == "DEMO_READY" ]] && break
-    if ((SECONDS >= DEADLINE)); then
-        echo "FAIL: DEMO_READY not received within ${TIMEOUT}s"
+until curl -sf --max-time 5 "$HASSETTE_URL/api/health" >/dev/null 2>&1; do
+    if ! kill -0 "$DEMO_PID" 2>/dev/null; then
+        echo "FAIL: orchestrator process exited before hassette became healthy"
         exit 1
     fi
-done < <(timeout "$TIMEOUT" cat "$FIFO")
-rm -f "$FIFO"
+    if ((SECONDS >= DEADLINE)); then
+        echo "FAIL: hassette did not become healthy within ${TIMEOUT}s"
+        exit 1
+    fi
+    sleep 1
+done
 
-if [[ "${DEMO_VARS[DEMO_READY]:-}" != "true" ]]; then
-    echo "FAIL: orchestrator exited without DEMO_READY=true"
-    exit 1
-fi
-
-HASSETTE_URL="${DEMO_VARS[DEMO_HASSETTE_URL]}"
-echo "Demo ready: frontend=${DEMO_VARS[DEMO_FRONTEND_URL]} hassette=$HASSETTE_URL ha=${DEMO_VARS[DEMO_HA_URL]}"
+echo "Demo ready: hassette=$HASSETTE_URL"
 
 # Poll /api/apps until all instances are running
 RUNNING=0

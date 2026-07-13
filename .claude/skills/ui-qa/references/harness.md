@@ -8,24 +8,24 @@ hot reload so CSS/TSX edits apply without rebuilds.
 ## Starting
 
 ```bash
-# From the repo root (requires Docker; takes 60–90s)
+# From the repo root (requires Docker Compose; takes 60–90s)
 uv run python scripts/hassette_demo.py
 ```
 
-Run it in the background and poll its output for readiness. It prints machine-parseable
-lines when up:
+Run it in the background and poll its output for readiness. It prints human-readable
+URLs when up:
 
 ```text
-DEMO_HA_URL=http://localhost:NNNNN
-DEMO_HASSETTE_URL=http://localhost:NNNNN
-DEMO_FRONTEND_URL=http://localhost:NNNNN
-DEMO_HASSETTE_LOG=/tmp/hassette-demo-XXXX/hassette.log
-DEMO_VITE_LOG=/tmp/hassette-demo-XXXX/vite.log
-DEMO_READY=true
+HA:       http://localhost:18123
+Hassette: http://localhost:18126
+Frontend: http://localhost:15173
+Demo ready.
 ```
 
-Use `DEMO_FRONTEND_URL` for all browser work. `DEMO_HASSETTE_URL` is the REST API
-(useful for `/api/health`, app start/stop).
+Default ports are `15173` (frontend), `18126` (hassette API), `18123` (HA).
+Override with `DEMO_VITE_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_HA_PORT` if those
+ports are already in use — the URLs printed at startup reflect the configured
+values.
 
 ## Gotchas (each of these has burned a session)
 
@@ -37,16 +37,18 @@ Use `DEMO_FRONTEND_URL` for all browser work. `DEMO_HASSETTE_URL` is the REST AP
   restart the whole demo script.
 - **Failure data takes ~2 minutes.** `demo_stimulator`'s failing job needs a few cycles
   before error spotlights, sparklines, and log volume look representative. Don't
-  screenshot or dispatch personas immediately at `DEMO_READY`.
+  screenshot or dispatch personas immediately at "Demo ready."
 - **Theme is localStorage**, key `hassette:theme`, value `"light"` or `"dark"`
   (JSON-encoded string — the quotes are part of the value).
-- **Teardown**: SIGTERM the script and it cleans up Vite, hassette, and the HA
-  container. If a `hassette-demo-ha-*` container survives, `docker rm -f` it.
+- **Teardown**: Ctrl-C or SIGTERM the script — `docker compose down --remove-orphans`
+  handles all three containers. No manual cleanup needed. Need logs from a running
+  service? `docker compose -f scripts/docker/ha-demo.yml -p hassette-demo logs <service>`
+  (services: `homeassistant`, `hassette`, `vite`).
 
 ## Screenshot matrix
 
 ```bash
-uv run python tools/frontend/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots
+uv run python tools/frontend/ui_qa_capture.py --output-dir $TMPDIR/shots
 ```
 
 Captures pages × viewports (320/375/768/900/1280) × themes. Filter with `--pages`,

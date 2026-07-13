@@ -1,9 +1,9 @@
 services:
   homeassistant:
     image: homeassistant/home-assistant:2026.7
-    container_name: "hassette-demo-ha-${HA_PORT:-8123}"
+    container_name: "hassette-demo-ha"
     ports:
-      - "${HA_PORT:-8123}:8123"
+      - "127.0.0.1:${DEMO_HA_PORT:-18123}:8123"
     volumes:
       - "${HA_CONFIG_PATH:-../../tests/fixtures/demo-ha-config}:/config"
     restart: "no"
@@ -14,3 +14,54 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  hassette:
+    build:
+      context: ../..
+      dockerfile: scripts/docker/Dockerfile.hassette-dev
+    container_name: "hassette-demo-hassette"
+    ports:
+      - "127.0.0.1:${DEMO_HASSETTE_PORT:-18126}:8126"
+    volumes:
+      - "../..:/app"
+      - "../../.demo-data:/app/.demo-data"
+    environment:
+      HASSETTE__BASE_URL: "http://homeassistant:8123"
+      # JWT must match HA_TOKEN in scripts/hassette_demo.py and tests/fixtures/demo-ha-config/.storage/auth
+      HASSETTE__TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"
+      HASSETTE__WEB_API__PORT: "8126"
+      HASSETTE__APPS__DIRECTORY: "/app/examples"
+      HASSETTE__DATA_DIR: "/app/.demo-data"
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8126/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  vite:
+    build:
+      context: ../..
+      dockerfile: scripts/docker/Dockerfile.vite-dev
+    container_name: "hassette-demo-vite"
+    ports:
+      - "127.0.0.1:${DEMO_VITE_PORT:-15173}:5173"
+    volumes:
+      - "../../frontend:/app/frontend"
+      - "/app/frontend/node_modules"
+    environment:
+      VITE_PROXY_TARGET: "http://hassette:8126"
+    depends_on:
+      hassette:
+        condition: service_healthy
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5173"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 10s

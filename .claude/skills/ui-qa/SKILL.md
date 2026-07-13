@@ -25,8 +25,8 @@ Use when the user says: "ui qa", "visual QA the frontend", "polish pass on the U
 ## Phase 1: Environment
 
 Read `references/harness.md` and follow it: start the demo stack in the background, wait
-for `DEMO_READY=true`, then **wait ~2 minutes more** for failure/activity data before
-capturing anything. Get a tmpdir via `get-skill-tmpdir ui-qa`.
+for "Demo ready." on its output, then **wait ~2 minutes more** for failure/activity data
+before capturing anything. Get a tmpdir via `get-skill-tmpdir ui-qa`.
 
 Skip the wait only when the stack is already running from earlier in the session.
 
@@ -35,7 +35,7 @@ Skip the wait only when the stack is already running from earlier in the session
 1. Capture the matrix (scoped — full matrix only for explicit full audits):
 
    ```bash
-   uv run python tools/frontend/ui_qa_capture.py --base-url $DEMO_FRONTEND_URL --output-dir $TMPDIR/shots [--pages ...] [--viewports ...]
+   uv run python tools/frontend/ui_qa_capture.py --output-dir $TMPDIR/shots [--pages ...] [--viewports ...]
    ```
 
 2. Dispatch one **Sonnet** analysis subagent per page (all viewports/themes of that page
@@ -70,7 +70,7 @@ Skip the wait only when the stack is already running from earlier in the session
    Screenshots are the sweep, not a wall: when a finding hinges on behavior a static
    image can't show (does truncated text expand on tap? does this region scroll?), the
    analysis agent should load the live page via Playwright and check — include
-   `DEMO_FRONTEND_URL` in its prompt. Same shared-browser constraint as personas:
+   the frontend URL (default `http://localhost:15173`) in its prompt. Same shared-browser constraint as personas:
    agents that go interactive must run sequentially.
 
 ## Phase 2b: Personas mode
@@ -78,7 +78,7 @@ Skip the wait only when the stack is already running from earlier in the session
 1. Read `references/personas.md`; select personas per its table (or the user's scope).
 2. Dispatch personas **sequentially, not in parallel** — they share the one Playwright
    MCP browser, and parallel agents fight over it. Each subagent prompt contains: the
-   persona block verbatim, `DEMO_FRONTEND_URL`, the instruction to set the viewport
+   persona block verbatim, the frontend URL (default `http://localhost:15173`), the instruction to set the viewport
    first and stay in character, and a hard cap (~25 browser actions) so a stuck persona
    reports "stuck" instead of wandering. Enforce with `schema`:
 
