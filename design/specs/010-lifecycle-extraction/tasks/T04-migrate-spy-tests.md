@@ -2,7 +2,7 @@
 task_id: "T04"
 title: "Migrate spy-by-reassignment test patterns"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T03"]
 implements: ["FR#7", "AC#7"]
 ---
 
@@ -77,7 +77,7 @@ After fixing all patterns, run the affected test files to verify they pass.
 
 - `conftest.py:make_mock_app_instance` (line 207) creates a full `AsyncMock` App. The `mark_ready = Mock()` there sets up the mock's attribute. After extraction, tests that verify `mark_ready` was called should patch `hassette.resources.lifecycle.mark_ready` instead. Remove the `app.mark_ready = Mock()` line from the factory and patch at the test call site.
 - `test_fatal_shutdown.py` exists in BOTH `tests/unit/core/` and `tests/integration/` — different files, different patterns. Don't conflate them.
-- `test_check_internal_patches.py` (tests/unit/tools/) also sets `.mark_ready = Mock()` but this tests the linter itself — verify whether it needs updating or is testing the old pattern intentionally.
+- `test_check_internal_patches.py` (tests/unit/tools/) also sets `.mark_ready = Mock()` but this tests the linter itself — it uses literal source-string fixtures, not real spy interception. Out of scope for this task.
 - Some files may have BOTH spy patterns AND direct method calls. Fix only the spy patterns here; direct method calls are handled in T05.
 - After patching, assertions may need updating: `svc.mark_ready.assert_called_once()` becomes `mock_ready.assert_called_once_with(svc, reason=...)` — the first argument is now the resource instance.
 

@@ -71,7 +71,7 @@ In `tests/unit/app/test_app_dir.py` (created in T02), add a test verifying `hasa
 ## Focus
 
 - `mixins.py` LifecycleMixin methods span lines 120-363. Delete method by method, preserving class attributes and properties.
-- `base.py` Resource methods: `register_task_bucket_factory` (151-157), `start_children_and_wait` (285-315), `restart` (294-315 area), `_run_hooks` (317-344), `_ordered_children_for_shutdown` (346+).
+- `base.py` Resource methods: `register_task_bucket_factory` (151-157), `start_children_and_wait` (285+), `_run_hooks` (317-344), `_ordered_children_for_shutdown` (346+), `restart` (615+).
 - `INHERITED_LIFECYCLE_EXCLUSIONS` is at `test_forgotten_await_completeness.py:101-119`. After removal, the set should have 10 entries (down from 17).
 - The `hasattr` test is AC#4 — it can only pass after the methods are deleted, which is why it's in this task rather than T02.
 - After deletion, verify no import errors from the deleted methods — any remaining `from hassette.resources.mixins import handle_failed` style imports (there shouldn't be any after T03-T05) would break.

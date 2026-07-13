@@ -2,7 +2,7 @@
 task_id: "T03"
 title: "Migrate all src/ call sites to module functions"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T02"]
 implements: ["FR#4"]
 ---
 
@@ -117,4 +117,4 @@ After all migrations, run `prek -a` to verify lint and type checking pass.
 
 ## Verify
 
-- [ ] FR#4: All framework call sites in `src/` call module-level functions. Verify: `grep -rn 'self\.handle_failed\|self\.handle_crash\|self\.handle_stop\|self\.handle_starting\|self\.handle_running\|self\.create_service_status_event\|self\.mark_ready\|self\.mark_not_ready\|self\.request_shutdown\|self\.start_children_and_wait\|self\.restart(' src/hassette/ --include='*.py' | grep -v 'def \|#\|resources/mixins.py\|resources/base.py'` returns no results (excluding the still-present old method definitions in mixins.py and base.py).
+- [ ] FR#4: All framework call sites in `src/` that T03 targets call module-level functions. Verify with two checks: (1) `prek -a` passes (type checker confirms all migrated imports resolve). (2) Spot-check key call-site files: `grep -n 'self\.handle_failed\|self\.mark_ready\|self\.handle_crash\|self\.handle_stop\|self\.handle_running\|self\.handle_starting\|self\.restart\|self\.start_children_and_wait\|self\._run_hooks' src/hassette/resources/service.py src/hassette/core/app_lifecycle_service.py src/hassette/core/core.py src/hassette/core/service_watcher.py src/hassette/task_bucket/task_bucket.py` returns no results. Note: the old method bodies in `mixins.py` and `base.py` still contain internal `self.method()` calls — these are dead code deleted in T06, not T03 call-site failures.

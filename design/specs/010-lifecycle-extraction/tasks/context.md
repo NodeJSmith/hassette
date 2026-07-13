@@ -32,7 +32,7 @@ None.
 ## Design Doc References
 
 - `## Architecture` — module structure, `__dir__` on App, Protocol update, call-site migration patterns, test spy migration patterns
-- `## Functional Requirements` — FR#1-FR#7/FR#2a covering extraction, `__dir__`, call-site migration, Protocol update, allowlist test, spy test redesign
+- `## Functional Requirements` — FR#1-FR#8 covering extraction, `__dir__`, call-site migration, Protocol update, allowlist test, spy test redesign
 - `## Acceptance Criteria` — AC#1-AC#7 covering dir() output, imports, hasattr, test suite, linter, grep verification
 - `## Impact → Changed Files` — 35 src/ files, 14 spy test files, ~41 mechanical test files
 - `## Test Strategy` — 14 spy-by-reassignment files (table with file:pattern:fix), ~35 mechanical rename files, 3 new test areas

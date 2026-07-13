@@ -40,11 +40,29 @@ def __dir__(self) -> list[str]:
     return sorted(_APP_PUBLIC_API)
 ```
 
+`AppSync` (also in `app.py`, subclasses `App`) must override `__dir__` to include its 6 sync hooks:
+
+```python
+_APPSYNC_HOOKS: frozenset[str] = frozenset({
+    "before_initialize_sync", "on_initialize_sync", "after_initialize_sync",
+    "before_shutdown_sync", "on_shutdown_sync", "after_shutdown_sync",
+})
+```
+
+Add to the `AppSync` class body:
+
+```python
+def __dir__(self) -> list[str]:
+    return sorted(_APP_PUBLIC_API | _APPSYNC_HOOKS)
+```
+
 Create `tests/unit/app/test_app_dir.py` with tests:
 
-1. **Allowlist test** — construct an App instance (use `make_mock_hassette()` or minimal setup) and assert `set(dir(app_instance)) == _APP_PUBLIC_API`. Import `_APP_PUBLIC_API` from `hassette.app.app`.
+1. **App allowlist test** — construct an App instance and assert `set(dir(app_instance)) == _APP_PUBLIC_API`. Import `_APP_PUBLIC_API` from `hassette.app.app`.
 
-2. **Regression guard** — assert the allowlist has exactly 20 names (catches accidental additions or removals).
+2. **AppSync allowlist test** — construct an AppSync instance and assert `set(dir(appsync_instance)) == _APP_PUBLIC_API | _APPSYNC_HOOKS`.
+
+3. **Regression guard** — assert the App allowlist has exactly 20 names and AppSync has exactly 26.
 
 The `hasattr` test for extracted methods (AC#4) belongs in T06 after methods are deleted — `hasattr` still returns True while methods exist on the class.
 

@@ -55,7 +55,7 @@ App inherits ~54 public names from Resource and LifecycleMixin. Only ~20 are app
 - **FR#1** All 11 lifecycle state-transition methods (`handle_failed`, `handle_crash`, `handle_stop`, `handle_starting`, `handle_running`, `create_service_status_event`, `mark_ready`, `mark_not_ready`, `request_shutdown`, `start`, `cancel`) are module-level functions in `src/hassette/resources/lifecycle.py`, not methods on any class.
 - **FR#2** Five structural-operation methods (`start_children_and_wait`, `restart`, `register_task_bucket_factory`, `run_hooks`, `ordered_children_for_shutdown`) are module-level functions in `src/hassette/resources/operations.py`, not methods on any class. The current method names `_run_hooks` and `_ordered_children_for_shutdown` drop the underscore prefix — they are no longer private methods on a class.
 - **FR#8** `add_child` remains a method on Resource (used by `App.__init__` for child construction) but is excluded from `dir(app_instance)`.
-- **FR#3** `dir()` on an App instance returns only the app-author API names: `logger`, `api`, `scheduler`, `bus`, `states`, `app_config`, `instance_name`, `unique_name`, `index`, `now`, `on_initialize`, `on_shutdown`, `before_initialize`, `after_initialize`, `before_shutdown`, `after_shutdown`, `task_bucket`, `cache`, `is_ready`, `wait_ready`.
+- **FR#3** `dir()` on an App instance returns only the app-author API names: `logger`, `api`, `scheduler`, `bus`, `states`, `app_config`, `instance_name`, `unique_name`, `index`, `now`, `on_initialize`, `on_shutdown`, `before_initialize`, `after_initialize`, `before_shutdown`, `after_shutdown`, `task_bucket`, `cache`, `is_ready`, `wait_ready`. `dir()` on an AppSync instance returns the same 20 names plus the 6 sync hooks: `before_initialize_sync`, `on_initialize_sync`, `after_initialize_sync`, `before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`.
 - **FR#4** All framework call sites in `src/` that previously called `self.method()` or `instance.method()` for extracted methods now call the module-level function with the resource as the first argument.
 - **FR#5** The `_LifecycleHostP` Protocol in `mixins.py` no longer requires `create_service_status_event` as a method — it is removed from the Protocol since the free function accesses the resource's attributes directly.
 - **FR#6** A test asserts that `set(dir(app_instance))` matches the declared app-author API allowlist, catching future regressions.
@@ -135,6 +135,18 @@ def __dir__(self) -> list[str]:
     return sorted(_APP_PUBLIC_API)
 ```
 
+`AppSync` overrides `__dir__` to include its 6 sync hooks:
+
+```python
+_APPSYNC_HOOKS: frozenset[str] = frozenset({
+    "before_initialize_sync", "on_initialize_sync", "after_initialize_sync",
+    "before_shutdown_sync", "on_shutdown_sync", "after_shutdown_sync",
+})
+
+def __dir__(self) -> list[str]:
+    return sorted(_APP_PUBLIC_API | _APPSYNC_HOOKS)
+```
+
 ### `_LifecycleHostP` update
 
 Remove `create_service_status_event` from the Protocol. The free function in `lifecycle.py` accesses `resource.hassette`, `resource.role`, `resource.class_name`, `resource.unique_name` directly — all are existing Protocol attributes.
@@ -187,7 +199,7 @@ No specific implementation preferences — follow codebase conventions.
 | `Resource.start_children_and_wait()`, `restart()`, `_run_hooks()`, `_ordered_children_for_shutdown()` | `resources/operations.py` module-level functions | Delete from class, move body to module function |
 | `Resource.register_task_bucket_factory()` classmethod | `resources/operations.py` module-level function | Delete classmethod, update import in `hassette.task_bucket` |
 | `_LifecycleHostP.create_service_status_event` Protocol requirement | Removed from Protocol | Delete from Protocol definition |
-| 9 spy-by-reassignment test patterns | `patch()` on module-level functions | Structural test redesign |
+| 14 spy-by-reassignment test files | `patch()` on module-level functions | Structural test redesign |
 
 ## Convention Examples
 
@@ -267,7 +279,7 @@ Rename `handle_failed` to `_handle_failed`, etc. Convention-based hiding.
 
 ### Existing Tests to Adapt
 
-9 test files use spy-by-reassignment patterns that silently break when methods become module-level functions:
+14 test files use spy-by-reassignment patterns that silently break when methods become module-level functions:
 
 | File | Pattern | Fix |
 |------|---------|-----|
