@@ -114,6 +114,7 @@ After all migrations, run `prek -a` to verify lint and type checking pass.
 - `task_bucket.py:434` calls `Resource.register_task_bucket_factory(factory)` — classmethod pattern.
 - `core.py` has `_on_children_stopped()` and `shutdown()` with lifecycle calls.
 - Test utils (`app_harness.py`, `harness.py`, `recording_api.py`, `reset.py`) call lifecycle methods on instances.
+- **`start`/`cancel` disambiguation:** These names exist on `asyncio.Task`, `Subscription`, and other types. Only migrate calls on `Resource`/`Service` instances — not `task.cancel()`, `subscription.cancel()`, or `asyncio.Task.start()`. Check the receiver type before transforming each call site.
 
 ## Verify
 

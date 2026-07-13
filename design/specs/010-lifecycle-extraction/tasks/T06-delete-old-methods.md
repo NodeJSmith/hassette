@@ -75,6 +75,7 @@ In `tests/unit/app/test_app_dir.py` (created in T02), add a test verifying `hasa
 - `INHERITED_LIFECYCLE_EXCLUSIONS` is at `test_forgotten_await_completeness.py:101-119`. After removal, the set should have 10 entries (down from 17).
 - The `hasattr` test is AC#4 — it can only pass after the methods are deleted, which is why it's in this task rather than T02.
 - After deletion, verify no import errors from the deleted methods — any remaining `from hassette.resources.mixins import handle_failed` style imports (there shouldn't be any after T03-T05) would break.
+- **Dead-code window risk:** Between T03 and this task, old methods still exist on the classes, so any test call sites T05 missed still pass silently. Before committing, re-run the AC#7 grep against `tests/` to catch any survivors: `grep -rn '\.handle_failed\s*=\|\.mark_ready\s*=\|\.handle_crash\s*=\|\.handle_stop\s*=\|\.handle_starting\s*=\|\.handle_running\s*=\|\.mark_not_ready\s*=\|\.request_shutdown\s*=\|\.create_service_status_event\s*=\|\.start\s*=.*Mock\|\.cancel\s*=.*Mock' tests/` — filter `Subscription.cancel`, `task.cancel`, and linter-test fixtures.
 
 ## Verify
 

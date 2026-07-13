@@ -29,6 +29,20 @@ None.
 - `mark_ready`, `mark_not_ready`, and `request_shutdown` signatures use `reason: str | None = None`, not `str = ""`.
 - `handle_crash` takes `Exception`, not `BaseException`.
 
+## Execution Risks
+
+### `start`/`cancel` name collision (T03, T04)
+
+`start` and `cancel` are generic names. `LifecycleMixin.start()` manages `_init_task`, but `start` and `cancel` also exist on `asyncio.Task`, `Subscription`, and other types. Grepping for `self.start(` or `self.cancel(` matches all of them. The executor MUST disambiguate — only migrate calls on `Resource`/`Service` instances, not `task.cancel()` or `subscription.cancel()`. The AC#7 grep (`\.start\s*=.*Mock`) has the same false-positive risk for `Subscription.cancel` and `task.cancel` — filter those explicitly.
+
+### Spy test count may be incomplete (T04)
+
+The spy-by-reassignment file list drifted three times during planning (8 → 9 → 14). The current 14-file list may still miss files. Before committing T04, run the AC#7 grep early and triage EVERY hit — don't assume the target file list is exhaustive.
+
+### Dead-code window hides migration misses (T05 → T06)
+
+After T03 migrates `src/` call sites but before T06 deletes old methods, both paths work — a test calling `resource.handle_failed(exc)` still passes because the old method exists. If T05 misses a file, nobody notices until T06 deletes the methods and the test fails. The T06 executor MUST run the full test suite after deletion. If context compacts between T05 and T06, the T06 executor should re-run the AC#7 grep to verify no old-style calls survive in `tests/`.
+
 ## Design Doc References
 
 - `## Architecture` — module structure, `__dir__` on App, Protocol update, call-site migration patterns, test spy migration patterns

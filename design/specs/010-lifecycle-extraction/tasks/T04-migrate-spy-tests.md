@@ -80,6 +80,7 @@ After fixing all patterns, run the affected test files to verify they pass.
 - `test_check_internal_patches.py` (tests/unit/tools/) also sets `.mark_ready = Mock()` but this tests the linter itself — it uses literal source-string fixtures, not real spy interception. Out of scope for this task.
 - Some files may have BOTH spy patterns AND direct method calls. Fix only the spy patterns here; direct method calls are handled in T05.
 - After patching, assertions may need updating: `svc.mark_ready.assert_called_once()` becomes `mock_ready.assert_called_once_with(svc, reason=...)` — the first argument is now the resource instance.
+- **Run the AC#7 grep early** (before committing) and triage every hit. The 14-file target list drifted three times during planning and may still be incomplete. Filter false positives like `Subscription.cancel`, `task.cancel`, and linter-test fixtures that use literal source strings.
 
 ## Verify
 
