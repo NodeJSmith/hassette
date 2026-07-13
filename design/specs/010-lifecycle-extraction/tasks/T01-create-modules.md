@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create lifecycle.py and operations.py modules"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#5", "AC#2", "AC#3"]
 ---

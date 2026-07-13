@@ -102,14 +102,6 @@ if typing.TYPE_CHECKING:
         unique_name: str
         task_bucket: _TaskBucketP
 
-        def create_service_status_event(
-            self,
-            status: ResourceStatus,
-            exception: Exception | None = None,
-            ready: bool = False,
-            ready_phase: str | None = None,
-        ) -> "HassetteServiceEvent": ...
-
         async def initialize(self, *args, **kwargs) -> None: ...
 else:
 
