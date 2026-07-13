@@ -24,6 +24,49 @@ LOGGER = getLogger(__name__)
 
 AppT = TypeVar("AppT", bound="App")
 
+_APP_PUBLIC_API: frozenset[str] = frozenset(
+    {
+        "logger",
+        "api",
+        "scheduler",
+        "bus",
+        "states",
+        "app_config",
+        "instance_name",
+        "unique_name",
+        "index",
+        "now",
+        "on_initialize",
+        "on_shutdown",
+        "before_initialize",
+        "after_initialize",
+        "before_shutdown",
+        "after_shutdown",
+        "task_bucket",
+        "cache",
+        "is_ready",
+        "wait_ready",
+    }
+)
+"""App-author API allowlist — see design/specs/010-lifecycle-extraction/design.md.
+
+`App.__dir__` returns only these names, hiding the ~34 framework-internal names
+(lifecycle state transitions, child-resource wiring, readiness signaling) that
+Resource and LifecycleMixin otherwise expose.
+"""
+
+_APPSYNC_HOOKS: frozenset[str] = frozenset(
+    {
+        "before_initialize_sync",
+        "on_initialize_sync",
+        "after_initialize_sync",
+        "before_shutdown_sync",
+        "on_shutdown_sync",
+        "after_shutdown_sync",
+    }
+)
+"""AppSync's additional app-author-visible sync hooks, layered on top of `_APP_PUBLIC_API`."""
+
 
 def only_app(app_cls: type[AppT]) -> type[AppT]:
     """Decorator to mark an app class as the only one to run. If more than one app is marked with this decorator,
@@ -114,6 +157,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)
 
+    def __dir__(self) -> list[str]:
+        return sorted(_APP_PUBLIC_API)
+
     @property
     def unique_name(self) -> str:
         """Unique name for the app instance, used for logging and ownership of resources."""
@@ -162,6 +208,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
 class AppSync(App[AppConfigT]):
     """Synchronous adapter for App."""
+
+    def __dir__(self) -> list[str]:
+        return sorted(_APP_PUBLIC_API | _APPSYNC_HOOKS)
 
     @final
     async def before_shutdown(self) -> None:

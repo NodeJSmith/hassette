@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add App __dir__ override and allowlist test"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#8", "FR#3", "FR#6", "AC#1"]
 ---
