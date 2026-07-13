@@ -213,7 +213,7 @@ For visual/UI work, run the demo stack — **not** the e2e mock server. It start
 mise run demo            # or: uv run python scripts/hassette_demo.py
 ```
 
-`hassette_demo.py` is a thin wrapper around `scripts/demo_stack.py`'s `DemoStack` context manager — it starts all three services (HA, hassette, Vite) via `docker compose up -d --wait`, prints their URLs, and blocks until signaled. Ports are fixed by default (HA `18123`, hassette `18126`, Vite `15173`) and overridable via `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT`. Stop the process (Ctrl-C or SIGTERM) to tear the stack down — `docker compose down --remove-orphans` cleans up all containers. `mise run demo-verify` does a non-interactive health check (all apps reach running, listeners registered) by polling the fixed hassette URL directly.
+`hassette_demo.py` is a thin wrapper around `scripts/demo_stack.py`'s `DemoStack` context manager — it starts all three services (HA, hassette, Vite) via `docker compose up -d --wait`, prints their URLs, and blocks until signaled. Ports are fixed by default (HA `18123`, hassette `18126`, Vite `15173`) and overridable via `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT`. Stop the process (Ctrl-C or SIGTERM) to tear the stack down — `docker compose down --remove-orphans` cleans up all containers. `mise run demo-verify` does a non-interactive health check (all apps reach running, listeners registered) by polling the configured hassette health endpoint.
 
 Gotchas:
 - **Stale app code:** reloading a *failed* app via the REST API reuses the stale module — after editing app code, restart the whole stack.

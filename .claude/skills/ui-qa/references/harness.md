@@ -22,10 +22,10 @@ Frontend: http://localhost:15173
 Demo ready.
 ```
 
-Ports are fixed — use `http://localhost:15173` for all browser work and
-`http://localhost:18126` for the REST API (useful for `/api/health`, app start/stop).
-Override with `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT` if those ports are
-already in use.
+Default ports are `15173` (frontend), `18126` (hassette API), `18123` (HA).
+Override with `DEMO_VITE_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_HA_PORT` if those
+ports are already in use — the URLs printed at startup reflect the configured
+values.
 
 ## Gotchas (each of these has burned a session)
 
@@ -42,13 +42,13 @@ already in use.
   (JSON-encoded string — the quotes are part of the value).
 - **Teardown**: Ctrl-C or SIGTERM the script — `docker compose down --remove-orphans`
   handles all three containers. No manual cleanup needed. Need logs from a running
-  service? `docker compose -f scripts/docker/ha-demo.yml logs <service>` (services:
-  `homeassistant`, `hassette`, `vite`).
+  service? `docker compose -f scripts/docker/ha-demo.yml -p hassette-demo logs <service>`
+  (services: `homeassistant`, `hassette`, `vite`).
 
 ## Screenshot matrix
 
 ```bash
-uv run python tools/frontend/ui_qa_capture.py --base-url http://localhost:15173 --output-dir $TMPDIR/shots
+uv run python tools/frontend/ui_qa_capture.py --output-dir $TMPDIR/shots
 ```
 
 Captures pages × viewports (320/375/768/900/1280) × themes. Filter with `--pages`,

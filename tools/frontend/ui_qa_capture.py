@@ -7,8 +7,8 @@ Usage:
 Captures every page at every viewport in both themes by default. Filter with
 --pages/--viewports/--themes. Output files are named {page}--{width}--{theme}.png.
 
-Requires the demo stack (scripts/hassette_demo.py) to be running; pass its
-frontend URL (default http://localhost:15173) as --base-url. Playwright
+Requires the demo stack (scripts/hassette_demo.py) to be running. Override
+--base-url if the demo uses a non-default frontend port. Playwright
 Chromium must be installed (uv run playwright install chromium).
 """
 
@@ -52,7 +52,7 @@ def capture_matrix(base_url: str, output_dir: Path, pages: list[str], viewports:
     """Capture screenshots of the given pages at every viewport/theme combination.
 
     Args:
-        base_url: Frontend base URL from the demo stack (default http://localhost:15173).
+        base_url: Frontend base URL from the demo stack.
         output_dir: Directory to write screenshots into (created if missing).
         pages: Page keys from PAGES.
         viewports: Viewport keys from VIEWPORTS.
@@ -88,7 +88,9 @@ def main() -> None:
     """Parse CLI arguments and run the screenshot capture matrix."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
-        "--base-url", required=True, help="Frontend URL from the demo stack (default http://localhost:15173)"
+        "--base-url",
+        default="http://localhost:15173",
+        help="Frontend URL from the demo stack (default: http://localhost:15173)",
     )
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--pages", nargs="*", choices=sorted(PAGES), default=sorted(PAGES))

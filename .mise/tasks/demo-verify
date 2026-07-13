@@ -26,9 +26,13 @@ trap cleanup EXIT
 uv run python "$SCRIPT" &
 DEMO_PID=$!
 
-# Poll the fixed hassette URL until it reports healthy
+# Poll the configured hassette URL until it reports healthy
 DEADLINE=$((SECONDS + TIMEOUT))
-until curl -sf "$HASSETTE_URL/api/health" >/dev/null 2>&1; do
+until curl -sf --max-time 5 "$HASSETTE_URL/api/health" >/dev/null 2>&1; do
+    if ! kill -0 "$DEMO_PID" 2>/dev/null; then
+        echo "FAIL: orchestrator process exited before hassette became healthy"
+        exit 1
+    fi
     if ((SECONDS >= DEADLINE)); then
         echo "FAIL: hassette did not become healthy within ${TIMEOUT}s"
         exit 1

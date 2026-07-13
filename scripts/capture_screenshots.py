@@ -45,6 +45,7 @@ from demo_stack import DemoStack
 ERROR_DATA_TIMEOUT_SECONDS = 90
 ERROR_DATA_POLL_INTERVAL_SECONDS = 2
 HTTP_SOCKET_TIMEOUT_SECONDS = 5
+SCREENSHOT_CAPTURE_TIMEOUT_SECONDS = 600
 
 ANIMATION_DISABLE_JS = (
     "const s=document.createElement('style');"
@@ -63,7 +64,15 @@ def _clean_stale_demo_db(repo_root: Path) -> None:
     for suffix in ("", "-shm", "-wal"):
         db_file = demo_db.with_name(demo_db.name + suffix)
         if db_file.exists():
-            db_file.unlink()
+            try:
+                db_file.unlink()
+            except PermissionError:
+                print(
+                    f"WARNING: cannot delete root-owned {db_file.name} (will be overwritten by the new demo run)",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                continue
             deleted_files.append(db_file.name)
     if deleted_files:
         print(f"Cleaned stale demo DB files: {', '.join(deleted_files)}", flush=True)
@@ -151,15 +160,15 @@ def main() -> None:
     with DemoStack() as demo:
         _wait_for_error_data(demo.hassette_port)
 
+        resolved = _resolve_manifest(entries, str(demo.vite_port))
+
         if args.only:
             filters = [f.strip() for f in args.only.split(",")]
-            entries = [e for e in entries if any(f in e.get("output", "") for f in filters)]
-            if not entries:
+            resolved = [e for e in resolved if any(f in e.get("output", "") for f in filters)]
+            if not resolved:
                 print(f"ERROR: --only {args.only!r} matched no manifest entries", file=sys.stderr, flush=True)
                 sys.exit(1)
-            print(f"Filtered to {len(entries)} entries matching --only {args.only!r}", flush=True)
-
-        resolved = _resolve_manifest(entries, str(demo.vite_port))
+            print(f"Filtered to {len(resolved)} entries matching --only {args.only!r}", flush=True)
 
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -172,12 +181,21 @@ def main() -> None:
 
         try:
             print(f"\nRunning shot-scraper ({len(resolved)} screenshots)...", flush=True)
-            shot_result = subprocess.run(
-                ["uv", "run", "shot-scraper", "multi", tmp_manifest_path],
-                cwd=str(repo_root),
-            )
+            try:
+                shot_result = subprocess.run(
+                    ["uv", "run", "shot-scraper", "multi", tmp_manifest_path],
+                    cwd=str(repo_root),
+                    timeout=SCREENSHOT_CAPTURE_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                print(
+                    f"ERROR: shot-scraper did not finish within {SCREENSHOT_CAPTURE_TIMEOUT_SECONDS}s",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                sys.exit(1)
         finally:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError):
                 Path(tmp_manifest_path).unlink(missing_ok=True)
 
     sys.exit(shot_result.returncode)

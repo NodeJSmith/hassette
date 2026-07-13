@@ -67,6 +67,7 @@ class DemoStack:
             ["docker", "compose", "version"],
             capture_output=True,
             cwd=str(self._repo_root),
+            timeout=COMPOSE_DOWN_TIMEOUT_SECONDS,
         )
         if docker_check.returncode != 0:
             detail = docker_check.stderr.decode().strip() if docker_check.stderr else "unknown"
@@ -159,6 +160,12 @@ class DemoStack:
             return
         self._torn_down = True
 
+        # Block signals during cleanup so a second Ctrl-C can't interrupt
+        # compose down. No restore needed — every caller exits the process
+        # immediately after teardown returns (_signal_handler, __exit__, atexit).
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
         with contextlib.suppress(Exception):
             subprocess.run(
                 [
@@ -191,7 +198,10 @@ class DemoStack:
                         "python:3.14-slim",
                         "sh",
                         "-c",
-                        "rm -rf /d/*",
+                        # Three globs to cover all entries: * (visible), .[!.]* (dotfiles),
+                        # ..?* (entries starting with ..). || true avoids failure if a
+                        # glob expands to nothing.
+                        "rm -rf /d/* /d/.[!.]* /d/..?* || true",
                     ],
                     check=False,
                     capture_output=True,
