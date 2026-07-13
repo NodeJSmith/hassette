@@ -7,11 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.exceptions import FatalError
+from hassette.resources.lifecycle import request_shutdown
 from hassette.server import main
 
 
 async def test_main_registers_sigterm_handler() -> None:
-    """main() installs a SIGTERM handler that calls core.request_shutdown()."""
+    """main() installs a SIGTERM handler that calls request_shutdown(core, ...)."""
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
     mock_config = MagicMock()
@@ -32,20 +33,16 @@ async def test_main_registers_sigterm_handler() -> None:
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
     callback, args = registered_handlers[signal.SIGTERM]
-    assert callback == mock_core.request_shutdown
-    assert args == ("SIGTERM received",)
+    assert callback == request_shutdown
+    assert args == (mock_core, "SIGTERM received")
 
 
 async def test_sigterm_handler_triggers_shutdown_event() -> None:
     """Invoking the SIGTERM handler sets the shutdown event on the Hassette instance."""
     mock_core = MagicMock()
     mock_core.shutdown_event = asyncio.Event()
+    mock_core.ready_event = asyncio.Event()
     mock_core.run_forever = AsyncMock()
-
-    def real_request_shutdown(_reason: str | None = None) -> None:
-        mock_core.shutdown_event.set()
-
-    mock_core.request_shutdown = real_request_shutdown
 
     mock_config = MagicMock()
     mock_config.token = "valid-token"

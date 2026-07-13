@@ -19,9 +19,9 @@ from hassette.resources.lifecycle import (
     mark_not_ready,
     request_shutdown,
 )
+from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
-from hassette.utils.service_utils import wait_for_ready
 
 from .mixins import LifecycleMixin
 
@@ -157,15 +157,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if "depends_on" not in cls.__dict__:
             cls.depends_on = list(cls.depends_on)
 
-    @classmethod
-    def register_task_bucket_factory(cls, factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:
-        """Register the factory used to create a default TaskBucket for each Resource.
-
-        Called once by hassette.task_bucket at module import time so that Resource.__init__
-        never needs to import TaskBucket directly.
-        """
-        cls._default_task_bucket_factory = factory
-
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
@@ -292,71 +283,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.children.append(inst)
         return inst
 
-    async def start_children_and_wait(self, timeout: float | None = None) -> None:
-        """Start all children concurrently and block until they are ready.
-
-        All children are started simultaneously — ``depends_on`` ordering is
-        not enforced. Use ``Hassette.run_forever()`` for wave-based startup.
-
-        Args:
-            timeout: Seconds to wait for readiness. ``None`` uses
-                ``config.startup_timeout_seconds``.
-
-        Raises:
-            TimeoutError: If any child is not ready within the timeout or
-                if shutdown is requested during the wait.
-        """
-        if not self.children:
-            return
-
-        for child in self.children:
-            child.start()
-
-        effective_timeout = timeout if timeout is not None else self.hassette.config.lifecycle.startup_timeout_seconds
-        ready = await wait_for_ready(
-            self.children, timeout=effective_timeout, shutdown_event=self.hassette.shutdown_event
-        )
-        if not ready:
-            child_statuses = ", ".join(f"{c.class_name}({c.status.value})" for c in self.children)
-            if self.hassette.shutdown_event.is_set():
-                reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"
-            else:
-                reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
-            raise TimeoutError(f"Children of {self.class_name} did not become ready: {reason}")
-
-    async def _run_hooks(
-        self, hooks: list[typing.Callable[[], typing.Awaitable[None]]], *, continue_on_error: bool = False
-    ) -> None:
-        """Execute lifecycle hooks with error handling.
-
-        Args:
-            hooks: List of async callables to execute in order.
-            continue_on_error: If False (initialize), re-raise on Exception.
-                If True (shutdown), log and continue to next hook.
-        """
-        for method in hooks:
-            try:
-                await method()
-            except asyncio.CancelledError:
-                if continue_on_error:
-                    self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
-                with suppress(Exception):
-                    await handle_failed(self, asyncio.CancelledError())
-                raise
-            except Exception as exc:
-                if continue_on_error:
-                    self.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
-                    with suppress(Exception):
-                        await handle_failed(self, exc)
-                else:
-                    with suppress(Exception):
-                        await handle_failed(self, exc)
-                    raise
-
-    def _ordered_children_for_shutdown(self) -> list["Resource"]:
-        """Return children in shutdown order (reverse insertion)."""
-        return list(reversed(self.children))
-
     async def _auto_wait_dependencies(self) -> None:
         """Wait for all declared depends_on types to become ready before lifecycle hooks fire.
 
@@ -438,12 +364,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     async def _shutdown_children(self) -> bool:
         """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-        # NOTE: stays on self._ordered_children_for_shutdown() rather than calling
-        # hassette.resources.operations.ordered_children_for_shutdown(self) — operations.py
-        # imports Resource from this module, so importing operations.py here would be a
-        # genuine circular import (confirmed at runtime). Resolved when this method is
-        # deleted and the call site moves with it.
-        children = self._ordered_children_for_shutdown()
+        children = ordered_children_for_shutdown(self)
         if not children:
             return True
         try:
@@ -541,11 +462,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             if self.hassette.shutdown_event.is_set():
                 mark_not_ready(self, "shutdown requested during dependency wait")
                 return
-            # NOTE: stays on self._run_hooks() rather than operations.run_hooks(self, ...) —
-            # operations.py imports Resource from this module, so importing operations.py
-            # here would be a genuine circular import (confirmed at runtime). Resolved when
-            # this method is deleted and the call sites move with it.
-            await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
+            await run_hooks(self, [self.before_initialize, self.on_initialize, self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                     await child.initialize()
@@ -581,11 +498,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         request_shutdown(self, f"{self.unique_name} shutdown")
 
         try:
-            # NOTE: stays on self._run_hooks() rather than operations.run_hooks(self, ...) —
-            # operations.py imports Resource from this module, so importing operations.py
-            # here would be a genuine circular import (confirmed at runtime). Resolved when
-            # this method is deleted and the call sites move with it.
-            await self._run_hooks(
+            await run_hooks(
+                self,
                 [self.before_shutdown, self.on_shutdown, self.after_shutdown],
                 continue_on_error=True,
             )
@@ -634,12 +548,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self._ready_reason,
                 exc_info=True,
             )
-
-    async def restart(self) -> None:
-        """Restart the instance by shutting it down and re-initializing it."""
-        self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
-        await self.shutdown()
-        await self.initialize()
 
     async def cleanup(self, timeout: float | None = None) -> None:
         """Cleanup resources owned by the instance.

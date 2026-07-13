@@ -12,6 +12,8 @@ Verifies:
 - Service subclasses inherit propagation
 """
 
+from hassette.resources.lifecycle import start
+from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.test_utils import make_mock_hassette
 from tests.unit.resources.conftest import wait_for_running
 
@@ -74,7 +76,7 @@ async def test_start_resets_shutdown_completed():
     await resource.shutdown()
     assert resource.shutdown_completed is True
 
-    resource.start()
+    start(resource)
     assert resource.shutdown_completed is False
     assert resource._init_task is not None, "start() should have spawned an init task"
 
@@ -85,7 +87,7 @@ async def test_start_resets_shutdown_completed():
 
 
 async def test_ordered_children_for_shutdown_returns_reversed():
-    """_ordered_children_for_shutdown() returns children in reverse insertion order."""
+    """ordered_children_for_shutdown() returns children in reverse insertion order."""
     hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
@@ -93,7 +95,7 @@ async def test_ordered_children_for_shutdown_returns_reversed():
     child_b = parent.add_child(ShutdownCounter)
     child_c = parent.add_child(ShutdownCounter)
 
-    ordered = parent._ordered_children_for_shutdown()
+    ordered = ordered_children_for_shutdown(parent)
     assert ordered == [child_c, child_b, child_a], f"Expected [C, B, A], got {ordered}"
 
 

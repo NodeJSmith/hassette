@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Delete old methods and final cleanup"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04", "T05"]
 implements: ["AC#4", "AC#5", "AC#6"]
 ---

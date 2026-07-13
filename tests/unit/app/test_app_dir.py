@@ -49,6 +49,21 @@ class TestAppDir:
         """
         assert len(_APP_PUBLIC_API) == 20
 
+    def test_hasattr_handle_failed_is_false(self) -> None:
+        """Extracted lifecycle methods are deleted from the class entirely — not just hidden
+        by `__dir__`. `handle_failed` now only exists as a module-level function in
+        `hassette.resources.lifecycle`.
+        """
+        hassette = make_mock_hassette(sealed=False)
+        app = App(
+            hassette,
+            app_config=AppConfig(instance_name="kitchen"),
+            index=0,
+            app_key="kitchen_lights",
+        )
+
+        assert not hasattr(app, "handle_failed")
+
 
 class TestAppSyncDir:
     def test_dir_matches_public_api_allowlist_plus_sync_hooks(self) -> None:

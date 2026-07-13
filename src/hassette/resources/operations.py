@@ -9,17 +9,24 @@ import asyncio
 import typing
 from contextlib import suppress
 
-from hassette.resources.base import Resource
-from hassette.resources.lifecycle import handle_failed
+from hassette.resources.lifecycle import handle_failed, start
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import Hassette, TaskBucket
+    from hassette.resources.base import Resource
+
+# NOTE: `Resource` is imported only under TYPE_CHECKING above. `hassette.resources.base` imports
+# `run_hooks` and `ordered_children_for_shutdown` from this module at module level, so a top-level
+# `from hassette.resources.base import Resource` here would be a genuine circular import. Every
+# function below only touches `Resource` for type annotations (duck-typed at runtime) except
+# `register_task_bucket_factory`, which imports `Resource` locally at call time — by then both
+# modules have finished loading, so the deferred import is safe.
 
 
-async def start_children_and_wait(resource: Resource, timeout: float | None = None) -> None:
+async def start_children_and_wait(resource: "Resource", timeout: float | None = None) -> None:
     """Start all children concurrently and block until they are ready.
 
     All children are started simultaneously — ``depends_on`` ordering is
@@ -38,7 +45,7 @@ async def start_children_and_wait(resource: Resource, timeout: float | None = No
         return
 
     for child in resource.children:
-        child.start()
+        start(child)
 
     effective_timeout = timeout if timeout is not None else resource.hassette.config.lifecycle.startup_timeout_seconds
     ready = await wait_for_ready(
@@ -53,7 +60,7 @@ async def start_children_and_wait(resource: Resource, timeout: float | None = No
         raise TimeoutError(f"Children of {resource.class_name} did not become ready: {reason}")
 
 
-async def restart(resource: Resource) -> None:
+async def restart(resource: "Resource") -> None:
     """Restart the instance by shutting it down and re-initializing it."""
     resource.logger.debug("Restarting '%s' %s", resource.class_name, resource.role)
     await resource.shutdown()
@@ -66,11 +73,13 @@ def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBu
     Called once by hassette.task_bucket at module import time so that Resource.__init__
     never needs to import TaskBucket directly.
     """
+    from hassette.resources.base import Resource  # lazy-import: break circular import — base.py imports this module
+
     Resource._default_task_bucket_factory = factory
 
 
 async def run_hooks(
-    resource: Resource,
+    resource: "Resource",
     hooks: list[typing.Callable[[], typing.Awaitable[None]]],
     *,
     continue_on_error: bool = False,
@@ -103,6 +112,6 @@ async def run_hooks(
                 raise
 
 
-def ordered_children_for_shutdown(resource: Resource) -> list[Resource]:
+def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":
     """Return children in shutdown order (reverse insertion)."""
     return list(reversed(resource.children))

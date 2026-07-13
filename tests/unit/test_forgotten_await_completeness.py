@@ -104,17 +104,10 @@ INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
     "before_initialize",
     "before_shutdown",
     "cleanup",
-    "handle_crash",
-    "handle_failed",
-    "handle_running",
-    "handle_starting",
-    "handle_stop",
     "initialize",
     "on_initialize",
     "on_shutdown",
-    "restart",
     "shutdown",
-    "start_children_and_wait",
     "wait_ready",
 }
 

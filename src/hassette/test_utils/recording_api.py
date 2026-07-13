@@ -310,7 +310,7 @@ class RecordingApi(Resource):
     StateProxy so tests see seeded state values. get_state() raises
     EntityNotFoundError for unseeded entities (matching real Api behavior).
 
-    on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
+    on_initialize() calls mark_ready(self) — required for the Resource lifecycle.
 
     sync attribute is a RecordingSyncFacade instance. Write calls via api.sync.*
     are recorded to the same `calls` list as the async side. Read methods delegate

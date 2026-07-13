@@ -1,15 +1,16 @@
-"""Tests for Resource properties and classmethods not exercised elsewhere.
+"""Tests for Resource properties not exercised elsewhere.
 
 Verifies:
 - cache: cached_property builds a real diskcache.Cache under data_dir/<class>/cache
 - cache: a pre-set ._cache is returned as-is, without reconstruction
 - owner_id: top-level resource (no parent) returns its own unique_name
-- register_task_bucket_factory: classmethod stores the factory on the class
+- register_task_bucket_factory: module-level function stores the factory on Resource
 """
 
 from diskcache import Cache
 
 from hassette.resources.base import Resource
+from hassette.resources.operations import register_task_bucket_factory
 from hassette.test_utils import make_mock_hassette
 
 from .conftest import ConcreteResource
@@ -74,7 +75,7 @@ class TestOwnerId:
 
 
 class TestRegisterTaskBucketFactory:
-    """register_task_bucket_factory() is the classmethod hassette.task_bucket calls at import time."""
+    """register_task_bucket_factory() is the module-level function hassette.task_bucket calls at import time."""
 
     def test_register_task_bucket_factory_stores_factory_on_class(self) -> None:
         original = Resource._default_task_bucket_factory
@@ -83,7 +84,7 @@ class TestRegisterTaskBucketFactory:
             def sentinel_factory(_hassette, _resource):
                 return "sentinel-task-bucket"
 
-            Resource.register_task_bucket_factory(sentinel_factory)
+            register_task_bucket_factory(sentinel_factory)
 
             assert Resource._default_task_bucket_factory is sentinel_factory
         finally:

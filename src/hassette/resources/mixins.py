@@ -4,9 +4,8 @@ import typing
 from logging import Logger, getLogger
 from typing import Any, Protocol
 
-from hassette.events import HassetteServiceEvent
 from hassette.exceptions import InvalidLifecycleTransitionError
-from hassette.types.enums import TERMINAL_STATUSES, ResourceStatus
+from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
 LOGGER = getLogger(__name__)
@@ -178,60 +177,6 @@ class LifecycleMixin(_LifecycleHostP):
     def task(self) -> asyncio.Task | None:
         return self._init_task
 
-    def start(self) -> None:
-        """Start the instance by spawning its initialize method in a task."""
-        self.shutdown_completed = False
-
-        if self._init_task and not self._init_task.done():
-            self.logger.debug("%s already started or running", self.unique_name, stacklevel=2)
-            return
-
-        self.logger.debug("%s starting", self.unique_name)
-        self._init_task = self.task_bucket.spawn(self.initialize(), name="resource:resource_initialize")
-
-    def cancel(self) -> None:
-        """Cancel the main task of the instance, if it is running."""
-        if self._init_task and not self._init_task.done():
-            self._init_task.cancel()
-            self.logger.debug("%s cancelled task", self.unique_name)
-            return
-
-        self.logger.debug("%s no running task to cancel", self.unique_name)
-
-    def mark_ready(self, reason: str | None = None) -> None:
-        """Mark the instance as ready.
-
-        Args:
-            reason: Optional reason for readiness.
-        """
-        if self.ready_event.is_set():
-            self.logger.debug("%s already ready, skipping reason %s", self.unique_name, reason)
-            return
-        self.logger.debug("ready: %s", reason or "no reason provided")
-        self._ready_reason = reason
-        self.ready_event.set()
-
-    def mark_not_ready(self, reason: str | None = None) -> None:
-        """Mark the instance as not ready.
-
-        Args:
-            reason: Optional reason for lack of readiness.
-        """
-        if not self.ready_event.is_set():
-            self.logger.debug("%s already not ready, skipping reason %s", self.unique_name, reason)
-            return
-
-        self._ready_reason = reason
-        self.ready_event.clear()
-
-    def request_shutdown(self, reason: str | None = None) -> None:
-        """Set the sticky shutdown flag. Idempotent."""
-        if not self.shutdown_event.is_set():
-            self.logger.info("%s shutdown requested: %s", self.unique_name, reason or "no reason", stacklevel=2)
-            self.shutdown_event.set()
-        # clear readiness early so callers back off
-        self.mark_not_ready(reason or "shutdown requested")
-
     def is_ready(self) -> bool:
         """Check if the instance is ready.
 
@@ -253,103 +198,3 @@ class LifecycleMixin(_LifecycleHostP):
             await self.ready_event.wait()
         else:
             await asyncio.wait_for(self.ready_event.wait(), timeout)
-
-    async def handle_stop(self) -> None:
-        if self.status == ResourceStatus.STOPPED:
-            self.logger.debug("%s already stopped", self.unique_name, stacklevel=2)
-            return
-
-        self.logger.debug("%s stopping", self.unique_name, stacklevel=2)
-        self.status = ResourceStatus.STOPPED
-        self.mark_not_ready("Stopped")
-        event = self.create_service_status_event(
-            ResourceStatus.STOPPED, ready=self.is_ready(), ready_phase=self._ready_reason
-        )
-        await self.hassette.send_event(event)
-
-    async def handle_failed(self, exception: Exception | BaseException) -> None:
-        if self.status == ResourceStatus.FAILED:
-            self.logger.debug("%s already in failed state", self.unique_name, stacklevel=2)
-            return
-
-        if self.status in TERMINAL_STATUSES:
-            # The resource already reached a terminal end-state: STOPPED (clean finish) or
-            # EXHAUSTED_DEAD (permanent restart-budget failure). A late error does not retroactively
-            # un-stop it, so failing it is benign — and VALID_TRANSITIONS forbids both → FAILED.
-            # This happens during teardown when a submit-after-shutdown error ("cannot schedule new
-            # futures after shutdown") surfaces on an already-stopped resource; driving it to FAILED
-            # would raise InvalidLifecycleTransitionError under strict_lifecycle — the error that
-            # escaped harness teardown and leaked the global Hassette singleton on Python 3.11.
-            # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
-            # RUNNING, STOPPING, EXHAUSTED_COOLING) keep failing normally — a failure there is real,
-            # and callers do invoke handle_failed() on a not-yet-started resource.
-            self.logger.debug(
-                "%s already terminal (%s); ignoring failure: %s - %s",
-                self.unique_name,
-                self.status,
-                type(exception).__name__,
-                exception,
-                stacklevel=2,
-            )
-            return
-
-        self.logger.exception("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
-        self.status = ResourceStatus.FAILED
-        self.mark_not_ready("Failed")
-        event = self.create_service_status_event(
-            ResourceStatus.FAILED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
-        )
-        await self.hassette.send_event(event)
-
-    async def handle_running(self) -> None:
-        if self.status == ResourceStatus.RUNNING:
-            self.logger.debug("%s already running", self.unique_name, stacklevel=2)
-            return
-
-        self.logger.debug("%s running", self.unique_name, stacklevel=2)
-        self.status = ResourceStatus.RUNNING
-        event = self.create_service_status_event(
-            ResourceStatus.RUNNING, ready=self.is_ready(), ready_phase=self._ready_reason
-        )
-        await self.hassette.send_event(event)
-
-    async def handle_starting(self) -> None:
-        if self.status == ResourceStatus.STARTING:
-            self.logger.debug("%s already starting", self.unique_name, stacklevel=2)
-            return
-        self.logger.debug("%s starting", self.unique_name, stacklevel=2)
-        self.status = ResourceStatus.STARTING
-        event = self.create_service_status_event(
-            ResourceStatus.STARTING, ready=self.is_ready(), ready_phase=self._ready_reason
-        )
-        await self.hassette.send_event(event)
-
-    async def handle_crash(self, exception: Exception) -> None:
-        if self.status == ResourceStatus.CRASHED:
-            self.logger.debug("%s already in crashed state", self.unique_name, stacklevel=2)
-            return
-
-        self.logger.error("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
-        self.status = ResourceStatus.CRASHED
-        self.mark_not_ready("Crashed")
-        event = self.create_service_status_event(
-            ResourceStatus.CRASHED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
-        )
-        await self.hassette.send_event(event)
-
-    def create_service_status_event(
-        self,
-        status: ResourceStatus,
-        exception: Exception | BaseException | None = None,
-        ready: bool = False,
-        ready_phase: str | None = None,
-    ) -> HassetteServiceEvent:
-        return HassetteServiceEvent.from_service_status(
-            resource_name=self.class_name,
-            role=self.role,
-            status=status,
-            previous_status=self._previous_status,
-            exception=exception,
-            ready=ready,
-            ready_phase=ready_phase,
-        )
