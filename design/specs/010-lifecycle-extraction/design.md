@@ -1,7 +1,7 @@
 # Design: Extract Framework-Internal Names from App's Public Surface
 
 **Date:** 2026-07-13
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-07-13-lifecycle-extraction/research.md
 
