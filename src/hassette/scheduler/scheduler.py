@@ -76,6 +76,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.di import CallableInvoker, TypeMatcher, build_injection_plan
 from hassette.exceptions import SchedulerNameRequiredError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
@@ -147,7 +148,7 @@ class Scheduler(Resource):
 
     async def on_initialize(self) -> None:
         self._error_handler = None
-        self.mark_ready(reason="Scheduler initialized")
+        mark_ready(self, reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
         await self._remove_all_jobs()

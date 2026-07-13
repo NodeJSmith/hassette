@@ -48,6 +48,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils.api_call import ApiCall
 from hassette.test_utils.sync_facade import RecordingSyncFacade
 
@@ -383,7 +384,7 @@ class RecordingApi(Resource):
 
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
-        self.mark_ready(reason="RecordingApi initialized")
+        mark_ready(self, reason="RecordingApi initialized")
 
     def _new_helper_id(self, domain: str, name: str) -> str:
         """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.

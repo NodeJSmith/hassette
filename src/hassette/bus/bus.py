@@ -102,6 +102,7 @@ from hassette.event_handling.accessors import get_path
 from hassette.events.base import Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
@@ -162,7 +163,7 @@ class Bus(Resource):
         # Clear before any on() calls so partial-init failures don't leave stale keys.
         self._registered_listeners.clear()
         self._error_handler = None
-        self.mark_ready(reason="Bus initialized")
+        mark_ready(self, reason="Bus initialized")
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""

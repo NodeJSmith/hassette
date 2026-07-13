@@ -32,6 +32,7 @@ from hassette.exceptions import (
     InvalidLifecycleTransitionError,
     RetryableConnectionClosedError,
 )
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
@@ -266,7 +267,7 @@ class WebsocketService(Service):
             f", close_code={close_code}" if close_code is not None else "",
         )
         await self.send_connection_lost_event()
-        self.mark_not_ready(reason="Early drop detected")
+        mark_not_ready(self, reason="Early drop detected")
         await self._emit_readiness_event()
         await self.partial_cleanup()
         await self.early_drop_backoff(early_drop_attempts)
@@ -277,7 +278,7 @@ class WebsocketService(Service):
         """Transition to DISCONNECTED and notify listeners of a non-recoverable serve() failure."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
         await self.send_connection_lost_event()
-        self.mark_not_ready(reason="WebSocket recv loop failed")
+        mark_not_ready(self, reason="WebSocket recv loop failed")
         await self._emit_readiness_event()
 
     async def serve(self) -> None:
@@ -357,7 +358,7 @@ class WebsocketService(Service):
         await self.send_connection_established_event()
         self._subscription_ids.add(await self.subscribe_events())
 
-        self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
+        mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
         self._connected_at = time.monotonic()
         return recv_task

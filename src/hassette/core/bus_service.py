@@ -24,6 +24,7 @@ from hassette.events import Event, HassPayload
 from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
@@ -671,7 +672,7 @@ class BusService(Service):
     async def serve(self) -> None:
         """Worker loop that processes events from the stream."""
         async with self.stream:
-            self.mark_ready(reason="Stream opened")
+            mark_ready(self, reason="Stream opened")
             async for event in self.stream:
                 if self.shutdown_event.is_set():
                     active_timers = self._duration_hold.duration_timers_active
@@ -681,7 +682,7 @@ class BusService(Service):
                             active_timers,
                         )
                     self.logger.debug("Hassette is shutting down, exiting bus loop")
-                    self.mark_not_ready(reason="Hassette is shutting down")
+                    mark_not_ready(self, reason="Hassette is shutting down")
                     break
                 try:
                     await self.dispatch(str(event.topic), event)

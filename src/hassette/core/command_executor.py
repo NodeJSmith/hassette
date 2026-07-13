@@ -28,6 +28,7 @@ from hassette.error_context import ErrorContext
 from hassette.events.hassette import HassetteExecutionCompletedEvent
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
@@ -182,7 +183,7 @@ class CommandExecutor(Service):
         threshold is not reached.  When the timeout fires (done is empty), whatever
         is currently in the queue is drained immediately.
         """
-        self.mark_ready(reason="CommandExecutor started")
+        mark_ready(self, reason="CommandExecutor started")
         flush_interval = self.hassette.config.database.max_flush_interval_seconds
 
         while True:

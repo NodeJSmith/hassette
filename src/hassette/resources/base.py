@@ -9,6 +9,16 @@ from typing import Any, ClassVar, TypeVar, final
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError
+from hassette.resources.lifecycle import (
+    cancel,
+    create_service_status_event,
+    handle_failed,
+    handle_running,
+    handle_starting,
+    handle_stop,
+    mark_not_ready,
+    request_shutdown,
+)
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 from hassette.utils.service_utils import wait_for_ready
@@ -331,16 +341,16 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 if continue_on_error:
                     self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
                 with suppress(Exception):
-                    await self.handle_failed(asyncio.CancelledError())
+                    await handle_failed(self, asyncio.CancelledError())
                 raise
             except Exception as exc:
                 if continue_on_error:
                     self.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
                     with suppress(Exception):
-                        await self.handle_failed(exc)
+                        await handle_failed(self, exc)
                 else:
                     with suppress(Exception):
-                        await self.handle_failed(exc)
+                        await handle_failed(self, exc)
                     raise
 
     def _ordered_children_for_shutdown(self) -> list["Resource"]:
@@ -395,7 +405,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ready = await self.hassette.wait_for_ready(deps)
         if not ready:
             if self.hassette.shutdown_event.is_set():
-                self.mark_not_ready("shutdown during dependency wait")
+                mark_not_ready(self, "shutdown during dependency wait")
                 return
             status_report = ", ".join(f"{dep.class_name}({dep.status.value})" for dep in deps)
             raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
@@ -416,18 +426,23 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if self.shutdown_completed:
             return
-        self.cancel()
+        cancel(self)
         self.task_bucket.cancel_all_sync()
         self.shutting_down = False
         self.shutdown_completed = True
         self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
-        self.mark_not_ready("shutdown timed out")
+        mark_not_ready(self, "shutdown timed out")
         for child in self.children:
             child._force_terminal()
 
     async def _shutdown_children(self) -> bool:
         """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        # NOTE: stays on self._ordered_children_for_shutdown() rather than calling
+        # hassette.resources.operations.ordered_children_for_shutdown(self) — operations.py
+        # imports Resource from this module, so importing operations.py here would be a
+        # genuine circular import (confirmed at runtime). Resolved when this method is
+        # deleted and the call site moves with it.
         children = self._ordered_children_for_shutdown()
         if not children:
             return True
@@ -478,7 +493,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         if not self.hassette.event_streams_closed:
             try:
-                await self.handle_stop()
+                await handle_stop(self)
             except Exception as exc:
                 self.logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
         else:
@@ -515,22 +530,26 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.initializing = True
 
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
-        await self.handle_starting()
+        await handle_starting(self)
 
         try:
             try:
                 await self._auto_wait_dependencies()
             except Exception as exc:
-                await self.handle_failed(exc)
+                await handle_failed(self, exc)
                 raise
             if self.hassette.shutdown_event.is_set():
-                self.mark_not_ready("shutdown requested during dependency wait")
+                mark_not_ready(self, "shutdown requested during dependency wait")
                 return
+            # NOTE: stays on self._run_hooks() rather than operations.run_hooks(self, ...) —
+            # operations.py imports Resource from this module, so importing operations.py
+            # here would be a genuine circular import (confirmed at runtime). Resolved when
+            # this method is deleted and the call sites move with it.
             await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                     await child.initialize()
-            await self.handle_running()
+            await handle_running(self)
         finally:
             self.initializing = False
 
@@ -559,9 +578,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.shutting_down = True
         if self._status not in TERMINAL_STATUSES:
             self.status = ResourceStatus.STOPPING
-        self.request_shutdown(f"{self.unique_name} shutdown")
+        request_shutdown(self, f"{self.unique_name} shutdown")
 
         try:
+            # NOTE: stays on self._run_hooks() rather than operations.run_hooks(self, ...) —
+            # operations.py imports Resource from this module, so importing operations.py
+            # here would be a genuine circular import (confirmed at runtime). Resolved when
+            # this method is deleted and the call sites move with it.
             await self._run_hooks(
                 [self.before_shutdown, self.on_shutdown, self.after_shutdown],
                 continue_on_error=True,
@@ -599,8 +622,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         to wrap with ``suppress(Exception)``.
         """
         try:
-            event = self.create_service_status_event(
-                self._status, ready=self.is_ready(), ready_phase=self._ready_reason
+            event = create_service_status_event(
+                self, self._status, ready=self.is_ready(), ready_phase=self._ready_reason
             )
             await self.hassette.send_event(event)
         except Exception:
@@ -625,7 +648,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
-        self.cancel()
+        cancel(self)
         with suppress(asyncio.CancelledError):
             if self._init_task:
                 await asyncio.wait_for(self._init_task, timeout=timeout)

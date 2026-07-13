@@ -16,6 +16,7 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -588,7 +589,7 @@ class Hassette(Resource):
 
             # Phase 1: Start database and create session before anything else.
             # This guarantees a valid session_id exists before any handler can fire.
-            self.database_service.start()
+            start(self.database_service)
         except Exception:
             self.logger.exception("Startup failed during initialization")
             self.record_fatal_reason("startup failure: initialization raised before service startup")
@@ -623,7 +624,7 @@ class Hassette(Resource):
             if not wave:
                 continue
             for child in wave:
-                child.start()
+                start(child)
             started = await self.wait_for_ready(wave, timeout=self.config.lifecycle.startup_timeout_seconds)
             if not started:
                 if self.shutdown_event.is_set():
@@ -739,7 +740,7 @@ class Hassette(Resource):
         block handles both handle_stop() and close_streams() as a fallback.
         """
         await super()._on_children_stopped()
-        await self.handle_stop()
+        await handle_stop(self)
         if self._event_stream_service is not None:
             await self._event_stream_service.close_streams()
 
@@ -769,13 +770,13 @@ class Hassette(Resource):
             # then close streams and set terminal status.
             if not self.event_streams_closed:
                 with suppress(Exception):
-                    await self.handle_stop()
+                    await handle_stop(self)
             if self._event_stream_service is not None:
                 with suppress(Exception):
                     await self._event_stream_service.close_streams()
             if self.status != ResourceStatus.STOPPED:
                 self.status = ResourceStatus.STOPPED
-            self.mark_not_ready("shutdown complete")
+            mark_not_ready(self, "shutdown complete")
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners, stop the loop watchdog, and finalize session before child shutdown."""

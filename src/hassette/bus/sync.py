@@ -13,6 +13,7 @@ from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
@@ -45,7 +46,7 @@ class BusSyncFacade(Resource):
         self._bus = bus
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous Bus facade initialized")
+        mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

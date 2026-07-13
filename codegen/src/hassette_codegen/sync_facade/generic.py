@@ -58,6 +58,7 @@ from hassette.models.helpers import (
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -87,7 +88,7 @@ class ApiSyncFacade(Resource):
         self._api = api
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous API facade initialized")
+        mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -111,6 +112,7 @@ from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
@@ -146,7 +148,7 @@ class BusSyncFacade(Resource):
         self._bus = bus
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous Bus facade initialized")
+        mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -169,6 +171,7 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
@@ -202,7 +205,7 @@ class SchedulerSyncFacade(Resource):
         self._scheduler = scheduler
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous Scheduler facade initialized")
+        mark_ready(self, reason="Synchronous Scheduler facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

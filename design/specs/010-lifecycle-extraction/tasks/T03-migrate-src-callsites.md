@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate all src/ call sites to module functions"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#4"]
 ---

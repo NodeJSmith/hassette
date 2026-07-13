@@ -12,6 +12,8 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
+from hassette.resources.operations import register_task_bucket_factory
 from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
@@ -71,7 +73,7 @@ class TaskBucket(Resource):
         super().__init__(hassette, parent=parent)
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
-        self.mark_ready(reason="TaskBucket initialized")
+        mark_ready(self, reason="TaskBucket initialized")
 
     @property
     def config_cancel_timeout(self) -> int | float:
@@ -431,4 +433,4 @@ def make_task_factory(
     return factory
 
 
-Resource.register_task_bucket_factory(lambda hassette, owner: TaskBucket(hassette, parent=owner))
+register_task_bucket_factory(lambda hassette, owner: TaskBucket(hassette, parent=owner))

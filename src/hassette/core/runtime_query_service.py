@@ -15,6 +15,7 @@ from hassette.core.logging_service import LoggingService
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.schemas.domain_models import (
     AppStatusChangedData,
@@ -78,7 +79,7 @@ class RuntimeQueryService(Resource):
 
     async def on_initialize(self) -> None:
         if not self.hassette.config.web_api.run:
-            self.mark_ready(reason="Web API disabled")
+            mark_ready(self, reason="Web API disabled")
             return
 
         # BusService, StateProxy, and AppHandler are guaranteed ready by depends_on auto-wait.
@@ -127,7 +128,7 @@ class RuntimeQueryService(Resource):
         except RuntimeError:
             self.logger.warning("No running event loop, log broadcast will not be available")
 
-        self.mark_ready(reason="RuntimeQueryService initialized")
+        mark_ready(self, reason="RuntimeQueryService initialized")
 
     async def on_shutdown(self) -> None:
         # Remove bus listeners

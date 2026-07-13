@@ -32,6 +32,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
+from hassette.resources.operations import start_children_and_wait
 from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
@@ -555,7 +556,7 @@ class HassetteHarness:
         self._install_default_mocks()
 
         self.hassette.ready_event.set()
-        await self.hassette.start_children_and_wait(timeout=Timeouts.WAIT_FOR_READY)
+        await start_children_and_wait(self.hassette, timeout=Timeouts.WAIT_FOR_READY)
 
         self._capture_original_app_manifests()
 

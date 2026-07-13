@@ -9,6 +9,7 @@ import uvicorn
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -48,11 +49,11 @@ class WebApiService(Service):
     async def on_initialize(self) -> None:
         if not self.hassette.config.web_api.run:
             self.logger.warning("Web API service disabled by configuration")
-            self.mark_ready(reason="Web API disabled")
+            mark_ready(self, reason="Web API disabled")
             return
 
         # RuntimeQueryService is guaranteed ready by depends_on auto-wait.
-        self.mark_ready(reason="Web API service initialized")
+        mark_ready(self, reason="Web API service initialized")
 
     async def serve(self) -> None:
         if not self.hassette.config.web_api.run:

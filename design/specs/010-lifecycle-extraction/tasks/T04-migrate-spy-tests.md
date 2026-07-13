@@ -26,6 +26,8 @@ Redesign 14 test files that use spy-by-reassignment patterns (`instance.method =
 - modify: `tests/unit/core/test_core_coverage.py`
 - modify: `tests/unit/resources/lifecycle/test_force_terminal.py`
 - modify: `tests/unit/core/test_app_lifecycle_service.py`
+- modify: `tests/unit/test_resource_depends_on.py`
+- modify: `tests/integration/test_lifecycle_propagation.py`
 - read: `src/hassette/resources/lifecycle.py`
 - read: `src/hassette/resources/operations.py`
 

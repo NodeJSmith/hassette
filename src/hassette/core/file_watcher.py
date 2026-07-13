@@ -4,6 +4,7 @@ from typing import ClassVar
 from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -35,7 +36,7 @@ class FileWatcherService(Service):
         paths = self.hassette.config.get_watchable_files()
 
         self.logger.debug("Watching app directories for changes: %s", ", ".join(str(p) for p in paths))
-        self.mark_ready(reason="File watcher started")
+        mark_ready(self, reason="File watcher started")
 
         async for changes in awatch(
             *paths,
