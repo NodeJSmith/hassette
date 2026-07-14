@@ -115,7 +115,6 @@ class TestApps:
             )
         )
 
-        # boundary-exempt: collaborator of handle_change_event
         with patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect:
             mock_detect.return_value = ChangeSet(
                 orphans=frozenset({"my_app"}),
@@ -155,9 +154,7 @@ class TestApps:
         )
 
         with (
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)
@@ -278,9 +275,7 @@ class TestApps:
         new_app_config = deepcopy(self.app_handler.registry.manifests)
 
         with (
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)
@@ -322,9 +317,7 @@ class TestApps:
         new_app_config["my_app"].app_config = {"test_entity": "light.some_other_light"}
 
         with (
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)
@@ -365,9 +358,7 @@ class TestApps:
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
 
         with (
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle.change_detector, "detect_changes") as mock_detect,
-            # boundary-exempt: collaborator of handle_change_event
             patch.object(self.app_handler.lifecycle, "refresh_config") as mock_refresh_config,
         ):
             self.app_handler.registry.set_manifests(new_app_config)

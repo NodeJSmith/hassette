@@ -40,7 +40,6 @@ class TestRunForeverFatalOnCrash:
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) so real children never spawn.
-        # boundary-exempt: collaborator of run_forever
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
@@ -60,7 +59,6 @@ class TestRunForeverFatalOnCrash:
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) so real children never spawn.
-        # boundary-exempt: collaborator of run_forever
         with patch("hassette.core.core.start"):
             # Must return normally, not raise
             await hassette_instance.run_forever()
@@ -75,7 +73,6 @@ class TestRunForeverFatalOnCrash:
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) so real children never spawn.
-        # boundary-exempt: collaborator of run_forever
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
@@ -91,7 +88,6 @@ class TestRunForeverFatalOnCrash:
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) so real children never spawn.
-        # boundary-exempt: collaborator of run_forever
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 
@@ -133,7 +129,6 @@ class TestSessionTelemetryOrdering:
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) so real children never spawn.
-        # boundary-exempt: collaborator of run_forever
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
 

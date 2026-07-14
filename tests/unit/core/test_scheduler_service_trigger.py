@@ -71,9 +71,7 @@ class TestRunJobWithGuardTriggerMode:
         """run_job_with_guard(trigger_mode='manual') threads through to run_job for both modes."""
         svc = _make_trigger_service()
         job = make_real_job(mode=mode)
-        svc.run_job = (
-            AsyncMock()
-        )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job = AsyncMock()
 
         await svc.run_job_with_guard(job, trigger_mode="manual")
 
@@ -84,9 +82,7 @@ class TestRunJobWithGuardTriggerMode:
         """run_job_with_guard() without trigger_mode passes None through for both modes."""
         svc = _make_trigger_service()
         job = make_real_job(mode=mode)
-        svc.run_job = (
-            AsyncMock()
-        )  # boundary-exempt: collaborator of run_job_with_guard  # pyright: ignore[reportAttributeAccessIssue]
+        svc.run_job = AsyncMock()
 
         await svc.run_job_with_guard(job)
 
@@ -98,9 +94,7 @@ class TestTriggerJob:
         """trigger_job() returns the ScheduledJob whose db_id matches on the live heap."""
         svc = _make_trigger_service()
         job = make_real_job(db_id=42)
-        svc.get_all_jobs = AsyncMock(
-            return_value=[job]
-        )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
+        svc.get_all_jobs = AsyncMock(return_value=[job])
 
         result = await svc.trigger_job(42)
 
@@ -110,9 +104,7 @@ class TestTriggerJob:
         """trigger_job() raises ValueError when no job on the heap matches db_id."""
         svc = _make_trigger_service()
         other_job = make_real_job(db_id=1)
-        svc.get_all_jobs = AsyncMock(
-            return_value=[other_job]
-        )  # boundary-exempt: collaborator of trigger_job  # pyright: ignore[reportAttributeAccessIssue]
+        svc.get_all_jobs = AsyncMock(return_value=[other_job])
 
         with pytest.raises(ValueError, match="not currently triggerable"):
             await svc.trigger_job(999)

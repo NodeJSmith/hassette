@@ -137,7 +137,6 @@ async def test_force_terminal_skips_completed_children():
     # cancel() is a module-level function (hassette.resources.lifecycle), not a method —
     # patch it at the call site (base.py) rather than reassigning an instance attribute,
     # since _force_terminal() calls the free function directly.
-    # boundary-exempt: collaborator of _force_terminal
     with patch("hassette.resources.base.cancel") as mock_cancel:
         root._force_terminal()
 

@@ -108,9 +108,7 @@ class TestSendAndWaitCallerProvidedId:
             fut = websocket_service._response_futures[msg_id]
             fut.set_result({"ok": True})
 
-        websocket_service.send_json = AsyncMock(
-            side_effect=send_side_effect
-        )  # boundary-exempt: collaborator of send_and_wait
+        websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
 
         result = await websocket_service.send_and_wait(type="subscribe_events", id=99)
 
@@ -132,9 +130,8 @@ class TestMakeConnectionRetries:
             if attempts < 3:
                 raise RuntimeError("transient connect failure")
 
-        websocket_service.connect_ws = flaky_connect_ws  # boundary-exempt: collaborator of make_connection
-        websocket_service.partial_cleanup = AsyncMock()  # boundary-exempt: collaborator of make_connection
-        # boundary-exempt: collaborator of make_connection
+        websocket_service.connect_ws = flaky_connect_ws
+        websocket_service.partial_cleanup = AsyncMock()
         websocket_service.start_recv_and_subscribe = AsyncMock(return_value="recv-task-sentinel")
 
         max_attempts = 3
@@ -157,8 +154,8 @@ class TestMakeConnectionRetries:
             attempts += 1
             raise InvalidAuthError("token rejected")
 
-        websocket_service.connect_ws = bad_auth_connect_ws  # boundary-exempt: collaborator of make_connection
-        websocket_service.partial_cleanup = AsyncMock()  # boundary-exempt: collaborator of make_connection
+        websocket_service.connect_ws = bad_auth_connect_ws
+        websocket_service.partial_cleanup = AsyncMock()
 
         with pytest.raises(InvalidAuthError):
             await websocket_service.make_connection(MagicMock())
@@ -220,7 +217,7 @@ class TestCleanup:
         websocket_service._recv_task = None
 
         send_json_mock = AsyncMock()
-        websocket_service.send_json = send_json_mock  # boundary-exempt: collaborator of cleanup
+        websocket_service.send_json = send_json_mock
 
         with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
@@ -240,7 +237,7 @@ class TestCleanup:
         websocket_service._recv_task = None
 
         send_json_mock = AsyncMock()
-        websocket_service.send_json = send_json_mock  # boundary-exempt: collaborator of cleanup
+        websocket_service.send_json = send_json_mock
 
         with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
@@ -285,7 +282,7 @@ class TestRawRecvEdgeCases:
         websocket_service._ws = fake_ws
 
         dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock  # boundary-exempt: collaborator of raw_recv
+        websocket_service.dispatch = dispatch_mock
 
         await websocket_service.raw_recv()
 
@@ -298,7 +295,7 @@ class TestRawRecvEdgeCases:
         websocket_service._ws = fake_ws
 
         dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock  # boundary-exempt: collaborator of raw_recv
+        websocket_service.dispatch = dispatch_mock
 
         await websocket_service.raw_recv()
 
@@ -313,7 +310,7 @@ class TestRawRecvEdgeCases:
         websocket_service._ws = fake_ws
 
         dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock  # boundary-exempt: collaborator of raw_recv
+        websocket_service.dispatch = dispatch_mock
 
         await websocket_service.raw_recv()
 
@@ -329,14 +326,14 @@ class TestDispatchSuppressesErrors:
         async def failing_dispatch_hass_event(_data):
             raise RuntimeError("boom")
 
-        websocket_service.dispatch_hass_event = failing_dispatch_hass_event  # boundary-exempt: collaborator of dispatch
+        websocket_service.dispatch_hass_event = failing_dispatch_hass_event
 
         await websocket_service.dispatch({"type": "event", "event": {}})  # must not raise
 
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""
         respond_mock = Mock()
-        websocket_service.respond_if_necessary = respond_mock  # boundary-exempt: collaborator of dispatch
+        websocket_service.respond_if_necessary = respond_mock
 
         await websocket_service.dispatch({"type": "totally_unknown_type"})
 

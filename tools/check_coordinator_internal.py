@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Lint guard: detect un-annotated coordinator-internal accesses in integration tests.
 
-Companion to ``tools/check_internal_patches.py`` — same AST + tokenize-comment pattern,
-applied to a structurally different problem. When integration tests access private attributes
-on ``hassette_instance`` (or aliases like ``sm = hassette_instance.session_manager``), each
+Uses AST + tokenize-comment pattern to detect when integration tests access private attributes
+on ``hassette_instance`` (or aliases like ``sm = hassette_instance.session_manager``). Each
 site must carry a ``# coordinator-internal`` annotation marking it as a deliberate, reviewed
 exception rather than undetected drift toward coupling on framework internals.
 
@@ -27,7 +26,7 @@ Detection is AST-based:
 
 Annotations are matched via ``tokenize``-derived comment tokens (``lint_helpers.extract_comments``),
 avoiding false positives from annotation-shaped text inside string literals. Two placements are
-accepted, mirroring ``check_internal_patches.py``:
+accepted:
 
     (a) A comment on the flagged attribute's own physical line.
     (b) A comment-only line immediately preceding the flagged statement (no blank line

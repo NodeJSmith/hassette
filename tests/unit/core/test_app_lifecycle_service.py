@@ -109,7 +109,6 @@ class TestInitializeInstances:
         """Calls initialize() and mark_ready() on each instance."""
         instances = {0: mock_app_instance}
 
-        # boundary-exempt: collaborator of initialize_instances
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -122,7 +121,6 @@ class TestInitializeInstances:
         app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
         instances = {0: app1, 1: app2}
 
-        # boundary-exempt: collaborator of initialize_instances
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -181,7 +179,6 @@ class TestInitializeInstances:
 
         instances = {0: app1, 1: app2}
 
-        # boundary-exempt: collaborator of initialize_instances
         with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -472,10 +469,8 @@ class TestBootstrapApps:
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls handle_crash and re-raises on exception."""
         mock_registry.manifests = {"app_a": MagicMock()}
-        # boundary-exempt: collaborator of bootstrap_apps
         lifecycle_service.resolve_only_app = AsyncMock(side_effect=RuntimeError("crash"))
 
-        # boundary-exempt: collaborator of bootstrap_apps
         with patch("hassette.core.app_lifecycle_service.handle_crash") as mock_handle_crash:
             with pytest.raises(RuntimeError, match="crash"):
                 await lifecycle_service.bootstrap_apps()
@@ -584,7 +579,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {})
-        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.start_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -604,7 +599,7 @@ class TestApplyChangesGating:
         manifest.autostart = True
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {})
-        lifecycle_service.start_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.start_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -624,7 +619,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
-        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.reload_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -644,7 +639,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {})
-        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.reload_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -664,7 +659,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
-        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.reload_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -684,7 +679,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {})
-        lifecycle_service.reload_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.reload_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset(),
@@ -704,7 +699,7 @@ class TestApplyChangesGating:
         manifest.autostart = False
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {})
-        lifecycle_service.stop_app = AsyncMock()  # boundary-exempt: collaborator of apply_changes
+        lifecycle_service.stop_app = AsyncMock()
 
         changes = ChangeSet(
             orphans=frozenset({"app_a"}),

@@ -336,7 +336,7 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
     fake_session = MagicMock()
     fake_session.ws_connect = AsyncMock(return_value=fake_ws)
 
-    websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
+    websocket_service.authenticate = AsyncMock()
 
     await websocket_service.connect_ws(fake_session)  # real connect_ws (the MUT) runs
 
@@ -344,62 +344,6 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
 ```
 
 `build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.test_utils`.
-
-### The `# boundary-exempt:` and `# branch-isolation:` annotations
-
-Two annotation conventions cover the two patterns where a test legitimately stubs an internal method. Both are recognized by the CI guard (`tools/check_internal_patches.py`).
-
-**`# boundary-exempt: collaborator of <method_name>`** — the stub isolates a collaborator that the MUT calls. The method is on the same class but is a separate concern being stubbed for isolation. The `<method_name>` is the method under test.
-
-```python
-websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
-```
-
-**`# branch-isolation: <description>`** — the stub forces a sibling method to behave a specific way so the test can reach a particular branch in the MUT. The goal is not to avoid calling the method — it is to control its outcome.
-
-```python
-# branch-isolation: stop_app forced to raise for reload_app error path
-lifecycle_service.stop_app = AsyncMock(side_effect=RuntimeError("stop blew up"))
-```
-
-Use `boundary-exempt` when the stubbed method is a dependency of the MUT. Use `branch-isolation` when the stubbed method is the MUT's own sibling being forced to a specific behavior for coverage.
-
-### Three accepted annotation placements
-
-The placement is chosen by line length — trailing when it fits within 120 chars, else preceding or continuation.
-
-**(a) Same physical line** — preferred when the line fits:
-
-```python
-websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
-```
-
-**(b) Continuation line** — when the flagged statement spans multiple lines (unbalanced `(`), the annotation may appear on any line until the parens balance:
-
-```python
-websocket_service.send_connection_established_event = (
-    AsyncMock()
-)  # boundary-exempt: collaborator of start_recv_and_subscribe
-```
-
-**(c) Immediately-preceding comment line** — when a `with patch.object(...)` call is too long to carry a trailing comment:
-
-```python
-# boundary-exempt: collaborator of on_reconnect
-with patch.object(state_proxy, "subscribe_to_events", new_callable=AsyncMock) as mock_sub:
-```
-
-The preceding line must be a comment (`#`-prefixed after optional whitespace) with no blank line between it and the flagged statement. Adjacent annotations in one test may mix placements — that is expected.
-
-### CI guard
-
-`tools/check_internal_patches.py` enforces this rule in CI (wired into the `python` lint job). It scans the seven in-scope test files for un-annotated reassignment or `patch.object`/`monkeypatch.setattr` calls targeting the prohibited MUT symbol set. Re-introducing an un-annotated MUT patch in any of those files fails the lint workflow.
-
-The prohibited symbols cover `WebsocketService`, `StateProxy`, and `LifecycleService` methods. Run the guard locally at any time:
-
-```bash
-uv run python tools/check_internal_patches.py
-```
 
 ---
 

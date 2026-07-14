@@ -109,9 +109,6 @@ jobs:
                     exit 1
                   fi
 
-            - name: Check internal MUT patches in core tests
-              run: uv run python tools/check_internal_patches.py
-
             - name: Check coordinator-internal annotations in core tests
               run: uv run python tools/check_coordinator_internal.py
 

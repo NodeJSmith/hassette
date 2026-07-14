@@ -156,7 +156,7 @@ class TestValidConnectSequence:
 
             return asyncio.create_task(_clean())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -209,8 +209,8 @@ class TestReconnectSequence:
 
             return asyncio.create_task(_clean())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -231,7 +231,7 @@ class TestAuthFailureDisconnects:
         async def fake_make_connection(_session):
             raise InvalidAuthError("bad token")
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(InvalidAuthError):
             await websocket_service.serve()
@@ -257,8 +257,8 @@ class TestMaxRetriesDisconnects:
 
             return asyncio.create_task(_fail())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.hassette.config.websocket.early_drop_max_retries = 1
         websocket_service.hassette.config.websocket.early_drop_stable_window_seconds = 30.0
         websocket_service.hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
