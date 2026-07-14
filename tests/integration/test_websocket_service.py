@@ -282,9 +282,7 @@ async def test_dispatch_routes_result_messages(
 ) -> None:
     """Ensure result messages are passed to the responder helper."""
     respond_mock = Mock()
-    monkeypatch.setattr(
-        websocket_service, "respond_if_necessary", respond_mock
-    )  # boundary-exempt: collaborator of dispatch
+    monkeypatch.setattr(websocket_service, "respond_if_necessary", respond_mock)
 
     await websocket_service.dispatch({"type": "result", "id": 1})
 
@@ -301,7 +299,7 @@ async def test_raw_recv_dispatches_text_payload(
     websocket_service._ws = fake_ws
 
     dispatch_mock = AsyncMock()
-    monkeypatch.setattr(websocket_service, "dispatch", dispatch_mock)  # boundary-exempt: collaborator of raw_recv
+    monkeypatch.setattr(websocket_service, "dispatch", dispatch_mock)
 
     await websocket_service.raw_recv()
 
@@ -356,7 +354,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
     lifecycle_module.mark_ready(websocket_service, reason="test: simulating successful connection")
 
     with (
-        patch.object(  # boundary-exempt: collaborator of serve()
+        patch.object(
             websocket_service,
             "make_connection",
             return_value=make_failing_recv_task(
@@ -377,7 +375,7 @@ async def test_marked_not_ready_on_recv_loop_failure(websocket_service: Websocke
     websocket_service.hassette.send_event = AsyncMock()
 
     with (
-        patch.object(  # boundary-exempt: collaborator of serve()
+        patch.object(
             websocket_service,
             "make_connection",
             return_value=make_failing_recv_task(
@@ -396,7 +394,7 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
 
     with (
-        patch.object(  # boundary-exempt: collaborator of serve()
+        patch.object(
             websocket_service,
             "make_connection",
             return_value=make_failing_recv_task(
@@ -414,7 +412,7 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service: Websocket
     fake_session = MagicMock()
     fake_session.ws_connect = AsyncMock(return_value=fake_ws)
 
-    websocket_service.authenticate = AsyncMock()  # boundary-exempt: collaborator of connect_ws
+    websocket_service.authenticate = AsyncMock()
 
     await websocket_service.connect_ws(fake_session)
 
@@ -452,24 +450,18 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
         return fake_task
 
     websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-    websocket_service.send_connection_established_event = (
-        AsyncMock()
-    )  # boundary-exempt: collaborator of start_recv_and_subscribe
-    websocket_service.subscribe_events = AsyncMock(
-        return_value=42
-    )  # boundary-exempt: collaborator of start_recv_and_subscribe
+    websocket_service.send_connection_established_event = AsyncMock()
+    websocket_service.subscribe_events = AsyncMock(return_value=42)
     # Stub _emit_readiness_event: this test focuses on mark_ready/subscription behavior;
     # readiness event emission is covered by test_websocket_readiness_events.py.
-    websocket_service._emit_readiness_event = AsyncMock()  # boundary-exempt: collaborator of start_recv_and_subscribe
+    websocket_service._emit_readiness_event = AsyncMock()
 
     # start_recv_and_subscribe calls set_connection_state(CONNECTED).
     # DISCONNECTED → CONNECTED is invalid; the real flow goes through CONNECTING first
     # (set by serve() before calling make_connection). Set CONNECTING as the pre-condition.
     websocket_service._connection_state = ConnectionState.CONNECTING
 
-    with patch(
-        "hassette.core.websocket_service.mark_ready"  # boundary-exempt: collaborator of start_recv_and_subscribe
-    ) as mock_mark_ready:
+    with patch("hassette.core.websocket_service.mark_ready") as mock_mark_ready:
         result = await websocket_service.start_recv_and_subscribe()
 
     # Close any coroutines captured to suppress ResourceWarning
@@ -596,8 +588,8 @@ async def test_early_drop_retries_and_succeeds(
         nonlocal partial_cleanup_count
         partial_cleanup_count += 1
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-    websocket_service.partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -637,8 +629,8 @@ async def test_early_drop_exhausts_retry_budget(
 
         return asyncio.create_task(_fail())
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 2)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -672,8 +664,8 @@ async def test_early_drop_exhausts_recovery_timeout(
 
         return asyncio.create_task(_fail())
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     # Configure very short max recovery (effectively 0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 10)
@@ -710,7 +702,7 @@ async def test_stable_connection_failure_propagates_immediately(
 
         return asyncio.create_task(_fail())
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RetryableConnectionClosedError):
@@ -740,7 +732,7 @@ async def test_non_retryable_exception_in_stable_window(
 
         return asyncio.create_task(_fail())
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RuntimeError):
@@ -772,8 +764,8 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
             return asyncio.create_task(_fail())
         raise InvalidAuthError("token revoked")
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -859,8 +851,8 @@ async def test_service_status_stays_running_during_early_drop(
         original_mark_not_ready(resource, reason=reason)
         statuses_during_retry.append((websocket_service.status, websocket_service.is_ready()))
 
-    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+    websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
     monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
@@ -874,9 +866,7 @@ async def test_service_status_stays_running_during_early_drop(
     # mark_not_ready is a module-level function (hassette.resources.lifecycle), not a
     # method — patch it at the call site (websocket_service.py) rather than reassigning
     # an instance attribute, since serve() calls the free function directly.
-    with patch(
-        "hassette.core.websocket_service.mark_not_ready", side_effect=capturing_mark_not_ready
-    ):  # boundary-exempt: collaborator of serve()
+    with patch("hassette.core.websocket_service.mark_not_ready", side_effect=capturing_mark_not_ready):
         await websocket_service.serve()
 
     assert len(statuses_during_retry) >= 1

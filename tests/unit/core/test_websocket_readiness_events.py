@@ -67,8 +67,8 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_clean())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
@@ -115,7 +115,7 @@ class TestWebsocketReadinessEvents:
 
             return asyncio.create_task(_fail())
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of serve()
+        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()
@@ -162,8 +162,8 @@ class TestWebsocketReadinessEvents:
 
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of start_recv_and_subscribe
-        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]  # boundary-exempt: collaborator of start_recv_and_subscribe
+        websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
 
         result_task = await websocket_service.start_recv_and_subscribe()
 

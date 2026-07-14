@@ -191,7 +191,6 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
     # handle_failed() is a module-level function (hassette.resources.lifecycle), not a
     # method — patch it at the call site (base.py) rather than reassigning an instance
     # attribute, since initialize() calls the free function directly.
-    # boundary-exempt: collaborator of initialize
     with (
         patch("hassette.resources.base.handle_failed", side_effect=_record_handle_failed),
         pytest.raises(RuntimeError, match="timed out"),

@@ -570,7 +570,6 @@ class TestStateProxyWebsocketListeners:
 
         state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
-        # boundary-exempt: collaborator of on_reconnect
         with patch.object(state_proxy, "subscribe_to_events", new_callable=AsyncMock) as mock_sub:
             mock_sub.side_effect = Exception("Bus not ready")
             await state_proxy.on_reconnect()
@@ -602,7 +601,6 @@ class TestStateProxyReconnectConcurrency:
 
         state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
 
-        # boundary-exempt: collaborator of on_reconnect
         with patch.object(state_proxy, "subscribe_to_events", wraps=state_proxy.subscribe_to_events) as mock_subscribe:
             task1 = asyncio.create_task(state_proxy.on_reconnect())
             task2 = asyncio.create_task(state_proxy.on_reconnect())

@@ -368,9 +368,7 @@ class TestConvenienceMethodsForwardWhereKwarg:
         def pred() -> bool:
             return True
 
-        with patch.object(
-            scheduler, "schedule", side_effect=fake_schedule
-        ) as mock_schedule:  # boundary-exempt: self-shunt verifying kwarg forwarding
+        with patch.object(scheduler, "schedule", side_effect=fake_schedule) as mock_schedule:
             await call(scheduler, pred)
 
         assert mock_schedule.call_args.kwargs["where"] is pred

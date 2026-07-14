@@ -39,7 +39,6 @@ class TestOnInitialize:
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
 
-        # boundary-exempt: collaborator of on_initialize
         watcher.register_internal_event_listeners = AsyncMock()
 
         assert not watcher.ready_event.is_set()
@@ -143,7 +142,7 @@ class TestOnBusServiceRunning:
         """Events for a resource other than BusService do not trigger reconciliation."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.reconcile_after_bus_recovery = AsyncMock()  # boundary-exempt: collaborator of on_bus_service_running
+        watcher.reconcile_after_bus_recovery = AsyncMock()
 
         dummy = DummyService(hassette)
         event = make_service_running_event(dummy)  # resource_name == "DummyService"
@@ -156,7 +155,7 @@ class TestOnBusServiceRunning:
         """A RUNNING event for BusService itself triggers the reconciliation scan."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.reconcile_after_bus_recovery = AsyncMock()  # boundary-exempt: collaborator of on_bus_service_running
+        watcher.reconcile_after_bus_recovery = AsyncMock()
 
         payload = ServiceStatusPayload(
             resource_name=BusService.__name__,
@@ -183,7 +182,6 @@ class TestOnServiceRunningEarlyReturns:
 
         event = make_service_running_event(dummy)
 
-        # branch-isolation: wait_ready set to fail loudly — proves early return before reaching it
         with patch.object(dummy, "wait_ready", side_effect=AssertionError("should not be called")):
             await watcher.on_service_running(event)
 
@@ -223,7 +221,6 @@ class TestCooldownAndRetry:
         # restart() is a module-level function (hassette.resources.operations), not a
         # method — patch it at the call site (service_watcher.py) rather than reassigning
         # an instance attribute, since cooldown_and_retry() calls the free function directly.
-        # boundary-exempt: collaborator of cooldown_and_retry
         with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
@@ -239,8 +236,6 @@ class TestCooldownAndRetry:
         spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
         key = watcher.service_key(dummy.class_name, dummy.role)
 
-        # branch-isolation: restart forced to raise for cooldown_and_retry error path
-        # boundary-exempt: collaborator of cooldown_and_retry
         with patch(
             "hassette.core.service_watcher.restart", side_effect=RuntimeError("restart blew up")
         ) as mock_restart:
@@ -280,7 +275,6 @@ class TestRestartServiceMultipleMatches:
         # restart() is a module-level function (hassette.resources.operations), not a
         # method — patch it at the call site (service_watcher.py) rather than reassigning
         # instance attributes, since execute_restart() calls the free function directly.
-        # boundary-exempt: collaborator of execute_restart
         with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.restart_service(event)
             key = watcher.service_key(svc_a.class_name, svc_a.role)
@@ -329,7 +323,6 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
-        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.shutdown_if_crashed(event)
 
@@ -354,7 +347,6 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
-        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             with pytest.raises(RuntimeError, match="state corrupted"):
                 await watcher.shutdown_if_crashed(event)
@@ -391,7 +383,7 @@ class TestReconcileAfterBusRecoverySkips:
         """Non-Service children (e.g. plain resources) are ignored by the reconciliation scan."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.restart_service = AsyncMock()  # boundary-exempt: collaborator of reconcile_after_bus_recovery
+        watcher.restart_service = AsyncMock()
 
         not_a_service = MagicMock()
         hassette.children = [not_a_service]
@@ -404,7 +396,7 @@ class TestReconcileAfterBusRecoverySkips:
         """Services that are not FAILED are left alone."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.restart_service = AsyncMock()  # boundary-exempt: collaborator of reconcile_after_bus_recovery
+        watcher.restart_service = AsyncMock()
 
         dummy = DummyService(hassette)
         dummy._status = ResourceStatus.RUNNING
@@ -418,7 +410,7 @@ class TestReconcileAfterBusRecoverySkips:
         """A FAILED service that already has a budget entry was handled normally — skip it."""
         hassette = build_watcher_hassette()
         watcher = make_watcher(hassette)
-        watcher.restart_service = AsyncMock()  # boundary-exempt: collaborator of reconcile_after_bus_recovery
+        watcher.restart_service = AsyncMock()
 
         dummy = DummyService(hassette)
         dummy._status = ResourceStatus.FAILED

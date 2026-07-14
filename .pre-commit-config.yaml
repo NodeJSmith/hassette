@@ -220,14 +220,6 @@ repos:
         files: ^tests/.*\.py$
         stages: [pre-commit, pre-push]
 
-      - id: check-internal-patches
-        name: Check un-annotated MUT patches in core tests
-        language: system
-        entry: ./tools/check_internal_patches.py
-        pass_filenames: false
-        files: ^tests/.*\.py$
-        stages: [pre-commit, pre-push]
-
       - id: check-coordinator-internal
         name: Check un-annotated coordinator-internal accesses in tests
         language: system
