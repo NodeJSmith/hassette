@@ -4,7 +4,7 @@ import threading
 import typing
 from types import SimpleNamespace
 from typing import ClassVar, cast
-from unittest.mock import AsyncMock, Mock, call, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -357,21 +357,6 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
     # Now finalize should have completed
     assert submit_calls == ["submit"], f"Finalize should have called submit after crash released: {submit_calls}"
     assert call_order == ["crash_acquired", "crash_released"]
-
-
-def test_database_service_starts_first(hassette_instance: Hassette) -> None:
-    """run_forever phase 1 starts DatabaseService before any other child.
-
-    Patches the module-level start() and verifies only DatabaseService is passed
-    after the phase-1 step.
-    """
-    with patch("hassette.core.core.start") as mock_start:  # boundary-exempt: lifecycle extraction
-        mock_start(hassette_instance.database_service)
-
-        mock_start.assert_called_once_with(hassette_instance.database_service)
-        for child in hassette_instance.children:
-            if child is not hassette_instance.database_service:
-                assert call(child) not in mock_start.call_args_list
 
 
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:

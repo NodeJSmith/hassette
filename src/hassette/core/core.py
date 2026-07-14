@@ -772,7 +772,7 @@ class Hassette(Resource):
                 with suppress(Exception):
                     await handle_stop(self)
             if self._event_stream_service is not None:
-                with suppress(Exception):
+                with suppress(OSError):
                     await self._event_stream_service.close_streams()
             if self.status != ResourceStatus.STOPPED:
                 self.status = ResourceStatus.STOPPED

@@ -32,7 +32,7 @@ class TestSchedulerOnErrorMethod:
         scheduler.on_error(handler_a)
         assert scheduler._error_handler is handler_a
 
-        # Stub mark_ready to avoid requiring full Resource infrastructure
+        # boundary-exempt: collaborator of on_initialize
         with patch("hassette.scheduler.scheduler.mark_ready") as mock_mark_ready:
             # Simulate hot-reload: on_initialize resets state
             await scheduler.on_initialize()

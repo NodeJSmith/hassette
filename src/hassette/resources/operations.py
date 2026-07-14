@@ -95,11 +95,11 @@ async def run_hooks(
     for method in hooks:
         try:
             await method()
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
             if continue_on_error:
                 resource.logger.warning("Shutdown hook was cancelled, forcing cleanup")
             with suppress(Exception):
-                await handle_failed(resource, asyncio.CancelledError())
+                await handle_failed(resource, exc)
             raise
         except Exception as exc:
             if continue_on_error:

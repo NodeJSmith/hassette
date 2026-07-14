@@ -348,6 +348,7 @@ class TestHarnessSeedState:
         # mark_ready() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (state_proxy.py) rather than reassigning an
         # instance attribute, since StateProxy calls the free function directly.
+        # boundary-exempt: collaborator of seed_state
         with patch("hassette.core.state_proxy.mark_ready") as mock_mark_ready:
             state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
             await harness.seed_state("sensor.temp", state_dict)

@@ -25,6 +25,15 @@ def create_service_status_event(
     ready: bool = False,
     ready_phase: str | None = None,
 ) -> HassetteServiceEvent:
+    """Build a service-status event from the resource's current state.
+
+    Args:
+        resource: The resource emitting the event.
+        status: The new lifecycle status.
+        exception: Optional exception that triggered the transition.
+        ready: Whether the resource is currently ready.
+        ready_phase: Human-readable reason for the readiness state.
+    """
     return HassetteServiceEvent.from_service_status(
         resource_name=resource.class_name,
         role=resource.role,
@@ -103,6 +112,11 @@ def cancel(resource: _LifecycleHostP) -> None:
 
 
 async def handle_stop(resource: _LifecycleHostP) -> None:
+    """Transition the resource to STOPPED and emit a status event.
+
+    Args:
+        resource: The resource to stop.
+    """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STOPPED:
         resource.logger.debug("%s already stopped", resource.unique_name, stacklevel=2)
@@ -118,6 +132,12 @@ async def handle_stop(resource: _LifecycleHostP) -> None:
 
 
 async def handle_failed(resource: _LifecycleHostP, exception: BaseException) -> None:
+    """Transition the resource to FAILED and emit a status event.
+
+    Args:
+        resource: The resource that failed.
+        exception: The exception that caused the failure.
+    """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.FAILED:
         resource.logger.debug("%s already in failed state", resource.unique_name, stacklevel=2)
@@ -154,6 +174,11 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException) -> 
 
 
 async def handle_running(resource: _LifecycleHostP) -> None:
+    """Transition the resource to RUNNING and emit a status event.
+
+    Args:
+        resource: The resource that is now running.
+    """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.RUNNING:
         resource.logger.debug("%s already running", resource.unique_name, stacklevel=2)
@@ -168,6 +193,11 @@ async def handle_running(resource: _LifecycleHostP) -> None:
 
 
 async def handle_starting(resource: _LifecycleHostP) -> None:
+    """Transition the resource to STARTING and emit a status event.
+
+    Args:
+        resource: The resource that is starting.
+    """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STARTING:
         resource.logger.debug("%s already starting", resource.unique_name, stacklevel=2)
@@ -181,6 +211,12 @@ async def handle_starting(resource: _LifecycleHostP) -> None:
 
 
 async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
+    """Transition the resource to CRASHED and emit a status event.
+
+    Args:
+        resource: The resource that crashed.
+        exception: The exception that caused the crash.
+    """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.CRASHED:
         resource.logger.debug("%s already in crashed state", resource.unique_name, stacklevel=2)

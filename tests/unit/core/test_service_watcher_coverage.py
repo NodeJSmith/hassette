@@ -223,6 +223,7 @@ class TestCooldownAndRetry:
         # restart() is a module-level function (hassette.resources.operations), not a
         # method — patch it at the call site (service_watcher.py) rather than reassigning
         # an instance attribute, since cooldown_and_retry() calls the free function directly.
+        # boundary-exempt: collaborator of cooldown_and_retry
         with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
@@ -239,6 +240,7 @@ class TestCooldownAndRetry:
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         # branch-isolation: restart forced to raise for cooldown_and_retry error path
+        # boundary-exempt: collaborator of cooldown_and_retry
         with patch(
             "hassette.core.service_watcher.restart", side_effect=RuntimeError("restart blew up")
         ) as mock_restart:
@@ -278,6 +280,7 @@ class TestRestartServiceMultipleMatches:
         # restart() is a module-level function (hassette.resources.operations), not a
         # method — patch it at the call site (service_watcher.py) rather than reassigning
         # instance attributes, since execute_restart() calls the free function directly.
+        # boundary-exempt: collaborator of execute_restart
         with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.restart_service(event)
             key = watcher.service_key(svc_a.class_name, svc_a.role)
@@ -326,6 +329,7 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
+        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown"):
             await watcher.shutdown_if_crashed(event)
 
@@ -350,6 +354,7 @@ class TestShutdownIfCrashed:
         )
         event = HassetteServiceEvent(topic=Topic.HASSETTE_EVENT_SERVICE_STATUS, payload=HassettePayload(data=payload))
 
+        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             with pytest.raises(RuntimeError, match="state corrupted"):
                 await watcher.shutdown_if_crashed(event)

@@ -81,6 +81,7 @@ class TestFinalizeShutdownSwallowsHandleStopException:
         # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (base.py) rather than reassigning an instance
         # attribute, since _finalize_shutdown() calls the free function directly.
+        # boundary-exempt: collaborator of _finalize_shutdown
         with patch("hassette.resources.base.handle_stop", side_effect=RuntimeError("handle_stop boom")):
             # Must not raise despite handle_stop() blowing up.
             await resource._finalize_shutdown()
@@ -114,6 +115,7 @@ class TestFinalizeShutdownSwallowsHandleStopException:
         # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (base.py) rather than reassigning an instance
         # attribute, since _finalize_shutdown() calls the free function directly.
+        # boundary-exempt: collaborator of _finalize_shutdown
         with patch("hassette.resources.base.handle_stop") as mock_handle_stop:
             await resource._finalize_shutdown()
 

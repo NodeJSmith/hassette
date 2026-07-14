@@ -10,6 +10,11 @@ Verifies:
 - Terminal EXHAUSTED_DEAD rejects further transitions in strict mode
 - hasattr guard: no hassette attribute → no error (construction-time guard)
 - handle_running() idempotency is preserved (already RUNNING → early return, no setter)
+- handle_failed() idempotency (already FAILED → early return)
+- handle_starting() idempotency (already STARTING → early return)
+- handle_crash() idempotency (already CRASHED → early return)
+- start() idempotency (task already running → early return)
+- cancel() cancels a running init task
 
 Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Resource)
@@ -23,7 +28,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.exceptions import InvalidLifecycleTransitionError
-from hassette.resources.lifecycle import handle_failed, handle_running
+from hassette.resources.lifecycle import (
+    cancel,
+    handle_crash,
+    handle_failed,
+    handle_running,
+    handle_starting,
+    start,
+)
 from hassette.resources.mixins import LifecycleMixin
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
@@ -327,3 +339,65 @@ async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStat
     await handle_failed(resource, RuntimeError("cannot schedule new futures after shutdown"))
 
     assert resource.status == terminal
+
+
+async def test_handle_failed_idempotent_when_already_failed():
+    """handle_failed() when already FAILED returns early without re-emitting."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.FAILED
+
+    await handle_failed(resource, RuntimeError("second failure"))
+
+    assert resource.status == ResourceStatus.FAILED
+    hassette.send_event.assert_not_called()
+
+
+async def test_handle_starting_idempotent_when_already_starting():
+    """handle_starting() when already STARTING returns early without re-emitting."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.STARTING
+
+    await handle_starting(resource)
+
+    assert resource.status == ResourceStatus.STARTING
+    hassette.send_event.assert_not_called()
+
+
+async def test_handle_crash_idempotent_when_already_crashed():
+    """handle_crash() when already CRASHED returns early without re-emitting."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.CRASHED
+
+    await handle_crash(resource, RuntimeError("second crash"))
+
+    assert resource.status == ResourceStatus.CRASHED
+    hassette.send_event.assert_not_called()
+
+
+async def test_start_idempotent_when_task_running():
+    """start() when _init_task is already running skips re-spawn."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    start(resource)
+    first_task = resource._init_task
+    assert first_task is not None
+
+    start(resource)
+    assert resource._init_task is first_task
+
+
+async def test_cancel_cancels_running_task():
+    """cancel() requests cancellation of a running init task."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = ConcreteResource(hassette)
+
+    start(resource)
+    assert resource._init_task is not None
+    assert not resource._init_task.done()
+
+    cancel(resource)
+    assert resource._init_task.cancelling() > 0

@@ -62,6 +62,7 @@ class TestShutdownIfCrashedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
+        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
             await watcher.shutdown_if_crashed(event)
 
@@ -80,6 +81,7 @@ class TestShutdownIfCrashedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         event = make_crashed_event(resource_name="BusService", exception_type="RuntimeError")
 
+        # boundary-exempt: collaborator of shutdown_if_crashed
         with patch("hassette.core.service_watcher.request_shutdown", side_effect=track_request_shutdown):
             await watcher.shutdown_if_crashed(event)
 
