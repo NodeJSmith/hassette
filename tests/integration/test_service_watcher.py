@@ -744,27 +744,19 @@ async def test_concurrent_failures_independent_budgets(get_service_watcher_mock:
 
 
 async def test_restart_exception_caught_no_double_count(get_service_watcher_mock: ServiceWatcher):
-    """service.restart() raises → exception caught and logged, budget not double-counted."""
+    """on_initialize raises → exception caught and logged, budget not double-counted."""
     watcher = get_service_watcher_mock
     hassette = watcher.hassette
     call_counts = make_call_counts()
 
     spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=10)
-    dummy_service = get_dummy_service(call_counts, hassette, restart_spec=spec)
+    dummy_service = get_dummy_service(call_counts, hassette, fail=True, restart_spec=spec)
     hassette.children.append(dummy_service)
 
     event = make_service_failed_event(dummy_service)
     key = watcher.service_key(dummy_service.class_name, dummy_service.role)
 
-    # Make restart(service) raise — restart is a module-level function
-    # (hassette.resources.operations), so patch it at the call site
-    # (service_watcher.py) rather than reassigning an instance attribute.
-    async def raise_on_restart(_resource):
-        raise RuntimeError("restart blew up")
-
-    # Should not propagate the exception from restart
-    with patch("hassette.core.service_watcher.restart", side_effect=raise_on_restart):
-        await restart_and_await(watcher, event)
+    await restart_and_await(watcher, event)
 
     budget = watcher._budgets.get(key)
     assert budget is not None
