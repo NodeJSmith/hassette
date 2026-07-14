@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Update Api convenience method signatures"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#10"]
 ---

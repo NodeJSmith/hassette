@@ -156,9 +156,9 @@ class ApiProtocol(Protocol):
     async def delete_rest_request(self, url: str, **kwargs) -> aiohttp.ClientResponse: ...
 
     # Write methods
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = ..., **data) -> None: ...
-    async def turn_off(self, entity_id: str | StrEnum, domain: str = ...) -> None: ...
-    async def toggle_service(self, entity_id: str | StrEnum, domain: str = ...) -> None: ...
+    async def turn_on(self, entity_id: str | StrEnum, domain: str | None = ..., **data) -> None: ...
+    async def turn_off(self, entity_id: str | StrEnum, domain: str | None = ..., **data) -> None: ...
+    async def toggle(self, entity_id: str | StrEnum, domain: str | None = ..., **data) -> None: ...
     async def call_service(
         self,
         domain: str,
@@ -412,9 +412,11 @@ class RecordingApi(Resource):
 
     # Signatures must exactly match hassette.api.Api.
 
-    async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
+    async def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self.calls.append(
             ApiCall(
                 method="turn_on",
@@ -423,25 +425,29 @@ class RecordingApi(Resource):
             )
         )
 
-    async def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+    async def turn_off(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Record a turn_off call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self.calls.append(
             ApiCall(
                 method="turn_off",
                 args=(entity_id,),
-                kwargs={"entity_id": entity_id, "domain": domain},
+                kwargs={"entity_id": entity_id, "domain": domain, **data},
             )
         )
 
-    async def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
-        """Record a toggle_service call directly under its own method name."""
+    async def toggle(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
+        """Record a toggle call directly under its own method name."""
         entity_id = str(entity_id)
+        if domain is None:
+            domain = entity_id.split(".", 1)[0]
         self.calls.append(
             ApiCall(
-                method="toggle_service",
+                method="toggle",
                 args=(entity_id,),
-                kwargs={"entity_id": entity_id, "domain": domain},
+                kwargs={"entity_id": entity_id, "domain": domain, **data},
             )
         )
 

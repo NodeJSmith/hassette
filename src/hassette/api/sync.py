@@ -223,41 +223,41 @@ class ApiSyncFacade(Resource):
         """
         return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))
 
-    def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
+    def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.
 
         Args:
             entity_id: The ID of the entity to turn on (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.turn_on`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
         """
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
-    def turn_off(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+    def turn_off(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Turn off a specific entity in Home Assistant.
 
         Args:
             entity_id: The ID of the entity to turn off (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.turn_off`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
         """
-        return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain))
+        return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain, **data))
 
-    def toggle_service(self, entity_id: str | StrEnum, domain: str = "homeassistant") -> None:
+    def toggle(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Toggle a specific entity in Home Assistant.
 
         Args:
             entity_id: The ID of the entity to toggle (e.g., "light.office").
-            domain: The domain to use for the service call (default: ``"homeassistant"``).
-                This calls the generic ``homeassistant.toggle`` service, which is deprecated
-                in Home Assistant 2024.x in favor of domain-specific services. For lights,
-                pass ``domain="light"``; for switches, pass ``domain="switch"``.
+            domain: The domain to use for the service call. Defaults to the entity's domain,
+                derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
+                explicitly to override — for example, ``domain="homeassistant"`` to use the
+                generic (deprecated) service.
         """
-        return self.task_bucket.run_sync(self._api.toggle_service(entity_id, domain))
+        return self.task_bucket.run_sync(self._api.toggle(entity_id, domain, **data))
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.
