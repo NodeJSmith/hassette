@@ -50,8 +50,11 @@ def make_logging_service(
     svc.parent = None
     svc.children = []
     svc.logger = logging.getLogger("hassette.LoggingService")
-    # Minimal readiness machinery
-    svc._ready_event = asyncio.Event()
+    svc._unique_name = "LoggingService.test"
+    # Minimal readiness machinery — real Event so the module-level mark_ready()
+    # (called by on_initialize()) can operate on this bypassed instance.
+    svc.ready_event = asyncio.Event()
+    svc._ready_reason = None
     svc._shutdown_event = asyncio.Event()
     svc.shutting_down = False
     svc.initializing = False
@@ -61,8 +64,6 @@ def make_logging_service(
     svc.persistence_handler = None
     svc._queue_listener = None
     svc._queue_handler = None
-
-    svc.mark_ready = Mock()
 
     return svc
 
@@ -152,7 +153,7 @@ class TestLoggingServiceOnInitialize:
         await svc.on_initialize()
 
         try:
-            svc.mark_ready.assert_called_once()
+            assert svc.is_ready()
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
@@ -196,7 +197,7 @@ class TestLoggingServiceOnInitialize:
             assert LogCaptureHandler in handler_types
             assert LogPersistenceHandler not in handler_types
             # mark_ready still called
-            svc.mark_ready.assert_called_once()
+            assert svc.is_ready()
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()

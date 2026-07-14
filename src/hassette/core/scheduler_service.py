@@ -20,6 +20,7 @@ from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.scheduler.classes import ScheduledJob
@@ -87,11 +88,11 @@ class SchedulerService(Service):
 
     async def serve(self) -> None:
         """Run the scheduler forever, processing jobs as they become due."""
-        self.mark_ready(reason="Scheduler started")
+        mark_ready(self, reason="Scheduler started")
 
         while True:
             if self.shutdown_event.is_set():
-                self.mark_not_ready(reason="Hassette is shutting down")
+                mark_not_ready(self, reason="Hassette is shutting down")
                 self.logger.debug("Scheduler exiting")
                 return
 
@@ -726,7 +727,7 @@ class _ScheduledJobQueue(Resource):
         self._queue = HeapQueue()
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Queue ready")
+        mark_ready(self, reason="Queue ready")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

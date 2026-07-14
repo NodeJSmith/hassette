@@ -42,6 +42,7 @@ from hassette.models.helpers import (
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -68,7 +69,7 @@ class ApiSyncFacade(Resource):
         self._api = api
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous API facade initialized")
+        mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

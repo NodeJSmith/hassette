@@ -15,6 +15,7 @@ from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import handle_crash, mark_ready
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import BlockReason
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -86,7 +87,7 @@ class AppLifecycleService(Resource):
 
     async def on_initialize(self) -> None:
         """Signal readiness immediately — no dependencies to wait for."""
-        self.mark_ready(reason="AppLifecycleService initialized")
+        mark_ready(self, reason="AppLifecycleService initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -135,7 +136,7 @@ class AppLifecycleService(Resource):
             try:
                 with anyio.fail_after(self.startup_timeout):
                     await inst.initialize()
-                    inst.mark_ready(reason="initialized")
+                    mark_ready(inst, reason="initialized")
                 self.logger.debug(
                     "App '%s' (%s) initialized successfully",
                     inst.app_config.instance_name,
@@ -313,7 +314,7 @@ class AppLifecycleService(Resource):
             )
         except Exception as exc:
             self.logger.exception("Failed to initialize apps")
-            await self.handle_crash(exc)
+            await handle_crash(self, exc)
             raise
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:

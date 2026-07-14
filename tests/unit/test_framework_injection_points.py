@@ -28,6 +28,7 @@ from hassette.context import (
 from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, AppConfigurationError, make_hermetic_config
@@ -215,7 +216,7 @@ class TestAppApiFactory:
             """Test double for Api."""
 
             async def on_initialize(self) -> None:
-                self.mark_ready(reason="FakeApi initialized")
+                mark_ready(self, reason="FakeApi initialized")
 
         class _TestApp(App[_TestConfig]):
             app_config_cls = _TestConfig
@@ -342,20 +343,17 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_does_not_call_mark_ready(self, tmp_path: Path) -> None:
         """seed_state must NOT call mark_ready() — lifecycle is separate from seeding."""
-        harness, proxy = self.make_harness_with_proxy(tmp_path)
+        harness, _proxy = self.make_harness_with_proxy(tmp_path)
 
-        mark_ready_called = False
+        # mark_ready() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (state_proxy.py) rather than reassigning an
+        # instance attribute, since StateProxy calls the free function directly.
+        # boundary-exempt: collaborator of seed_state
+        with patch("hassette.core.state_proxy.mark_ready") as mock_mark_ready:
+            state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+            await harness.seed_state("sensor.temp", state_dict)
 
-        def _spy_mark_ready(**_kwargs: object) -> None:
-            nonlocal mark_ready_called
-            mark_ready_called = True
-
-        proxy.mark_ready = _spy_mark_ready  # pyright: ignore[reportAttributeAccessIssue]
-
-        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
-        await harness.seed_state("sensor.temp", state_dict)
-
-        assert not mark_ready_called, "seed_state must not call mark_ready()"
+            mock_mark_ready.assert_not_called()
 
 
 class TestHermeticConfigClosure:

@@ -12,6 +12,7 @@ from typing import Any, Literal
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import ScheduledJob
 from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
 
@@ -42,7 +43,7 @@ class SchedulerSyncFacade(Resource):
         self._scheduler = scheduler
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="Synchronous Scheduler facade initialized")
+        mark_ready(self, reason="Synchronous Scheduler facade initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

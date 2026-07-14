@@ -15,6 +15,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.events import RawStateChangeEvent
 from hassette.events.hassette import HassetteServiceEvent
 from hassette.exceptions import ResourceNotReadyError
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.test_utils import (
     make_full_state_change_event,
     make_light_state_dict,
@@ -126,14 +127,14 @@ def state_proxy():
     mock_hassette.bus_service.add_listener = AsyncMock()
 
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
-    proxy.mark_ready(reason="Test setup")
+    mark_ready(proxy, reason="Test setup")
     return proxy
 
 
 def simulate_disconnect(proxy: "StateProxy", *, clear_subscription: bool = False) -> None:
     """Put a state_proxy into the disconnected state for reconnect tests."""
     proxy.states.clear()
-    proxy.mark_not_ready(reason="HA stopped")
+    mark_not_ready(proxy, reason="HA stopped")
     if clear_subscription:
         proxy.state_change_sub = None
 
@@ -161,16 +162,16 @@ class TestStateProxyGetState:
     async def test_raises_when_not_ready_and_cache_empty(self, state_proxy: "StateProxy") -> None:
         """get_state_once raises ResourceNotReadyError when proxy is not ready and cache is empty."""
         state_proxy.states.clear()
-        state_proxy.mark_not_ready(reason="Test")
+        mark_not_ready(state_proxy, reason="Test")
 
         with pytest.raises(ResourceNotReadyError, match="StateProxy is not ready"):
             state_proxy.get_state_once("light.test")
-        state_proxy.mark_ready(reason="Test complete")
+        mark_ready(state_proxy, reason="Test complete")
 
     async def test_returns_stale_data_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
         """get_state returns stale cached data when proxy is not ready but cache has entries."""
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on", brightness=150)
-        state_proxy.mark_not_ready(reason="Disconnected")
+        mark_not_ready(state_proxy, reason="Disconnected")
 
         result = state_proxy.get_state("light.test")
         assert result is not None
@@ -180,31 +181,31 @@ class TestStateProxyGetState:
         missing = state_proxy.get_state("light.nonexistent")
         assert missing is None
 
-        state_proxy.mark_ready(reason="Test complete")
+        mark_ready(state_proxy, reason="Test complete")
 
     async def test_returns_stale_domain_states_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
         """yield_domain_states returns stale data when not ready but cache has entries."""
         state_proxy.states["light.kitchen"] = make_light_state_dict("light.kitchen", "on")
         state_proxy.states["light.bedroom"] = make_light_state_dict("light.bedroom", "off")
         state_proxy.states["sensor.temp"] = make_sensor_state_dict("sensor.temp", "22")
-        state_proxy.mark_not_ready(reason="Disconnected")
+        mark_not_ready(state_proxy, reason="Disconnected")
 
         domain_states = state_proxy.get_domain_states("light")
         assert len(domain_states) == 2
         assert "light.kitchen" in domain_states
         assert "light.bedroom" in domain_states
 
-        state_proxy.mark_ready(reason="Test complete")
+        mark_ready(state_proxy, reason="Test complete")
 
     async def test_returns_stale_contains_when_not_ready_but_cached(self, state_proxy: "StateProxy") -> None:
         """__contains__ returns stale results when not ready but cache has entries."""
         state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
-        state_proxy.mark_not_ready(reason="Disconnected")
+        mark_not_ready(state_proxy, reason="Disconnected")
 
         assert "light.test" in state_proxy
         assert "light.nonexistent" not in state_proxy
 
-        state_proxy.mark_ready(reason="Test complete")
+        mark_ready(state_proxy, reason="Test complete")
 
     async def test_lockfree_read_access(self, state_proxy: "StateProxy") -> None:
         """get_state does not acquire lock (lock-free read)."""
@@ -384,14 +385,14 @@ class TestStateProxyWebsocketListeners:
         orig_state = state_proxy.is_ready()
 
         if not orig_state:
-            state_proxy.mark_ready(reason="Test setup")
+            mark_ready(state_proxy, reason="Test setup")
 
         await state_proxy.on_disconnect()
 
         assert not state_proxy.is_ready()
 
         if orig_state:
-            state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            mark_ready(state_proxy, reason="Test complete")  # Restore ready state for other tests
 
     async def test_subscription_count_stable_on_disconnect(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_disconnect retains cache and does not add new subscriptions (they're already registered)."""
@@ -414,7 +415,7 @@ class TestStateProxyWebsocketListeners:
         """on_reconnect performs full state resync."""
         # Clear cache and mark not ready (simulating HA stop)
         state_proxy.states.clear()
-        state_proxy.mark_not_ready(reason="HA stopped")
+        mark_not_ready(state_proxy, reason="HA stopped")
 
         # Configure mock API response for resync
         mock_states = [
@@ -445,7 +446,7 @@ class TestStateProxyWebsocketListeners:
         with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
             mock_get_states.side_effect = Exception("API error during resync")
             proxy.states.clear()
-            proxy.mark_not_ready(reason="HA stopped")
+            mark_not_ready(proxy, reason="HA stopped")
 
             await proxy.on_reconnect()
 
@@ -472,7 +473,7 @@ class TestStateProxyWebsocketListeners:
             mock_get_states.side_effect = Exception("API error during resync")
             # Clear cache
             proxy.states.clear()
-            proxy.mark_not_ready(reason="HA stopped")
+            mark_not_ready(proxy, reason="HA stopped")
 
             # Trigger HA start - should not crash
             await proxy.on_reconnect()
@@ -686,7 +687,7 @@ class TestStateProxyReadinessEvents:
 
     async def test_on_disconnect_emits_not_ready_event(self, state_proxy: "StateProxy") -> None:
         """on_disconnect emits a service_status event with ready=False after mark_not_ready()."""
-        state_proxy.mark_ready(reason="Test setup")
+        mark_ready(state_proxy, reason="Test setup")
 
         send_event_count_before = state_proxy.hassette.send_event.call_count
         await state_proxy.on_disconnect()
@@ -698,7 +699,7 @@ class TestStateProxyReadinessEvents:
     async def test_on_reconnect_emits_ready_event(self, state_proxy: "StateProxy") -> None:
         """on_reconnect emits a service_status event with ready=True after mark_ready()."""
         state_proxy.states.clear()
-        state_proxy.mark_not_ready(reason="HA stopped")
+        mark_not_ready(state_proxy, reason="HA stopped")
 
         mock_states = [
             make_light_state_dict("light.kitchen", "on"),
@@ -717,7 +718,7 @@ class TestStateProxyReadinessEvents:
     ) -> None:
         """on_reconnect emits a service_status event with ready=False when resync fails."""
         proxy = hassette_with_state_proxy.state_proxy
-        proxy.mark_not_ready(reason="HA stopped")
+        mark_not_ready(proxy, reason="HA stopped")
 
         received_not_ready: list = []
         status_gate = asyncio.Event()
@@ -775,14 +776,14 @@ class TestStateProxyShutdown:
         """Shutdown marks proxy as not ready."""
         orig_state = state_proxy.is_ready()
         if not orig_state:
-            state_proxy.mark_ready(reason="Test setup")
+            mark_ready(state_proxy, reason="Test setup")
 
         await state_proxy.on_shutdown()
 
         assert not state_proxy.is_ready()
 
         if orig_state:
-            state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
+            mark_ready(state_proxy, reason="Test complete")  # Restore ready state for other tests
 
 
 class TestStateProxyRestartRoundTrip:

@@ -163,17 +163,21 @@ class TestRunForeverEdgeCases:
     async def test_skips_loop_watchdog_when_disabled(self, wired_hassette: Hassette) -> None:
         """run_forever() never installs the loop watchdog when watchdog_enabled is False."""
         h = wired_hassette
-        for child in h.children:
-            child.start = Mock()
         h.wait_for_ready = AsyncMock(return_value=True)
         h._session_manager.mark_orphaned_sessions = AsyncMock()
         h._session_manager.create_session = AsyncMock()
         h.shutdown = AsyncMock()
 
-        with preserve_config(h.config):
+        # start() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) rather than reassigning instance
+        # attributes, since run_forever() calls the free function directly for every child.
+        with (
+            patch("hassette.core.core.start") as mock_start,
+            preserve_config(h.config),
+        ):
             h.config.blocking_io.watchdog_enabled = False
             task = asyncio.create_task(h.run_forever())
-            await wait_for(lambda: h.database_service.start.called, desc="run_forever started")  # pyright: ignore[reportAttributeAccessIssue]
+            await wait_for(lambda: mock_start.called, desc="run_forever started")
             h.shutdown_event.set()
             await task
 
@@ -182,20 +186,19 @@ class TestRunForeverEdgeCases:
     async def test_cancelled_during_shutdown_wait_converts_to_graceful_shutdown(self, wired_hassette: Hassette) -> None:
         """run_forever() catches CancelledError while waiting for shutdown and completes without raising."""
         h = wired_hassette
-        for child in h.children:
-            child.start = Mock()
         h.wait_for_ready = AsyncMock(return_value=True)
         h._session_manager.mark_orphaned_sessions = AsyncMock()
         h._session_manager.create_session = AsyncMock()
         h.shutdown = AsyncMock()
 
-        task = asyncio.create_task(h.run_forever())
-        await wait_for(lambda: h.ready_event.is_set(), desc="run_forever reached the shutdown wait")
-        task.cancel()
+        with patch("hassette.core.core.start"):
+            task = asyncio.create_task(h.run_forever())
+            await wait_for(lambda: h.ready_event.is_set(), desc="run_forever reached the shutdown wait")
+            task.cancel()
 
-        # The coroutine swallows CancelledError internally (converts it to graceful shutdown),
-        # so awaiting the task must return normally, not raise.
-        await task
+            # The coroutine swallows CancelledError internally (converts it to graceful shutdown),
+            # so awaiting the task must return normally, not raise.
+            await task
 
         h.shutdown.assert_awaited()
 
@@ -204,8 +207,6 @@ class TestRunForeverEdgeCases:
     ) -> None:
         """run_forever() logs (not raises) an unexpected exception from shutdown_event.wait()."""
         h = wired_hassette
-        for child in h.children:
-            child.start = Mock()
         h.wait_for_ready = AsyncMock(return_value=True)
         h._session_manager.mark_orphaned_sessions = AsyncMock()
         h._session_manager.create_session = AsyncMock()
@@ -214,7 +215,8 @@ class TestRunForeverEdgeCases:
         error_mock = Mock()
         h.logger.error = error_mock
 
-        await h.run_forever()  # must not raise
+        with patch("hassette.core.core.start"):
+            await h.run_forever()  # must not raise
 
         error_mock.assert_called()
         h.shutdown.assert_awaited()
@@ -329,14 +331,16 @@ class TestOnChildrenStopped:
     async def test_emits_stopped_event_and_closes_streams(self, wired_hassette: Hassette) -> None:
         """_on_children_stopped() calls handle_stop() then closes event streams."""
         h = wired_hassette
-        handle_stop_mock = AsyncMock()
-        h.handle_stop = handle_stop_mock
         close_streams_mock = AsyncMock()
         h._event_stream_service.close_streams = close_streams_mock
 
-        await h._on_children_stopped()
+        # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
+        # method — patch it at the call site (core.py) rather than reassigning an instance
+        # attribute, since _on_children_stopped() calls the free function directly.
+        with patch("hassette.core.core.handle_stop") as mock_handle_stop:
+            await h._on_children_stopped()
 
-        handle_stop_mock.assert_awaited_once()
+            mock_handle_stop.assert_awaited_once_with(h)
         close_streams_mock.assert_awaited_once()
 
 

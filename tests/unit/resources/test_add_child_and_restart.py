@@ -7,6 +7,7 @@ Verifies:
 
 import pytest
 
+from hassette.resources.operations import restart
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -49,7 +50,7 @@ class TestRestart:
         assert resource.init_count == 1
         assert resource.shutdown_count == 0
 
-        await resource.restart()
+        await restart(resource)
 
         assert resource.shutdown_count == 1, "restart() must run shutdown hooks before re-initializing"
         assert resource.init_count == 2, "restart() must run initialize hooks again"

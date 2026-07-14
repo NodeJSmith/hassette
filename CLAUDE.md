@@ -96,6 +96,8 @@ Services declare a `restart_spec` class attribute (`RestartSpec`) that controls 
 
 `BusService` and `SchedulerService` both declare `depends_on: [DatabaseService, SyncExecutorService]` — the database is guaranteed ready before any listener or job registration can occur. `AppHandler` also declares `SyncExecutorService` in its `depends_on`; the dedicated sync-handler executor (`SyncExecutorService`) outlives every component that submits sync work (Bus, Scheduler, and the App lifecycle hooks), so it is torn down only after them at shutdown.
 
+Lifecycle state transitions (`handle_starting`, `handle_running`, `handle_stop`, `handle_failed`, `handle_crash`, `mark_ready`, `mark_not_ready`, `request_shutdown`, `start`, `cancel`, `create_service_status_event`) and structural operations (`start_children_and_wait`, `restart`, `register_task_bucket_factory`, `run_hooks`, `ordered_children_for_shutdown`) are module-level functions in `src/hassette/resources/lifecycle.py` and `src/hassette/resources/operations.py`, not methods on `Resource`/`LifecycleMixin`. They take the resource as their first argument (e.g. `mark_ready(self, reason="initialized")`) — this keeps the names out of `App`'s public surface (see `App.__dir__`) since they are framework plumbing, not app-author API. `is_ready`, `wait_ready`, and `add_child` remain methods on `Resource`.
+
 ## App Pattern
 
 ```python

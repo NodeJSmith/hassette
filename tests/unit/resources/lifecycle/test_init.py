@@ -24,6 +24,7 @@ from hassette.api.api import Api
 from hassette.bus.bus import Bus
 from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import handle_failed, handle_starting
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
@@ -134,7 +135,7 @@ async def test_init_skips_starting_children():
     child = parent.add_child(InitTrackingChild)
 
     # Force child into STARTING status
-    await child.handle_starting()
+    await handle_starting(child)
     assert child.status == ResourceStatus.STARTING
 
     await parent.initialize()
@@ -173,7 +174,7 @@ async def test_init_reinitializes_failed_children():
     child = parent.add_child(InitTrackingChild)
 
     # Force child into FAILED status
-    await child.handle_failed(RuntimeError("test failure"))
+    await handle_failed(child, RuntimeError("test failure"))
     assert child.status == ResourceStatus.FAILED
 
     await parent.initialize()

@@ -11,6 +11,8 @@ from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready, request_shutdown
+from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import ResourceStatus, Topic
@@ -108,7 +110,7 @@ class ServiceWatcher(Resource):
         self._cooldown_tasks = {}
         self._cooldown_cycles = {}
         await self.register_internal_event_listeners()
-        self.mark_ready(reason="Service watcher initialized")
+        mark_ready(self, reason="Service watcher initialized")
 
     @staticmethod
     def service_key(name: str, role: object) -> str:
@@ -304,7 +306,7 @@ class ServiceWatcher(Resource):
         self.logger.info("%s '%s' cooldown complete, attempting restart", role, name)
         for service in services:
             try:
-                await service.restart()
+                await restart(service)
             except Exception as exc:
                 self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
 
@@ -427,7 +429,7 @@ class ServiceWatcher(Resource):
             # events cannot enter restart_service() while restarts are still in progress.
             for service in services:
                 try:
-                    await service.restart()
+                    await restart(service)
                 except Exception as exc:
                     self.logger.error(
                         "%s '%s' restart raised an exception (service left in FAILED state): %s",
@@ -483,7 +485,7 @@ class ServiceWatcher(Resource):
             if status_payload.exception_type:
                 reason += f": {status_payload.exception_type}"
             self.hassette.record_fatal_reason(reason)
-            self.hassette.request_shutdown(reason)
+            request_shutdown(self.hassette, reason)
         except Exception as exc:
             self.logger.error("Failed to handle %s crash for '%s': %s", role, name, exc)
             raise

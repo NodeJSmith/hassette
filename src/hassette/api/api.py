@@ -201,6 +201,7 @@ from hassette.models.helpers import (
 from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import format_time_param
@@ -280,7 +281,7 @@ class Api(Resource):
         self.sync = self.add_child(ApiSyncFacade, api=self)
 
     async def on_initialize(self) -> None:
-        self.mark_ready(reason="API initialized")
+        mark_ready(self, reason="API initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

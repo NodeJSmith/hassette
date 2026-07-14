@@ -14,7 +14,7 @@ Verifies:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -134,16 +134,18 @@ async def test_force_terminal_skips_completed_children():
     assert child.shutdown_completed is True
     assert child.status == ResourceStatus.STOPPED
 
-    # Track whether cancel() is called on the already-completed child
-    child.cancel = MagicMock()
+    # cancel() is a module-level function (hassette.resources.lifecycle), not a method —
+    # patch it at the call site (base.py) rather than reassigning an instance attribute,
+    # since _force_terminal() calls the free function directly.
+    # boundary-exempt: collaborator of _force_terminal
+    with patch("hassette.resources.base.cancel") as mock_cancel:
+        root._force_terminal()
 
-    root._force_terminal()
-
-    # Root should be force-terminated
-    assert root.shutdown_completed is True
-    assert root.status == ResourceStatus.STOPPED
-    # Child was already completed — cancel() should NOT have been called
-    child.cancel.assert_not_called()
+        # Root should be force-terminated
+        assert root.shutdown_completed is True
+        assert root.status == ResourceStatus.STOPPED
+        # Child was already completed — cancel() should NOT have been called on it
+        mock_cancel.assert_called_once_with(root)
 
 
 async def test_service_force_terminal_cancels_serve_task():

@@ -1,11 +1,12 @@
 """Unit tests for Resource.depends_on and _auto_wait_dependencies()."""
 
 from typing import ClassVar
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import handle_failed as real_handle_failed
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.test_utils import make_mock_hassette
@@ -183,15 +184,18 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
 
     handle_failed_calls: list[Exception] = []
 
-    original_handle_failed = resource.handle_failed
-
-    async def _record_handle_failed(exc: Exception) -> None:
+    async def _record_handle_failed(res, exc: Exception) -> None:
         handle_failed_calls.append(exc)
-        await original_handle_failed(exc)
+        await real_handle_failed(res, exc)
 
-    resource.handle_failed = _record_handle_failed  # pyright: ignore[reportAttributeAccessIssue]
-
-    with pytest.raises(RuntimeError, match="timed out"):
+    # handle_failed() is a module-level function (hassette.resources.lifecycle), not a
+    # method — patch it at the call site (base.py) rather than reassigning an instance
+    # attribute, since initialize() calls the free function directly.
+    # boundary-exempt: collaborator of initialize
+    with (
+        patch("hassette.resources.base.handle_failed", side_effect=_record_handle_failed),
+        pytest.raises(RuntimeError, match="timed out"),
+    ):
         await resource.initialize()
 
     assert len(handle_failed_calls) == 1

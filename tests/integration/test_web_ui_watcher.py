@@ -31,7 +31,11 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
     svc.hassette = mock_hassette
     svc.shutdown_event = asyncio.Event()
     svc.logger = MagicMock()
-    svc.mark_ready = MagicMock()
+    svc._unique_name = "WebUiWatcherService.test"
+    # Real Event so the module-level mark_ready() (called by serve()) can operate
+    # on this bypassed instance.
+    svc.ready_event = asyncio.Event()
+    svc._ready_reason = None
     return svc
 
 
@@ -52,7 +56,7 @@ async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) ->
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    watcher.mark_ready.assert_called_once()
+    assert watcher.is_ready()
     watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
         {"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}}
     )

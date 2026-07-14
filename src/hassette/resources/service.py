@@ -8,6 +8,16 @@ from anyio import ClosedResourceError
 
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import (
+    handle_crash,
+    handle_failed,
+    handle_running,
+    handle_starting,
+    handle_stop,
+    mark_not_ready,
+    request_shutdown,
+)
+from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 
@@ -102,19 +112,19 @@ class Service(Resource):
             return
         self.initializing = True
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
-        await self.handle_starting()
+        await handle_starting(self)
         try:
             try:
                 await self._auto_wait_dependencies()
             except Exception as exc:
-                await self.handle_failed(exc)
+                await handle_failed(self, exc)
                 raise
             if self.hassette.shutdown_event.is_set():
-                self.mark_not_ready("shutdown requested during dependency wait")
+                mark_not_ready(self, "shutdown requested during dependency wait")
                 return
-            await self._run_hooks([self.before_initialize, self.on_initialize])
+            await run_hooks(self, [self.before_initialize, self.on_initialize])
             self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
-            await self._run_hooks([self.after_initialize])
+            await run_hooks(self, [self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                     await child.initialize()
@@ -131,9 +141,9 @@ class Service(Resource):
         self.shutting_down = True
         if self._status not in TERMINAL_STATUSES:
             self.status = ResourceStatus.STOPPING
-        self.request_shutdown(f"{self.unique_name} shutdown")
+        request_shutdown(self, f"{self.unique_name} shutdown")
         try:
-            await self._run_hooks([self.before_shutdown], continue_on_error=True)
+            await run_hooks(self, [self.before_shutdown], continue_on_error=True)
             if self.is_running() and self._serve_task:
                 self._serve_task.cancel()
                 self.logger.debug("Cancelled serve() task")
@@ -149,39 +159,39 @@ class Service(Resource):
                         "Serve task for %s did not complete within resource shutdown timeout",
                         self.unique_name,
                     )
-            await self._run_hooks([self.on_shutdown, self.after_shutdown], continue_on_error=True)
+            await run_hooks(self, [self.on_shutdown, self.after_shutdown], continue_on_error=True)
         finally:
             await self._finalize_shutdown()
             self.shutting_down = False
 
     async def _serve_wrapper(self) -> None:
         try:
-            await self.handle_running()
+            await handle_running(self)
             await self.serve()
             # Normal return → graceful stop path
-            await self.handle_stop()
+            await handle_stop(self)
         except asyncio.CancelledError:
             # Cooperative shutdown
             with suppress(Exception):
-                await self.handle_stop()
+                await handle_stop(self)
             raise
         except ClosedResourceError as exc:
             if not self.hassette.shutdown_event.is_set():
                 self.logger.error("Serve() task raised ClosedResourceError outside shutdown")
                 with suppress(Exception):
-                    await self.handle_failed(exc)
+                    await handle_failed(self, exc)
                 return
             with suppress(Exception):
-                await self.handle_stop()
+                await handle_stop(self)
         except FatalError as exc:
             self.logger.error("Serve() task failed with fatal error: %s %s", type(exc).__name__, exc)
             # Crash/failure path
-            await self.handle_crash(exc)
+            await handle_crash(self, exc)
 
         except Exception as exc:
             self.logger.error("Serve() task failed: %s %s", type(exc).__name__, exc)
             # Crash/failure path
-            await self.handle_failed(exc)
+            await handle_failed(self, exc)
 
     def is_running(self) -> bool:
         return self._serve_task is not None and not self._serve_task.done()

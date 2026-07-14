@@ -9,6 +9,7 @@ from hassette.event_handling.accessors import get_path
 from hassette.event_handling.predicates import ValueIs
 from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -55,7 +56,7 @@ class SessionManager(Resource):
             name="hassette.session_manager.on_service_crashed",
             where=ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
         )
-        self.mark_ready(reason="SessionManager initialized")
+        mark_ready(self, reason="SessionManager initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

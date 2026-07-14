@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from hassette import Hassette
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.utils.service_utils import topological_levels, topological_sort
 
 
@@ -71,7 +72,7 @@ async def test_service_with_depends_on_waits_for_dep(hassette_instance: Hassette
     assert not task.done(), "initialize() task must still be waiting for the gate"
 
     # Release the gate — mark the dependency ready.
-    gated.mark_ready("test: gate released")
+    mark_ready(gated, "test: gate released")
 
     await asyncio.wait_for(task, timeout=2.0)
 

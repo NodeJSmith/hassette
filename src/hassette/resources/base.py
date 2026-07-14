@@ -9,9 +9,19 @@ from typing import Any, ClassVar, TypeVar, final
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError
+from hassette.resources.lifecycle import (
+    cancel,
+    create_service_status_event,
+    handle_failed,
+    handle_running,
+    handle_starting,
+    handle_stop,
+    mark_not_ready,
+    request_shutdown,
+)
+from hassette.resources.operations import ordered_children_for_shutdown, run_hooks
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
-from hassette.utils.service_utils import wait_for_ready
 
 from .mixins import LifecycleMixin
 
@@ -147,15 +157,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if "depends_on" not in cls.__dict__:
             cls.depends_on = list(cls.depends_on)
 
-    @classmethod
-    def register_task_bucket_factory(cls, factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:
-        """Register the factory used to create a default TaskBucket for each Resource.
-
-        Called once by hassette.task_bucket at module import time so that Resource.__init__
-        never needs to import TaskBucket directly.
-        """
-        cls._default_task_bucket_factory = factory
-
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
     ) -> None:
@@ -282,71 +283,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.children.append(inst)
         return inst
 
-    async def start_children_and_wait(self, timeout: float | None = None) -> None:
-        """Start all children concurrently and block until they are ready.
-
-        All children are started simultaneously — ``depends_on`` ordering is
-        not enforced. Use ``Hassette.run_forever()`` for wave-based startup.
-
-        Args:
-            timeout: Seconds to wait for readiness. ``None`` uses
-                ``config.startup_timeout_seconds``.
-
-        Raises:
-            TimeoutError: If any child is not ready within the timeout or
-                if shutdown is requested during the wait.
-        """
-        if not self.children:
-            return
-
-        for child in self.children:
-            child.start()
-
-        effective_timeout = timeout if timeout is not None else self.hassette.config.lifecycle.startup_timeout_seconds
-        ready = await wait_for_ready(
-            self.children, timeout=effective_timeout, shutdown_event=self.hassette.shutdown_event
-        )
-        if not ready:
-            child_statuses = ", ".join(f"{c.class_name}({c.status.value})" for c in self.children)
-            if self.hassette.shutdown_event.is_set():
-                reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"
-            else:
-                reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
-            raise TimeoutError(f"Children of {self.class_name} did not become ready: {reason}")
-
-    async def _run_hooks(
-        self, hooks: list[typing.Callable[[], typing.Awaitable[None]]], *, continue_on_error: bool = False
-    ) -> None:
-        """Execute lifecycle hooks with error handling.
-
-        Args:
-            hooks: List of async callables to execute in order.
-            continue_on_error: If False (initialize), re-raise on Exception.
-                If True (shutdown), log and continue to next hook.
-        """
-        for method in hooks:
-            try:
-                await method()
-            except asyncio.CancelledError:
-                if continue_on_error:
-                    self.logger.warning("Shutdown hook was cancelled, forcing cleanup")
-                with suppress(Exception):
-                    await self.handle_failed(asyncio.CancelledError())
-                raise
-            except Exception as exc:
-                if continue_on_error:
-                    self.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
-                    with suppress(Exception):
-                        await self.handle_failed(exc)
-                else:
-                    with suppress(Exception):
-                        await self.handle_failed(exc)
-                    raise
-
-    def _ordered_children_for_shutdown(self) -> list["Resource"]:
-        """Return children in shutdown order (reverse insertion)."""
-        return list(reversed(self.children))
-
     async def _auto_wait_dependencies(self) -> None:
         """Wait for all declared depends_on types to become ready before lifecycle hooks fire.
 
@@ -395,7 +331,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ready = await self.hassette.wait_for_ready(deps)
         if not ready:
             if self.hassette.shutdown_event.is_set():
-                self.mark_not_ready("shutdown during dependency wait")
+                mark_not_ready(self, "shutdown during dependency wait")
                 return
             status_report = ", ".join(f"{dep.class_name}({dep.status.value})" for dep in deps)
             raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
@@ -416,19 +352,19 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if self.shutdown_completed:
             return
-        self.cancel()
+        cancel(self)
         self.task_bucket.cancel_all_sync()
         self.shutting_down = False
         self.shutdown_completed = True
         self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
-        self.mark_not_ready("shutdown timed out")
+        mark_not_ready(self, "shutdown timed out")
         for child in self.children:
             child._force_terminal()
 
     async def _shutdown_children(self) -> bool:
         """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
         timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-        children = self._ordered_children_for_shutdown()
+        children = ordered_children_for_shutdown(self)
         if not children:
             return True
         try:
@@ -478,7 +414,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         if not self.hassette.event_streams_closed:
             try:
-                await self.handle_stop()
+                await handle_stop(self)
             except Exception as exc:
                 self.logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
         else:
@@ -515,22 +451,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.initializing = True
 
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
-        await self.handle_starting()
+        await handle_starting(self)
 
         try:
             try:
                 await self._auto_wait_dependencies()
             except Exception as exc:
-                await self.handle_failed(exc)
+                await handle_failed(self, exc)
                 raise
             if self.hassette.shutdown_event.is_set():
-                self.mark_not_ready("shutdown requested during dependency wait")
+                mark_not_ready(self, "shutdown requested during dependency wait")
                 return
-            await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
+            await run_hooks(self, [self.before_initialize, self.on_initialize, self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                     await child.initialize()
-            await self.handle_running()
+            await handle_running(self)
         finally:
             self.initializing = False
 
@@ -559,10 +495,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.shutting_down = True
         if self._status not in TERMINAL_STATUSES:
             self.status = ResourceStatus.STOPPING
-        self.request_shutdown(f"{self.unique_name} shutdown")
+        request_shutdown(self, f"{self.unique_name} shutdown")
 
         try:
-            await self._run_hooks(
+            await run_hooks(
+                self,
                 [self.before_shutdown, self.on_shutdown, self.after_shutdown],
                 continue_on_error=True,
             )
@@ -599,8 +536,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         to wrap with ``suppress(Exception)``.
         """
         try:
-            event = self.create_service_status_event(
-                self._status, ready=self.is_ready(), ready_phase=self._ready_reason
+            event = create_service_status_event(
+                self, self._status, ready=self.is_ready(), ready_phase=self._ready_reason
             )
             await self.hassette.send_event(event)
         except Exception:
@@ -612,12 +549,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 exc_info=True,
             )
 
-    async def restart(self) -> None:
-        """Restart the instance by shutting it down and re-initializing it."""
-        self.logger.debug("Restarting '%s' %s", self.class_name, self.role)
-        await self.shutdown()
-        await self.initialize()
-
     async def cleanup(self, timeout: float | None = None) -> None:
         """Cleanup resources owned by the instance.
 
@@ -625,7 +556,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
-        self.cancel()
+        cancel(self)
         with suppress(asyncio.CancelledError):
             if self._init_task:
                 await asyncio.wait_for(self._init_task, timeout=timeout)

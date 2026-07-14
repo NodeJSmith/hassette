@@ -18,6 +18,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.service import Service
 from hassette.test_utils import build_fake_ws, make_ws_hassette_stub
 from hassette.types import Topic
@@ -168,7 +169,7 @@ class TestMakeConnectionRetries:
 class TestBeforeShutdown:
     async def test_before_shutdown_sends_connection_lost_event(self, websocket_service: WebsocketService) -> None:
         """before_shutdown fires the WEBSOCKET_DISCONNECTED event via send_connection_lost_event."""
-        websocket_service.mark_ready(reason="test: pre-shutdown ready state")
+        mark_ready(websocket_service, reason="test: pre-shutdown ready state")
         send_event_mock = AsyncMock()
         websocket_service.hassette.send_event = send_event_mock
 

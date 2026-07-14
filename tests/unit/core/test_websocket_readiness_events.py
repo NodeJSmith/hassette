@@ -12,6 +12,7 @@ import pytest
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils import make_ws_hassette_stub
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
@@ -40,7 +41,7 @@ class TestWebsocketReadinessEvents:
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
         # Arrange: service starts ready, _connected_at in stable window
-        websocket_service.mark_ready(reason="test: pre-state")
+        mark_ready(websocket_service, reason="test: pre-state")
         websocket_service._connected_at = time.monotonic()
 
         # Mock make_connection to return a task that fails with RetryableConnectionClosedError
@@ -53,7 +54,7 @@ class TestWebsocketReadinessEvents:
             if call_count == 1:
                 # Simulate successful connection (mark_ready mirrors what start_recv_and_subscribe does)
                 websocket_service._connected_at = time.monotonic()
-                websocket_service.mark_ready(reason="test: connected")
+                mark_ready(websocket_service, reason="test: connected")
 
                 async def _fail():
                     raise RetryableConnectionClosedError("peer gone")
@@ -102,12 +103,12 @@ class TestWebsocketReadinessEvents:
         websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
 
         # Arrange: service starts ready, _connected_at set to 60s ago (outside stable window)
-        websocket_service.mark_ready(reason="test: pre-state")
+        mark_ready(websocket_service, reason="test: pre-state")
 
         async def fake_make_connection(_session):
             # Outside stable window → not an early drop → propagates as genuine failure
             websocket_service._connected_at = time.monotonic() - 60.0
-            websocket_service.mark_ready(reason="test: connected")
+            mark_ready(websocket_service, reason="test: connected")
 
             async def _fail():
                 raise RetryableConnectionClosedError("stable drop")

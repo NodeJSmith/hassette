@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from watchfiles import awatch
 
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -44,7 +45,7 @@ class WebUiWatcherService(Service):
 
     async def on_initialize(self) -> None:
         if not self.hassette.config.web_api.ui_hot_reload:
-            self.mark_ready(reason="Web UI hot reload disabled")
+            mark_ready(self, reason="Web UI hot reload disabled")
 
     async def serve(self) -> None:
         if not self.hassette.config.web_api.ui_hot_reload:
@@ -57,7 +58,7 @@ class WebUiWatcherService(Service):
             return
 
         self.logger.info("Watching web UI files for hot reload: %s", ", ".join(str(d) for d in dirs))
-        self.mark_ready(reason="Web UI hot reload started")
+        mark_ready(self, reason="Web UI hot reload started")
 
         async for changes in awatch(*dirs, stop_event=self.shutdown_event, debounce=_DEBOUNCE_MS):
             if self.shutdown_event.is_set():

@@ -52,21 +52,25 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
     svc.hassette = mock_hassette
     svc.shutdown_event = asyncio.Event()
     svc.logger = MagicMock()
-    svc.mark_ready = MagicMock()
+    svc._unique_name = "WebUiWatcherService.test"
+    # Real Event so the module-level mark_ready() (called by on_initialize()/serve())
+    # can operate on this bypassed instance.
+    svc.ready_event = asyncio.Event()
+    svc._ready_reason = None
     return svc
 
 
 async def test_on_initialize_marks_ready_when_disabled(watcher: WebUiWatcherService) -> None:
     watcher.hassette.config.web_api.ui_hot_reload = False
     await watcher.on_initialize()
-    watcher.mark_ready.assert_called_once()
-    assert "disabled" in watcher.mark_ready.call_args.kwargs.get("reason", "").lower()
+    assert watcher.is_ready()
+    assert "disabled" in (watcher._ready_reason or "").lower()
 
 
 async def test_on_initialize_does_not_mark_ready_when_enabled(watcher: WebUiWatcherService) -> None:
     watcher.hassette.config.web_api.ui_hot_reload = True
     await watcher.on_initialize()
-    watcher.mark_ready.assert_not_called()
+    assert not watcher.is_ready()
 
 
 async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherService) -> None:

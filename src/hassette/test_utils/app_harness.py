@@ -35,6 +35,7 @@ from hassette.app.app_config import AppConfig
 from hassette.app.utils import get_app_config_class
 from hassette.bus import Bus
 from hassette.config.classes import AppManifest
+from hassette.resources.lifecycle import mark_ready, start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
@@ -304,7 +305,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         )
 
         # Step 8: Mark state proxy ready
-        harness.state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
+        mark_ready(harness.state_proxy, reason="AppTestHarness: mark ready for test")
 
         # Step 9: Synthesize a per-instance manifest and validate the config.
         # synthesize_manifest is a pure function of the class. make_hermetic_config writes
@@ -338,7 +339,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         exit_stack.push_async_callback(self._safe_app_shutdown, app)
 
         # Start the app lifecycle
-        app.start()
+        start(app)
         await wait_for(
             lambda: app.status == ResourceStatus.RUNNING,
             desc=f"{app.class_name} RUNNING",

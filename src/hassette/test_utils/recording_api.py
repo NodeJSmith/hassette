@@ -48,6 +48,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.test_utils.api_call import ApiCall
 from hassette.test_utils.sync_facade import RecordingSyncFacade
 
@@ -309,7 +310,7 @@ class RecordingApi(Resource):
     StateProxy so tests see seeded state values. get_state() raises
     EntityNotFoundError for unseeded entities (matching real Api behavior).
 
-    on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
+    on_initialize() calls mark_ready(self) — required for the Resource lifecycle.
 
     sync attribute is a RecordingSyncFacade instance. Write calls via api.sync.*
     are recorded to the same `calls` list as the async side. Read methods delegate
@@ -383,7 +384,7 @@ class RecordingApi(Resource):
 
     async def on_initialize(self) -> None:
         """Mark this resource ready. Called by Resource.initialize()."""
-        self.mark_ready(reason="RecordingApi initialized")
+        mark_ready(self, reason="RecordingApi initialized")
 
     def _new_helper_id(self, domain: str, name: str) -> str:
         """Generate a unique helper id for domain, mirroring HA's IDManager.generate_id.

@@ -6,6 +6,7 @@ from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
 from hassette.exceptions import FatalError
+from hassette.resources.lifecycle import request_shutdown
 
 LOGGER = getLogger(__name__)
 
@@ -23,7 +24,7 @@ async def main(config: HassetteConfig) -> None:
 
     loop = asyncio.get_running_loop()
     try:
-        loop.add_signal_handler(signal.SIGTERM, core.request_shutdown, "SIGTERM received")
+        loop.add_signal_handler(signal.SIGTERM, request_shutdown, core, "SIGTERM received")
     except NotImplementedError:
         LOGGER.warning("SIGTERM handler registration is not supported on this platform/event loop")
 

@@ -13,6 +13,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.scheduler import ScheduledJob, Scheduler
 from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -76,7 +77,7 @@ class StateProxy(Resource):
         try:
             await self.load_cache()
 
-            self.mark_ready(reason="Initial state sync complete")
+            mark_ready(self, reason="Initial state sync complete")
 
         except Exception as exc:
             self.logger.exception("Failed to perform initial state sync: %s", exc)
@@ -112,7 +113,7 @@ class StateProxy(Resource):
 
     async def on_shutdown(self) -> None:
         """Shutdown the state proxy and clean up resources."""
-        self.mark_not_ready(reason="Shutting down")
+        mark_not_ready(self, reason="Shutting down")
         # Null out subscription/job references to guard against on_disconnect() race.
         self.poll_job = None
         self.state_change_sub = None
@@ -296,7 +297,7 @@ class StateProxy(Resource):
         # poll job stays alive so the cache can self-heal between
         # disconnect and the next on_reconnect call
 
-        self.mark_not_ready(reason="Disconnected")
+        mark_not_ready(self, reason="Disconnected")
         await self._emit_readiness_event()
 
     async def on_reconnect(self) -> None:
@@ -324,11 +325,11 @@ class StateProxy(Resource):
                 self.logger.exception("Failed to subscribe to events after reconnect: %s", exc)
 
             if load_cache_succeeded and subscribe_succeeded:
-                self.mark_ready(reason="Connected")
+                mark_ready(self, reason="Connected")
             elif not load_cache_succeeded:
-                self.mark_not_ready(reason="Failed to resync states after HA restart")
+                mark_not_ready(self, reason="Failed to resync states after HA restart")
             else:
-                self.mark_not_ready(reason="Failed to subscribe to events after reconnect")
+                mark_not_ready(self, reason="Failed to subscribe to events after reconnect")
 
             await self._emit_readiness_event()
 

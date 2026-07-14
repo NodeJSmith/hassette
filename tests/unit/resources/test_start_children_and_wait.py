@@ -10,6 +10,8 @@ Verifies:
 import pytest
 
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
+from hassette.resources.operations import start_children_and_wait
 from hassette.test_utils import make_mock_hassette
 
 
@@ -24,7 +26,7 @@ class ReadyOnInit(Resource):
     """Child that becomes ready immediately on initialize."""
 
     async def on_initialize(self) -> None:
-        self.mark_ready("initialized")
+        mark_ready(self, "initialized")
 
 
 class NeverReady(Resource):
@@ -40,7 +42,7 @@ async def test_all_children_become_ready():
     parent.add_child(ReadyOnInit)
     parent.add_child(ReadyOnInit)
 
-    await parent.start_children_and_wait(timeout=2.0)
+    await start_children_and_wait(parent, timeout=2.0)
 
     assert all(c.is_ready() for c in parent.children)
 
@@ -49,7 +51,7 @@ async def test_empty_children_is_noop():
     hassette = make_mock_hassette(sealed=False)
     parent = Parent(hassette)
 
-    await parent.start_children_and_wait(timeout=1.0)
+    await start_children_and_wait(parent, timeout=1.0)
 
     assert parent.children == []
 
@@ -61,7 +63,7 @@ async def test_timeout_raises_with_diagnostics():
     parent.add_child(NeverReady)
 
     with pytest.raises(TimeoutError, match=r"timed out after 0\.1s.*NeverReady"):
-        await parent.start_children_and_wait(timeout=0.1)
+        await start_children_and_wait(parent, timeout=0.1)
 
 
 async def test_shutdown_during_wait_raises():
@@ -72,4 +74,4 @@ async def test_shutdown_during_wait_raises():
     hassette.shutdown_event.set()
 
     with pytest.raises(TimeoutError, match="shutdown during wait"):
-        await parent.start_children_and_wait(timeout=1.0)
+        await start_children_and_wait(parent, timeout=1.0)

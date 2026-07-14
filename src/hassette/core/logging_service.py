@@ -14,6 +14,7 @@ from hassette.logging_ import (
     LogPersistenceHandler,
 )
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -101,7 +102,7 @@ class LoggingService(Resource):
         self._queue_listener = listener
         self._queue_handler = queue_handler
 
-        self.mark_ready(reason="LoggingService initialized")
+        mark_ready(self, reason="LoggingService initialized")
 
     async def on_shutdown(self) -> None:
         """Stop the async logging pipeline and restore synchronous console logging."""

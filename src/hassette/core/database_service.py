@@ -12,6 +12,7 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -241,7 +242,7 @@ class DatabaseService(Service):
 
     async def serve(self) -> None:
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
-        self.mark_ready(reason="Database service started")
+        mark_ready(self, reason="Database service started")
 
         last_retention_run = time.monotonic()
         last_size_failsafe_run = time.monotonic()
@@ -250,7 +251,7 @@ class DatabaseService(Service):
             try:
                 await asyncio.wait_for(self.shutdown_event.wait(), timeout=_HEARTBEAT_INTERVAL_SECONDS)
                 # shutdown_event was set — exit
-                self.mark_not_ready(reason="Shutting down")
+                mark_not_ready(self, reason="Shutting down")
                 return
             except TimeoutError:
                 pass

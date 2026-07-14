@@ -10,6 +10,7 @@ from hassette.exceptions import RegistryNotReadyError
 from hassette.models import states
 from hassette.models.states import BaseState
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateReader, StateT
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import make_entity_id
@@ -229,7 +230,7 @@ class StateManager(Resource):
         self._domain_states_cache = {}
 
     async def after_initialize(self) -> None:
-        self.mark_ready(reason="StateManager initialized")
+        mark_ready(self, reason="StateManager initialized")
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

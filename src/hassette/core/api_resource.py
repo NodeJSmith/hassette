@@ -27,6 +27,7 @@ from hassette.exceptions import (
 )
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
 
@@ -83,7 +84,7 @@ class ApiResource(Resource):
         headers = self._headers_factory() if self._headers_factory is not None else self.headers
         await self._stack.__aenter__()
         self._session = await self._stack.enter_async_context(aiohttp.ClientSession(headers=headers, base_url=rest_url))
-        self.mark_ready(reason="API session initialized")
+        mark_ready(self, reason="API session initialized")
 
     async def on_shutdown(self) -> None:
         await self._stack.aclose()

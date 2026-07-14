@@ -6,6 +6,7 @@ fixtures without test pollution.
 
 from typing import TYPE_CHECKING
 
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
 
 if TYPE_CHECKING:
@@ -139,7 +140,7 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     hassette.shutting_down = False
     hassette.shutdown_completed = False
     hassette._fatal_shutdown_reason = None
-    hassette.mark_ready(reason="reset for test")
+    mark_ready(hassette, reason="reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
 

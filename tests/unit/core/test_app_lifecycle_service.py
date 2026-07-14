@@ -1,6 +1,6 @@
 """Unit tests for AppLifecycleService."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
 
@@ -109,10 +109,12 @@ class TestInitializeInstances:
         """Calls initialize() and mark_ready() on each instance."""
         instances = {0: mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        # boundary-exempt: collaborator of initialize_instances
+        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         mock_app_instance.initialize.assert_called_once()
-        mock_app_instance.mark_ready.assert_called_once_with(reason="initialized")
+        mock_mark_ready.assert_called_once_with(mock_app_instance, reason="initialized")
 
     async def test_multiple_instances(self, lifecycle_service: AppLifecycleService, mock_manifest: MagicMock) -> None:
         """Initializes all provided instances."""
@@ -120,12 +122,16 @@ class TestInitializeInstances:
         app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
         instances = {0: app1, 1: app2}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        # boundary-exempt: collaborator of initialize_instances
+        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         app1.initialize.assert_called_once()
-        app1.mark_ready.assert_called_once()
         app2.initialize.assert_called_once()
-        app2.mark_ready.assert_called_once()
+        assert mock_mark_ready.call_args_list == [
+            call(app1, reason="initialized"),
+            call(app2, reason="initialized"),
+        ]
 
     async def test_timeout_records_failure(
         self,
@@ -175,11 +181,13 @@ class TestInitializeInstances:
 
         instances = {0: app1, 1: app2}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        # boundary-exempt: collaborator of initialize_instances
+        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         app1.initialize.assert_called_once()
         app2.initialize.assert_called_once()
-        app2.mark_ready.assert_called_once()
+        mock_mark_ready.assert_called_once_with(app2, reason="initialized")
 
     async def test_emits_running_event_on_success(
         self,
@@ -466,12 +474,15 @@ class TestBootstrapApps:
         mock_registry.manifests = {"app_a": MagicMock()}
         # boundary-exempt: collaborator of bootstrap_apps
         lifecycle_service.resolve_only_app = AsyncMock(side_effect=RuntimeError("crash"))
-        lifecycle_service.handle_crash = AsyncMock()  # boundary-exempt: collaborator of bootstrap_apps
 
-        with pytest.raises(RuntimeError, match="crash"):
-            await lifecycle_service.bootstrap_apps()
+        # boundary-exempt: collaborator of bootstrap_apps
+        with patch("hassette.core.app_lifecycle_service.handle_crash") as mock_handle_crash:
+            with pytest.raises(RuntimeError, match="crash"):
+                await lifecycle_service.bootstrap_apps()
 
-        lifecycle_service.handle_crash.assert_called_once()
+            mock_handle_crash.assert_called_once()
+            assert mock_handle_crash.call_args[0][0] is lifecycle_service
+            assert isinstance(mock_handle_crash.call_args[0][1], RuntimeError)
 
 
 class TestStartApps:

@@ -15,6 +15,7 @@ from hassette.core.telemetry.registration_queries import RegistrationQueriesMixi
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
 
     async def on_initialize(self) -> None:
         if not self.hassette.config.web_api.run:
-            self.mark_ready(reason="Web API disabled")
+            mark_ready(self, reason="Web API disabled")
             return
 
         # DatabaseService is guaranteed ready by depends_on auto-wait.
@@ -54,7 +55,7 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
                 f"got {mode!r}. Snapshot isolation for multi-query reads is not guaranteed."
             )
 
-        self.mark_ready(reason="TelemetryQueryService initialized")
+        mark_ready(self, reason="TelemetryQueryService initialized")
 
     @property
     def _db(self) -> aiosqlite.Connection:

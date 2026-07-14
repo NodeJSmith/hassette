@@ -17,6 +17,7 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
@@ -158,7 +159,7 @@ class SyncExecutorService(Service):
         fires but the WARNING is swallowed because the rate-limit hasn't expired.
         See module-level constant comments for the coupling invariant.
         """
-        self.mark_ready(reason="SyncExecutorService started")
+        mark_ready(self, reason="SyncExecutorService started")
         while not self.shutdown_event.is_set():
             try:
                 # Wait up to one probe interval for service shutdown.  We recreate

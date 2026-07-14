@@ -97,6 +97,11 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor.hassette.database_service = MagicMock()
     executor.hassette.database_service.submit = AsyncMock(return_value=None)
     executor.logger = MagicMock()
+    executor._unique_name = "CommandExecutor.test"
+    # Real Event so the module-level mark_ready() (called by serve()) can operate
+    # on this bypassed instance.
+    executor.ready_event = asyncio.Event()
+    executor._ready_reason = None
     return executor
 
 
@@ -618,7 +623,6 @@ async def test_serve_loops_without_blocking_when_queue_empty():
 
     executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
     executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 0.05  # very short — timer fires quickly
 
     # Shut down after two timer cycles; if max_flush_interval_seconds is honoured the whole
@@ -662,7 +666,6 @@ async def test_serve_timer_drains_items_added_during_drain():
 
     executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
     executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long — rely on item arrival, not timer
 
     async def stop_after_two_drains():
@@ -697,7 +700,6 @@ async def test_serve_item_flush_drains_queue_on_arrival():
 
     executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
     executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    executor.mark_ready = MagicMock()
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long interval — item should arrive first
 
     async def enqueue_then_stop():

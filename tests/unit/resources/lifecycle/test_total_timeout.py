@@ -11,6 +11,7 @@ import asyncio
 from contextlib import suppress
 
 from hassette.resources.base import FinalMeta, Resource
+from hassette.resources.lifecycle import handle_stop, mark_not_ready
 from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -64,11 +65,11 @@ class TotalTimeoutRoot(Resource):
                     self._order_counter += 1
                     self._handle_stop_order = self._order_counter
                     self._handle_stop_called = True
-                    await self.handle_stop()
+                    await handle_stop(self)
             with suppress(Exception):
                 await self._close_streams()
             self.status = ResourceStatus.STOPPED
-            self.mark_not_ready("shutdown complete")
+            mark_not_ready(self, "shutdown complete")
 
 
 async def test_total_shutdown_timeout_caps_wall_clock():

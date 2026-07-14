@@ -18,6 +18,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -109,12 +110,12 @@ class AppHandler(Resource):
         """
         self.logger.debug("Bootstrapping apps")
         await self.lifecycle.bootstrap_apps()
-        self.mark_ready(reason="apps-bootstrapped")
+        mark_ready(self, reason="apps-bootstrapped")
 
     async def on_shutdown(self) -> None:
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
-        self.mark_not_ready(reason="shutting-down")
+        mark_not_ready(self, reason="shutting-down")
         await self.lifecycle.shutdown_all()
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
