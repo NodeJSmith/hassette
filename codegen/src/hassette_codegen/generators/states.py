@@ -29,7 +29,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
 
     strenums, prefix_renames = _normalize_enum_prefixes(domain.strenums, domain_title)
     pydantic_class_name = f"{domain_title}State"
-    strenums, collision_renames = _rename_collisions(strenums, pydantic_class_name)
+    strenums, collision_renames = rename_collisions(strenums, pydantic_class_name)
     renames = {**prefix_renames, **collision_renames}
 
     strenum_names = {e.name for e in strenums}
@@ -90,7 +90,7 @@ def _normalize_enum_prefixes(
     return result, renames
 
 
-def _rename_collisions(
+def rename_collisions(
     strenums: list[ExtractedEnum], pydantic_class_name: str
 ) -> tuple[list[ExtractedEnum], dict[str, str]]:
     """Rename StrEnums that collide with the Pydantic state class name."""

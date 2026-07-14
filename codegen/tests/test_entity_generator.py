@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hassette_codegen.domain_data import ExtractedDomain
+from hassette_codegen.extractors.features import ExtractedEnum
 from hassette_codegen.extractors.services import ExtractedService, ServiceField
 from hassette_codegen.generators.entities import generate_entity_wrapper
 from hassette_codegen.overrides import DomainOverride
@@ -455,3 +456,224 @@ class TestEntityWrapperGenerator:
             assert facade_params == async_params, (
                 f"{method}: facade params {facade_params} != async entity params {async_params}"
             )
+
+
+def _enum(name: str, *members: tuple[str, str]) -> ExtractedEnum:
+    return ExtractedEnum(name=name, members=list(members), kind="StrEnum")
+
+
+def _domain(
+    name: str,
+    strenums: list[ExtractedEnum],
+    services: list[ExtractedService],
+    override: DomainOverride | None = None,
+) -> ExtractedDomain:
+    return ExtractedDomain(
+        name=name,
+        base_class="StringBaseState",
+        strenums=strenums,
+        services=services,
+        override=override,
+    )
+
+
+class TestStrEnumMatching:
+    """StrEnum cross-referencing for service params (issue #718)."""
+
+    def test_name_based_match_str_to_strenum(self) -> None:
+        domain = _domain(
+            "climate",
+            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"), ("COOL", "cool"))],
+            services=[
+                ExtractedService(
+                    name="set_hvac_mode",
+                    method_name="set_hvac_mode",
+                    fields=[
+                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "hvac_mode: HVACMode" in output
+        assert "import ClimateAttributes, HVACMode" in output
+
+    def test_value_based_match_literal_to_strenum(self) -> None:
+        domain = _domain(
+            "media_player",
+            strenums=[_enum("RepeatMode", ("OFF", "off"), ("ALL", "all"), ("ONE", "one"))],
+            services=[
+                ExtractedService(
+                    name="repeat_set",
+                    method_name="repeat_set",
+                    fields=[
+                        ServiceField(
+                            name="repeat",
+                            selector_type="select",
+                            selector_data={"options": ["off", "all", "one"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "repeat: RepeatMode" in output
+        assert "RepeatMode" in output.split("class")[0]
+        # Literal alias should NOT be generated — StrEnum supersedes it
+        assert "MediaPlayerRepeat = Literal" not in output
+
+    def test_value_based_match_list_literal_to_strenum(self) -> None:
+        domain = _domain(
+            "todo",
+            strenums=[_enum("TodoItemStatus", ("NEEDS_ACTION", "needs_action"), ("COMPLETED", "completed"))],
+            services=[
+                ExtractedService(
+                    name="get_items",
+                    method_name="get_items",
+                    fields=[
+                        ServiceField(
+                            name="status",
+                            selector_type="select",
+                            selector_data={"options": ["needs_action", "completed"], "multiple": True},
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "status: list[TodoItemStatus] | None" in output
+        assert "TodoStatus = Literal" not in output
+
+    def test_metadata_enums_excluded_from_matching(self) -> None:
+        domain = _domain(
+            "climate",
+            strenums=[_enum("ClimateEntityStateAttribute", ("FAN_MODE", "fan_mode"), ("PRESET_MODE", "preset_mode"))],
+            services=[
+                ExtractedService(
+                    name="set_fan_mode",
+                    method_name="set_fan_mode",
+                    fields=[
+                        ServiceField(name="fan_mode", selector_type="text", selector_data={}, required=True),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        # Should remain str because ClimateEntityStateAttribute ends with "Attribute"
+        assert "fan_mode: str" in output
+
+    def test_param_type_override_wins_over_enum_match(self) -> None:
+        domain = _domain(
+            "climate",
+            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
+            services=[
+                ExtractedService(
+                    name="set_hvac_mode",
+                    method_name="set_hvac_mode",
+                    fields=[
+                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
+                    ],
+                ),
+            ],
+            override=DomainOverride(
+                domain="climate",
+                param_type_overrides={"hvac_mode": "str"},
+            ),
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "hvac_mode: str" in output
+        assert "HVACMode" not in output
+
+    def test_optional_enum_param_gets_none_union(self) -> None:
+        domain = _domain(
+            "climate",
+            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
+            services=[
+                ExtractedService(
+                    name="set_hvac_mode",
+                    method_name="set_hvac_mode",
+                    fields=[
+                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=False),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        assert "hvac_mode: HVACMode | None" in output
+
+    def test_enum_match_with_renamed_param(self) -> None:
+        domain = _domain(
+            "media_player",
+            strenums=[_enum("MediaType", ("MUSIC", "music"), ("TVSHOW", "tvshow"))],
+            services=[
+                ExtractedService(
+                    name="play_media",
+                    method_name="play_media",
+                    fields=[
+                        ServiceField(name="media_content_type", selector_type="text", selector_data={}),
+                    ],
+                ),
+            ],
+            override=DomainOverride(
+                domain="media_player",
+                service_param_renames={"media_content_type": "media_type"},
+            ),
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        # Renamed param "media_type" should match StrEnum "MediaType"
+        assert "media_type: MediaType | None" in output
+
+    def test_collision_renamed_enum_uses_value_suffix(self) -> None:
+        """StrEnums renamed by the state generator (name collides with Pydantic class) use the renamed name."""
+        domain = _domain(
+            "scene",
+            strenums=[_enum("SceneState", ("ACTIVE", "active"), ("INACTIVE", "inactive"))],
+            services=[
+                ExtractedService(
+                    name="activate",
+                    method_name="activate",
+                    fields=[
+                        ServiceField(
+                            name="scene_state",
+                            selector_type="select",
+                            selector_data={"options": ["active", "inactive"]},
+                            required=True,
+                        ),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        # The state generator renames SceneState → SceneStateValue to avoid collision
+        assert "SceneStateValue" in output
+        assert "import SceneAttributes, SceneStateValue" in output
+
+    def test_output_compiles_with_enum_imports(self) -> None:
+        domain = _domain(
+            "climate",
+            strenums=[_enum("HVACMode", ("OFF", "off"), ("HEAT", "heat"))],
+            services=[
+                ExtractedService(
+                    name="set_hvac_mode",
+                    method_name="set_hvac_mode",
+                    fields=[
+                        ServiceField(name="hvac_mode", selector_type="text", selector_data={}, required=True),
+                    ],
+                ),
+            ],
+        )
+        output = generate_entity_wrapper(domain)
+        assert output is not None
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(output)
+            f.flush()
+            py_compile.compile(f.name, doraise=True)

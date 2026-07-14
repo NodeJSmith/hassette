@@ -13,7 +13,7 @@ from .image import ImageEntity, ImageEntitySyncFacade
 from .lawn_mower import LawnMowerEntity, LawnMowerEntitySyncFacade
 from .light import LightEntity, LightEntitySyncFacade, LightFlash
 from .lock import LockEntity, LockEntitySyncFacade
-from .media_player import MediaPlayerEnqueue, MediaPlayerEntity, MediaPlayerEntitySyncFacade, MediaPlayerRepeat
+from .media_player import MediaPlayerEntity, MediaPlayerEntitySyncFacade
 from .number import NumberEntity, NumberEntitySyncFacade
 from .remote import RemoteCommandType, RemoteEntity, RemoteEntitySyncFacade
 from .script import ScriptEntity, ScriptEntitySyncFacade
@@ -23,7 +23,7 @@ from .switch import SwitchEntity, SwitchEntitySyncFacade
 from .text import TextEntity, TextEntitySyncFacade
 from .time import TimeEntity, TimeEntitySyncFacade
 from .timer import TimerEntity, TimerEntitySyncFacade
-from .todo import TodoEntity, TodoEntitySyncFacade, TodoStatus
+from .todo import TodoEntity, TodoEntitySyncFacade
 from .update import UpdateEntity, UpdateEntitySyncFacade
 from .vacuum import VacuumEntity, VacuumEntitySyncFacade
 from .water_heater import WaterHeaterEntity, WaterHeaterEntitySyncFacade
@@ -64,10 +64,8 @@ __all__ = [
     "LightFlash",
     "LockEntity",
     "LockEntitySyncFacade",
-    "MediaPlayerEnqueue",
     "MediaPlayerEntity",
     "MediaPlayerEntitySyncFacade",
-    "MediaPlayerRepeat",
     "NumberEntity",
     "NumberEntitySyncFacade",
     "RemoteCommandType",
@@ -89,7 +87,6 @@ __all__ = [
     "TimerEntitySyncFacade",
     "TodoEntity",
     "TodoEntitySyncFacade",
-    "TodoStatus",
     "UpdateEntity",
     "UpdateEntitySyncFacade",
     "VacuumEntity",

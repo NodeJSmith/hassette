@@ -1,14 +1,10 @@
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any
 
 from hassette.models.states import MediaPlayerState
-from hassette.models.states.media_player import MediaPlayerAttributes
+from hassette.models.states.media_player import MediaPlayerAttributes, MediaPlayerEnqueue, MediaType, RepeatMode
 
 from .base import BaseEntity, BaseEntitySyncFacade
-
-MediaPlayerEnqueue = Literal["play", "next", "add", "replace"]
-
-MediaPlayerRepeat = Literal["off", "all", "one"]
 
 
 class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
@@ -217,7 +213,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         self,
         *,
         media_content_id: str | None = None,
-        media_type: str | None = None,
+        media_type: MediaType | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Browses the available media.
 
@@ -242,7 +238,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         search_query: str,
         media_content_id: str | None = None,
         media_filter_classes: list[str] | None = None,
-        media_type: str | None = None,
+        media_type: MediaType | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Searches the available media.
 
@@ -335,7 +331,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
     def repeat_set(
         self,
         *,
-        repeat: MediaPlayerRepeat,
+        repeat: RepeatMode,
     ) -> Coroutine[Any, Any, None]:
         """Sets the repeat mode of a media player.
 
@@ -550,7 +546,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         self,
         *,
         media_content_id: str | None = None,
-        media_type: str | None = None,
+        media_type: MediaType | None = None,
     ) -> None:
         """Browses the available media.
 
@@ -573,7 +569,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         search_query: str,
         media_content_id: str | None = None,
         media_filter_classes: list[str] | None = None,
-        media_type: str | None = None,
+        media_type: MediaType | None = None,
     ) -> None:
         """Searches the available media.
 
@@ -656,7 +652,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
     def repeat_set(
         self,
         *,
-        repeat: MediaPlayerRepeat,
+        repeat: RepeatMode,
     ) -> None:
         """Sets the repeat mode of a media player.
 

@@ -2,7 +2,7 @@ from collections.abc import Coroutine
 from typing import Any
 
 from hassette.models.states import ClimateState
-from hassette.models.states.climate import ClimateAttributes
+from hassette.models.states.climate import ClimateAttributes, HVACMode
 
 from .base import BaseEntity, BaseEntitySyncFacade
 
@@ -39,7 +39,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
     def set_temperature(
         self,
         *,
-        hvac_mode: str | None = None,
+        hvac_mode: HVACMode | None = None,
         target_temp_high: float | None = None,
         target_temp_low: float | None = None,
         temperature: float | None = None,
@@ -105,7 +105,7 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
     def set_hvac_mode(
         self,
         *,
-        hvac_mode: str | None = None,
+        hvac_mode: HVACMode | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Sets the HVAC mode of a thermostat.
 
@@ -213,7 +213,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
     def set_temperature(
         self,
         *,
-        hvac_mode: str | None = None,
+        hvac_mode: HVACMode | None = None,
         target_temp_high: float | None = None,
         target_temp_low: float | None = None,
         temperature: float | None = None,
@@ -273,7 +273,7 @@ class ClimateEntitySyncFacade(BaseEntitySyncFacade[ClimateState, str]):
     def set_hvac_mode(
         self,
         *,
-        hvac_mode: str | None = None,
+        hvac_mode: HVACMode | None = None,
     ) -> None:
         """Sets the HVAC mode of a thermostat.
 
