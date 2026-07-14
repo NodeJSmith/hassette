@@ -3,7 +3,7 @@ task_id: "T03"
 title: "Update documentation, snippets, and examples"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#1", "FR#3", "FR#4", "AC#3", "AC#9", "AC#10", "AC#11"]
+implements: ["FR#1", "FR#3", "FR#4", "AC#3", "AC#10", "AC#11"]
 ---
 
 ## Summary
@@ -124,6 +124,5 @@ Run `prek -a` to verify Pyright still passes on all snippet files. The CI type-c
 - [ ] FR#3: No `toggle_service` references remain in any docs page or snippet — `grep -r "toggle_service" docs/` returns nothing in active content
 - [ ] FR#4: `turn_off` and `toggle` docs show `**data` parameter in their signatures and parameter tables
 - [ ] AC#3: `toggle_service` does not appear in any docs page method list or heading
-- [ ] AC#9: All snippet files pass Pyright type checking via `prek -a`
 - [ ] AC#10: `prek -a` passes cleanly (includes snippet type checking)
 - [ ] AC#11: All doc snippets type-check via Pyright
