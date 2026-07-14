@@ -18,14 +18,13 @@ Additionally, `toggle_service` is named inconsistently with `turn_on`/`turn_off`
 - `toggle_service` renamed to `toggle` across all layers (Api, sync facade, recording API, entity model)
 - `turn_off` and `toggle` accept `**data` kwargs for parity with `turn_on`
 - All four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) have identical signatures
-- Entity-level methods (`BaseEntity`, `BaseEntitySyncFacade`) cascade the rename and `**data` naturally
+- `BaseEntity`/`BaseEntitySyncFacade` generic methods removed (cherry-picked from #1320) — eliminates serviceless-domain regression
 
 ## Non-Goals
 
 - No backward compatibility alias for `toggle_service` (pre-1.0)
 - No changes to `call_service` itself
 - No changes to generated entity models (light, switch, fan, etc.) — they already call `api.call_service(domain=self.domain, ...)` directly
-- No resolution of serviceless-domain gap (lock, button, etc. inheriting turn_on/turn_off/toggle) — tracked in #1320
 
 ## User Scenarios
 
@@ -59,8 +58,7 @@ Additionally, `toggle_service` is named inconsistently with `turn_on`/`turn_off`
 - **FR#3** `toggle_service` is renamed to `toggle` on `Api`, `ApiSyncFacade`, `RecordingApi`, `RecordingApiSyncFacade`, `BaseEntity`, and `BaseEntitySyncFacade`
 - **FR#4** `turn_off` and `toggle` accept `**data: Any` keyword arguments and forward them to `call_service`, matching `turn_on`'s existing behavior
 - **FR#5** `RecordingApi.turn_off` and `RecordingApi.toggle` capture `**data` in the recorded `ApiCall.kwargs`, matching `RecordingApi.turn_on`'s existing behavior
-- **FR#6** `BaseEntity.turn_off` and `BaseEntity.toggle` accept `**data: Any` and forward it to the corresponding `Api` method
-- **FR#7** `BaseEntitySyncFacade.turn_off` and `BaseEntitySyncFacade.toggle` accept `**data: Any` and forward it to the corresponding sync facade method
+- **FR#6** `BaseEntity` and `BaseEntitySyncFacade` no longer expose generic `turn_on`/`turn_off`/`toggle` methods — only generated domain-specific entities (light, switch, fan, etc.) provide these via their own overrides
 
 ## Edge Cases
 
@@ -77,7 +75,7 @@ Additionally, `toggle_service` is named inconsistently with `turn_on`/`turn_off`
 - **AC#5** `Api.toggle("light.kitchen", transition=1)` forwards `transition=1` as service data (FR#4)
 - **AC#6** `RecordingApi.toggle("light.x")` records under method name `"toggle"`, not `"toggle_service"` (FR#3, FR#5)
 - **AC#7** `RecordingApi.turn_off("light.x", brightness=0)` captures `brightness=0` in recorded kwargs (FR#5)
-- **AC#8** `BaseEntity.turn_off(transition=2)` forwards `transition=2` to `api.turn_off` (FR#6)
+- **AC#8** `BaseEntity` has no `turn_on`, `turn_off`, or `toggle` methods (FR#6)
 - **AC#9** All existing tests pass after the signature changes (no regressions)
 - **AC#10** `prek -a` (lint + type check) passes cleanly
 - **AC#11** Doc snippets type-check via Pyright (CI-tested)
@@ -116,9 +114,9 @@ Rename across all four implementations. Update the method-name string in Recordi
 
 Add `**data: Any` to `turn_off` and `toggle` signatures on all four implementations plus `BaseEntity` and `BaseEntitySyncFacade`. Forward `**data` to `call_service` (Api, sync facade) or capture in `ApiCall.kwargs` (recording implementations).
 
-### Entity model cascade
+### BaseEntity method removal (prerequisite — cherry-picked from #1320)
 
-`BaseEntity.turn_off()` and `BaseEntity.toggle()` gain `**data: Any` and forward it. They do not pass `domain` — the `None` default triggers automatic derivation from `self.entity_id` in the Api layer. Generated entity models are unaffected — they call `api.call_service(domain=self.domain, ...)` directly.
+`BaseEntity` and `BaseEntitySyncFacade` no longer expose generic `turn_on`/`turn_off`/`toggle` methods. These were only hit by serviceless domains (lock, button, number, etc.) that don't have corresponding HA services — removing them prevents dispatching to nonexistent services. Generated domain-specific entities (light, switch, fan, etc.) are unaffected — they provide their own typed overrides via `call_service(domain=self.domain, ...)`.
 
 ### Recording API protocol stub
 
@@ -245,7 +243,7 @@ No tests to remove — existing tests are adapted, not deleted.
 - **modify** `src/hassette/api/sync.py` — mirror Api signature changes
 - **modify** `src/hassette/test_utils/recording_api.py` — mirror signatures; update protocol stub; update method-name string
 - **modify** `src/hassette/test_utils/sync_facade.py` — mirror signatures; update method-name string
-- **modify** `src/hassette/models/entities/base.py` — update `toggle_service` → `toggle` call; add `**data` to `turn_off`/`toggle` on both `BaseEntity` and `BaseEntitySyncFacade`
+- **read** `src/hassette/models/entities/base.py` — verify BaseEntity methods removed (cherry-picked from #1320)
 - **modify** `tests/unit/test_recording_api.py` — update assertions
 - **modify** `tests/unit/test_recording_sync_facade.py` — update assertions
 - **modify** `tests/unit/test_api_coroutine_conversion.py` — update toggle_service references

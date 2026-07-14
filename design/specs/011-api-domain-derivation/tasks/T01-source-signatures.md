@@ -1,14 +1,14 @@
 ---
 task_id: "T01"
-title: "Update Api convenience method signatures and entity model"
+title: "Update Api convenience method signatures"
 status: "planned"
 depends_on: []
-implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#10"]
+implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#10"]
 ---
 
 ## Summary
 
-Change `turn_on`, `turn_off`, and `toggle` (renamed from `toggle_service`) across all four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) and both entity model layers (BaseEntity, BaseEntitySyncFacade). The `domain` parameter default changes from `"homeassistant"` to `None` with automatic derivation from entity_id. `turn_off` and `toggle` gain `**data: Any` for parity with `turn_on`. The module docstring in `api.py` also references `toggle_service` and must be updated.
+Change `turn_on`, `turn_off`, and `toggle` (renamed from `toggle_service`) across all four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade). The `domain` parameter default changes from `"homeassistant"` to `None` with automatic derivation from entity_id. `turn_off` and `toggle` gain `**data: Any` for parity with `turn_on`. The module docstring in `api.py` also references `toggle_service` and must be updated. Note: `BaseEntity`/`BaseEntitySyncFacade` methods were already removed by a cherry-picked commit (#1320) — no entity model changes needed.
 
 ## Target Files
 
@@ -16,7 +16,7 @@ Change `turn_on`, `turn_off`, and `toggle` (renamed from `toggle_service`) acros
 - modify: `src/hassette/api/sync.py`
 - modify: `src/hassette/test_utils/recording_api.py`
 - modify: `src/hassette/test_utils/sync_facade.py`
-- modify: `src/hassette/models/entities/base.py`
+- read: `src/hassette/models/entities/base.py` (verify BaseEntity methods removed by #1320)
 - read: `src/hassette/events/hass/hass.py` (domain derivation pattern reference)
 
 ## Prompt
@@ -81,19 +81,9 @@ Mirror recording API changes on `RecordingApiSyncFacade` (around lines 180-198):
 - `turn_off`: Change domain default, add `**data: Any`, capture in kwargs, add domain derivation.
 - `toggle_service` → `toggle`: Rename, change domain default, add `**data`, update method name string to `"toggle"`, add domain derivation.
 
-### 5. `src/hassette/models/entities/base.py`
+### 5. `src/hassette/models/entities/base.py` (read-only verification)
 
-**`BaseEntity`** (lines 84-104):
-- `turn_off()`: Add `**data: Any` parameter. Forward: `return self.api.turn_off(self.entity_id, **data)`.
-- `turn_on()`: Already has `**data`. No change needed.
-- `toggle()`: Already named `toggle`. Change internal call from `self.api.toggle_service(self.entity_id)` to `self.api.toggle(self.entity_id)`. Add `**data: Any` parameter and forward it.
-
-**`BaseEntitySyncFacade`** (lines 107-129):
-- `turn_off()`: Add `**data: Any`. Forward: `self.entity.api.sync.turn_off(self.entity.entity_id, **data)`.
-- `turn_on()`: Already has `**data`. No change needed.
-- `toggle()`: Change internal call from `self.entity.api.sync.toggle_service(...)` to `self.entity.api.sync.toggle(...)`. Add `**data: Any` and forward it.
-
-Update docstrings on modified methods to mention `**data` forwarding.
+Verify that `BaseEntity` and `BaseEntitySyncFacade` no longer have `turn_on`, `turn_off`, or `toggle` methods. These were removed by the cherry-picked #1320 commit. No changes needed in this task.
 
 ### Verification
 
@@ -106,6 +96,7 @@ After all changes, run `prek -a` to verify lint + type check passes. Run `uv run
 - `api.py` module docstring (line 8) and class-level example (line 54) both reference `toggle_service` — update both.
 - The `recording_api.py` comment at line 413 says "Signatures must exactly match hassette.api.Api" — this continues to apply after the change.
 - Generated entity models (fan, humidifier, switch, light, etc.) call `api.call_service(domain=self.domain, ...)` directly — they are NOT affected and should NOT be modified.
+- `BaseEntity`/`BaseEntitySyncFacade` `turn_on`/`turn_off`/`toggle` methods were already removed by the cherry-picked #1320 commit. Do not re-add them.
 
 ## Verify
 
@@ -116,8 +107,7 @@ After all changes, run `prek -a` to verify lint + type check passes. Run `uv run
 - [ ] FR#4: `Api.toggle("light.kitchen", transition=1)` forwards `transition=1` to `call_service`
 - [ ] FR#5: `RecordingApi.toggle("light.x")` records method name `"toggle"` and derived domain `"light"` in kwargs
 - [ ] FR#5: `RecordingApi.turn_off("light.x", brightness=0)` captures `brightness=0` in kwargs
-- [ ] FR#6: `BaseEntity.turn_off(transition=2)` forwards `transition=2` to `api.turn_off`
-- [ ] FR#7: `BaseEntitySyncFacade.toggle(transition=1)` forwards `transition=1` to `api.sync.toggle`
+- [ ] FR#6: `BaseEntity` has no `turn_on`, `turn_off`, or `toggle` methods (verified by reading `base.py`)
 - [ ] AC#1: `Api.turn_on("light.kitchen")` dispatches to domain `"light"`
 - [ ] AC#2: `Api.turn_on("light.kitchen", domain="homeassistant")` dispatches to domain `"homeassistant"`
 - [ ] AC#3: `Api.toggle` exists; `Api.toggle_service` does not
@@ -125,5 +115,5 @@ After all changes, run `prek -a` to verify lint + type check passes. Run `uv run
 - [ ] AC#5: `Api.toggle("light.kitchen", transition=1)` forwards `transition=1`
 - [ ] AC#6: `RecordingApi.toggle("light.x")` records under `"toggle"`
 - [ ] AC#7: `RecordingApi.turn_off("light.x", brightness=0)` captures `brightness=0`
-- [ ] AC#8: `BaseEntity.turn_off(transition=2)` forwards `transition=2`
+- [ ] AC#8: `BaseEntity` has no `turn_on`, `turn_off`, or `toggle` methods
 - [ ] AC#10: `prek -a` passes cleanly

@@ -14,13 +14,14 @@ None.
 2. Rename `toggle_service` → `toggle` across all layers (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade, BaseEntity, BaseEntitySyncFacade). Pre-1.0, so no backward compat alias.
 3. Add `**data: Any` to `turn_off` and `toggle` on all four implementations plus `BaseEntity` and `BaseEntitySyncFacade`, matching `turn_on`'s existing pattern.
 4. Generated entity models (light, switch, fan, etc.) are unaffected — they call `api.call_service(domain=self.domain, ...)` directly and bypass these convenience methods.
+5. `BaseEntity`/`BaseEntitySyncFacade` generic `turn_on`/`turn_off`/`toggle` methods are removed (cherry-picked from #1320). Serviceless domains (lock, button, number, etc.) no longer inherit fallback methods that would dispatch to nonexistent HA services.
 
 ## Constraints & Anti-Patterns
 
 - No backward compatibility alias for `toggle_service` — this is pre-1.0.
 - No changes to `call_service` itself.
 - No changes to generated entity models — they already use the correct domain.
-- No resolution of the serviceless-domain gap (lock, button, etc. inheriting turn_on/turn_off/toggle) — tracked in #1320.
+- Serviceless-domain gap resolved by removing BaseEntity methods (cherry-picked from #1320).
 - The four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) must have identical signatures — there is no shared protocol enforcing this, so manual synchronization is required.
 - These methods are not `@overload`-decorated (only `call_service` is), but `tests/pyright_probes/forgotten_await_probe.py` should be verified to ensure `reportUnusedCoroutine` still fires after the type change.
 

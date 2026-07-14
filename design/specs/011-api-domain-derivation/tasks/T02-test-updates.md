@@ -3,20 +3,20 @@ task_id: "T02"
 title: "Update tests for new signatures and domain derivation"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#9"]
+implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#9"]
 ---
 
 ## Summary
 
-Update all test files that reference the old signatures: `"homeassistant"` domain default assertions, `"toggle_service"` method name strings, and missing `**data` coverage on `turn_off`/`toggle`. Add new tests for domain derivation (derived and explicit override paths) and `**data` forwarding on `turn_off`/`toggle`. Verify the Pyright probe still works with `domain: str | None`.
+Update all test files that reference the old signatures: `"homeassistant"` domain default assertions, `"toggle_service"` method name strings, and missing `**data` coverage on `turn_off`/`toggle`. Add new tests for domain derivation (derived and explicit override paths) and `**data` forwarding on `turn_off`/`toggle`. Verify the Pyright probe still works with `domain: str | None`. Note: `BaseEntity`/`BaseEntitySyncFacade` method removal tests were already handled by the cherry-picked #1320 commit — `test_entity_coroutine_conversion.py` and `test_sync_entity_facade.py` were updated there.
 
 ## Target Files
 
 - modify: `tests/unit/test_recording_api.py`
 - modify: `tests/unit/test_recording_sync_facade.py`
 - modify: `tests/unit/test_api_coroutine_conversion.py`
-- modify: `tests/unit/test_sync_entity_facade.py`
-- modify: `tests/unit/test_entity_coroutine_conversion.py`
+- read: `tests/unit/test_sync_entity_facade.py` (verify #1320 cherry-pick updated this)
+- read: `tests/unit/test_entity_coroutine_conversion.py` (verify #1320 cherry-pick updated this)
 - modify: `tests/unit/test_forgotten_await_completeness.py`
 - modify: `tests/pyright_probes/forgotten_await_probe.py`
 - modify: `tests/integration/test_sync_facades.py`
@@ -47,10 +47,10 @@ Update test files to match the new method signatures from T01. The changes fall 
 - Line 67: Same change for the sync facade parametrize
 
 **`tests/unit/test_sync_entity_facade.py`:**
-- Lines 253, 272: Change `("toggle", "toggle_service")` tuple to `("toggle", "toggle")` in the parametrized test data — this maps entity method name to API method name
+- Already updated by the #1320 cherry-pick (BaseEntity method tests removed). Read-only verification — confirm the `toggle_service` parametrized data no longer exists.
 
 **`tests/unit/test_entity_coroutine_conversion.py`:**
-- No code changes needed — tests reference `BaseEntity.toggle` (already correct name). Verify the docstring comments at lines 4, 7 still read correctly.
+- Already updated by the #1320 cherry-pick (BaseEntity method tests removed). Read-only verification.
 
 **`tests/unit/test_forgotten_await_completeness.py`:**
 - Line 89: Change `"toggle_service"` to `"toggle"` in the method name list
@@ -69,6 +69,7 @@ Update test files to match the new method signatures from T01. The changes fall 
 - Line 94: `"domain": "homeassistant"` → `"domain": "switch"` (derived from `"switch.fan"`)
 - Line 104: `"domain": "homeassistant"` → `"domain": "light"` (derived from `"light.kitchen"`)
 - Line 535: Comment referencing `"domain": "homeassistant"` → update to derived domain
+- Line 537: Live assertion `api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")` → update `domain` to `"light"` (derived from `"light.x"`)
 
 **`tests/unit/test_recording_sync_facade.py`:**
 - Line 54: `"domain": "homeassistant"` → `"domain": "light"` (derived from `"light.kitchen"`)
@@ -122,4 +123,6 @@ Run `ptest tests/unit/test_recording_api.py tests/unit/test_recording_sync_facad
 - [ ] AC#5: Test verifies `toggle` forwards `**data`
 - [ ] AC#6: Test verifies `toggle` records under `"toggle"` method name
 - [ ] AC#7: Test verifies `turn_off` captures `**data` in kwargs
+- [ ] FR#6: `test_sync_entity_facade.py` and `test_entity_coroutine_conversion.py` no longer test BaseEntity turn_on/turn_off/toggle (verified via read)
+- [ ] AC#8: No test references `BaseEntity.turn_on`, `BaseEntity.turn_off`, or `BaseEntity.toggle` as callable methods
 - [ ] AC#9: `ptest tests/unit/test_recording_api.py tests/unit/test_recording_sync_facade.py tests/unit/test_api_coroutine_conversion.py tests/unit/test_sync_entity_facade.py tests/unit/test_entity_coroutine_conversion.py tests/unit/test_forgotten_await_completeness.py tests/integration/test_sync_facades.py -n 4` all pass
