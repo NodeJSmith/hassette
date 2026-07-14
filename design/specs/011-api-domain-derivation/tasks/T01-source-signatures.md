@@ -13,15 +13,15 @@ Change `turn_on`, `turn_off`, and `toggle` (renamed from `toggle_service`) acros
 ## Target Files
 
 - modify: `src/hassette/api/api.py`
-- modify: `src/hassette/api/sync.py`
 - modify: `src/hassette/test_utils/recording_api.py`
-- modify: `src/hassette/test_utils/sync_facade.py`
+- regenerate: `src/hassette/api/sync.py` (codegen-generated from api.py)
+- regenerate: `src/hassette/test_utils/sync_facade.py` (codegen-generated from recording_api.py)
 - read: `src/hassette/models/entities/base.py` (verify BaseEntity methods removed by #1320)
 - read: `src/hassette/events/hass/hass.py` (domain derivation pattern reference)
 
 ## Prompt
 
-Update six files to implement domain derivation, rename `toggle_service` → `toggle`, and add `**data` to `turn_off`/`toggle`.
+Update `api.py` and `recording_api.py` to implement domain derivation, rename `toggle_service` → `toggle`, and add `**data` to `turn_off`/`toggle`. Then regenerate the codegen-generated sync facades.
 
 ### 1. `src/hassette/api/api.py`
 
@@ -48,15 +48,9 @@ Update the class-level example (line 54) that shows `toggle_service` to say `tog
 
 Keep the Shape B delegate comment on each method.
 
-### 2. `src/hassette/api/sync.py`
+### 2. `src/hassette/api/sync.py` (codegen-generated — do NOT hand-edit)
 
-Mirror the Api changes on `ApiSyncFacade` (currently at lines 226-260):
-
-- `turn_on`: Change domain default to `None`, update docstring.
-- `turn_off`: Change domain default to `None`, add `**data: Any`, forward `**data`.
-- `toggle_service` → `toggle`: Rename, change domain default, add `**data: Any`.
-
-The sync facade delegates to `self._api.<method>(entity_id, domain, **data)`. Pass `domain` through as-is (the Api layer handles derivation).
+This file is auto-generated from `api.py` by `codegen/src/hassette_codegen/sync_facade/`. Do not edit it directly. It will be regenerated in step 6 below.
 
 ### 3. `src/hassette/test_utils/recording_api.py`
 
@@ -73,26 +67,32 @@ Update `RecordingApi.turn_off` (line 426): Same domain change. Add `**data: Any`
 
 Rename `RecordingApi.toggle_service` (line 437) to `toggle`. Same domain change. Add `**data: Any`. Capture in kwargs. Update recorded method name from `"toggle_service"` to `"toggle"`. Add domain derivation.
 
-### 4. `src/hassette/test_utils/sync_facade.py`
+### 4. `src/hassette/test_utils/sync_facade.py` (codegen-generated — do NOT hand-edit)
 
-Mirror recording API changes on `RecordingApiSyncFacade` (around lines 180-198):
-
-- `turn_on`: Change domain default, add domain derivation before recording.
-- `turn_off`: Change domain default, add `**data: Any`, capture in kwargs, add domain derivation.
-- `toggle_service` → `toggle`: Rename, change domain default, add `**data`, update method name string to `"toggle"`, add domain derivation.
+This file is auto-generated from `recording_api.py` by `codegen/src/hassette_codegen/sync_facade/`. Do not edit it directly. It will be regenerated in step 6 below.
 
 ### 5. `src/hassette/models/entities/base.py` (read-only verification)
 
 Verify that `BaseEntity` and `BaseEntitySyncFacade` no longer have `turn_on`, `turn_off`, or `toggle` methods. These were removed by the cherry-picked #1320 commit. No changes needed in this task.
 
+### 6. Regenerate sync facades
+
+After editing `api.py` and `recording_api.py`, regenerate both sync facades:
+
+```bash
+uv run python codegen/src/hassette_codegen/sync_facade/ --target all
+```
+
+This regenerates `src/hassette/api/sync.py` and `src/hassette/test_utils/sync_facade.py` from their source files. Verify the regenerated files contain the new `toggle` method (not `toggle_service`), `domain: str | None = None` defaults, and `**data: Any` on `turn_off`/`toggle`.
+
 ### Verification
 
-After all changes, run `prek -a` to verify lint + type check passes. Run `uv run pytest tests/pyright_probes/forgotten_await_probe.py -v` to verify the Pyright probe still works with the new `domain: str | None` type.
+After all changes and regeneration, run `prek -a` to verify lint + type check passes. Run `uv run pytest tests/pyright_probes/forgotten_await_probe.py -v` to verify the Pyright probe still works with the new `domain: str | None` type.
 
 ## Focus
 
-- The four implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) must end up with identical signatures. There is no shared protocol — manual synchronization is required.
-- Domain derivation in RecordingApi/RecordingApiSyncFacade should happen before recording so the recorded kwargs show the derived domain, not `None`. This matches how the real Api resolves the domain before calling `call_service`.
+- Only edit `api.py` and `recording_api.py` directly. `sync.py` and `sync_facade.py` are codegen-generated — regenerate them after editing the source files. Do NOT hand-edit them.
+- Domain derivation in `RecordingApi` should happen before recording so the recorded kwargs show the derived domain, not `None`. This matches how the real Api resolves the domain before calling `call_service`.
 - `api.py` module docstring (line 8) and class-level example (line 54) both reference `toggle_service` — update both.
 - The `recording_api.py` comment at line 413 says "Signatures must exactly match hassette.api.Api" — this continues to apply after the change.
 - Generated entity models (fan, humidifier, switch, light, etc.) call `api.call_service(domain=self.domain, ...)` directly — they are NOT affected and should NOT be modified.

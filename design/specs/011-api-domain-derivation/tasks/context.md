@@ -22,7 +22,7 @@ None.
 - No changes to `call_service` itself.
 - No changes to generated entity models — they already use the correct domain.
 - Serviceless-domain gap resolved by removing BaseEntity methods (cherry-picked from #1320).
-- The four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) must have identical signatures — there is no shared protocol enforcing this, so manual synchronization is required.
+- `Api` and `RecordingApi` are the source-of-truth implementations. `ApiSyncFacade` (`sync.py`) and `RecordingApiSyncFacade` (`sync_facade.py`) are codegen-generated — regenerate via `uv run python codegen/src/hassette_codegen/sync_facade/ --target all` after editing source files. Do NOT hand-edit the generated files.
 - These methods are not `@overload`-decorated (only `call_service` is), but `tests/pyright_probes/forgotten_await_probe.py` should be verified to ensure `reportUnusedCoroutine` still fires after the type change.
 
 ## Design Doc References

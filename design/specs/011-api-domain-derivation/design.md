@@ -83,7 +83,7 @@ Additionally, `toggle_service` is named inconsistently with `turn_on`/`turn_off`
 ## Key Constraints
 
 - The `domain` parameter type changes from `str` to `str | None`. These methods are not `@overload`-decorated (only `call_service` is), but `forgotten_await_probe.py` should be verified to ensure `reportUnusedCoroutine` still fires correctly for the Shape B delegate pattern after the type change.
-- The four parallel implementations (Api, ApiSyncFacade, RecordingApi, RecordingApiSyncFacade) must have identical signatures. There is no shared protocol enforcing this — manual synchronization is required.
+- `Api` and `RecordingApi` are the source-of-truth implementations. `ApiSyncFacade` (`sync.py`) and `RecordingApiSyncFacade` (`sync_facade.py`) are codegen-generated — regenerate them via `uv run python codegen/src/hassette_codegen/sync_facade/ --target all` after editing the source files. CI enforces freshness via `--check` mode.
 
 ## Dependencies and Assumptions
 
@@ -108,11 +108,11 @@ This pattern matches the existing `entity_id.split(".", 1)[0]` derivation used i
 
 ### Rename toggle_service → toggle
 
-Rename across all four implementations. Update the method-name string in RecordingApi/RecordingApiSyncFacade from `"toggle_service"` to `"toggle"`. Update `BaseEntity.toggle()` and `BaseEntitySyncFacade.toggle()` to call `self.api.toggle(...)` / `self.api.sync.toggle(...)`.
+Rename in `Api` (`api.py`) and `RecordingApi` (`recording_api.py`). Update the method-name string in `RecordingApi` from `"toggle_service"` to `"toggle"`. Then regenerate the sync facades (`sync.py`, `sync_facade.py`) via `uv run python codegen/src/hassette_codegen/sync_facade/ --target all` — these are codegen-generated and must not be hand-edited.
 
 ### Add **data to turn_off and toggle
 
-Add `**data: Any` to `turn_off` and `toggle` signatures on all four implementations plus `BaseEntity` and `BaseEntitySyncFacade`. Forward `**data` to `call_service` (Api, sync facade) or capture in `ApiCall.kwargs` (recording implementations).
+Add `**data: Any` to `turn_off` and `toggle` signatures on `Api` and `RecordingApi`. Forward `**data` to `call_service` (Api) or capture in `ApiCall.kwargs` (RecordingApi). The sync facades pick up the change automatically via codegen regeneration.
 
 ### BaseEntity method removal (prerequisite — cherry-picked from #1320)
 
@@ -240,9 +240,9 @@ No tests to remove — existing tests are adapted, not deleted.
 ### Changed Files
 
 - **modify** `src/hassette/api/api.py` — change `turn_on`, `turn_off` signatures; rename `toggle_service` → `toggle`; add domain derivation logic and `**data` to `turn_off`/`toggle`
-- **modify** `src/hassette/api/sync.py` — mirror Api signature changes
+- **regenerate** `src/hassette/api/sync.py` — codegen-generated from `api.py`; regenerate via `--target all`
 - **modify** `src/hassette/test_utils/recording_api.py` — mirror signatures; update protocol stub; update method-name string
-- **modify** `src/hassette/test_utils/sync_facade.py` — mirror signatures; update method-name string
+- **regenerate** `src/hassette/test_utils/sync_facade.py` — codegen-generated from `recording_api.py`; regenerate via `--target all`
 - **read** `src/hassette/models/entities/base.py` — verify BaseEntity methods removed (cherry-picked from #1320)
 - **modify** `tests/unit/test_recording_api.py` — update assertions
 - **modify** `tests/unit/test_recording_sync_facade.py` — update assertions
