@@ -9,8 +9,8 @@ Covers:
     — LightEntity.sync.turn_on(brightness=128) and .turn_off() route through
       call_service (generated override); isinstance(..., BaseEntitySyncFacade)
       holds (inheritance chain intact).
-    — LockEntity (serviceless domain) inherits base turn_on/turn_off/toggle which
-      dispatch via homeassistant.* generic services, not lock.turn_on (nonexistent).
+    — LockEntity does NOT expose turn_on/turn_off/toggle (those services don't
+      exist for the lock domain in HA).
 """
 
 from contextlib import contextmanager
@@ -233,11 +233,10 @@ def test_sync_property_caches_facade_instance() -> None:
         assert first is second
 
 
-# Serviceless domain: LockEntity inherits base turn_on/turn_off/toggle
+# Serviceless domain: LockEntity does NOT expose turn_on/turn_off/toggle
 #
 # Lock has no lock.turn_on / lock.turn_off / lock.toggle services in HA.
-# The base methods must dispatch via homeassistant.* generic services,
-# not the entity's own domain.
+# BaseEntity no longer provides these methods, so they must be absent.
 
 
 def test_lock_sync_is_lock_entity_sync_facade() -> None:
@@ -248,35 +247,17 @@ def test_lock_sync_is_lock_entity_sync_facade() -> None:
         assert type(entity.sync) is LockEntitySyncFacade
 
 
-@pytest.mark.parametrize(
-    ("method", "expected_mock"),
-    [("turn_on", "turn_on"), ("turn_off", "turn_off"), ("toggle", "toggle_service")],
-)
-def test_lock_sync_uses_homeassistant_domain(method: str, expected_mock: str) -> None:
-    """LockEntity.sync dispatches via homeassistant.*, not lock.*."""
+@pytest.mark.parametrize("method", ["turn_on", "turn_off", "toggle"])
+def test_lock_entity_does_not_have_base_service_methods(method: str) -> None:
+    """LockEntity must not expose turn_on/turn_off/toggle (no such HA services)."""
     api = make_api()
     with entity_session(make_lock_entity(api)) as entity:
-        mock_sync = MagicMock()
-        api.sync = mock_sync
-
-        getattr(entity.sync, method)()
-
-        getattr(mock_sync, expected_mock).assert_called_once_with(LOCK_ENTITY_ID)
+        assert not hasattr(entity, method), f"LockEntity should not have {method}"
 
 
-# Async dispatch: LockEntity inherits BaseEntity.turn_on/turn_off/toggle
-
-
-@pytest.mark.parametrize(
-    ("method", "api_attr"),
-    [("turn_on", "turn_on"), ("turn_off", "turn_off"), ("toggle", "toggle_service")],
-)
-def test_lock_async_uses_homeassistant_domain(method: str, api_attr: str) -> None:
-    """LockEntity async methods dispatch via api.*, no domain override."""
+@pytest.mark.parametrize("method", ["turn_on", "turn_off", "toggle"])
+def test_lock_sync_does_not_have_base_service_methods(method: str) -> None:
+    """LockEntitySyncFacade must not expose turn_on/turn_off/toggle."""
     api = make_api()
-    mock_method = MagicMock()
-    setattr(api, api_attr, mock_method)
     with entity_session(make_lock_entity(api)) as entity:
-        getattr(entity, method)()
-
-        mock_method.assert_called_once_with(LOCK_ENTITY_ID)
+        assert not hasattr(entity.sync, method), f"LockEntitySyncFacade should not have {method}"

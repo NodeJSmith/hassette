@@ -1,10 +1,9 @@
 """Tests for entity service method conversion to def -> Coroutine[Any, Any, None].
 
 Covers:
-    - Every generated entity service method and BaseEntity.turn_on/turn_off/toggle
-      is def -> Coroutine[Any, Any, None]; forgotten await emits
-      HassetteForgottenAwaitWarning attributed to the caller.
-    - LightEntity.turn_on, HumidifierEntity.set_humidity, BaseEntity.toggle
+    - Every generated entity service method is def -> Coroutine[Any, Any, None];
+      forgotten await emits HassetteForgottenAwaitWarning attributed to the caller.
+    - LightEntity.turn_on, HumidifierEntity.set_humidity, LightEntity.toggle
       warn on forgotten await (attributed), behave correctly when awaited,
       and entity.sync.turn_on() still registers; regen check confirms
       models/entities/*.py use def -> Coroutine[...].
@@ -23,7 +22,6 @@ import pytest
 
 from hassette import context
 from hassette.exceptions import HassetteForgottenAwaitWarning
-from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.humidifier import HumidifierEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState
@@ -122,25 +120,6 @@ def test_humidifier_entity_set_humidity_is_plain_def() -> None:
     )
 
 
-def test_base_entity_toggle_is_plain_def() -> None:
-    """BaseEntity.toggle must be a plain def, not async def."""
-    assert not inspect.iscoroutinefunction(BaseEntity.toggle), "BaseEntity.toggle must be a plain def after conversion"
-
-
-def test_base_entity_turn_on_is_plain_def() -> None:
-    """BaseEntity.turn_on must be a plain def, not async def."""
-    assert not inspect.iscoroutinefunction(BaseEntity.turn_on), (
-        "BaseEntity.turn_on must be a plain def after conversion"
-    )
-
-
-def test_base_entity_turn_off_is_plain_def() -> None:
-    """BaseEntity.turn_off must be a plain def, not async def."""
-    assert not inspect.iscoroutinefunction(BaseEntity.turn_off), (
-        "BaseEntity.turn_off must be a plain def after conversion"
-    )
-
-
 # Return annotation resolves to collections.abc.Coroutine
 
 
@@ -168,14 +147,6 @@ def test_humidifier_entity_set_humidity_return_annotation_is_coroutine() -> None
     origin = _get_return_annotation_origin(HumidifierEntity, "set_humidity")
     assert origin is collections.abc.Coroutine, (
         f"HumidifierEntity.set_humidity return annotation __origin__ = {origin!r}, expected Coroutine"
-    )
-
-
-def test_base_entity_toggle_return_annotation_is_coroutine() -> None:
-    """BaseEntity.toggle return annotation __origin__ must be collections.abc.Coroutine."""
-    origin = _get_return_annotation_origin(BaseEntity, "toggle")
-    assert origin is collections.abc.Coroutine, (
-        f"BaseEntity.toggle return annotation __origin__ = {origin!r}, expected Coroutine"
     )
 
 
@@ -218,10 +189,10 @@ def test_humidifier_entity_set_humidity_forgotten_await_warns() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-def test_base_entity_toggle_forgotten_await_warns() -> None:
-    """Dropping un-awaited BaseEntity.toggle() emits HassetteForgottenAwaitWarning."""
+def test_light_entity_toggle_forgotten_await_warns() -> None:
+    """Dropping un-awaited LightEntity.toggle() emits HassetteForgottenAwaitWarning."""
     api = make_api()
-    entity, token = make_light_entity(api)  # LightEntity is a BaseEntity
+    entity, token = make_light_entity(api)
     try:
         with pytest.warns(HassetteForgottenAwaitWarning) as record:
             _ = entity.toggle()
@@ -265,8 +236,8 @@ async def test_humidifier_entity_set_humidity_awaited_returns_none_no_warning() 
         context.HASSETTE_INSTANCE.reset(token)
 
 
-async def test_base_entity_toggle_awaited_returns_none_no_warning() -> None:
-    """Awaiting BaseEntity.toggle() returns None and emits no warning."""
+async def test_light_entity_toggle_awaited_returns_none_no_warning() -> None:
+    """Awaiting LightEntity.toggle() returns None and emits no warning."""
     api = make_api()
     entity, token = make_light_entity(api)
     try:
@@ -278,16 +249,15 @@ async def test_base_entity_toggle_awaited_returns_none_no_warning() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# entity.sync.turn_on() still registers (now via the domain facade)
+# entity.sync.turn_on() still registers (via the domain facade)
 
 
 def test_entity_sync_turn_on_registers() -> None:
     """entity.sync.turn_on() executes synchronously via the domain sync facade.
 
-    LightEntity.sync is now a LightEntitySyncFacade. Because `light` defines a
-    `turn_on` service, the facade's generated turn_on overrides the base
-    BaseEntitySyncFacade.turn_on and routes through api.sync.call_service(...) —
-    matching the async LightEntity.turn_on delegation.
+    LightEntity.sync is a LightEntitySyncFacade. Because `light` defines a
+    `turn_on` service, the facade's generated turn_on routes through
+    api.sync.call_service(...) — matching the async LightEntity.turn_on delegation.
     """
     api = make_api()
     entity, token = make_light_entity(api)
