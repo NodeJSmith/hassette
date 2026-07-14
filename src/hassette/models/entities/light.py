@@ -31,14 +31,14 @@ class LightEntity(BaseEntity[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
@@ -120,14 +120,14 @@ class LightEntity(BaseEntity[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Toggles one or more lights, from on to off, or off to on, based on their current state.
 
@@ -189,14 +189,14 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> None:
         """Turns on one or more lights and adjusts their properties, even when they are turned on already.
 
@@ -274,14 +274,14 @@ class LightEntitySyncFacade(BaseEntitySyncFacade[LightState, str]):
         color_temp_kelvin: int | None = None,
         effect: str | None = None,
         flash: LightFlash | None = None,
-        hs_color: Any | None = None,
+        hs_color: tuple[float, float] | None = None,
         profile: str | None = None,
         rgb_color: tuple[int, int, int] | None = None,
-        rgbw_color: Any | None = None,
-        rgbww_color: Any | None = None,
+        rgbw_color: tuple[int, int, int, int] | None = None,
+        rgbww_color: tuple[int, int, int, int, int] | None = None,
         transition: int | None = None,
-        white: Any | None = None,
-        xy_color: Any | None = None,
+        white: int | None = None,
+        xy_color: tuple[float, float] | None = None,
     ) -> None:
         """Toggles one or more lights, from on to off, or off to on, based on their current state.
 

@@ -1,12 +1,10 @@
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any
 
 from hassette.models.states import TodoState
-from hassette.models.states.todo import TodoAttributes
+from hassette.models.states.todo import TodoAttributes, TodoItemStatus
 
 from .base import BaseEntity, BaseEntitySyncFacade
-
-TodoStatus = Literal["needs_action", "completed"]
 
 
 class TodoEntity(BaseEntity[TodoState, str]):
@@ -22,7 +20,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
     def get_items(
         self,
         *,
-        status: list[TodoStatus] | None = None,
+        status: list[TodoItemStatus] | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Gets items on a to-do list.
 
@@ -74,7 +72,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: TodoStatus | None = None,
+        status: TodoItemStatus | None = None,
     ) -> Coroutine[Any, Any, None]:
         """Updates an existing to-do list item based on its name or UID.
 
@@ -138,7 +136,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
     def get_items(
         self,
         *,
-        status: list[TodoStatus] | None = None,
+        status: list[TodoItemStatus] | None = None,
     ) -> None:
         """Gets items on a to-do list.
 
@@ -186,7 +184,7 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         due_date: str | None = None,
         due_datetime: str | None = None,
         rename: str | None = None,
-        status: TodoStatus | None = None,
+        status: TodoItemStatus | None = None,
     ) -> None:
         """Updates an existing to-do list item based on its name or UID.
 

@@ -3,3 +3,8 @@ entity = ["from hassette.const.colors import Color"]
 
 [param_type_overrides]
 color_name = "Color | None"
+hs_color = "tuple[float, float]"
+xy_color = "tuple[float, float]"
+rgbw_color = "tuple[int, int, int, int]"
+rgbww_color = "tuple[int, int, int, int, int]"
+white = "int"

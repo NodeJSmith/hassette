@@ -2,7 +2,7 @@ from collections.abc import Coroutine
 from typing import Any{% if type_aliases %}, Literal{% endif %}
 
 from hassette.models.states import {{ domain_title }}State
-from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
+from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes{% for enum in enum_imports %}, {{ enum }}{% endfor %}
 
 from .base import BaseEntity, BaseEntitySyncFacade
 {% for imp in extra_imports %}
