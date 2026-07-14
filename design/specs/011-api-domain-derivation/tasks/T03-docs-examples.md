@@ -31,18 +31,18 @@ Update documentation and examples to reflect the new Api signatures. Follow the 
 
 ### 1. `docs/pages/core-concepts/api/methods.md`
 
-**Calling Services warning admonition** (line 195-196): Change `toggle_service` to `toggle` in the method list.
+**Calling Services warning admonition** (line 198): Change `toggle_service` to `toggle` in the method list.
 
-**`turn_on` section** (line 215):
+**`turn_on` section** (line 217):
 - Update parameter table: change `domain` type from `str` to `str \| None`, default from `"homeassistant"` to `None`. Add description: "Service domain. Derived from entity_id when omitted."
-- Remove the `!!! warning "HA 2024.x deprecated..."` admonition (lines 230-233) — the default is now correct.
+- Remove the `!!! warning "HA 2024.x deprecated..."` admonition (lines 232-235) — the default is now correct.
 
-**`turn_off` section** (line 235):
+**`turn_off` section** (line 237):
 - Update heading from `turn_off(entity_id, domain)` to `turn_off(entity_id, domain, **data)`.
 - Update description: "Shorthand for `call_service(domain, "turn_off", ...)`. Extra keyword arguments pass through as service data."
 - Update parameter table: same `domain` changes as `turn_on`. Add `**data` row matching `turn_on`'s.
 
-**`toggle_service` section** (line 248):
+**`toggle_service` section** (line 250):
 - Rename heading from `toggle_service(entity_id, domain)` to `toggle(entity_id, domain, **data)`.
 - Update description to match `turn_off`'s new pattern.
 - Update parameter table: same changes.
@@ -69,7 +69,7 @@ Remove `domain=` from all calls (auto-derived now). Rename `toggle_service` to `
 
 ### 3. `docs/pages/testing/harness.md`
 
-Line 188 and 201: Change `toggle_service` to `toggle` in the method lists describing what the api_recorder captures.
+Line 201: Change `toggle_service` to `toggle` in the method list describing what the api_recorder captures.
 
 ### 4. `docs/pages/testing/snippets/testing_assert_turn_on_off.py`
 
@@ -116,7 +116,7 @@ Run `prek -a` to verify Pyright still passes on all snippet files. The CI type-c
 - The `first-automation.md` prose (line 23) is the most visible user-facing text. Rewrite it to explain the new auto-derivation behavior clearly, following the voice guide (system-as-subject for concept pages, no "you" except in getting-started procedure steps).
 - The `testing_assert_turn_on_off.py` snippet is included in the testing docs — removing `domain=` from the assertion example matches the new behavior where apps don't pass `domain=` and the recorder captures the derived domain.
 - Don't touch migration snippets that show the old AppDaemon way — those are historical comparisons.
-- The `harness.md` references at lines 188 and 201 are in prose, not code blocks — update the method name strings in the text.
+- The `harness.md` reference at line 201 is in prose, not a code block — update the method name string in the text.
 
 ## Verify
 

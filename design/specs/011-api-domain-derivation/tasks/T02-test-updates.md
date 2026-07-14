@@ -104,7 +104,7 @@ Run `ptest tests/unit/test_recording_api.py tests/unit/test_recording_sync_facad
 ## Focus
 
 - Domain assertions are the most error-prone change — each test hardcodes a specific entity_id, and the derived domain must match the prefix. Double-check each entity_id → derived domain mapping.
-- The `test_sync_entity_facade.py` parametrized data at lines 253 and 272 maps `(entity_method_name, api_method_name)` — the entity method is `"toggle"` and the api method was `"toggle_service"`, now both are `"toggle"`.
+- `test_sync_entity_facade.py` at lines 250 and 258 has parametrized lists `["turn_on", "turn_off", "toggle"]` verifying LockEntity does NOT expose these methods — already updated by the #1320 cherry-pick.
 - `test_forgotten_await_completeness.py` has two separate locations: a list of method names (line 89) and a dict of lambdas (line 219). Both must be updated.
 - Integration tests in `tests/integration/` that call `self.api.turn_on(...)` without explicit domain should work unchanged — domain derivation is transparent. But verify by reading the assertion patterns.
 - The `harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")` pattern does not check domain, so it should pass without changes.
