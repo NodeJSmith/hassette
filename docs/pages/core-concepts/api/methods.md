@@ -107,8 +107,10 @@ Entity classes live in [`hassette.models.entities`][hassette.models.entities] �
 Every entity class defines its domain-specific action methods — `CoverEntity` has
 `open_cover()`, `close_cover()`, `set_cover_position(position=...)`, and more;
 `ClimateEntity` has `set_temperature(temperature=...)`, `set_hvac_mode(hvac_mode=...)`,
-and others. All three base actions (`turn_on()`, `turn_off()`, `toggle()`) and
-`refresh()` are available on every entity.
+and others. `refresh()` is available on every entity. `turn_on()`, `turn_off()`, and
+`toggle()` are available only on domains whose Home Assistant services include them
+(light, switch, fan, and others) — domains like lock, button, and sensor do not
+expose these methods.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
@@ -126,8 +128,8 @@ entity fetched through `self.api.sync.get_entity(...)` exposes a sync facade via
 Domains with Home Assistant services get a typed, domain-specific facade. `cover.sync` returns
 a `CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. Each one mirrors
 a domain action as a blocking synchronous call, with no `await` or `run_sync` boilerplate.
-Read-only domains such as `sensor` have no services to call, so their `.sync` exposes only the
-base `turn_on`/`turn_off`/`toggle`.
+Read-only domains such as `sensor` have no services to call, so their `.sync` exposes no
+action methods.
 
 These methods block the calling thread until the call completes. They belong in `AppSync`
 lifecycle hooks and [`run_in_thread`](../apps/task-bucket.md#offloading-blocking-code)
@@ -143,11 +145,11 @@ entity's async method there instead.
 ```
 
 Where a domain's Home Assistant services include `turn_on`, `turn_off`, or `toggle`,
-the domain facade overrides those methods with typed parameters — `LightEntitySyncFacade.turn_on`
+the domain facade exposes those methods with typed parameters — `LightEntitySyncFacade.turn_on`
 accepts `brightness`, `color_temp_kelvin`, and the rest of the light service fields.
-Domains without those services fall back to the base facade's untyped `turn_on(**data)`
-form. Either way the IDE and Pyright know the parameter names and types for the
-domain-specific actions.
+Domains without those services do not expose `turn_on`/`turn_off`/`toggle` at all — use
+`call_service` directly for domain-specific actions (e.g., `lock`/`unlock` for locks).
+The IDE and Pyright know the parameter names and types for every domain-specific action.
 
 !!! note "Facade signatures track the released service registry"
 
