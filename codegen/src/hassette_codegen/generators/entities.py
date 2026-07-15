@@ -68,8 +68,10 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     # The state generator renames StrEnums that collide with the Pydantic class name (e.g.
     # SceneState → SceneStateValue). Apply the same rename so our import matches.
     pydantic_class_name = f"{domain_title}State"
-    resolved_strenums, _ = rename_collisions(list(domain.strenums), pydantic_class_name)
+    resolved_strenums, rename_map = rename_collisions(list(domain.strenums), pydantic_class_name)
     enum_name_lookup, enum_value_lookup = _build_enum_lookups(resolved_strenums)
+    for original, renamed in rename_map.items():
+        enum_name_lookup[original.lower()] = renamed
 
     for service in domain.services:
         params: list[ServiceParam] = []

@@ -27,8 +27,6 @@ class TimerEntity(BaseEntity[TimerState, str]):
         Args:
             duration: Custom duration to restart the timer with.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="start",
@@ -38,8 +36,6 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
     def pause(self) -> Coroutine[Any, Any, None]:
         """Pauses a running timer, retaining the remaining duration for later continuation."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="pause",
@@ -48,8 +44,6 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
     def cancel(self) -> Coroutine[Any, Any, None]:
         """Resets a timer's duration to the last known initial value without firing the timer finished event."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="cancel",
@@ -58,8 +52,6 @@ class TimerEntity(BaseEntity[TimerState, str]):
 
     def finish(self) -> Coroutine[Any, Any, None]:
         """Finishes a running timer earlier than scheduled."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="finish",
@@ -76,8 +68,6 @@ class TimerEntity(BaseEntity[TimerState, str]):
         Args:
             duration: Duration to add to or subtract from the running timer.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="change",

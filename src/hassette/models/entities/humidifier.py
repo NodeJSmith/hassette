@@ -28,8 +28,6 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
             mode: Operation mode. For example, "normal", "eco", or "away". For a list of possible values, refer to the
                 integration documentation.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_mode",
@@ -47,8 +45,6 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
         Args:
             humidity: Target humidity.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_humidity",
@@ -58,8 +54,6 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on a humidifier."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -68,8 +62,6 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a humidifier."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -78,8 +70,6 @@ class HumidifierEntity(BaseEntity[HumidifierState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a humidifier on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",

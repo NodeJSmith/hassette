@@ -27,8 +27,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             preset_mode: Preset mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_preset_mode",
@@ -52,8 +50,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
             target_temp_low: The min temperature setpoint.
             temperature: The temperature setpoint.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_temperature",
@@ -74,8 +70,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             humidity: Target humidity.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_humidity",
@@ -93,8 +87,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             fan_mode: Fan operation mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_fan_mode",
@@ -112,8 +104,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             hvac_mode: HVAC operation mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_hvac_mode",
@@ -131,8 +121,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             swing_mode: Swing operation mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_swing_mode",
@@ -150,8 +138,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
         Args:
             swing_horizontal_mode: Horizontal swing operation mode.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_swing_horizontal_mode",
@@ -161,8 +147,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on a thermostat."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -171,8 +155,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a thermostat."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -181,8 +163,6 @@ class ClimateEntity(BaseEntity[ClimateState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a thermostat on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",

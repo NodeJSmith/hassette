@@ -20,7 +20,7 @@ The handler parameter `new_state: D.StateNew[states.SunState]` is a type annotat
 
 This is a Hassette feature. Standard Python ignores type annotations at runtime, but Hassette inspects them to know what to pass into each handler. No event dict parsing needed. Your IDE knows the type, and Pyright (a Python type checker, optional but useful in VS Code) catches typos.
 
-[`self.api.turn_on()`](../core-concepts/api/index.md) calls the `light.turn_on` service in Home Assistant, the same action as toggling a light from the HA UI. Hassette derives the service domain (`light`) from the `light.porch` entity ID automatically — there's no `domain=` parameter to pass. You can find available services in **Developer Tools → Services** in your Home Assistant instance.
+[`self.api.turn_on()`](../core-concepts/api/index.md) calls the `light.turn_on` service in Home Assistant, the same action as toggling a light from the HA UI. Hassette derives the service domain (`light`) from the `light.porch` entity ID automatically — no `domain=` parameter is needed. You can find available services in **Developer Tools → Services** in your Home Assistant instance.
 
 ## Schedule a Recurring Job
 

@@ -29,8 +29,6 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         Args:
             type: The scope of the weather forecast.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="get_forecast",
@@ -48,8 +46,6 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         Args:
             type: The scope of the weather forecast.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="get_forecasts",

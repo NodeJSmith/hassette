@@ -563,10 +563,9 @@ class Api(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
@@ -583,10 +582,9 @@ class Api(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
@@ -603,10 +601,9 @@ class Api(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
 
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at call_service (the true primary). See design/071.
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]

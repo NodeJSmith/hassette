@@ -27,8 +27,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to disarm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_disarm",
@@ -46,8 +44,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_arm_custom_bypass",
@@ -65,8 +61,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_arm_home",
@@ -84,8 +78,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_arm_away",
@@ -103,8 +95,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_arm_night",
@@ -122,8 +112,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_arm_vacation",
@@ -141,8 +129,6 @@ class AlarmControlPanelEntity(BaseEntity[AlarmControlPanelState, str]):
         Args:
             code: Code to arm the alarm.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="alarm_trigger",

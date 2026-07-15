@@ -19,8 +19,6 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
     def select_first(self) -> Coroutine[Any, Any, None]:
         """Selects the first option of a select."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_first",
@@ -29,8 +27,6 @@ class SelectEntity(BaseEntity[SelectState, str]):
 
     def select_last(self) -> Coroutine[Any, Any, None]:
         """Selects the last option of a select."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_last",
@@ -47,8 +43,6 @@ class SelectEntity(BaseEntity[SelectState, str]):
         Args:
             cycle: If the option should cycle from the last to the first.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_next",
@@ -66,8 +60,6 @@ class SelectEntity(BaseEntity[SelectState, str]):
         Args:
             option: Option to be selected.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_option",
@@ -85,8 +77,6 @@ class SelectEntity(BaseEntity[SelectState, str]):
         Args:
             cycle: If the option should cycle from the first to the last.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_previous",

@@ -232,6 +232,7 @@ class ApiSyncFacade(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
         """
         return self.task_bucket.run_sync(self._api.turn_on(entity_id, domain, **data))
 
@@ -244,6 +245,7 @@ class ApiSyncFacade(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
         """
         return self.task_bucket.run_sync(self._api.turn_off(entity_id, domain, **data))
 
@@ -256,6 +258,7 @@ class ApiSyncFacade(Resource):
                 derived from ``entity_id`` (e.g., ``"light.office"`` derives ``"light"``). Pass
                 explicitly to override — for example, ``domain="homeassistant"`` to use the
                 generic (deprecated) service.
+            **data: Additional service data forwarded to the service call.
         """
         return self.task_bucket.run_sync(self._api.toggle(entity_id, domain, **data))
 

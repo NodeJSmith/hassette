@@ -27,8 +27,6 @@ class LockEntity(BaseEntity[LockState, str]):
         Args:
             code: Code used to lock the lock.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="lock",
@@ -46,8 +44,6 @@ class LockEntity(BaseEntity[LockState, str]):
         Args:
             code: Code used to open the lock.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="open",
@@ -65,8 +61,6 @@ class LockEntity(BaseEntity[LockState, str]):
         Args:
             code: Code used to unlock the lock.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="unlock",

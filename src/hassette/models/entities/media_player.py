@@ -19,8 +19,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def turn_on(self) -> Coroutine[Any, Any, None]:
         """Turns on the power of a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -29,8 +27,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off the power of a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -39,8 +35,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a media player on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -49,8 +43,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def volume_up(self) -> Coroutine[Any, Any, None]:
         """Turns up the volume of a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="volume_up",
@@ -59,8 +51,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def volume_down(self) -> Coroutine[Any, Any, None]:
         """Turns down the volume of a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="volume_down",
@@ -77,8 +67,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             is_volume_muted: Defines whether or not it is muted.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="volume_mute",
@@ -96,8 +84,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             volume_level: The volume. 0 is inaudible, 1 is the maximum volume.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="volume_set",
@@ -107,8 +93,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_play_pause(self) -> Coroutine[Any, Any, None]:
         """Toggles play/pause on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_play_pause",
@@ -117,8 +101,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_play(self) -> Coroutine[Any, Any, None]:
         """Starts playback on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_play",
@@ -127,8 +109,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_pause(self) -> Coroutine[Any, Any, None]:
         """Pauses playback on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_pause",
@@ -137,8 +117,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_stop(self) -> Coroutine[Any, Any, None]:
         """Stops playback on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_stop",
@@ -147,8 +125,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_next_track(self) -> Coroutine[Any, Any, None]:
         """Selects the next track on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_next_track",
@@ -157,8 +133,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def media_previous_track(self) -> Coroutine[Any, Any, None]:
         """Selects the previous track on a media player."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_previous_track",
@@ -175,8 +149,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             seek_position: Target position in the currently playing media. The format is platform dependent.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="media_seek",
@@ -198,8 +170,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
             announce: If the media should be played as an announcement.
             enqueue: If the content should be played now or be added to the queue.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="play_media",
@@ -222,8 +192,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="browse_media",
@@ -249,8 +217,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="search_media",
@@ -271,8 +237,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             source: Name of the source to switch to. Platform dependent.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_source",
@@ -290,8 +254,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             sound_mode: Name of the sound mode to switch to.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="select_sound_mode",
@@ -301,8 +263,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def clear_playlist(self) -> Coroutine[Any, Any, None]:
         """Removes all items from a media player's playlist."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="clear_playlist",
@@ -319,8 +279,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             shuffle: Whether the media should be played in randomized order or not.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="shuffle_set",
@@ -338,8 +296,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             repeat: Whether the media (one or all) should be played in a loop or not.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="repeat_set",
@@ -357,8 +313,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         Args:
             group_members: The players which will be synced with the playback specified in 'Targets'.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="join",
@@ -368,8 +322,6 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
 
     def unjoin(self) -> Coroutine[Any, Any, None]:
         """Removes a media player from a group. Only works on platforms which support player groups."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="unjoin",

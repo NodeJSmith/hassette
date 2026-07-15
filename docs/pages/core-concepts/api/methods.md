@@ -109,8 +109,9 @@ Every entity class defines its domain-specific action methods — `CoverEntity` 
 `ClimateEntity` has `set_temperature(temperature=...)`, `set_hvac_mode(hvac_mode=...)`,
 and others. `refresh()` is available on every entity. `turn_on()`, `turn_off()`, and
 `toggle()` are available only on domains whose Home Assistant services include them
-(light, switch, fan, and others) — domains like lock, button, and sensor do not
-expose these methods.
+(light, switch, fan, and others) — domains like lock and button do not
+expose these methods. Some domains (e.g., sensor) have no dedicated Entity class at all — use
+`get_state` instead.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_entity.py"
@@ -128,8 +129,8 @@ entity fetched through `self.api.sync.get_entity(...)` exposes a sync facade via
 Domains with Home Assistant services get a typed, domain-specific facade. `cover.sync` returns
 a `CoverEntitySyncFacade`; `climate.sync` returns a `ClimateEntitySyncFacade`. Each one mirrors
 a domain action as a blocking synchronous call, with no `await` or `run_sync` boilerplate.
-Read-only domains such as `sensor` have no services to call, so their `.sync` exposes no
-action methods.
+Domains without a dedicated Entity class (e.g., `sensor`) are not reachable via `get_entity`
+— use `get_state` instead.
 
 These methods block the calling thread until the call completes. They belong in `AppSync`
 lifecycle hooks and [`run_in_thread`](../apps/task-bucket.md#offloading-blocking-code)

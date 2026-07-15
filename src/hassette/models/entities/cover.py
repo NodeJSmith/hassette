@@ -19,8 +19,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def open_cover(self) -> Coroutine[Any, Any, None]:
         """Opens a cover."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="open_cover",
@@ -29,8 +27,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def close_cover(self) -> Coroutine[Any, Any, None]:
         """Closes a cover."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="close_cover",
@@ -39,8 +35,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a cover open/closed."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
@@ -57,8 +51,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
         Args:
             position: Target position.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_cover_position",
@@ -68,8 +60,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def stop_cover(self) -> Coroutine[Any, Any, None]:
         """Stops a cover's movement."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="stop_cover",
@@ -78,8 +68,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def open_cover_tilt(self) -> Coroutine[Any, Any, None]:
         """Tilts a cover open."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="open_cover_tilt",
@@ -88,8 +76,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def close_cover_tilt(self) -> Coroutine[Any, Any, None]:
         """Tilts a cover to close."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="close_cover_tilt",
@@ -98,8 +84,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def toggle_cover_tilt(self) -> Coroutine[Any, Any, None]:
         """Toggles a cover tilt open/closed."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle_cover_tilt",
@@ -116,8 +100,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
         Args:
             tilt_position: Target tilt positition.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="set_cover_tilt_position",
@@ -127,8 +109,6 @@ class CoverEntity(BaseEntity[CoverState, str]):
 
     def stop_cover_tilt(self) -> Coroutine[Any, Any, None]:
         """Stops a tilting cover movement."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="stop_cover_tilt",

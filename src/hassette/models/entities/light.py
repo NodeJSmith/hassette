@@ -65,8 +65,6 @@ class LightEntity(BaseEntity[LightState, str]):
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -101,8 +99,6 @@ class LightEntity(BaseEntity[LightState, str]):
             flash: Tell light to flash, can be either value short or long.
             transition: Duration it takes to get to next state.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -152,8 +148,6 @@ class LightEntity(BaseEntity[LightState, str]):
             white: Set the light to white mode.
             xy_color: Color in XY-format. A list of two decimal numbers between 0 and 1.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",

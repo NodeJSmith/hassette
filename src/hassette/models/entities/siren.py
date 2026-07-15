@@ -32,8 +32,6 @@ class SirenEntity(BaseEntity[SirenState, str]):
                 Must be supported by the integration.
             volume_level: The volume. 0 is inaudible, 1 is the maximum volume. Must be supported by the integration.
         """
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_on",
@@ -45,8 +43,6 @@ class SirenEntity(BaseEntity[SirenState, str]):
 
     def turn_off(self) -> Coroutine[Any, Any, None]:
         """Turns off a siren."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="turn_off",
@@ -55,8 +51,6 @@ class SirenEntity(BaseEntity[SirenState, str]):
 
     def toggle(self) -> Coroutine[Any, Any, None]:
         """Toggles a siren on/off."""
-        # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
-        # The single guard_await lives at api.call_service (the true primary). See design/071.
         return self.api.call_service(
             domain=self.domain,
             service="toggle",
