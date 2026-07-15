@@ -1032,7 +1032,7 @@ class RecordingApi(Resource):
         For example, if a method should be called *only* with ``entity_id``
         and nothing else, use ``assert_called_exact("turn_off", entity_id="light.x")``
         rather than ``assert_called("turn_off", entity_id="light.x")`` — the latter
-        would pass even if ``domain="homeassistant"`` was also recorded.
+        would pass even if ``domain="light"`` was also recorded.
 
         Args:
             method: Method name to check.
@@ -1044,12 +1044,12 @@ class RecordingApi(Resource):
         Example::
 
             await api.turn_off("light.x")
-            # Passes — recorded kwargs are {"entity_id": "light.x", "domain": "homeassistant"}
+            # Passes — recorded kwargs are {"entity_id": "light.x", "domain": "light"}
             api.assert_called("turn_off", entity_id="light.x")       # partial: OK
             # Fails — extra "domain" key is present
             api.assert_called_exact("turn_off", entity_id="light.x") # exact: fails
             # Passes — matches exactly
-            api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
+            api.assert_called_exact("turn_off", entity_id="light.x", domain="light")
         """
         matching = self.get_calls(method)
         if not matching:
