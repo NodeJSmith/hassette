@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Update documentation, snippets, and examples"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#3", "FR#4", "AC#3", "AC#10", "AC#11"]
 ---

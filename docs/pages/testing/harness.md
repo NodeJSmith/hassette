@@ -198,7 +198,7 @@ allowed (partial match).
 --8<-- "pages/testing/snippets/testing_assert_called.py"
 ```
 
-`turn_on`, `turn_off`, and `toggle_service` record under their own names, not
+`turn_on`, `turn_off`, and `toggle` record under their own names, not
 under `call_service`:
 
 ```python

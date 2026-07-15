@@ -14,5 +14,5 @@ class HelperApp(App):
         # --8<-- [end:turn_off]
 
         # --8<-- [start:toggle]
-        await self.api.toggle_service("light.bedroom")
+        await self.api.toggle("light.bedroom")
         # --8<-- [end:toggle]

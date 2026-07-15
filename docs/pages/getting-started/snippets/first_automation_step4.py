@@ -19,7 +19,7 @@ class MyApp(App[MyAppConfig]):
         self.logger.info("Sun changed: %s", new_state.value)
 
         if new_state.value == "below_horizon":
-            await self.api.turn_on("light.porch", domain="light")
+            await self.api.turn_on("light.porch")
             self.logger.info("Porch light turned on")
 
     async def log_heartbeat(self):

@@ -195,7 +195,7 @@ Same as `get_states`, but returns a list of untyped `HassStateDict` dicts instea
 ## Calling Services
 
 !!! warning "Service methods must be awaited"
-    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, and `toggle_service` all return coroutines. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
+    `call_service`, `fire_event`, `set_state`, `turn_on`, `turn_off`, and `toggle` all return coroutines. Without `await`, the call is never sent and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
 
 ### `call_service(domain, service, ...)`
 
@@ -223,39 +223,38 @@ work directly.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str \| StrEnum` | — | Entity to target. |
-| `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
+| `domain` | `str \| None` | `None` | Service domain. Derived from entity_id when omitted. |
+| `**data` | `Any` | — | Service data fields, e.g. `brightness`, `color_name`. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_helpers.py:turn_on"
 ```
 
-!!! warning "HA 2024.x deprecated `homeassistant.*` generic services"
-    The default `domain="homeassistant"` routes to `homeassistant.turn_on`, which Home Assistant
-    deprecated in 2024.x. Pass `domain="light"`, `domain="switch"`, or the appropriate domain to
-    route to the domain-specific service instead.
+### `turn_off(entity_id, domain, **data)`
 
-### `turn_off(entity_id, domain)`
-
-Shorthand for `call_service(domain, "turn_off", ...)`. Does not accept extra data.
+Shorthand for `call_service(domain, "turn_off", ...)`. Extra keyword arguments pass
+through as service data.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str \| StrEnum` | — | Entity to target. |
-| `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
+| `domain` | `str \| None` | `None` | Service domain. Derived from entity_id when omitted. |
+| `**data` | `Any` | — | Service data fields passed through to the service call. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_helpers.py:turn_off"
 ```
 
-### `toggle_service(entity_id, domain)`
+### `toggle(entity_id, domain, **data)`
 
 Shorthand for `call_service(domain, "toggle", ...)`. Reverses the entity's current
-on/off state. Does not accept extra data.
+on/off state. Extra keyword arguments pass through as service data.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str \| StrEnum` | — | Entity to target. |
-| `domain` | `str` | `"homeassistant"` | Service domain to route the call to. |
+| `domain` | `str \| None` | `None` | Service domain. Derived from entity_id when omitted. |
+| `**data` | `Any` | — | Service data fields passed through to the service call. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_helpers.py:toggle"
